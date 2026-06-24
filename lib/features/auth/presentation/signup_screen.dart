@@ -51,7 +51,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Create account')),
+      appBar: AppBar(title: const Text('Tạo tài khoản')),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -60,28 +60,24 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  'Join VCloud',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
+                const Text(
+                  'Tham gia VCloud',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  'Self-register with your work email.',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.outline,
-                      ),
+                const Text(
+                  'Tự đăng ký bằng email công việc của bạn.',
+                  style: TextStyle(color: Color(0xFF6B7280)),
                 ),
                 const SizedBox(height: 32),
                 TextFormField(
                   controller: _name,
                   decoration: const InputDecoration(
-                    labelText: 'Display name',
+                    labelText: 'Họ và tên',
                     prefixIcon: Icon(Icons.person_outline),
                   ),
                   validator: (v) => (v == null || v.trim().isEmpty)
-                      ? 'Display name is required'
+                      ? 'Vui lòng nhập họ tên'
                       : null,
                 ),
                 const SizedBox(height: 16),
@@ -93,19 +89,20 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                   ),
                   keyboardType: TextInputType.emailAddress,
                   autofillHints: const [AutofillHints.email],
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? 'Email is required' : null,
+                  validator: (v) => (v == null || v.trim().isEmpty)
+                      ? 'Vui lòng nhập email'
+                      : null,
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _password,
                   obscureText: true,
                   decoration: const InputDecoration(
-                    labelText: 'Password (min 6)',
+                    labelText: 'Mật khẩu (tối thiểu 6)',
                     prefixIcon: Icon(Icons.lock_outline),
                   ),
                   validator: (v) => (v == null || v.length < 6)
-                      ? 'Use at least 6 characters'
+                      ? 'Dùng ít nhất 6 ký tự'
                       : null,
                 ),
                 if (_error != null) ...[
@@ -117,7 +114,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                 ],
                 const SizedBox(height: 24),
                 PrimaryButton(
-                  label: 'Create account',
+                  label: 'Tạo tài khoản',
                   onPressed: _submitting ? null : _submit,
                   loading: _submitting,
                 ),

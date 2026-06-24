@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../core/theme/app_theme.dart';
 
 /// Standard scaffold for top-level tabs (Home/Chat/...). Draws the
 /// app bar and the bottom-nav shell. The shell auto-detects which tab is
 /// active from GoRouterState, so screens only have to set [title] and
 /// [body]; the bottom bar is hidden on non-tab routes (login, signup, ...).
+///
+/// Set [showAppBar] to false for screens that paint their own header
+/// (e.g. Home's light greeting header).
 class AppScaffold extends StatelessWidget {
   const AppScaffold({
     super.key,
@@ -15,6 +22,8 @@ class AppScaffold extends StatelessWidget {
     this.floatingActionButton,
     this.bottomNavigationBarOverride,
     this.resizeToAvoidBottomInset,
+    this.showAppBar = true,
+    this.wrapSafeArea = true,
   });
 
   final String title;
@@ -23,13 +32,15 @@ class AppScaffold extends StatelessWidget {
   final Widget? floatingActionButton;
   final Widget? bottomNavigationBarOverride;
   final bool? resizeToAvoidBottomInset;
+  final bool showAppBar;
+  final bool wrapSafeArea;
 
   static const _tabs = <_TabSpec>[
-    _TabSpec(label: 'Home', path: '/home', icon: Icons.home_outlined, selected: Icons.home),
-    _TabSpec(label: 'Chat', path: '/chat', icon: Icons.chat_bubble_outline, selected: Icons.chat_bubble),
-    _TabSpec(label: 'Attendance', path: '/attendance', icon: Icons.flag_outlined, selected: Icons.flag),
-    _TabSpec(label: 'Timesheet', path: '/timesheet', icon: Icons.timer_outlined, selected: Icons.timer),
-    _TabSpec(label: 'Tickets', path: '/tickets', icon: Icons.task_alt_outlined, selected: Icons.task_alt),
+    _TabSpec(label: 'Home', path: '/home', icon: LucideIcons.home),
+    _TabSpec(label: 'Chat', path: '/chat', icon: LucideIcons.messageCircle),
+    _TabSpec(label: 'Timesheet', path: '/timesheet', icon: LucideIcons.clock),
+    _TabSpec(label: 'Ticket', path: '/tickets', icon: LucideIcons.ticket),
+    _TabSpec(label: 'Tôi', path: '/profile', icon: LucideIcons.user),
   ];
 
   @override
@@ -48,36 +59,107 @@ class AppScaffold extends StatelessWidget {
       return null;
     }();
 
-    final Widget bottom = bottomNavigationBarOverride ?? (activeIndex == null
-        ? const SizedBox.shrink()
-        : BottomNavigationBar(
-            currentIndex: activeIndex,
-            onTap: (i) {
-              // go() replaces the route stack with the tab's root, which
-              // matches the existing tab-by-context.go wiring used elsewhere.
-              context.go(_tabs[i].path);
-            },
-            type: BottomNavigationBarType.fixed,
-            showUnselectedLabels: false,
-            items: [
-              for (final t in _tabs)
-                BottomNavigationBarItem(
-                  icon: Icon(t.icon),
-                  label: t.label,
-                  activeIcon: Icon(t.selected),
+    final Widget? bottom = bottomNavigationBarOverride ??
+        (activeIndex == null
+            ? null
+            : Container(
+                decoration: const BoxDecoration(
+                  color: AppColors.surface,
+                  border: Border(top: BorderSide(color: AppColors.border)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0x0F0F172A),
+                      blurRadius: 18,
+                      offset: Offset(0, -4),
+                    ),
+                  ],
                 ),
-            ],
-          ));
+                child: SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        for (var i = 0; i < _tabs.length; i++)
+                          _NavItem(
+                            tab: _tabs[i],
+                            selected: i == activeIndex,
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              context.go(_tabs[i].path);
+                            },
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ));
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
-        actions: actions,
-      ),
-      body: SafeArea(child: body),
+      appBar: showAppBar
+          ? AppBar(
+              title: Text(title),
+              actions: actions,
+              flexibleSpace: const DecoratedBox(
+                decoration: BoxDecoration(gradient: AppColors.brand),
+              ),
+            )
+          : null,
+      body: wrapSafeArea ? SafeArea(child: body) : body,
       bottomNavigationBar: bottom,
       floatingActionButton: floatingActionButton,
       resizeToAvoidBottomInset: resizeToAvoidBottomInset,
+    );
+  }
+}
+
+/// Animated bottom-nav item: the active icon lifts into a soft brand pill.
+class _NavItem extends StatelessWidget {
+  const _NavItem({
+    required this.tab,
+    required this.selected,
+    required this.onTap,
+  });
+  final _TabSpec tab;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = selected ? AppColors.primary : AppColors.textMuted;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+              decoration: BoxDecoration(
+                color: selected ? AppColors.primarySoft : Colors.transparent,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(tab.icon, size: 22, color: color),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              tab.label,
+              style: TextStyle(
+                fontSize: 11,
+                color: color,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -87,12 +169,10 @@ class _TabSpec {
     required this.label,
     required this.path,
     required this.icon,
-    required this.selected,
   });
   final String label;
   final String path;
   final IconData icon;
-  final IconData selected;
 }
 
 /// Avatar circle with initials fallback. Used wherever a user is

@@ -1,3 +1,9 @@
+# Build outputs / distributables (APK, web bundle, etc.)
+/dist/
+*.apk
+*.aab
+*.ipa
+
 # Miscellaneous
 *.class
 *.log

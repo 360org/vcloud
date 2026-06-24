@@ -1,14 +1,19 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
-import '../../../core/utils/date_format.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../shared/models/attendance.dart';
 import '../../../shared/widgets/app_scaffold.dart';
+import '../../auth/application/auth_controller.dart';
 import '../application/attendance_controller.dart';
 
+/// Mockup 03 — dedicated Check-in screen: live clock, big CHECK-IN /
+/// CHECK-OUT, current location, history link.
 class AttendanceScreen extends ConsumerStatefulWidget {
   const AttendanceScreen({super.key});
 
@@ -21,13 +26,15 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
   DateTime _now = DateTime.now();
   bool _busy = false;
 
+  static const _weekdays = [
+    'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy', 'Chủ Nhật'
+  ];
+
   @override
   void initState() {
     super.initState();
     _ticker = Timer.periodic(
-      const Duration(seconds: 1),
-      (_) => setState(() => _now = DateTime.now()),
-    );
+        const Duration(seconds: 1), (_) => setState(() => _now = DateTime.now()));
   }
 
   @override
@@ -36,21 +43,22 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
     super.dispose();
   }
 
+  String get _viDate {
+    final wd = _weekdays[_now.weekday - 1];
+    final d = _now.day.toString().padLeft(2, '0');
+    final m = _now.month.toString().padLeft(2, '0');
+    return '$wd, $d/$m/${_now.year}';
+  }
+
   Future<void> _handle(bool checkIn) async {
     setState(() => _busy = true);
     try {
-      if (checkIn) {
-        await ref.read(attendanceActionsProvider).checkIn();
-      } else {
-        await ref.read(attendanceActionsProvider).checkOut();
-      }
+      final a = ref.read(attendanceActionsProvider);
+      checkIn ? await a.checkIn() : await a.checkOut();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.toString().replaceFirst('Failure(', '').replaceFirst(')', '')),
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(e.toString().replaceFirst('Failure: ', ''))));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -59,100 +67,170 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final rows = ref.watch(attendanceStreamProvider);
-    Attendance? open;
-    Attendance? todayLatest;
-    final today = DateTime(_now.year, _now.month, _now.day);
-
-    rows.whenData((list) {
-      for (final a in list) {
-        final created = DateTime(
-            a.createdAt.toLocal().year,
-            a.createdAt.toLocal().month,
-            a.createdAt.toLocal().day);
-        if (created == today) {
-          todayLatest ??= a;
-        }
-        if (a.isOpen) open ??= a;
-      }
-    });
-
-    final canCheckIn = open == null;
-    final canCheckOut = open != null;
+    final open = ref.watch(openSessionProvider);
+    final isCheckedIn = open != null;
+    final user = ref.watch(authControllerProvider).value;
+    final name = (user?.userMetadata?['display_name'] as String?) ??
+        user?.email?.split('@').first ??
+        'Bạn';
+    final clock =
+        '${_now.hour.toString().padLeft(2, '0')}:${_now.minute.toString().padLeft(2, '0')}';
 
     return AppScaffold(
-      title: 'Attendance',
+      title: 'Check-in',
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  Text(Dates.date(_now),
-                      style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 4),
-                  Text(Dates.hms(
-                      _now.difference(DateTime(_now.year, _now.month, _now.day))),
-                      style: Theme.of(context)
-                          .textTheme
-                          .displaySmall
-                          ?.copyWith(fontFeatures: const [])),
-                ],
-              ),
+          const SizedBox(height: 8),
+          Center(
+            child: UserAvatar(
+                userId: currentUserId(), displayName: name, size: 84),
+          ),
+          const SizedBox(height: 20),
+          Center(
+            child: Text(clock,
+                style: const TextStyle(
+                    fontSize: 48,
+                    fontWeight: FontWeight.w800,
+                    height: 1,
+                    letterSpacing: 1)),
+          ),
+          const SizedBox(height: 6),
+          Center(
+            child: Text(_viDate,
+                style: const TextStyle(
+                    color: AppColors.textSecondary, fontSize: 14)),
+          ),
+          const SizedBox(height: 28),
+          Center(
+            child: _BigCircleButton(
+              enabled: !isCheckedIn && !_busy,
+              busy: _busy,
+              onTap: () => _handle(true),
             ),
           ),
-          const SizedBox(height: 16),
-          FilledButton.icon(
-            icon: const Icon(Icons.flag),
-            onPressed: canCheckIn && !_busy ? () => _handle(true) : null,
-            label: const Text('Check In'),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 14),
+            child: Center(
+              child: Text('Hoặc',
+                  style: TextStyle(color: AppColors.textMuted)),
+            ),
           ),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            icon: const Icon(Icons.outbond),
-            onPressed: canCheckOut && !_busy ? () => _handle(false) : null,
-            label: const Text('Check Out'),
+          SizedBox(
+            height: 50,
+            child: OutlinedButton.icon(
+              onPressed: isCheckedIn && !_busy ? () => _handle(false) : null,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.danger,
+                side: const BorderSide(color: AppColors.danger),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              icon: const Icon(Icons.cancel_outlined),
+              label: const Text('CHECK-OUT',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+            ),
           ),
           const SizedBox(height: 24),
-          if (open != null) _openRow(open!),
-          if (todayLatest != null) _todaySummary(todayLatest!),
-          const SizedBox(height: 12),
-          TextButton.icon(
-            icon: const Icon(Icons.history),
-            onPressed: () => context.push('/attendance/history'),
-            label: const Text('View history'),
+          _LocationRow(open: open),
+          const SizedBox(height: 16),
+          Center(
+            child: TextButton(
+              onPressed: () => context.push('/attendance/history'),
+              child: const Text('Xem lịch sử check-in'),
+            ),
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _openRow(Attendance open) {
-    final elapsed = open.elapsed ?? Duration.zero;
-    return Card(
-      child: ListTile(
-        leading: const Icon(Icons.play_circle_outline),
-        title: const Text('Currently checked in'),
-        subtitle: Text(
-            'Started ${Dates.time(open.checkinTime!)} · ${Dates.humanDuration(elapsed)}'),
+class _BigCircleButton extends StatelessWidget {
+  const _BigCircleButton({
+    required this.enabled,
+    required this.busy,
+    required this.onTap,
+  });
+  final bool enabled;
+  final bool busy;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final gradient = enabled
+        ? AppColors.successGrad
+        : const LinearGradient(
+            colors: [AppColors.textMuted, AppColors.textMuted]);
+    final glow = enabled ? AppColors.success : AppColors.textMuted;
+    final circle = GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Container(
+        width: 156,
+        height: 156,
+        decoration: BoxDecoration(
+          gradient: gradient,
+          shape: BoxShape.circle,
+          boxShadow: AppColors.glow(glow, opacity: 0.45),
+        ),
+        child: busy
+            ? const Center(
+                child: CircularProgressIndicator(color: Colors.white))
+            : const Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(LucideIcons.mapPin, color: Colors.white, size: 32),
+                  SizedBox(height: 6),
+                  Text('CHECK-IN',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.5)),
+                ],
+              ),
       ),
     );
+    // Gentle breathing pulse while it's actionable.
+    if (!enabled) return circle;
+    return circle
+        .animate(onPlay: (c) => c.repeat(reverse: true))
+        .scaleXY(begin: 1.0, end: 1.05, duration: 1200.ms, curve: Curves.easeInOut);
   }
+}
 
-  Widget _todaySummary(Attendance latest) {
-    return Card(
-      child: ListTile(
-        leading: const Icon(Icons.today_outlined),
-        title: Text('Last action today: ${Dates.time(latest.createdAt)}'),
-        subtitle: Text(
-          latest.checkoutTime != null
-              ? 'Checked out at ${Dates.time(latest.checkoutTime!)}'
-              : (latest.checkinTime != null
-                  ? 'Checked in at ${Dates.time(latest.checkinTime!)}'
-                  : ''),
-        ),
+class _LocationRow extends StatelessWidget {
+  const _LocationRow({required this.open});
+  final Attendance? open;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasCoords = open?.checkinLat != null && open?.checkinLng != null;
+    final sub = hasCoords
+        ? '${open!.checkinLat!.toStringAsFixed(5)}, ${open!.checkinLng!.toStringAsFixed(5)}'
+        : '155 Nguyễn Thái Học, P. Tam Thắng, TP. HCM';
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: cardDecoration(),
+      child: Row(
+        children: [
+          const Icon(Icons.location_on_outlined, color: AppColors.primary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('VCCI Building HCM',
+                    style: TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                Text(sub,
+                    style: const TextStyle(
+                        color: AppColors.textSecondary, fontSize: 12)),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

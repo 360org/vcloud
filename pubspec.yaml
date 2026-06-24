@@ -30,6 +30,10 @@ dependencies:
   uuid: ^4.4.0
   rxdart: ^0.27.7
 
+  # UI / motion
+  flutter_animate: ^4.5.0   # declarative entrance + micro animations
+  lucide_icons: ^0.257.0    # modern line icon set
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

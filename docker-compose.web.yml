@@ -1,0 +1,22 @@
+# VCloud — Flutter Web in Docker (no host toolchain required).
+#
+#   docker compose -f docker-compose.web.yml up --build   # build + serve
+#   open http://localhost:8080
+#   docker compose -f docker-compose.web.yml down          # stop
+#
+# To point at a different Supabase project, pass build args:
+#   SUPABASE_URL=https://xxx.supabase.co \
+#   SUPABASE_ANON_KEY=sb_publishable_xxx \
+#   docker compose -f docker-compose.web.yml build
+services:
+  web:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.web
+      args:
+        SUPABASE_URL: "${SUPABASE_URL:-}"
+        SUPABASE_ANON_KEY: "${SUPABASE_ANON_KEY:-}"
+    image: vcloud-web:latest
+    ports:
+      - "8080:80"
+    restart: unless-stopped

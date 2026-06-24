@@ -12,6 +12,7 @@ import '../../features/chat/presentation/chat_detail_screen.dart';
 import '../../features/chat/presentation/conversation_list_screen.dart';
 import '../../features/chat/presentation/new_chat_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
+import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/ticket/presentation/create_ticket_screen.dart';
 import '../../features/ticket/presentation/ticket_detail_screen.dart';
 import '../../features/ticket/presentation/ticket_list_screen.dart';
@@ -55,6 +56,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
       GoRoute(path: '/signup', builder: (_, __) => const SignupScreen()),
       GoRoute(path: '/home', builder: (_, __) => const HomeScreen()),
+      GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
 
       // Chat
       GoRoute(path: '/chat', builder: (_, __) => const ConversationListScreen()),
