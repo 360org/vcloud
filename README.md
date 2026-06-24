@@ -17,6 +17,7 @@ Vietnamese UI, premium mobile design, ready to integrate with Odoo as a headless
 | [docs/PLAN.md](docs/PLAN.md) | Roadmap & status (when) |
 | [docs/MOBILE_UX_OPTIONS.md](docs/MOBILE_UX_OPTIONS.md) | Native-feel framework analysis |
 | [AGENTS.md](AGENTS.md) | Onboarding for agents & devs (commands, gotchas) |
+| [CHANGELOG.md](CHANGELOG.md) | Release history (Keep a Changelog) |
 
 ## Run
 
