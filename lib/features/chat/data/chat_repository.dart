@@ -12,7 +12,7 @@ import '../../../shared/models/profile.dart';
 /// fires we re-fetch and re-emit.
 class ChatRepository {
   ChatRepository({SupabaseClient? client})
-      : _client = client ?? Supabase.instance.client;
+    : _client = client ?? Supabase.instance.client;
 
   final SupabaseClient _client;
 
@@ -102,7 +102,9 @@ class ChatRepository {
             .toList();
         if (!controller.isClosed) controller.add(msgs);
       } catch (e) {
-        if (!controller.isClosed) controller.addError(Failure('Refresh failed: $e'));
+        if (!controller.isClosed) {
+          controller.addError(Failure('Refresh failed: $e'));
+        }
       }
     }
 
@@ -112,6 +114,17 @@ class ChatRepository {
           .channel('msg-$conversationId-$lastSeen')
           .onPostgresChanges(
             event: PostgresChangeEvent.insert,
+            schema: 'public',
+            table: 'messages',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'conversation_id',
+              value: conversationId,
+            ),
+            callback: (_) => refresh(),
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.update,
             schema: 'public',
             table: 'messages',
             filter: PostgresChangeFilter(
@@ -133,19 +146,38 @@ class ChatRepository {
   Future<Message> sendMessage(String conversationId, String content) async {
     final myId = _client.auth.currentUser?.id;
     if (myId == null) throw Failure('Not signed in');
-    final res = await _client.from('messages').insert({
-      'conversation_id': conversationId,
-      'sender_id': myId,
-      'content': content,
-    }).select().single();
+    final res = await _client
+        .from('messages')
+        .insert({
+          'conversation_id': conversationId,
+          'sender_id': myId,
+          'content': content,
+        })
+        .select()
+        .single();
     return Message.fromMap(res);
+  }
+
+  /// Mark all messages in a conversation as read by the current user
+  /// and reset the unread count for this user's membership.
+  Future<void> markAsRead(String conversationId) async {
+    final myId = _client.auth.currentUser?.id;
+    if (myId == null) return;
+
+    // Use the database function to mark messages as read and reset unread count
+    await _client.rpc(
+      'mark_messages_as_read',
+      params: {'p_conversation_id': conversationId, 'p_user_id': myId},
+    );
   }
 
   /// Looks for an existing 1:1 conversation between the current user and
   /// [otherUserId] (idempotent via the create_direct_conversation RPC).
   Future<String> openDirect(String otherUserId) async {
-    final res = await _client.rpc('create_direct_conversation',
-        params: {'other_id': otherUserId});
+    final res = await _client.rpc(
+      'create_direct_conversation',
+      params: {'other_id': otherUserId},
+    );
     return res.toString();
   }
 
@@ -153,11 +185,11 @@ class ChatRepository {
     final me = _client.auth.currentUser?.id;
     if (me == null) throw Failure('Not signed in');
 
-    final conv = await _client.from('conversations').insert({
-      'created_by': me,
-      'is_group': true,
-      'name': name,
-    }).select('id').single();
+    final conv = await _client
+        .from('conversations')
+        .insert({'created_by': me, 'is_group': true, 'name': name})
+        .select('id')
+        .single();
     final id = conv['id'] as String;
 
     final rows = <Map<String, dynamic>>[
@@ -171,15 +203,20 @@ class ChatRepository {
 
   Future<List<Profile>> allUsers() async {
     final me = _client.auth.currentUser?.id;
-    final res = await _client.from('profiles').select('*').order('display_name');
+    final res = await _client
+        .from('profiles')
+        .select('*')
+        .order('display_name');
     return (res as List)
         .cast<Map<String, dynamic>>()
-        .map((m) => Profile(
-              id: m['id'] as String,
-              email: m['email'] as String,
-              displayName: m['display_name'] as String,
-              avatarUrl: m['avatar_url'] as String?,
-            ))
+        .map(
+          (m) => Profile(
+            id: m['id'] as String,
+            email: m['email'] as String,
+            displayName: m['display_name'] as String,
+            avatarUrl: m['avatar_url'] as String?,
+          ),
+        )
         .where((p) => p.id != me)
         .toList();
   }
@@ -192,22 +229,38 @@ class ChatRepository {
         .single();
     final members = await _client
         .from('conversation_members')
-        .select('joined_at, profiles(*)')
+        .select('user_id, joined_at, profiles(*)')
         .eq('conversation_id', id);
     final rows = (members as List).cast<Map<String, dynamic>>();
+    final convMap = Map<String, dynamic>.from(conv);
     final merged = [
-      <String, dynamic>{
-        ...Map<String, dynamic>.from(conv),
-        'joined_at': rows.isNotEmpty
-            ? rows.first['joined_at']
-            : DateTime.now().toIso8601String(),
-        'profiles': {
-          'id': conv['created_by'],
-        },
-      },
-      ...rows,
+      for (final row in rows) <String, dynamic>{...convMap, ...row},
     ];
     return Conversation.fromMaps(merged);
+  }
+
+  /// Archive a conversation for the current user.
+  Future<void> archiveConversation(String conversationId) async {
+    final myId = _client.auth.currentUser?.id;
+    if (myId == null) throw Failure('Not signed in');
+
+    await _client
+        .from('conversation_members')
+        .update({'archived_at': DateTime.now().toIso8601String()})
+        .eq('conversation_id', conversationId)
+        .eq('user_id', myId);
+  }
+
+  /// Unarchive a conversation for the current user.
+  Future<void> unarchiveConversation(String conversationId) async {
+    final myId = _client.auth.currentUser?.id;
+    if (myId == null) throw Failure('Not signed in');
+
+    await _client
+        .from('conversation_members')
+        .update({'archived_at': null})
+        .eq('conversation_id', conversationId)
+        .eq('user_id', myId);
   }
 
   // ---------------------------------------------------------------------------
@@ -224,7 +277,9 @@ class ChatRepository {
   }
 
   Future<List<ConversationSummary>> _fetchSummaries(
-      String myId, List<String> ids) async {
+    String myId,
+    List<String> ids,
+  ) async {
     final convsRes = await _client
         .from('conversations')
         .select('*')
@@ -234,15 +289,27 @@ class ChatRepository {
 
     final membersRes = await _client
         .from('conversation_members')
-        .select('conversation_id, profiles(*)')
+        .select('conversation_id, user_id, profiles(*)')
         .inFilter('conversation_id', ids);
     final memberRows = (membersRes as List).cast<Map<String, dynamic>>();
+
+    // Fetch my membership rows to get unread counts and archived status
+    final myMemberships = await _client
+        .from('conversation_members')
+        .select('conversation_id, unread_count, archived_at')
+        .eq('user_id', myId)
+        .inFilter('conversation_id', ids);
+    final membershipMap = <String, Map<String, dynamic>>{};
+    for (final m in (myMemberships as List).cast<Map<String, dynamic>>()) {
+      membershipMap[m['conversation_id'] as String] = m;
+    }
 
     final summaries = <ConversationSummary>[];
     for (final c in convList) {
       final ci = c['id'] as String;
-      final itsMembers =
-          memberRows.where((m) => m['conversation_id'] == ci).toList();
+      final itsMembers = memberRows
+          .where((m) => m['conversation_id'] == ci)
+          .toList();
       final lastMsgs = await _client
           .from('messages')
           .select('*')
@@ -251,8 +318,7 @@ class ChatRepository {
           .limit(1);
       final Message? last = lastMsgs.isEmpty
           ? null
-          : Message.fromMap(
-              (lastMsgs.first as Map).cast<String, dynamic>());
+          : Message.fromMap((lastMsgs.first as Map).cast<String, dynamic>());
 
       final isGroup = c['is_group'] as bool;
       String title;
@@ -265,19 +331,31 @@ class ChatRepository {
             'profiles': {'id': myId, 'email': '', 'display_name': 'You'},
           },
         );
-        title = (other['profiles']?['display_name'] as String?)?.isNotEmpty == true
+        title =
+            (other['profiles']?['display_name'] as String?)?.isNotEmpty == true
             ? other['profiles']['display_name'] as String
             : (other['profiles']?['email'] as String? ?? 'You');
       }
 
-      summaries.add(ConversationSummary(
-        id: ci,
-        isGroup: isGroup,
-        title: title,
-        lastMessage: last,
-        updatedAt: last?.createdAt ??
-            DateTime.parse(c['created_at'] as String),
-      ));
+      final membershipData = membershipMap[ci];
+      final unreadCount = (membershipData?['unread_count'] as int?) ?? 0;
+      final archivedAtStr = membershipData?['archived_at'] as String?;
+      final archivedAt = archivedAtStr != null
+          ? DateTime.parse(archivedAtStr)
+          : null;
+
+      summaries.add(
+        ConversationSummary(
+          id: ci,
+          isGroup: isGroup,
+          title: title,
+          lastMessage: last,
+          updatedAt:
+              last?.createdAt ?? DateTime.parse(c['created_at'] as String),
+          unreadCount: unreadCount,
+          archivedAt: archivedAt,
+        ),
+      );
     }
     summaries.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     return summaries;

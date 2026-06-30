@@ -60,11 +60,15 @@ class TimesheetRepository {
     return controller.stream;
   }
 
+  /// Legacy free-text add. Does NOT touch the `tasks` table — use
+  /// [TaskRepository.complete] for the workflow that links an entry to
+  /// a task. Passing [taskId] here only sets `timesheets.task_id`.
   Future<TimesheetEntry> add({
     required String taskName,
     required TimesheetCategory category,
     required TimesheetDuration duration,
     DateTime? workedDate,
+    String? taskId,
   }) async {
     final me = _client.auth.currentUser?.id;
     if (me == null) throw Failure('Not signed in');
@@ -73,8 +77,16 @@ class TimesheetRepository {
       'task_name': taskName,
       'category': category.dbValue,
       'duration': duration.dbValue,
-      if (workedDate != null) 'worked_date': workedDate.toIso8601String().split('T').first,
+      if (workedDate != null)
+        'worked_date': workedDate.toIso8601String().split('T').first,
+      'task_id': ?taskId,
     }).select().single();
     return TimesheetEntry.fromMap(Map<String, dynamic>.from(res));
+  }
+
+  Future<void> delete(String id) async {
+    final me = _client.auth.currentUser?.id;
+    if (me == null) throw Failure('Not signed in');
+    await _client.from('timesheets').delete().eq('id', id).eq('user_id', me);
   }
 }

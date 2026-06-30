@@ -32,7 +32,8 @@ dependencies:
 
   # UI / motion
   flutter_animate: ^4.5.0   # declarative entrance + micro animations
-  lucide_icons: ^0.257.0    # modern line icon set
+  lucide_flutter: ^1.20.0    # modern line icon set
+  image_picker: ^1.2.2
 
 dev_dependencies:
   flutter_test:

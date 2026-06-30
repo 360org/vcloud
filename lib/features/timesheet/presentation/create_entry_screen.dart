@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/theme/app_theme.dart';
 import '../../../shared/models/timesheet.dart';
 import '../../../shared/widgets/primary_button.dart';
 import '../application/timesheet_controller.dart';
@@ -49,6 +50,7 @@ class _CreateEntryScreenState extends ConsumerState<CreateEntryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.bg,
       appBar: AppBar(title: const Text('New timesheet entry')),
       body: SafeArea(
         child: Padding(

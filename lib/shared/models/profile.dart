@@ -9,18 +9,21 @@ class Profile {
     required this.email,
     required this.displayName,
     this.avatarUrl,
+    this.role = 'customer',
   });
 
   final String id;
   final String email;
   final String displayName;
   final String? avatarUrl;
+  final String role;
 
   factory Profile.fromMap(Map<String, dynamic> map) => Profile(
         id: map['id'] as String,
         email: map['email'] as String,
         displayName: map['display_name'] as String? ?? '',
         avatarUrl: map['avatar_url'] as String?,
+        role: map['role'] as String? ?? 'customer',
       );
 
   Map<String, dynamic> toMap() => <String, dynamic>{
@@ -28,6 +31,7 @@ class Profile {
         'email': email,
         'display_name': displayName,
         'avatar_url': avatarUrl,
+        'role': role,
       };
 
   String get initials {
@@ -37,4 +41,8 @@ class Profile {
     if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
     return (parts.first[0] + parts.last[0]).toUpperCase();
   }
+
+  bool get isCustomer => role == 'customer';
+  bool get isStaff => role == 'staff' || role == 'admin';
+  bool get isAdmin => role == 'admin';
 }

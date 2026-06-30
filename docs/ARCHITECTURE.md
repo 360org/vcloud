@@ -74,7 +74,7 @@ Features: `auth · chat · attendance · timesheet · ticket · home · profile`
 - Brand: vivid blue→indigo gradient; vivid per-feature accents; layered soft shadows.
 - Motion/UX kit in `lib/shared/widgets/ui_kit.dart`: `PressableScale` (tap-scale +
   haptics), `GradientButton`, `AnimatedCount`. Entrance animations via `flutter_animate`.
-- Icons: `lucide_icons` (modern line set).
+- Icons: `lucide_flutter` (modern line set).
 
 ## 8. Build & deploy
 

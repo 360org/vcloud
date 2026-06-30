@@ -10,6 +10,8 @@ class ConversationSummary {
     required this.title,
     required this.lastMessage,
     required this.updatedAt,
+    this.unreadCount = 0,
+    this.archivedAt,
   });
 
   final String id;
@@ -17,6 +19,10 @@ class ConversationSummary {
   final String title;
   final Message? lastMessage;
   final DateTime updatedAt;
+  final int unreadCount;
+  final DateTime? archivedAt;
+
+  bool get isArchived => archivedAt != null;
 }
 
 /// Full conversation metadata, used by chat-detail for header/title.

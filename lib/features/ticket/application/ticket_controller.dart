@@ -1,6 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../shared/models/activity_log.dart';
 import '../../../shared/models/ticket.dart';
+import '../../../shared/models/ticket_comment.dart';
+import '../data/activity_log_repository.dart';
+import '../data/ticket_comment_repository.dart';
 import '../data/ticket_repository.dart';
 
 final ticketRepositoryProvider = Provider<TicketRepository>(
@@ -39,8 +43,15 @@ class TicketActions {
   Future<Ticket> create({
     required String title,
     required String? description,
+    TicketPriority priority = TicketPriority.p3,
+    String? category,
   }) async {
-    final t = await _repo.create(title: title, description: description);
+    final t = await _repo.create(
+      title: title,
+      description: description,
+      priority: priority,
+      category: category,
+    );
     _ref.invalidate(ticketsProvider);
     return t;
   }
@@ -69,6 +80,16 @@ class TicketActions {
     await _repo.delete(id);
     _ref.invalidate(ticketsProvider);
   }
+
+  Future<void> updatePriority(String id, TicketPriority priority) async {
+    await _repo.updatePriority(id, priority);
+    _ref.invalidate(ticketsProvider);
+  }
+
+  Future<void> updateCategory(String id, String? category) async {
+    await _repo.updateCategory(id, category);
+    _ref.invalidate(ticketsProvider);
+  }
 }
 
 final ticketActionsProvider = Provider(
@@ -79,3 +100,46 @@ final openTicketsCountProvider = Provider<int>((ref) {
   final list = ref.watch(effectiveTicketsProvider);
   return list.where((t) => t.status.isOpen).length;
 });
+
+// --- Ticket Comments ---
+
+final ticketCommentRepositoryProvider = Provider<TicketCommentRepository>(
+  (_) => TicketCommentRepository(),
+);
+
+/// Watch comments for a specific ticket.
+final ticketCommentsProvider =
+    StreamProvider.autoDispose.family<List<TicketComment>, String>(
+  (ref, ticketId) =>
+      ref.read(ticketCommentRepositoryProvider).watchByTicket(ticketId),
+);
+
+class TicketCommentActions {
+  TicketCommentActions(this._repo);
+  final TicketCommentRepository _repo;
+
+  Future<TicketComment> add(String ticketId, String content) async {
+    return _repo.add(ticketId, content);
+  }
+
+  Future<void> delete(String commentId) async {
+    await _repo.delete(commentId);
+  }
+}
+
+final ticketCommentActionsProvider = Provider(
+  (ref) => TicketCommentActions(ref.read(ticketCommentRepositoryProvider)),
+);
+
+// --- Activity Log ---
+
+final activityLogRepositoryProvider = Provider<ActivityLogRepository>(
+  (_) => ActivityLogRepository(),
+);
+
+/// Watch activity log for a specific ticket.
+final activityLogProvider =
+    StreamProvider.autoDispose.family<List<ActivityLog>, String>(
+  (ref, ticketId) =>
+      ref.read(activityLogRepositoryProvider).watchByTicket(ticketId),
+);

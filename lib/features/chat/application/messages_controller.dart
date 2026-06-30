@@ -28,3 +28,20 @@ class SendMessageAction {
 final sendMessageActionProvider = Provider<SendMessageAction>(
   (ref) => SendMessageAction(ref.read(chatRepositoryProvider), ref),
 );
+
+/// Action to mark messages as read when opening a conversation.
+class MarkAsReadAction {
+  MarkAsReadAction(this._repo, this._ref);
+  final dynamic _repo;
+  final Ref _ref;
+
+  Future<void> markAsRead(String conversationId) async {
+    await _repo.markAsRead(conversationId);
+    // Refresh conversations to update unread counts.
+    _ref.invalidate(conversationsProvider);
+  }
+}
+
+final markAsReadActionProvider = Provider<MarkAsReadAction>(
+  (ref) => MarkAsReadAction(ref.read(chatRepositoryProvider), ref),
+);

@@ -20,6 +20,34 @@ extension TicketStatusDb on TicketStatus {
   }
 }
 
+/// Ticket priority levels.
+enum TicketPriority { p1, p2, p3, p4 }
+
+extension TicketPriorityDb on TicketPriority {
+  String get dbValue => switch (this) {
+        TicketPriority.p1 => 'P1',
+        TicketPriority.p2 => 'P2',
+        TicketPriority.p3 => 'P3',
+        TicketPriority.p4 => 'P4',
+      };
+
+  String get label => dbValue;
+
+  String get displayName => switch (this) {
+        TicketPriority.p1 => 'Khẩn cấp',
+        TicketPriority.p2 => 'Cao',
+        TicketPriority.p3 => 'Bình thường',
+        TicketPriority.p4 => 'Thấp',
+      };
+
+  static TicketPriority fromDb(String v) {
+    return TicketPriority.values.firstWhere(
+      (p) => p.dbValue == v,
+      orElse: () => TicketPriority.p3,
+    );
+  }
+}
+
 /// Row from `public.tickets`.
 class Ticket {
   const Ticket({
@@ -31,6 +59,8 @@ class Ticket {
     required this.assignedTo,
     required this.createdAt,
     required this.updatedAt,
+    this.priority = TicketPriority.p3,
+    this.category,
   });
 
   final String id;
@@ -41,8 +71,15 @@ class Ticket {
   final String assignedTo;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final TicketPriority priority;
+  final String? category;
 
-  Ticket copyWith({TicketStatus? status}) => Ticket(
+  Ticket copyWith({
+    TicketStatus? status,
+    TicketPriority? priority,
+    String? category,
+  }) =>
+      Ticket(
         id: id,
         title: title,
         description: description,
@@ -51,6 +88,8 @@ class Ticket {
         assignedTo: assignedTo,
         createdAt: createdAt,
         updatedAt: updatedAt,
+        priority: priority ?? this.priority,
+        category: category ?? this.category,
       );
 
   factory Ticket.fromMap(Map<String, dynamic> map) => Ticket(
@@ -62,5 +101,9 @@ class Ticket {
         assignedTo: map['assigned_to'] as String,
         createdAt: DateTime.parse(map['created_at'] as String),
         updatedAt: DateTime.parse(map['updated_at'] as String),
+        priority: map['priority'] != null
+            ? TicketPriorityDb.fromDb(map['priority'] as String)
+            : TicketPriority.p3,
+        category: map['category'] as String?,
       );
 }

@@ -58,6 +58,8 @@ class TicketRepository {
   Future<Ticket> create({
     required String title,
     required String? description,
+    TicketPriority priority = TicketPriority.p3,
+    String? category,
   }) async {
     final me = _client.auth.currentUser?.id;
     if (me == null) throw Failure('Not signed in');
@@ -66,7 +68,9 @@ class TicketRepository {
       'description': description,
       'created_by': me,
       'assigned_to': me,
-      'status': TicketStatus.todo.dbValue,
+      'status': TicketStatus.doing.dbValue,
+      'priority': priority.dbValue,
+      'category': category,
     }).select().single();
     return Ticket.fromMap(Map<String, dynamic>.from(res));
   }
@@ -75,6 +79,26 @@ class TicketRepository {
     final res = await _client
         .from('tickets')
         .update({'status': status.dbValue})
+        .eq('id', id)
+        .select()
+        .single();
+    return Ticket.fromMap(Map<String, dynamic>.from(res));
+  }
+
+  Future<Ticket> updatePriority(String id, TicketPriority priority) async {
+    final res = await _client
+        .from('tickets')
+        .update({'priority': priority.dbValue})
+        .eq('id', id)
+        .select()
+        .single();
+    return Ticket.fromMap(Map<String, dynamic>.from(res));
+  }
+
+  Future<Ticket> updateCategory(String id, String? category) async {
+    final res = await _client
+        .from('tickets')
+        .update({'category': category})
         .eq('id', id)
         .select()
         .single();

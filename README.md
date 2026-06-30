@@ -7,7 +7,7 @@ Vietnamese UI, premium mobile design, ready to integrate with Odoo as a headless
 - **Flutter** 3.44+ / Dart 3.12+ · Material 3, Impeller
 - **Supabase** — auth · Postgres · Realtime · Row-Level Security
 - **Riverpod** (state) · **GoRouter** (navigation)
-- **flutter_animate** + **lucide_icons** (motion & iconography)
+- **flutter_animate** + **lucide_flutter** (motion & iconography)
 
 ## Documentation
 | Doc | Purpose |

@@ -19,6 +19,16 @@ dashboard, RLS on all tables, idempotent direct-conversation RPC.
   `AnimatedCount`, lucide icons, platform-adaptive page transitions.
 - ✅ Dockerized web build + screenshots; Android APK pipeline.
 
+### M1.1 — UI fixes & enhancements ✅
+- ✅ Check-in screen: show check-in time after successful check-in.
+- ✅ Timesheet: move add-form to top, limit today's entries with "Xem thêm" load-more.
+- ✅ Chat: remove FAB, inline bottom sheet for new conversations, fix white background.
+- ✅ Tickets: 2-status system (Đang xử lý / Hoàn thành), swipe-to-complete like Microsoft To-Do.
+- ✅ Ticket detail: add comment section with real-time updates and composer.
+- ✅ Migration 0003: `ticket_comments` table with RLS policies.
+- ✅ Fix all `ListTile` inside `GlassCard`/`glassDecoration()` — replaced with `InkWell` + `Row` or `Padding` + `Row` to eliminate "ink splashes may be invisible" assertions (profile, home, timesheet screens).
+- ✅ Added missing `Material(type: MaterialType.transparency)` wrapper on `new_chat_screen.dart` ListTile.
+
 ### M2 — Production hardening ⬜ (next)
 - ⬜ Remove hard-coded Supabase URL/anon-key defaults from `env.dart` + README; fail-fast.
 - ⬜ Tighten RLS: `conversations` insert must enforce `created_by = auth.uid()`.

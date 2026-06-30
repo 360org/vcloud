@@ -16,6 +16,7 @@ class HomeSummary {
     required this.todayMinutes,
     required this.openTickets,
     required this.recentConversationCount,
+    required this.unreadMessageCount,
   });
 
   final String userId;
@@ -26,6 +27,7 @@ class HomeSummary {
   final int todayMinutes;
   final int openTickets;
   final int recentConversationCount;
+  final int unreadMessageCount;
 }
 
 /// Top-level summary for the dashboard cards.
@@ -53,6 +55,7 @@ final homeSummaryProvider = Provider<HomeSummary?>((ref) {
   final openTickets = ref.watch(openTicketsCountProvider);
   final convs = ref.watch(conversationsProvider).value ?? const [];
   final recentConvCount = convs.length;
+  final unreadCount = convs.fold(0, (sum, c) => sum + c.unreadCount);
 
   return HomeSummary(
     userId: auth?.id ?? '',
@@ -63,6 +66,7 @@ final homeSummaryProvider = Provider<HomeSummary?>((ref) {
     todayMinutes: todayMinutes,
     openTickets: openTickets,
     recentConversationCount: recentConvCount,
+    unreadMessageCount: unreadCount,
   );
 });
 
