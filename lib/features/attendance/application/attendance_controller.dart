@@ -7,9 +7,12 @@ final attendanceRepositoryProvider = Provider<AttendanceRepository>(
   (_) => AttendanceRepository(),
 );
 
-final attendanceStreamProvider =
-    StreamProvider.autoDispose<List<Attendance>>(
+final attendanceStreamProvider = StreamProvider.autoDispose<List<Attendance>>(
   (ref) => ref.read(attendanceRepositoryProvider).watchRecent(),
+);
+
+final attendanceTodayProvider = FutureProvider.autoDispose<Attendance?>(
+  (ref) => ref.read(attendanceRepositoryProvider).currentOpenAttendance(),
 );
 
 class AttendanceActions {
@@ -19,11 +22,13 @@ class AttendanceActions {
 
   Future<void> checkIn() async {
     await _repo.checkIn();
+    _ref.invalidate(attendanceTodayProvider);
     _ref.invalidate(attendanceStreamProvider);
   }
 
   Future<void> checkOut() async {
     await _repo.checkOut();
+    _ref.invalidate(attendanceTodayProvider);
     _ref.invalidate(attendanceStreamProvider);
   }
 }
@@ -32,13 +37,9 @@ final attendanceActionsProvider = Provider(
   (ref) => AttendanceActions(ref.read(attendanceRepositoryProvider), ref),
 );
 
-/// Derived view: today's open row (if any). Used by the home dashboard
-/// status card.
+/// Derived view: today's open row (if any). Used by the attendance screen
+/// and home dashboard status card. The source of truth is the `/today`
+/// endpoint, not history, because history can contain stale open rows.
 final openSessionProvider = Provider<Attendance?>((ref) {
-  final list = ref.watch(attendanceStreamProvider).value ?? const <Attendance>[];
-  if (list.isEmpty) return null;
-  for (final a in list) {
-    if (a.isOpen) return a;
-  }
-  return null;
+  return ref.watch(attendanceTodayProvider).value;
 });

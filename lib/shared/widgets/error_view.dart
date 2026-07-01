@@ -29,24 +29,31 @@ class ErrorView extends StatelessWidget {
                   height: 64,
                   decoration: BoxDecoration(
                     gradient: AppColors.featureGrad(
-                        AppColors.danger, AppColors.dangerDeep),
+                      AppColors.danger,
+                      AppColors.dangerDeep,
+                    ),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.error_outline,
-                      color: Colors.white, size: 28),
+                  child: const Icon(
+                    Icons.error_outline,
+                    color: Colors.white,
+                    size: 28,
+                  ),
                 ),
                 const SizedBox(height: 20),
                 Text(
                   'Đã xảy ra lỗi',
-                  style: AppTextStyles.title
-                      .copyWith(color: AppColors.textPrimary),
+                  style: AppTextStyles.title.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   describeError(error),
                   textAlign: TextAlign.center,
-                  style: AppTextStyles.body
-                      .copyWith(color: AppColors.textSecondary),
+                  style: AppTextStyles.body.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
                 ),
                 if (onRetry != null) ...[
                   const SizedBox(height: 20),

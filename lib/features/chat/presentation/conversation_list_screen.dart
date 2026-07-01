@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
+import '../../../core/api/auth_user.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../features/auth/application/auth_controller.dart';
 import '../../../shared/models/conversation.dart';
@@ -15,7 +16,47 @@ import '../../../shared/widgets/loading_view.dart';
 import '../../../shared/widgets/ui_kit.dart';
 import '../application/conversations_controller.dart';
 
+String _conversationTitleForCurrentUser(
+  ConversationSummary conversation,
+  AuthUser? currentUser,
+) {
+  final title = conversation.title.trim();
+  if (title.isEmpty || currentUser == null) return title;
+
+  final currentLabels =
+      <String>{
+        currentUser.id,
+        currentUser.email ?? '',
+        currentUser.email?.split('@').first ?? '',
+        currentUser.userMetadata['display_name']?.toString() ?? '',
+      }.map((label) => label.trim().toLowerCase()).where((label) {
+        return label.isNotEmpty;
+      }).toSet();
+
+  if (currentLabels.isEmpty || !title.contains(',')) return title;
+
+  final others = title
+      .split(',')
+      .map((part) => part.trim())
+      .where((part) => part.isNotEmpty)
+      .where((part) => !currentLabels.contains(part.toLowerCase()))
+      .toList();
+
+  return others.isEmpty ? title : others.join(', ');
+}
+
 /// "Tin nhắn": search + conversation list with inline new-chat bottom sheet.
+DateTime _latestConversationTime(ConversationSummary conversation) {
+  return conversation.lastMessage?.createdAt ?? conversation.updatedAt;
+}
+
+int _compareConversationsByLatestMessage(
+  ConversationSummary a,
+  ConversationSummary b,
+) {
+  return _latestConversationTime(b).compareTo(_latestConversationTime(a));
+}
+
 class ConversationListScreen extends ConsumerStatefulWidget {
   const ConversationListScreen({super.key});
 
@@ -27,7 +68,6 @@ class ConversationListScreen extends ConsumerStatefulWidget {
 class _ConversationListScreenState
     extends ConsumerState<ConversationListScreen> {
   String _query = '';
-  int _selectedTab = 0;
 
   static String _viTime(DateTime dt) {
     final now = DateTime.now();
@@ -64,23 +104,16 @@ class _ConversationListScreenState
       ],
       body: convs.when(
         data: (list) {
-          final showGroups = _selectedTab == 1;
+          final currentUser = ref.watch(authControllerProvider).value;
           final filtered = list.where((c) {
+            if (c.lastMessage == null) return false;
             final preview = c.lastMessage?.content ?? '';
-            final searchable = '${c.title} $preview'.toLowerCase();
-            return c.isGroup == showGroups &&
-                searchable.contains(_query.toLowerCase());
-          }).toList();
+            final title = _conversationTitleForCurrentUser(c, currentUser);
+            final searchable = '$title $preview'.toLowerCase();
+            return searchable.contains(_query.toLowerCase());
+          }).toList()..sort(_compareConversationsByLatestMessage);
           return Column(
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                child: SegmentedTabs(
-                  labels: const ['Trực tiếp', 'Nhóm'],
-                  selectedIndex: _selectedTab,
-                  onChanged: (index) => setState(() => _selectedTab = index),
-                ),
-              ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                 child: Container(
@@ -185,6 +218,10 @@ class _ConversationListScreenState
                       itemCount: filtered.length,
                       itemBuilder: (_, i) {
                         final c = filtered[i];
+                        final title = _conversationTitleForCurrentUser(
+                          c,
+                          currentUser,
+                        );
                         final preview =
                             c.lastMessage?.content ?? 'Chưa có tin nhắn';
                         return Dismissible(
@@ -241,6 +278,7 @@ class _ConversationListScreenState
                           child:
                               _ConversationItem(
                                     conversation: c,
+                                    title: title,
                                     preview: preview,
                                     timeLabel: _viTime(c.updatedAt),
                                     onTap: () => context.push('/chat/${c.id}'),
@@ -300,12 +338,14 @@ class _TelegramConversationListScreenState
   }
 
   void _openNewMessageSheet(List<ConversationSummary> conversations) {
+    final currentUser = ref.read(authControllerProvider).value;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _NewMessageSheet(
         conversations: conversations,
+        currentUser: currentUser,
         onOpenConversation: (conversation) {
           Navigator.pop(context);
           context.push('/chat/${conversation.id}');
@@ -327,16 +367,25 @@ class _TelegramConversationListScreenState
         child: SafeArea(
           child: conversations.when(
             data: (list) {
+              final currentUser = ref.watch(authControllerProvider).value;
               final filtered = list.where((conversation) {
+                if (conversation.lastMessage == null) return false;
                 final preview = conversation.lastMessage?.content ?? '';
-                final haystack = '${conversation.title} $preview'.toLowerCase();
+                final title = _conversationTitleForCurrentUser(
+                  conversation,
+                  currentUser,
+                );
+                final haystack = '$title $preview'.toLowerCase();
                 return haystack.contains(_query.toLowerCase());
-              }).toList();
+              }).toList()..sort(_compareConversationsByLatestMessage);
 
               return Column(
                 children: [
                   _BalancedTelegramChatHeader(
-                    onNewChat: () => _openNewMessageSheet(list),
+                    onNewChat: () => _openNewMessageSheet(
+                      List<ConversationSummary>.of(list)
+                        ..sort(_compareConversationsByLatestMessage),
+                    ),
                   ),
                   _TelegramSearchBar(
                     query: _query,
@@ -366,8 +415,13 @@ class _TelegramConversationListScreenState
                               ),
                               itemBuilder: (context, index) {
                                 final conversation = filtered[index];
+                                final title = _conversationTitleForCurrentUser(
+                                  conversation,
+                                  currentUser,
+                                );
                                 return _TelegramConversationRow(
                                   conversation: conversation,
+                                  title: title,
                                   preview:
                                       conversation.lastMessage?.content ??
                                       'Chưa có tin nhắn',
@@ -769,10 +823,12 @@ class _TelegramSearchBar extends StatelessWidget {
 class _NewMessageSheet extends StatefulWidget {
   const _NewMessageSheet({
     required this.conversations,
+    required this.currentUser,
     required this.onOpenConversation,
   });
 
   final List<ConversationSummary> conversations;
+  final AuthUser? currentUser;
   final ValueChanged<ConversationSummary> onOpenConversation;
 
   @override
@@ -785,10 +841,15 @@ class _NewMessageSheetState extends State<_NewMessageSheet> {
   @override
   Widget build(BuildContext context) {
     final filtered = widget.conversations.where((conversation) {
+      if (conversation.lastMessage == null) return false;
       final preview = conversation.lastMessage?.content ?? '';
-      final haystack = '${conversation.title} $preview'.toLowerCase();
+      final title = _conversationTitleForCurrentUser(
+        conversation,
+        widget.currentUser,
+      );
+      final haystack = '$title $preview'.toLowerCase();
       return haystack.contains(_query.toLowerCase());
-    }).toList();
+    }).toList()..sort(_compareConversationsByLatestMessage);
 
     return SafeArea(
       top: false,
@@ -833,8 +894,13 @@ class _NewMessageSheetState extends State<_NewMessageSheet> {
                   ),
                   itemBuilder: (context, index) {
                     final conversation = filtered[index];
+                    final title = _conversationTitleForCurrentUser(
+                      conversation,
+                      widget.currentUser,
+                    );
                     return _NewMessageConversationRow(
                       conversation: conversation,
+                      title: title,
                       onTap: () => widget.onOpenConversation(conversation),
                     );
                   },
@@ -1003,10 +1069,12 @@ class _NewMessageActionRow extends StatelessWidget {
 class _NewMessageConversationRow extends StatelessWidget {
   const _NewMessageConversationRow({
     required this.conversation,
+    required this.title,
     required this.onTap,
   });
 
   final ConversationSummary conversation;
+  final String title;
   final VoidCallback onTap;
 
   @override
@@ -1020,10 +1088,11 @@ class _NewMessageConversationRow extends StatelessWidget {
         child: Row(
           children: [
             conversation.isGroup
-                ? _TelegramGroupAvatar(title: conversation.title)
+                ? _TelegramGroupAvatar(title: title)
                 : UserAvatar(
                     userId: conversation.id,
-                    displayName: conversation.title,
+                    displayName: title,
+                    avatarUrl: conversation.avatarUrl,
                     size: 48,
                   ),
             const SizedBox(width: 12),
@@ -1032,7 +1101,7 @@ class _NewMessageConversationRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    conversation.title,
+                    title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -1064,12 +1133,14 @@ class _NewMessageConversationRow extends StatelessWidget {
 class _TelegramConversationRow extends StatelessWidget {
   const _TelegramConversationRow({
     required this.conversation,
+    required this.title,
     required this.preview,
     required this.timeLabel,
     required this.onTap,
   });
 
   final ConversationSummary conversation;
+  final String title;
   final String preview;
   final String timeLabel;
   final VoidCallback onTap;
@@ -1086,10 +1157,11 @@ class _TelegramConversationRow extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             conversation.isGroup
-                ? _TelegramGroupAvatar(title: conversation.title)
+                ? _TelegramGroupAvatar(title: title)
                 : UserAvatar(
                     userId: conversation.id,
-                    displayName: conversation.title,
+                    displayName: title,
+                    avatarUrl: conversation.avatarUrl,
                     size: 52,
                   ),
             const SizedBox(width: 14),
@@ -1105,7 +1177,7 @@ class _TelegramConversationRow extends StatelessWidget {
                           child: Material(
                             color: Colors.transparent,
                             child: Text(
-                              conversation.title,
+                              title,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
@@ -1247,12 +1319,14 @@ class _TelegramEmptyChats extends StatelessWidget {
 class _ConversationItem extends StatelessWidget {
   const _ConversationItem({
     required this.conversation,
+    required this.title,
     required this.preview,
     required this.timeLabel,
     required this.onTap,
   });
 
   final ConversationSummary conversation;
+  final String title;
   final String preview;
   final String timeLabel;
   final VoidCallback onTap;
@@ -1287,8 +1361,13 @@ class _ConversationItem extends StatelessWidget {
         child: Row(
           children: [
             c.isGroup
-                ? _GroupAvatar(title: c.title)
-                : UserAvatar(userId: c.id, displayName: c.title, size: 52),
+                ? _GroupAvatar(title: title)
+                : UserAvatar(
+                    userId: c.id,
+                    displayName: title,
+                    avatarUrl: c.avatarUrl,
+                    size: 52,
+                  ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -1299,7 +1378,7 @@ class _ConversationItem extends StatelessWidget {
                     child: Material(
                       color: Colors.transparent,
                       child: Text(
-                        c.title,
+                        title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -1402,12 +1481,38 @@ class _NewChatSheetState extends ConsumerState<_NewChatSheet>
   Future<void> _open(String otherId) async {
     setState(() => _busy = true);
     try {
-      await ref.read(conversationActionsProvider).openDirect(otherId);
+      final id = await ref
+          .read(conversationActionsProvider)
+          .openDirect(otherId);
+      ref.invalidate(conversationsProvider);
       if (mounted) {
         Navigator.pop(context);
+        context.push('/chat/$id');
+      }
+    } catch (e) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đã tạo cuộc trò chuyện mới.')),
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Failure: ', '')),
+            backgroundColor: AppColors.danger,
+          ),
         );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _createGroup(String name, List<String> memberIds) async {
+    setState(() => _busy = true);
+    try {
+      final id = await ref
+          .read(conversationActionsProvider)
+          .createGroup(name, memberIds);
+      ref.invalidate(conversationsProvider);
+      if (mounted) {
+        Navigator.pop(context);
+        context.push('/chat/$id');
       }
     } catch (e) {
       if (mounted) {
@@ -1465,7 +1570,7 @@ class _NewChatSheetState extends ConsumerState<_NewChatSheet>
               controller: _tab,
               children: [
                 _DirectTab(busy: _busy, onOpen: _open),
-                const _GroupTab(),
+                _GroupTab(busy: _busy, onCreate: _createGroup),
               ],
             ),
           ),
@@ -1540,19 +1645,14 @@ class _DirectTabState extends ConsumerState<_DirectTab> {
                     final name = (u.displayName.isNotEmpty
                         ? u.displayName
                         : u.email.split('@').first);
-                    final initial = name[0].toUpperCase();
                     return Material(
                       type: MaterialType.transparency,
                       child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: AppColors.primarySoft,
-                          child: Text(
-                            initial,
-                            style: const TextStyle(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
+                        leading: UserAvatar(
+                          userId: u.id,
+                          displayName: name,
+                          email: u.email,
+                          avatarUrl: u.avatarUrl,
                         ),
                         title: Text(
                           name,
@@ -1589,28 +1689,111 @@ class _DirectTabState extends ConsumerState<_DirectTab> {
   }
 }
 
-class _GroupTab extends ConsumerWidget {
-  const _GroupTab();
+class _GroupTab extends ConsumerStatefulWidget {
+  const _GroupTab({required this.busy, required this.onCreate});
+
+  final bool busy;
+  final Future<void> Function(String name, List<String> memberIds) onCreate;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return const Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+  ConsumerState<_GroupTab> createState() => _GroupTabState();
+}
+
+class _GroupTabState extends ConsumerState<_GroupTab> {
+  final _name = TextEditingController();
+  final Set<String> _selected = <String>{};
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final users = ref.watch(_allUsersProvider);
+    return users.when(
+      data: (list) => Column(
         children: [
-          Icon(Icons.groups, size: 64, color: AppColors.textMuted),
-          SizedBox(height: 16),
-          Text(
-            'Tạo nhóm',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: TextField(
+              controller: _name,
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                hintText: 'Tên nhóm',
+                prefixIcon: const Icon(
+                  LucideIcons.users,
+                  color: AppColors.textMuted,
+                ),
+                filled: true,
+                fillColor: AppColors.bg,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
           ),
-          SizedBox(height: 8),
-          Text(
-            'Tính năng này sắp có.',
-            style: TextStyle(color: AppColors.textMuted),
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: list.length,
+              itemBuilder: (_, index) {
+                final user = list[index];
+                final selected = _selected.contains(user.id);
+                return CheckboxListTile(
+                  value: selected,
+                  onChanged: widget.busy
+                      ? null
+                      : (value) {
+                          setState(() {
+                            if (value == true) {
+                              _selected.add(user.id);
+                            } else {
+                              _selected.remove(user.id);
+                            }
+                          });
+                        },
+                  secondary: UserAvatar(
+                    userId: user.id,
+                    displayName: user.displayName,
+                    email: user.email,
+                    avatarUrl: user.avatarUrl,
+                  ),
+                  title: Text(user.displayName),
+                  subtitle: Text(user.email),
+                );
+              },
+            ),
+          ),
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: GradientButton(
+                label: 'Tạo nhóm',
+                icon: LucideIcons.users,
+                loading: widget.busy,
+                gradient: AppColors.chatGrad,
+                glowColor: AppColors.chat,
+                onPressed:
+                    widget.busy ||
+                        _name.text.trim().isEmpty ||
+                        _selected.length < 2
+                    ? null
+                    : () => widget.onCreate(
+                        _name.text.trim(),
+                        _selected.toList(),
+                      ),
+              ),
+            ),
           ),
         ],
       ),
+      loading: () => const LoadingView(),
+      error: (e, _) =>
+          ErrorView(error: e, onRetry: () => ref.invalidate(_allUsersProvider)),
     );
   }
 }

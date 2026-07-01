@@ -94,6 +94,7 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen>
                             userId: p.id,
                             displayName: p.displayName,
                             email: p.email,
+                            avatarUrl: p.avatarUrl,
                           ),
                           title: Text(p.displayName),
                           subtitle: Text(p.email),

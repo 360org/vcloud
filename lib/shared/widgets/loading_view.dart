@@ -43,12 +43,14 @@ class LoadingView extends StatelessWidget {
           ),
           if (label != null) ...[
             const SizedBox(height: 16),
-            Text(label!,
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                )),
+            Text(
+              label!,
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ],
         ],
       ),

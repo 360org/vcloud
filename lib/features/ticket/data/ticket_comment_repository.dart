@@ -1,78 +1,69 @@
 import 'dart:async';
 
-import 'package:supabase_flutter/supabase_flutter.dart';
-
+import '../../../core/api/odoo_api_client.dart';
 import '../../../core/error/failure.dart';
 import '../../../shared/models/ticket_comment.dart';
 
 class TicketCommentRepository {
-  TicketCommentRepository({SupabaseClient? client})
-      : _client = client ?? Supabase.instance.client;
+  TicketCommentRepository({OdooApiClient? client})
+    : _client = client ?? odooApiClient;
 
-  final SupabaseClient _client;
+  final OdooApiClient _client;
 
-  /// Watch all comments for a ticket in real-time.
   Stream<List<TicketComment>> watchByTicket(String ticketId) {
     final ctl = StreamController<List<TicketComment>>();
-    RealtimeChannel? ch;
+
     Future<void> refresh() async {
       try {
-        final res = await _client
-            .from('ticket_comments')
-            .select('*, profiles!ticket_comments_author_id_fkey(display_name)')
-            .eq('ticket_id', ticketId)
-            .order('created_at', ascending: true);
-        final list = (res as List).cast<Map<String, dynamic>>().map((m) {
-          final profile = m['profiles'] as Map<String, dynamic>?;
-          return TicketComment.fromMap({
-            ...m,
-            'author_name': profile?['display_name'] as String?,
-          });
-        }).toList();
-        if (!ctl.isClosed) ctl.add(list);
+        final res = await _client.get('/api/v1/mobile/ticket/$ticketId');
+        final detail = Map<String, dynamic>.from(res as Map);
+        final messages = (detail['messages'] as List? ?? const <dynamic>[])
+            .cast<Map<String, dynamic>>()
+            .map((m) => _commentFromMessage(ticketId, m))
+            .map(TicketComment.fromMap)
+            .toList();
+        if (!ctl.isClosed) ctl.add(messages);
       } catch (e) {
         if (!ctl.isClosed) ctl.addError(Failure('Load comments failed: $e'));
       }
     }
 
-    ctl.onListen = () async {
-      await refresh();
-      ch = _client
-          .channel('ticket-comments-$ticketId')
-          .onPostgresChanges(
-            event: PostgresChangeEvent.all,
-            schema: 'public',
-            table: 'ticket_comments',
-            filter: PostgresChangeFilter(
-              type: PostgresChangeFilterType.eq,
-              column: 'ticket_id',
-              value: ticketId,
-            ),
-            callback: (_) => refresh(),
-          )
-          .subscribe();
-    };
-    ctl.onCancel = () async {
-      final c = ch;
-      if (c != null) await _client.removeChannel(c);
-    };
+    ctl.onListen = refresh;
     return ctl.stream;
   }
 
-  /// Add a comment to a ticket.
   Future<TicketComment> add(String ticketId, String content) async {
-    final me = _client.auth.currentUser?.id;
-    if (me == null) throw Failure('Not signed in');
-    final res = await _client.from('ticket_comments').insert({
-      'ticket_id': ticketId,
-      'author_id': me,
-      'content': content,
-    }).select().single();
-    return TicketComment.fromMap(Map<String, dynamic>.from(res));
+    await _client.post(
+      '/api/v1/mobile/ticket/$ticketId/message',
+      body: <String, dynamic>{'body': content},
+    );
+    final comments = await watchByTicket(ticketId).first;
+    return comments.isEmpty
+        ? TicketComment(
+            id: DateTime.now().microsecondsSinceEpoch.toString(),
+            ticketId: ticketId,
+            authorId: '',
+            content: content,
+            createdAt: DateTime.now(),
+          )
+        : comments.last;
   }
 
-  /// Delete a comment (author only).
   Future<void> delete(String commentId) async {
-    await _client.from('ticket_comments').delete().eq('id', commentId);
+    await _client.delete('/api/v1/mail.message/$commentId');
+  }
+
+  Map<String, dynamic> _commentFromMessage(
+    String ticketId,
+    Map<String, dynamic> map,
+  ) {
+    return <String, dynamic>{
+      'id': map['id'].toString(),
+      'ticket_id': ticketId,
+      'author_id': map['author_id']?.toString() ?? '',
+      'content': (map['body'] ?? map['preview'] ?? '').toString(),
+      'created_at': map['date'] ?? DateTime.now().toIso8601String(),
+      'author_name': map['author_name'] as String?,
+    };
   }
 }

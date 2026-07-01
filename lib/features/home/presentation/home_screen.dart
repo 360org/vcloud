@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
+import '../../../core/error/failure.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/date_format.dart';
 import '../../../shared/models/ticket.dart';
@@ -36,12 +37,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         await actions.checkIn();
       }
       ref.invalidate(homeSummaryProvider);
+      ref.invalidate(attendanceTodayProvider);
       ref.invalidate(openSessionProvider);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString().replaceFirst('Failure: ', ''))),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(describeError(e))));
       }
     } finally {
       if (mounted) setState(() => _statusBusy = false);
@@ -51,9 +53,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final summary = ref.watch(homeSummaryProvider);
-    final user = ref.watch(authControllerProvider).value;
+    final todayState = ref.watch(attendanceTodayProvider);
+    final dashboard = ref.watch(mobileDashboardSummaryProvider).valueOrNull;
+    final user = ref.watch(authControllerProvider).valueOrNull;
     final meta = user?.userMetadata;
     final name = (meta?['display_name'] as String?)?.trim();
+    final avatarUrl = meta?['avatar_url'] as String?;
     final displayName = name?.isNotEmpty == true
         ? name!
         : (user?.email?.split('@').first ?? 'Người dùng');
@@ -62,7 +67,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ? null
         : tickets.reduce((a, b) => a.updatedAt.isAfter(b.updatedAt) ? a : b);
     final todayTasks = ref.watch(hardcodedTodayTasksProvider).take(3).toList();
-    final isOnline = summary?.isCheckedIn ?? false;
+    final isOnline = dashboard?.isCheckedIn ?? summary?.isCheckedIn ?? false;
+    final todayMinutes = dashboard?.todayMinutes ?? summary?.todayMinutes ?? 0;
+    final openTickets =
+        dashboard?.openTickets ?? summary?.openTickets ?? tickets.length;
+    final unreadMessages =
+        dashboard?.unreadMessageCount ?? summary?.unreadMessageCount ?? 0;
+    final chatCount =
+        dashboard?.recentConversationCount ??
+        summary?.recentConversationCount ??
+        0;
+    final statusBusy = _statusBusy || todayState.isLoading;
 
     return AppScaffold(
       title: 'Home',
@@ -70,6 +85,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       body: RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(homeSummaryProvider);
+          ref.invalidate(mobileDashboardSummaryProvider);
+          ref.invalidate(attendanceTodayProvider);
           ref.invalidate(ticketsProvider);
           ref.invalidate(openSessionProvider);
           ref.invalidate(conversationsProvider);
@@ -83,10 +100,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               userId: user?.id ?? '',
               displayName: displayName,
               email: user?.email,
+              avatarUrl: avatarUrl,
               isOnline: isOnline,
-              statusBusy: _statusBusy,
+              statusBusy: statusBusy,
               onStatusTap: () => _toggleAttendance(isOnline),
-              todayMinutes: summary?.todayMinutes ?? 0,
+              todayMinutes: todayMinutes,
+            ),
+            const SizedBox(height: 12),
+            _DashboardMetrics(
+              openTickets: openTickets,
+              unreadMessages: unreadMessages,
+              chatCount: chatCount,
             ),
             const SizedBox(height: 16),
             _TodayWork(tasks: todayTasks),
@@ -106,6 +130,7 @@ class _HeaderCard extends StatelessWidget {
     required this.userId,
     required this.displayName,
     required this.email,
+    required this.avatarUrl,
     required this.isOnline,
     required this.statusBusy,
     required this.onStatusTap,
@@ -115,6 +140,7 @@ class _HeaderCard extends StatelessWidget {
   final String userId;
   final String displayName;
   final String? email;
+  final String? avatarUrl;
   final bool isOnline;
   final bool statusBusy;
   final VoidCallback onStatusTap;
@@ -147,6 +173,7 @@ class _HeaderCard extends StatelessWidget {
                 userId: userId,
                 displayName: displayName,
                 email: email,
+                avatarUrl: avatarUrl,
                 size: 48,
               ),
               const SizedBox(width: 12),
@@ -216,6 +243,104 @@ class _HeaderCard extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DashboardMetrics extends StatelessWidget {
+  const _DashboardMetrics({
+    required this.openTickets,
+    required this.unreadMessages,
+    required this.chatCount,
+  });
+
+  final int openTickets;
+  final int unreadMessages;
+  final int chatCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _MetricPill(
+            icon: LucideIcons.ticket,
+            label: 'Ticket mở',
+            value: openTickets.toString(),
+            color: AppColors.ticket,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _MetricPill(
+            icon: LucideIcons.messageCircle,
+            label: 'Chưa đọc',
+            value: unreadMessages.toString(),
+            color: AppColors.chat,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _MetricPill(
+            icon: LucideIcons.users,
+            label: 'Kênh chat',
+            value: chatCount.toString(),
+            color: AppColors.primary,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MetricPill extends StatelessWidget {
+  const _MetricPill({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 18),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ],
       ),

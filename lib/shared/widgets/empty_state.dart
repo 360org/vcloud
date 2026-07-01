@@ -33,7 +33,9 @@ class EmptyState extends StatelessWidget {
                   height: 64,
                   decoration: BoxDecoration(
                     gradient: AppColors.featureGrad(
-                        AppColors.textMuted, AppColors.textSecondary),
+                      AppColors.textMuted,
+                      AppColors.textSecondary,
+                    ),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(icon, size: 28, color: Colors.white),
@@ -42,7 +44,8 @@ class EmptyState extends StatelessWidget {
                 Text(
                   title,
                   style: AppTextStyles.title.copyWith(
-                      color: AppColors.textPrimary),
+                    color: AppColors.textPrimary,
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 if (subtitle != null) ...[

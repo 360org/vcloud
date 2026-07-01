@@ -19,20 +19,20 @@ class Profile {
   final String role;
 
   factory Profile.fromMap(Map<String, dynamic> map) => Profile(
-        id: map['id'] as String,
-        email: map['email'] as String,
-        displayName: map['display_name'] as String? ?? '',
-        avatarUrl: map['avatar_url'] as String?,
-        role: map['role'] as String? ?? 'customer',
-      );
+    id: map['id'] as String,
+    email: map['email'] as String,
+    displayName: map['display_name'] as String? ?? '',
+    avatarUrl: map['avatar_url'] as String?,
+    role: map['role'] as String? ?? 'customer',
+  );
 
   Map<String, dynamic> toMap() => <String, dynamic>{
-        'id': id,
-        'email': email,
-        'display_name': displayName,
-        'avatar_url': avatarUrl,
-        'role': role,
-      };
+    'id': id,
+    'email': email,
+    'display_name': displayName,
+    'avatar_url': avatarUrl,
+    'role': role,
+  };
 
   String get initials {
     final cleaned = displayName.trim();

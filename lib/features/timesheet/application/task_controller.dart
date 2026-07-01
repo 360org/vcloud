@@ -8,7 +8,7 @@ final taskRepositoryProvider = Provider<TaskRepository>(
   (_) => TaskRepository(),
 );
 
-/// Realtime stream of the current user's tasks due *today*.
+/// HTTP refresh stream of the current user's tasks due *today*.
 final todayTasksProvider = StreamProvider.autoDispose<List<Task>>(
   (ref) => ref.read(taskRepositoryProvider).watchToday(),
 );
@@ -16,18 +16,19 @@ final todayTasksProvider = StreamProvider.autoDispose<List<Task>>(
 /// Convenience split used by the screen UI — keeps the sort in one place
 /// so the open list renders in `createdAt` order (oldest first, "queue
 /// feel") and the completed list newest first.
-final todayTasksSplitProvider =
-    Provider<({List<Task> open, List<Task> done})>((ref) {
-      final list = ref.watch(todayTasksProvider).value ?? const <Task>[];
-      final open = <Task>[];
-      final done = <Task>[];
-      for (final t in list) {
-        (t.isCompleted ? done : open).add(t);
-      }
-      open.sort((a, b) => a.createdAt.compareTo(b.createdAt));
-      done.sort((a, b) => b.completedAt!.compareTo(a.completedAt!));
-      return (open: open, done: done);
-    });
+final todayTasksSplitProvider = Provider<({List<Task> open, List<Task> done})>((
+  ref,
+) {
+  final list = ref.watch(todayTasksProvider).value ?? const <Task>[];
+  final open = <Task>[];
+  final done = <Task>[];
+  for (final t in list) {
+    (t.isCompleted ? done : open).add(t);
+  }
+  open.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+  done.sort((a, b) => b.completedAt!.compareTo(a.completedAt!));
+  return (open: open, done: done);
+});
 
 class TaskActions {
   TaskActions(this._repo, this._ref);

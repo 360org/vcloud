@@ -1,24 +1,24 @@
 import 'task.dart';
 
-/// Whitelisted values for the `timesheet_category` postgres enum.
+/// Whitelisted values for the app's timesheet categories.
 enum TimesheetCategory { erp, crm, meeting, support, other }
 
 extension TimesheetCategoryDb on TimesheetCategory {
   String get dbValue => switch (this) {
-        TimesheetCategory.erp => 'ERP',
-        TimesheetCategory.crm => 'CRM',
-        TimesheetCategory.meeting => 'Meeting',
-        TimesheetCategory.support => 'Support',
-        TimesheetCategory.other => 'Other',
-      };
+    TimesheetCategory.erp => 'ERP',
+    TimesheetCategory.crm => 'CRM',
+    TimesheetCategory.meeting => 'Meeting',
+    TimesheetCategory.support => 'Support',
+    TimesheetCategory.other => 'Other',
+  };
 
   String get label => switch (this) {
-        TimesheetCategory.erp => 'ERP',
-        TimesheetCategory.crm => 'CRM',
-        TimesheetCategory.meeting => 'Meeting',
-        TimesheetCategory.support => 'Support',
-        TimesheetCategory.other => 'Other',
-      };
+    TimesheetCategory.erp => 'ERP',
+    TimesheetCategory.crm => 'CRM',
+    TimesheetCategory.meeting => 'Meeting',
+    TimesheetCategory.support => 'Support',
+    TimesheetCategory.other => 'Other',
+  };
 
   static TimesheetCategory fromDb(String v) {
     return TimesheetCategory.values.firstWhere(
@@ -28,7 +28,7 @@ extension TimesheetCategoryDb on TimesheetCategory {
   }
 }
 
-/// Whitelisted values for the `timesheet_duration` postgres enum.
+/// Whitelisted values for the app's timesheet duration presets.
 ///
 /// Presets are 15 / 30 / 45 / 60 minute buckets — see the [Task] workflow.
 /// `'2h'` still exists in the DB for backwards compatibility; the
@@ -37,33 +37,33 @@ enum TimesheetDuration { fifteen, thirty, fortyFive, sixty }
 
 extension TimesheetDurationDb on TimesheetDuration {
   String get dbValue => switch (this) {
-        TimesheetDuration.fifteen => '15m',
-        TimesheetDuration.thirty => '30m',
-        TimesheetDuration.fortyFive => '45m',
-        TimesheetDuration.sixty => '1h',
-      };
+    TimesheetDuration.fifteen => '15m',
+    TimesheetDuration.thirty => '30m',
+    TimesheetDuration.fortyFive => '45m',
+    TimesheetDuration.sixty => '1h',
+  };
 
   Duration get duration => switch (this) {
-        TimesheetDuration.fifteen => const Duration(minutes: 15),
-        TimesheetDuration.thirty => const Duration(minutes: 30),
-        TimesheetDuration.fortyFive => const Duration(minutes: 45),
-        TimesheetDuration.sixty => const Duration(hours: 1),
-      };
+    TimesheetDuration.fifteen => const Duration(minutes: 15),
+    TimesheetDuration.thirty => const Duration(minutes: 30),
+    TimesheetDuration.fortyFive => const Duration(minutes: 45),
+    TimesheetDuration.sixty => const Duration(hours: 1),
+  };
 
   String get label => switch (this) {
-        TimesheetDuration.fifteen => '15 phút',
-        TimesheetDuration.thirty => '30 phút',
-        TimesheetDuration.fortyFive => '45 phút',
-        TimesheetDuration.sixty => '1 giờ',
-      };
+    TimesheetDuration.fifteen => '15 phút',
+    TimesheetDuration.thirty => '30 phút',
+    TimesheetDuration.fortyFive => '45 phút',
+    TimesheetDuration.sixty => '1 giờ',
+  };
 
   /// Localised quick-preset chip label for the "+N phút" affordance.
   String get presetLabel => switch (this) {
-        TimesheetDuration.fifteen => '+15 phút',
-        TimesheetDuration.thirty => '+30 phút',
-        TimesheetDuration.fortyFive => '+45 phút',
-        TimesheetDuration.sixty => '+1 giờ',
-      };
+    TimesheetDuration.fifteen => '+15 phút',
+    TimesheetDuration.thirty => '+30 phút',
+    TimesheetDuration.fortyFive => '+45 phút',
+    TimesheetDuration.sixty => '+1 giờ',
+  };
 
   static TimesheetDuration fromDb(String v) {
     return TimesheetDuration.values.firstWhere(
@@ -104,13 +104,13 @@ class TimesheetEntry {
   final Task? task;
 
   factory TimesheetEntry.fromMap(Map<String, dynamic> map) => TimesheetEntry(
-        id: map['id'] as String,
-        userId: map['user_id'] as String,
-        taskName: map['task_name'] as String,
-        category: TimesheetCategoryDb.fromDb(map['category'] as String),
-        duration: TimesheetDurationDb.fromDb(map['duration'] as String),
-        workedDate: DateTime.parse(map['worked_date'] as String),
-        createdAt: DateTime.parse(map['created_at'] as String),
-        taskId: map['task_id'] as String?,
-      );
+    id: map['id'] as String,
+    userId: map['user_id'] as String,
+    taskName: map['task_name'] as String,
+    category: TimesheetCategoryDb.fromDb(map['category'] as String),
+    duration: TimesheetDurationDb.fromDb(map['duration'] as String),
+    workedDate: DateTime.parse(map['worked_date'] as String),
+    createdAt: DateTime.parse(map['created_at'] as String),
+    taskId: map['task_id'] as String?,
+  );
 }

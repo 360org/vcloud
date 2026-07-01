@@ -402,11 +402,7 @@ BoxDecoration _cardDecoration({double radius = 22}) {
     borderRadius: BorderRadius.circular(radius),
     border: Border.all(color: AppColors.border.withValues(alpha: 0.7)),
     boxShadow: const [
-      BoxShadow(
-        color: Color(0x0A0F172A),
-        blurRadius: 16,
-        offset: Offset(0, 8),
-      ),
+      BoxShadow(color: Color(0x0A0F172A), blurRadius: 16, offset: Offset(0, 8)),
     ],
   );
 }

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
+import '../../../core/api/auth_user.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/date_format.dart';
 import '../../../shared/models/conversation.dart';
@@ -82,15 +83,20 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final myId = ref.watch(authControllerProvider).value?.id ?? '';
+    final currentUser = ref.watch(authControllerProvider).value;
+    final myId = currentUser?.id ?? '';
+    final myIdentityIds = _myIdentityIds(currentUser);
     final messages = ref.watch(messagesProvider(widget.conversationId));
     final details = ref.watch(
       conversationDetailsProvider(widget.conversationId),
     );
-    final fallbackTitle = _summaryTitle(ref, widget.conversationId);
+    final fallbackTitle = _summaryTitle(
+      ref,
+      widget.conversationId,
+      currentUser,
+    );
     final conversation = details.value;
-    final title = conversation?.displayTitleFor(myId) ?? fallbackTitle;
-    final readers = _readerProfiles(conversation, myId);
+    final title = _chatTitle(conversation, fallbackTitle, myIdentityIds);
     final senderProfiles = _senderProfiles(conversation);
     final pinnedMessage = _pinnedMessage(messages.valueOrNull);
 
@@ -108,12 +114,12 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
                   conversationId: widget.conversationId,
                   title: title,
                   conversation: conversation,
-                  currentUserId: myId,
+                  currentIdentityIds: myIdentityIds,
                   onOpenInfo: () => _openChatInfo(
                     context,
                     title: title,
                     conversation: conversation,
-                    currentUserId: myId,
+                    currentIdentityIds: myIdentityIds,
                     messages: messages.valueOrNull ?? const [],
                   ),
                 ),
@@ -127,6 +133,11 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
                       }
                       WidgetsBinding.instance.addPostFrameCallback(
                         (_) => _scrollToBottom(),
+                      );
+                      final lastReadOwnMessageId = _lastReadOwnMessageId(
+                        list,
+                        currentUser,
+                        myIdentityIds,
                       );
                       return ListView.builder(
                         controller: _scroll,
@@ -145,7 +156,11 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
                           final showDate =
                               older == null ||
                               !_sameDay(older.createdAt, message.createdAt);
-                          final mine = message.senderId == myId;
+                          final mine = _isMine(
+                            message,
+                            currentUser,
+                            myIdentityIds,
+                          );
                           final showAvatar =
                               !mine &&
                               (newer == null ||
@@ -164,8 +179,13 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
                                 mine: mine,
                                 sender: senderProfiles[message.senderId],
                                 showAvatar: showAvatar,
-                                readBy: mine && _isRead(message)
-                                    ? readers
+                                readBy:
+                                    mine && message.id == lastReadOwnMessageId
+                                    ? _readerProfilesForMessage(
+                                        message,
+                                        conversation,
+                                        myId,
+                                      )
                                     : const [],
                               ),
                             ],
@@ -199,11 +219,18 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
   }
 
   bool _sameDay(DateTime a, DateTime b) {
-    return a.year == b.year && a.month == b.month && a.day == b.day;
+    final localA = a.toLocal();
+    final localB = b.toLocal();
+    return localA.year == localB.year &&
+        localA.month == localB.month &&
+        localA.day == localB.day;
   }
 
   bool _isRead(Message message) {
-    return message.status == 'read' || message.readAt != null;
+    return message.isReadByMe ||
+        message.readByCount > 0 ||
+        message.status == 'read' ||
+        message.readAt != null;
   }
 
   Message? _pinnedMessage(List<Message>? messages) {
@@ -214,13 +241,19 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
     return null;
   }
 
-  String _summaryTitle(WidgetRef ref, String conversationId) {
+  String _summaryTitle(
+    WidgetRef ref,
+    String conversationId,
+    AuthUser? currentUser,
+  ) {
     return ref
         .watch(conversationsProvider)
         .maybeWhen(
           data: (list) {
             for (final conversation in list) {
-              if (conversation.id == conversationId) return conversation.title;
+              if (conversation.id == conversationId) {
+                return _titleForCurrentUser(conversation.title, currentUser);
+              }
             }
             return 'Chat';
           },
@@ -228,13 +261,97 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
         );
   }
 
-  List<Profile> _readerProfiles(Conversation? conversation, String myId) {
-    if (conversation == null) return const [];
-    return conversation.members
-        .where((member) => member.profile.id != myId)
-        .map((member) => member.profile)
-        .take(3)
+  String _chatTitle(
+    Conversation? conversation,
+    String fallbackTitle,
+    Set<String> myIdentityIds,
+  ) {
+    final detailTitle = conversation?.displayTitleFor(myIdentityIds).trim();
+    if (detailTitle == null || detailTitle.isEmpty || detailTitle == 'Chat') {
+      return fallbackTitle;
+    }
+    if (_isSelfLabel(detailTitle, myIdentityIds) && fallbackTitle != 'Chat') {
+      return fallbackTitle;
+    }
+    return detailTitle;
+  }
+
+  String _titleForCurrentUser(String rawTitle, AuthUser? currentUser) {
+    final title = rawTitle.trim();
+    if (title.isEmpty || currentUser == null || !title.contains(',')) {
+      return title.isEmpty ? 'Chat' : title;
+    }
+
+    final currentLabels = <String>{
+      currentUser.id,
+      currentUser.email ?? '',
+      currentUser.email?.split('@').first ?? '',
+      currentUser.userMetadata['display_name']?.toString() ?? '',
+      currentUser.userMetadata['partner_id']?.toString() ?? '',
+      'You',
+      'Bạn',
+      'Ban',
+    }.map(_identityText).where((label) => label.isNotEmpty).toSet();
+
+    final others = title
+        .split(',')
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .where((part) => !currentLabels.contains(_identityText(part)))
         .toList();
+    return others.isEmpty ? title : others.join(', ');
+  }
+
+  String? _lastReadOwnMessageId(
+    List<Message> messages,
+    AuthUser? currentUser,
+    Set<String> myIdentityIds,
+  ) {
+    for (final message in messages.reversed) {
+      if (_isMine(message, currentUser, myIdentityIds)) {
+        return _isRead(message) ? message.id : null;
+      }
+    }
+    return null;
+  }
+
+  List<Profile> _readerProfilesForMessage(
+    Message message,
+    Conversation? conversation,
+    String myId,
+  ) {
+    final profilesById = <String, Profile>{
+      for (final member
+          in conversation?.members ?? const <ConversationMember>[])
+        member.profile.id: member.profile,
+    };
+
+    if (message.readBy.isNotEmpty) {
+      return message.readBy
+          .where((id) => id != myId && id != message.senderId)
+          .map((id) {
+            return profilesById[id] ??
+                Profile(id: id, email: '', displayName: 'Nguoi doc');
+          })
+          .take(3)
+          .toList();
+    }
+
+    final members = conversation?.members
+        .where(
+          (member) =>
+              member.profile.id != myId &&
+              member.profile.id != message.senderId,
+        )
+        .map((member) => member.profile)
+        .take(message.readByCount.clamp(0, 3))
+        .toList();
+    if (members != null && members.isNotEmpty) return members;
+    if (message.readByCount <= 0) return const [];
+
+    return <Profile>[
+      Profile(id: 'read-${message.id}', email: '', displayName: 'Da doc'),
+    ];
   }
 
   Map<String, Profile> _senderProfiles(Conversation? conversation) {
@@ -245,11 +362,49 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
     };
   }
 
+  Set<String> _myIdentityIds(AuthUser? user) {
+    if (user == null) return const {};
+    return {
+      if (user.id.isNotEmpty) user.id,
+      if (user.userMetadata['partner_id'] != null)
+        user.userMetadata['partner_id'].toString(),
+      if (user.email != null) user.email!,
+      if (user.email != null) user.email!.split('@').first,
+      if (user.userMetadata['display_name'] != null)
+        user.userMetadata['display_name'].toString(),
+    };
+  }
+
+  bool _isSelfLabel(String label, Set<String> myIdentityIds) {
+    final normalized = _identityText(label);
+    return normalized == 'you' ||
+        normalized == 'ban' ||
+        normalized == 'bạn' ||
+        myIdentityIds.map(_identityText).contains(normalized);
+  }
+
+  bool _isMine(Message message, AuthUser? user, Set<String> myIdentityIds) {
+    if (message.authoredByMe) return true;
+    if (myIdentityIds.contains(message.senderId)) return true;
+
+    final senderName = _identityText(message.senderName);
+    if (senderName.isEmpty || user == null) return false;
+
+    final email = _identityText(user.email);
+    final displayName = _identityText(user.userMetadata['display_name']);
+    return senderName == email || senderName == displayName;
+  }
+
+  String _identityText(Object? value) {
+    if (value == null || value == false) return '';
+    return value.toString().trim().toLowerCase();
+  }
+
   void _openChatInfo(
     BuildContext context, {
     required String title,
     required Conversation? conversation,
-    required String currentUserId,
+    required Set<String> currentIdentityIds,
     required List<Message> messages,
   }) {
     HapticFeedback.lightImpact();
@@ -260,7 +415,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
       builder: (_) => _ChatInfoSheet(
         title: title,
         conversation: conversation,
-        currentUserId: currentUserId,
+        currentIdentityIds: currentIdentityIds,
         messages: messages,
       ),
     );
@@ -323,6 +478,17 @@ class _ChatWallpaper extends StatelessWidget {
   }
 }
 
+bool _isCurrentProfile(Profile profile, Set<String> currentIdentityIds) {
+  final labels = currentIdentityIds
+      .map((label) => label.trim().toLowerCase())
+      .where((label) => label.isNotEmpty)
+      .toSet();
+  if (labels.isEmpty) return false;
+  return labels.contains(profile.id.trim().toLowerCase()) ||
+      labels.contains(profile.email.trim().toLowerCase()) ||
+      labels.contains(profile.displayName.trim().toLowerCase());
+}
+
 class _FrostedSurface extends StatelessWidget {
   const _FrostedSurface({
     required this.child,
@@ -372,14 +538,14 @@ class _FloatingChatHeader extends StatelessWidget {
     required this.conversationId,
     required this.title,
     required this.conversation,
-    required this.currentUserId,
+    required this.currentIdentityIds,
     required this.onOpenInfo,
   });
 
   final String conversationId;
   final String title;
   final Conversation? conversation;
-  final String currentUserId;
+  final Set<String> currentIdentityIds;
   final VoidCallback onOpenInfo;
 
   @override
@@ -465,7 +631,9 @@ class _FloatingChatHeader extends StatelessWidget {
     final current = conversation;
     if (current == null || current.isGroup) return null;
     for (final member in current.members) {
-      if (member.profile.id != currentUserId) return member.profile;
+      if (!_isCurrentProfile(member.profile, currentIdentityIds)) {
+        return member.profile;
+      }
     }
     return null;
   }
@@ -545,13 +713,13 @@ class _ChatInfoSheet extends StatefulWidget {
   const _ChatInfoSheet({
     required this.title,
     required this.conversation,
-    required this.currentUserId,
+    required this.currentIdentityIds,
     required this.messages,
   });
 
   final String title;
   final Conversation? conversation;
-  final String currentUserId;
+  final Set<String> currentIdentityIds;
   final List<Message> messages;
 
   @override
@@ -565,7 +733,9 @@ class _ChatInfoSheetState extends State<_ChatInfoSheet> {
     final conversation = widget.conversation;
     if (conversation == null || conversation.isGroup) return null;
     for (final member in conversation.members) {
-      if (member.profile.id != widget.currentUserId) return member.profile;
+      if (!_isCurrentProfile(member.profile, widget.currentIdentityIds)) {
+        return member.profile;
+      }
     }
     return null;
   }
@@ -770,7 +940,7 @@ class _InfoActionTile extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
+      child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(icon, color: AppColors.primary, size: 24),
@@ -1274,40 +1444,57 @@ class _Bubble extends StatelessWidget {
     final maxWidth = MediaQuery.of(context).size.width * 0.72;
 
     return Padding(
-      padding: EdgeInsets.only(top: 3, bottom: showAvatar || mine ? 5 : 1),
-      child: Row(
-        mainAxisAlignment: mine
-            ? MainAxisAlignment.end
-            : MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.end,
+      padding: EdgeInsets.only(
+        top: 3,
+        bottom: readBy.isNotEmpty ? 2 : (showAvatar || mine ? 5 : 1),
+      ),
+      child: Column(
+        crossAxisAlignment: mine
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
         children: [
-          if (!mine) ...[
-            SizedBox(
-              width: 34,
-              child: showAvatar
-                  ? UserAvatar(
-                      userId: sender?.id ?? message.senderId,
-                      displayName: sender?.displayName ?? 'Bạn',
-                      email: sender?.email,
-                      size: 30,
-                    )
-                  : const SizedBox(width: 30),
-            ),
-            const SizedBox(width: 6),
-          ],
-          GestureDetector(
-            onLongPress: () => _showContextMenu(context),
-            child: media == null
-                ? _TextBubble(message: message, mine: mine, maxWidth: maxWidth)
-                : _MediaBubble(
-                    message: message,
-                    media: media,
-                    mine: mine,
-                    maxWidth: maxWidth,
-                  ),
+          Row(
+            mainAxisAlignment: mine
+                ? MainAxisAlignment.end
+                : MainAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              if (!mine) ...[
+                SizedBox(
+                  width: 34,
+                  child: showAvatar
+                      ? UserAvatar(
+                          userId: sender?.id ?? message.senderId,
+                          displayName: sender?.displayName ?? 'Bạn',
+                          email: sender?.email,
+                          size: 30,
+                        )
+                      : const SizedBox(width: 30),
+                ),
+                const SizedBox(width: 6),
+              ],
+              GestureDetector(
+                onLongPress: () => _showContextMenu(context),
+                child: media == null
+                    ? _TextBubble(
+                        message: message,
+                        mine: mine,
+                        maxWidth: maxWidth,
+                      )
+                    : _MediaBubble(
+                        message: message,
+                        media: media,
+                        mine: mine,
+                        maxWidth: maxWidth,
+                      ),
+              ),
+            ],
           ),
-          if (mine) const SizedBox(width: 4),
-          if (readBy.isNotEmpty) _ReadAvatars(readers: readBy),
+          if (readBy.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 3, right: 8),
+              child: _ReadAvatars(readers: readBy),
+            ),
         ],
       ),
     );

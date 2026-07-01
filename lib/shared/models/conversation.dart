@@ -12,6 +12,12 @@ class ConversationSummary {
     required this.updatedAt,
     this.unreadCount = 0,
     this.archivedAt,
+    this.avatarUrl,
+    this.description,
+    this.isEditable = false,
+    this.memberCount = 0,
+    this.lastSeenMessageId,
+    this.lastSeenDt,
   });
 
   final String id;
@@ -21,8 +27,79 @@ class ConversationSummary {
   final DateTime updatedAt;
   final int unreadCount;
   final DateTime? archivedAt;
+  final String? avatarUrl;
+  final String? description;
+  final bool isEditable;
+  final int memberCount;
+  final String? lastSeenMessageId;
+  final DateTime? lastSeenDt;
 
   bool get isArchived => archivedAt != null;
+
+  factory ConversationSummary.fromOdooChatChannel(
+    Map<String, dynamic> map, {
+    DateTime? fetchedAt,
+  }) {
+    final id = map['id'].toString();
+    final lastMessageDate = _dateTimeOrNull(map['last_message_date']);
+    final lastMessageId = _stringOrNull(map['last_message_id']);
+    final lastMessageText = _stringOrNull(
+      Message.cleanHtmlText(map['last_message']),
+    );
+
+    return ConversationSummary(
+      id: id,
+      isGroup: map['channel_type'] != 'chat',
+      title: (map['name'] ?? 'Chat').toString(),
+      lastMessage: lastMessageText == null
+          ? null
+          : Message(
+              id: lastMessageId ?? 'last-$id',
+              conversationId: id,
+              senderId: '',
+              content: lastMessageText,
+              createdAt: lastMessageDate ?? fetchedAt ?? DateTime.now(),
+            ),
+      updatedAt: lastMessageDate ?? fetchedAt ?? DateTime.now(),
+      unreadCount: (map['unread_count'] as num?)?.toInt() ?? 0,
+      avatarUrl: _stringOrNull(map['avatar_128']),
+      description: _stringOrNull(map['description']),
+      isEditable: map['is_editable'] as bool? ?? false,
+      memberCount: (map['member_count'] as num?)?.toInt() ?? 0,
+      lastSeenMessageId: _stringOrNull(map['last_seen_message_id']),
+      lastSeenDt: _dateTimeOrNull(map['last_seen_dt']),
+    );
+  }
+
+  static DateTime? _dateTimeOrNull(Object? value) {
+    if (value == null || value == false) return null;
+    final text = value.toString();
+    final parsed = DateTime.tryParse(text);
+    if (parsed == null || parsed.isUtc || _hasTimezone(text)) return parsed;
+    return DateTime.utc(
+      parsed.year,
+      parsed.month,
+      parsed.day,
+      parsed.hour,
+      parsed.minute,
+      parsed.second,
+      parsed.millisecond,
+      parsed.microsecond,
+    );
+  }
+
+  static bool _hasTimezone(String value) {
+    return RegExp(
+      r'(z|[+-]\d\d:?\d\d)$',
+      caseSensitive: false,
+    ).hasMatch(value.trim());
+  }
+
+  static String? _stringOrNull(Object? value) {
+    if (value == null || value == false) return null;
+    final text = value.toString();
+    return text.isEmpty ? null : text;
+  }
 }
 
 /// Full conversation metadata, used by chat-detail for header/title.
@@ -43,18 +120,27 @@ class Conversation {
   final DateTime createdAt;
   final List<ConversationMember> members;
 
-  String displayTitleFor(String currentUserId) {
-    if (isGroup) return name ?? 'Group';
-    final other = members.firstWhere(
-      (m) => m.profile.id != currentUserId,
-      orElse: () => ConversationMember(
-        profile: const Profile(id: '', email: '', displayName: 'You'),
-        joinedAt: createdAt,
-      ),
-    );
-    return other.profile.displayName.isEmpty
-        ? other.profile.email
-        : other.profile.displayName;
+  String displayTitleFor(Iterable<String> currentIdentityIds) {
+    final title = name?.trim();
+    if (isGroup) return title?.isNotEmpty == true ? title! : 'Group';
+
+    final currentLabels = currentIdentityIds
+        .map((label) => label.trim().toLowerCase())
+        .where((label) => label.isNotEmpty)
+        .toSet();
+    ConversationMember? other;
+    for (final member in members) {
+      if (!member.profile.matchesAny(currentLabels)) {
+        other = member;
+        break;
+      }
+    }
+    if (other != null) return other.profile.bestLabel;
+
+    final titleFromChannelName = _directTitleFromName(title, currentLabels);
+    if (titleFromChannelName != null) return titleFromChannelName;
+
+    return title?.isNotEmpty == true ? title! : 'Chat';
   }
 
   factory Conversation.fromMaps(List<Map<String, dynamic>> memberRows) {
@@ -71,6 +157,23 @@ class Conversation {
       members: memberRows.map(ConversationMember.fromMap).toList(),
     );
   }
+
+  static String? _directTitleFromName(String? name, Set<String> currentLabels) {
+    if (name == null || name.isEmpty || !name.contains(',')) return null;
+    final others = name
+        .split(',')
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .where((part) {
+          final label = part.toLowerCase();
+          return label != 'you' &&
+              label != 'ban' &&
+              label != 'bạn' &&
+              !currentLabels.contains(label);
+        })
+        .toList();
+    return others.isEmpty ? null : others.join(', ');
+  }
 }
 
 class ConversationMember {
@@ -84,11 +187,25 @@ class ConversationMember {
       profile: Profile(
         id: row['user_id'] as String,
         email: (row['profiles']?['email'] as String?) ?? '',
-        displayName:
-            (row['profiles']?['display_name'] as String?) ?? '',
+        displayName: (row['profiles']?['display_name'] as String?) ?? '',
         avatarUrl: row['profiles']?['avatar_url'] as String?,
       ),
       joinedAt: DateTime.parse(row['joined_at'] as String),
     );
+  }
+}
+
+extension on Profile {
+  String get bestLabel {
+    final name = displayName.trim();
+    if (name.isNotEmpty) return name;
+    final mail = email.trim();
+    return mail.isNotEmpty ? mail : 'Chat';
+  }
+
+  bool matchesAny(Set<String> labels) {
+    return labels.contains(id.trim().toLowerCase()) ||
+        labels.contains(email.trim().toLowerCase()) ||
+        labels.contains(displayName.trim().toLowerCase());
   }
 }

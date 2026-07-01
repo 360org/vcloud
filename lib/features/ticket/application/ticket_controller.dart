@@ -26,8 +26,9 @@ class TicketOverride extends Notifier<List<Ticket>?> {
   void set(List<Ticket>? next) => state = next;
 }
 
-final ticketOverrideProvider =
-    NotifierProvider<TicketOverride, List<Ticket>?>(TicketOverride.new);
+final ticketOverrideProvider = NotifierProvider<TicketOverride, List<Ticket>?>(
+  TicketOverride.new,
+);
 
 final effectiveTicketsProvider = Provider<List<Ticket>>((ref) {
   final override = ref.watch(ticketOverrideProvider);
@@ -108,11 +109,11 @@ final ticketCommentRepositoryProvider = Provider<TicketCommentRepository>(
 );
 
 /// Watch comments for a specific ticket.
-final ticketCommentsProvider =
-    StreamProvider.autoDispose.family<List<TicketComment>, String>(
-  (ref, ticketId) =>
-      ref.read(ticketCommentRepositoryProvider).watchByTicket(ticketId),
-);
+final ticketCommentsProvider = StreamProvider.autoDispose
+    .family<List<TicketComment>, String>(
+      (ref, ticketId) =>
+          ref.read(ticketCommentRepositoryProvider).watchByTicket(ticketId),
+    );
 
 class TicketCommentActions {
   TicketCommentActions(this._repo);
@@ -138,8 +139,8 @@ final activityLogRepositoryProvider = Provider<ActivityLogRepository>(
 );
 
 /// Watch activity log for a specific ticket.
-final activityLogProvider =
-    StreamProvider.autoDispose.family<List<ActivityLog>, String>(
-  (ref, ticketId) =>
-      ref.read(activityLogRepositoryProvider).watchByTicket(ticketId),
-);
+final activityLogProvider = StreamProvider.autoDispose
+    .family<List<ActivityLog>, String>(
+      (ref, ticketId) =>
+          ref.read(activityLogRepositoryProvider).watchByTicket(ticketId),
+    );

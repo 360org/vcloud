@@ -1,35 +1,22 @@
-import 'dart:async';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/api/auth_user.dart';
 import '../data/auth_repository.dart';
 
 final _authRepoProvider = Provider<AuthRepository>((_) => AuthRepository());
 
-/// Single source of truth for the current user.
-///
-/// Bootstrap reads `supabase.auth.currentSession` synchronously (which the
-/// secure storage backed `SecureLocalStorage` restored at startup), then
-/// subscribes to `onAuthStateChange` so subsequent sign-in/sign-out events
-/// propagate. Splash, login, signup and GoRouter all watch this provider.
-final authControllerProvider =
-    AsyncNotifierProvider<AuthController, User?>(AuthController.new);
+/// Single source of truth for the current Odoo-authenticated user.
+final authControllerProvider = AsyncNotifierProvider<AuthController, AuthUser?>(
+  AuthController.new,
+);
 
-class AuthController extends AsyncNotifier<User?> {
+class AuthController extends AsyncNotifier<AuthUser?> {
   late final AuthRepository _repo;
-  StreamSubscription<AuthState>? _sub;
 
   @override
-  Future<User?> build() async {
+  Future<AuthUser?> build() async {
     _repo = ref.watch(_authRepoProvider);
-    _sub?.cancel();
-    _sub = _repo.onAuthChange.listen((event) {
-      final next = event.session?.user;
-      state = AsyncData(next);
-    });
-    ref.onDispose(() => _sub?.cancel());
-    return _repo.currentUser;
+    return _repo.currentUser();
   }
 
   Future<void> signIn(String email, String password) async {
@@ -64,8 +51,6 @@ class AuthController extends AsyncNotifier<User?> {
 
   Future<void> signOut() async {
     await _repo.signOut();
-    // The onAuthStateChange listener will update `state` to null;
-    // explicitly setting it removes a 1-frame stale user.
     state = const AsyncData(null);
   }
 }

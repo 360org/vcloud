@@ -17,8 +17,7 @@ class LogCompletionSheet extends ConsumerStatefulWidget {
   final Task task;
 
   @override
-  ConsumerState<LogCompletionSheet> createState() =>
-      _LogCompletionSheetState();
+  ConsumerState<LogCompletionSheet> createState() => _LogCompletionSheetState();
 }
 
 class _LogCompletionSheetState extends ConsumerState<LogCompletionSheet> {
@@ -41,7 +40,9 @@ class _LogCompletionSheetState extends ConsumerState<LogCompletionSheet> {
     }
     setState(() => _saving = true);
     try {
-      await ref.read(taskActionsProvider).complete(
+      await ref
+          .read(taskActionsProvider)
+          .complete(
             taskId: widget.task.id,
             summary: _summary.text.trim(),
             duration: _duration,
@@ -221,28 +222,28 @@ class _LogCompletionSheetState extends ConsumerState<LogCompletionSheet> {
 /// Inline helper — equivalent to `categoryColor(category)` but
 /// avoids the cross-file import explosion inside this leaf widget.
 Color categoryColorSync(TimesheetCategory c) => switch (c) {
-      TimesheetCategory.erp => AppColors.primary,
-      TimesheetCategory.crm => AppColors.chat,
-      TimesheetCategory.meeting => AppColors.timesheet,
-      TimesheetCategory.support => AppColors.ticket,
-      TimesheetCategory.other => AppColors.textMuted,
-    };
+  TimesheetCategory.erp => AppColors.primary,
+  TimesheetCategory.crm => AppColors.chat,
+  TimesheetCategory.meeting => AppColors.timesheet,
+  TimesheetCategory.support => AppColors.ticket,
+  TimesheetCategory.other => AppColors.textMuted,
+};
 
 IconData categoryIconSync(TimesheetCategory c) => switch (c) {
-      TimesheetCategory.erp => Icons.storage,
-      TimesheetCategory.crm => Icons.groups_2_outlined,
-      TimesheetCategory.meeting => Icons.event_outlined,
-      TimesheetCategory.support => Icons.support_agent,
-      TimesheetCategory.other => Icons.more_horiz,
-    };
+  TimesheetCategory.erp => Icons.storage,
+  TimesheetCategory.crm => Icons.groups_2_outlined,
+  TimesheetCategory.meeting => Icons.event_outlined,
+  TimesheetCategory.support => Icons.support_agent,
+  TimesheetCategory.other => Icons.more_horiz,
+};
 
 String categoryViSync(TimesheetCategory c) => switch (c) {
-      TimesheetCategory.erp => 'ERP',
-      TimesheetCategory.crm => 'CRM',
-      TimesheetCategory.meeting => 'Meeting',
-      TimesheetCategory.support => 'Support',
-      TimesheetCategory.other => 'Khác',
-    };
+  TimesheetCategory.erp => 'ERP',
+  TimesheetCategory.crm => 'CRM',
+  TimesheetCategory.meeting => 'Meeting',
+  TimesheetCategory.support => 'Support',
+  TimesheetCategory.other => 'Khác',
+};
 
 /// Inline duration quick-select chip — kept tiny here so the sheet
 /// stays self-contained.
@@ -283,4 +284,3 @@ class DurationQuickChip extends StatelessWidget {
     );
   }
 }
-

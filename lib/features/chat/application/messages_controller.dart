@@ -5,9 +5,9 @@ import 'conversations_controller.dart';
 
 final messagesProvider = StreamProvider.autoDispose
     .family<List<Message>, String>((ref, conversationId) {
-  final repo = ref.read(chatRepositoryProvider);
-  return repo.watchMessages(conversationId);
-});
+      final repo = ref.read(chatRepositoryProvider);
+      return repo.watchMessages(conversationId);
+    });
 
 class SendMessageAction {
   SendMessageAction(this._repo, this._ref);
@@ -19,8 +19,9 @@ class SendMessageAction {
       throw ArgumentError('Empty message.');
     }
     final msg = await _repo.sendMessage(conversationId, content.trim());
-    // Refresh the messages stream so the new bubble appears immediately.
+    // Refresh chat detail and the list preview/unread metadata together.
     _ref.invalidate(messagesProvider(conversationId));
+    _ref.invalidate(conversationsProvider);
     return msg;
   }
 }
@@ -37,7 +38,7 @@ class MarkAsReadAction {
 
   Future<void> markAsRead(String conversationId) async {
     await _repo.markAsRead(conversationId);
-    // Refresh conversations to update unread counts.
+    _ref.invalidate(messagesProvider(conversationId));
     _ref.invalidate(conversationsProvider);
   }
 }

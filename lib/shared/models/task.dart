@@ -35,17 +35,17 @@ class Task {
   bool get isCompleted => completedAt != null;
 
   factory Task.fromMap(Map<String, dynamic> map) => Task(
-        id: map['id'] as String,
-        userId: map['user_id'] as String,
-        title: map['title'] as String,
-        description: map['description'] as String?,
-        category: TimesheetCategoryDb.fromDb(map['category'] as String),
-        dueDate: DateTime.parse(map['due_date'] as String),
-        completedAt: map['completed_at'] == null
-            ? null
-            : DateTime.parse(map['completed_at'] as String),
-        timesheetId: map['timesheet_id'] as String?,
-        createdAt: DateTime.parse(map['created_at'] as String),
-        updatedAt: DateTime.parse(map['updated_at'] as String),
-      );
+    id: map['id'] as String,
+    userId: map['user_id'] as String,
+    title: map['title'] as String,
+    description: map['description'] as String?,
+    category: TimesheetCategoryDb.fromDb(map['category'] as String),
+    dueDate: DateTime.parse(map['due_date'] as String),
+    completedAt: map['completed_at'] == null
+        ? null
+        : DateTime.parse(map['completed_at'] as String),
+    timesheetId: map['timesheet_id'] as String?,
+    createdAt: DateTime.parse(map['created_at'] as String),
+    updatedAt: DateTime.parse(map['updated_at'] as String),
+  );
 }

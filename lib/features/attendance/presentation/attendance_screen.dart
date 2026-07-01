@@ -5,8 +5,8 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/error/failure.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/models/attendance.dart';
 import '../../../shared/widgets/app_scaffold.dart';
@@ -35,14 +35,16 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
     'Thứ Năm',
     'Thứ Sáu',
     'Thứ Bảy',
-    'Chủ Nhật'
+    'Chủ Nhật',
   ];
 
   @override
   void initState() {
     super.initState();
     _ticker = Timer.periodic(
-        const Duration(seconds: 1), (_) => setState(() => _now = DateTime.now()));
+      const Duration(seconds: 1),
+      (_) => setState(() => _now = DateTime.now()),
+    );
   }
 
   @override
@@ -75,8 +77,8 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
     final minutes = diff.inMinutes.remainder(60);
     final seconds = diff.inSeconds.remainder(60);
     return '${hours.toString().padLeft(2, '0')}:'
-           '${minutes.toString().padLeft(2, '0')}:'
-           '${seconds.toString().padLeft(2, '0')}';
+        '${minutes.toString().padLeft(2, '0')}:'
+        '${seconds.toString().padLeft(2, '0')}';
   }
 
   Future<void> _handle(bool checkIn) async {
@@ -96,8 +98,9 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
       checkIn ? await a.checkIn() : await a.checkOut();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(e.toString().replaceFirst('Failure: ', ''))));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(describeError(e))));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -106,10 +109,13 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final todayState = ref.watch(attendanceTodayProvider);
     final open = ref.watch(openSessionProvider);
+    final statusLoading = todayState.isLoading && open == null;
     final isCheckedIn = open != null;
     final user = ref.watch(authControllerProvider).value;
-    final name = (user?.userMetadata?['display_name'] as String?) ??
+    final name =
+        (user?.userMetadata['display_name'] as String?) ??
         user?.email?.split('@').first ??
         'Bạn';
     final clock = isCheckedIn
@@ -127,7 +133,10 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
           // Avatar with gradient ring
           Center(
             child: UserAvatar(
-                userId: Supabase.instance.client.auth.currentUser?.id ?? '', displayName: name, size: 84),
+              userId: user?.id ?? '',
+              displayName: name,
+              size: 84,
+            ),
           ).animate().fadeIn(duration: 400.ms),
           const SizedBox(height: 24),
 
@@ -137,26 +146,35 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(clock,
-                    style: const TextStyle(
-                        fontSize: 52,
-                        fontWeight: FontWeight.w800,
-                        height: 1,
-                        letterSpacing: 1)),
-                Text(seconds,
-                    style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w600,
-                        height: 1.2,
-                        color: AppColors.textMuted)),
+                Text(
+                  clock,
+                  style: const TextStyle(
+                    fontSize: 52,
+                    fontWeight: FontWeight.w800,
+                    height: 1,
+                    letterSpacing: 1,
+                  ),
+                ),
+                Text(
+                  seconds,
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w600,
+                    height: 1.2,
+                    color: AppColors.textMuted,
+                  ),
+                ),
               ],
             ),
           ),
           const SizedBox(height: 6),
           Center(
-            child: Text(_viDate,
-                style: AppTextStyles.body
-                    .copyWith(color: AppColors.textSecondary)),
+            child: Text(
+              _viDate,
+              style: AppTextStyles.body.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
           ),
           const SizedBox(height: 32),
 
@@ -166,20 +184,27 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
               child: GlassCard(
                 child: Column(
                   children: [
-                    const Icon(Icons.check_circle_outline,
-                        color: AppColors.success, size: 40),
+                    const Icon(
+                      Icons.check_circle_outline,
+                      color: AppColors.success,
+                      size: 40,
+                    ),
                     const SizedBox(height: 8),
-                    const Text('ĐÃ CHECK-IN',
-                        style: TextStyle(
-                            color: AppColors.success,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1)),
+                    const Text(
+                      'ĐÃ CHECK-IN',
+                      style: TextStyle(
+                        color: AppColors.success,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1,
+                      ),
+                    ),
                     const SizedBox(height: 4),
                     Text(
                       _formatCheckinTime(open.checkinTime),
                       style: AppTextStyles.body.copyWith(
-                          color: AppColors.textSecondary),
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                   ],
                 ),
@@ -188,16 +213,15 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
           else
             Center(
               child: _BigCircleButton(
-                enabled: !isCheckedIn && !_busy,
-                busy: _busy,
+                enabled: !statusLoading && !isCheckedIn && !_busy,
+                busy: _busy || statusLoading,
                 onTap: () => _handle(true),
               ),
             ),
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 14),
             child: Center(
-              child: Text('Hoặc',
-                  style: TextStyle(color: AppColors.textMuted)),
+              child: Text('Hoặc', style: TextStyle(color: AppColors.textMuted)),
             ),
           ),
 
@@ -210,39 +234,44 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
                 onPressed: isCheckedIn && !_busy ? () => _handle(false) : null,
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.danger,
-                  side: const BorderSide(
-                      color: AppColors.danger, width: 1.5),
+                  side: const BorderSide(color: AppColors.danger, width: 1.5),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20)),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
                 ),
                 icon: const Icon(Icons.cancel_outlined, size: 20),
-                label: const Text('CHECK-OUT',
-                    style: TextStyle(
-                        fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+                label: const Text(
+                  'CHECK-OUT',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                  ),
+                ),
               ),
             ),
           ).animate().fadeIn(duration: 380.ms, delay: 120.ms),
           const SizedBox(height: 24),
 
           // Location card
-          _LocationRow(open: open)
-              .animate()
-              .fadeIn(duration: 380.ms, delay: 180.ms),
+          _LocationRow(
+            open: open,
+          ).animate().fadeIn(duration: 380.ms, delay: 180.ms),
           const SizedBox(height: 16),
 
           // Weekly summary
-          _WeeklySummary()
-              .animate()
-              .fadeIn(duration: 380.ms, delay: 240.ms),
+          _WeeklySummary().animate().fadeIn(duration: 380.ms, delay: 240.ms),
           const SizedBox(height: 16),
 
           // History link
           Center(
             child: TextButton(
               onPressed: () => context.push('/attendance/history'),
-              child: Text('Xem lịch sử check-in',
-                  style: AppTextStyles.bodyMedium
-                      .copyWith(color: AppColors.primary)),
+              child: Text(
+                'Xem lịch sử check-in',
+                style: AppTextStyles.bodyMedium.copyWith(
+                  color: AppColors.primary,
+                ),
+              ),
             ),
           ),
         ],
@@ -266,7 +295,8 @@ class _BigCircleButton extends StatelessWidget {
     final gradient = enabled
         ? AppColors.featureGrad(AppColors.attendance, AppColors.attendanceDeep)
         : const LinearGradient(
-            colors: [AppColors.textMuted, AppColors.textMuted]);
+            colors: [AppColors.textMuted, AppColors.textMuted],
+          );
     final glow = enabled ? AppColors.attendance : AppColors.textMuted;
     final circle = GestureDetector(
       onTap: enabled ? onTap : null,
@@ -291,20 +321,29 @@ class _BigCircleButton extends StatelessWidget {
         ),
         child: busy
             ? const Center(
-                child:
-                    CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2.5,
+                ),
+              )
             : Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(LucideIcons.mapPin,
-                      color: Colors.white, size: enabled ? 34 : 28),
+                  Icon(
+                    LucideIcons.mapPin,
+                    color: Colors.white,
+                    size: enabled ? 34 : 28,
+                  ),
                   const SizedBox(height: 8),
-                  Text('CHECK-IN',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: enabled ? 16 : 14,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1)),
+                  Text(
+                    'CHECK-IN',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: enabled ? 16 : 14,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1,
+                    ),
+                  ),
                 ],
               ),
       ),
@@ -313,10 +352,11 @@ class _BigCircleButton extends StatelessWidget {
     return circle
         .animate(onPlay: (c) => c.repeat(reverse: true))
         .scaleXY(
-            begin: 1.0,
-            end: 1.05,
-            duration: 1200.ms,
-            curve: Curves.easeInOut);
+          begin: 1.0,
+          end: 1.05,
+          duration: 1200.ms,
+          curve: Curves.easeInOut,
+        );
   }
 }
 
@@ -338,23 +378,33 @@ class _LocationRow extends StatelessWidget {
             height: 40,
             decoration: BoxDecoration(
               gradient: AppColors.featureGrad(
-                  AppColors.primary, AppColors.primaryDeep),
+                AppColors.primary,
+                AppColors.primaryDeep,
+              ),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(Icons.location_on_outlined,
-                color: Colors.white, size: 20),
+            child: const Icon(
+              Icons.location_on_outlined,
+              color: Colors.white,
+              size: 20,
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('VCCI Building HCM',
-                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                const Text(
+                  'VCCI Building HCM',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                ),
                 const SizedBox(height: 2),
-                Text(sub,
-                    style: AppTextStyles.caption
-                        .copyWith(color: AppColors.textSecondary)),
+                Text(
+                  sub,
+                  style: AppTextStyles.caption.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
               ],
             ),
           ),
@@ -380,8 +430,16 @@ class _WeeklySummary extends ConsumerWidget {
         final checkinsPerDay = List.filled(7, 0);
         for (final a in list) {
           if (a.checkinTime == null) continue;
-          final d = DateTime(a.checkinTime!.year, a.checkinTime!.month, a.checkinTime!.day);
-          final diff = d.difference(DateTime(weekStart.year, weekStart.month, weekStart.day)).inDays;
+          final d = DateTime(
+            a.checkinTime!.year,
+            a.checkinTime!.month,
+            a.checkinTime!.day,
+          );
+          final diff = d
+              .difference(
+                DateTime(weekStart.year, weekStart.month, weekStart.day),
+              )
+              .inDays;
           if (diff >= 0 && diff < 7) {
             checkinsPerDay[diff]++;
           }
@@ -402,13 +460,25 @@ class _WeeklySummary extends ConsumerWidget {
                     width: 36,
                     height: 36,
                     decoration: BoxDecoration(
-                      gradient: AppColors.featureGrad(AppColors.attendance, AppColors.attendanceDeep),
+                      gradient: AppColors.featureGrad(
+                        AppColors.attendance,
+                        AppColors.attendanceDeep,
+                      ),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(LucideIcons.calendarCheck, color: Colors.white, size: 18),
+                    child: const Icon(
+                      LucideIcons.calendarCheck,
+                      color: Colors.white,
+                      size: 18,
+                    ),
                   ),
                   const SizedBox(width: 12),
-                  Text('Tuần này', style: AppTextStyles.title.copyWith(color: AppColors.textPrimary)),
+                  Text(
+                    'Tuần này',
+                    style: AppTextStyles.title.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 16),
@@ -424,21 +494,37 @@ class _WeeklySummary extends ConsumerWidget {
                         height: 32,
                         decoration: BoxDecoration(
                           gradient: hasCheckin
-                              ? AppColors.featureGrad(AppColors.attendance, AppColors.attendanceDeep)
+                              ? AppColors.featureGrad(
+                                  AppColors.attendance,
+                                  AppColors.attendanceDeep,
+                                )
                               : null,
                           color: hasCheckin ? null : AppColors.bg,
                           shape: BoxShape.circle,
-                          border: isToday ? Border.all(color: AppColors.attendance, width: 2) : null,
+                          border: isToday
+                              ? Border.all(
+                                  color: AppColors.attendance,
+                                  width: 2,
+                                )
+                              : null,
                         ),
                         child: hasCheckin
-                            ? const Icon(Icons.check, color: Colors.white, size: 16)
+                            ? const Icon(
+                                Icons.check,
+                                color: Colors.white,
+                                size: 16,
+                              )
                             : Center(
                                 child: Text(
                                   weekDays[i],
                                   style: TextStyle(
                                     fontSize: 10,
-                                    fontWeight: isToday ? FontWeight.w700 : FontWeight.w500,
-                                    color: isToday ? AppColors.attendance : AppColors.textMuted,
+                                    fontWeight: isToday
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                    color: isToday
+                                        ? AppColors.attendance
+                                        : AppColors.textMuted,
                                   ),
                                 ),
                               ),
@@ -448,8 +534,12 @@ class _WeeklySummary extends ConsumerWidget {
                         weekDays[i],
                         style: TextStyle(
                           fontSize: 10,
-                          color: isToday ? AppColors.attendance : AppColors.textMuted,
-                          fontWeight: isToday ? FontWeight.w700 : FontWeight.normal,
+                          color: isToday
+                              ? AppColors.attendance
+                              : AppColors.textMuted,
+                          fontWeight: isToday
+                              ? FontWeight.w700
+                              : FontWeight.normal,
                         ),
                       ),
                     ],
@@ -472,7 +562,10 @@ class _WeeklySummary extends ConsumerWidget {
                     label: totalCheckins >= 5 ? 'Đạt' : 'Cần cố gắng',
                     gradient: totalCheckins >= 5
                         ? AppColors.successGrad
-                        : AppColors.featureGrad(AppColors.warning, AppColors.warning),
+                        : AppColors.featureGrad(
+                            AppColors.warning,
+                            AppColors.warning,
+                          ),
                     fontSize: 11,
                   ),
                 ],

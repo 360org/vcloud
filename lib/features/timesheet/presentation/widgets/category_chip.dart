@@ -35,7 +35,9 @@ class CategoryChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
         alignment: center ? Alignment.center : null,
         decoration: BoxDecoration(
-          gradient: selected ? AppColors.featureGrad(pillColor, pillColor) : null,
+          gradient: selected
+              ? AppColors.featureGrad(pillColor, pillColor)
+              : null,
           color: selected ? null : const Color(0xFFF1F3F6),
           borderRadius: BorderRadius.circular(12),
           boxShadow: selected ? AppColors.glow(pillColor, opacity: 0.2) : null,
@@ -66,30 +68,30 @@ class CategoryChip extends StatelessWidget {
 /// raw enum name today ("ERP", "CRM", "Meeting", "Support") except
 /// for [TimesheetCategory.other] which renders as "Khác".
 String categoryVi(TimesheetCategory c) => switch (c) {
-      TimesheetCategory.erp => 'ERP',
-      TimesheetCategory.crm => 'CRM',
-      TimesheetCategory.meeting => 'Meeting',
-      TimesheetCategory.support => 'Support',
-      TimesheetCategory.other => 'Khác',
-    };
+  TimesheetCategory.erp => 'ERP',
+  TimesheetCategory.crm => 'CRM',
+  TimesheetCategory.meeting => 'Meeting',
+  TimesheetCategory.support => 'Support',
+  TimesheetCategory.other => 'Khác',
+};
 
 /// Material icon paired with each category. Used by every chip row
 /// and the task-list row icons.
 IconData categoryIcon(TimesheetCategory c) => switch (c) {
-      TimesheetCategory.erp => Icons.storage,
-      TimesheetCategory.crm => Icons.groups_2_outlined,
-      TimesheetCategory.meeting => Icons.event_outlined,
-      TimesheetCategory.support => Icons.support_agent,
-      TimesheetCategory.other => Icons.more_horiz,
-    };
+  TimesheetCategory.erp => Icons.storage,
+  TimesheetCategory.crm => Icons.groups_2_outlined,
+  TimesheetCategory.meeting => Icons.event_outlined,
+  TimesheetCategory.support => Icons.support_agent,
+  TimesheetCategory.other => Icons.more_horiz,
+};
 
 /// Feature colour for each category. Mirrors the convention used by
 /// the timer card and quick-add (ERP→primary, CRM→chat,
 /// Meeting→timesheet, Support→ticket, Other→textMuted).
 Color categoryColor(TimesheetCategory c) => switch (c) {
-      TimesheetCategory.erp => AppColors.primary,
-      TimesheetCategory.crm => AppColors.chat,
-      TimesheetCategory.meeting => AppColors.timesheet,
-      TimesheetCategory.support => AppColors.ticket,
-      TimesheetCategory.other => AppColors.textMuted,
-    };
+  TimesheetCategory.erp => AppColors.primary,
+  TimesheetCategory.crm => AppColors.chat,
+  TimesheetCategory.meeting => AppColors.timesheet,
+  TimesheetCategory.support => AppColors.ticket,
+  TimesheetCategory.other => AppColors.textMuted,
+};

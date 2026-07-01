@@ -69,7 +69,7 @@ class AttendanceHistoryScreen extends ConsumerWidget {
         title: Text(
           a.checkinTime != null
               ? '${Dates.time(a.checkinTime!)} → '
-                  '${a.checkoutTime != null ? Dates.time(a.checkoutTime!) : 'still in'}'
+                    '${a.checkoutTime != null ? Dates.time(a.checkoutTime!) : 'still in'}'
               : 'No check-in',
         ),
         subtitle: Text(

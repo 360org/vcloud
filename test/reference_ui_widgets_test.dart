@@ -37,6 +37,31 @@ void main() {
     expect(selected, 1);
   });
 
+  testWidgets('CompactActionTile fits tight dashboard grid cells', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: 89.3,
+              height: 93.1,
+              child: CompactActionTile(
+                icon: Icons.chat_bubble_outline,
+                label: 'Chat',
+                color: Colors.blue,
+                onTap: () {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('CreateTicketScreen defaults to P3 and validates title', (
     tester,
   ) async {

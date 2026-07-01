@@ -36,7 +36,7 @@ class AppColors {
   static const calendarDeep = Color(0xFF0891B2);
   static const attendance = Color(0xFF10B981);
   static const attendanceDeep = Color(0xFF059669);
-  
+
   // ── Soft tint backgrounds ────────────────────────────────────────────────────
   static const chatSoft = Color(0xFFEFF6FF);
   static const timesheetSoft = Color(0xFFF2EBFE);
@@ -88,7 +88,7 @@ class AppColors {
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
-  
+
   // Per-feature gradient pairs for screens
   static const chatGrad = LinearGradient(
     colors: [chat, chatDeep],
@@ -118,17 +118,17 @@ class AppColors {
 
   /// Per-feature gradient pair.
   static LinearGradient featureGrad(Color c, Color deep) => LinearGradient(
-        colors: [c, deep],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      );
+    colors: [c, deep],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
 
   /// A two-stop gradient that brightens [c] — used for accent icon chips.
   static LinearGradient accent(Color c) => LinearGradient(
-        colors: [Color.lerp(c, Colors.white, 0.18)!, c],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      );
+    colors: [Color.lerp(c, Colors.white, 0.18)!, c],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
 
   /// Soft tinted background for an accent (badges, chips).
   static Color soft(Color c) =>
@@ -136,40 +136,40 @@ class AppColors {
 
   /// Colored glow shadow for elevated/branded elements.
   static List<BoxShadow> glow(Color c, {double opacity = 0.35}) => [
-        BoxShadow(
-          color: c.withValues(alpha: opacity),
-          blurRadius: 22,
-          offset: const Offset(0, 10),
-        ),
-      ];
+    BoxShadow(
+      color: c.withValues(alpha: opacity),
+      blurRadius: 22,
+      offset: const Offset(0, 10),
+    ),
+  ];
 
   /// Subtle glow for glass cards.
   static List<BoxShadow> glassGlow(Color c, {double opacity = 0.15}) => [
-        BoxShadow(
-          color: c.withValues(alpha: opacity),
-          blurRadius: 24,
-          offset: const Offset(0, 8),
-        ),
-        const BoxShadow(
-          color: Color(0x080F172A),
-          blurRadius: 8,
-          offset: Offset(0, 2),
-        ),
-      ];
+    BoxShadow(
+      color: c.withValues(alpha: opacity),
+      blurRadius: 24,
+      offset: const Offset(0, 8),
+    ),
+    const BoxShadow(
+      color: Color(0x080F172A),
+      blurRadius: 8,
+      offset: Offset(0, 2),
+    ),
+  ];
 
   /// Enhanced glow for premium elements
   static List<BoxShadow> premiumGlow(Color c, {double opacity = 0.25}) => [
-        BoxShadow(
-          color: c.withValues(alpha: opacity),
-          blurRadius: 28,
-          offset: const Offset(0, 12),
-        ),
-        BoxShadow(
-          color: c.withValues(alpha: opacity * 0.6),
-          blurRadius: 40,
-          offset: const Offset(0, 20),
-        ),
-      ];
+    BoxShadow(
+      color: c.withValues(alpha: opacity),
+      blurRadius: 28,
+      offset: const Offset(0, 12),
+    ),
+    BoxShadow(
+      color: c.withValues(alpha: opacity * 0.6),
+      blurRadius: 40,
+      offset: const Offset(0, 20),
+    ),
+  ];
 
   /// Soft background for feature highlighting
   static Color featureBackground(Color c) =>
@@ -189,27 +189,18 @@ BoxDecoration glassDecoration({
   Color? color,
   double radius = 20,
   double opacity = 0.06,
-}) =>
-    BoxDecoration(
-      color: AppColors.surface.withValues(alpha: opacity + 0.88),
-      borderRadius: BorderRadius.circular(radius),
-      border: Border.all(
-        color: AppColors.border.withValues(alpha: 0.6),
-        width: 0.5,
-      ),
-      boxShadow: const [
-        BoxShadow(
-          color: Color(0x060F172A),
-          blurRadius: 8,
-          offset: Offset(0, 2),
-        ),
-        BoxShadow(
-          color: Color(0x10101828),
-          blurRadius: 24,
-          offset: Offset(0, 12),
-        ),
-      ],
-    );
+}) => BoxDecoration(
+  color: AppColors.surface.withValues(alpha: opacity + 0.88),
+  borderRadius: BorderRadius.circular(radius),
+  border: Border.all(
+    color: AppColors.border.withValues(alpha: 0.6),
+    width: 0.5,
+  ),
+  boxShadow: const [
+    BoxShadow(color: Color(0x060F172A), blurRadius: 8, offset: Offset(0, 2)),
+    BoxShadow(color: Color(0x10101828), blurRadius: 24, offset: Offset(0, 12)),
+  ],
+);
 
 /// Legacy card decoration — kept for backward compatibility.
 BoxDecoration cardDecoration({Color? color, double radius = 18}) =>
@@ -220,27 +211,23 @@ BoxDecoration premiumGlassDecoration({
   Color? color,
   double radius = 28,
   double opacity = 0.12,
-}) =>
-    BoxDecoration(
-      color: AppColors.surface.withValues(alpha: opacity + 0.9),
-      borderRadius: BorderRadius.circular(radius),
-      border: Border.all(
-        color: AppColors.border.withValues(alpha: 0.8),
-        width: 1,
-      ),
-      boxShadow: [
-        BoxShadow(
-          color: AppColors.primary.withValues(alpha: 0.15),
-          blurRadius: 20,
-          offset: const Offset(0, 6),
-        ),
-        BoxShadow(
-          color: AppColors.midnight.withValues(alpha: 0.2),
-          blurRadius: 40,
-          offset: const Offset(0, 20),
-        ),
-      ],
-    );
+}) => BoxDecoration(
+  color: AppColors.surface.withValues(alpha: opacity + 0.9),
+  borderRadius: BorderRadius.circular(radius),
+  border: Border.all(color: AppColors.border.withValues(alpha: 0.8), width: 1),
+  boxShadow: [
+    BoxShadow(
+      color: AppColors.primary.withValues(alpha: 0.15),
+      blurRadius: 20,
+      offset: const Offset(0, 6),
+    ),
+    BoxShadow(
+      color: AppColors.midnight.withValues(alpha: 0.2),
+      blurRadius: 40,
+      offset: const Offset(0, 20),
+    ),
+  ],
+);
 
 /// Shared text styles for consistent typography across the app.
 class AppTextStyles {
@@ -314,10 +301,7 @@ ThemeData buildLightTheme() {
     primary: AppColors.primary,
     surface: AppColors.surface,
     brightness: Brightness.light,
-  ).copyWith(
-    error: AppColors.danger,
-    onSurface: AppColors.textPrimary,
-  );
+  ).copyWith(error: AppColors.danger, onSurface: AppColors.textPrimary);
 
   final base = ThemeData(
     useMaterial3: true,
@@ -354,8 +338,7 @@ ThemeData buildLightTheme() {
       filled: true,
       fillColor: const Color(0xFFF1F4FA),
       hintStyle: const TextStyle(color: AppColors.textMuted),
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
         borderSide: BorderSide.none,
@@ -388,7 +371,10 @@ ThemeData buildLightTheme() {
       unselectedLabelStyle: TextStyle(fontSize: 11),
     ),
     dividerTheme: const DividerThemeData(
-        color: AppColors.border, space: 1, thickness: 1),
+      color: AppColors.border,
+      space: 1,
+      thickness: 1,
+    ),
     splashFactory: InkSparkle.splashFactory,
     pageTransitionsTheme: const PageTransitionsTheme(
       builders: {
@@ -407,10 +393,7 @@ ThemeData buildDarkTheme() {
     primary: AppColors.primary,
     surface: AppColors.darkSurface,
     brightness: Brightness.dark,
-  ).copyWith(
-    error: AppColors.danger,
-    onSurface: AppColors.darkTextPrimary,
-  );
+  ).copyWith(error: AppColors.danger, onSurface: AppColors.darkTextPrimary);
 
   final base = ThemeData(
     useMaterial3: true,
@@ -447,8 +430,7 @@ ThemeData buildDarkTheme() {
       filled: true,
       fillColor: AppColors.darkBg,
       hintStyle: const TextStyle(color: AppColors.darkTextMuted),
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
         borderSide: BorderSide.none,
@@ -481,7 +463,10 @@ ThemeData buildDarkTheme() {
       unselectedLabelStyle: TextStyle(fontSize: 11),
     ),
     dividerTheme: const DividerThemeData(
-        color: AppColors.darkBorder, space: 1, thickness: 1),
+      color: AppColors.darkBorder,
+      space: 1,
+      thickness: 1,
+    ),
     splashFactory: InkSparkle.splashFactory,
     pageTransitionsTheme: const PageTransitionsTheme(
       builders: {

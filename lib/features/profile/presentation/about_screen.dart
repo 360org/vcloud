@@ -28,7 +28,11 @@ class AboutScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: AppColors.glow(AppColors.primary, opacity: 0.3),
                   ),
-                  child: const Icon(LucideIcons.cloud, color: Colors.white, size: 40),
+                  child: const Icon(
+                    LucideIcons.cloud,
+                    color: Colors.white,
+                    size: 40,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 const Text(
@@ -42,10 +46,7 @@ class AboutScreen extends StatelessWidget {
                 const SizedBox(height: 4),
                 const Text(
                   'v1.1.0+2',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: AppColors.textMuted,
-                  ),
+                  style: TextStyle(fontSize: 14, color: AppColors.textMuted),
                 ),
               ],
             ),
@@ -60,12 +61,16 @@ class AboutScreen extends StatelessWidget {
               children: [
                 Text(
                   'Ứng dụng quản lý nhân viên',
-                  style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w600),
+                  style: AppTextStyles.bodyMedium.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'VCloud giúp nhân viên quản lý công việc hàng ngày: chấm công, timesheet, ticket hỗ trợ, và nhắn tin nội bộ.',
-                  style: AppTextStyles.body.copyWith(color: AppColors.textSecondary),
+                  style: AppTextStyles.body.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ],
             ),
@@ -78,12 +83,33 @@ class AboutScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Tính năng', style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w600)),
+                Text(
+                  'Tính năng',
+                  style: AppTextStyles.bodyMedium.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 const SizedBox(height: 12),
-                const _FeatureItem(icon: LucideIcons.clock, title: 'Chấm công', subtitle: 'Check-in/check-out với vị trí'),
-                const _FeatureItem(icon: LucideIcons.timer, title: 'Timesheet', subtitle: 'Ghi nhận thời gian làm việc'),
-                const _FeatureItem(icon: LucideIcons.ticket, title: 'Ticket', subtitle: 'Quản lý yêu cầu hỗ trợ'),
-                const _FeatureItem(icon: LucideIcons.messageCircle, title: 'Tin nhắn', subtitle: 'Nhắn tin nội bộ nhóm'),
+                const _FeatureItem(
+                  icon: LucideIcons.clock,
+                  title: 'Chấm công',
+                  subtitle: 'Check-in/check-out với vị trí',
+                ),
+                const _FeatureItem(
+                  icon: LucideIcons.timer,
+                  title: 'Timesheet',
+                  subtitle: 'Ghi nhận thời gian làm việc',
+                ),
+                const _FeatureItem(
+                  icon: LucideIcons.ticket,
+                  title: 'Ticket',
+                  subtitle: 'Quản lý yêu cầu hỗ trợ',
+                ),
+                const _FeatureItem(
+                  icon: LucideIcons.messageCircle,
+                  title: 'Tin nhắn',
+                  subtitle: 'Nhắn tin nội bộ nhóm',
+                ),
               ],
             ),
           ),
@@ -95,11 +121,16 @@ class AboutScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Công nghệ', style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w600)),
+                Text(
+                  'Công nghệ',
+                  style: AppTextStyles.bodyMedium.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 const SizedBox(height: 12),
                 const _TechItem(label: 'Flutter', value: '3.x'),
                 const _TechItem(label: 'Dart', value: '3.12+'),
-                const _TechItem(label: 'Backend', value: 'Supabase'),
+                const _TechItem(label: 'Backend', value: 'Odoo Mobile API'),
                 const _TechItem(label: 'State', value: 'Riverpod'),
                 const _TechItem(label: 'Routing', value: 'GoRouter'),
               ],
@@ -148,7 +179,10 @@ class _FeatureItem extends StatelessWidget {
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              gradient: AppColors.featureGrad(AppColors.primary, AppColors.primaryDeep),
+              gradient: AppColors.featureGrad(
+                AppColors.primary,
+                AppColors.primaryDeep,
+              ),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(icon, color: Colors.white, size: 18),
@@ -158,8 +192,20 @@ class _FeatureItem extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textMuted,
+                  ),
+                ),
               ],
             ),
           ),
@@ -182,8 +228,17 @@ class _TechItem extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(fontSize: 14, color: AppColors.textSecondary)),
-          Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 14,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          ),
         ],
       ),
     );

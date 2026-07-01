@@ -3,26 +3,28 @@
 Onboarding for anyone (human or agent) working on VCloud. Read this first.
 
 ## What this is
-VCloud — employee productivity app (Flutter + Supabase): chat · attendance ·
+VCloud — employee productivity app (Flutter + Odoo Mobile API): chat · attendance ·
 timesheet · tickets · dashboard. Vietnamese UI, premium mobile design.
 See [docs/PRD.md](docs/PRD.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
 [docs/PLAN.md](docs/PLAN.md).
 
 ## Golden rules
-1. **Presentation never touches Supabase.** Go through `features/<f>/data/*_repository.dart`.
+1. **Presentation never touches backend APIs.** Go through `features/<f>/data/*_repository.dart`.
 2. **Keep `flutter analyze` at 0 errors / 0 warnings** before committing.
-3. **Secrets via `--dart-define`**, never hard-code in committed files (the existing
-   default in `env.dart` is a known M2 cleanup item — don't add more).
-4. **DB changes = a new `supabase/migrations/NNNN_*.sql`**, never ad-hoc SQL.
+3. **Secrets via `--dart-define`**, never hard-code production UOdoo access rules, DB names, tokens,
+   passwords, or API keys in committed files.
+4. **Odoo schema changes live in Odoo modules/migrations**, never ad-hoc SQL in the
+   Flutter client repo.
 5. Match the surrounding code's style, comment density, and naming.
+6. **Every new feature must follow the delivery workflow:**
+   `/spec → /plan → /build → /test → /review → /ship`.
 
 ## Layout
 ```
 lib/
-  core/        env · supabase client · theme (design tokens) · router · utils · error
+  core/        env · Odoo API client/session · theme (design tokens) · router · utils · error
   shared/      models · widgets (app_scaffold, ui_kit, empty/error/loading)
   features/<f>/{data, application, presentation}
-supabase/migrations/   schema + RLS (source of truth)
 docs/            PRD · ARCHITECTURE · PLAN · MOBILE_UX_OPTIONS
 ```
 
@@ -38,20 +40,18 @@ application (Riverpod providers/controllers)
     │ calls repository methods, invalidates providers
     ▼
 data (*_repository.dart)
-    │ wraps Supabase.instance.client
+    │ wraps core/api/OdooApiClient
     ▼
-Supabase (auth · Postgres · Realtime · RLS)
+Odoo Mobile API Gateway (JWT · REST · Odoo models)
 ```
 
 **Key patterns observed in code:**
 
 - **Repository facade**: every `data/*_repository.dart` takes an optional
-  `SupabaseClient? client` (defaults to `Supabase.instance.client`) — this
-  enables testing/swapping.
-- **Realtime = snapshot + refetch**: streams fetch once, subscribe to
-  `postgres_changes`, and re-fetch on any change. Channel names are unique
-  per user/resource (e.g. `tickets-${userId}`, `msg-$conversationId`).
-  Cleanup via `_client.removeChannel(channel)` in `onCancel`.
+  `OdooApiClient? client` (defaults to `odooApiClient`) — this enables
+  testing/swapping.
+- **Streams = HTTP snapshot + invalidation**: streams fetch once from Odoo.
+  Mutating actions invalidate Riverpod providers so screens refetch fresh data.
 - **Optimistic updates**: tickets use a `*OverrideProvider` pattern — patch
   the local list immediately, fire the API, roll back on failure.
 - **Failure type**: `core/error/failure.dart` — lightweight `Failure(message)`
@@ -105,10 +105,9 @@ All design tokens live in `core/theme/app_theme.dart`. The visual language uses
 ## Models & enums
 
 - Models are immutable classes with `const` constructors and `fromMap` factories
-  mapping **snake_case** Postgres columns to **camelCase** Dart fields.
-- Postgres enums (`TicketStatus`, `TimesheetCategory`, `TimesheetDuration`)
-  are Dart enums with a `*Db` extension providing `dbValue` (PascalCase string
-  matching Postgres), `label`, and `static fromDb(String)`.
+  mapping **snake_case** Odoo/API fields to **camelCase** Dart fields.
+- Legacy enum extension names (`*Db`) remain for compatibility; map Odoo values
+  in repositories before constructing app models.
 - Models live in `lib/shared/models/` — shared across features.
 
 ## Linter rules (analysis_options.yaml)
@@ -183,11 +182,24 @@ docker run --rm -v "$PWD":/src:ro -v "$PWD/dist":/out ghcr.io/cirruslabs/flutter
   mkdir -p /out && cp build/app/outputs/flutter-apk/app-release.apk /out/vcloud.apk'
 ```
 
+## Delivery workflow for every new feature
+
+Use this sequence for all feature work:
+
+| Step | Required output |
+|---|---|
+| `/spec` | Update `SPEC.md`; update `ARCH.md` when architecture changes. |
+| `/plan` | Update `implementation_plan.md` with a concrete task list. |
+| `/build` | Implement Flutter/Dart code using existing templates/patterns in `lib/`. For Odoo server modules, use the relevant Python/XML/OWL templates in that module repo, not here. |
+| `/test` | Add/update unit, widget, integration, or Playwright/tour coverage appropriate to the change; run `flutter analyze` and `flutter test`. |
+| `/review` | Run repo checks, audit direct backend calls, error handling, security, and docs drift. |
+| `/ship` | Cleanup, update `CHANGELOG.md`, then push target branches `19.0` and `19.0-dev` when shipping is requested. |
+
 ## Testing
 
-- `test/widget_test.dart` is a minimal smoke test (no Supabase dependency).
-- Full app tests require `Supabase.initialize` — use integration tests or mock the client.
-- Repository constructors accept optional `SupabaseClient?` for testability.
+- `test/widget_test.dart` is a minimal smoke test (no backend dependency).
+- Full app tests require an authenticated Odoo session or a mocked `OdooApiClient`.
+- Repository constructors accept optional `OdooApiClient?` for testability.
 - No CI pipeline yet (planned in M2).
 
 ## Gotchas
@@ -195,9 +207,8 @@ docker run --rm -v "$PWD":/src:ro -v "$PWD/dist":/out ghcr.io/cirruslabs/flutter
   Real native feel = `flutter run` on a device / the APK above. See docs/MOBILE_UX_OPTIONS.md.
 - **Service worker caches the web bundle** — after a rebuild, unregister SW + clear
   caches (or hard-reload) or you'll see the old bundle.
-- **RLS recursion (42P17)** was fixed via a `SECURITY DEFINER` helper in migration 0002 —
-  don't reintroduce self-referencing policies on `conversation_members`.
-- **Tickets are self-assigned only** (code + RLS) — cross-user assignment is M4.
+- **Tickets are self-assigned only** in the current mobile flow — cross-user
+  assignment depends on Odoo team/assignment endpoints.
 - **`passkeys_bundle.js` in `web/`** must load synchronously before the Flutter engine
   — the transitive `passkeys` package requires `window.PasskeyAuthenticator` at boot.
 - **`web/index.html` script tag** — the `<script src="flutter_bootstrap.js" async>`
@@ -211,15 +222,18 @@ docker run --rm -v "$PWD":/src:ro -v "$PWD/dist":/out ghcr.io/cirruslabs/flutter
 - **Dark theme** — `buildDarkTheme()` currently returns `buildLightTheme()` (design
   spec is light-only). Don't assume dark mode works.
 
-## Backend setup (Supabase)
-1. Run `supabase/migrations/0001_init.sql` then `0002_fix_conversation_members_recursion.sql`.
-2. Auth → Providers → Email: disable "Confirm email" (MVP only).
-3. Auth → URL config: add `vcloud://login-callback`.
+## Backend setup (Odoo)
+1. Deploy the Odoo Mobile API Gateway that matches OpenAPI version `19.0.1.0.0`.
+2. Provide runtime config:
+   `--dart-define=VCLOUD_ODOO_API_BASE_URL=https://...`
+   and, when needed, `--dart-define=VCLOUD_ODOO_DB=...`.
+3. Authenticate through `POST /api/v1/auth/login`; the app stores only the JWT
+   session in secure storage.
 
 ## Adding a new feature
 1. Create `lib/features/<name>/{data, application, presentation}/`.
 2. Add a model in `lib/shared/models/` with `fromMap` factory (snake_case → camelCase).
-3. Add a repository in `data/` — constructor takes `SupabaseClient?`, wraps queries.
+3. Add a repository in `data/` — constructor takes `OdooApiClient?`, wraps HTTP calls.
 4. Add providers in `application/` — `StreamProvider.autoDispose` for lists, actions class.
 5. Add screens in `presentation/` — extend `ConsumerWidget`, use `AppScaffold`.
 6. Add routes in `core/router/app_router.dart`.

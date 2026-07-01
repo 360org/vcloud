@@ -35,7 +35,9 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _submitting = true);
     try {
-      await ref.read(authControllerProvider.notifier).signUp(
+      await ref
+          .read(authControllerProvider.notifier)
+          .signUp(
             email: _email.text.trim(),
             password: _password.text,
             displayName: _name.text.trim(),
@@ -43,10 +45,12 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
       if (mounted) context.go('/home');
     } catch (e) {
       if (mounted) {
-        setState(() => _error = e
-            .toString()
-            .replaceFirst('Failure(', '')
-            .replaceFirst(')', ''));
+        setState(
+          () => _error = e
+              .toString()
+              .replaceFirst('Failure(', '')
+              .replaceFirst(')', ''),
+        );
       }
     } finally {
       if (mounted) setState(() => _submitting = false);
@@ -87,13 +91,16 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                         const Text(
                           'Tham gia VCloud',
                           style: TextStyle(
-                              fontSize: 22, fontWeight: FontWeight.w700),
+                            fontSize: 22,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                         const SizedBox(height: 6),
                         Text(
                           'Tự đăng ký bằng email công việc của bạn.',
-                          style: AppTextStyles.body
-                              .copyWith(color: AppColors.textSecondary),
+                          style: AppTextStyles.body.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
                         ),
                         const SizedBox(height: 24),
                         TextFormField(
@@ -141,14 +148,19 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                             ),
                             child: Row(
                               children: [
-                                const Icon(Icons.error_outline,
-                                    color: AppColors.danger, size: 18),
+                                const Icon(
+                                  Icons.error_outline,
+                                  color: AppColors.danger,
+                                  size: 18,
+                                ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
                                     _error!,
                                     style: const TextStyle(
-                                        color: AppColors.danger, fontSize: 13),
+                                      color: AppColors.danger,
+                                      fontSize: 13,
+                                    ),
                                   ),
                                 ),
                               ],

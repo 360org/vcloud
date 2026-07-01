@@ -75,9 +75,7 @@ class TodayTasksSection extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Xóa task?'),
-        content: const Text(
-          'Task sẽ bị xóa. Timesheet đã log vẫn giữ lại.',
-        ),
+        content: const Text('Task sẽ bị xóa. Timesheet đã log vẫn giữ lại.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -97,9 +95,9 @@ class TodayTasksSection extends ConsumerWidget {
         ref.invalidate(timesheetStreamProvider);
       } catch (e) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Xóa thất bại: $e')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Xóa thất bại: $e')));
         }
       }
     }
@@ -147,8 +145,7 @@ class _SectionTitleRow extends StatelessWidget {
           GestureDetector(
             onTap: onAdd,
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
                 gradient: AppColors.brand,
                 borderRadius: BorderRadius.circular(20),
@@ -257,10 +254,7 @@ class _TasksCard extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 8,
-                vertical: 2,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
                 color: AppColors.soft(AppColors.primary),
                 borderRadius: BorderRadius.circular(999),
@@ -285,10 +279,7 @@ class _TasksCard extends StatelessWidget {
             background: Container(
               alignment: Alignment.centerRight,
               padding: const EdgeInsets.only(right: 20),
-              margin: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 4,
-              ),
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               decoration: BoxDecoration(
                 color: AppColors.danger.withValues(alpha: 0.9),
                 borderRadius: BorderRadius.circular(12),
@@ -326,10 +317,7 @@ class _TasksCard extends StatelessWidget {
 /// Tiny inline "create task" form. Kept here (vs. in `task_row.dart`)
 /// because it is the only consumer; promotion to a shared file is
 /// only worth it once we have a second screen that creates tasks.
-Future<void> showCreateTaskSheet(
-  BuildContext context,
-  WidgetRef ref,
-) async {
+Future<void> showCreateTaskSheet(BuildContext context, WidgetRef ref) async {
   await showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
@@ -374,10 +362,7 @@ class _CreateTaskSheetState extends ConsumerState<_CreateTaskSheet> {
     }
     setState(() => _saving = true);
     try {
-      await ref.read(taskActionsProvider).create(
-            title: t,
-            category: _category,
-          );
+      await ref.read(taskActionsProvider).create(title: t, category: _category);
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
       if (mounted) {
@@ -396,7 +381,12 @@ class _CreateTaskSheetState extends ConsumerState<_CreateTaskSheet> {
     return SafeArea(
       top: false,
       child: Padding(
-        padding: EdgeInsets.only(left: 16, right: 16, top: 8, bottom: padding + 16),
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 8,
+          bottom: padding + 16,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -444,8 +434,10 @@ class _CreateTaskSheetState extends ConsumerState<_CreateTaskSheet> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
-                  borderSide:
-                      const BorderSide(color: AppColors.primary, width: 1.6),
+                  borderSide: const BorderSide(
+                    color: AppColors.primary,
+                    width: 1.6,
+                  ),
                 ),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 16,

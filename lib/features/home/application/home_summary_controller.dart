@@ -5,6 +5,7 @@ import '../../auth/application/auth_controller.dart';
 import '../../chat/application/conversations_controller.dart';
 import '../../ticket/application/ticket_controller.dart';
 import '../../timesheet/application/timesheet_controller.dart';
+import '../data/dashboard_repository.dart';
 
 class HomeSummary {
   HomeSummary({
@@ -32,18 +33,16 @@ class HomeSummary {
 
 /// Top-level summary for the dashboard cards.
 final homeSummaryProvider = Provider<HomeSummary?>((ref) {
-  final auth = ref.watch(authControllerProvider).value;
+  final auth = ref.watch(authControllerProvider).valueOrNull;
 
-  final att = ref.watch(attendanceStreamProvider).value;
+  final openAttendance = ref.watch(openSessionProvider);
+  final att = ref.watch(attendanceStreamProvider).valueOrNull;
   Duration elapsed = Duration.zero;
   DateTime? lastCheckout;
-  var isCheckedIn = false;
+  final isCheckedIn = openAttendance != null;
+  elapsed = openAttendance?.elapsed ?? Duration.zero;
   if (att != null && att.isNotEmpty) {
     for (final a in att) {
-      if (a.isOpen) {
-        elapsed = a.elapsed ?? Duration.zero;
-        isCheckedIn = true;
-      }
       final co = a.checkoutTime;
       if (co != null && (lastCheckout == null || co.isAfter(lastCheckout))) {
         lastCheckout = co;
@@ -53,7 +52,7 @@ final homeSummaryProvider = Provider<HomeSummary?>((ref) {
 
   final todayMinutes = ref.watch(todayTotalMinutesProvider);
   final openTickets = ref.watch(openTicketsCountProvider);
-  final convs = ref.watch(conversationsProvider).value ?? const [];
+  final convs = ref.watch(conversationsProvider).valueOrNull ?? const [];
   final recentConvCount = convs.length;
   final unreadCount = convs.fold(0, (sum, c) => sum + c.unreadCount);
 
@@ -72,3 +71,11 @@ final homeSummaryProvider = Provider<HomeSummary?>((ref) {
 
 // team cation mark
 
+final dashboardRepositoryProvider = Provider<DashboardRepository>(
+  (_) => DashboardRepository(),
+);
+
+final mobileDashboardSummaryProvider =
+    FutureProvider.autoDispose<MobileDashboardSummary>(
+      (ref) => ref.read(dashboardRepositoryProvider).summary(),
+    );

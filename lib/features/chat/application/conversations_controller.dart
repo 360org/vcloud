@@ -14,11 +14,11 @@ final conversationsProvider = StreamProvider<List<ConversationSummary>>((ref) {
 
   // Non-autoDispose: this stream is the single source of truth for both the
   // chat list and the bottom-nav unread badge. Disposing it on every screen
-  // exit would break realtime updates while the user is on Home / Tickets
+  // exit would break HTTP refresh updates while the user is on Home / Tickets
   // and silently drop `unread_count` increments.
   //
   // It still watches auth above so login/logout switches rebuild the stream
-  // with the correct current Supabase user instead of keeping a stale stream.
+  // with the correct current Odoo user instead of keeping a stale stream.
   return ref.read(chatRepositoryProvider).watchConversations();
 });
 

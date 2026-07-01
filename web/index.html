@@ -56,8 +56,7 @@
  </style>
 </head>
 <body>
-  <!-- Passkeys Web SDK (required by the transitive `passkeys` package that
-       supabase_flutter pulls in). Must load SYNCHRONOUSLY and BEFORE the
+  <!-- Passkeys Web SDK. Must load SYNCHRONOUSLY and BEFORE the
        Flutter engine so window.PasskeyAuthenticator exists by the time the
        web plugin's registerWith() runs — otherwise it calls window.close()
        and the app dies right after booting. Self-hosted (not the GitHub

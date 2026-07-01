@@ -38,16 +38,16 @@ class SplashScreen extends ConsumerWidget {
                 tween: Tween(begin: 0.8, end: 1.0),
                 duration: const Duration(milliseconds: 1200),
                 curve: Curves.easeInOut,
-                builder: (_, v, child) => Transform.scale(
-                  scale: v,
-                  child: child,
-                ),
+                builder: (_, v, child) =>
+                    Transform.scale(scale: v, child: child),
                 child: Container(
                   width: 96,
                   height: 96,
                   decoration: BoxDecoration(
                     gradient: AppColors.featureGrad(
-                        AppColors.primary, AppColors.primaryDeep),
+                      AppColors.primary,
+                      AppColors.primaryDeep,
+                    ),
                     borderRadius: BorderRadius.circular(28),
                     boxShadow: [
                       BoxShadow(
@@ -73,18 +73,20 @@ class SplashScreen extends ConsumerWidget {
               const Text(
                 'VCloud',
                 style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5),
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.5,
+                ),
               ),
               const SizedBox(height: 28),
               SizedBox(
                 width: 28,
                 height: 28,
                 child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
-                    color: Colors.white.withValues(alpha: 0.7)),
+                  strokeWidth: 2.5,
+                  color: Colors.white.withValues(alpha: 0.7),
+                ),
               ),
             ],
           ),

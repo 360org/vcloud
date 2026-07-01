@@ -1,58 +1,41 @@
 import 'dart:async';
 
-import 'package:supabase_flutter/supabase_flutter.dart';
-
+import '../../../core/api/odoo_api_client.dart';
 import '../../../core/error/failure.dart';
 import '../../../shared/models/activity_log.dart';
 
 class ActivityLogRepository {
-  ActivityLogRepository({SupabaseClient? client})
-      : _client = client ?? Supabase.instance.client;
+  ActivityLogRepository({OdooApiClient? client})
+    : _client = client ?? odooApiClient;
 
-  final SupabaseClient _client;
+  final OdooApiClient _client;
 
   Stream<List<ActivityLog>> watchByTicket(String ticketId) {
     final ctl = StreamController<List<ActivityLog>>();
-    RealtimeChannel? ch;
 
     Future<void> refresh() async {
       try {
-        final res = await _client
-            .from('activity_log')
-            .select('*')
-            .eq('ticket_id', ticketId)
-            .order('created_at', ascending: false)
-            .limit(50);
-
-        final list = (res as List)
-            .cast<Map<String, dynamic>>()
-            .map(ActivityLog.fromMap)
+        final res = await _client.get(
+          '/api/v1/mobile/ticket/$ticketId/activities',
+        );
+        final rows = res is Map
+            ? (res['activities'] ?? res['data'] ?? const <dynamic>[])
+            : res;
+        final activities = (rows as List? ?? const <dynamic>[])
+            .whereType<Map>()
+            .map((m) => _activityFromMobile(ticketId, m))
             .toList();
-
-        if (!ctl.isClosed) ctl.add(list);
+        if (!ctl.isClosed) {
+          ctl.add(activities);
+        }
       } catch (e) {
-        if (!ctl.isClosed) ctl.addError(Failure('Load activity log failed: $e'));
+        if (!ctl.isClosed) {
+          ctl.addError(Failure('Load activity log failed: $e'));
+        }
       }
     }
 
-    ctl.onListen = () async {
-      await refresh();
-      ch = _client
-          .channel('activity-$ticketId')
-          .onPostgresChanges(
-            event: PostgresChangeEvent.insert,
-            schema: 'public',
-            table: 'activity_log',
-            callback: (_) => refresh(),
-          )
-          .subscribe();
-    };
-
-    ctl.onCancel = () async {
-      final c = ch;
-      if (c != null) await _client.removeChannel(c);
-    };
-
+    ctl.onListen = refresh;
     return ctl.stream;
   }
 
@@ -60,13 +43,33 @@ class ActivityLogRepository {
     required String? ticketId,
     required String action,
     Map<String, dynamic>? details,
-  }) async {
-    final me = _client.auth.currentUser?.id;
-    await _client.from('activity_log').insert({
+  }) async {}
+
+  ActivityLog _activityFromMobile(String ticketId, Map<dynamic, dynamic> map) {
+    final createdAt =
+        map['created_at'] ??
+        map['create_date'] ??
+        map['date'] ??
+        DateTime.now().toIso8601String();
+    return ActivityLog.fromMap(<String, dynamic>{
+      'id': (map['id'] ?? '${ticketId}_$createdAt').toString(),
       'ticket_id': ticketId,
-      'user_id': me,
-      'action': action,
-      'details': details,
+      'user_id': _recordId(map['user_id'] ?? map['author_id']),
+      'action': (map['action'] ?? map['type'] ?? map['summary'] ?? 'updated')
+          .toString(),
+      'details': <String, dynamic>{
+        if (map['summary'] != null) 'summary': map['summary'],
+        if (map['note'] != null) 'note': map['note'],
+        if (map['preview'] != null) 'preview': map['preview'],
+      },
+      'created_at': createdAt.toString(),
     });
+  }
+
+  String? _recordId(Object? value) {
+    if (value == null || value == false) return null;
+    if (value is List && value.isNotEmpty) return value.first.toString();
+    if (value is Map && value['id'] != null) return value['id'].toString();
+    return value.toString();
   }
 }

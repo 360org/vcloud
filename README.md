@@ -1,64 +1,64 @@
-# VCloud — Employee Productivity App
+# VCloud - Employee Productivity App
 
-Flutter + Supabase app: **chat · attendance · timesheet · tickets · dashboard**.
-Vietnamese UI, premium mobile design, ready to integrate with Odoo as a headless backend.
+Flutter + Odoo Mobile API app: **chat - attendance - timesheet - tickets - dashboard**.
+Vietnamese UI, premium mobile design.
 
 ## Stack
-- **Flutter** 3.44+ / Dart 3.12+ · Material 3, Impeller
-- **Supabase** — auth · Postgres · Realtime · Row-Level Security
-- **Riverpod** (state) · **GoRouter** (navigation)
-- **flutter_animate** + **lucide_flutter** (motion & iconography)
+- **Flutter** 3.44+ / Dart 3.12+ - Material 3
+- **Odoo Mobile API Gateway** - JWT auth and REST endpoints
+- **Riverpod** for state management
+- **GoRouter** for navigation
+- **flutter_animate** + **lucide_flutter** for motion and icons
 
 ## Documentation
 | Doc | Purpose |
 |---|---|
-| [docs/PRD.md](docs/PRD.md) | Product requirements (what & why) |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Technical architecture (how) |
-| [docs/PLAN.md](docs/PLAN.md) | Roadmap & status (when) |
-| [docs/MOBILE_UX_OPTIONS.md](docs/MOBILE_UX_OPTIONS.md) | Native-feel framework analysis |
-| [AGENTS.md](AGENTS.md) | Onboarding for agents & devs (commands, gotchas) |
-| [CHANGELOG.md](CHANGELOG.md) | Release history (Keep a Changelog) |
+| [SPEC.md](SPEC.md) | Odoo API integration spec |
+| [ARCH.md](ARCH.md) | Current Odoo API architecture |
+| [implementation_plan.md](implementation_plan.md) | Delivery workflow checklist |
+| [AGENTS.md](AGENTS.md) | Onboarding for agents and devs |
+| [CHANGELOG.md](CHANGELOG.md) | Release history |
 
 ## Run
 
-### Native (best experience)
+### Native
 ```bash
 flutter pub get
 flutter run \
-  --dart-define=VCLOUD_SUPABASE_URL=https://YOUR-PROJECT.supabase.co \
-  --dart-define=VCLOUD_SUPABASE_ANON_KEY=sb_publishable_XXX
+  --dart-define=VCLOUD_ODOO_API_BASE_URL=https://odoo.example.com \
+  --dart-define=VCLOUD_ODOO_DB=production_db
 ```
 
-### Web in Docker (no local toolchain)
+### Web In Docker
 ```bash
-docker compose -f docker-compose.web.yml up --build   # → http://localhost:8080
+ODOO_API_BASE_URL=https://odoo.example.com \
+ODOO_DB=production_db \
+docker compose -f docker-compose.web.yml up --build
 ```
+
+Open [http://localhost:8080](http://localhost:8080).
 
 ### Android APK
-See [AGENTS.md › Build Android APK](AGENTS.md#build-android-apk) → `dist/vcloud.apk`.
+See [AGENTS.md](AGENTS.md) for the Docker Android APK build recipe.
 
-> The anon (publishable) key is the *non-secret* client key; RLS is the security
-> boundary. Still, prefer `--dart-define` over committed defaults (tracked in PLAN M2).
+## Odoo Backend
+1. Deploy the Odoo Mobile API Gateway matching OpenAPI version `19.0.1.0.0`.
+2. Configure the mobile client with `VCLOUD_ODOO_API_BASE_URL` and optional `VCLOUD_ODOO_DB`.
+3. Authenticate through `POST /api/v1/auth/login`; the app stores the JWT in secure storage.
 
-## Supabase bootstrap
-1. SQL editor → run `supabase/migrations/0001_init.sql`, then `0002_fix_conversation_members_recursion.sql`.
-2. Auth → Providers → Email: disable "Confirm email" (MVP only).
-3. Auth → URL config: add `vcloud://login-callback`.
-
-## Project layout
-```
+## Project Layout
+```text
 lib/
-  core/      config · theme · router · utils · error
-  shared/    models · widgets (app_scaffold, ui_kit, ...)
-  features/  auth · chat · attendance · timesheet · ticket · home · profile
+  core/      api - config - theme - router - utils - error
+  shared/    models - widgets
+  features/  auth - chat - attendance - timesheet - ticket - home - profile
              each as {data, application, presentation}
-supabase/migrations/   schema + RLS (source of truth)
-docker/                Flutter-web image + nginx config
-docs/                  PRD · ARCHITECTURE · PLAN · UX options
+docker/      Flutter web image + nginx config
+docs/        product, design, and planning notes
 ```
 
 ## Verify
 ```bash
-flutter analyze   # target: 0 errors / 0 warnings
+flutter analyze
 flutter test
 ```

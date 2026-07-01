@@ -16,13 +16,13 @@ class ActivityLog {
   final DateTime createdAt;
 
   factory ActivityLog.fromMap(Map<String, dynamic> map) => ActivityLog(
-        id: map['id'] as String,
-        ticketId: map['ticket_id'] as String?,
-        userId: map['user_id'] as String?,
-        action: map['action'] as String,
-        details: map['details'] as Map<String, dynamic>?,
-        createdAt: DateTime.parse(map['created_at'] as String),
-      );
+    id: map['id'] as String,
+    ticketId: map['ticket_id'] as String?,
+    userId: map['user_id'] as String?,
+    action: map['action'] as String,
+    details: map['details'] as Map<String, dynamic>?,
+    createdAt: DateTime.parse(map['created_at'] as String),
+  );
 
   String get displayAction {
     switch (action) {

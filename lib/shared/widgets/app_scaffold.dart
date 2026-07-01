@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -261,12 +262,14 @@ class UserAvatar extends StatelessWidget {
     required this.userId,
     required this.displayName,
     this.email,
+    this.avatarUrl,
     this.size = 40,
   });
 
   final String userId;
   final String displayName;
   final String? email;
+  final String? avatarUrl;
   final double size;
 
   String get _initials {
@@ -293,6 +296,7 @@ class UserAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final image = _avatarImage();
     return Container(
       width: size + 4,
       height: size + 4,
@@ -312,18 +316,40 @@ class UserAvatar extends StatelessWidget {
           shape: BoxShape.circle,
           gradient: AppColors.accent(_userColor),
           border: Border.all(color: AppColors.surface, width: 2),
+          image: image == null
+              ? null
+              : DecorationImage(image: image, fit: BoxFit.cover),
         ),
-        child: Center(
-          child: Text(
-            _initials,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: size * 0.36,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
+        child: image == null
+            ? Center(
+                child: Text(
+                  _initials,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: size * 0.36,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              )
+            : null,
       ),
     );
+  }
+
+  ImageProvider? _avatarImage() {
+    final value = avatarUrl?.trim();
+    if (value == null || value.isEmpty || value == 'false') return null;
+    if (value.startsWith('data:image')) {
+      final comma = value.indexOf(',');
+      if (comma == -1) return null;
+      return MemoryImage(base64Decode(value.substring(comma + 1)));
+    }
+    if (value.startsWith('http://') || value.startsWith('https://')) {
+      return NetworkImage(value);
+    }
+    if (!value.contains('/') && value.length > 80) {
+      return MemoryImage(base64Decode(value));
+    }
+    return null;
   }
 }

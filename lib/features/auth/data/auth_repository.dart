@@ -1,80 +1,123 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
-
+import '../../../core/api/auth_user.dart';
+import '../../../core/api/odoo_api_client.dart';
+import '../../../core/api/odoo_session.dart';
 import '../../../core/error/failure.dart';
 
-/// Thin facade around supabase auth. All auth flows in the app go
-/// through here so the controllers don't talk to Supabase directly.
+/// Thin facade around Odoo auth. All auth flows in the app go
+/// through here so controllers do not talk to HTTP directly.
 class AuthRepository {
-  AuthRepository({SupabaseClient? client})
-      : _client = client ?? Supabase.instance.client;
+  AuthRepository({OdooApiClient? client}) : _client = client ?? odooApiClient;
 
-  final SupabaseClient _client;
+  final OdooApiClient _client;
 
-  User? get currentUser => _client.auth.currentUser;
+  Future<AuthUser?> currentUser() async {
+    final session = await _client.restoreSession();
+    return session == null ? null : _toUser(session);
+  }
 
-  Stream<AuthState> get onAuthChange => _client.auth.onAuthStateChange;
-
-  Future<User> signUp({
+  Future<AuthUser> signUp({
     required String email,
     required String password,
     required String displayName,
-  }) async {
-    try {
-      final res = await _client.auth.signUp(
-        email: email,
-        password: password,
-        data: <String, dynamic>{'display_name': displayName},
-      );
-      final user = res.user;
-      if (user == null) {
-        throw Failure('Sign-up failed — no user returned.');
-      }
-      return user;
-    } on AuthException catch (e) {
-      throw Failure(_friendlyAuth(e));
-    } catch (e) {
-      throw Failure('Sign-up failed: ${e.toString()}');
-    }
+  }) {
+    // The provided gateway exposes login, not registration. Keep the existing
+    // screen functional for provisioned Odoo users by logging in.
+    return signIn(email: email, password: password);
   }
 
-  Future<User> signIn({
+  Future<AuthUser> signIn({
     required String email,
     required String password,
   }) async {
     try {
-      final res = await _client.auth.signInWithPassword(
-        email: email,
-        password: password,
-      );
-      final user = res.user;
-      if (user == null) throw Failure('Login failed — no session.');
-      return user;
-    } on AuthException catch (e) {
-      throw Failure(_friendlyAuth(e));
+      final session = await _client.login(login: email, password: password);
+      return _toUser(session);
+    } on Failure {
+      rethrow;
     } catch (e) {
       throw Failure('Login failed: ${e.toString()}');
     }
   }
 
-  Future<void> signOut() async {
-    await _client.auth.signOut();
+  Future<void> signOut() {
+    return _client.logout();
   }
 
-  static String _friendlyAuth(AuthException e) {
-    final msg = e.message.toLowerCase();
-    if (msg.contains('invalid login credentials') ||
-        msg.contains('invalid_credentials')) {
-      return 'Wrong email or password.';
+  Future<AuthUser> _toUser(OdooSession session) async {
+    final profile = await _currentUserProfile(session.uid);
+    final partnerId = session.partnerId ?? _many2OneId(profile?['partner_id']);
+    final name = _stringOrNull(profile?['name']);
+    final login = _stringOrNull(profile?['login']) ?? session.login;
+    final metadata = <String, dynamic>{
+      'display_name': name ?? login.split('@').first,
+      'db': session.db,
+    };
+    if (partnerId != null) metadata['partner_id'] = partnerId;
+    final avatar = _stringOrNull(
+      profile?['avatar_url'] ??
+          profile?['avatar_128'] ??
+          profile?['image_128'] ??
+          profile?['image'],
+    );
+    if (avatar != null) metadata['avatar_url'] = avatar;
+
+    return AuthUser(
+      id: session.uid.toString(),
+      email: login,
+      userMetadata: metadata,
+    );
+  }
+
+  Future<Map<String, dynamic>?> _currentUserProfile(int uid) async {
+    try {
+      final res = await _client.currentUserProfile();
+      if (res != null) return res;
+    } catch (_) {
+      try {
+        await _client.refreshSession();
+        final res = await _client.currentUserProfile();
+        if (res != null) return res;
+      } catch (_) {
+        // Fall through to model endpoints for older gateways.
+      }
     }
-    if (msg.contains('email not confirmed')) {
-      return 'Email not yet confirmed. Please check your inbox.';
+    try {
+      final res = await _client.get(
+        '/api/v1/res.users/$uid',
+        query: const <String, Object?>{'fields': 'id,login,name,partner_id'},
+      );
+      if (res is Map) return Map<String, dynamic>.from(res);
+    } catch (_) {
+      // Older gateways may not expose a single-record res.users endpoint.
     }
-    if (msg.contains('user already registered')) {
-      return 'An account already exists for this email.';
+    try {
+      final res = await _client.get(
+        '/api/v1/res.users',
+        query: const <String, Object?>{'fields': 'id,login,name,partner_id'},
+      );
+      final users = (res as List? ?? const <dynamic>[]).whereType<Map>().map(
+        (user) => Map<String, dynamic>.from(user),
+      );
+      for (final user in users) {
+        if (user['id']?.toString() == uid.toString()) return user;
+      }
+    } catch (_) {
+      // Auth should still work even if metadata enrichment is unavailable.
     }
-    if (msg.contains('password') && msg.contains('short')) {
-      return 'Password is too short (min 6 characters).';
-    }
-    return e.message;
+    return null;
+  }
+
+  static String? _many2OneId(Object? value) {
+    if (value == null || value == false) return null;
+    if (value is List && value.isNotEmpty) return value.first.toString();
+    if (value is Map && value['id'] != null) return value['id'].toString();
+    final text = value.toString();
+    return text.isEmpty ? null : text;
+  }
+
+  static String? _stringOrNull(Object? value) {
+    if (value == null || value == false) return null;
+    final text = value.toString();
+    return text.isEmpty ? null : text;
   }
 }

@@ -12,10 +12,7 @@ class CheckoutData {
   final String workDescription;
   final String? selectedTaskId;
 
-  const CheckoutData({
-    required this.workDescription,
-    this.selectedTaskId,
-  });
+  const CheckoutData({required this.workDescription, this.selectedTaskId});
 }
 
 /// Checkout confirmation dialog with work description and task selection
@@ -58,7 +55,9 @@ class _CheckoutDialogState extends ConsumerState<CheckoutDialog> {
   Widget build(BuildContext context) {
     final ticketsAsync = ref.watch(ticketsProvider);
     final tickets = ticketsAsync.value ?? [];
-    final doingTickets = tickets.where((t) => t.status == TicketStatus.doing).toList();
+    final doingTickets = tickets
+        .where((t) => t.status == TicketStatus.doing)
+        .toList();
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -67,10 +66,7 @@ class _CheckoutDialogState extends ConsumerState<CheckoutDialog> {
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: AppColors.border,
-            width: 0.5,
-          ),
+          border: Border.all(color: AppColors.border, width: 0.5),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -120,10 +116,7 @@ class _CheckoutDialogState extends ConsumerState<CheckoutDialog> {
                         SizedBox(height: 2),
                         Text(
                           'Mô tả công việc đã hoàn thành',
-                          style: TextStyle(
-                            color: Colors.white70,
-                            fontSize: 12,
-                          ),
+                          style: TextStyle(color: Colors.white70, fontSize: 12),
                         ),
                       ],
                     ),
@@ -141,10 +134,7 @@ class _CheckoutDialogState extends ConsumerState<CheckoutDialog> {
                   // Work description field
                   const Text(
                     'Mô tả công việc *',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
                   ),
                   const SizedBox(height: 8),
                   TextField(
@@ -207,9 +197,7 @@ class _CheckoutDialogState extends ConsumerState<CheckoutDialog> {
                             final ticket = doingTickets[index];
                             final isSelected = _selectedTaskId == ticket.id;
                             return ListTile(
-                              leading: Radio<String>(
-                                value: ticket.id,
-                              ),
+                              leading: Radio<String>(value: ticket.id),
                               title: Text(
                                 ticket.title,
                                 maxLines: 1,
