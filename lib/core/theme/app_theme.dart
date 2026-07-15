@@ -1,17 +1,17 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
-/// VCloud design tokens — "Refined Tech Luxury" refresh: deep indigo-to-midnight
-/// gradients, glassmorphism cards, per-feature gradient accents, grain texture.
+/// VCloud design tokens — World360 green refresh with glassmorphism cards,
+/// per-feature gradient accents, and a clean mobile-first palette.
 /// Use these everywhere so the look stays consistent and is easy to retheme.
 class AppColors {
   AppColors._();
 
   // ── Brand ──────────────────────────────────────────────────────────────
-  static const primary = Color(0xFF2B5BF0);
-  static const primaryDeep = Color(0xFF4F46E5);
-  static const primaryViolet = Color(0xFF7C3AED);
-  static const primarySoft = Color(0xFFEAF0FF);
+  static const primary = Color(0xFF00C83A);
+  static const primaryDeep = Color(0xFF009D2E);
+  static const primaryViolet = Color(0xFF0077D9);
+  static const primarySoft = Color(0xFFE7FBEA);
 
   // ── Midnight tones (for gradients / dark surfaces) ─────────────────────
   static const midnight = Color(0xFF0F1629);
@@ -45,7 +45,7 @@ class AppColors {
   static const attendanceSoft = Color(0xFFEFFCF3);
 
   // ── Neutrals ───────────────────────────────────────────────────────────
-  static const bg = Color(0xFFF3F5FB);
+  static const bg = Color(0xFFF1F8F2);
   static const surface = Color(0xFFFFFFFF);
   static const border = Color(0xFFE9EDF5);
   static const textPrimary = Color(0xFF0F172A);
@@ -74,7 +74,7 @@ class AppColors {
     end: Alignment.bottomRight,
   );
   static const brandWide = LinearGradient(
-    colors: [Color(0xFF2B5BF0), Color(0xFF6D5DF0)],
+    colors: [Color(0xFF00C83A), Color(0xFF0077D9)],
     begin: Alignment.centerLeft,
     end: Alignment.centerRight,
   );
@@ -182,6 +182,51 @@ class AppColors {
   /// Medium soft background for subtle emphasis
   static Color featureBackgroundMedium(Color c) =>
       Color.alphaBlend(c.withValues(alpha: 0.06), surface);
+
+  /// Odoo's `color_index` palette (0–11) as used by `helpdesk.tag.color`.
+  /// Index `0` is white/no-color and intentionally omitted — see [odooTagColor].
+  static const _odooColorPalette = <int, Color>{
+    1: Color(0xFFF06050), // red
+    2: Color(0xFFFAAA38), // orange
+    3: Color(0xFFF7E928), // yellow
+    4: Color(0xFFA8D245), // light green
+    5: Color(0xFF51BBE5), // light blue
+    6: Color(0xFF7D7D7D), // gray
+    7: Color(0xFF7C7BAD), // medium purple
+    8: Color(0xFF825F5F), // brown
+    9: Color(0xFFC24668), // dark pink
+    10: Color(0xFF1F8E76), // dark teal
+    11: Color(0xFF0F8FA9), // cyan
+  };
+
+  /// Resolve an arbitrary tag-color value coming from Odoo (an index 0–11,
+  /// a `#RRGGBB` string, or `null`) into a real [Color]. Falls back to
+  /// [textMuted] so the UI never blows up on a colour it can't recognise.
+  static Color odooTagColor(Object? value) {
+    if (value is num) {
+      final c = _odooColorPalette[value.toInt()];
+      if (c != null) return c;
+    } else if (value is String && value.isNotEmpty) {
+      var hex = value.trim();
+      if (hex.startsWith('#')) hex = hex.substring(1);
+      if (hex.length == 6 && int.tryParse(hex, radix: 16) != null) {
+        return Color(0xFF000000 | int.parse(hex, radix: 16));
+      }
+    }
+    return textMuted;
+  }
+
+  /// Turn a 6-char hex string (with or without leading `#`) into a [Color].
+  /// Invalid input returns `null` so callers can decide the fallback.
+  static Color? fromHex(String? hex) {
+    if (hex == null || hex.isEmpty) return null;
+    var clean = hex.trim();
+    if (clean.startsWith('#')) clean = clean.substring(1);
+    if (clean.length != 6) return null;
+    final value = int.tryParse(clean, radix: 16);
+    if (value == null) return null;
+    return Color(0xFF000000 | value);
+  }
 }
 
 /// Glass card decoration — frosted glass effect with subtle border.
