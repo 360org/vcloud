@@ -61,6 +61,7 @@ class Ticket {
     required this.updatedAt,
     this.priority = TicketPriority.p3,
     this.category,
+    this.tagLabels = const <String>[],
   });
 
   final String id;
@@ -73,11 +74,13 @@ class Ticket {
   final DateTime updatedAt;
   final TicketPriority priority;
   final String? category;
+  final List<String> tagLabels;
 
   Ticket copyWith({
     TicketStatus? status,
     TicketPriority? priority,
     String? category,
+    List<String>? tagLabels,
   }) => Ticket(
     id: id,
     title: title,
@@ -89,6 +92,7 @@ class Ticket {
     updatedAt: updatedAt,
     priority: priority ?? this.priority,
     category: category ?? this.category,
+    tagLabels: tagLabels ?? this.tagLabels,
   );
 
   factory Ticket.fromMap(Map<String, dynamic> map) => Ticket(
@@ -104,5 +108,22 @@ class Ticket {
         ? TicketPriorityDb.fromDb(map['priority'] as String)
         : TicketPriority.p3,
     category: map['category'] as String?,
+    tagLabels: (map['tag_labels'] as List? ?? const <dynamic>[])
+        .map((tag) => tag.toString())
+        .where((tag) => tag.isNotEmpty)
+        .toList(),
   );
+}
+
+class TicketTeamOption {
+  const TicketTeamOption({required this.id, required this.name});
+
+  final int id;
+  final String name;
+
+  factory TicketTeamOption.fromMap(Map<String, dynamic> map) =>
+      TicketTeamOption(
+        id: (map['id'] as num).toInt(),
+        name: (map['name'] ?? '').toString(),
+      );
 }

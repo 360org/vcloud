@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/api/mobile_attachment_repository.dart';
 import '../../../shared/models/activity_log.dart';
 import '../../../shared/models/ticket.dart';
 import '../../../shared/models/ticket_comment.dart';
@@ -13,6 +14,10 @@ final ticketRepositoryProvider = Provider<TicketRepository>(
 
 final ticketsProvider = StreamProvider.autoDispose<List<Ticket>>(
   (ref) => ref.read(ticketRepositoryProvider).watchAssigned(),
+);
+
+final ticketTeamsProvider = FutureProvider.autoDispose<List<TicketTeamOption>>(
+  (ref) => ref.read(ticketRepositoryProvider).teams(),
 );
 
 /// Lightweight notifier that holds an *override* list used for
@@ -46,12 +51,16 @@ class TicketActions {
     required String? description,
     TicketPriority priority = TicketPriority.p3,
     String? category,
+    List<int> tagIds = const <int>[],
+    List<MobileAttachmentUpload> attachments = const <MobileAttachmentUpload>[],
   }) async {
     final t = await _repo.create(
       title: title,
       description: description,
       priority: priority,
       category: category,
+      tagIds: tagIds,
+      attachments: attachments,
     );
     _ref.invalidate(ticketsProvider);
     return t;
@@ -91,6 +100,12 @@ class TicketActions {
     await _repo.updateCategory(id, category);
     _ref.invalidate(ticketsProvider);
   }
+
+  Future<void> sendContact(String ticketId, int partnerId) async {
+    await _repo.sendContact(ticketId, partnerId);
+    _ref.invalidate(ticketCommentsProvider(ticketId));
+    _ref.invalidate(activityLogProvider(ticketId));
+  }
 }
 
 final ticketActionsProvider = Provider(
@@ -116,11 +131,15 @@ final ticketCommentsProvider = StreamProvider.autoDispose
     );
 
 class TicketCommentActions {
-  TicketCommentActions(this._repo);
+  TicketCommentActions(this._repo, this._ref);
   final TicketCommentRepository _repo;
+  final Ref _ref;
 
   Future<TicketComment> add(String ticketId, String content) async {
-    return _repo.add(ticketId, content);
+    final comment = await _repo.add(ticketId, content);
+    _ref.invalidate(ticketCommentsProvider(ticketId));
+    _ref.invalidate(activityLogProvider(ticketId));
+    return comment;
   }
 
   Future<void> delete(String commentId) async {
@@ -129,7 +148,7 @@ class TicketCommentActions {
 }
 
 final ticketCommentActionsProvider = Provider(
-  (ref) => TicketCommentActions(ref.read(ticketCommentRepositoryProvider)),
+  (ref) => TicketCommentActions(ref.read(ticketCommentRepositoryProvider), ref),
 );
 
 // --- Activity Log ---
