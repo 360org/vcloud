@@ -15,8 +15,11 @@ See [docs/PRD.md](docs/PRD.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
    passwords, or API keys in committed files.
 4. **Odoo schema changes live in Odoo modules/migrations**, never ad-hoc SQL in the
    Flutter client repo.
-5. Match the surrounding code's style, comment density, and naming.
-6. **Every new feature must follow the delivery workflow:**
+5. **Ticket create/get/list uses 360 Support mobile endpoints** under
+   `/api/v1/mobile/ticket/*`; do not fall back to direct
+   `/api/v1/helpdesk.ticket` CRUD in Flutter.
+6. Match the surrounding code's style, comment density, and naming.
+7. **Every new feature must follow the delivery workflow:**
    `/spec → /plan → /build → /test → /review → /ship`.
 
 ## Layout
@@ -26,6 +29,7 @@ lib/
   shared/      models · widgets (app_scaffold, ui_kit, empty/error/loading)
   features/<f>/{data, application, presentation}
 docs/            PRD · ARCHITECTURE · PLAN · MOBILE_UX_OPTIONS
+root docs        SPEC.md · ARCH.md · implementation_plan.md · IDEA_IMPROVE.md
 ```
 
 ## Architecture & data flow
@@ -54,6 +58,10 @@ Odoo Mobile API Gateway (JWT · REST · Odoo models)
   Mutating actions invalidate Riverpod providers so screens refetch fresh data.
 - **Optimistic updates**: tickets use a `*OverrideProvider` pattern — patch
   the local list immediately, fire the API, roll back on failure.
+- **360 Support tickets**: create/get/list/team catalog must go through
+  `TicketRepository` and `/api/v1/mobile/ticket/*`. Unsupported status,
+  priority, team/category, and delete mutations should fail explicitly until the
+  mobile API exposes supported endpoints.
 - **Failure type**: `core/error/failure.dart` — lightweight `Failure(message)`
   thrown from repositories, caught in controllers/screens. Use
   `describeError(e)` to extract the message.
@@ -142,6 +150,27 @@ Based on `flutter_lints` plus:
   ad-hoc placeholders.
 - `UserAvatar` in `app_scaffold.dart` for user initials/avatar circles.
 - `Dates` utility in `core/utils/date_format.dart` for all date formatting.
+- Chat group creation is available in the main `/chat` UI through "Nhóm mới" and
+  must go through `conversationActionsProvider.createGroup` /
+  `ChatRepository.createGroup`; do not build `/mobile/chat/groups` payloads in
+  presentation.
+- Chat pin/unpin must go through `pinMessageActionProvider` /
+  `ChatRepository.pinMessage` or `unpinMessage`; presentation should render
+  `Message.pinnedAt`, not fake pins by editing message text.
+- Chat info Media/File tabs should derive old images/files from message
+  attachment metadata and use `DownloadAttachmentAction` for preview/download
+  URLs.
+- Create-ticket UI is a focused product intake form: title, issue description,
+  star priority, tag, CC email, and handling team. Keep the header centered,
+  field heights aligned, and description as a composer-style input with inline
+  "Thêm tài liệu" action.
+- Ticket-detail UI mirrors the same support fields and keeps comments ordered
+  newest-first. Render only a small newest comment window first, then reveal
+  older comments locally with "Xem thêm bình luận cũ".
+- Ticket attachments are selected from camera, gallery, or local files in
+  presentation, then uploaded through `MobileAttachmentRepository` after ticket
+  creation. CC email is still appended to the ticket description until the
+  backend exposes a dedicated CC field.
 
 ## Commands
 
@@ -195,6 +224,10 @@ Use this sequence for all feature work:
 | `/review` | Run repo checks, audit direct backend calls, error handling, security, and docs drift. |
 | `/ship` | Cleanup, update `CHANGELOG.md`, then push target branches `19.0` and `19.0-dev` when shipping is requested. |
 
+For user-sourced product ideas and design/API improvements, update
+`IDEA_IMPROVE.md` alongside the workflow docs. Record the user intent, the
+implemented improvement, and any backend limitation.
+
 ## Testing
 
 - `test/widget_test.dart` is a minimal smoke test (no backend dependency).
@@ -209,6 +242,13 @@ Use this sequence for all feature work:
   caches (or hard-reload) or you'll see the old bundle.
 - **Tickets are self-assigned only** in the current mobile flow — cross-user
   assignment depends on Odoo team/assignment endpoints.
+- **Ticket create/get/list** — use 360 Support mobile endpoints only. Direct
+  `/api/v1/helpdesk.ticket` calls are intentionally blocked for this UI flow.
+- **Ticket attachments** — the create screen has an inline "Thêm tài liệu"
+  composer affordance. Selected camera/gallery/file items upload through
+  `/api/v1/mobile/attachments/upload` after create with
+  `res_model=helpdesk.ticket`; keep this in the repository layer, not
+  presentation.
 - **`passkeys_bundle.js` in `web/`** must load synchronously before the Flutter engine
   — the transitive `passkeys` package requires `window.PasskeyAuthenticator` at boot.
 - **`web/index.html` script tag** — the `<script src="flutter_bootstrap.js" async>`
@@ -223,12 +263,24 @@ Use this sequence for all feature work:
   spec is light-only). Don't assume dark mode works.
 
 ## Backend setup (Odoo)
-1. Deploy the Odoo Mobile API Gateway that matches OpenAPI version `19.0.1.0.0`.
+1. Deploy the Odoo Mobile API Gateway that matches OpenAPI version `19.0.2.7.0`.
 2. Provide runtime config:
-   `--dart-define=VCLOUD_ODOO_API_BASE_URL=https://...`
-   and, when needed, `--dart-define=VCLOUD_ODOO_DB=...`.
-3. Authenticate through `POST /api/v1/auth/login`; the app stores only the JWT
-   session in secure storage.
+   `--dart-define=VCLOUD_ODOO_API_BASE_URL=https://...` pointing at the master
+   mobile resolver. `VCLOUD_ODOO_DB` is optional and not sent by the default
+   mobile login flow.
+3. Create mobile tenant mappings in Odoo master at
+   `Mobile API -> Tenant Users` (`mobile.api.tenant_user`) before login. Fill
+   Login, Tenant Database, Tenant Base URL, and Allowed Mode.
+4. Authenticate through `POST /api/v1/mobile/auth/login`; the app stores the
+   tenant JWT plus tenant routing metadata in secure storage.
+5. Master admin accounts used to manage tenant mappings may not have a
+   `mobile.api.tenant_user` mapping. When the resolver returns
+   `tenant_not_found`, the client may fall back to direct master
+   `/api/v1/auth/login` and store `scope=master_admin`.
+6. If several tenants accept the same credentials the master returns
+   `409 multiple_tenants`; the app shows a tenant picker and re-calls the login
+   with `tenant_id` to force the chosen tenant. Ensure the picker stays usable if
+   the forced retry 409s again.
 
 ## Adding a new feature
 1. Create `lib/features/<name>/{data, application, presentation}/`.

@@ -4,9 +4,8 @@
 #   open http://localhost:8080
 #   docker compose -f docker-compose.web.yml down
 #
-# To point at a different Odoo instance, pass build args:
-#   ODOO_API_BASE_URL=https://odoo.example.com \
-#   ODOO_DB=production_db \
+# To point at a different master Odoo resolver, pass build args:
+#   ODOO_API_BASE_URL=https://master-odoo.example.com \
 #   docker compose -f docker-compose.web.yml build
 services:
   web:

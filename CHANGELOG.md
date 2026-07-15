@@ -1,5 +1,16 @@
 # Changelog
 
+## Chưa phát hành
+
+- Sửa ánh xạ trạng thái chấm công để chấp nhận cả `is_checked_in`/`current_attendance_id` và `checked_in`/`attendance_id`; giao diện Home không còn hiểu sai trạng thái check-in hợp lệ từ Odoo 17.
+
+- Fix mobile attendance status to update immediately after check-in/out, react
+  to foreground attendance push events, and fall back to a 15-second refresh
+  while observed. Home now favors this live state over a stale dashboard snapshot.
+
+- Fix ticket detail so Odoo chatter's echoed create-description is not shown a
+  second time as a user comment; the ticket description remains in its field.
+
 All notable changes to VCloud are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [Semantic Versioning](https://semver.org/).
@@ -7,22 +18,69 @@ versioning follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 ### Added
 - Add `SPEC.md`, `ARCH.md`, and `implementation_plan.md` for the Odoo Mobile API migration workflow.
-- Add Odoo API client/session storage using JWT bearer auth from `/api/v1/auth/login`.
+- Add Odoo API client/session storage using JWT bearer auth from the mobile auth flow.
 - Add mobile dashboard summary wiring for Home counters, mobile avatar rendering,
   ticket activity history, chat direct/group/archive actions, auth me/refresh/logout,
   and project task completion endpoint support.
+- Add `IDEA_IMPROVE.md` to track user-sourced product ideas, generated
+  improvements, and backend limitations for future agents.
+- Add a real chat group creation sheet from the main chat UI, backed by
+  `/api/v1/mobile/chat/groups`.
+- Add mobile attachment upload and metadata integration for ticket documents,
+  plus chat/ticket contact-card repository endpoints.
+- Wire chat attachment UI actions for gallery image, camera capture, and
+  document picker into the mobile attachment upload endpoint.
+- Add chat message pin/unpin actions and a pinned-message banner backed by
+  message `pinned_at`.
+- Add chat info Media/File browsing for older sent images and files based on
+  attachment metadata.
+- Declare native Android/iOS camera and photo-library permissions for chat and
+  ticket media pickers.
+- Add Firebase Cloud Messaging device registration for the new mobile push
+  notification API, wired to auth login/session restore/logout.
+- Add a Home bell notification sheet showing unread chat conversations and open
+  tickets with tap-through navigation.
+- Add a tenant-selection bottom sheet and typed `MultipleTenantsFailure` so a
+  `409 multiple_tenants` from the master resolver lets the user pick a tenant and
+  re-authenticate with `tenant_id`.
+- Allow master database admin credentials to fall back to direct master login
+  when the mobile tenant resolver returns `tenant_not_found`.
 
 ### Changed
+- Route mobile login through the master tenant resolver
+  `/api/v1/mobile/auth/login`, storing returned tenant routing metadata and
+  sending authenticated requests to the tenant `base_url`.
+- Document the `mobile.api.tenant_user` mapping requirement for backend version
+  `19.0.2.7.0` and show a clear app error when login returns
+  `tenant_not_found`.
 - Replace Odoo API runtime integration with Odoo Mobile API repositories for auth, attendance, chat, tickets, timesheets, and tasks.
 - Update `AGENTS.md` so every new feature follows `/spec -> /plan -> /build -> /test -> /review -> /ship`.
 - Map Discuss/mobile chat API fields (`ChatChannel`, `MessageInfo`) into app
   chat models and wire mark-read through the mobile message endpoint.
 - Map mobile chat read-state fields for previews, unread badges, and message
   read metadata; split the chat list into direct and group tabs.
+- Connect the active chat "Nhóm mới" action to group creation with group name,
+  member search, member selection, and post-create navigation.
+- Route ticket create/get/list through 360 Support mobile ticket endpoints and
+  redesign create-ticket intake around title, description composer, star
+  priority, tag, CC email, and handling team.
+- Upload selected create-ticket documents after ticket creation using
+  `/api/v1/mobile/attachments/upload` with `res_model=helpdesk.ticket`.
+- Refresh ticket detail comments automatically while the screen is open and
+  show just-sent comments immediately with optimistic local rendering.
+- Redesign ticket detail around support fields and render comments newest-first
+  with local "load older comments" expansion.
+- Read Firebase push configuration from `--dart-define` values and skip push
+  setup safely when local builds do not provide Firebase project settings.
 
 ### Fixed
-- Fix mojibake chat repository failure messages and keep unsupported direct/group
-  creation as explicit Vietnamese `Failure`s until the API exposes mobile
+- Fix conversation-list timestamps by showing the latest message time in local
+  timezone instead of stale conversation update time.
+- Fix create-ticket header overlap, field alignment, and issue-description
+  composer UI; add inline "Thêm tài liệu" document chips backed by the mobile
+  attachment upload endpoint.
+- Fix mojibake chat repository failure messages and keep unsupported chat
+  mutations as explicit Vietnamese `Failure`s until the API exposes mobile
   endpoints for them.
 - Refresh chat detail and conversation preview metadata after sending messages,
   and mark conversations read through the channel-level mobile endpoint.
