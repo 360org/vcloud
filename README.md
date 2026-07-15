@@ -16,6 +16,7 @@ Vietnamese UI, premium mobile design.
 | [SPEC.md](SPEC.md) | Odoo API integration spec |
 | [ARCH.md](ARCH.md) | Current Odoo API architecture |
 | [implementation_plan.md](implementation_plan.md) | Delivery workflow checklist |
+| [docs/BUILD_ANDROID.md](docs/BUILD_ANDROID.md) | Build, install, verify, and release Android APKs |
 | [AGENTS.md](AGENTS.md) | Onboarding for agents and devs |
 | [CHANGELOG.md](CHANGELOG.md) | Release history |
 
@@ -37,7 +38,8 @@ docker compose -f docker-compose.web.yml up --build
 Open [http://localhost:8080](http://localhost:8080).
 
 ### Android APK
-See [AGENTS.md](AGENTS.md) for the Docker Android APK build recipe.
+Follow the complete [Android build guide](docs/BUILD_ANDROID.md), including
+Docker/local build, installation, verification, signing, and troubleshooting.
 
 ## Odoo Backend
 1. Deploy the Odoo Mobile API Gateway matching OpenAPI version `19.0.2.7.0`.
