@@ -6,6 +6,7 @@ import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:vcloud/core/api/odoo_api_client.dart';
 import 'package:vcloud/core/notifications/push_notification_controller.dart';
 import 'package:vcloud/core/notifications/push_notification_repository.dart';
+import 'package:vcloud/features/attendance/application/attendance_controller.dart';
 import 'package:vcloud/features/chat/application/conversations_controller.dart';
 import 'package:vcloud/features/home/presentation/home_screen.dart';
 import 'package:vcloud/features/ticket/application/ticket_controller.dart';
@@ -19,6 +20,7 @@ import 'package:vcloud/features/timesheet/data/task_repository.dart';
 import 'package:vcloud/features/timesheet/presentation/timesheet_list_screen.dart';
 import 'package:vcloud/features/timesheet/presentation/widgets/checklist_editor.dart';
 import 'package:vcloud/shared/models/conversation.dart';
+import 'package:vcloud/shared/models/attendance.dart';
 import 'package:vcloud/shared/models/task.dart';
 import 'package:vcloud/shared/models/ticket.dart';
 import 'package:vcloud/shared/models/ticket_comment.dart';
@@ -184,6 +186,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          attendanceTodayProvider.overrideWith(
+            (ref) => Stream<Attendance?>.value(null),
+          ),
           taskRepositoryProvider.overrideWithValue(repo),
           todayTasksProvider.overrideWith(
             (ref) => Stream<List<Task>>.value(<Task>[
@@ -258,6 +263,9 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            attendanceTodayProvider.overrideWith(
+              (ref) => Stream<Attendance?>.value(null),
+            ),
             todayTasksProvider.overrideWith(
               (ref) => Stream<List<Task>>.value(const <Task>[]),
             ),
