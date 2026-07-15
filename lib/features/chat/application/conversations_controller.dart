@@ -19,7 +19,16 @@ final conversationsProvider = StreamProvider<List<ConversationSummary>>((ref) {
   //
   // It still watches auth above so login/logout switches rebuild the stream
   // with the correct current Odoo user instead of keeping a stale stream.
-  return ref.read(chatRepositoryProvider).watchConversations();
+  final currentIdentityIds = <String>{
+    user.id,
+    user.email ?? '',
+    user.email?.split('@').first ?? '',
+    user.userMetadata['display_name']?.toString() ?? '',
+    user.userMetadata['partner_id']?.toString() ?? '',
+  }.where((value) => value.trim().isNotEmpty).toSet();
+  return ref.read(chatRepositoryProvider).watchConversations(
+    currentIdentityIds: currentIdentityIds,
+  );
 });
 
 class ConversationActions {
@@ -31,6 +40,9 @@ class ConversationActions {
 
   Future<String> createGroup(String name, List<String> memberIds) =>
       _repo.createGroup(name, memberIds);
+
+  Future<void> sendContact(String conversationId, int partnerId) =>
+      _repo.sendContact(conversationId, partnerId);
 
   Future<void> archive(String conversationId) =>
       _repo.archiveConversation(conversationId);

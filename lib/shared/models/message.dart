@@ -1,3 +1,5 @@
+import '../../core/utils/html_text.dart';
+
 /// Row from `public.messages`.
 class Message {
   const Message({
@@ -15,6 +17,10 @@ class Message {
     this.isInternal = false,
     this.parentId,
     this.attachmentIds = const [],
+    this.attachmentName,
+    this.attachmentMimeType,
+    this.attachmentUrl,
+    this.attachmentSize,
     this.starred = false,
     this.pinnedAt,
     this.isReadByMe = false,
@@ -36,6 +42,10 @@ class Message {
   final bool isInternal;
   final String? parentId;
   final List<String> attachmentIds;
+  final String? attachmentName;
+  final String? attachmentMimeType;
+  final String? attachmentUrl;
+  final int? attachmentSize;
   final bool starred;
   final DateTime? pinnedAt;
   final bool isReadByMe;
@@ -56,9 +66,11 @@ class Message {
     messageType: _stringOrNull(map['message_type']),
     isInternal: map['is_internal'] as bool? ?? false,
     parentId: _stringOrNull(map['parent_id']),
-    attachmentIds: (map['attachment_ids'] as List<dynamic>? ?? const [])
-        .map((id) => id.toString())
-        .toList(),
+    attachmentIds: _attachmentIds(map),
+    attachmentName: _attachmentName(map),
+    attachmentMimeType: _attachmentMimeType(map),
+    attachmentUrl: _attachmentUrl(map),
+    attachmentSize: _attachmentSize(map),
     starred: map['starred'] as bool? ?? false,
     pinnedAt: _dateTimeOrNull(map['pinned_at']),
     isReadByMe: map['is_read_by_me'] as bool? ?? false,
@@ -88,9 +100,11 @@ class Message {
       messageType: _stringOrNull(map['message_type']),
       isInternal: map['is_internal'] as bool? ?? false,
       parentId: _stringOrNull(map['parent_id']),
-      attachmentIds: (map['attachment_ids'] as List<dynamic>? ?? const [])
-          .map((id) => id.toString())
-          .toList(),
+      attachmentIds: _attachmentIds(map),
+      attachmentName: _attachmentName(map),
+      attachmentMimeType: _attachmentMimeType(map),
+      attachmentUrl: _attachmentUrl(map),
+      attachmentSize: _attachmentSize(map),
       starred: map['starred'] as bool? ?? false,
       pinnedAt: _dateTimeOrNull(map['pinned_at']),
       isReadByMe: map['is_read_by_me'] as bool? ?? false,
@@ -107,26 +121,6 @@ class Message {
           map['is_author'] as bool? ??
           false,
     );
-  }
-
-  static String cleanHtmlText(Object? value) {
-    if (value == null || value == false) return '';
-    final text = value.toString();
-    if (text.isEmpty) return '';
-
-    final withBreaks = text
-        .replaceAll(RegExp(r'<\s*br\s*/?\s*>', caseSensitive: false), '\n')
-        .replaceAll(RegExp(r'</\s*p\s*>', caseSensitive: false), '\n')
-        .replaceAll(RegExp(r'</\s*div\s*>', caseSensitive: false), '\n')
-        .replaceAll(RegExp(r'</\s*li\s*>', caseSensitive: false), '\n');
-    final withoutTags = withBreaks.replaceAll(RegExp(r'<[^>]*>'), '');
-    final decoded = _decodeHtmlEntities(withoutTags);
-    return decoded
-        .split('\n')
-        .map((line) => line.trim())
-        .where((line) => line.isNotEmpty)
-        .join('\n')
-        .trim();
   }
 
   static DateTime? _dateTimeOrNull(Object? value) {
@@ -166,6 +160,101 @@ class Message {
     return null;
   }
 
+  static List<String> _attachmentIds(Map<String, dynamic> map) {
+    final values = _attachmentValues(map);
+    return values
+        .map(_attachmentId)
+        .whereType<String>()
+        .where((id) => id.isNotEmpty && id != 'false')
+        .toList();
+  }
+
+  static String? _attachmentName(Map<String, dynamic> map) {
+    final direct = _stringOrNull(
+      map['attachment_name'] ?? map['filename'] ?? map['file_name'],
+    );
+    if (direct != null) return direct;
+    for (final value in _attachmentValues(map)) {
+      final name = _attachmentField(value, const [
+        'name',
+        'filename',
+        'display_name',
+      ]);
+      if (name != null) return name;
+      if (value is List && value.length > 1) return _stringOrNull(value[1]);
+    }
+    return null;
+  }
+
+  static String? _attachmentMimeType(Map<String, dynamic> map) {
+    final direct = _stringOrNull(
+      map['attachment_mimetype'] ?? map['mimetype'] ?? map['mime_type'],
+    );
+    if (direct != null) return direct;
+    for (final value in _attachmentValues(map)) {
+      final mimetype = _attachmentField(value, const ['mimetype', 'mime_type']);
+      if (mimetype != null) return mimetype;
+    }
+    return null;
+  }
+
+  static String? _attachmentUrl(Map<String, dynamic> map) {
+    final direct = _stringOrNull(
+      map['attachment_url'] ??
+          map['url'] ??
+          map['thumbnail_url'] ??
+          map['attachment_download_url'] ??
+          map['download_url'],
+    );
+    if (direct != null) return direct;
+    for (final value in _attachmentValues(map)) {
+      final url = _attachmentField(value, const [
+        'url',
+        'thumbnail_url',
+        'download_url',
+      ]);
+      if (url != null) return url;
+    }
+    return null;
+  }
+
+  static int? _attachmentSize(Map<String, dynamic> map) {
+    final direct = _intOrNull(
+      map['attachment_size'] ?? map['file_size'] ?? map['size'],
+    );
+    if (direct != null) return direct;
+    for (final value in _attachmentValues(map)) {
+      final size = _intOrNull(
+        value is Map ? value['file_size'] ?? value['size'] : null,
+      );
+      if (size != null) return size;
+    }
+    return null;
+  }
+
+  static List<dynamic> _attachmentValues(Map<String, dynamic> map) {
+    final raw = map['attachments'] ?? map['attachment_ids'];
+    if (raw is List) return raw;
+    return const [];
+  }
+
+  static String? _attachmentId(Object? value) {
+    if (value is Map) {
+      return _stringOrNull(value['id'] ?? value['attachment_id']);
+    }
+    if (value is List && value.isNotEmpty) return value.first.toString();
+    return _stringOrNull(value);
+  }
+
+  static String? _attachmentField(Object? value, List<String> keys) {
+    if (value is! Map) return null;
+    for (final key in keys) {
+      final text = _stringOrNull(value[key]);
+      if (text != null) return text;
+    }
+    return null;
+  }
+
   static bool _hasTimezone(String value) {
     return RegExp(
       r'(z|[+-]\d\d:?\d\d)$',
@@ -186,32 +275,9 @@ class Message {
         .toList();
   }
 
-  static String _decodeHtmlEntities(String text) {
-    const entities = <String, String>{
-      '&amp;': '&',
-      '&lt;': '<',
-      '&gt;': '>',
-      '&quot;': '"',
-      '&#39;': "'",
-      '&apos;': "'",
-      '&nbsp;': ' ',
-    };
-    var decoded = text;
-    for (final entry in entities.entries) {
-      decoded = decoded.replaceAll(entry.key, entry.value);
-    }
-    return decoded
-        .replaceAllMapped(RegExp(r'&#(\d+);'), (match) {
-          final codePoint = int.tryParse(match.group(1) ?? '');
-          return codePoint == null
-              ? match.group(0)!
-              : String.fromCharCode(codePoint);
-        })
-        .replaceAllMapped(RegExp(r'&#x([0-9a-fA-F]+);'), (match) {
-          final codePoint = int.tryParse(match.group(1) ?? '', radix: 16);
-          return codePoint == null
-              ? match.group(0)!
-              : String.fromCharCode(codePoint);
-        });
+  static int? _intOrNull(Object? value) {
+    if (value == null || value == false) return null;
+    if (value is num) return value.toInt();
+    return int.tryParse(value.toString());
   }
 }

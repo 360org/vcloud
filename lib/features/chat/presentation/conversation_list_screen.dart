@@ -7,6 +7,7 @@ import 'package:lucide_flutter/lucide_flutter.dart';
 
 import '../../../core/api/auth_user.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/date_format.dart';
 import '../../../features/auth/application/auth_controller.dart';
 import '../../../shared/models/conversation.dart';
 import '../../../shared/models/profile.dart';
@@ -69,18 +70,7 @@ class _ConversationListScreenState
     extends ConsumerState<ConversationListScreen> {
   String _query = '';
 
-  static String _viTime(DateTime dt) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final d = DateTime(dt.year, dt.month, dt.day);
-    final diff = today.difference(d).inDays;
-    if (diff == 0) {
-      return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-    }
-    if (diff == 1) return 'Hôm qua';
-    if (diff < 7) return '$diff ngày';
-    return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}';
-  }
+  static String _viTime(DateTime dt) => Dates.chatListLabelVi(dt);
 
   void _openNewChatSheet() {
     showModalBottomSheet(
@@ -280,7 +270,9 @@ class _ConversationListScreenState
                                     conversation: c,
                                     title: title,
                                     preview: preview,
-                                    timeLabel: _viTime(c.updatedAt),
+                                    timeLabel: _viTime(
+                                      _latestConversationTime(c),
+                                    ),
                                     onTap: () => context.push('/chat/${c.id}'),
                                   )
                                   .animate()
@@ -325,17 +317,7 @@ class _TelegramConversationListScreenState
     extends ConsumerState<TelegramConversationListScreen> {
   String _query = '';
 
-  static String _timeLabel(DateTime dt) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final day = DateTime(dt.year, dt.month, dt.day);
-    final diff = today.difference(day).inDays;
-    if (diff == 0) {
-      return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-    }
-    if (diff == 1) return 'Hôm qua';
-    return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}';
-  }
+  static String _timeLabel(DateTime dt) => Dates.chatListLabelVi(dt);
 
   void _openNewMessageSheet(List<ConversationSummary> conversations) {
     final currentUser = ref.read(authControllerProvider).value;
@@ -350,8 +332,24 @@ class _TelegramConversationListScreenState
           Navigator.pop(context);
           context.push('/chat/${conversation.id}');
         },
+        onCreateGroup: () {
+          Navigator.pop(context);
+          _openNewGroupSheet();
+        },
       ),
     );
+  }
+
+  Future<void> _openNewGroupSheet() async {
+    final channelId = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const _NewGroupSheet(),
+    );
+    if (!mounted || channelId == null) return;
+    ref.invalidate(conversationsProvider);
+    context.push('/chat/$channelId');
   }
 
   @override
@@ -425,7 +423,9 @@ class _TelegramConversationListScreenState
                                   preview:
                                       conversation.lastMessage?.content ??
                                       'Chưa có tin nhắn',
-                                  timeLabel: _timeLabel(conversation.updatedAt),
+                                  timeLabel: _timeLabel(
+                                    _latestConversationTime(conversation),
+                                  ),
                                   onTap: () =>
                                       context.push('/chat/${conversation.id}'),
                                 ).animate().fadeIn(
@@ -825,11 +825,13 @@ class _NewMessageSheet extends StatefulWidget {
     required this.conversations,
     required this.currentUser,
     required this.onOpenConversation,
+    required this.onCreateGroup,
   });
 
   final List<ConversationSummary> conversations;
   final AuthUser? currentUser;
   final ValueChanged<ConversationSummary> onOpenConversation;
+  final VoidCallback onCreateGroup;
 
   @override
   State<_NewMessageSheet> createState() => _NewMessageSheetState();
@@ -870,9 +872,10 @@ class _NewMessageSheetState extends State<_NewMessageSheet> {
               onClear: () => setState(() => _query = ''),
             ),
             const SizedBox(height: 10),
-            const _NewMessageActionRow(
+            _NewMessageActionRow(
               icon: LucideIcons.users,
               label: 'Nhóm mới',
+              onTap: widget.onCreateGroup,
             ),
             const _NewMessageActionRow(
               icon: LucideIcons.userPlus,
@@ -1018,19 +1021,26 @@ class _NewMessageSearchField extends StatelessWidget {
 }
 
 class _NewMessageActionRow extends StatelessWidget {
-  const _NewMessageActionRow({required this.icon, required this.label});
+  const _NewMessageActionRow({
+    required this.icon,
+    required this.label,
+    this.onTap,
+  });
 
   final IconData icon;
   final String label;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     return PressableScale(
-      onTap: () {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('$label sắp có')));
-      },
+      onTap:
+          onTap ??
+          () {
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text('$label sắp có')));
+          },
       child: Padding(
         padding: const EdgeInsets.only(left: 34),
         child: Row(
@@ -1066,6 +1076,383 @@ class _NewMessageActionRow extends StatelessWidget {
   }
 }
 
+class _NewGroupSheet extends ConsumerStatefulWidget {
+  const _NewGroupSheet();
+
+  @override
+  ConsumerState<_NewGroupSheet> createState() => _NewGroupSheetState();
+}
+
+class _NewGroupSheetState extends ConsumerState<_NewGroupSheet> {
+  final TextEditingController _name = TextEditingController();
+  final Set<String> _selected = <String>{};
+  String _query = '';
+  bool _busy = false;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  Future<void> _createGroup() async {
+    if (_busy || _name.text.trim().isEmpty || _selected.length < 2) return;
+    setState(() => _busy = true);
+    try {
+      final id = await ref
+          .read(conversationActionsProvider)
+          .createGroup(_name.text.trim(), _selected.toList());
+      if (mounted) Navigator.pop(context, id);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Failure: ', '')),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final users = ref.watch(_allUsersProvider);
+    final currentUserId = ref.read(authControllerProvider).value?.id;
+    final canCreate =
+        !_busy && _name.text.trim().isNotEmpty && _selected.length >= 2;
+
+    return SafeArea(
+      top: false,
+      child: Container(
+        height: MediaQuery.sizeOf(context).height * 0.86,
+        margin: const EdgeInsets.only(top: 42),
+        decoration: const BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          children: [
+            _NewGroupHeader(selectedCount: _selected.length),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 4, 24, 10),
+              child: _NewGroupNameField(
+                controller: _name,
+                onChanged: (_) => setState(() {}),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+              child: _NewGroupSearchField(
+                query: _query,
+                onChanged: (value) => setState(() => _query = value),
+                onClear: () => setState(() => _query = ''),
+              ),
+            ),
+            Expanded(
+              child: users.when(
+                data: (list) {
+                  final query = _query.trim().toLowerCase();
+                  final people = list.where((user) {
+                    if (user.id == currentUserId) return false;
+                    if (query.isEmpty) return true;
+                    final haystack = '${user.displayName} ${user.email}'
+                        .toLowerCase();
+                    return haystack.contains(query);
+                  }).toList();
+                  if (people.isEmpty) {
+                    return const Center(
+                      child: Text(
+                        'Không tìm thấy thành viên',
+                        style: TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    );
+                  }
+                  return ListView.separated(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    itemCount: people.length,
+                    separatorBuilder: (_, _) => const Padding(
+                      padding: EdgeInsets.only(left: 92),
+                      child: Divider(height: 1, color: AppColors.border),
+                    ),
+                    itemBuilder: (context, index) {
+                      final user = people[index];
+                      final selected = _selected.contains(user.id);
+                      return _NewGroupMemberRow(
+                        user: user,
+                        selected: selected,
+                        enabled: !_busy,
+                        onTap: () {
+                          setState(() {
+                            if (selected) {
+                              _selected.remove(user.id);
+                            } else {
+                              _selected.add(user.id);
+                            }
+                          });
+                        },
+                      );
+                    },
+                  );
+                },
+                loading: () => const LoadingView(),
+                error: (e, _) => ErrorView(
+                  error: e,
+                  onRetry: () => ref.invalidate(_allUsersProvider),
+                ),
+              ),
+            ),
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 10, 24, 18),
+                child: GradientButton(
+                  label: 'Tạo nhóm',
+                  icon: LucideIcons.users,
+                  loading: _busy,
+                  gradient: AppColors.chatGrad,
+                  glowColor: AppColors.chat,
+                  onPressed: canCreate ? _createGroup : null,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NewGroupHeader extends StatelessWidget {
+  const _NewGroupHeader({required this.selectedCount});
+
+  final int selectedCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 78,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Positioned(
+            top: 10,
+            child: Container(
+              width: 46,
+              height: 5,
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(99),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 14),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Tạo nhóm mới',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 21,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  selectedCount == 0
+                      ? 'Chọn ít nhất 2 thành viên'
+                      : 'Đã chọn $selectedCount thành viên',
+                  style: const TextStyle(
+                    color: AppColors.textMuted,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NewGroupNameField extends StatelessWidget {
+  const _NewGroupNameField({required this.controller, required this.onChanged});
+
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 54,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0F3F8),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: TextField(
+        controller: controller,
+        onChanged: onChanged,
+        style: const TextStyle(
+          color: AppColors.textPrimary,
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+        ),
+        decoration: const InputDecoration(
+          hintText: 'Tên nhóm',
+          hintStyle: TextStyle(color: AppColors.textMuted, fontSize: 16),
+          prefixIcon: Icon(
+            LucideIcons.users,
+            color: AppColors.textMuted,
+            size: 21,
+          ),
+          border: InputBorder.none,
+          contentPadding: EdgeInsets.symmetric(vertical: 15),
+        ),
+      ),
+    );
+  }
+}
+
+class _NewGroupSearchField extends StatelessWidget {
+  const _NewGroupSearchField({
+    required this.query,
+    required this.onChanged,
+    required this.onClear,
+  });
+
+  final String query;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 48,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F8FA),
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: TextField(
+        onChanged: onChanged,
+        style: const TextStyle(color: AppColors.textPrimary, fontSize: 15),
+        decoration: InputDecoration(
+          hintText: 'Tìm thành viên',
+          hintStyle: const TextStyle(color: AppColors.textMuted, fontSize: 15),
+          prefixIcon: const Icon(
+            LucideIcons.search,
+            color: AppColors.textMuted,
+            size: 20,
+          ),
+          suffixIcon: query.isEmpty
+              ? null
+              : IconButton(
+                  onPressed: onClear,
+                  icon: const Icon(LucideIcons.x, size: 18),
+                ),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(vertical: 13),
+        ),
+      ),
+    );
+  }
+}
+
+class _NewGroupMemberRow extends StatelessWidget {
+  const _NewGroupMemberRow({
+    required this.user,
+    required this.selected,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final Profile user;
+  final bool selected;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = user.displayName.isNotEmpty
+        ? user.displayName
+        : user.email.split('@').first;
+    return PressableScale(
+      onTap: enabled ? onTap : null,
+      scale: 0.99,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 9, 24, 9),
+        child: Row(
+          children: [
+            UserAvatar(
+              userId: user.id,
+              displayName: name,
+              email: user.email,
+              avatarUrl: user.avatarUrl,
+              size: 50,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    user.email,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 160),
+              width: 26,
+              height: 26,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: selected ? AppColors.primary : Colors.transparent,
+                border: Border.all(
+                  color: selected ? AppColors.primary : AppColors.border,
+                  width: 2,
+                ),
+              ),
+              child: selected
+                  ? const Icon(LucideIcons.check, color: Colors.white, size: 16)
+                  : null,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _NewMessageConversationRow extends StatelessWidget {
   const _NewMessageConversationRow({
     required this.conversation,
@@ -1087,7 +1474,7 @@ class _NewMessageConversationRow extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(28, 8, 24, 8),
         child: Row(
           children: [
-            conversation.isGroup
+            conversation.isGroup && conversation.avatarUrl == null
                 ? _TelegramGroupAvatar(title: title)
                 : UserAvatar(
                     userId: conversation.id,
@@ -1156,7 +1543,7 @@ class _TelegramConversationRow extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            conversation.isGroup
+            conversation.isGroup && conversation.avatarUrl == null
                 ? _TelegramGroupAvatar(title: title)
                 : UserAvatar(
                     userId: conversation.id,
@@ -1360,7 +1747,7 @@ class _ConversationItem extends StatelessWidget {
         ),
         child: Row(
           children: [
-            c.isGroup
+            c.isGroup && c.avatarUrl == null
                 ? _GroupAvatar(title: title)
                 : UserAvatar(
                     userId: c.id,

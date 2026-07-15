@@ -1,3 +1,4 @@
+import '../../core/utils/html_text.dart';
 import 'message.dart';
 import 'profile.dart';
 
@@ -43,9 +44,7 @@ class ConversationSummary {
     final id = map['id'].toString();
     final lastMessageDate = _dateTimeOrNull(map['last_message_date']);
     final lastMessageId = _stringOrNull(map['last_message_id']);
-    final lastMessageText = _stringOrNull(
-      Message.cleanHtmlText(map['last_message']),
-    );
+    final lastMessageText = _stringOrNull(cleanHtmlText(map['last_message']));
 
     return ConversationSummary(
       id: id,
@@ -62,7 +61,14 @@ class ConversationSummary {
             ),
       updatedAt: lastMessageDate ?? fetchedAt ?? DateTime.now(),
       unreadCount: (map['unread_count'] as num?)?.toInt() ?? 0,
-      avatarUrl: _stringOrNull(map['avatar_128']),
+      avatarUrl: _stringOrNull(
+        map['avatar_url'] ??
+            map['channel_avatar_url'] ??
+            map['avatar_128_url'] ??
+            map['image_128_url'] ??
+            map['avatar_128'] ??
+            map['image_128'],
+      ),
       description: _stringOrNull(map['description']),
       isEditable: map['is_editable'] as bool? ?? false,
       memberCount: (map['member_count'] as num?)?.toInt() ?? 0,

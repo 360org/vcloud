@@ -1,4 +1,7 @@
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:vcloud/core/api/mobile_attachment_repository.dart';
 import 'package:vcloud/core/api/odoo_api_client.dart';
 import 'package:vcloud/features/chat/data/chat_repository.dart';
 import 'package:vcloud/features/home/data/dashboard_repository.dart';
@@ -39,6 +42,169 @@ void main() {
     ]);
   });
 
+  test('ChatRepository creates groups through mobile chat endpoint', () async {
+    final client = _FakeOdooApiClient(<String, dynamic>{'channel_id': 42});
+    final repo = ChatRepository(client: client);
+
+    final channelId = await repo.createGroup('Team VCloud', <String>['7', '9']);
+
+    expect(channelId, '42');
+    expect(client.lastPostPath, '/api/v1/mobile/chat/groups');
+    expect(client.lastPostBody, <String, dynamic>{
+      'name': 'Team VCloud',
+      'member_ids': <int>[7, 9],
+    });
+  });
+
+  test('ChatRepository fetches users with schema-safe fields', () async {
+    final client = _FakeOdooApiClient(<Map<String, dynamic>>[
+      <String, dynamic>{'id': 7, 'login': 'an@example.com', 'name': 'An'},
+    ]);
+    final repo = ChatRepository(client: client);
+
+    final users = await repo.allUsers();
+
+    expect(client.lastGetPath, '/api/v1/res.users');
+    expect(client.lastGetQuery, <String, Object?>{'fields': 'id,login,name'});
+    expect(
+      users.single.avatarUrl,
+      'https://example.test/api/v1/mobile/avatar/users/7',
+    );
+  });
+
+  test('ChatRepository sends contact card through mobile endpoint', () async {
+    final client = _FakeOdooApiClient(<String, dynamic>{'ok': true});
+    final repo = ChatRepository(client: client);
+
+    await repo.sendContact('42', 7);
+
+    expect(client.lastPostPath, '/api/v1/mobile/chat/channels/42/contact');
+    expect(client.lastPostBody, <String, dynamic>{'partner_id': 7});
+  });
+
+  test('ChatRepository pins and unpins messages through mobile endpoints',
+  () async {
+    final client = _FakeOdooApiClient(<String, dynamic>{'ok': true});
+    final repo = ChatRepository(client: client);
+
+    await repo.pinMessage('42', '99');
+    await repo.unpinMessage('42', '99');
+
+    expect(client.postPaths, <String>[
+      '/api/v1/mobile/chat/messages/99/pin',
+      '/api/v1/mobile/chat/messages/99/unpin',
+    ]);
+    expect(client.postBodies, <Object?>[
+      <String, dynamic>{'channel_id': 42},
+      <String, dynamic>{'channel_id': 42},
+    ]);
+  });
+
+  test('ChatRepository uploads attachments onto discuss channel', () async {
+    final client = _FakeOdooApiClient(<String, dynamic>{
+      'id': 9,
+      'attachment_id': 9,
+      'name': 'anh.png',
+      'mimetype': 'image/png',
+    });
+    final repo = ChatRepository(client: client);
+
+    await repo.uploadAttachment(
+      '42',
+      MobileAttachmentUpload(
+        filename: 'anh.png',
+        bytes: Uint8List.fromList(<int>[1, 2, 3]),
+        mimetype: 'image/png',
+      ),
+    );
+
+    expect(client.postPaths, <String>[
+      '/api/v1/mobile/attachments/upload',
+      '/api/v1/mobile/chat/messages',
+    ]);
+    expect(
+      client.postBodies.first,
+      containsPair('res_model', 'discuss.channel'),
+    );
+    expect(client.postBodies.first, containsPair('res_id', 42));
+    expect(client.postBodies.first, containsPair('name', 'anh.png'));
+    expect(client.postBodies.first, containsPair('datas', 'AQID'));
+    expect(client.postBodies.last, containsPair('channel_id', 42));
+    expect(client.postBodies.last, containsPair('body', 'anh.png'));
+    expect(client.postBodies.last, containsPair('attachment_ids', <int>[9]));
+  });
+
+  test('ChatRepository resolves attachment download URL', () async {
+    final client = _FakeOdooApiClient(<String, dynamic>{
+      'id': 9,
+      'attachment_id': 9,
+      'name': 'tailieu.txt',
+      'download_url': '/web/content/9?download=1',
+    });
+    final repo = ChatRepository(client: client);
+
+    final url = await repo.attachmentDownloadUrl('9');
+
+    expect(client.lastGetPath, '/api/v1/mobile/attachments/9');
+    expect(url, 'https://example.test/web/content/9?download=1');
+  });
+
+  test('ChatRepository resolves attachment image preview URL', () {
+    final client = _FakeOdooApiClient(<String, dynamic>{});
+    final repo = ChatRepository(client: client);
+
+    final url = repo.attachmentContentUrl(
+      '9',
+      url: '/web/content/9?download=1&access_token=abc',
+    );
+
+    expect(url, 'https://example.test/web/content/9?access_token=abc');
+  });
+
+  test('ChatRepository.forwardAttachment re-uploads bytes into target channel',
+  () async {
+    // Flow: fetchBytes → get attachment meta → upload → send message.
+    final client = _FakeOdooApiClient(
+      // GET /api/v1/mobile/attachments/9 → metadata for the source file.
+      <String, dynamic>{
+        'id': 9,
+        'attachment_id': 9,
+        'name': 'anh.png',
+        'mimetype': 'image/png',
+        'download_url': '/web/content/9?download=1',
+      },
+      postResponses: <Map<String, dynamic>>[
+        // POST /api/v1/mobile/attachments/upload → the re-uploaded attachment.
+        <String, dynamic>{
+          'id': 20,
+          'attachment_id': 20,
+          'name': 'anh.png',
+          'mimetype': 'image/png',
+        },
+        // POST /api/v1/mobile/chat/messages → the forwarded message ack.
+        <String, dynamic>{'id': 100},
+      ],
+    );
+    final repo = ChatRepository(client: client);
+
+    await repo.forwardAttachment('55', '9');
+
+    // Bytes were fetched from the source attachment's download URL.
+    expect(client.lastFetchBytesPath, '/web/content/9?download=1');
+    // Upload happened first, then the message send to the *target* channel.
+    expect(client.postPaths, <String>[
+      '/api/v1/mobile/attachments/upload',
+      '/api/v1/mobile/chat/messages',
+    ]);
+    // Upload payload carries the re-uploaded bytes (base64) + target res_id.
+    expect(client.postBodies.first, containsPair('res_model', 'discuss.channel'));
+    expect(client.postBodies.first, containsPair('res_id', 55));
+    expect(client.postBodies.first, containsPair('name', 'anh.png'));
+    // Message send targets the target channel and references the new attachment.
+    expect(client.postBodies.last, containsPair('channel_id', 55));
+    expect(client.postBodies.last, containsPair('attachment_ids', <int>[20]));
+  });
+
   test('ChatChannel maps into conversation summary metadata', () {
     final fetchedAt = DateTime.utc(2026, 7);
     final summary = ConversationSummary.fromOdooChatChannel(<String, dynamic>{
@@ -70,6 +236,25 @@ void main() {
     expect(summary.unreadCount, 3);
     expect(summary.lastSeenMessageId, '98');
     expect(summary.lastSeenDt, DateTime.parse('2026-07-01T08:00:00Z'));
+  });
+
+  test('ChatChannel avatar_url is read into avatarUrl field', () {
+    final summary = ConversationSummary.fromOdooChatChannel(<String, dynamic>{
+      'id': 42,
+      'name': 'Direct chat',
+      'channel_type': 'chat',
+      // OpenAPI ChatChannel.avatar_url — the canonical photo URL
+      // returned by `/api/v1/mobile/chat/channels`. Often a relative
+      // path against the Odoo base URL.
+      'avatar_url': '/web/image/discuss.channel/42/avatar_128/4a3b1f000abc',
+      'last_message_date': '2026-07-01T08:30:00Z',
+      'last_message': 'Hello',
+    }, fetchedAt: DateTime.utc(2026, 7));
+
+    expect(
+      summary.avatarUrl,
+      '/web/image/discuss.channel/42/avatar_128/4a3b1f000abc',
+    );
   });
 
   test('MessageInfo maps into app message fields', () {
@@ -109,6 +294,34 @@ void main() {
     expect(message.readBy, <String>['8', '9']);
     expect(message.readByCount, 4);
     expect(message.authoredByMe, isTrue);
+  });
+
+  test('MessageInfo maps attachment metadata for previews', () {
+    final message = Message.fromOdooMessageInfo(
+      conversationId: '42',
+      map: <String, dynamic>{
+        'id': 100,
+        'body': '',
+        'preview': '',
+        'date': '2026-07-01T08:30:00Z',
+        'attachments': <Map<String, dynamic>>[
+          <String, dynamic>{
+            'id': 9,
+            'name': 'Demo (1).pdf',
+            'mimetype': 'application/pdf',
+            'file_size': 131174,
+            'url': '/web/content/9?access_token=abc',
+            'download_url': '/web/content/9?download=1',
+          },
+        ],
+      },
+    );
+
+    expect(message.attachmentIds, <String>['9']);
+    expect(message.attachmentName, 'Demo (1).pdf');
+    expect(message.attachmentMimeType, 'application/pdf');
+    expect(message.attachmentSize, 131174);
+    expect(message.attachmentUrl, '/web/content/9?access_token=abc');
   });
 
   test('Odoo naive datetimes are treated as UTC', () {
@@ -199,9 +412,21 @@ void main() {
 }
 
 class _FakeOdooApiClient extends OdooApiClient {
-  _FakeOdooApiClient(this._response) : super(baseUrl: 'https://example.test');
+  _FakeOdooApiClient(this._response, {List<Map<String, dynamic>>? postResponses})
+    : _postResponses = postResponses ?? const <Map<String, dynamic>>[],
+      super(baseUrl: 'https://example.test');
 
   final Object _response;
+  final List<Map<String, dynamic>> _postResponses;
+  int _postCalls = 0;
+  String? lastGetPath;
+  Map<String, Object?>? lastGetQuery;
+  String? lastPostPath;
+  Object? lastPostBody;
+  final postPaths = <String>[];
+  final postBodies = <Object?>[];
+  String? lastFetchBytesPath;
+  Uint8List? fetchBytesResult;
 
   @override
   Future<dynamic> get(
@@ -209,6 +434,36 @@ class _FakeOdooApiClient extends OdooApiClient {
     Map<String, Object?> query = const <String, Object?>{},
     bool auth = true,
   }) async {
+    lastGetPath = path;
+    lastGetQuery = query;
     return _response;
+  }
+
+  @override
+  Future<dynamic> post(
+    String path, {
+    Object? body,
+    Map<String, Object?> query = const <String, Object?>{},
+    bool auth = true,
+  }) async {
+    lastPostPath = path;
+    lastPostBody = body;
+    postPaths.add(path);
+    postBodies.add(body);
+    // Return successive post responses for orchestrated flows (forward);
+    // hold the last one once exhausted.
+    if (_postResponses.isEmpty) return _response;
+    final index =
+        _postCalls < _postResponses.length
+            ? _postCalls
+            : _postResponses.length - 1;
+    _postCalls++;
+    return _postResponses[index];
+  }
+
+  @override
+  Future<Uint8List> fetchBytes(String path) async {
+    lastFetchBytesPath = path;
+    return fetchBytesResult ?? Uint8List.fromList(const <int>[9, 8, 7]);
   }
 }

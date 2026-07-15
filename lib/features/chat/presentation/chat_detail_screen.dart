@@ -1,5 +1,7 @@
 import 'dart:ui';
 
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,18 +9,26 @@ import 'package:image_picker/image_picker.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
 import '../../../core/api/auth_user.dart';
+import '../../../core/api/mobile_attachment_repository.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/date_format.dart';
+import '../../../core/utils/file_download.dart';
 import '../../../shared/models/conversation.dart';
 import '../../../shared/models/message.dart';
 import '../../../shared/models/profile.dart';
 import '../../../shared/widgets/app_scaffold.dart';
 import '../../../shared/widgets/error_view.dart';
+import '../../../shared/widgets/html_network_image.dart';
 import '../../../shared/widgets/loading_view.dart';
 import '../../../shared/widgets/ui_kit.dart';
 import '../../auth/application/auth_controller.dart';
 import '../application/conversations_controller.dart';
 import '../application/messages_controller.dart';
+import 'forward_conversation_sheet.dart';
+import 'image_viewer_screen.dart';
+
+const _incomingBubbleColor = Color(0xFFE7F8E7);
+const _incomingBubbleBorder = Color(0xFFC8EFD0);
 
 class ChatDetailScreen extends ConsumerStatefulWidget {
   const ChatDetailScreen({super.key, required this.conversationId});
@@ -70,6 +80,29 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
     }
   }
 
+  Future<void> _sendAttachment(MobileAttachmentUpload attachment) async {
+    setState(() => _sending = true);
+    try {
+      await ref
+          .read(sendAttachmentActionProvider)
+          .send(widget.conversationId, attachment);
+      _scrollToBottom();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Đã gửi ${attachment.filename}')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Gửi file thất bại: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scroll.hasClients) return;
@@ -95,6 +128,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
       widget.conversationId,
       currentUser,
     );
+    final fallbackAvatarUrl = _summaryAvatarUrl(ref, widget.conversationId);
     final conversation = details.value;
     final title = _chatTitle(conversation, fallbackTitle, myIdentityIds);
     final senderProfiles = _senderProfiles(conversation);
@@ -115,6 +149,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
                   title: title,
                   conversation: conversation,
                   currentIdentityIds: myIdentityIds,
+                  fallbackAvatarUrl: fallbackAvatarUrl,
                   onOpenInfo: () => _openChatInfo(
                     context,
                     title: title,
@@ -209,6 +244,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
                   controller: _input,
                   sending: _sending,
                   onSubmit: _send,
+                  onAttachment: _sendAttachment,
                 ),
               ],
             ),
@@ -235,10 +271,9 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
 
   Message? _pinnedMessage(List<Message>? messages) {
     if (messages == null) return null;
-    for (final message in messages) {
-      if (message.content.startsWith('[pinned]')) return message;
-    }
-    return null;
+    final pinned = messages.where((message) => message.pinnedAt != null).toList()
+      ..sort((a, b) => b.pinnedAt!.compareTo(a.pinnedAt!));
+    return pinned.isEmpty ? null : pinned.first;
   }
 
   String _summaryTitle(
@@ -258,6 +293,22 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
             return 'Chat';
           },
           orElse: () => 'Chat',
+        );
+  }
+
+  String? _summaryAvatarUrl(WidgetRef ref, String conversationId) {
+    return ref
+        .watch(conversationsProvider)
+        .maybeWhen(
+          data: (list) {
+            for (final conversation in list) {
+              if (conversation.id == conversationId) {
+                return conversation.avatarUrl;
+              }
+            }
+            return null;
+          },
+          orElse: () => null,
         );
   }
 
@@ -539,6 +590,7 @@ class _FloatingChatHeader extends StatelessWidget {
     required this.title,
     required this.conversation,
     required this.currentIdentityIds,
+    required this.fallbackAvatarUrl,
     required this.onOpenInfo,
   });
 
@@ -546,6 +598,7 @@ class _FloatingChatHeader extends StatelessWidget {
   final String title;
   final Conversation? conversation;
   final Set<String> currentIdentityIds;
+  final String? fallbackAvatarUrl;
   final VoidCallback onOpenInfo;
 
   @override
@@ -575,6 +628,7 @@ class _FloatingChatHeader extends StatelessWidget {
                       conversation: conversation,
                       title: title,
                       other: other,
+                      fallbackAvatarUrl: fallbackAvatarUrl,
                     ),
                     const SizedBox(width: 8),
                     Expanded(
@@ -681,11 +735,13 @@ class _HeaderAvatar extends StatelessWidget {
     required this.conversation,
     required this.title,
     required this.other,
+    required this.fallbackAvatarUrl,
   });
 
   final Conversation? conversation;
   final String title;
   final Profile? other;
+  final String? fallbackAvatarUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -704,12 +760,13 @@ class _HeaderAvatar extends StatelessWidget {
       userId: other?.id ?? title,
       displayName: other?.displayName ?? title,
       email: other?.email,
+      avatarUrl: other?.avatarUrl ?? fallbackAvatarUrl,
       size: 34,
     );
   }
 }
 
-class _ChatInfoSheet extends StatefulWidget {
+class _ChatInfoSheet extends ConsumerStatefulWidget {
   const _ChatInfoSheet({
     required this.title,
     required this.conversation,
@@ -723,10 +780,10 @@ class _ChatInfoSheet extends StatefulWidget {
   final List<Message> messages;
 
   @override
-  State<_ChatInfoSheet> createState() => _ChatInfoSheetState();
+  ConsumerState<_ChatInfoSheet> createState() => _ChatInfoSheetState();
 }
 
-class _ChatInfoSheetState extends State<_ChatInfoSheet> {
+class _ChatInfoSheetState extends ConsumerState<_ChatInfoSheet> {
   int _tab = 0;
 
   Profile? get _otherProfile {
@@ -741,10 +798,31 @@ class _ChatInfoSheetState extends State<_ChatInfoSheet> {
   }
 
   List<_MediaInfo> get _mediaItems {
-    return widget.messages
-        .map((message) => _MediaInfo.fromContent(message.content))
-        .whereType<_MediaInfo>()
-        .toList();
+    final items = <_MediaInfo>[];
+    for (final message in widget.messages) {
+      if (message.attachmentIds.isNotEmpty) {
+        final fileName = _attachmentFileName(message);
+        if (_isImageAttachment(message, fileName)) {
+          final attachmentId = message.attachmentIds.first;
+          items.add(
+            _MediaInfo(
+              url: ref
+                  .read(downloadAttachmentActionProvider)
+                  .contentUrl(attachmentId, url: message.attachmentUrl),
+              isImage: true,
+              isVideo: false,
+              label: fileName,
+              attachmentId: attachmentId,
+            ),
+          );
+          continue;
+        }
+      }
+
+      final media = _MediaInfo.fromContent(message.content);
+      if (media != null) items.add(media);
+    }
+    return items.reversed.toList();
   }
 
   List<String> get _links {
@@ -756,16 +834,25 @@ class _ChatInfoSheetState extends State<_ChatInfoSheet> {
         .toList();
   }
 
-  List<String> get _files {
-    final pattern = RegExp(
-      r'\b[\w\-. ]+\.(pdf|docx?|xlsx?|pptx?|zip|rar|txt)\b',
-      caseSensitive: false,
-    );
-    return widget.messages
-        .expand((message) => pattern.allMatches(message.content))
-        .map((match) => match.group(0)!.trim())
-        .toSet()
-        .toList();
+  List<_FileInfo> get _files {
+    final files = <_FileInfo>[];
+    final seen = <String>{};
+    for (final message in widget.messages) {
+      if (message.attachmentIds.isEmpty) continue;
+      final fileName = _attachmentFileName(message);
+      if (_isImageAttachment(message, fileName)) continue;
+
+      final attachmentId = message.attachmentIds.first;
+      if (!seen.add(attachmentId)) continue;
+      files.add(
+        _FileInfo(
+          attachmentId: attachmentId,
+          name: fileName,
+          sizeLabel: _formatFileSize(message.attachmentSize),
+        ),
+      );
+    }
+    return files.reversed.toList();
   }
 
   @override
@@ -873,11 +960,7 @@ class _ChatInfoSheetState extends State<_ChatInfoSheet> {
         emptyText: 'Chưa có liên kết',
         items: _links,
       ),
-      _ => _SimpleInfoList(
-        icon: LucideIcons.fileText,
-        emptyText: 'Chưa có tệp',
-        items: _files,
-      ),
+      _ => _FileInfoList(items: _files),
     };
   }
 }
@@ -914,6 +997,7 @@ class _LargeChatAvatar extends StatelessWidget {
       userId: other?.id ?? title,
       displayName: other?.displayName ?? title,
       email: other?.email,
+      avatarUrl: other?.avatarUrl,
       size: 112,
     );
   }
@@ -1091,16 +1175,149 @@ class _MediaGrid extends StatelessWidget {
       itemCount: items.length,
       itemBuilder: (context, index) {
         final item = items[index];
-        return Container(
-          color: AppColors.soft(AppColors.chat),
-          clipBehavior: Clip.antiAlias,
-          child: item.isImage
-              ? Image.network(item.url, fit: BoxFit.cover)
-              : const Icon(
-                  LucideIcons.video,
-                  color: AppColors.textSecondary,
-                  size: 32,
-                ),
+        return PressableScale(
+          onTap: item.isImage
+              ? () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => ImageViewerScreen(
+                        imageUrl: item.url,
+                        fileName: item.displayLabel,
+                        attachmentId: item.attachmentIntId,
+                      ),
+                    ),
+                  );
+                }
+              : null,
+          child: ClipRect(
+            child: item.isImage
+                ? ColoredBox(
+                    color: AppColors.soft(AppColors.chat),
+                    child: _NetworkPreviewImage(
+                      url: item.url,
+                      fit: BoxFit.cover,
+                      fallback: _MediaFallback(media: item),
+                      attachmentId: item.attachmentId,
+                    ),
+                  )
+                : const ColoredBox(
+                    color: Color(0x1434D399),
+                    child: Center(
+                      child: Icon(
+                        LucideIcons.video,
+                        color: AppColors.textSecondary,
+                        size: 32,
+                      ),
+                    ),
+                  ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _FileInfoList extends ConsumerWidget {
+  const _FileInfoList({required this.items});
+
+  final List<_FileInfo> items;
+
+  Future<void> _download(
+    BuildContext context,
+    WidgetRef ref,
+    _FileInfo item,
+  ) async {
+    try {
+      final url = await ref
+          .read(downloadAttachmentActionProvider)
+          .downloadUrl(item.attachmentId);
+      final opened = openDownloadUrl(url);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            opened
+                ? 'Đang tải ${item.name}'
+                : 'Tải xuống hiện chỉ hỗ trợ trên web.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Không thể tải tệp: $e')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (items.isEmpty) {
+      return const SliverToBoxAdapter(
+        child: _InfoEmptyState(icon: LucideIcons.fileText, text: 'Chưa có tệp'),
+      );
+    }
+    return SliverList.separated(
+      itemCount: items.length,
+      separatorBuilder: (_, _) => const Divider(height: 1),
+      itemBuilder: (context, index) {
+        final item = items[index];
+        final accent = _fileAccentColor(item.name);
+        return Material(
+          color: Colors.white,
+          child: InkWell(
+            onTap: () => _download(context, ref, item),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+              child: Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: AppColors.soft(accent),
+                      borderRadius: BorderRadius.circular(13),
+                    ),
+                    child: Icon(LucideIcons.fileText, color: accent, size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          item.sizeLabel,
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Icon(
+                    LucideIcons.download,
+                    color: AppColors.textMuted,
+                    size: 19,
+                  ),
+                ],
+              ),
+            ),
+          ),
         );
       },
     );
@@ -1191,7 +1408,9 @@ class _PinnedMessageBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final preview = message.content.replaceFirst('[pinned]', '').trim();
+    final preview = message.attachmentIds.isNotEmpty
+        ? _attachmentFileName(message)
+        : message.content.trim();
     final media = _MediaInfo.fromContent(preview);
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
@@ -1246,7 +1465,7 @@ class _PinnedMessageBanner extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    media == null ? preview : media.label,
+                    media == null ? preview : media.displayLabel,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -1345,7 +1564,7 @@ class _DateSeparator extends StatelessWidget {
   }
 }
 
-class _Bubble extends StatelessWidget {
+class _Bubble extends ConsumerWidget {
   const _Bubble({
     required this.message,
     required this.mine,
@@ -1360,78 +1579,168 @@ class _Bubble extends StatelessWidget {
   final bool showAvatar;
   final List<Profile> readBy;
 
-  void _showContextMenu(BuildContext context) {
+  void _openImageViewer(BuildContext context, String url) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ImageViewerScreen(
+          imageUrl: url,
+          fileName: _attachmentFileName(message),
+          attachmentId: message.attachmentIds.isEmpty
+              ? null
+              : int.tryParse(message.attachmentIds.first),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _forwardAttachment(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final target = await showForwardConversationPicker(context);
+    if (target == null) return;
+    try {
+      await ref
+          .read(forwardAttachmentActionProvider)
+          .forward(target.id, message.attachmentIds.first);
+      messenger.showSnackBar(
+        SnackBar(content: Text('Đã chuyển tiếp đến ${target.title}')),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Chuyển tiếp thất bại: $e')),
+      );
+    }
+  }
+
+  Future<void> _togglePin(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final pinned = message.pinnedAt != null;
+    try {
+      if (pinned) {
+        await ref
+            .read(pinMessageActionProvider)
+            .unpin(message.conversationId, message.id);
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Đã bỏ ghim tin nhắn')),
+        );
+      } else {
+        await ref
+            .read(pinMessageActionProvider)
+            .pin(message.conversationId, message.id);
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Đã ghim tin nhắn')),
+        );
+      }
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Không thể cập nhật ghim: $e')),
+      );
+    }
+  }
+
+  /// The image URL to show in the full-screen viewer, or null when this bubble
+  /// isn't an image (text, document, video, etc).
+  String? _imagePreviewUrl(WidgetRef ref, _MediaInfo? media) {
+    if (message.attachmentIds.isNotEmpty) {
+      final fileName = _attachmentFileName(message);
+      if (!_isImageAttachment(message, fileName)) return null;
+      final id = message.attachmentIds.first;
+      return ref
+          .read(downloadAttachmentActionProvider)
+          .contentUrl(id, url: message.attachmentUrl);
+    }
+    if (media == null || !media.isImage) return null;
+    return media.url;
+  }
+
+  void _showContextMenu(BuildContext context, WidgetRef ref) {
     HapticFeedback.mediumImpact();
-    showModalBottomSheet(
+    final canForwardAttachment = message.attachmentIds.isNotEmpty;
+    showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (_) => Container(
-        margin: const EdgeInsets.all(16),
-        padding: const EdgeInsets.only(top: 10, bottom: 8),
-        decoration: BoxDecoration(
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(16),
+        child: Material(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(18),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x220F172A),
-              blurRadius: 22,
-              offset: Offset(0, -8),
+          clipBehavior: Clip.antiAlias,
+          elevation: 12,
+          shadowColor: const Color(0x220F172A),
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 10, bottom: 8),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.border,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ListTile(
+                    leading: const Icon(LucideIcons.copy),
+                    title: const Text('Sao chép'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Clipboard.setData(ClipboardData(text: message.content));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Đã sao chép tin nhắn')),
+                      );
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(LucideIcons.pin),
+                    title: Text(
+                      message.pinnedAt == null
+                          ? 'Ghim tin nhắn'
+                          : 'Bỏ ghim tin nhắn',
+                    ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _togglePin(context, ref);
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(LucideIcons.forward),
+                    title: const Text('Chuyển tiếp'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      if (!canForwardAttachment) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Chuyển tiếp tin nhắn sắp có'),
+                          ),
+                        );
+                        return;
+                      }
+                      _forwardAttachment(context, ref);
+                    },
+                  ),
+                  if (mine)
+                    ListTile(
+                      leading: const Icon(
+                        LucideIcons.trash2,
+                        color: AppColors.danger,
+                      ),
+                      title: const Text(
+                        'Xóa',
+                        style: TextStyle(color: AppColors.danger),
+                      ),
+                      onTap: () {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Xóa tin nhắn sắp có')),
+                        );
+                      },
+                    ),
+                ],
+              ),
             ),
-          ],
-        ),
-        child: SafeArea(
-          top: false,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.border,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-              const SizedBox(height: 8),
-              ListTile(
-                leading: const Icon(LucideIcons.copy),
-                title: const Text('Sao chép'),
-                onTap: () {
-                  Navigator.pop(context);
-                  Clipboard.setData(ClipboardData(text: message.content));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Đã sao chép tin nhắn')),
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(LucideIcons.forward),
-                title: const Text('Chuyển tiếp'),
-                onTap: () {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Chuyển tiếp sắp có')),
-                  );
-                },
-              ),
-              if (mine)
-                ListTile(
-                  leading: const Icon(
-                    LucideIcons.trash2,
-                    color: AppColors.danger,
-                  ),
-                  title: const Text(
-                    'Xóa',
-                    style: TextStyle(color: AppColors.danger),
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Xóa tin nhắn sắp có')),
-                    );
-                  },
-                ),
-            ],
           ),
         ),
       ),
@@ -1439,9 +1748,10 @@ class _Bubble extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final media = _MediaInfo.fromContent(message.content);
     final maxWidth = MediaQuery.of(context).size.width * 0.72;
+    final imagePreviewUrl = _imagePreviewUrl(ref, media);
 
     return Padding(
       padding: EdgeInsets.only(
@@ -1467,6 +1777,8 @@ class _Bubble extends StatelessWidget {
                           userId: sender?.id ?? message.senderId,
                           displayName: sender?.displayName ?? 'Bạn',
                           email: sender?.email,
+                          avatarUrl:
+                              sender?.avatarUrl ?? message.senderAvatarUrl,
                           size: 30,
                         )
                       : const SizedBox(width: 30),
@@ -1474,8 +1786,17 @@ class _Bubble extends StatelessWidget {
                 const SizedBox(width: 6),
               ],
               GestureDetector(
-                onLongPress: () => _showContextMenu(context),
-                child: media == null
+                onTap: imagePreviewUrl == null
+                    ? null
+                    : () => _openImageViewer(context, imagePreviewUrl),
+                onLongPress: () => _showContextMenu(context, ref),
+                child: message.attachmentIds.isNotEmpty
+                    ? _AttachmentBubble(
+                        message: message,
+                        mine: mine,
+                        maxWidth: maxWidth,
+                      )
+                    : media == null
                     ? _TextBubble(
                         message: message,
                         mine: mine,
@@ -1514,13 +1835,16 @@ class _TextBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bubbleColor = mine ? AppColors.primary : AppColors.surface;
+    final bubbleColor = mine ? AppColors.primary : _incomingBubbleColor;
     final textColor = mine ? Colors.white : AppColors.textPrimary;
     return Container(
       constraints: BoxConstraints(maxWidth: maxWidth),
       padding: const EdgeInsets.fromLTRB(13, 9, 10, 7),
       decoration: BoxDecoration(
         color: bubbleColor,
+        border: mine
+            ? null
+            : Border.all(color: _incomingBubbleBorder.withValues(alpha: 0.7)),
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(mine ? 18 : 6),
           topRight: Radius.circular(mine ? 6 : 18),
@@ -1557,6 +1881,451 @@ class _TextBubble extends StatelessWidget {
   }
 }
 
+class _AttachmentBubble extends ConsumerStatefulWidget {
+  const _AttachmentBubble({
+    required this.message,
+    required this.mine,
+    required this.maxWidth,
+  });
+
+  final Message message;
+  final bool mine;
+  final double maxWidth;
+
+  @override
+  ConsumerState<_AttachmentBubble> createState() => _AttachmentBubbleState();
+}
+
+class _AttachmentBubbleState extends ConsumerState<_AttachmentBubble> {
+  bool _downloading = false;
+
+  Future<void> _download() async {
+    if (_downloading || widget.message.attachmentIds.isEmpty) return;
+    setState(() => _downloading = true);
+    try {
+      final url = await ref
+          .read(downloadAttachmentActionProvider)
+          .downloadUrl(widget.message.attachmentIds.first);
+      final opened = openDownloadUrl(url);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            opened
+                ? 'Đang tải ${_attachmentFileName(widget.message)}'
+                : 'Tải xuống hiện chỉ hỗ trợ trên web.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Không thể tải tệp: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _downloading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final mine = widget.mine;
+    final message = widget.message;
+    final bubbleColor = mine ? AppColors.primary : _incomingBubbleColor;
+    final textColor = mine ? Colors.white : AppColors.textPrimary;
+    final mutedColor = textColor.withValues(alpha: mine ? 0.76 : 0.62);
+    final fileName = _attachmentFileName(message);
+    final extension = _fileExtension(fileName).toUpperCase();
+    final iconColor = _fileAccentColor(fileName);
+    final innerColor = mine
+        ? Colors.white.withValues(alpha: 0.15)
+        : AppColors.primary.withValues(alpha: 0.10);
+    final attachmentId = message.attachmentIds.isEmpty
+        ? null
+        : message.attachmentIds.first;
+    final previewUrl = attachmentId == null
+        ? null
+        : ref
+              .read(downloadAttachmentActionProvider)
+              .contentUrl(attachmentId, url: message.attachmentUrl);
+
+    if (_isImageAttachment(message, fileName) && previewUrl != null) {
+      return _ImageAttachmentBubble(
+        message: message,
+        mine: mine,
+        maxWidth: widget.maxWidth,
+        imageUrl: previewUrl,
+      );
+    }
+
+    return Container(
+      width: widget.maxWidth.clamp(270.0, 340.0),
+      padding: const EdgeInsets.fromLTRB(9, 9, 10, 7),
+      decoration: BoxDecoration(
+        color: bubbleColor,
+        border: mine
+            ? null
+            : Border.all(color: _incomingBubbleBorder.withValues(alpha: 0.7)),
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(mine ? 20 : 7),
+          topRight: Radius.circular(mine ? 7 : 20),
+          bottomLeft: const Radius.circular(20),
+          bottomRight: const Radius.circular(20),
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x160F172A),
+            blurRadius: 12,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: innerColor,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: mine
+                    ? Colors.white.withValues(alpha: 0.08)
+                    : AppColors.primary.withValues(alpha: 0.10),
+              ),
+            ),
+            child: Row(
+              children: [
+                _DocumentPreviewThumb(
+                  label: extension,
+                  color: iconColor,
+                  previewUrl: _documentThumbnailUrl(message),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        fileName,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: textColor,
+                          fontSize: 15,
+                          height: 1.18,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        message.attachmentIds.length == 1
+                            ? _formatFileSize(message.attachmentSize)
+                            : '${message.attachmentIds.length} tệp đính kèm',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: mutedColor,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Tooltip(
+                  message: 'Tải xuống',
+                  child: PressableScale(
+                    onTap: _downloading ? null : _download,
+                    child: Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: mine
+                            ? Colors.white.withValues(alpha: 0.20)
+                            : AppColors.primary.withValues(alpha: 0.16),
+                        shape: BoxShape.circle,
+                      ),
+                      child: _downloading
+                          ? Padding(
+                              padding: const EdgeInsets.all(10),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: mine ? Colors.white : AppColors.primary,
+                              ),
+                            )
+                          : Icon(
+                              LucideIcons.download,
+                              color: mine ? Colors.white : AppColors.primary,
+                              size: 20,
+                            ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 5),
+          _Timestamp(message: message, mine: mine, color: mutedColor),
+        ],
+      ),
+    );
+  }
+}
+
+class _ImageAttachmentBubble extends StatelessWidget {
+  const _ImageAttachmentBubble({
+    required this.message,
+    required this.mine,
+    required this.maxWidth,
+    required this.imageUrl,
+  });
+
+  final Message message;
+  final bool mine;
+  final double maxWidth;
+  final String imageUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: maxWidth.clamp(220.0, 318.0),
+      decoration: BoxDecoration(
+        color: mine ? AppColors.primary : _incomingBubbleColor,
+        border: mine
+            ? null
+            : Border.all(color: _incomingBubbleBorder.withValues(alpha: 0.7)),
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(mine ? 20 : 7),
+          topRight: Radius.circular(mine ? 7 : 20),
+          bottomLeft: const Radius.circular(20),
+          bottomRight: const Radius.circular(20),
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x160F172A),
+            blurRadius: 12,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        alignment: Alignment.bottomRight,
+        children: [
+          AspectRatio(
+            aspectRatio: 0.74,
+            child: _NetworkPreviewImage(
+              url: imageUrl,
+              fit: BoxFit.cover,
+              attachmentId: message.attachmentIds.isEmpty
+                  ? null
+                  : message.attachmentIds.first,
+              fallback: _ImageAttachmentFallback(
+                fileName: _attachmentFileName(message),
+              ),
+            ),
+          ),
+          Container(
+            margin: const EdgeInsets.all(8),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.46),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: _Timestamp(
+              message: message,
+              mine: mine,
+              color: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ImageAttachmentFallback extends StatelessWidget {
+  const _ImageAttachmentFallback({required this.fileName});
+
+  final String fileName;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppColors.primary.withValues(alpha: 0.10),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(LucideIcons.image, color: AppColors.primary, size: 36),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            child: Text(
+              fileName,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NetworkPreviewImage extends ConsumerWidget {
+  const _NetworkPreviewImage({
+    required this.url,
+    required this.fallback,
+    this.fit = BoxFit.cover,
+    this.attachmentId,
+  });
+
+  final String url;
+  final Widget fallback;
+  final BoxFit fit;
+  final String? attachmentId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (kIsWeb) {
+      final htmlImage = buildHtmlNetworkImage(url: url, fit: fit);
+      if (htmlImage != null) return htmlImage;
+    }
+
+    final id = attachmentId;
+    if (id != null) {
+      return FutureBuilder<Uint8List>(
+        future: ref.read(downloadAttachmentActionProvider).bytes(id),
+        builder: (context, snapshot) {
+          final bytes = snapshot.data;
+          if (bytes != null) {
+            return Image.memory(bytes, fit: fit, gaplessPlayback: true);
+          }
+          if (snapshot.hasError) return fallback;
+          return ColoredBox(
+            color: AppColors.soft(AppColors.chat),
+            child: const Center(
+              child: SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          );
+        },
+      );
+    }
+
+    return Image.network(url, fit: fit, errorBuilder: (_, _, _) => fallback);
+  }
+}
+
+class _DocumentPreviewThumb extends StatelessWidget {
+  const _DocumentPreviewThumb({
+    required this.label,
+    required this.color,
+    required this.previewUrl,
+  });
+
+  final String label;
+  final Color color;
+  final String? previewUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final url = previewUrl;
+    return Container(
+      width: 88,
+      height: 78,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x140F172A),
+            blurRadius: 8,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: url == null
+                ? _DocumentPreviewLines(color: color)
+                : _NetworkPreviewImage(
+                    url: url,
+                    fit: BoxFit.cover,
+                    attachmentId: null,
+                    fallback: _DocumentPreviewLines(color: color),
+                  ),
+          ),
+          Positioned(
+            left: 7,
+            bottom: 7,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(7),
+              ),
+              child: Text(
+                label.isEmpty ? 'FILE' : label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DocumentPreviewLines extends StatelessWidget {
+  const _DocumentPreviewLines({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 9, 10, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(width: 42, height: 5, color: color.withValues(alpha: 0.22)),
+          const SizedBox(height: 7),
+          for (final width in const [64.0, 58.0, 68.0, 52.0, 61.0]) ...[
+            Container(
+              width: width,
+              height: 3,
+              decoration: BoxDecoration(
+                color: AppColors.textMuted.withValues(alpha: 0.24),
+                borderRadius: BorderRadius.circular(99),
+              ),
+            ),
+            const SizedBox(height: 5),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _MediaBubble extends StatelessWidget {
   const _MediaBubble({
     required this.message,
@@ -1575,7 +2344,10 @@ class _MediaBubble extends StatelessWidget {
     return Container(
       constraints: BoxConstraints(maxWidth: maxWidth),
       decoration: BoxDecoration(
-        color: mine ? AppColors.primary : AppColors.surface,
+        color: mine ? AppColors.primary : _incomingBubbleColor,
+        border: mine
+            ? null
+            : Border.all(color: _incomingBubbleBorder.withValues(alpha: 0.7)),
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(mine ? 18 : 6),
           topRight: Radius.circular(mine ? 6 : 18),
@@ -1597,10 +2369,11 @@ class _MediaBubble extends StatelessWidget {
           AspectRatio(
             aspectRatio: 1,
             child: media.isImage
-                ? Image.network(
-                    media.url,
+                ? _NetworkPreviewImage(
+                    url: media.url,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => _MediaFallback(media: media),
+                    fallback: _MediaFallback(media: media),
+                    attachmentId: media.attachmentId,
                   )
                 : _MediaFallback(media: media),
           ),
@@ -1655,7 +2428,7 @@ class _MediaFallback extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            media.label,
+            media.displayLabel,
             style: const TextStyle(
               color: AppColors.chat,
               fontWeight: FontWeight.w700,
@@ -1705,13 +2478,19 @@ class _MediaInfo {
     required this.url,
     required this.isImage,
     required this.isVideo,
+    this.label,
+    this.attachmentId,
   });
 
   final String url;
   final bool isImage;
   final bool isVideo;
+  final String? label;
+  final String? attachmentId;
 
-  String get label => isVideo ? 'Video' : 'Ảnh';
+  String get displayLabel => label ?? (isVideo ? 'Video' : 'Ảnh');
+  int? get attachmentIntId =>
+      attachmentId == null ? null : int.tryParse(attachmentId!);
 
   static _MediaInfo? fromContent(String content) {
     final uri = Uri.tryParse(content.trim());
@@ -1732,6 +2511,18 @@ class _MediaInfo {
     if (!isImage && !isVideo) return null;
     return _MediaInfo(url: content.trim(), isImage: isImage, isVideo: isVideo);
   }
+}
+
+class _FileInfo {
+  const _FileInfo({
+    required this.attachmentId,
+    required this.name,
+    required this.sizeLabel,
+  });
+
+  final String attachmentId;
+  final String name;
+  final String sizeLabel;
 }
 
 class _ReadAvatars extends StatelessWidget {
@@ -1759,6 +2550,7 @@ class _ReadAvatars extends StatelessWidget {
                   userId: reader.id,
                   displayName: reader.displayName,
                   email: reader.email,
+                  avatarUrl: reader.avatarUrl,
                   size: 19,
                 ),
               ),
@@ -1930,23 +2722,27 @@ class _ComposerWithAttachments extends StatelessWidget {
     required this.controller,
     required this.sending,
     required this.onSubmit,
+    required this.onAttachment,
   });
 
   final TextEditingController controller;
   final bool sending;
   final VoidCallback onSubmit;
+  final Future<void> Function(MobileAttachmentUpload attachment) onAttachment;
 
   Future<void> _pickImage(BuildContext context, ImageSource source) async {
     try {
       final image = await ImagePicker().pickImage(
         source: source,
         imageQuality: 86,
+        maxWidth: 2200,
       );
       if (!context.mounted || image == null) return;
-      final label = source == ImageSource.camera ? 'ảnh từ camera' : 'ảnh';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Đã chọn $label. Upload file sẽ được nối ở bước sau.'),
+      await onAttachment(
+        MobileAttachmentUpload(
+          filename: image.name,
+          bytes: await image.readAsBytes(),
+          mimetype: _mimetypeForName(image.name),
         ),
       );
     } catch (e) {
@@ -1954,6 +2750,50 @@ class _ComposerWithAttachments extends StatelessWidget {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Không mở được camera/gallery: $e')),
       );
+    }
+  }
+
+  Future<void> _pickDocument(BuildContext context) async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        allowMultiple: false,
+        withData: true,
+        type: FileType.custom,
+        allowedExtensions: const <String>[
+          'pdf',
+          'doc',
+          'docx',
+          'xls',
+          'xlsx',
+          'ppt',
+          'pptx',
+          'txt',
+          'png',
+          'jpg',
+          'jpeg',
+        ],
+      );
+      final file = result?.files.single;
+      if (!context.mounted || file == null) return;
+      final bytes = file.bytes;
+      if (bytes == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Không đọc được nội dung tài liệu.')),
+        );
+        return;
+      }
+      await onAttachment(
+        MobileAttachmentUpload(
+          filename: file.name,
+          bytes: bytes,
+          mimetype: _mimetypeForName(file.name),
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Không mở được tài liệu: $e')));
     }
   }
 
@@ -1978,7 +2818,7 @@ class _ComposerWithAttachments extends StatelessWidget {
             case _AttachmentType.camera:
               await _pickImage(context, ImageSource.camera);
             case _AttachmentType.document:
-              _showComingSoon(context, 'Tài liệu');
+              await _pickDocument(context);
             case _AttachmentType.poll:
               _openPollSheet(context);
             case _AttachmentType.location:
@@ -3062,4 +3902,89 @@ class _AttachmentActionButton extends StatelessWidget {
       ),
     );
   }
+}
+
+String? _mimetypeForName(String name) {
+  final extension = name.split('.').last.toLowerCase();
+  return switch (extension) {
+    'jpg' || 'jpeg' => 'image/jpeg',
+    'png' => 'image/png',
+    'pdf' => 'application/pdf',
+    'doc' => 'application/msword',
+    'docx' =>
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'xls' => 'application/vnd.ms-excel',
+    'xlsx' =>
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'ppt' => 'application/vnd.ms-powerpoint',
+    'pptx' =>
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'txt' => 'text/plain',
+    _ => null,
+  };
+}
+
+String _attachmentFileName(Message message) {
+  final metaName = message.attachmentName?.trim();
+  if (metaName != null && metaName.isNotEmpty) return metaName;
+  final content = message.content.trim();
+  if (content.isNotEmpty) return content;
+  if (message.attachmentIds.length == 1) {
+    return 'Tệp đính kèm ${message.attachmentIds.single}';
+  }
+  return '${message.attachmentIds.length} tệp đính kèm';
+}
+
+String _fileExtension(String name) {
+  final parts = name.split('.');
+  if (parts.length < 2) return 'file';
+  final ext = parts.last.trim();
+  return ext.isEmpty ? 'file' : ext;
+}
+
+Color _fileAccentColor(String name) {
+  return switch (_fileExtension(name).toLowerCase()) {
+    'pdf' => const Color(0xFFE53935),
+    'doc' || 'docx' => const Color(0xFF2563EB),
+    'xls' || 'xlsx' => const Color(0xFF16A34A),
+    'ppt' || 'pptx' => const Color(0xFFF97316),
+    'jpg' || 'jpeg' || 'png' => AppColors.chat,
+    'txt' => AppColors.primary,
+    _ => AppColors.ticket,
+  };
+}
+
+bool _isImageAttachment(Message message, String fileName) {
+  final mimetype = message.attachmentMimeType?.toLowerCase();
+  if (mimetype?.startsWith('image/') == true) return true;
+  return switch (_fileExtension(fileName).toLowerCase()) {
+    'jpg' || 'jpeg' || 'png' || 'gif' || 'webp' => true,
+    _ => false,
+  };
+}
+
+String? _documentThumbnailUrl(Message message) {
+  final url = message.attachmentUrl;
+  if (url == null) return null;
+  final lower = url.toLowerCase();
+  final looksLikeImage =
+      lower.contains('/image/') ||
+      lower.contains('thumbnail') ||
+      lower.endsWith('.png') ||
+      lower.endsWith('.jpg') ||
+      lower.endsWith('.jpeg') ||
+      lower.endsWith('.webp');
+  return looksLikeImage ? url : null;
+}
+
+String _formatFileSize(int? bytes) {
+  if (bytes == null || bytes <= 0) return 'Tệp đính kèm';
+  const kb = 1024;
+  const mb = kb * 1024;
+  if (bytes >= mb) {
+    final value = bytes / mb;
+    return '${value.toStringAsFixed(value >= 10 ? 0 : 1)} MB';
+  }
+  final value = bytes / kb;
+  return '${value.toStringAsFixed(value >= 10 ? 0 : 1)} KB';
 }

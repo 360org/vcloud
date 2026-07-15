@@ -1,48 +1,181 @@
 import 'dart:async';
+import 'dart:typed_data';
 
+import '../../../core/api/mobile_attachment_repository.dart';
 import '../../../core/api/odoo_api_client.dart';
 import '../../../core/error/failure.dart';
+import '../../../core/notifications/realtime_constants.dart';
 import '../../../shared/models/conversation.dart';
 import '../../../shared/models/message.dart';
 import '../../../shared/models/profile.dart';
 
 class ChatRepository {
-  ChatRepository({OdooApiClient? client}) : _client = client ?? odooApiClient;
+  ChatRepository({
+    OdooApiClient? client,
+    MobileAttachmentRepository? attachmentRepository,
+  }) : _client = client ?? odooApiClient,
+       _attachmentRepository =
+           attachmentRepository ??
+           MobileAttachmentRepository(client: client ?? odooApiClient);
 
   final OdooApiClient _client;
+  final MobileAttachmentRepository _attachmentRepository;
 
-  Stream<List<ConversationSummary>> watchConversations() {
+  Stream<List<ConversationSummary>> watchConversations({
+    Set<String> currentIdentityIds = const <String>{},
+  }) {
     final controller = StreamController<List<ConversationSummary>>();
+    bool inFlight = false;
+    Timer? timer;
 
     Future<void> refresh() async {
+      if (inFlight || controller.isClosed) return;
+      inFlight = true;
       try {
         final res = await _client.get('/api/v1/mobile/chat/channels');
         final fetchedAt = DateTime.now();
-        final list = (res as List)
+        final summaries = (res as List)
             .cast<Map<String, dynamic>>()
-            .map(
-              (channel) => ConversationSummary.fromOdooChatChannel(
-                channel,
-                fetchedAt: fetchedAt,
-              ),
-            )
+            .map((channel) => _summaryFromChannel(channel, fetchedAt))
             .toList();
+        final list = await Future.wait(
+          summaries.map(
+            (summary) => _withDirectAvatar(summary, currentIdentityIds),
+          ),
+        );
         if (!controller.isClosed) controller.add(list);
       } catch (e) {
         if (!controller.isClosed) {
           controller.addError(Failure('Không tải được danh sách chat: $e'));
         }
+      } finally {
+        inFlight = false;
       }
     }
 
-    controller.onListen = refresh;
+    controller.onListen = () {
+      refresh();
+      timer = Timer.periodic(RealtimeIntervals.chatList, (_) => refresh());
+    };
+    controller.onCancel = () {
+      timer?.cancel();
+      timer = null;
+    };
     return controller.stream;
+  }
+
+  Future<ConversationSummary> _withDirectAvatar(
+    ConversationSummary summary,
+    Set<String> currentIdentityIds,
+  ) async {
+    if (summary.isGroup) return summary;
+    final directAvatar = await _directAvatarFromMessages(
+      summary.id,
+      currentIdentityIds,
+    );
+    if (directAvatar == null) return summary;
+    return _copySummary(summary, avatarUrl: directAvatar);
+  }
+
+  Future<String?> _directAvatarFromMessages(
+    String conversationId,
+    Set<String> currentIdentityIds,
+  ) async {
+    try {
+      final res = await _client.get(
+        '/api/v1/mobile/chat/channels/$conversationId/messages',
+      );
+      if (res is! Map) return null;
+      final messages = res['messages'];
+      if (messages is! List) return null;
+      final currentLabels = currentIdentityIds
+          .map((value) => value.trim().toLowerCase())
+          .where((value) => value.isNotEmpty)
+          .toSet();
+      for (final raw in messages.reversed) {
+        if (raw is! Map) continue;
+        final message = Map<String, dynamic>.from(raw);
+        final authorId = _recordId(
+          message['author_id'] ??
+              message['author_partner_id'] ??
+              message['partner_id'],
+        );
+        final authorName =
+            _stringOrNull(message['author_name']) ??
+            _recordName(message['author_id']);
+        final authorLabels = <String?>{
+          ?authorId,
+          ?authorName,
+        }.map((value) => value!.trim().toLowerCase()).toSet();
+        final isCurrentAuthor =
+            authorLabels.isNotEmpty && authorLabels.any(currentLabels.contains);
+        if (isCurrentAuthor) continue;
+        final avatar = _stringOrNull(message['author_avatar']);
+        if (avatar != null) return avatar;
+      }
+    } catch (_) {
+      // Direct avatar enrichment is best-effort; keep the channel avatar.
+    }
+    return null;
+  }
+
+  ConversationSummary _summaryFromChannel(
+    Map<String, dynamic> channel,
+    DateTime fetchedAt,
+  ) {
+    final summary = ConversationSummary.fromOdooChatChannel(
+      channel,
+      fetchedAt: fetchedAt,
+    );
+    if (summary.avatarUrl != null) return summary;
+    return ConversationSummary(
+      id: summary.id,
+      isGroup: summary.isGroup,
+      title: summary.title,
+      lastMessage: summary.lastMessage,
+      updatedAt: summary.updatedAt,
+      unreadCount: summary.unreadCount,
+      archivedAt: summary.archivedAt,
+      avatarUrl: _client.absoluteUrl(
+        '/api/v1/mobile/avatar/channels/${summary.id}',
+      ),
+      description: summary.description,
+      isEditable: summary.isEditable,
+      memberCount: summary.memberCount,
+      lastSeenMessageId: summary.lastSeenMessageId,
+      lastSeenDt: summary.lastSeenDt,
+    );
+  }
+
+  ConversationSummary _copySummary(
+    ConversationSummary summary, {
+    String? avatarUrl,
+  }) {
+    return ConversationSummary(
+      id: summary.id,
+      isGroup: summary.isGroup,
+      title: summary.title,
+      lastMessage: summary.lastMessage,
+      updatedAt: summary.updatedAt,
+      unreadCount: summary.unreadCount,
+      archivedAt: summary.archivedAt,
+      avatarUrl: avatarUrl ?? summary.avatarUrl,
+      description: summary.description,
+      isEditable: summary.isEditable,
+      memberCount: summary.memberCount,
+      lastSeenMessageId: summary.lastSeenMessageId,
+      lastSeenDt: summary.lastSeenDt,
+    );
   }
 
   Stream<List<Message>> watchMessages(String conversationId) {
     final controller = StreamController<List<Message>>();
+    bool inFlight = false;
+    Timer? timer;
 
     Future<void> refresh() async {
+      if (inFlight || controller.isClosed) return;
+      inFlight = true;
       try {
         final res = await _client.get(
           '/api/v1/mobile/chat/channels/$conversationId/messages',
@@ -64,10 +197,19 @@ class ChatRepository {
         if (!controller.isClosed) {
           controller.addError(Failure('Không tải được tin nhắn: $e'));
         }
+      } finally {
+        inFlight = false;
       }
     }
 
-    controller.onListen = refresh;
+    controller.onListen = () {
+      refresh();
+      timer = Timer.periodic(RealtimeIntervals.chatDetail, (_) => refresh());
+    };
+    controller.onCancel = () {
+      timer?.cancel();
+      timer = null;
+    };
     return controller.stream;
   }
 
@@ -86,9 +228,112 @@ class ChatRepository {
     );
   }
 
+  Future<MobileAttachment> uploadAttachment(
+    String conversationId,
+    MobileAttachmentUpload attachment,
+  ) async {
+    final uploaded = await _attachmentRepository.upload(
+      MobileAttachmentUpload(
+        filename: attachment.filename,
+        bytes: attachment.bytes,
+        mimetype: attachment.mimetype,
+        resModel: 'discuss.channel',
+        resId: int.tryParse(conversationId),
+      ),
+    );
+    await _client.post(
+      '/api/v1/mobile/chat/messages',
+      body: <String, dynamic>{
+        'channel_id': int.tryParse(conversationId),
+        'body': attachment.filename,
+        'attachment_ids': <int>[uploaded.attachmentId],
+      },
+    );
+    return uploaded;
+  }
+
+  Future<String> attachmentDownloadUrl(String attachmentId) async {
+    final id = int.tryParse(attachmentId);
+    if (id == null) {
+      throw Failure('Tệp đính kèm không hợp lệ.');
+    }
+    final attachment = await _attachmentRepository.one(id);
+    final path =
+        attachment.downloadUrl ??
+        attachment.url ??
+        '/web/content/${attachment.attachmentId}?download=1';
+    return _client.absoluteUrl(path);
+  }
+
+  String attachmentContentUrl(String attachmentId, {String? url}) {
+    final path = _previewPath(attachmentId, url);
+    return _client.absoluteUrl(path);
+  }
+
+  String _previewPath(String attachmentId, String? url) {
+    if (url == null || url.trim().isEmpty) {
+      return '/web/content/$attachmentId';
+    }
+    final uri = Uri.tryParse(url.trim());
+    if (uri == null) return url;
+    final params = Map<String, String>.from(uri.queryParameters)
+      ..remove('download');
+    if (uri.hasQuery) {
+      return uri.replace(queryParameters: params.isEmpty ? null : params)
+          .toString();
+    }
+    return url;
+  }
+
+  /// Raw bytes of an attachment, for download/forward.
+  Future<Uint8List> attachmentBytes(String attachmentId) async {
+    final id = int.tryParse(attachmentId);
+    if (id == null) {
+      throw Failure('Tệp đính kèm không hợp lệ.');
+    }
+    return _attachmentRepository.fetchBytes(id);
+  }
+
+  /// Re-sends an existing attachment into another conversation. Downloads the
+  /// bytes once, then re-uploads + sends via [uploadAttachment], which posts
+  /// the message with `attachment_ids` — no duplicate send logic.
+  Future<void> forwardAttachment(
+    String targetConversationId,
+    String attachmentId,
+  ) async {
+    final id = int.tryParse(attachmentId);
+    if (id == null) {
+      throw Failure('Tệp đính kèm không hợp lệ.');
+    }
+    final bytes = await _attachmentRepository.fetchBytes(id);
+    final meta = await _attachmentRepository.one(id);
+    await uploadAttachment(
+      targetConversationId,
+      MobileAttachmentUpload(
+        filename: meta.name,
+        bytes: bytes,
+        mimetype: meta.mimetype,
+      ),
+    );
+  }
+
   Future<void> markAsRead(String conversationId) async {
     await _client.post(
       '/api/v1/mobile/chat/channels/$conversationId/mark-read',
+    );
+  }
+
+  Future<void> pinMessage(String conversationId, String messageId) async {
+    await _client.post(
+      '/api/v1/mobile/chat/messages/$messageId/pin',
+      body: <String, dynamic>{'channel_id': int.tryParse(conversationId)},
+    );
+  }
+
+  Future<void> unpinMessage(String conversationId, String messageId) async {
+    await _client.post(
+      '/api/v1/mobile/chat/messages/$messageId/unpin',
+      body: <String, dynamic>{'channel_id': int.tryParse(conversationId)},
     );
   }
 
@@ -124,7 +369,7 @@ class ChatRepository {
   Future<List<Profile>> allUsers() async {
     final res = await _client.get(
       '/api/v1/res.users',
-      query: const <String, Object?>{'fields': 'id,login,name,image_128'},
+      query: const <String, Object?>{'fields': 'id,login,name'},
     );
     return (res as List).cast<Map<String, dynamic>>().map((m) {
       final login = (m['login'] ?? '').toString();
@@ -132,9 +377,9 @@ class ChatRepository {
         id: m['id'].toString(),
         email: login,
         displayName: (m['name'] ?? login).toString(),
-        avatarUrl:
-            _stringOrNull(m['image_128']) ??
-            _client.absoluteUrl('/api/v1/mobile/avatar/users/${m['id']}'),
+        avatarUrl: _client.absoluteUrl(
+          '/api/v1/mobile/avatar/users/${m['id']}',
+        ),
       );
     }).toList();
   }
@@ -166,6 +411,13 @@ class ChatRepository {
   Future<void> unarchiveConversation(String conversationId) async {
     await _client.post(
       '/api/v1/mobile/chat/channels/$conversationId/unarchive',
+    );
+  }
+
+  Future<void> sendContact(String conversationId, int partnerId) async {
+    await _client.post(
+      '/api/v1/mobile/chat/channels/$conversationId/contact',
+      body: <String, dynamic>{'partner_id': partnerId},
     );
   }
 
@@ -249,6 +501,8 @@ class ChatRepository {
     final avatar =
         _stringOrNull(
           member['avatar_url'] ??
+              member['avatar_128_url'] ??
+              member['image_128_url'] ??
               member['avatar_128'] ??
               member['image_128'] ??
               member['image'],
