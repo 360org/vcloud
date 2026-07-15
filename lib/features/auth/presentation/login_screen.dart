@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/api/odoo_api_client.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/widgets/brand_logo.dart';
 import '../../../shared/widgets/ui_kit.dart';
 import '../application/auth_controller.dart';
+import 'tenant_selection_sheet.dart';
 
 /// Login screen — gradient background, glass form card, premium branding.
 class LoginScreen extends ConsumerStatefulWidget {
@@ -42,12 +45,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _submit() async {
     setState(() => _error = null);
     if (!_formKey.currentState!.validate()) return;
+    await _attemptSignIn();
+  }
+
+  Future<void> _attemptSignIn({int? tenantId}) async {
     setState(() => _submitting = true);
     try {
-      await ref
-          .read(authControllerProvider.notifier)
-          .signIn(_email.text.trim(), _password.text);
+      await ref.read(authControllerProvider.notifier).signIn(
+            _email.text.trim(),
+            _password.text,
+            tenantId: tenantId,
+          );
       if (mounted) context.go('/home');
+    } on MultipleTenantsFailure catch (e) {
+      // The credentials match several Odoo databases — let the user pick one
+      // and retry, forcing that tenant through `tenant_id`.
+      if (!mounted) return;
+      final choice = await showTenantSelectionSheet(context, e.tenants);
+      if (choice != null && mounted) {
+        await _attemptSignIn(tenantId: choice.tenantId);
+      }
     } catch (e) {
       if (mounted) {
         setState(
@@ -68,13 +85,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [AppColors.midnight, AppColors.midnightLight],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
+        decoration: const BoxDecoration(gradient: AppColors.brand),
         child: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
@@ -223,45 +234,28 @@ class _BrandLogo extends StatelessWidget {
     return Column(
       children: [
         Container(
-          width: 72,
-          height: 72,
+          width: 230,
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
           decoration: BoxDecoration(
-            gradient: AppColors.featureGrad(
-              AppColors.primary,
-              AppColors.primaryDeep,
-            ),
-            borderRadius: BorderRadius.circular(22),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
-                color: AppColors.primary.withValues(alpha: 0.4),
+                color: AppColors.midnight.withValues(alpha: 0.16),
                 blurRadius: 24,
                 offset: const Offset(0, 8),
               ),
             ],
           ),
-          child: const Icon(Icons.cloud, color: Colors.white, size: 38),
+          child: const BrandLogo(height: 66),
         ),
         const SizedBox(height: 14),
-        Text.rich(
-          TextSpan(
-            children: [
-              const TextSpan(
-                text: 'V',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 26,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              TextSpan(
-                text: 'Cloud',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.8),
-                  fontSize: 26,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
+        Text(
+          'Vua hệ thống',
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.92),
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
           ),
         ),
       ],

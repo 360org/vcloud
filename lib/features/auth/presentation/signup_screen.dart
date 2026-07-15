@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/api/odoo_api_client.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/widgets/brand_logo.dart';
 import '../../../shared/widgets/ui_kit.dart';
 import '../application/auth_controller.dart';
+import 'tenant_selection_sheet.dart';
 
 /// Signup screen — gradient background, glass form card.
 class SignupScreen extends ConsumerStatefulWidget {
@@ -33,16 +36,25 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   Future<void> _submit() async {
     setState(() => _error = null);
     if (!_formKey.currentState!.validate()) return;
+    await _attemptSignUp();
+  }
+
+  Future<void> _attemptSignUp({int? tenantId}) async {
     setState(() => _submitting = true);
     try {
-      await ref
-          .read(authControllerProvider.notifier)
-          .signUp(
+      await ref.read(authControllerProvider.notifier).signUp(
             email: _email.text.trim(),
             password: _password.text,
             displayName: _name.text.trim(),
+            tenantId: tenantId,
           );
       if (mounted) context.go('/home');
+    } on MultipleTenantsFailure catch (e) {
+      if (!mounted) return;
+      final choice = await showTenantSelectionSheet(context, e.tenants);
+      if (choice != null && mounted) {
+        await _attemptSignUp(tenantId: choice.tenantId);
+      }
     } catch (e) {
       if (mounted) {
         setState(
@@ -62,18 +74,12 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Tạo tài khoản'),
-        backgroundColor: AppColors.midnight,
+        backgroundColor: AppColors.primaryDeep,
       ),
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [AppColors.midnight, AppColors.midnightLight],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
+        decoration: const BoxDecoration(gradient: AppColors.brand),
         child: SafeArea(
           top: false,
           child: SingleChildScrollView(
@@ -84,6 +90,28 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const SizedBox(height: 8),
+                  Center(
+                    child: Container(
+                      width: 220,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(22),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.midnight.withValues(alpha: 0.16),
+                            blurRadius: 22,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: const BrandLogo(height: 58),
+                    ),
+                  ),
+                  const SizedBox(height: 22),
                   GlassCard(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,

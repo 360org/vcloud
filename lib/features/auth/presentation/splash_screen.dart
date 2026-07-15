@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/widgets/brand_logo.dart';
 import '../application/auth_controller.dart';
 
 /// Splash screen — branded gradient background with pulsing logo.
@@ -23,13 +24,7 @@ class SplashScreen extends ConsumerWidget {
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [AppColors.midnight, AppColors.midnightLight],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
+        decoration: const BoxDecoration(gradient: AppColors.brand),
         child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -41,37 +36,29 @@ class SplashScreen extends ConsumerWidget {
                 builder: (_, v, child) =>
                     Transform.scale(scale: v, child: child),
                 child: Container(
-                  width: 96,
-                  height: 96,
+                  width: 220,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 14,
+                  ),
                   decoration: BoxDecoration(
-                    gradient: AppColors.featureGrad(
-                      AppColors.primary,
-                      AppColors.primaryDeep,
-                    ),
-                    borderRadius: BorderRadius.circular(28),
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(24),
                     boxShadow: [
                       BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.4),
+                        color: AppColors.midnight.withValues(alpha: 0.18),
                         blurRadius: 32,
                         offset: const Offset(0, 12),
                       ),
                     ],
                   ),
                   alignment: Alignment.center,
-                  child: const Text(
-                    'VC',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 36,
-                      letterSpacing: 1,
-                    ),
-                  ),
+                  child: const BrandLogo(height: 64),
                 ),
               ),
               const SizedBox(height: 20),
               const Text(
-                'VCloud',
+                'Vua hệ thống',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 24,

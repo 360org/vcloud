@@ -19,18 +19,24 @@ class AuthRepository {
     required String email,
     required String password,
     required String displayName,
+    int? tenantId,
   }) {
     // The provided gateway exposes login, not registration. Keep the existing
     // screen functional for provisioned Odoo users by logging in.
-    return signIn(email: email, password: password);
+    return signIn(email: email, password: password, tenantId: tenantId);
   }
 
   Future<AuthUser> signIn({
     required String email,
     required String password,
+    int? tenantId,
   }) async {
     try {
-      final session = await _client.login(login: email, password: password);
+      final session = await _client.login(
+        login: email,
+        password: password,
+        tenantId: tenantId,
+      );
       return _toUser(session);
     } on Failure {
       rethrow;
@@ -45,7 +51,8 @@ class AuthRepository {
 
   Future<AuthUser> _toUser(OdooSession session) async {
     final profile = await _currentUserProfile(session.uid);
-    final partnerId = session.partnerId ?? _many2OneId(profile?['partner_id']);
+    final partnerId = (session.partnerId ?? _many2OneId(profile?['partner_id']))
+        ?.toString();
     final name = _stringOrNull(profile?['name']);
     final login = _stringOrNull(profile?['login']) ?? session.login;
     final metadata = <String, dynamic>{
@@ -55,11 +62,15 @@ class AuthRepository {
     if (partnerId != null) metadata['partner_id'] = partnerId;
     final avatar = _stringOrNull(
       profile?['avatar_url'] ??
+          profile?['avatar_128_url'] ??
+          profile?['image_128_url'] ??
           profile?['avatar_128'] ??
           profile?['image_128'] ??
           profile?['image'],
     );
-    if (avatar != null) metadata['avatar_url'] = avatar;
+    if (avatar != null) {
+      metadata['avatar_url'] = avatar;
+    }
 
     return AuthUser(
       id: session.uid.toString(),
