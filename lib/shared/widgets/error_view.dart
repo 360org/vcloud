@@ -16,10 +16,10 @@ class ErrorView extends StatelessWidget {
     return Semantics(
       label: 'Error: ${describeError(error)}',
       child: Center(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: GlassCard(
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 40),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
             glowColor: AppColors.danger,
             child: Column(
               mainAxisSize: MainAxisSize.min,

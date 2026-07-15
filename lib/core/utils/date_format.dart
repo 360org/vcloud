@@ -33,6 +33,18 @@ class Dates {
     return isoDate(dt);
   }
 
+  static String chatListLabelVi(DateTime dt, {DateTime? now}) {
+    final n = now ?? DateTime.now();
+    final today = DateTime(n.year, n.month, n.day);
+    final local = dt.toLocal();
+    final day = DateTime(local.year, local.month, local.day);
+    final diff = today.difference(day).inDays;
+    if (diff == 0) return hm(local);
+    if (diff == 1) return 'Hôm qua';
+    if (diff < 7) return '$diff ngày';
+    return '${local.day.toString().padLeft(2, '0')}/${local.month.toString().padLeft(2, '0')}';
+  }
+
   static String relativeShort(DateTime dt, {DateTime? now}) {
     final n = now ?? DateTime.now();
     final diff = n.difference(dt.toLocal());

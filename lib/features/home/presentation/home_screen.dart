@@ -4,16 +4,20 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
 import '../../../core/error/failure.dart';
+import '../../../core/notifications/push_notification_controller.dart';
+import '../../../core/notifications/push_notification_repository.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/date_format.dart';
-import '../../../shared/models/ticket.dart';
+import '../../../shared/models/task.dart';
+import '../../../shared/models/timesheet.dart';
 import '../../../shared/widgets/app_scaffold.dart';
 import '../../../shared/widgets/ui_kit.dart';
 import '../../attendance/application/attendance_controller.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../chat/application/conversations_controller.dart';
-import '../../ticket/application/ticket_controller.dart';
-import '../../timesheet/presentation/timesheet_list_screen.dart';
+import '../../timesheet/application/task_controller.dart';
+import '../../timesheet/application/timesheet_controller.dart';
+import '../../timesheet/presentation/widgets/checklist_editor.dart';
 import '../application/home_summary_controller.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -39,6 +43,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ref.invalidate(homeSummaryProvider);
       ref.invalidate(attendanceTodayProvider);
       ref.invalidate(openSessionProvider);
+      ref.invalidate(mobileDashboardSummaryProvider);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -55,6 +60,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final summary = ref.watch(homeSummaryProvider);
     final todayState = ref.watch(attendanceTodayProvider);
     final dashboard = ref.watch(mobileDashboardSummaryProvider).valueOrNull;
+    final notificationState = ref.watch(mobileNotificationsProvider);
+    final notificationCount = notificationState.valueOrNull?.total ?? 0;
     final user = ref.watch(authControllerProvider).valueOrNull;
     final meta = user?.userMetadata;
     final name = (meta?['display_name'] as String?)?.trim();
@@ -62,15 +69,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final displayName = name?.isNotEmpty == true
         ? name!
         : (user?.email?.split('@').first ?? 'Người dùng');
-    final tickets = ref.watch(effectiveTicketsProvider);
-    final latestTicket = tickets.isEmpty
-        ? null
-        : tickets.reduce((a, b) => a.updatedAt.isAfter(b.updatedAt) ? a : b);
-    final todayTasks = ref.watch(hardcodedTodayTasksProvider).take(3).toList();
-    final isOnline = dashboard?.isCheckedIn ?? summary?.isCheckedIn ?? false;
+    final todayTasks = ref
+        .watch(todayTasksProvider)
+        .maybeWhen(
+          data: (tasks) => tasks
+              .where((task) => !task.isCompleted)
+              .take(3)
+              .map(_todayTaskPreviewFromTask)
+              .toList(),
+          orElse: () => const <_TodayTaskPreview>[],
+        );
+    // Attendance is the source of truth immediately after a toggle. The
+    // dashboard is a separate cached snapshot and may be one request behind.
+    final isOnline = summary?.isCheckedIn ?? dashboard?.isCheckedIn ?? false;
     final todayMinutes = dashboard?.todayMinutes ?? summary?.todayMinutes ?? 0;
-    final openTickets =
-        dashboard?.openTickets ?? summary?.openTickets ?? tickets.length;
+    final openTickets = dashboard?.openTickets ?? summary?.openTickets ?? 0;
     final unreadMessages =
         dashboard?.unreadMessageCount ?? summary?.unreadMessageCount ?? 0;
     final chatCount =
@@ -87,16 +100,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ref.invalidate(homeSummaryProvider);
           ref.invalidate(mobileDashboardSummaryProvider);
           ref.invalidate(attendanceTodayProvider);
-          ref.invalidate(ticketsProvider);
+          ref.invalidate(todayTasksProvider);
           ref.invalidate(openSessionProvider);
           ref.invalidate(conversationsProvider);
+          ref.invalidate(mobileNotificationsProvider);
         },
         color: AppColors.primary,
         backgroundColor: AppColors.surface,
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
           children: [
-            _HeaderCard(
+            _GreetingHeader(
               userId: user?.id ?? '',
               displayName: displayName,
               email: user?.email,
@@ -105,28 +119,37 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               statusBusy: statusBusy,
               onStatusTap: () => _toggleAttendance(isOnline),
               todayMinutes: todayMinutes,
+              notificationCount: notificationCount,
+              notificationsLoading: notificationState.isLoading,
+              onNotificationsTap: () => _openNotifications(context),
             ),
-            const SizedBox(height: 12),
-            _DashboardMetrics(
-              openTickets: openTickets,
-              unreadMessages: unreadMessages,
+            const SizedBox(height: 18),
+            _QuickNavGrid(
+              ticketCount: openTickets,
+              unreadCount: unreadMessages,
               chatCount: chatCount,
+              taskCount: todayTasks.length,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             _TodayWork(tasks: todayTasks),
-            const SizedBox(height: 18),
-            const _QuickActions(),
-            const SizedBox(height: 18),
-            _TicketStatusNotice(ticket: latestTicket),
           ],
         ),
       ),
     );
   }
+
+  Future<void> _openNotifications(BuildContext context) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const _NotificationSheet(),
+    );
+  }
 }
 
-class _HeaderCard extends StatelessWidget {
-  const _HeaderCard({
+class _GreetingHeader extends StatelessWidget {
+  const _GreetingHeader({
     required this.userId,
     required this.displayName,
     required this.email,
@@ -135,6 +158,9 @@ class _HeaderCard extends StatelessWidget {
     required this.statusBusy,
     required this.onStatusTap,
     required this.todayMinutes,
+    required this.notificationCount,
+    required this.notificationsLoading,
+    required this.onNotificationsTap,
   });
 
   final String userId;
@@ -145,6 +171,9 @@ class _HeaderCard extends StatelessWidget {
   final bool statusBusy;
   final VoidCallback onStatusTap;
   final int todayMinutes;
+  final int notificationCount;
+  final bool notificationsLoading;
+  final VoidCallback onNotificationsTap;
 
   @override
   Widget build(BuildContext context) {
@@ -208,17 +237,49 @@ class _HeaderCard extends StatelessWidget {
               const SizedBox(width: 12),
               _PresenceIndicator(isOnline: isOnline),
               const SizedBox(width: 10),
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: AppColors.soft(AppColors.primary),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: const Icon(
-                  LucideIcons.bell,
-                  color: AppColors.primary,
-                  size: 20,
+              PressableScale(
+                onTap: onNotificationsTap,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: AppColors.soft(AppColors.primary),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: notificationsLoading
+                          ? const Center(
+                              child: SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            )
+                          : const Icon(
+                              LucideIcons.bell,
+                              color: AppColors.primary,
+                              size: 20,
+                            ),
+                    ),
+                    if (notificationCount > 0)
+                      Positioned(
+                        top: -5,
+                        right: -6,
+                        child: UnreadBadge(
+                          count: notificationCount,
+                          compact: true,
+                          gradient: AppColors.featureGrad(
+                            AppColors.danger,
+                            AppColors.dangerDeep,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ],
@@ -250,46 +311,390 @@ class _HeaderCard extends StatelessWidget {
   }
 }
 
-class _DashboardMetrics extends StatelessWidget {
-  const _DashboardMetrics({
-    required this.openTickets,
-    required this.unreadMessages,
-    required this.chatCount,
-  });
+class _NotificationSheet extends ConsumerWidget {
+  const _NotificationSheet();
 
-  final int openTickets;
-  final int unreadMessages;
-  final int chatCount;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final notifications = ref.watch(mobileNotificationsProvider);
+    final list = notifications.valueOrNull;
+    final items = (list?.items ?? const <MobileNotificationItem>[]).toList()
+      ..sort((a, b) {
+        final aTime = a.timestamp ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final bTime = b.timestamp ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return bTime.compareTo(aTime);
+      });
+    final totalCount = list?.total ?? items.length;
+
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * 0.82,
+          ),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x260F172A),
+                blurRadius: 28,
+                offset: Offset(0, 12),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 10),
+              Container(
+                width: 44,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: AppColors.border,
+                  borderRadius: BorderRadius.circular(99),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 16, 12, 8),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: AppColors.soft(AppColors.primary),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(
+                        LucideIcons.bell,
+                        color: AppColors.primary,
+                        size: 21,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Thông báo',
+                            style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            totalCount == 0
+                                ? 'Không có mục mới cần chú ý.'
+                                : '$totalCount mục cần chú ý',
+                            style: AppTextStyles.caption.copyWith(
+                              color: AppColors.textSecondary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Làm mới',
+                      onPressed: () =>
+                          ref.invalidate(mobileNotificationsProvider),
+                      icon: const Icon(LucideIcons.refreshCw, size: 19),
+                    ),
+                  ],
+                ),
+              ),
+              if (notifications.isLoading)
+                const LinearProgressIndicator(
+                  minHeight: 2,
+                  color: AppColors.primary,
+                  backgroundColor: AppColors.border,
+                )
+              else
+                const SizedBox(height: 2),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 18),
+                  children: [
+                    for (final notification in items)
+                      _NotificationItemTile(item: notification),
+                    if (items.isEmpty && !notifications.isLoading)
+                      const _NotificationEmptyState(),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NotificationItemTile extends StatelessWidget {
+  const _NotificationItemTile({required this.item});
+
+  final MobileNotificationItem item;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    final decoration = _notificationDecoration(item.eventType);
+    final route = _notificationRoute(item.data);
+    return _NotificationTile(
+      icon: decoration.icon,
+      accent: decoration.accent,
+      title: item.title,
+      subtitle: item.body,
+      time: item.timestamp == null
+          ? ''
+          : Dates.chatListLabelVi(item.timestamp!),
+      onTap: () {
+        Navigator.of(context).pop();
+        if (route != null) context.go(route);
+      },
+    );
+  }
+}
+
+/// Maps a notification's `event_type` to an icon + accent so the unified
+/// feed still reads like the old groupings (chat / ticket / timesheet),
+/// with a neutral bell fallback for anything the backend adds next.
+({IconData icon, Color accent}) _notificationDecoration(String eventType) {
+  final type = eventType.toLowerCase();
+  if (type.contains('ticket')) {
+    return (icon: LucideIcons.ticket, accent: AppColors.ticket);
+  }
+  if (type.contains('message') ||
+      type.contains('chat') ||
+      type.contains('conversation') ||
+      type.contains('channel')) {
+    return (icon: LucideIcons.messageCircle, accent: AppColors.chat);
+  }
+  if (type.contains('task') || type.contains('timesheet')) {
+    return (icon: LucideIcons.listTodo, accent: AppColors.timesheet);
+  }
+  return (icon: LucideIcons.bell, accent: AppColors.primary);
+}
+
+/// Resolves a deep-link from the notification `data` payload — we support
+/// the ticket and chat targets the backend emits today, and return null
+/// for anything else so the tap just dismisses the sheet.
+String? _notificationRoute(Map<String, dynamic> data) {
+  final ticketId = data['ticket_id'];
+  if (ticketId != null && ticketId.toString().isNotEmpty) {
+    return '/tickets/$ticketId';
+  }
+  final conversationId = data['conversation_id'] ?? data['channel_id'];
+  if (conversationId != null && conversationId.toString().isNotEmpty) {
+    return '/chat/$conversationId';
+  }
+  return null;
+}
+
+class _NotificationTile extends StatelessWidget {
+  const _NotificationTile({
+    required this.icon,
+    required this.accent,
+    required this.title,
+    required this.subtitle,
+    required this.time,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color accent;
+  final String title;
+  final String subtitle;
+  final String time;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return PressableScale(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.soft(accent).withValues(alpha: 0.45),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: accent.withValues(alpha: 0.12)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: AppColors.soft(accent),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(icon, color: accent, size: 19),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.textSecondary,
+                      height: 1.25,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  time,
+                  style: AppTextStyles.caption.copyWith(
+                    color: AppColors.textMuted,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NotificationEmptyState extends StatelessWidget {
+  const _NotificationEmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 28),
+      child: Column(
+        children: [
+          Container(
+            width: 54,
+            height: 54,
+            decoration: BoxDecoration(
+              color: AppColors.soft(AppColors.success),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: const Icon(
+              LucideIcons.checkCheck,
+              color: AppColors.success,
+              size: 25,
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Bạn đã xử lý hết thông báo.',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Khi có thông báo mới, chúng sẽ xuất hiện tại đây.',
+            textAlign: TextAlign.center,
+            style: AppTextStyles.caption.copyWith(
+              color: AppColors.textSecondary,
+              height: 1.35,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QuickNavGrid extends StatelessWidget {
+  const _QuickNavGrid({
+    required this.ticketCount,
+    required this.unreadCount,
+    required this.chatCount,
+    required this.taskCount,
+  });
+
+  final int ticketCount;
+  final int unreadCount;
+  final int chatCount;
+  final int taskCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
       children: [
-        Expanded(
-          child: _MetricPill(
-            icon: LucideIcons.ticket,
-            label: 'Ticket mở',
-            value: openTickets.toString(),
-            color: AppColors.ticket,
-          ),
+        SectionHeader(
+          title: 'Tổng quan hôm nay',
+          trailing: 'Tạo ticket',
+          onTrailingTap: () => context.go('/tickets/new'),
         ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _MetricPill(
-            icon: LucideIcons.messageCircle,
-            label: 'Chưa đọc',
-            value: unreadMessages.toString(),
-            color: AppColors.chat,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _MetricPill(
-            icon: LucideIcons.users,
-            label: 'Kênh chat',
-            value: chatCount.toString(),
-            color: AppColors.primary,
-          ),
+        const SizedBox(height: 10),
+        GridView.count(
+          crossAxisCount: 2,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 1.18,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          children: [
+            _MetricPill(
+              icon: LucideIcons.ticket,
+              label: 'Ticket',
+              value: ticketCount.toString(),
+              caption: 'Cần xử lý',
+              gradient: AppColors.ticketGrad,
+              onTap: () => context.go('/tickets'),
+            ),
+            _MetricPill(
+              icon: LucideIcons.mailOpen,
+              label: 'Chưa đọc',
+              value: unreadCount.toString(),
+              caption: 'Tin nhắn mới',
+              gradient: AppColors.chatGrad,
+              onTap: () => context.go('/chat'),
+            ),
+            _MetricPill(
+              icon: LucideIcons.messagesSquare,
+              label: 'Kênh chat',
+              value: chatCount.toString(),
+              caption: 'Cuộc trò chuyện',
+              gradient: AppColors.brandWide,
+              onTap: () => context.go('/chat'),
+            ),
+            _MetricPill(
+              icon: LucideIcons.listTodo,
+              label: 'Công việc hôm nay',
+              value: taskCount.toString(),
+              caption: 'Đang mở',
+              gradient: AppColors.timesheetGrad,
+              onTap: () => context.go('/timesheet'),
+            ),
+          ],
         ),
       ],
     );
@@ -301,48 +706,107 @@ class _MetricPill extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.value,
-    required this.color,
+    required this.caption,
+    required this.gradient,
+    required this.onTap,
   });
 
   final IconData icon;
   final String label;
   final String value;
-  final Color color;
+  final String caption;
+  final Gradient gradient;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: color, size: 18),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
+    return PressableScale(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          gradient: gradient,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x1A0F172A),
+              blurRadius: 22,
+              offset: Offset(0, 12),
             ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
+          ],
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              right: -18,
+              bottom: -22,
+              child: Icon(
+                icon,
+                color: Colors.white.withValues(alpha: 0.12),
+                size: 92,
+              ),
             ),
-          ),
-        ],
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.2),
+                        ),
+                      ),
+                      child: Icon(icon, color: Colors.white, size: 20),
+                    ),
+                    const Spacer(),
+                    const Icon(
+                      LucideIcons.chevronRight,
+                      color: Colors.white70,
+                      size: 18,
+                    ),
+                  ],
+                ),
+                const Spacer(),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 26,
+                    fontWeight: FontWeight.w900,
+                    height: 1,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  caption,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.78),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -432,10 +896,75 @@ class _PresenceIndicator extends StatelessWidget {
   }
 }
 
+_TodayTaskPreview _todayTaskPreviewFromTask(Task task) {
+  final accent = _taskCategoryColor(task.category);
+  return _TodayTaskPreview(
+    id: task.id,
+    title: task.title,
+    tag: task.category.label,
+    accent: accent,
+    icon: _taskCategoryIcon(task.category),
+    // Carried but not yet populated: the home dashboard only sees the
+    // list view of open tasks, where the per-entry summary / duration
+    // would have to come from the timesheet stream. We leave the
+    // optional fields null so the popup opens empty.
+    note: null,
+    logged: null,
+  );
+}
+
+IconData _taskCategoryIcon(TimesheetCategory category) {
+  return switch (category) {
+    TimesheetCategory.erp => LucideIcons.database,
+    TimesheetCategory.crm => LucideIcons.users,
+    TimesheetCategory.meeting => LucideIcons.calendarClock,
+    TimesheetCategory.support => LucideIcons.headphones,
+    TimesheetCategory.other => LucideIcons.circleDot,
+  };
+}
+
+Color _taskCategoryColor(TimesheetCategory category) {
+  return switch (category) {
+    TimesheetCategory.erp => AppColors.primary,
+    TimesheetCategory.crm => AppColors.chat,
+    TimesheetCategory.meeting => AppColors.timesheet,
+    TimesheetCategory.support => AppColors.ticket,
+    TimesheetCategory.other => AppColors.textMuted,
+  };
+}
+
+class _TodayTaskPreview {
+  const _TodayTaskPreview({
+    required this.id,
+    required this.title,
+    required this.tag,
+    required this.accent,
+    required this.icon,
+    this.note,
+    this.logged,
+  });
+
+  /// Odoo task id — needed so the quick-edit popup can route saves
+  /// back to [TaskActions.log] without round-tripping the full sheet.
+  final String id;
+  final String title;
+  final String tag;
+  final Color accent;
+  final IconData icon;
+
+  /// Last logged "what I did" summary, if any. Used to pre-fill the
+  /// editor when re-opening a task that already has a log entry.
+  final String? note;
+
+  /// Last logged duration, if any. Same purpose — defaults the
+  /// duration picker to a sensible bucket when re-opening.
+  final Duration? logged;
+}
+
 class _TodayWork extends StatelessWidget {
   const _TodayWork({required this.tasks});
 
-  final List<TodayTaskPreview> tasks;
+  final List<_TodayTaskPreview> tasks;
 
   @override
   Widget build(BuildContext context) {
@@ -473,15 +1002,29 @@ class _TodayWork extends StatelessWidget {
   }
 }
 
-class _TimesheetRow extends StatelessWidget {
+class _TimesheetRow extends ConsumerWidget {
   const _TimesheetRow({required this.task});
 
-  final TodayTaskPreview task;
+  final _TodayTaskPreview task;
+
+  Future<void> _openQuickEdit(BuildContext context, WidgetRef ref) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _TaskQuickEditSheet(task: task),
+    );
+  }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return PressableScale(
-      onTap: () => context.go('/timesheet'),
+      onTap: () {
+        // Tap a task → popup that lets the user record work-time / note
+        // without bouncing them over to the full timesheet screen.
+        // They can still get there via the "Mở Timesheet" trailing link.
+        _openQuickEdit(context, ref);
+      },
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Row(
@@ -516,158 +1059,169 @@ class _TimesheetRow extends StatelessWidget {
   }
 }
 
-class _QuickActions extends StatelessWidget {
-  const _QuickActions();
+/// Bottom-sheet that lets the user edit a task's `note` (nội dung công
+/// việc đã làm) and re-log `duration` (thời gian làm việc) inline
+/// from the home dashboard. Save always routes through
+/// [TaskActions.log] — these cards only show open tasks, so we never
+/// flip workflow status.
+///
+/// The widget is `ConsumerStatefulWidget` so its actions run on its
+/// own `ref` (the parent's `WidgetRef` is short-lived and must not be
+/// captured into the sheet's lifetime).
+class _TaskQuickEditSheet extends ConsumerStatefulWidget {
+  const _TaskQuickEditSheet({required this.task});
+
+  final _TodayTaskPreview task;
 
   @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        const SectionHeader(title: 'Thao tác nhanh'),
-        const SizedBox(height: 10),
-        GridView.count(
-          crossAxisCount: 3,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-          childAspectRatio: 0.96,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          children: [
-            CompactActionTile(
-              icon: LucideIcons.messageCircle,
-              label: 'Chat',
-              color: AppColors.chat,
-              onTap: () => context.go('/chat'),
-            ),
-            CompactActionTile(
-              icon: LucideIcons.clock3,
-              label: 'Công việc',
-              color: AppColors.timesheet,
-              onTap: () => context.go('/timesheet'),
-            ),
-            CompactActionTile(
-              icon: LucideIcons.ticket,
-              label: 'Ticket',
-              color: AppColors.ticket,
-              onTap: () => context.go('/tickets'),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
+  ConsumerState<_TaskQuickEditSheet> createState() =>
+      _TaskQuickEditSheetState();
 }
 
-class _TicketStatusNotice extends StatelessWidget {
-  const _TicketStatusNotice({required this.ticket});
+class _TaskQuickEditSheetState extends ConsumerState<_TaskQuickEditSheet> {
+  late final TextEditingController _noteController;
+  late TimesheetDuration _duration;
+  bool _saving = false;
 
-  final Ticket? ticket;
+  @override
+  void initState() {
+    super.initState();
+    _noteController = TextEditingController(text: widget.task.note ?? '');
+    _duration = widget.task.logged == null
+        ? TimesheetDuration.thirty
+        : durationBucketForElapsed(widget.task.logged!);
+  }
+
+  @override
+  void dispose() {
+    _noteController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final note = _noteController.text.trim();
+    if (note.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng nhập nội dung công việc.')),
+      );
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      await ref
+          .read(taskActionsProvider)
+          .log(taskId: widget.task.id, summary: note, duration: _duration);
+      ref.invalidate(timesheetStreamProvider);
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lưu log thất bại: ${describeError(e)}')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final current = ticket;
-    return Column(
-      children: [
-        const SectionHeader(title: 'Thông báo'),
-        const SizedBox(height: 10),
-        GlassCard(
-          radius: 18,
-          padding: const EdgeInsets.all(16),
-          child: current == null
-              ? const Row(
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 12,
+          right: 12,
+          bottom: MediaQuery.viewInsetsOf(context).bottom + 10,
+        ),
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * 0.85,
+          ),
+          padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(28),
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 44,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: AppColors.border,
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
                   children: [
-                    _NoticeIcon(color: AppColors.ticket),
-                    SizedBox(width: 12),
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: AppColors.soft(widget.task.accent),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Icon(
+                        widget.task.icon,
+                        color: widget.task.accent,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        'Chưa có cập nhật ticket.',
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
+                        widget.task.title,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
                         ),
                       ),
                     ),
+                    StatusPill(
+                      label: widget.task.tag,
+                      color: widget.task.accent,
+                    ),
                   ],
-                )
-              : PressableScale(
-                  onTap: () => context.push('/tickets/${current.id}'),
-                  child: Row(
-                    children: [
-                      _NoticeIcon(color: _ticketStatusColor(current.status)),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Ticket đổi trạng thái: ${_ticketStatusText(current.status)}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: AppColors.textPrimary,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '${current.title} · ${Dates.relativeShort(current.updatedAt)}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: AppColors.textSecondary,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Icon(
-                        LucideIcons.chevronRight,
-                        color: AppColors.textMuted,
-                        size: 18,
-                      ),
-                    ],
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Cập nhật nội dung & thời gian làm việc.',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    height: 1.35,
                   ),
                 ),
+                const SizedBox(height: 14),
+                TaskChecklistEditor(
+                  noteController: _noteController,
+                  duration: _duration,
+                  saving: _saving,
+                  onDurationChanged: _saving
+                      ? null
+                      : (dur) => setState(() => _duration = dur),
+                  onSave: _saving ? null : _save,
+                  saveLabel: 'Lưu cập nhật',
+                ),
+              ],
+            ),
+          ),
         ),
-      ],
-    );
-  }
-}
-
-class _NoticeIcon extends StatelessWidget {
-  const _NoticeIcon({required this.color});
-
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 38,
-      height: 38,
-      decoration: BoxDecoration(
-        color: AppColors.soft(color),
-        borderRadius: BorderRadius.circular(14),
       ),
-      child: Icon(LucideIcons.bellRing, color: color, size: 19),
     );
   }
 }
-
-Color _ticketStatusColor(TicketStatus status) => switch (status) {
-  TicketStatus.todo => AppColors.textMuted,
-  TicketStatus.doing => AppColors.ticket,
-  TicketStatus.done => AppColors.success,
-};
-
-String _ticketStatusText(TicketStatus status) => switch (status) {
-  TicketStatus.todo => 'Chờ xử lý',
-  TicketStatus.doing => 'Đang xử lý',
-  TicketStatus.done => 'Hoàn thành',
-};
 
 String _vietnameseDateTime(DateTime dt) {
   const weekdays = [

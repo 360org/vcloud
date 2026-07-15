@@ -7,8 +7,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
+import '../../core/api/odoo_api_client.dart';
 import '../../core/theme/app_theme.dart';
 import '../../features/chat/application/conversations_controller.dart';
+import 'brand_logo.dart';
+import 'html_avatar_image.dart';
 import 'ui_kit.dart';
 
 /// Standard scaffold for top-level tabs (Home/Chat/...). Draws the
@@ -75,16 +78,26 @@ class AppScaffold extends ConsumerWidget {
     return Scaffold(
       appBar: showAppBar
           ? AppBar(
-              title: Text(title),
+              title: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.all(Radius.circular(10)),
+                    ),
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                      child: BrandLogo(height: 24),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Flexible(child: Text(title)),
+                ],
+              ),
               actions: actions,
               flexibleSpace: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [AppColors.midnight, AppColors.midnightLight],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                ),
+                decoration: const BoxDecoration(gradient: AppColors.brand),
               ),
             )
           : null,
@@ -296,7 +309,16 @@ class UserAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final image = _avatarImage();
+    final fallback = Center(
+      child: Text(
+        _initials,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: size * 0.36,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
     return Container(
       width: size + 4,
       height: size + 4,
@@ -316,40 +338,90 @@ class UserAvatar extends StatelessWidget {
           shape: BoxShape.circle,
           gradient: AppColors.accent(_userColor),
           border: Border.all(color: AppColors.surface, width: 2),
-          image: image == null
-              ? null
-              : DecorationImage(image: image, fit: BoxFit.cover),
         ),
-        child: image == null
-            ? Center(
-                child: Text(
-                  _initials,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: size * 0.36,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              )
-            : null,
+        child: ClipOval(child: _avatarContent(fallback)),
       ),
     );
   }
 
-  ImageProvider? _avatarImage() {
+  Widget _avatarContent(Widget fallback) {
     final value = avatarUrl?.trim();
-    if (value == null || value.isEmpty || value == 'false') return null;
-    if (value.startsWith('data:image')) {
-      final comma = value.indexOf(',');
-      if (comma == -1) return null;
-      return MemoryImage(base64Decode(value.substring(comma + 1)));
+    if (value == null || value.isEmpty || value == 'false') return fallback;
+    final memoryImage = value.startsWith('data:image')
+        ? _safeDataImage(value)
+        : !value.contains('/') && value.length > 80
+        ? _safeMemoryImage(value)
+        : null;
+    if (memoryImage != null) {
+      return Image(
+        image: memoryImage,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+        errorBuilder: (_, _, _) => fallback,
+      );
     }
-    if (value.startsWith('http://') || value.startsWith('https://')) {
-      return NetworkImage(value);
-    }
-    if (!value.contains('/') && value.length > 80) {
+
+    final networkUrl = _networkAvatarUrl(value);
+    if (networkUrl == null) return fallback;
+    final usesSignedWebImageUrl = _usesHtmlImageUrl(networkUrl);
+    final htmlImage = usesSignedWebImageUrl
+        ? buildHtmlAvatarImage(url: networkUrl, fallback: fallback)
+        : null;
+    if (htmlImage != null) return htmlImage;
+    return Image.network(
+      networkUrl,
+      headers: usesSignedWebImageUrl ? null : _authHeaders(),
+      fit: BoxFit.cover,
+      gaplessPlayback: true,
+      webHtmlElementStrategy: usesSignedWebImageUrl
+          ? WebHtmlElementStrategy.prefer
+          : WebHtmlElementStrategy.never,
+      errorBuilder: (_, _, _) => fallback,
+    );
+  }
+
+  MemoryImage? _safeMemoryImage(String value) {
+    try {
       return MemoryImage(base64Decode(value));
+    } on FormatException {
+      return null;
     }
-    return null;
+  }
+
+  MemoryImage? _safeDataImage(String value) {
+    final comma = value.indexOf(',');
+    if (comma == -1) return null;
+    return _safeMemoryImage(value.substring(comma + 1));
+  }
+
+  Map<String, String>? _authHeaders() {
+    final token = odooApiClient.session?.accessToken;
+    if (token == null || token.isEmpty) return null;
+    return <String, String>{'Authorization': 'Bearer $token'};
+  }
+
+  bool _usesHtmlImageUrl(String value) {
+    final uri = Uri.tryParse(value);
+    if (uri == null) return false;
+    return uri.queryParameters.containsKey('access_token') ||
+        uri.path.startsWith('/web/image/') ||
+        uri.path.startsWith('/api/v1/mobile/avatar/');
+  }
+
+  String? _networkAvatarUrl(String value) {
+    if (value.startsWith('http://') || value.startsWith('https://')) {
+      return value;
+    }
+    // Relative URL returned by `/api/v1/mobile/*` endpoints
+    // (e.g. `/web/image/discuss.channel/5/avatar_128/000abc...`).
+    // Resolve via the Odoo API base URL. If a base URL is unknown
+    // (`Env.odooApiBaseUrl` hasn't been bootstrapped), fall back to
+    // initials rather than throwing.
+    if (!value.startsWith('/')) return null;
+    try {
+      return odooApiClient.absoluteUrl(value);
+    } on FormatException {
+      return null;
+    }
   }
 }

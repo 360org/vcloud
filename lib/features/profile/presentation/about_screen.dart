@@ -3,6 +3,7 @@ import 'package:lucide_flutter/lucide_flutter.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/app_scaffold.dart';
+import '../../../shared/widgets/brand_logo.dart';
 import '../../../shared/widgets/ui_kit.dart';
 
 /// About screen — app info, version, credits.
@@ -21,22 +22,22 @@ class AboutScreen extends StatelessWidget {
             child: Column(
               children: [
                 Container(
-                  width: 80,
-                  height: 80,
+                  width: 230,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
-                    gradient: AppColors.brand,
-                    borderRadius: BorderRadius.circular(20),
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(color: AppColors.border),
                     boxShadow: AppColors.glow(AppColors.primary, opacity: 0.3),
                   ),
-                  child: const Icon(
-                    LucideIcons.cloud,
-                    color: Colors.white,
-                    size: 40,
-                  ),
+                  child: const BrandLogo(height: 62),
                 ),
                 const SizedBox(height: 16),
                 const Text(
-                  'VCloud',
+                  'world360',
                   style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.w700,

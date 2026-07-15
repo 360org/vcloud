@@ -16,13 +16,18 @@ class MobileDashboardSummary {
   final int? unreadMessageCount;
 
   factory MobileDashboardSummary.fromMap(Map<String, dynamic> map) {
-    final attendance = _mapOrEmpty(map['attendance']);
+    final attendance = _mapOrEmpty(
+      map['attendance'] ?? map['today_attendance'],
+    );
     final timesheet = _mapOrEmpty(map['timesheet']);
     final tickets = _mapOrEmpty(map['tickets']);
     final chat = _mapOrEmpty(map['chat']);
     return MobileDashboardSummary(
       isCheckedIn: _boolOrNull(
-        map['is_checked_in'] ?? attendance['is_checked_in'],
+        map['is_checked_in'] ??
+            map['checked_in'] ??
+            attendance['is_checked_in'] ??
+            attendance['checked_in'],
       ),
       todayMinutes:
           _minutesOrNull(map['today_minutes']) ??

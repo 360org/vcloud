@@ -11,8 +11,8 @@ final attendanceStreamProvider = StreamProvider.autoDispose<List<Attendance>>(
   (ref) => ref.read(attendanceRepositoryProvider).watchRecent(),
 );
 
-final attendanceTodayProvider = FutureProvider.autoDispose<Attendance?>(
-  (ref) => ref.read(attendanceRepositoryProvider).currentOpenAttendance(),
+final attendanceTodayProvider = StreamProvider.autoDispose<Attendance?>(
+  (ref) => ref.read(attendanceRepositoryProvider).watchCurrentOpenAttendance(),
 );
 
 class AttendanceActions {

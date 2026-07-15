@@ -4,6 +4,7 @@ import 'package:geolocator/geolocator.dart';
 
 import '../../../core/api/odoo_api_client.dart';
 import '../../../core/error/failure.dart';
+import '../../../core/notifications/realtime_constants.dart';
 import '../../../shared/models/attendance.dart';
 
 class AttendanceRepository {
@@ -67,6 +68,41 @@ class AttendanceRepository {
     return _attendanceFromToday(today);
   }
 
+  /// Emits the current open attendance immediately, then periodically while a
+  /// consumer is visible. Foreground Odoo/FCM notifications trigger an
+  /// immediate provider invalidation; polling keeps the state correct when a
+  /// notification is delayed or the session is opened on another device.
+  Stream<Attendance?> watchCurrentOpenAttendance({
+    Duration pollInterval = RealtimeIntervals.attendance,
+  }) {
+    final controller = StreamController<Attendance?>();
+    bool inFlight = false;
+    Timer? timer;
+
+    Future<void> refresh() async {
+      if (inFlight || controller.isClosed) return;
+      inFlight = true;
+      try {
+        final attendance = await currentOpenAttendance();
+        if (!controller.isClosed) controller.add(attendance);
+      } catch (e) {
+        if (!controller.isClosed) controller.addError(e);
+      } finally {
+        inFlight = false;
+      }
+    }
+
+    controller.onListen = () {
+      refresh();
+      timer = Timer.periodic(pollInterval, (_) => refresh());
+    };
+    controller.onCancel = () {
+      timer?.cancel();
+      timer = null;
+    };
+    return controller.stream;
+  }
+
   Future<Attendance> checkOut() async {
     final open = await currentOpenAttendance();
     if (open == null) {
@@ -127,9 +163,14 @@ class AttendanceRepository {
 
   Attendance? _attendanceFromToday(dynamic raw) {
     final map = Map<String, dynamic>.from(raw as Map);
-    final isCheckedIn = map['is_checked_in'] == true;
-    final attId = map['current_attendance_id'];
-    final checkIn = map['check_in'];
+    final attendanceState = map['attendance_state']?.toString().toLowerCase();
+    final isCheckedIn =
+        map['is_checked_in'] == true ||
+        map['checked_in'] == true ||
+        attendanceState == 'checked_in' ||
+        attendanceState == 'checked-in';
+    final attId = map['current_attendance_id'] ?? map['attendance_id'];
+    final checkIn = map['check_in'] ?? map['last_check_in'];
     if (!isCheckedIn || attId == null || checkIn == null) return null;
 
     return Attendance.fromMap(<String, dynamic>{
