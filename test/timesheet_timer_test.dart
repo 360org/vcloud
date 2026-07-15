@@ -1,6 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:vcloud/core/error/failure.dart';
+import 'package:vcloud/features/timesheet/application/task_controller.dart';
 import 'package:vcloud/features/timesheet/application/timesheet_controller.dart';
+import 'package:vcloud/shared/models/task.dart';
 import 'package:vcloud/shared/models/timesheet.dart';
 
 void main() {
@@ -59,4 +62,45 @@ void main() {
     expect(container.read(timesheetTimerControllerProvider).isIdle, isTrue);
     expect(container.read(timesheetTimerControllerProvider).taskName, isEmpty);
   });
+
+  test(
+    'derived task split returns an empty list when task stream fails',
+    () async {
+      final container = ProviderContainer(
+        overrides: [
+          todayTasksProvider.overrideWith(
+            (ref) => Stream<List<Task>>.error(Failure('boom')),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.listen(todayTasksProvider, (_, _) {});
+      await Future<void>.delayed(Duration.zero);
+
+      final split = container.read(todayTasksSplitProvider);
+
+      expect(split.open, isEmpty);
+      expect(split.done, isEmpty);
+    },
+  );
+
+  test(
+    'derived today minutes returns zero when timesheet stream fails',
+    () async {
+      final container = ProviderContainer(
+        overrides: [
+          timesheetStreamProvider.overrideWith(
+            (ref) => Stream<List<TimesheetEntry>>.error(Failure('boom')),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.listen(timesheetStreamProvider, (_, _) {});
+      await Future<void>.delayed(Duration.zero);
+
+      expect(container.read(todayTotalMinutesProvider), 0);
+    },
+  );
 }

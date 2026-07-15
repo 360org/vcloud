@@ -16,7 +16,8 @@ final timesheetStreamProvider =
 /// Sum of today's durations. Used by the home dashboard.
 final todayTotalMinutesProvider = Provider<int>((ref) {
   final list =
-      ref.watch(timesheetStreamProvider).value ?? const <TimesheetEntry>[];
+      ref.watch(timesheetStreamProvider).valueOrNull ??
+      const <TimesheetEntry>[];
   final now = DateTime.now();
   final today = DateTime(now.year, now.month, now.day);
   var total = 0;
@@ -26,7 +27,7 @@ final todayTotalMinutesProvider = Provider<int>((ref) {
       e.workedDate.month,
       e.workedDate.day,
     );
-    if (wd == today) total += e.duration.duration.inMinutes;
+    if (wd == today) total += e.durationMinutes;
   }
   return total;
 });
@@ -176,6 +177,7 @@ class TimesheetTimerController extends Notifier<TimesheetTimerState> {
         taskId: taskId,
         summary: taskName,
         duration: duration,
+        elapsed: elapsed,
       );
       // refresh both streams so the entries list and task list update.
       timesheetActions.invalidateTimesheetStream();

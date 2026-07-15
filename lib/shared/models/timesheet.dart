@@ -81,6 +81,7 @@ class TimesheetEntry {
     required this.taskName,
     required this.category,
     required this.duration,
+    required this.durationMinutes,
     required this.workedDate,
     required this.createdAt,
     this.taskId,
@@ -92,6 +93,7 @@ class TimesheetEntry {
   final String taskName;
   final TimesheetCategory category;
   final TimesheetDuration duration;
+  final int durationMinutes;
   final DateTime workedDate;
   final DateTime createdAt;
 
@@ -109,6 +111,11 @@ class TimesheetEntry {
     taskName: map['task_name'] as String,
     category: TimesheetCategoryDb.fromDb(map['category'] as String),
     duration: TimesheetDurationDb.fromDb(map['duration'] as String),
+    durationMinutes:
+        (map['duration_minutes'] as int?) ??
+        TimesheetDurationDb.fromDb(
+          map['duration'] as String,
+        ).duration.inMinutes,
     workedDate: DateTime.parse(map['worked_date'] as String),
     createdAt: DateTime.parse(map['created_at'] as String),
     taskId: map['task_id'] as String?,

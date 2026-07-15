@@ -70,15 +70,33 @@ class TimesheetRepository {
     return <String, dynamic>{
       'id': map['id'].toString(),
       'user_id': _many2OneId(map['employee_id']) ?? '',
-      'task_name':
-          (map['task_name'] ?? map['name'] ?? map['display_name'] ?? '')
-              .toString(),
+      'task_name': _taskNameForEntry(map),
       'category': TimesheetCategory.other.dbValue,
       'duration': _durationFromHours(hours).dbValue,
+      'duration_minutes': (hours * 60).round(),
       'worked_date': date,
       'created_at': '${date}T00:00:00.000Z',
       'task_id': _many2OneId(map['task_id']),
     };
+  }
+
+  /// Pick the best "what the user did" label from the AAL payload.
+  ///
+  /// The backend (Odoo Mobile API) returns up to three relevant fields on
+  /// `account.analytic.line`:
+  ///   • `name`         — the description the client POSTed (user's note)
+  ///   • `task_name`    — custom serializer derived from `task_id.name`
+  ///                      (always the task's own title, NOT the user's note)
+  ///   • `display_name` — computed/joined label, also typically the task
+  ///                      title when `task_id` is set
+  ///
+  /// Reading them in `name → task_name → display_name` order keeps the
+  /// user's typed note front-and-centre while still gracefully showing
+  /// the linked task title for legacy entries that didn't include a note.
+  String _taskNameForEntry(Map<String, dynamic> map) {
+    final raw = map['name'];
+    if (raw is String && raw.isNotEmpty) return raw;
+    return (map['task_name'] ?? map['display_name'] ?? '').toString();
   }
 
   TimesheetDuration _durationFromHours(double hours) {
