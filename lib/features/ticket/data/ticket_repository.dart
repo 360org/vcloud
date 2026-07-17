@@ -1,33 +1,34 @@
 import 'dart:async';
 
-import 'package:supabase_flutter/supabase_flutter.dart';
-
+import '../../../core/api/odoo_api_client.dart';
+import '../../../core/api/mobile_attachment_repository.dart';
 import '../../../core/error/failure.dart';
+import '../../../core/utils/html_text.dart';
 import '../../../shared/models/ticket.dart';
 
 class TicketRepository {
-  TicketRepository({SupabaseClient? client})
-      : _client = client ?? Supabase.instance.client;
+  TicketRepository({
+    OdooApiClient? client,
+    MobileAttachmentRepository? attachmentRepository,
+  }) : _client = client ?? odooApiClient,
+       _attachmentRepository =
+           attachmentRepository ??
+           MobileAttachmentRepository(client: client ?? odooApiClient);
 
-  final SupabaseClient _client;
+  static const _ticketBasePath = '/api/v1/mobile/ticket';
+
+  final OdooApiClient _client;
+  final MobileAttachmentRepository _attachmentRepository;
 
   Stream<List<Ticket>> watchAssigned() {
     final ctl = StreamController<List<Ticket>>();
-    RealtimeChannel? ch;
+
     Future<void> refresh() async {
       try {
-        final me = _client.auth.currentUser?.id;
-        if (me == null) {
-          ctl.add(const <Ticket>[]);
-          return;
-        }
-        final res = await _client
-            .from('tickets')
-            .select('*')
-            .or('assigned_to.eq.$me,created_by.eq.$me')
-            .order('updated_at', ascending: false);
+        final res = await _client.get('$_ticketBasePath/list');
         final list = (res as List)
             .cast<Map<String, dynamic>>()
+            .map(_ticketFromOdoo)
             .map(Ticket.fromMap)
             .toList();
         if (!ctl.isClosed) ctl.add(list);
@@ -36,58 +37,147 @@ class TicketRepository {
       }
     }
 
-    ctl.onListen = () async {
-      await refresh();
-      ch = _client
-          .channel('tickets-${_client.auth.currentUser?.id}')
-          .onPostgresChanges(
-            event: PostgresChangeEvent.all,
-            schema: 'public',
-            table: 'tickets',
-            callback: (_) => refresh(),
-          )
-          .subscribe();
-    };
-    ctl.onCancel = () async {
-      final c = ch;
-      if (c != null) await _client.removeChannel(c);
-    };
+    ctl.onListen = refresh;
     return ctl.stream;
+  }
+
+  Future<List<TicketTeamOption>> teams() async {
+    final res = await _client.get('$_ticketBasePath/teams');
+    return (res as List)
+        .cast<Map<String, dynamic>>()
+        .map(TicketTeamOption.fromMap)
+        .where((team) => team.name.isNotEmpty)
+        .toList();
   }
 
   Future<Ticket> create({
     required String title,
     required String? description,
+    TicketPriority priority = TicketPriority.p3,
+    String? category,
+    List<int> tagIds = const <int>[],
+    List<MobileAttachmentUpload> attachments = const <MobileAttachmentUpload>[],
   }) async {
-    final me = _client.auth.currentUser?.id;
-    if (me == null) throw Failure('Not signed in');
-    final res = await _client.from('tickets').insert({
-      'title': title,
-      'description': description,
-      'created_by': me,
-      'assigned_to': me,
-      'status': TicketStatus.todo.dbValue,
-    }).select().single();
-    return Ticket.fromMap(Map<String, dynamic>.from(res));
+    final teamId = int.tryParse(category ?? '') ?? 1;
+    final res = await _client.post(
+      '$_ticketBasePath/create',
+      body: <String, dynamic>{
+        'team_id': teamId,
+        'name': title,
+        if (description != null && description.isNotEmpty)
+          'description': description,
+        'priority': _priorityToOdoo(priority),
+        if (tagIds.isNotEmpty) 'tag_ids': tagIds,
+      },
+    );
+    final ticketId = (res['id'] as num).toInt();
+    for (final attachment in attachments) {
+      await _attachmentRepository.upload(
+        MobileAttachmentUpload(
+          filename: attachment.filename,
+          bytes: attachment.bytes,
+          mimetype: attachment.mimetype,
+          resModel: 'helpdesk.ticket',
+          resId: ticketId,
+        ),
+      );
+    }
+    return one(ticketId.toString());
+  }
+
+  Future<void> sendContact(String ticketId, int partnerId) async {
+    await _client.post(
+      '$_ticketBasePath/$ticketId/contact',
+      body: <String, dynamic>{'partner_id': partnerId},
+    );
   }
 
   Future<Ticket> updateStatus(String id, TicketStatus status) async {
-    final res = await _client
-        .from('tickets')
-        .update({'status': status.dbValue})
-        .eq('id', id)
-        .select()
-        .single();
-    return Ticket.fromMap(Map<String, dynamic>.from(res));
+    throw Failure('360 Support API chưa hỗ trợ cập nhật trạng thái ticket.');
+  }
+
+  Future<Ticket> updatePriority(String id, TicketPriority priority) async {
+    throw Failure('360 Support API chưa hỗ trợ cập nhật ưu tiên ticket.');
+  }
+
+  Future<Ticket> updateCategory(String id, String? category) async {
+    throw Failure('360 Support API chưa hỗ trợ đổi đội xử lý ticket.');
   }
 
   Future<Ticket> one(String id) async {
-    final res =
-        await _client.from('tickets').select('*').eq('id', id).single();
-    return Ticket.fromMap(Map<String, dynamic>.from(res));
+    final res = await _client.get('$_ticketBasePath/$id');
+    return Ticket.fromMap(
+      _ticketFromOdoo(Map<String, dynamic>.from(res as Map)),
+    );
   }
 
   Future<void> delete(String id) async {
-    await _client.from('tickets').delete().eq('id', id);
+    throw Failure('360 Support API chưa hỗ trợ xoá ticket.');
+  }
+
+  Map<String, dynamic> _ticketFromOdoo(Map<String, dynamic> map) {
+    final created =
+        map['create_date'] as String? ?? DateTime.now().toIso8601String();
+    final closeDate = map['close_date'] as String?;
+    return <String, dynamic>{
+      'id': map['id'].toString(),
+      'title': _ticketTitle(map),
+      'description': _cleanOptionalText(map['description']),
+      'status': closeDate == null
+          ? TicketStatus.doing.dbValue
+          : TicketStatus.done.dbValue,
+      'created_by': _many2OneId(map['partner_id']) ?? '',
+      'assigned_to': _many2OneId(map['user_id']) ?? '',
+      'created_at': created,
+      'updated_at': closeDate ?? map['assign_date'] as String? ?? created,
+      'priority': _priorityFromOdoo(map['priority'] as String?),
+      'category': map['team_name'] as String?,
+      'tag_labels': _tagLabels(map['tags']),
+    };
+  }
+
+  String _ticketTitle(Map<String, dynamic> map) {
+    final name = cleanHtmlText(map['name']);
+    if (name.isNotEmpty) return name;
+
+    final ticketRef = cleanHtmlText(map['ticket_ref']);
+    return ticketRef.isNotEmpty ? ticketRef : 'Ticket';
+  }
+
+  String? _cleanOptionalText(Object? value) {
+    final text = cleanHtmlText(value);
+    return text.isEmpty ? null : text;
+  }
+
+  String _priorityToOdoo(TicketPriority priority) => switch (priority) {
+    TicketPriority.p1 => '3',
+    TicketPriority.p2 => '2',
+    TicketPriority.p3 => '1',
+    TicketPriority.p4 => '0',
+  };
+
+  String _priorityFromOdoo(String? priority) => switch (priority) {
+    '3' => TicketPriority.p1.dbValue,
+    '2' => TicketPriority.p2.dbValue,
+    '1' => TicketPriority.p3.dbValue,
+    '0' => TicketPriority.p4.dbValue,
+    _ => TicketPriority.p3.dbValue,
+  };
+
+  String? _many2OneId(Object? value) {
+    if (value is List && value.isNotEmpty) return value.first.toString();
+    if (value is int) return value.toString();
+    return null;
+  }
+
+  List<String> _tagLabels(Object? value) {
+    if (value is! List) return const <String>[];
+    return value
+        .map((tag) {
+          if (tag is Map) return cleanHtmlText(tag['name']);
+          return cleanHtmlText(tag);
+        })
+        .where((tag) => tag.isNotEmpty)
+        .toList();
   }
 }

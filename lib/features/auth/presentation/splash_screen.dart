@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/theme/app_theme.dart';
+import '../../../shared/widgets/brand_logo.dart';
 import '../application/auth_controller.dart';
 
-/// Shown while the auth controller boots. The router's [redirect]
-/// resolves to /home or /login once `state` transitions.
+/// Splash screen — branded gradient background with pulsing logo.
 class SplashScreen extends ConsumerWidget {
   const SplashScreen({super.key});
 
@@ -20,39 +21,62 @@ class SplashScreen extends ConsumerWidget {
       }
     });
     return Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 96,
-              height: 96,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary,
-                borderRadius: BorderRadius.circular(24),
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                'VC',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onPrimary,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 36,
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(gradient: AppColors.brand),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0.8, end: 1.0),
+                duration: const Duration(milliseconds: 1200),
+                curve: Curves.easeInOut,
+                builder: (_, v, child) =>
+                    Transform.scale(scale: v, child: child),
+                child: Container(
+                  width: 220,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 14,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.midnight.withValues(alpha: 0.18),
+                        blurRadius: 32,
+                        offset: const Offset(0, 12),
+                      ),
+                    ],
+                  ),
+                  alignment: Alignment.center,
+                  child: const BrandLogo(height: 64),
                 ),
               ),
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'VCloud',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 24),
-            const SizedBox(
-              width: 28,
-              height: 28,
-              child: CircularProgressIndicator(strokeWidth: 3),
-            ),
-          ],
+              const SizedBox(height: 20),
+              const Text(
+                'Vua hệ thống',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 28),
+              SizedBox(
+                width: 28,
+                height: 28,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: Colors.white.withValues(alpha: 0.7),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

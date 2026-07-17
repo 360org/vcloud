@@ -1,6 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/api/mobile_attachment_repository.dart';
+import '../../../shared/models/activity_log.dart';
 import '../../../shared/models/ticket.dart';
+import '../../../shared/models/ticket_comment.dart';
+import '../data/activity_log_repository.dart';
+import '../data/ticket_comment_repository.dart';
 import '../data/ticket_repository.dart';
 
 final ticketRepositoryProvider = Provider<TicketRepository>(
@@ -9,6 +14,10 @@ final ticketRepositoryProvider = Provider<TicketRepository>(
 
 final ticketsProvider = StreamProvider.autoDispose<List<Ticket>>(
   (ref) => ref.read(ticketRepositoryProvider).watchAssigned(),
+);
+
+final ticketTeamsProvider = FutureProvider.autoDispose<List<TicketTeamOption>>(
+  (ref) => ref.read(ticketRepositoryProvider).teams(),
 );
 
 /// Lightweight notifier that holds an *override* list used for
@@ -22,8 +31,9 @@ class TicketOverride extends Notifier<List<Ticket>?> {
   void set(List<Ticket>? next) => state = next;
 }
 
-final ticketOverrideProvider =
-    NotifierProvider<TicketOverride, List<Ticket>?>(TicketOverride.new);
+final ticketOverrideProvider = NotifierProvider<TicketOverride, List<Ticket>?>(
+  TicketOverride.new,
+);
 
 final effectiveTicketsProvider = Provider<List<Ticket>>((ref) {
   final override = ref.watch(ticketOverrideProvider);
@@ -39,8 +49,19 @@ class TicketActions {
   Future<Ticket> create({
     required String title,
     required String? description,
+    TicketPriority priority = TicketPriority.p3,
+    String? category,
+    List<int> tagIds = const <int>[],
+    List<MobileAttachmentUpload> attachments = const <MobileAttachmentUpload>[],
   }) async {
-    final t = await _repo.create(title: title, description: description);
+    final t = await _repo.create(
+      title: title,
+      description: description,
+      priority: priority,
+      category: category,
+      tagIds: tagIds,
+      attachments: attachments,
+    );
     _ref.invalidate(ticketsProvider);
     return t;
   }
@@ -69,6 +90,22 @@ class TicketActions {
     await _repo.delete(id);
     _ref.invalidate(ticketsProvider);
   }
+
+  Future<void> updatePriority(String id, TicketPriority priority) async {
+    await _repo.updatePriority(id, priority);
+    _ref.invalidate(ticketsProvider);
+  }
+
+  Future<void> updateCategory(String id, String? category) async {
+    await _repo.updateCategory(id, category);
+    _ref.invalidate(ticketsProvider);
+  }
+
+  Future<void> sendContact(String ticketId, int partnerId) async {
+    await _repo.sendContact(ticketId, partnerId);
+    _ref.invalidate(ticketCommentsProvider(ticketId));
+    _ref.invalidate(activityLogProvider(ticketId));
+  }
 }
 
 final ticketActionsProvider = Provider(
@@ -79,3 +116,50 @@ final openTicketsCountProvider = Provider<int>((ref) {
   final list = ref.watch(effectiveTicketsProvider);
   return list.where((t) => t.status.isOpen).length;
 });
+
+// --- Ticket Comments ---
+
+final ticketCommentRepositoryProvider = Provider<TicketCommentRepository>(
+  (_) => TicketCommentRepository(),
+);
+
+/// Watch comments for a specific ticket.
+final ticketCommentsProvider = StreamProvider.autoDispose
+    .family<List<TicketComment>, String>(
+      (ref, ticketId) =>
+          ref.read(ticketCommentRepositoryProvider).watchByTicket(ticketId),
+    );
+
+class TicketCommentActions {
+  TicketCommentActions(this._repo, this._ref);
+  final TicketCommentRepository _repo;
+  final Ref _ref;
+
+  Future<TicketComment> add(String ticketId, String content) async {
+    final comment = await _repo.add(ticketId, content);
+    _ref.invalidate(ticketCommentsProvider(ticketId));
+    _ref.invalidate(activityLogProvider(ticketId));
+    return comment;
+  }
+
+  Future<void> delete(String commentId) async {
+    await _repo.delete(commentId);
+  }
+}
+
+final ticketCommentActionsProvider = Provider(
+  (ref) => TicketCommentActions(ref.read(ticketCommentRepositoryProvider), ref),
+);
+
+// --- Activity Log ---
+
+final activityLogRepositoryProvider = Provider<ActivityLogRepository>(
+  (_) => ActivityLogRepository(),
+);
+
+/// Watch activity log for a specific ticket.
+final activityLogProvider = StreamProvider.autoDispose
+    .family<List<ActivityLog>, String>(
+      (ref, ticketId) =>
+          ref.read(activityLogRepositoryProvider).watchByTicket(ticketId),
+    );

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/error/failure.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../shared/models/profile.dart';
 import '../../../shared/widgets/app_scaffold.dart';
 import '../../../shared/widgets/error_view.dart';
@@ -54,6 +55,7 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.bg,
       appBar: AppBar(
         title: const Text('New conversation'),
         bottom: TabBar(
@@ -68,7 +70,7 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen>
         controller: _tab,
         children: [
           Consumer(
-            builder: (_, ref, __) {
+            builder: (_, ref, _) {
               final users = ref.watch(_usersProvider);
               return users.when(
                 data: (list) {
@@ -82,25 +84,31 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen>
                   }
                   return ListView.separated(
                     itemCount: list.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    separatorBuilder: (_, _) => const Divider(height: 1),
                     itemBuilder: (_, i) {
                       final p = list[i];
-                      return ListTile(
-                        leading: UserAvatar(
-                          userId: p.id,
-                          displayName: p.displayName,
-                          email: p.email,
+                      return Material(
+                        type: MaterialType.transparency,
+                        child: ListTile(
+                          leading: UserAvatar(
+                            userId: p.id,
+                            displayName: p.displayName,
+                            email: p.email,
+                            avatarUrl: p.avatarUrl,
+                          ),
+                          title: Text(p.displayName),
+                          subtitle: Text(p.email),
+                          trailing: _busy
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.chat_bubble_outline),
+                          onTap: _busy ? null : () => _open(p.id),
                         ),
-                        title: Text(p.displayName),
-                        subtitle: Text(p.email),
-                        trailing: _busy
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Icon(Icons.chat_bubble_outline),
-                        onTap: _busy ? null : () => _open(p.id),
                       );
                     },
                   );
@@ -113,23 +121,26 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen>
               );
             },
           ),
-          _GroupForm(onCreate: (name, ids) async {
-            if (name.trim().isEmpty || ids.isEmpty) {
-              _snack('Name + at least one member required.');
-              return;
-            }
-            setState(() => _busy = true);
-            try {
-              final id = await ref
-                  .read(conversationActionsProvider)
-                  .createGroup(name.trim(), ids);
-              if (mounted) context.go('/chat/$id');
-            } catch (e) {
-              _snack('Could not create group: $e');
-            } finally {
-              if (mounted) setState(() => _busy = false);
-            }
-          }),
+          _GroupForm(
+            onCreate: (name, ids) async {
+              if (name.trim().isEmpty || ids.isEmpty) {
+                _snack('Name + at least one member required.');
+                return;
+              }
+              setState(() => _busy = true);
+              try {
+                final id = await ref
+                    .read(conversationActionsProvider)
+                    .createGroup(name.trim(), ids);
+                if (!context.mounted) return;
+                context.go('/chat/$id');
+              } catch (e) {
+                _snack('Could not create group: $e');
+              } finally {
+                if (mounted) setState(() => _busy = false);
+              }
+            },
+          ),
         ],
       ),
     );
@@ -163,10 +174,12 @@ class _GroupFormState extends ConsumerState<_GroupForm> {
         final filtered = _query.isEmpty
             ? list
             : list
-                .where((p) => p.displayName
-                    .toLowerCase()
-                    .contains(_query.toLowerCase()))
-                .toList();
+                  .where(
+                    (p) => p.displayName.toLowerCase().contains(
+                      _query.toLowerCase(),
+                    ),
+                  )
+                  .toList();
         return Column(
           children: [
             Padding(
@@ -208,7 +221,7 @@ class _GroupFormState extends ConsumerState<_GroupForm> {
             Expanded(
               child: ListView.separated(
                 itemCount: filtered.length,
-                separatorBuilder: (_, __) => const Divider(height: 1),
+                separatorBuilder: (_, _) => const Divider(height: 1),
                 itemBuilder: (_, i) {
                   final p = filtered[i];
                   return CheckboxListTile(
@@ -234,9 +247,11 @@ class _GroupFormState extends ConsumerState<_GroupForm> {
                 child: FilledButton.icon(
                   icon: const Icon(Icons.check),
                   onPressed:
-                      _selected.isEmpty || _name.text.trim().isEmpty || _selected.length < 2
-                          ? null
-                          : () => widget.onCreate(_name.text, _selected.toList()),
+                      _selected.isEmpty ||
+                          _name.text.trim().isEmpty ||
+                          _selected.length < 2
+                      ? null
+                      : () => widget.onCreate(_name.text, _selected.toList()),
                   label: const Text('Create group'),
                   style: FilledButton.styleFrom(
                     minimumSize: const Size.fromHeight(48),

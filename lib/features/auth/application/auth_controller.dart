@@ -1,41 +1,42 @@
-import 'dart:async';
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/api/auth_user.dart';
+import '../../../core/notifications/push_notification_controller.dart';
+import '../../../core/notifications/push_notification_service.dart';
 import '../data/auth_repository.dart';
 
 final _authRepoProvider = Provider<AuthRepository>((_) => AuthRepository());
 
-/// Single source of truth for the current user.
-///
-/// Bootstrap reads `supabase.auth.currentSession` synchronously (which the
-/// secure storage backed `SecureLocalStorage` restored at startup), then
-/// subscribes to `onAuthStateChange` so subsequent sign-in/sign-out events
-/// propagate. Splash, login, signup and GoRouter all watch this provider.
-final authControllerProvider =
-    AsyncNotifierProvider<AuthController, User?>(AuthController.new);
+/// Single source of truth for the current Odoo-authenticated user.
+final authControllerProvider = AsyncNotifierProvider<AuthController, AuthUser?>(
+  AuthController.new,
+);
 
-class AuthController extends AsyncNotifier<User?> {
+class AuthController extends AsyncNotifier<AuthUser?> {
   late final AuthRepository _repo;
-  StreamSubscription<AuthState>? _sub;
+  late final PushNotificationService _pushNotifications;
 
   @override
-  Future<User?> build() async {
+  Future<AuthUser?> build() async {
     _repo = ref.watch(_authRepoProvider);
-    _sub?.cancel();
-    _sub = _repo.onAuthChange.listen((event) {
-      final next = event.session?.user;
-      state = AsyncData(next);
-    });
-    ref.onDispose(() => _sub?.cancel());
-    return _repo.currentUser;
+    _pushNotifications = ref.watch(pushNotificationServiceProvider);
+    final user = await _repo.currentUser();
+    if (user != null) {
+      await _registerPushDevice();
+    }
+    return user;
   }
 
-  Future<void> signIn(String email, String password) async {
+  Future<void> signIn(String email, String password, {int? tenantId}) async {
     state = const AsyncLoading();
     try {
-      final user = await _repo.signIn(email: email, password: password);
+      final user = await _repo.signIn(
+        email: email,
+        password: password,
+        tenantId: tenantId,
+      );
+      await _registerPushDevice();
       state = AsyncData(user);
     } catch (e, st) {
       state = AsyncError(e, st);
@@ -47,6 +48,7 @@ class AuthController extends AsyncNotifier<User?> {
     required String email,
     required String password,
     required String displayName,
+    int? tenantId,
   }) async {
     state = const AsyncLoading();
     try {
@@ -54,6 +56,7 @@ class AuthController extends AsyncNotifier<User?> {
         email: email,
         password: password,
         displayName: displayName,
+        tenantId: tenantId,
       );
       state = AsyncData(user);
     } catch (e, st) {
@@ -63,9 +66,24 @@ class AuthController extends AsyncNotifier<User?> {
   }
 
   Future<void> signOut() async {
+    await _unregisterPushDevice();
     await _repo.signOut();
-    // The onAuthStateChange listener will update `state` to null;
-    // explicitly setting it removes a 1-frame stale user.
     state = const AsyncData(null);
+  }
+
+  Future<void> _registerPushDevice() async {
+    try {
+      await _pushNotifications.registerCurrentDevice();
+    } catch (e) {
+      debugPrint('Push registration skipped: $e');
+    }
+  }
+
+  Future<void> _unregisterPushDevice() async {
+    try {
+      await _pushNotifications.unregisterCurrentDevice();
+    } catch (e) {
+      debugPrint('Push unregister skipped: $e');
+    }
   }
 }

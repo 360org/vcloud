@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/theme/app_theme.dart';
 import '../../../shared/models/timesheet.dart';
 import '../../../shared/widgets/primary_button.dart';
 import '../application/timesheet_controller.dart';
@@ -30,7 +31,9 @@ class _CreateEntryScreenState extends ConsumerState<CreateEntryScreen> {
     if (!_form.currentState!.validate()) return;
     setState(() => _submitting = true);
     try {
-      await ref.read(timesheetActionsProvider).add(
+      await ref
+          .read(timesheetActionsProvider)
+          .add(
             taskName: _task.text.trim(),
             category: _category,
             duration: _duration,
@@ -38,8 +41,9 @@ class _CreateEntryScreenState extends ConsumerState<CreateEntryScreen> {
       if (mounted) context.pop();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Save failed: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Save failed: $e')));
       }
     } finally {
       if (mounted) setState(() => _submitting = false);
@@ -49,6 +53,7 @@ class _CreateEntryScreenState extends ConsumerState<CreateEntryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.bg,
       appBar: AppBar(title: const Text('New timesheet entry')),
       body: SafeArea(
         child: Padding(
@@ -65,13 +70,11 @@ class _CreateEntryScreenState extends ConsumerState<CreateEntryScreen> {
                     labelText: 'Task name',
                     prefixIcon: Icon(Icons.task_outlined),
                   ),
-                  validator: (v) => (v == null || v.trim().isEmpty)
-                      ? 'Required'
-                      : null,
+                  validator: (v) =>
+                      (v == null || v.trim().isEmpty) ? 'Required' : null,
                 ),
                 const SizedBox(height: 16),
-                Text('Category',
-                    style: Theme.of(context).textTheme.labelLarge),
+                Text('Category', style: Theme.of(context).textTheme.labelLarge),
                 const SizedBox(height: 8),
                 SegmentedButton<TimesheetCategory>(
                   segments: [
@@ -84,8 +87,7 @@ class _CreateEntryScreenState extends ConsumerState<CreateEntryScreen> {
                   showSelectedIcon: false,
                 ),
                 const SizedBox(height: 20),
-                Text('Duration',
-                    style: Theme.of(context).textTheme.labelLarge),
+                Text('Duration', style: Theme.of(context).textTheme.labelLarge),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<TimesheetDuration>(
                   initialValue: _duration,

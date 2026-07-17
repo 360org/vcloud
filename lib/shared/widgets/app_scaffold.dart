@@ -1,10 +1,18 @@
+import 'dart:convert';
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:lucide_icons/lucide_icons.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:lucide_flutter/lucide_flutter.dart';
 
+import '../../core/api/odoo_api_client.dart';
 import '../../core/theme/app_theme.dart';
+import '../../features/chat/application/conversations_controller.dart';
+import 'brand_logo.dart';
+import 'html_avatar_image.dart';
+import 'ui_kit.dart';
 
 /// Standard scaffold for top-level tabs (Home/Chat/...). Draws the
 /// app bar and the bottom-nav shell. The shell auto-detects which tab is
@@ -13,7 +21,7 @@ import '../../core/theme/app_theme.dart';
 ///
 /// Set [showAppBar] to false for screens that paint their own header
 /// (e.g. Home's light greeting header).
-class AppScaffold extends StatelessWidget {
+class AppScaffold extends ConsumerWidget {
   const AppScaffold({
     super.key,
     required this.title,
@@ -44,12 +52,7 @@ class AppScaffold extends StatelessWidget {
   ];
 
   @override
-  Widget build(BuildContext context) {
-    // Map the current GoRouter location to one of the tab paths so the
-    // shell can highlight the right tab and route user taps to the right
-    // path. Any path prefixed by a tab path (e.g. `/chat/abc` → Chat) still
-    // belongs to that tab; paths like `/login`, `/signup` map to no tab
-    // and we hide the bar entirely.
+  Widget build(BuildContext context, WidgetRef ref) {
     final loc = GoRouterState.of(context).matchedLocation;
     final activeIndex = () {
       for (var i = 0; i < _tabs.length; i++) {
@@ -59,54 +62,47 @@ class AppScaffold extends StatelessWidget {
       return null;
     }();
 
-    final Widget? bottom = bottomNavigationBarOverride ??
+    // Get badge counts
+    final chatUnread = ref.watch(totalUnreadCountProvider);
+
+    final Widget? bottom =
+        bottomNavigationBarOverride ??
         (activeIndex == null
             ? null
-            : Container(
-                decoration: const BoxDecoration(
-                  color: AppColors.surface,
-                  border: Border(top: BorderSide(color: AppColors.border)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Color(0x0F0F172A),
-                      blurRadius: 18,
-                      offset: Offset(0, -4),
-                    ),
-                  ],
-                ),
-                child: SafeArea(
-                  top: false,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        for (var i = 0; i < _tabs.length; i++)
-                          _NavItem(
-                            tab: _tabs[i],
-                            selected: i == activeIndex,
-                            onTap: () {
-                              HapticFeedback.selectionClick();
-                              context.go(_tabs[i].path);
-                            },
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
+            : _FloatingTabBar(
+                tabs: _tabs,
+                activeIndex: activeIndex,
+                chatUnread: chatUnread,
               ));
 
     return Scaffold(
       appBar: showAppBar
           ? AppBar(
-              title: Text(title),
+              title: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.all(Radius.circular(10)),
+                    ),
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                      child: BrandLogo(height: 24),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Flexible(child: Text(title)),
+                ],
+              ),
               actions: actions,
-              flexibleSpace: const DecoratedBox(
-                decoration: BoxDecoration(gradient: AppColors.brand),
+              flexibleSpace: Container(
+                decoration: const BoxDecoration(gradient: AppColors.brand),
               ),
             )
           : null,
       body: wrapSafeArea ? SafeArea(child: body) : body,
+      extendBody: bottom != null,
       bottomNavigationBar: bottom,
       floatingActionButton: floatingActionButton,
       resizeToAvoidBottomInset: resizeToAvoidBottomInset,
@@ -114,50 +110,150 @@ class AppScaffold extends StatelessWidget {
   }
 }
 
-/// Animated bottom-nav item: the active icon lifts into a soft brand pill.
+class _FloatingTabBar extends StatelessWidget {
+  const _FloatingTabBar({
+    required this.tabs,
+    required this.activeIndex,
+    required this.chatUnread,
+  });
+
+  final List<_TabSpec> tabs;
+  final int activeIndex;
+  final int chatUnread;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      minimum: const EdgeInsets.fromLTRB(34, 0, 34, 10),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(30),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.82),
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.78)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x120F172A),
+                  blurRadius: 18,
+                  offset: Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                for (var i = 0; i < tabs.length; i++)
+                  Expanded(
+                    child: _NavItem(
+                      tab: tabs[i],
+                      selected: i == activeIndex,
+                      badgeCount: _getBadgeCount(tabs[i].path, chatUnread),
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        context.go(tabs[i].path);
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Animated bottom-nav item: the active icon lifts into a soft gradient pill.
+int _getBadgeCount(String path, int chatUnread) {
+  if (path == '/chat') return chatUnread;
+  return 0;
+}
+
 class _NavItem extends StatelessWidget {
   const _NavItem({
     required this.tab,
     required this.selected,
     required this.onTap,
+    this.badgeCount = 0,
   });
   final _TabSpec tab;
   final bool selected;
   final VoidCallback onTap;
+  final int badgeCount;
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? AppColors.primary : AppColors.textMuted;
+    final color = selected ? AppColors.primary : AppColors.textPrimary;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOutCubic,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
-              decoration: BoxDecoration(
-                color: selected ? AppColors.primarySoft : Colors.transparent,
-                borderRadius: BorderRadius.circular(14),
+      child: Semantics(
+        label: '${tab.label}${badgeCount > 0 ? ", $badgeCount unread" : ""}',
+        button: true,
+        selected: selected,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
+          padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 2),
+          decoration: BoxDecoration(
+            color: selected
+                ? AppColors.textMuted.withValues(alpha: 0.12)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(22),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 250),
+                    curve: Curves.easeOutCubic,
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Icon(
+                      tab.icon,
+                      size: selected ? 24 : 22,
+                      color: color,
+                    ),
+                  ),
+                  if (badgeCount > 0)
+                    Positioned(
+                      top: -4,
+                      right: -6,
+                      child: UnreadBadge(
+                        count: badgeCount,
+                        compact: true,
+                        gradient: AppColors.featureGrad(
+                          AppColors.danger,
+                          AppColors.dangerDeep,
+                        ),
+                      ),
+                    ),
+                ],
               ),
-              child: Icon(tab.icon, size: 22, color: color),
-            ),
-            const SizedBox(height: 3),
-            Text(
-              tab.label,
-              style: TextStyle(
-                fontSize: 11,
-                color: color,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+              const SizedBox(height: 1),
+              SizedBox(
+                width: double.infinity,
+                child: Text(
+                  tab.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: color,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    height: 1.1,
+                  ),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -165,30 +261,28 @@ class _NavItem extends StatelessWidget {
 }
 
 class _TabSpec {
-  const _TabSpec({
-    required this.label,
-    required this.path,
-    required this.icon,
-  });
+  const _TabSpec({required this.label, required this.path, required this.icon});
   final String label;
   final String path;
   final IconData icon;
 }
 
-/// Avatar circle with initials fallback. Used wherever a user is
-/// referenced in chat/tickets/attendance.
+/// Avatar circle with initials fallback and per-user gradient ring.
+/// Used wherever a user is referenced in chat/tickets/attendance.
 class UserAvatar extends StatelessWidget {
   const UserAvatar({
     super.key,
     required this.userId,
     required this.displayName,
     this.email,
+    this.avatarUrl,
     this.size = 40,
   });
 
   final String userId;
   final String displayName;
   final String? email;
+  final String? avatarUrl;
   final double size;
 
   String get _initials {
@@ -200,39 +294,134 @@ class UserAvatar extends StatelessWidget {
       return userId.isEmpty ? '?' : userId[0].toUpperCase();
     }
     final parts = cleaned.split(RegExp(r'\s+'));
-    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
+    if (parts.length == 1) {
+      return parts.first.substring(0, parts.length.clamp(0, 1)).toUpperCase();
+    }
     return (parts.first[0] + parts.last[0]).toUpperCase();
+  }
+
+  /// Stable hue from 0..1 based on user id so each person gets a
+  /// consistent colour across the app.
+  Color get _userColor {
+    final h = (userId.hashCode & 0x7FFFFFFF) % 360;
+    return HSLColor.fromAHSL(1, h.toDouble(), 0.55, 0.55).toColor();
   }
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    // Stable color per user so the same person looks the same across screens.
-    final seed = userId.hashCode;
-    final color = Color.lerp(
-      scheme.primary,
-      scheme.tertiary,
-      (seed.abs() % 100) / 100,
-    )!;
-    return Container(
-      width: size,
-      height: size,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.18),
-        shape: BoxShape.circle,
-      ),
+    final fallback = Center(
       child: Text(
         _initials,
         style: TextStyle(
-          color: color,
-          fontWeight: FontWeight.w600,
-          fontSize: size * 0.38,
+          color: Colors.white,
+          fontSize: size * 0.36,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );
+    return Container(
+      width: size + 4,
+      height: size + 4,
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          colors: [_userColor, _userColor.withValues(alpha: 0.6)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: AppColors.accent(_userColor),
+          border: Border.all(color: AppColors.surface, width: 2),
+        ),
+        child: ClipOval(child: _avatarContent(fallback)),
+      ),
+    );
+  }
+
+  Widget _avatarContent(Widget fallback) {
+    final value = avatarUrl?.trim();
+    if (value == null || value.isEmpty || value == 'false') return fallback;
+    final memoryImage = value.startsWith('data:image')
+        ? _safeDataImage(value)
+        : !value.contains('/') && value.length > 80
+        ? _safeMemoryImage(value)
+        : null;
+    if (memoryImage != null) {
+      return Image(
+        image: memoryImage,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+        errorBuilder: (_, _, _) => fallback,
+      );
+    }
+
+    final networkUrl = _networkAvatarUrl(value);
+    if (networkUrl == null) return fallback;
+    final usesSignedWebImageUrl = _usesHtmlImageUrl(networkUrl);
+    final htmlImage = usesSignedWebImageUrl
+        ? buildHtmlAvatarImage(url: networkUrl, fallback: fallback)
+        : null;
+    if (htmlImage != null) return htmlImage;
+    return Image.network(
+      networkUrl,
+      headers: usesSignedWebImageUrl ? null : _authHeaders(),
+      fit: BoxFit.cover,
+      gaplessPlayback: true,
+      webHtmlElementStrategy: usesSignedWebImageUrl
+          ? WebHtmlElementStrategy.prefer
+          : WebHtmlElementStrategy.never,
+      errorBuilder: (_, _, _) => fallback,
+    );
+  }
+
+  MemoryImage? _safeMemoryImage(String value) {
+    try {
+      return MemoryImage(base64Decode(value));
+    } on FormatException {
+      return null;
+    }
+  }
+
+  MemoryImage? _safeDataImage(String value) {
+    final comma = value.indexOf(',');
+    if (comma == -1) return null;
+    return _safeMemoryImage(value.substring(comma + 1));
+  }
+
+  Map<String, String>? _authHeaders() {
+    final token = odooApiClient.session?.accessToken;
+    if (token == null || token.isEmpty) return null;
+    return <String, String>{'Authorization': 'Bearer $token'};
+  }
+
+  bool _usesHtmlImageUrl(String value) {
+    final uri = Uri.tryParse(value);
+    if (uri == null) return false;
+    return uri.queryParameters.containsKey('access_token') ||
+        uri.path.startsWith('/web/image/') ||
+        uri.path.startsWith('/api/v1/mobile/avatar/');
+  }
+
+  String? _networkAvatarUrl(String value) {
+    if (value.startsWith('http://') || value.startsWith('https://')) {
+      return value;
+    }
+    // Relative URL returned by `/api/v1/mobile/*` endpoints
+    // (e.g. `/web/image/discuss.channel/5/avatar_128/000abc...`).
+    // Resolve via the Odoo API base URL. If a base URL is unknown
+    // (`Env.odooApiBaseUrl` hasn't been bootstrapped), fall back to
+    // initials rather than throwing.
+    if (!value.startsWith('/')) return null;
+    try {
+      return odooApiClient.absoluteUrl(value);
+    } on FormatException {
+      return null;
+    }
   }
 }
-
-/// Tiny helper that returns the current signed-in user's id (or empty).
-String currentUserId() => Supabase.instance.client.auth.currentUser?.id ?? '';

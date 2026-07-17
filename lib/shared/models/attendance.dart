@@ -38,16 +38,16 @@ class Attendance {
   }
 
   factory Attendance.fromMap(Map<String, dynamic> map) => Attendance(
-        id: map['id'] as String,
-        userId: map['user_id'] as String,
-        checkinTime: _readDate(map['checkin_time']),
-        checkoutTime: _readDate(map['checkout_time']),
-        checkinLat: (map['checkin_lat'] as num?)?.toDouble(),
-        checkinLng: (map['checkin_lng'] as num?)?.toDouble(),
-        checkoutLat: (map['latitude'] as num?)?.toDouble(),
-        checkoutLng: (map['longitude'] as num?)?.toDouble(),
-        createdAt: DateTime.parse(map['created_at'] as String),
-      );
+    id: map['id'] as String,
+    userId: map['user_id'] as String,
+    checkinTime: _readDate(map['checkin_time']),
+    checkoutTime: _readDate(map['checkout_time']),
+    checkinLat: (map['checkin_lat'] as num?)?.toDouble(),
+    checkinLng: (map['checkin_lng'] as num?)?.toDouble(),
+    checkoutLat: (map['latitude'] as num?)?.toDouble(),
+    checkoutLng: (map['longitude'] as num?)?.toDouble(),
+    createdAt: DateTime.parse(map['created_at'] as String),
+  );
 }
 
 DateTime? _readDate(Object? v) {

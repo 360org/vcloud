@@ -1,285 +1,547 @@
 import 'dart:async';
+import 'dart:typed_data';
 
-import 'package:supabase_flutter/supabase_flutter.dart';
-
+import '../../../core/api/mobile_attachment_repository.dart';
+import '../../../core/api/odoo_api_client.dart';
 import '../../../core/error/failure.dart';
+import '../../../core/notifications/realtime_constants.dart';
 import '../../../shared/models/conversation.dart';
 import '../../../shared/models/message.dart';
 import '../../../shared/models/profile.dart';
 
-/// Streaming APIs for chat. Internally we fetch a snapshot, then
-/// subscribe to postgres_changes; whenever an insert/update/delete
-/// fires we re-fetch and re-emit.
 class ChatRepository {
-  ChatRepository({SupabaseClient? client})
-      : _client = client ?? Supabase.instance.client;
+  ChatRepository({
+    OdooApiClient? client,
+    MobileAttachmentRepository? attachmentRepository,
+  }) : _client = client ?? odooApiClient,
+       _attachmentRepository =
+           attachmentRepository ??
+           MobileAttachmentRepository(client: client ?? odooApiClient);
 
-  final SupabaseClient _client;
+  final OdooApiClient _client;
+  final MobileAttachmentRepository _attachmentRepository;
 
-  Stream<List<ConversationSummary>> watchConversations() {
+  Stream<List<ConversationSummary>> watchConversations({
+    Set<String> currentIdentityIds = const <String>{},
+  }) {
     final controller = StreamController<List<ConversationSummary>>();
-    final myId = _client.auth.currentUser?.id;
-    if (myId == null) {
-      controller.add(const <ConversationSummary>[]);
-      controller.close();
-      return controller.stream;
-    }
-
-    RealtimeChannel? channel;
+    bool inFlight = false;
+    Timer? timer;
 
     Future<void> refresh() async {
+      if (inFlight || controller.isClosed) return;
+      inFlight = true;
       try {
-        final ids = await _myConversationIds(myId);
-        final list = ids.isEmpty
-            ? const <ConversationSummary>[]
-            : await _fetchSummaries(myId, ids);
+        final res = await _client.get('/api/v1/mobile/chat/channels');
+        final fetchedAt = DateTime.now();
+        final summaries = (res as List)
+            .cast<Map<String, dynamic>>()
+            .map((channel) => _summaryFromChannel(channel, fetchedAt))
+            .toList();
+        final list = await Future.wait(
+          summaries.map(
+            (summary) => _withDirectAvatar(summary, currentIdentityIds),
+          ),
+        );
         if (!controller.isClosed) controller.add(list);
       } catch (e) {
         if (!controller.isClosed) {
-          controller.addError(Failure('Refresh failed: $e'));
+          controller.addError(Failure('Không tải được danh sách chat: $e'));
         }
+      } finally {
+        inFlight = false;
       }
     }
 
-    Future<void> sub() async {
-      try {
-        final ids = await _myConversationIds(myId);
-        if (ids.isEmpty) {
-          controller.add(const <ConversationSummary>[]);
-        } else {
-          controller.add(await _fetchSummaries(myId, ids));
-        }
-      } catch (e) {
-        controller.addError(Failure('Chat refresh failed: $e'));
-      }
-
-      channel = _client
-          .channel('conv-list-$myId')
-          .onPostgresChanges(
-            event: PostgresChangeEvent.all,
-            schema: 'public',
-            table: 'conversations',
-            callback: (_) => refresh(),
-          )
-          .onPostgresChanges(
-            event: PostgresChangeEvent.all,
-            schema: 'public',
-            table: 'conversation_members',
-            callback: (_) => refresh(),
-          )
-          .onPostgresChanges(
-            event: PostgresChangeEvent.all,
-            schema: 'public',
-            table: 'messages',
-            callback: (_) => refresh(),
-          )
-          .subscribe();
-    }
-
-    controller.onListen = sub;
-    controller.onCancel = () async {
-      final c = channel;
-      if (c != null) await _client.removeChannel(c);
+    controller.onListen = () {
+      refresh();
+      timer = Timer.periodic(RealtimeIntervals.chatList, (_) => refresh());
+    };
+    controller.onCancel = () {
+      timer?.cancel();
+      timer = null;
     };
     return controller.stream;
   }
 
+  Future<ConversationSummary> _withDirectAvatar(
+    ConversationSummary summary,
+    Set<String> currentIdentityIds,
+  ) async {
+    if (summary.isGroup) return summary;
+    final directAvatar = await _directAvatarFromMessages(
+      summary.id,
+      currentIdentityIds,
+    );
+    if (directAvatar == null) return summary;
+    return _copySummary(summary, avatarUrl: directAvatar);
+  }
+
+  Future<String?> _directAvatarFromMessages(
+    String conversationId,
+    Set<String> currentIdentityIds,
+  ) async {
+    try {
+      final res = await _client.get(
+        '/api/v1/mobile/chat/channels/$conversationId/messages',
+      );
+      if (res is! Map) return null;
+      final messages = res['messages'];
+      if (messages is! List) return null;
+      final currentLabels = currentIdentityIds
+          .map((value) => value.trim().toLowerCase())
+          .where((value) => value.isNotEmpty)
+          .toSet();
+      for (final raw in messages.reversed) {
+        if (raw is! Map) continue;
+        final message = Map<String, dynamic>.from(raw);
+        final authorId = _recordId(
+          message['author_id'] ??
+              message['author_partner_id'] ??
+              message['partner_id'],
+        );
+        final authorName =
+            _stringOrNull(message['author_name']) ??
+            _recordName(message['author_id']);
+        final authorLabels = <String?>{
+          ?authorId,
+          ?authorName,
+        }.map((value) => value!.trim().toLowerCase()).toSet();
+        final isCurrentAuthor =
+            authorLabels.isNotEmpty && authorLabels.any(currentLabels.contains);
+        if (isCurrentAuthor) continue;
+        final avatar = _stringOrNull(message['author_avatar']);
+        if (avatar != null) return avatar;
+      }
+    } catch (_) {
+      // Direct avatar enrichment is best-effort; keep the channel avatar.
+    }
+    return null;
+  }
+
+  ConversationSummary _summaryFromChannel(
+    Map<String, dynamic> channel,
+    DateTime fetchedAt,
+  ) {
+    final summary = ConversationSummary.fromOdooChatChannel(
+      channel,
+      fetchedAt: fetchedAt,
+    );
+    if (summary.avatarUrl != null) return summary;
+    return ConversationSummary(
+      id: summary.id,
+      isGroup: summary.isGroup,
+      title: summary.title,
+      lastMessage: summary.lastMessage,
+      updatedAt: summary.updatedAt,
+      unreadCount: summary.unreadCount,
+      archivedAt: summary.archivedAt,
+      avatarUrl: _client.absoluteUrl(
+        '/api/v1/mobile/avatar/channels/${summary.id}',
+      ),
+      description: summary.description,
+      isEditable: summary.isEditable,
+      memberCount: summary.memberCount,
+      lastSeenMessageId: summary.lastSeenMessageId,
+      lastSeenDt: summary.lastSeenDt,
+    );
+  }
+
+  ConversationSummary _copySummary(
+    ConversationSummary summary, {
+    String? avatarUrl,
+  }) {
+    return ConversationSummary(
+      id: summary.id,
+      isGroup: summary.isGroup,
+      title: summary.title,
+      lastMessage: summary.lastMessage,
+      updatedAt: summary.updatedAt,
+      unreadCount: summary.unreadCount,
+      archivedAt: summary.archivedAt,
+      avatarUrl: avatarUrl ?? summary.avatarUrl,
+      description: summary.description,
+      isEditable: summary.isEditable,
+      memberCount: summary.memberCount,
+      lastSeenMessageId: summary.lastSeenMessageId,
+      lastSeenDt: summary.lastSeenDt,
+    );
+  }
+
   Stream<List<Message>> watchMessages(String conversationId) {
     final controller = StreamController<List<Message>>();
-    RealtimeChannel? channel;
-    String? lastSeen;
+    bool inFlight = false;
+    Timer? timer;
 
     Future<void> refresh() async {
+      if (inFlight || controller.isClosed) return;
+      inFlight = true;
       try {
-        final res = await _client
-            .from('messages')
-            .select('*')
-            .eq('conversation_id', conversationId)
-            .order('created_at', ascending: true);
-        final msgs = (res as List)
-            .cast<Map<String, dynamic>>()
-            .map(Message.fromMap)
-            .toList();
+        final res = await _client.get(
+          '/api/v1/mobile/chat/channels/$conversationId/messages',
+        );
+        final data = Map<String, dynamic>.from(res as Map);
+        final msgs =
+            (data['messages'] as List? ?? const <dynamic>[])
+                .cast<Map<String, dynamic>>()
+                .map(
+                  (message) => Message.fromOdooMessageInfo(
+                    conversationId: conversationId,
+                    map: message,
+                  ),
+                )
+                .toList()
+              ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
         if (!controller.isClosed) controller.add(msgs);
       } catch (e) {
-        if (!controller.isClosed) controller.addError(Failure('Refresh failed: $e'));
+        if (!controller.isClosed) {
+          controller.addError(Failure('Không tải được tin nhắn: $e'));
+        }
+      } finally {
+        inFlight = false;
       }
     }
 
-    controller.onListen = () async {
-      await refresh();
-      channel = _client
-          .channel('msg-$conversationId-$lastSeen')
-          .onPostgresChanges(
-            event: PostgresChangeEvent.insert,
-            schema: 'public',
-            table: 'messages',
-            filter: PostgresChangeFilter(
-              type: PostgresChangeFilterType.eq,
-              column: 'conversation_id',
-              value: conversationId,
-            ),
-            callback: (_) => refresh(),
-          )
-          .subscribe();
+    controller.onListen = () {
+      refresh();
+      timer = Timer.periodic(RealtimeIntervals.chatDetail, (_) => refresh());
     };
-    controller.onCancel = () async {
-      final c = channel;
-      if (c != null) await _client.removeChannel(c);
+    controller.onCancel = () {
+      timer?.cancel();
+      timer = null;
     };
     return controller.stream;
   }
 
   Future<Message> sendMessage(String conversationId, String content) async {
-    final myId = _client.auth.currentUser?.id;
-    if (myId == null) throw Failure('Not signed in');
-    final res = await _client.from('messages').insert({
-      'conversation_id': conversationId,
-      'sender_id': myId,
-      'content': content,
-    }).select().single();
-    return Message.fromMap(res);
+    final res = await _client.post(
+      '/api/v1/mobile/chat/messages',
+      body: <String, dynamic>{
+        'channel_id': int.tryParse(conversationId),
+        'body': content,
+      },
+    );
+    final map = _messageMap(res);
+    return Message.fromOdooMessageInfo(
+      conversationId: conversationId,
+      map: map,
+    );
   }
 
-  /// Looks for an existing 1:1 conversation between the current user and
-  /// [otherUserId] (idempotent via the create_direct_conversation RPC).
+  Future<MobileAttachment> uploadAttachment(
+    String conversationId,
+    MobileAttachmentUpload attachment,
+  ) async {
+    final uploaded = await _attachmentRepository.upload(
+      MobileAttachmentUpload(
+        filename: attachment.filename,
+        bytes: attachment.bytes,
+        mimetype: attachment.mimetype,
+        resModel: 'discuss.channel',
+        resId: int.tryParse(conversationId),
+      ),
+    );
+    await _client.post(
+      '/api/v1/mobile/chat/messages',
+      body: <String, dynamic>{
+        'channel_id': int.tryParse(conversationId),
+        'body': attachment.filename,
+        'attachment_ids': <int>[uploaded.attachmentId],
+      },
+    );
+    return uploaded;
+  }
+
+  Future<String> attachmentDownloadUrl(String attachmentId) async {
+    final id = int.tryParse(attachmentId);
+    if (id == null) {
+      throw Failure('Tệp đính kèm không hợp lệ.');
+    }
+    final attachment = await _attachmentRepository.one(id);
+    final path =
+        attachment.downloadUrl ??
+        attachment.url ??
+        '/web/content/${attachment.attachmentId}?download=1';
+    return _client.absoluteUrl(path);
+  }
+
+  String attachmentContentUrl(String attachmentId, {String? url}) {
+    final path = _previewPath(attachmentId, url);
+    return _client.absoluteUrl(path);
+  }
+
+  String _previewPath(String attachmentId, String? url) {
+    if (url == null || url.trim().isEmpty) {
+      return '/web/content/$attachmentId';
+    }
+    final uri = Uri.tryParse(url.trim());
+    if (uri == null) return url;
+    final params = Map<String, String>.from(uri.queryParameters)
+      ..remove('download');
+    if (uri.hasQuery) {
+      return uri.replace(queryParameters: params.isEmpty ? null : params)
+          .toString();
+    }
+    return url;
+  }
+
+  /// Raw bytes of an attachment, for download/forward.
+  Future<Uint8List> attachmentBytes(String attachmentId) async {
+    final id = int.tryParse(attachmentId);
+    if (id == null) {
+      throw Failure('Tệp đính kèm không hợp lệ.');
+    }
+    return _attachmentRepository.fetchBytes(id);
+  }
+
+  /// Re-sends an existing attachment into another conversation. Downloads the
+  /// bytes once, then re-uploads + sends via [uploadAttachment], which posts
+  /// the message with `attachment_ids` — no duplicate send logic.
+  Future<void> forwardAttachment(
+    String targetConversationId,
+    String attachmentId,
+  ) async {
+    final id = int.tryParse(attachmentId);
+    if (id == null) {
+      throw Failure('Tệp đính kèm không hợp lệ.');
+    }
+    final bytes = await _attachmentRepository.fetchBytes(id);
+    final meta = await _attachmentRepository.one(id);
+    await uploadAttachment(
+      targetConversationId,
+      MobileAttachmentUpload(
+        filename: meta.name,
+        bytes: bytes,
+        mimetype: meta.mimetype,
+      ),
+    );
+  }
+
+  Future<void> markAsRead(String conversationId) async {
+    await _client.post(
+      '/api/v1/mobile/chat/channels/$conversationId/mark-read',
+    );
+  }
+
+  Future<void> pinMessage(String conversationId, String messageId) async {
+    await _client.post(
+      '/api/v1/mobile/chat/messages/$messageId/pin',
+      body: <String, dynamic>{'channel_id': int.tryParse(conversationId)},
+    );
+  }
+
+  Future<void> unpinMessage(String conversationId, String messageId) async {
+    await _client.post(
+      '/api/v1/mobile/chat/messages/$messageId/unpin',
+      body: <String, dynamic>{'channel_id': int.tryParse(conversationId)},
+    );
+  }
+
+  Map<String, dynamic> _messageMap(Object? res) {
+    if (res is! Map) {
+      throw Failure('Phản hồi gửi tin nhắn không hợp lệ.');
+    }
+    final map = Map<String, dynamic>.from(res);
+    final nested = map['message'] ?? map['data'] ?? map['result'];
+    if (nested is Map) return Map<String, dynamic>.from(nested);
+    return map;
+  }
+
   Future<String> openDirect(String otherUserId) async {
-    final res = await _client.rpc('create_direct_conversation',
-        params: {'other_id': otherUserId});
-    return res.toString();
+    final res = await _client.post(
+      '/api/v1/mobile/chat/direct',
+      body: <String, dynamic>{'user_id': int.tryParse(otherUserId)},
+    );
+    return _channelId(res);
   }
 
   Future<String> createGroup(String name, List<String> memberIds) async {
-    final me = _client.auth.currentUser?.id;
-    if (me == null) throw Failure('Not signed in');
-
-    final conv = await _client.from('conversations').insert({
-      'created_by': me,
-      'is_group': true,
-      'name': name,
-    }).select('id').single();
-    final id = conv['id'] as String;
-
-    final rows = <Map<String, dynamic>>[
-      {'conversation_id': id, 'user_id': me},
-      for (final m in memberIds.where((m) => m != me))
-        {'conversation_id': id, 'user_id': m},
-    ];
-    await _client.from('conversation_members').insert(rows);
-    return id;
+    final res = await _client.post(
+      '/api/v1/mobile/chat/groups',
+      body: <String, dynamic>{
+        'name': name,
+        'member_ids': memberIds.map(int.tryParse).whereType<int>().toList(),
+      },
+    );
+    return _channelId(res);
   }
 
   Future<List<Profile>> allUsers() async {
-    final me = _client.auth.currentUser?.id;
-    final res = await _client.from('profiles').select('*').order('display_name');
-    return (res as List)
-        .cast<Map<String, dynamic>>()
-        .map((m) => Profile(
-              id: m['id'] as String,
-              email: m['email'] as String,
-              displayName: m['display_name'] as String,
-              avatarUrl: m['avatar_url'] as String?,
-            ))
-        .where((p) => p.id != me)
-        .toList();
+    final res = await _client.get(
+      '/api/v1/res.users',
+      query: const <String, Object?>{'fields': 'id,login,name'},
+    );
+    return (res as List).cast<Map<String, dynamic>>().map((m) {
+      final login = (m['login'] ?? '').toString();
+      return Profile(
+        id: m['id'].toString(),
+        email: login,
+        displayName: (m['name'] ?? login).toString(),
+        avatarUrl: _client.absoluteUrl(
+          '/api/v1/mobile/avatar/users/${m['id']}',
+        ),
+      );
+    }).toList();
   }
 
   Future<Conversation> conversationDetails(String id) async {
-    final conv = await _client
-        .from('conversations')
-        .select('*')
-        .eq('id', id)
-        .single();
-    final members = await _client
-        .from('conversation_members')
-        .select('joined_at, profiles(*)')
-        .eq('conversation_id', id);
-    final rows = (members as List).cast<Map<String, dynamic>>();
-    final merged = [
-      <String, dynamic>{
-        ...Map<String, dynamic>.from(conv),
-        'joined_at': rows.isNotEmpty
-            ? rows.first['joined_at']
-            : DateTime.now().toIso8601String(),
-        'profiles': {
-          'id': conv['created_by'],
-        },
+    final res = await _client.get(
+      '/api/v1/discuss.channel/$id',
+      query: const <String, Object?>{
+        'fields':
+            'id,name,channel_type,create_uid,create_date,channel_member_ids',
       },
-      ...rows,
-    ];
-    return Conversation.fromMaps(merged);
+    );
+    final map = Map<String, dynamic>.from(res as Map);
+    final createdAt = _dateTimeOrNow(map['create_date']);
+    return Conversation(
+      id: map['id'].toString(),
+      isGroup: map['channel_type'] != 'chat',
+      name: map['name'] as String?,
+      createdBy: map['create_uid']?.toString() ?? '',
+      createdAt: createdAt,
+      members: _conversationMembers(map, createdAt),
+    );
   }
 
-  // ---------------------------------------------------------------------------
+  Future<void> archiveConversation(String conversationId) async {
+    await _client.post('/api/v1/mobile/chat/channels/$conversationId/archive');
+  }
 
-  Future<List<String>> _myConversationIds(String userId) async {
-    final res = await _client
-        .from('conversation_members')
-        .select('conversation_id')
-        .eq('user_id', userId);
-    return (res as List)
-        .cast<Map<String, dynamic>>()
-        .map((r) => r['conversation_id'] as String)
+  Future<void> unarchiveConversation(String conversationId) async {
+    await _client.post(
+      '/api/v1/mobile/chat/channels/$conversationId/unarchive',
+    );
+  }
+
+  Future<void> sendContact(String conversationId, int partnerId) async {
+    await _client.post(
+      '/api/v1/mobile/chat/channels/$conversationId/contact',
+      body: <String, dynamic>{'partner_id': partnerId},
+    );
+  }
+
+  String _channelId(Object? res) {
+    if (res is! Map) {
+      throw Failure('Phản hồi tạo chat không hợp lệ.');
+    }
+    final map = Map<String, dynamic>.from(res);
+    final nested = map['channel'] ?? map['data'] ?? map['result'];
+    if (nested is Map) return _channelId(nested);
+    final id = map['id'] ?? map['channel_id'];
+    if (id == null) {
+      throw Failure('Phản hồi tạo chat thiếu channel id.');
+    }
+    return id.toString();
+  }
+
+  DateTime _dateTimeOrNow(Object? value) {
+    if (value == null) return DateTime.now();
+    return DateTime.tryParse(value.toString()) ?? DateTime.now();
+  }
+
+  List<ConversationMember> _conversationMembers(
+    Map<String, dynamic> map,
+    DateTime fallbackJoinedAt,
+  ) {
+    final rawMembers =
+        map['members'] ??
+        map['channel_member_ids'] ??
+        map['member_ids'] ??
+        map['partner_ids'];
+    if (rawMembers is! List) return const <ConversationMember>[];
+
+    return rawMembers
+        .map((member) => _conversationMember(member, fallbackJoinedAt))
+        .whereType<ConversationMember>()
         .toList();
   }
 
-  Future<List<ConversationSummary>> _fetchSummaries(
-      String myId, List<String> ids) async {
-    final convsRes = await _client
-        .from('conversations')
-        .select('*')
-        .inFilter('id', ids)
-        .order('created_at', ascending: false);
-    final convList = (convsRes as List).cast<Map<String, dynamic>>();
-
-    final membersRes = await _client
-        .from('conversation_members')
-        .select('conversation_id, profiles(*)')
-        .inFilter('conversation_id', ids);
-    final memberRows = (membersRes as List).cast<Map<String, dynamic>>();
-
-    final summaries = <ConversationSummary>[];
-    for (final c in convList) {
-      final ci = c['id'] as String;
-      final itsMembers =
-          memberRows.where((m) => m['conversation_id'] == ci).toList();
-      final lastMsgs = await _client
-          .from('messages')
-          .select('*')
-          .eq('conversation_id', ci)
-          .order('created_at', ascending: false)
-          .limit(1);
-      final Message? last = lastMsgs.isEmpty
-          ? null
-          : Message.fromMap(
-              (lastMsgs.first as Map).cast<String, dynamic>());
-
-      final isGroup = c['is_group'] as bool;
-      String title;
-      if (isGroup) {
-        title = (c['name'] as String?) ?? 'Group';
-      } else {
-        final other = itsMembers.firstWhere(
-          (m) => (m['profiles']?['id'] as String?) != myId,
-          orElse: () => <String, dynamic>{
-            'profiles': {'id': myId, 'email': '', 'display_name': 'You'},
-          },
-        );
-        title = (other['profiles']?['display_name'] as String?)?.isNotEmpty == true
-            ? other['profiles']['display_name'] as String
-            : (other['profiles']?['email'] as String? ?? 'You');
-      }
-
-      summaries.add(ConversationSummary(
-        id: ci,
-        isGroup: isGroup,
-        title: title,
-        lastMessage: last,
-        updatedAt: last?.createdAt ??
-            DateTime.parse(c['created_at'] as String),
-      ));
+  ConversationMember? _conversationMember(
+    Object? rawMember,
+    DateTime fallbackJoinedAt,
+  ) {
+    if (rawMember is List) {
+      final id = _recordId(rawMember);
+      if (id == null) return null;
+      final name = _recordName(rawMember) ?? '';
+      return ConversationMember(
+        profile: Profile(
+          id: id,
+          email: '',
+          displayName: name,
+          avatarUrl: _client.absoluteUrl('/api/v1/mobile/avatar/partners/$id'),
+        ),
+        joinedAt: fallbackJoinedAt,
+      );
     }
-    summaries.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-    return summaries;
+    if (rawMember is! Map) return null;
+
+    final member = Map<String, dynamic>.from(rawMember);
+    final profileSource =
+        member['partner_id'] ??
+        member['partner'] ??
+        member['user_id'] ??
+        member['user'] ??
+        member['profile'];
+    final id =
+        _recordId(profileSource) ??
+        _stringOrNull(member['partner_id']) ??
+        _stringOrNull(member['user_id']) ??
+        _stringOrNull(member['id']);
+    if (id == null) return null;
+
+    final name =
+        _stringOrNull(member['display_name']) ??
+        _stringOrNull(member['name']) ??
+        _recordName(profileSource) ??
+        _stringOrNull(member['email']) ??
+        _stringOrNull(member['login']) ??
+        '';
+    final avatar =
+        _stringOrNull(
+          member['avatar_url'] ??
+              member['avatar_128_url'] ??
+              member['image_128_url'] ??
+              member['avatar_128'] ??
+              member['image_128'] ??
+              member['image'],
+        ) ??
+        _client.absoluteUrl('/api/v1/mobile/avatar/partners/$id');
+
+    return ConversationMember(
+      profile: Profile(
+        id: id,
+        email:
+            _stringOrNull(member['email']) ??
+            _stringOrNull(member['login']) ??
+            '',
+        displayName: name,
+        avatarUrl: avatar,
+      ),
+      joinedAt: _dateTimeOrNow(member['create_date'] ?? member['joined_at']),
+    );
+  }
+
+  String? _recordId(Object? value) {
+    if (value == null || value == false) return null;
+    if (value is List && value.isNotEmpty) return value.first.toString();
+    if (value is Map && value['id'] != null) return value['id'].toString();
+    final text = value.toString();
+    return text.isEmpty ? null : text;
+  }
+
+  String? _recordName(Object? value) {
+    if (value is List && value.length > 1) return _stringOrNull(value[1]);
+    if (value is Map) {
+      return _stringOrNull(value['name'] ?? value['display_name']);
+    }
+    return null;
+  }
+
+  String? _stringOrNull(Object? value) {
+    if (value == null || value == false) return null;
+    final text = value.toString();
+    return text.isEmpty ? null : text;
   }
 }

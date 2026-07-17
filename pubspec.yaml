@@ -19,11 +19,13 @@ dependencies:
   go_router: ^14.2.0
 
   # Backend
-  supabase_flutter: ^2.5.6
+  http: ^1.2.2
+  web: ^1.1.1
 
   # Device / native
   geolocator: ^11.0.0
   flutter_secure_storage: ^9.2.2
+  file_picker: ^10.3.9
 
   # Utilities
   intl: ^0.19.0
@@ -32,7 +34,11 @@ dependencies:
 
   # UI / motion
   flutter_animate: ^4.5.0   # declarative entrance + micro animations
-  lucide_icons: ^0.257.0    # modern line icon set
+  lucide_flutter: ^1.20.0    # modern line icon set
+  image_picker: ^1.2.2
+  firebase_core: ^4.11.0
+  firebase_messaging: ^16.4.1
+  package_info_plus: ^9.0.1
 
 dev_dependencies:
   flutter_test:
@@ -43,3 +49,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/branding/

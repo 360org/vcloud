@@ -1,172 +1,698 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_flutter/lucide_flutter.dart';
 
+import '../../../core/error/failure.dart';
+import '../../../core/notifications/push_notification_controller.dart';
+import '../../../core/notifications/push_notification_repository.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/date_format.dart';
+import '../../../shared/models/task.dart';
+import '../../../shared/models/timesheet.dart';
 import '../../../shared/widgets/app_scaffold.dart';
 import '../../../shared/widgets/ui_kit.dart';
 import '../../attendance/application/attendance_controller.dart';
 import '../../auth/application/auth_controller.dart';
-import '../../ticket/application/ticket_controller.dart';
-import '../../../shared/models/ticket.dart';
+import '../../chat/application/conversations_controller.dart';
+import '../../timesheet/application/task_controller.dart';
+import '../../timesheet/application/timesheet_controller.dart';
+import '../../timesheet/presentation/widgets/checklist_editor.dart';
 import '../application/home_summary_controller.dart';
 
-/// Mockup 01 — Home dashboard (premium refresh): greeting, gradient
-/// check-in card, animated stat tiles, today's tasks.
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  bool _statusBusy = false;
+
+  Future<void> _toggleAttendance(bool isOnline) async {
+    if (_statusBusy) return;
+    setState(() => _statusBusy = true);
+    try {
+      final actions = ref.read(attendanceActionsProvider);
+      if (isOnline) {
+        await actions.checkOut();
+      } else {
+        await actions.checkIn();
+      }
+      ref.invalidate(homeSummaryProvider);
+      ref.invalidate(attendanceTodayProvider);
+      ref.invalidate(openSessionProvider);
+      ref.invalidate(mobileDashboardSummaryProvider);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(describeError(e))));
+      }
+    } finally {
+      if (mounted) setState(() => _statusBusy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final summary = ref.watch(homeSummaryProvider);
-    final user = ref.watch(authControllerProvider).value;
+    final todayState = ref.watch(attendanceTodayProvider);
+    final dashboard = ref.watch(mobileDashboardSummaryProvider).valueOrNull;
+    final notificationState = ref.watch(mobileNotificationsProvider);
+    final notificationCount = notificationState.valueOrNull?.total ?? 0;
+    final user = ref.watch(authControllerProvider).valueOrNull;
     final meta = user?.userMetadata;
     final name = (meta?['display_name'] as String?)?.trim();
-    final displayName = (name != null && name.isNotEmpty)
-        ? name
+    final avatarUrl = meta?['avatar_url'] as String?;
+    final displayName = name?.isNotEmpty == true
+        ? name!
         : (user?.email?.split('@').first ?? 'Người dùng');
-    final openTickets = ref
-        .watch(effectiveTicketsProvider)
-        .where((t) => t.status.isOpen)
-        .take(3)
-        .toList();
-
-    final blocks = <Widget>[
-      _Greeting(name: displayName),
-      const SizedBox(height: 18),
-      const _CheckInCard(),
-      const SizedBox(height: 18),
-      Row(
-        children: [
-          Expanded(
-            child: _StatTile(
-              icon: LucideIcons.messageCircle,
-              color: AppColors.chat,
-              label: 'CHAT',
-              value: (summary?.recentConversationCount ?? 0).toDouble(),
-              sub: 'tin nhắn mới',
-              onTap: () => context.go('/chat'),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: _StatTile(
-              icon: LucideIcons.clock,
-              color: AppColors.timesheet,
-              label: 'TIMESHEET',
-              value: (summary?.todayMinutes ?? 0) / 60.0,
-              decimals: 1,
-              sub: 'giờ hôm nay',
-              onTap: () => context.go('/timesheet'),
-            ),
-          ),
-        ],
-      ),
-      const SizedBox(height: 12),
-      Row(
-        children: [
-          Expanded(
-            child: _StatTile(
-              icon: LucideIcons.ticket,
-              color: AppColors.ticket,
-              label: 'TICKET',
-              value: (summary?.openTickets ?? 0).toDouble(),
-              sub: 'việc cần xử lý',
-              onTap: () => context.go('/tickets'),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: _StatTile(
-              icon: LucideIcons.calendar,
-              color: AppColors.calendar,
-              label: 'LỊCH',
-              value: 0,
-              sub: 'cuộc họp hôm nay',
-              onTap: () {},
-            ),
-          ),
-        ],
-      ),
-      const SizedBox(height: 22),
-      _TodayTasks(tickets: openTickets),
-    ];
+    final todayTasks = ref
+        .watch(todayTasksProvider)
+        .maybeWhen(
+          data: (tasks) => tasks
+              .where((task) => !task.isCompleted)
+              .take(3)
+              .map(_todayTaskPreviewFromTask)
+              .toList(),
+          orElse: () => const <_TodayTaskPreview>[],
+        );
+    // Attendance is the source of truth immediately after a toggle. The
+    // dashboard is a separate cached snapshot and may be one request behind.
+    final isOnline = summary?.isCheckedIn ?? dashboard?.isCheckedIn ?? false;
+    final todayMinutes = dashboard?.todayMinutes ?? summary?.todayMinutes ?? 0;
+    final openTickets = dashboard?.openTickets ?? summary?.openTickets ?? 0;
+    final unreadMessages =
+        dashboard?.unreadMessageCount ?? summary?.unreadMessageCount ?? 0;
+    final chatCount =
+        dashboard?.recentConversationCount ??
+        summary?.recentConversationCount ??
+        0;
+    final statusBusy = _statusBusy || todayState.isLoading;
 
     return AppScaffold(
       title: 'Home',
       showAppBar: false,
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          ref.invalidate(homeSummaryProvider);
+          ref.invalidate(mobileDashboardSummaryProvider);
+          ref.invalidate(attendanceTodayProvider);
+          ref.invalidate(todayTasksProvider);
+          ref.invalidate(openSessionProvider);
+          ref.invalidate(conversationsProvider);
+          ref.invalidate(mobileNotificationsProvider);
+        },
+        color: AppColors.primary,
+        backgroundColor: AppColors.surface,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          children: [
+            _GreetingHeader(
+              userId: user?.id ?? '',
+              displayName: displayName,
+              email: user?.email,
+              avatarUrl: avatarUrl,
+              isOnline: isOnline,
+              statusBusy: statusBusy,
+              onStatusTap: () => _toggleAttendance(isOnline),
+              todayMinutes: todayMinutes,
+              notificationCount: notificationCount,
+              notificationsLoading: notificationState.isLoading,
+              onNotificationsTap: () => _openNotifications(context),
+            ),
+            const SizedBox(height: 18),
+            _QuickNavGrid(
+              ticketCount: openTickets,
+              unreadCount: unreadMessages,
+              chatCount: chatCount,
+              taskCount: todayTasks.length,
+            ),
+            const SizedBox(height: 20),
+            _TodayWork(tasks: todayTasks),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openNotifications(BuildContext context) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const _NotificationSheet(),
+    );
+  }
+}
+
+class _GreetingHeader extends StatelessWidget {
+  const _GreetingHeader({
+    required this.userId,
+    required this.displayName,
+    required this.email,
+    required this.avatarUrl,
+    required this.isOnline,
+    required this.statusBusy,
+    required this.onStatusTap,
+    required this.todayMinutes,
+    required this.notificationCount,
+    required this.notificationsLoading,
+    required this.onNotificationsTap,
+  });
+
+  final String userId;
+  final String displayName;
+  final String? email;
+  final String? avatarUrl;
+  final bool isOnline;
+  final bool statusBusy;
+  final VoidCallback onStatusTap;
+  final int todayMinutes;
+  final int notificationCount;
+  final bool notificationsLoading;
+  final VoidCallback onNotificationsTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final today = _vietnameseDateTime(DateTime.now());
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppColors.border),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A0F172A),
+            blurRadius: 24,
+            offset: Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (var i = 0; i < blocks.length; i++)
-            blocks[i]
-                .animate()
-                .fadeIn(duration: 380.ms, delay: (i * 60).ms)
-                .slideY(begin: 0.10, end: 0, curve: Curves.easeOutCubic),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              UserAvatar(
+                userId: userId,
+                displayName: displayName,
+                email: email,
+                avatarUrl: avatarUrl,
+                size: 48,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Xin chào, $displayName',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 19,
+                        fontWeight: FontWeight.w800,
+                        height: 1.12,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      today,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.textSecondary,
+                        height: 1.25,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              _PresenceIndicator(isOnline: isOnline),
+              const SizedBox(width: 10),
+              PressableScale(
+                onTap: onNotificationsTap,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: AppColors.soft(AppColors.primary),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: notificationsLoading
+                          ? const Center(
+                              child: SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            )
+                          : const Icon(
+                              LucideIcons.bell,
+                              color: AppColors.primary,
+                              size: 20,
+                            ),
+                    ),
+                    if (notificationCount > 0)
+                      Positioned(
+                        top: -5,
+                        right: -6,
+                        child: UnreadBadge(
+                          count: notificationCount,
+                          compact: true,
+                          gradient: AppColors.featureGrad(
+                            AppColors.danger,
+                            AppColors.dangerDeep,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              _CheckInStatusButton(
+                isOnline: isOnline,
+                busy: statusBusy,
+                onTap: onStatusTap,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Hôm nay: ${_durationVi(Duration(minutes: todayMinutes))}',
+                  textAlign: TextAlign.end,
+                  style: AppTextStyles.bodyMedium.copyWith(
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
 }
 
-class _Greeting extends StatelessWidget {
-  const _Greeting({required this.name});
-  final String name;
+class _NotificationSheet extends ConsumerWidget {
+  const _NotificationSheet();
 
   @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            boxShadow: AppColors.glow(AppColors.primary, opacity: 0.25),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final notifications = ref.watch(mobileNotificationsProvider);
+    final list = notifications.valueOrNull;
+    final items = (list?.items ?? const <MobileNotificationItem>[]).toList()
+      ..sort((a, b) {
+        final aTime = a.timestamp ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final bTime = b.timestamp ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return bTime.compareTo(aTime);
+      });
+    final totalCount = list?.total ?? items.length;
+
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * 0.82,
           ),
-          child: UserAvatar(
-              userId: currentUserId(), displayName: name, size: 46),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x260F172A),
+                blurRadius: 28,
+                offset: Offset(0, 12),
+              ),
+            ],
+          ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('Xin chào,',
-                  style:
-                      TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-              Text(name,
-                  style: const TextStyle(
-                      fontSize: 19, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 10),
+              Container(
+                width: 44,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: AppColors.border,
+                  borderRadius: BorderRadius.circular(99),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 16, 12, 8),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: AppColors.soft(AppColors.primary),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(
+                        LucideIcons.bell,
+                        color: AppColors.primary,
+                        size: 21,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Thông báo',
+                            style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            totalCount == 0
+                                ? 'Không có mục mới cần chú ý.'
+                                : '$totalCount mục cần chú ý',
+                            style: AppTextStyles.caption.copyWith(
+                              color: AppColors.textSecondary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Làm mới',
+                      onPressed: () =>
+                          ref.invalidate(mobileNotificationsProvider),
+                      icon: const Icon(LucideIcons.refreshCw, size: 19),
+                    ),
+                  ],
+                ),
+              ),
+              if (notifications.isLoading)
+                const LinearProgressIndicator(
+                  minHeight: 2,
+                  color: AppColors.primary,
+                  backgroundColor: AppColors.border,
+                )
+              else
+                const SizedBox(height: 2),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 18),
+                  children: [
+                    for (final notification in items)
+                      _NotificationItemTile(item: notification),
+                    if (items.isEmpty && !notifications.isLoading)
+                      const _NotificationEmptyState(),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
-        Stack(
-          clipBehavior: Clip.none,
+      ),
+    );
+  }
+}
+
+class _NotificationItemTile extends StatelessWidget {
+  const _NotificationItemTile({required this.item});
+
+  final MobileNotificationItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final decoration = _notificationDecoration(item.eventType);
+    final route = _notificationRoute(item.data);
+    return _NotificationTile(
+      icon: decoration.icon,
+      accent: decoration.accent,
+      title: item.title,
+      subtitle: item.body,
+      time: item.timestamp == null
+          ? ''
+          : Dates.chatListLabelVi(item.timestamp!),
+      onTap: () {
+        Navigator.of(context).pop();
+        if (route != null) context.go(route);
+      },
+    );
+  }
+}
+
+/// Maps a notification's `event_type` to an icon + accent so the unified
+/// feed still reads like the old groupings (chat / ticket / timesheet),
+/// with a neutral bell fallback for anything the backend adds next.
+({IconData icon, Color accent}) _notificationDecoration(String eventType) {
+  final type = eventType.toLowerCase();
+  if (type.contains('ticket')) {
+    return (icon: LucideIcons.ticket, accent: AppColors.ticket);
+  }
+  if (type.contains('message') ||
+      type.contains('chat') ||
+      type.contains('conversation') ||
+      type.contains('channel')) {
+    return (icon: LucideIcons.messageCircle, accent: AppColors.chat);
+  }
+  if (type.contains('task') || type.contains('timesheet')) {
+    return (icon: LucideIcons.listTodo, accent: AppColors.timesheet);
+  }
+  return (icon: LucideIcons.bell, accent: AppColors.primary);
+}
+
+/// Resolves a deep-link from the notification `data` payload — we support
+/// the ticket and chat targets the backend emits today, and return null
+/// for anything else so the tap just dismisses the sheet.
+String? _notificationRoute(Map<String, dynamic> data) {
+  final ticketId = data['ticket_id'];
+  if (ticketId != null && ticketId.toString().isNotEmpty) {
+    return '/tickets/$ticketId';
+  }
+  final conversationId = data['conversation_id'] ?? data['channel_id'];
+  if (conversationId != null && conversationId.toString().isNotEmpty) {
+    return '/chat/$conversationId';
+  }
+  return null;
+}
+
+class _NotificationTile extends StatelessWidget {
+  const _NotificationTile({
+    required this.icon,
+    required this.accent,
+    required this.title,
+    required this.subtitle,
+    required this.time,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color accent;
+  final String title;
+  final String subtitle;
+  final String time;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return PressableScale(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.soft(accent).withValues(alpha: 0.45),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: accent.withValues(alpha: 0.12)),
+        ),
+        child: Row(
           children: [
             Container(
-              width: 42,
-              height: 42,
+              width: 38,
+              height: 38,
               decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(13),
-                border: Border.all(color: AppColors.border),
+                color: AppColors.soft(accent),
+                borderRadius: BorderRadius.circular(14),
               ),
-              child: const Icon(LucideIcons.bell,
-                  size: 20, color: AppColors.textPrimary),
+              child: Icon(icon, color: accent, size: 19),
             ),
-            Positioned(
-              right: 9,
-              top: 9,
-              child: Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: AppColors.danger,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.surface, width: 1.5),
-                ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.textSecondary,
+                      height: 1.25,
+                    ),
+                  ),
+                ],
               ),
+            ),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  time,
+                  style: AppTextStyles.caption.copyWith(
+                    color: AppColors.textMuted,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NotificationEmptyState extends StatelessWidget {
+  const _NotificationEmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 28),
+      child: Column(
+        children: [
+          Container(
+            width: 54,
+            height: 54,
+            decoration: BoxDecoration(
+              color: AppColors.soft(AppColors.success),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: const Icon(
+              LucideIcons.checkCheck,
+              color: AppColors.success,
+              size: 25,
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Bạn đã xử lý hết thông báo.',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Khi có thông báo mới, chúng sẽ xuất hiện tại đây.',
+            textAlign: TextAlign.center,
+            style: AppTextStyles.caption.copyWith(
+              color: AppColors.textSecondary,
+              height: 1.35,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QuickNavGrid extends StatelessWidget {
+  const _QuickNavGrid({
+    required this.ticketCount,
+    required this.unreadCount,
+    required this.chatCount,
+    required this.taskCount,
+  });
+
+  final int ticketCount;
+  final int unreadCount;
+  final int chatCount;
+  final int taskCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        SectionHeader(
+          title: 'Tổng quan hôm nay',
+          trailing: 'Tạo ticket',
+          onTrailingTap: () => context.go('/tickets/new'),
+        ),
+        const SizedBox(height: 10),
+        GridView.count(
+          crossAxisCount: 2,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 1.18,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          children: [
+            _MetricPill(
+              icon: LucideIcons.ticket,
+              label: 'Ticket',
+              value: ticketCount.toString(),
+              caption: 'Cần xử lý',
+              gradient: AppColors.ticketGrad,
+              onTap: () => context.go('/tickets'),
+            ),
+            _MetricPill(
+              icon: LucideIcons.mailOpen,
+              label: 'Chưa đọc',
+              value: unreadCount.toString(),
+              caption: 'Tin nhắn mới',
+              gradient: AppColors.chatGrad,
+              onTap: () => context.go('/chat'),
+            ),
+            _MetricPill(
+              icon: LucideIcons.messagesSquare,
+              label: 'Kênh chat',
+              value: chatCount.toString(),
+              caption: 'Cuộc trò chuyện',
+              gradient: AppColors.brandWide,
+              onTap: () => context.go('/chat'),
+            ),
+            _MetricPill(
+              icon: LucideIcons.listTodo,
+              label: 'Công việc hôm nay',
+              value: taskCount.toString(),
+              caption: 'Đang mở',
+              gradient: AppColors.timesheetGrad,
+              onTap: () => context.go('/timesheet'),
             ),
           ],
         ),
@@ -175,163 +701,21 @@ class _Greeting extends StatelessWidget {
   }
 }
 
-/// Location + check-in / check-out actions.
-class _CheckInCard extends ConsumerStatefulWidget {
-  const _CheckInCard();
-  @override
-  ConsumerState<_CheckInCard> createState() => _CheckInCardState();
-}
-
-class _CheckInCardState extends ConsumerState<_CheckInCard> {
-  bool _busy = false;
-
-  Future<void> _run(Future<void> Function() action) async {
-    setState(() => _busy = true);
-    try {
-      await action();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString().replaceFirst('Failure: ', ''))),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final actions = ref.read(attendanceActionsProvider);
-    final isCheckedIn = ref.watch(openSessionProvider) != null;
-
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: cardDecoration(),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  gradient: AppColors.brand,
-                  borderRadius: BorderRadius.circular(13),
-                  boxShadow: AppColors.glow(AppColors.primary, opacity: 0.3),
-                ),
-                child: const Icon(LucideIcons.building2,
-                    color: Colors.white, size: 22),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      isCheckedIn
-                          ? 'Bạn đang Check-in tại'
-                          : 'Chưa check-in hôm nay',
-                      style: const TextStyle(
-                          color: AppColors.textSecondary, fontSize: 13),
-                    ),
-                    const SizedBox(height: 2),
-                    const Text('360 CORP HCM',
-                        style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w800)),
-                  ],
-                ),
-              ),
-              if (isCheckedIn)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: AppColors.soft(AppColors.success),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 7,
-                        height: 7,
-                        decoration: const BoxDecoration(
-                            color: AppColors.success, shape: BoxShape.circle),
-                      ),
-                      const SizedBox(width: 5),
-                      const Text('Đang làm',
-                          style: TextStyle(
-                              color: AppColors.success,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700)),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          GradientButton(
-            label: 'CHECK-IN',
-            icon: LucideIcons.mapPin,
-            gradient: AppColors.successGrad,
-            glowColor: AppColors.success,
-            loading: _busy,
-            onPressed: isCheckedIn ? null : () => _run(actions.checkIn),
-          ),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8),
-            child: Text('Hoặc',
-                style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
-          ),
-          PressableScale(
-            onTap: _busy || !isCheckedIn ? null : () => _run(actions.checkOut),
-            child: Opacity(
-              opacity: isCheckedIn ? 1 : 0.5,
-              child: Container(
-                height: 52,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.danger, width: 1.4),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(LucideIcons.logOut, color: AppColors.danger, size: 20),
-                    SizedBox(width: 8),
-                    Text('CHECK-OUT',
-                        style: TextStyle(
-                            color: AppColors.danger,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.3)),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatTile extends StatelessWidget {
-  const _StatTile({
+class _MetricPill extends StatelessWidget {
+  const _MetricPill({
     required this.icon,
-    required this.color,
     required this.label,
     required this.value,
-    required this.sub,
+    required this.caption,
+    required this.gradient,
     required this.onTap,
-    this.decimals = 0,
   });
+
   final IconData icon;
-  final Color color;
   final String label;
-  final double value;
-  final int decimals;
-  final String sub;
+  final String value;
+  final String caption;
+  final Gradient gradient;
   final VoidCallback onTap;
 
   @override
@@ -339,43 +723,88 @@ class _StatTile extends StatelessWidget {
     return PressableScale(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(15),
-        decoration: cardDecoration(),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          gradient: gradient,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x1A0F172A),
+              blurRadius: 22,
+              offset: Offset(0, 12),
+            ),
+          ],
+        ),
+        child: Stack(
           children: [
-            Row(
+            Positioned(
+              right: -18,
+              bottom: -22,
+              child: Icon(
+                icon,
+                color: Colors.white.withValues(alpha: 0.12),
+                size: 92,
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    gradient: AppColors.accent(color),
-                    borderRadius: BorderRadius.circular(10),
-                    boxShadow: AppColors.glow(color, opacity: 0.28),
-                  ),
-                  child: Icon(icon, color: Colors.white, size: 18),
+                Row(
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.2),
+                        ),
+                      ),
+                      child: Icon(icon, color: Colors.white, size: 20),
+                    ),
+                    const Spacer(),
+                    const Icon(
+                      LucideIcons.chevronRight,
+                      color: Colors.white70,
+                      size: 18,
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                Text(label,
-                    style: TextStyle(
-                        color: color,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.3)),
+                const Spacer(),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 26,
+                    fontWeight: FontWeight.w900,
+                    height: 1,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  caption,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.78),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ],
             ),
-            const SizedBox(height: 12),
-            AnimatedCount(
-              value: value,
-              decimals: decimals,
-              style: const TextStyle(
-                  fontSize: 27, fontWeight: FontWeight.w800, height: 1),
-            ),
-            const SizedBox(height: 3),
-            Text(sub,
-                style: const TextStyle(
-                    color: AppColors.textSecondary, fontSize: 12)),
           ],
         ),
       ),
@@ -383,79 +812,440 @@ class _StatTile extends StatelessWidget {
   }
 }
 
-class _TodayTasks extends StatelessWidget {
-  const _TodayTasks({required this.tickets});
-  final List<Ticket> tickets;
+class _CheckInStatusButton extends StatelessWidget {
+  const _CheckInStatusButton({
+    required this.isOnline,
+    required this.busy,
+    required this.onTap,
+  });
 
-  Color _dot(TicketStatus s) => switch (s) {
-        TicketStatus.todo => AppColors.ticket,
-        TicketStatus.doing => AppColors.primary,
-        TicketStatus.done => AppColors.success,
-      };
-
-  String _statusVi(TicketStatus s) => switch (s) {
-        TicketStatus.todo => 'Cần làm',
-        TicketStatus.doing => 'Đang làm',
-        TicketStatus.done => 'Hoàn thành',
-      };
+  final bool isOnline;
+  final bool busy;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: cardDecoration(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Công việc hôm nay',
-                  style:
-                      TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
-              GestureDetector(
-                onTap: () => context.go('/tickets'),
-                child: const Text('Xem tất cả',
-                    style: TextStyle(
-                        color: AppColors.primary,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600)),
+    final color = busy
+        ? AppColors.warning
+        : isOnline
+        ? AppColors.danger
+        : AppColors.success;
+    return PressableScale(
+      onTap: busy ? null : onTap,
+      child: Container(
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          color: AppColors.soft(color),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: color.withValues(alpha: 0.18)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isOnline ? LucideIcons.logOut : LucideIcons.logIn,
+              color: color,
+              size: 16,
+            ),
+            const SizedBox(width: 7),
+            Text(
+              busy
+                  ? '...'
+                  : isOnline
+                  ? 'Check out'
+                  : 'Check in',
+              style: TextStyle(
+                color: color,
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          if (tickets.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              child: Text('Không có công việc nào hôm nay',
-                  style: TextStyle(color: AppColors.textMuted)),
-            )
-          else
-            for (final t in tickets) ...[
-              Row(
-                children: [
-                  Container(
-                    width: 9,
-                    height: 9,
-                    decoration: BoxDecoration(
-                        color: _dot(t.status), shape: BoxShape.circle),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(t.title,
-                        maxLines: 1, overflow: TextOverflow.ellipsis),
-                  ),
-                  Text(_statusVi(t.status),
-                      style: TextStyle(
-                          color: _dot(t.status),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700)),
-                ],
-              ),
-              if (t != tickets.last) const Divider(height: 20),
-            ],
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
+}
+
+class _PresenceIndicator extends StatelessWidget {
+  const _PresenceIndicator({required this.isOnline});
+
+  final bool isOnline;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isOnline ? AppColors.success : AppColors.danger;
+    return Container(
+      width: 42,
+      height: 42,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.soft(color),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.16)),
+      ),
+      child: Center(
+        child: Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+      ),
+    );
+  }
+}
+
+_TodayTaskPreview _todayTaskPreviewFromTask(Task task) {
+  final accent = _taskCategoryColor(task.category);
+  return _TodayTaskPreview(
+    id: task.id,
+    title: task.title,
+    tag: task.category.label,
+    accent: accent,
+    icon: _taskCategoryIcon(task.category),
+    // Carried but not yet populated: the home dashboard only sees the
+    // list view of open tasks, where the per-entry summary / duration
+    // would have to come from the timesheet stream. We leave the
+    // optional fields null so the popup opens empty.
+    note: null,
+    logged: null,
+  );
+}
+
+IconData _taskCategoryIcon(TimesheetCategory category) {
+  return switch (category) {
+    TimesheetCategory.erp => LucideIcons.database,
+    TimesheetCategory.crm => LucideIcons.users,
+    TimesheetCategory.meeting => LucideIcons.calendarClock,
+    TimesheetCategory.support => LucideIcons.headphones,
+    TimesheetCategory.other => LucideIcons.circleDot,
+  };
+}
+
+Color _taskCategoryColor(TimesheetCategory category) {
+  return switch (category) {
+    TimesheetCategory.erp => AppColors.primary,
+    TimesheetCategory.crm => AppColors.chat,
+    TimesheetCategory.meeting => AppColors.timesheet,
+    TimesheetCategory.support => AppColors.ticket,
+    TimesheetCategory.other => AppColors.textMuted,
+  };
+}
+
+class _TodayTaskPreview {
+  const _TodayTaskPreview({
+    required this.id,
+    required this.title,
+    required this.tag,
+    required this.accent,
+    required this.icon,
+    this.note,
+    this.logged,
+  });
+
+  /// Odoo task id — needed so the quick-edit popup can route saves
+  /// back to [TaskActions.log] without round-tripping the full sheet.
+  final String id;
+  final String title;
+  final String tag;
+  final Color accent;
+  final IconData icon;
+
+  /// Last logged "what I did" summary, if any. Used to pre-fill the
+  /// editor when re-opening a task that already has a log entry.
+  final String? note;
+
+  /// Last logged duration, if any. Same purpose — defaults the
+  /// duration picker to a sensible bucket when re-opening.
+  final Duration? logged;
+}
+
+class _TodayWork extends StatelessWidget {
+  const _TodayWork({required this.tasks});
+
+  final List<_TodayTaskPreview> tasks;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        SectionHeader(
+          title: "Công việc hôm nay",
+          trailing: 'Mở Timesheet',
+          onTrailingTap: () => context.go('/timesheet'),
+        ),
+        const SizedBox(height: 10),
+        GlassCard(
+          padding: EdgeInsets.zero,
+          radius: 18,
+          child: tasks.isEmpty
+              ? const Padding(
+                  padding: EdgeInsets.all(18),
+                  child: Text(
+                    'Chưa có công việc hôm nay.',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
+                )
+              : Column(
+                  children: [
+                    for (var i = 0; i < tasks.length; i++) ...[
+                      _TimesheetRow(task: tasks[i]),
+                      if (i != tasks.length - 1)
+                        const Divider(height: 1, indent: 54),
+                    ],
+                  ],
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TimesheetRow extends ConsumerWidget {
+  const _TimesheetRow({required this.task});
+
+  final _TodayTaskPreview task;
+
+  Future<void> _openQuickEdit(BuildContext context, WidgetRef ref) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _TaskQuickEditSheet(task: task),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return PressableScale(
+      onTap: () {
+        // Tap a task → popup that lets the user record work-time / note
+        // without bouncing them over to the full timesheet screen.
+        // They can still get there via the "Mở Timesheet" trailing link.
+        _openQuickEdit(context, ref);
+      },
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: AppColors.soft(task.accent),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(task.icon, color: task.accent, size: 15),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                task.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            StatusPill(label: task.tag, color: task.accent),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Bottom-sheet that lets the user edit a task's `note` (nội dung công
+/// việc đã làm) and re-log `duration` (thời gian làm việc) inline
+/// from the home dashboard. Save always routes through
+/// [TaskActions.log] — these cards only show open tasks, so we never
+/// flip workflow status.
+///
+/// The widget is `ConsumerStatefulWidget` so its actions run on its
+/// own `ref` (the parent's `WidgetRef` is short-lived and must not be
+/// captured into the sheet's lifetime).
+class _TaskQuickEditSheet extends ConsumerStatefulWidget {
+  const _TaskQuickEditSheet({required this.task});
+
+  final _TodayTaskPreview task;
+
+  @override
+  ConsumerState<_TaskQuickEditSheet> createState() =>
+      _TaskQuickEditSheetState();
+}
+
+class _TaskQuickEditSheetState extends ConsumerState<_TaskQuickEditSheet> {
+  late final TextEditingController _noteController;
+  late TimesheetDuration _duration;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _noteController = TextEditingController(text: widget.task.note ?? '');
+    _duration = widget.task.logged == null
+        ? TimesheetDuration.thirty
+        : durationBucketForElapsed(widget.task.logged!);
+  }
+
+  @override
+  void dispose() {
+    _noteController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final note = _noteController.text.trim();
+    if (note.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng nhập nội dung công việc.')),
+      );
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      await ref
+          .read(taskActionsProvider)
+          .log(taskId: widget.task.id, summary: note, duration: _duration);
+      ref.invalidate(timesheetStreamProvider);
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lưu log thất bại: ${describeError(e)}')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 12,
+          right: 12,
+          bottom: MediaQuery.viewInsetsOf(context).bottom + 10,
+        ),
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * 0.85,
+          ),
+          padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(28),
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 44,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: AppColors.border,
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: AppColors.soft(widget.task.accent),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Icon(
+                        widget.task.icon,
+                        color: widget.task.accent,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        widget.task.title,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    StatusPill(
+                      label: widget.task.tag,
+                      color: widget.task.accent,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Cập nhật nội dung & thời gian làm việc.',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TaskChecklistEditor(
+                  noteController: _noteController,
+                  duration: _duration,
+                  saving: _saving,
+                  onDurationChanged: _saving
+                      ? null
+                      : (dur) => setState(() => _duration = dur),
+                  onSave: _saving ? null : _save,
+                  saveLabel: 'Lưu cập nhật',
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _vietnameseDateTime(DateTime dt) {
+  const weekdays = [
+    'Thứ hai',
+    'Thứ ba',
+    'Thứ tư',
+    'Thứ năm',
+    'Thứ sáu',
+    'Thứ bảy',
+    'Chủ nhật',
+  ];
+  final weekday = weekdays[dt.weekday - 1];
+  final day = dt.day.toString().padLeft(2, '0');
+  final month = dt.month.toString().padLeft(2, '0');
+  final hour = dt.hour.toString().padLeft(2, '0');
+  final minute = dt.minute.toString().padLeft(2, '0');
+  return '$weekday, $day/$month/${dt.year} · $hour:$minute';
+}
+
+String _durationVi(Duration duration) {
+  final minutes = duration.inMinutes;
+  if (minutes < 60) return '$minutes phút';
+  final hours = minutes ~/ 60;
+  final rest = minutes % 60;
+  if (rest == 0) return '$hours giờ';
+  return '$hours giờ $rest phút';
 }

@@ -70,6 +70,10 @@
 	<string>VCloud uses your location to record check-in and check-out times</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>VCloud uses your location to record check-in and check-out times</string>
+	<key>NSCameraUsageDescription</key>
+	<string>VCloud uses the camera so you can capture and send photos in chat and support tickets.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>VCloud uses your photo library so you can choose photos for chat and support tickets.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>

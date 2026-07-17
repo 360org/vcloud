@@ -7,34 +7,47 @@ class Dates {
   Dates._();
 
   // Static formatters are cheap to allocate but cheaper to reuse.
-  static final _time = DateFormat.jm();         // 9:08 AM
-  static final _date = DateFormat.yMMMd();      // Jun 20, 2026
+  static final _time = DateFormat.jm(); // 9:08 AM
+  static final _date = DateFormat.yMMMd(); // Jun 20, 2026
   static final _iso = DateFormat('yyyy-MM-dd'); // 2026-06-20
-  static final _hm = DateFormat.Hm();           // 09:08
+  static final _hm = DateFormat.Hm(); // 09:08
 
-  static String time(DateTime dt) => _time.format(dt);
+  static String time(DateTime dt) => _time.format(dt.toLocal());
 
-  static String date(DateTime dt) => _date.format(dt);
+  static String date(DateTime dt) => _date.format(dt.toLocal());
 
-  static String isoDate(DateTime dt) => _iso.format(dt);
+  static String isoDate(DateTime dt) => _iso.format(dt.toLocal());
 
-  static String hm(DateTime dt) => _hm.format(dt);
+  static String hm(DateTime dt) => _hm.format(dt.toLocal());
 
   /// "now" → "9:08 AM"; "yesterday" → "Yesterday"; "3 days ago" → "3d".
   static String chatListLabel(DateTime dt, {DateTime? now}) {
     final n = now ?? DateTime.now();
     final today = DateTime(n.year, n.month, n.day);
-    final d = DateTime(dt.year, dt.month, dt.day);
+    final local = dt.toLocal();
+    final d = DateTime(local.year, local.month, local.day);
     final diff = today.difference(d).inDays;
-    if (diff == 0) return time(dt);
+    if (diff == 0) return time(local);
     if (diff == 1) return 'Yesterday';
     if (diff < 7) return '${diff}d';
     return isoDate(dt);
   }
 
+  static String chatListLabelVi(DateTime dt, {DateTime? now}) {
+    final n = now ?? DateTime.now();
+    final today = DateTime(n.year, n.month, n.day);
+    final local = dt.toLocal();
+    final day = DateTime(local.year, local.month, local.day);
+    final diff = today.difference(day).inDays;
+    if (diff == 0) return hm(local);
+    if (diff == 1) return 'Hôm qua';
+    if (diff < 7) return '$diff ngày';
+    return '${local.day.toString().padLeft(2, '0')}/${local.month.toString().padLeft(2, '0')}';
+  }
+
   static String relativeShort(DateTime dt, {DateTime? now}) {
     final n = now ?? DateTime.now();
-    final diff = n.difference(dt);
+    final diff = n.difference(dt.toLocal());
     if (diff.inMinutes < 1) return 'just now';
     if (diff.inMinutes < 60) return '${diff.inMinutes}m';
     if (diff.inHours < 24) return '${diff.inHours}h';

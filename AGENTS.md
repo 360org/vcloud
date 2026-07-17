@@ -3,26 +3,174 @@
 Onboarding for anyone (human or agent) working on VCloud. Read this first.
 
 ## What this is
-VCloud — employee productivity app (Flutter + Supabase): chat · attendance ·
-timesheet · tickets · dashboard. See [docs/PRD.md](docs/PRD.md),
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/PLAN.md](docs/PLAN.md).
+VCloud — employee productivity app (Flutter + Odoo Mobile API): chat · attendance ·
+timesheet · tickets · dashboard. Vietnamese UI, premium mobile design.
+See [docs/PRD.md](docs/PRD.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
+[docs/PLAN.md](docs/PLAN.md).
 
 ## Golden rules
-1. **Presentation never touches Supabase.** Go through `features/<f>/data/*_repository.dart`.
+1. **Presentation never touches backend APIs.** Go through `features/<f>/data/*_repository.dart`.
 2. **Keep `flutter analyze` at 0 errors / 0 warnings** before committing.
-3. **Secrets via `--dart-define`**, never hard-code in committed files (the existing
-   default in `env.dart` is a known M2 cleanup item — don't add more).
-4. **DB changes = a new `supabase/migrations/NNNN_*.sql`**, never ad-hoc SQL.
-5. Match the surrounding code's style, comment density, and naming.
+3. **Secrets via `--dart-define`**, never hard-code production UOdoo access rules, DB names, tokens,
+   passwords, or API keys in committed files.
+4. **Odoo schema changes live in Odoo modules/migrations**, never ad-hoc SQL in the
+   Flutter client repo.
+5. **Ticket create/get/list uses 360 Support mobile endpoints** under
+   `/api/v1/mobile/ticket/*`; do not fall back to direct
+   `/api/v1/helpdesk.ticket` CRUD in Flutter.
+6. Match the surrounding code's style, comment density, and naming.
+7. **Every new feature must follow the delivery workflow:**
+   `/spec → /plan → /build → /test → /review → /ship`.
 
 ## Layout
 ```
-lib/core/        env · supabase client · theme (design tokens) · router · utils
-lib/shared/      models · widgets (app_scaffold, ui_kit, empty/error/loading)
-lib/features/<f>/{data, application, presentation}
-supabase/migrations/   schema + RLS (source of truth)
+lib/
+  core/        env · Odoo API client/session · theme (design tokens) · router · utils · error
+  shared/      models · widgets (app_scaffold, ui_kit, empty/error/loading)
+  features/<f>/{data, application, presentation}
 docs/            PRD · ARCHITECTURE · PLAN · MOBILE_UX_OPTIONS
+root docs        SPEC.md · ARCH.md · implementation_plan.md · IDEA_IMPROVE.md
 ```
+
+## Architecture & data flow
+
+Three-layer, feature-first architecture:
+
+```
+presentation (screens/widgets)
+    │ watches providers, dispatches actions
+    ▼
+application (Riverpod providers/controllers)
+    │ calls repository methods, invalidates providers
+    ▼
+data (*_repository.dart)
+    │ wraps core/api/OdooApiClient
+    ▼
+Odoo Mobile API Gateway (JWT · REST · Odoo models)
+```
+
+**Key patterns observed in code:**
+
+- **Repository facade**: every `data/*_repository.dart` takes an optional
+  `OdooApiClient? client` (defaults to `odooApiClient`) — this enables
+  testing/swapping.
+- **Streams = HTTP snapshot + invalidation**: streams fetch once from Odoo.
+  Mutating actions invalidate Riverpod providers so screens refetch fresh data.
+- **Optimistic updates**: tickets use a `*OverrideProvider` pattern — patch
+  the local list immediately, fire the API, roll back on failure.
+- **360 Support tickets**: create/get/list/team catalog must go through
+  `TicketRepository` and `/api/v1/mobile/ticket/*`. Unsupported status,
+  priority, team/category, and delete mutations should fail explicitly until the
+  mobile API exposes supported endpoints.
+- **Failure type**: `core/error/failure.dart` — lightweight `Failure(message)`
+  thrown from repositories, caught in controllers/screens. Use
+  `describeError(e)` to extract the message.
+
+## State management (Riverpod)
+
+- `AsyncNotifierProvider` for auth source of truth (`authControllerProvider`).
+- `StreamProvider.autoDispose` for live lists (conversations, tickets, etc.).
+- Plain `Provider` for derived view-models (`homeSummaryProvider`, `openTicketsCountProvider`).
+- Actions are thin `Provider`-exposed classes (`*ActionsProvider`) that call the repo
+  then `ref.invalidate(...)`.
+- Private providers prefixed with `_` (e.g. `_authRepoProvider`).
+
+## Routing (GoRouter)
+
+- Single `routerProvider` in `core/router/app_router.dart`.
+- Redirect guard reads `authControllerProvider`:
+  - loading → `/splash`; signed-out → `/login`; signed-in on auth/splash → `/home`.
+- `_AuthListenable` bridges the async auth provider into GoRouter's `refreshListenable`.
+- Tab shell in `AppScaffold` — maps current location to one of
+  `Home · Chat · Timesheet · Ticket · Tôi`; hides the bar on detail/auth routes.
+- Platform-adaptive page transitions: Cupertino slide on iOS, Zoom on Android.
+
+## Design system ("Refined Tech Luxury")
+
+All design tokens live in `core/theme/app_theme.dart`. The visual language uses
+**midnight gradients**, **glassmorphism**, and **per-feature accent gradients**.
+
+- **Palette** (`AppColors`): midnight base (`#0F1629`, `#1A2340`), glass tints
+  (`surfaceGlass`, `textMuted`), per-feature gradient pairs (`primaryGrad`,
+  `attendanceGrad`, `timesheetGrad`, `ticketGrad`, `chatGrad`, `successGrad`,
+  `dangerGrad`).
+- **Text** (`AppTextStyles`): `headline`, `title`, `body`, `caption`, `muted`
+  with consistent sizes/weights on white-on-dark backgrounds.
+- **Surfaces**: `glassDecoration()` / `GlassCard` — semi-transparent containers
+  with subtle border and blur. `GradientHeader` for section headers.
+- **Widgets** (`shared/widgets/ui_kit.dart`): `GlassCard`, `GradientHeader`,
+  `GradientBadge`, `StatTile`, `PressableScale`, `GradientButton`, `AnimatedCount`.
+- **Shared widgets** (`shared/widgets/`): `AppScaffold` (gradient AppBar, glass
+  bottom nav with gradient pill on selected tab), `EmptyState`, `ErrorView`,
+  `LoadingView` — all use glass containers and gradient accents.
+- **Animations** (`flutter_animate`): staggered `fadeIn + slideY` on Home,
+  `fadeIn` with delays on Attendance/Profile. Preserved existing breathing pulse
+  on check-in circle.
+- **Pattern**: when adding new screens, use `GlassCard` for content containers,
+  `GradientBadge` for status pills, gradient pairs from `AppColors` for accents.
+  Avoid opaque white backgrounds — use glass tints instead.
+
+## Models & enums
+
+- Models are immutable classes with `const` constructors and `fromMap` factories
+  mapping **snake_case** Odoo/API fields to **camelCase** Dart fields.
+- Legacy enum extension names (`*Db`) remain for compatibility; map Odoo values
+  in repositories before constructing app models.
+- Models live in `lib/shared/models/` — shared across features.
+
+## Linter rules (analysis_options.yaml)
+
+Based on `flutter_lints` plus:
+- `prefer_const_constructors: true`
+- `prefer_const_constructors_in_immutables: true`
+- `prefer_const_declarations: true`
+- `prefer_final_locals: true`
+- `always_declare_return_types: true`
+- `require_trailing_commas: true`
+
+**Always use `const` constructors and trailing commas** — the linter enforces this.
+
+## Design system
+
+- Tokens in `lib/core/theme/app_theme.dart` (`AppColors`, `cardDecoration`,
+  gradients, `glow` helper).
+- Brand: vivid blue→indigo gradient (`AppColors.brand`); per-feature accent colors.
+- Use `cardDecoration()` for all card containers — don't invent new decorations.
+- `AppColors.soft(color)` for tinted backgrounds, `AppColors.glow(color)` for shadows.
+- Motion/UX kit in `lib/shared/widgets/ui_kit.dart`: `PressableScale` (tap-scale +
+  haptics), `GradientButton`, `AnimatedCount`.
+- Entrance animations via `flutter_animate` (`.animate().fadeIn().slideY()`).
+- Icons: `lucide_flutter` (modern line set) — not Material icons in new code.
+
+## UI conventions
+
+- All screens use `AppScaffold` for consistent app bar + bottom nav.
+- Vietnamese UI text throughout (not English).
+- Shared widgets: `EmptyState`, `ErrorView`, `LoadingView` — use them instead of
+  ad-hoc placeholders.
+- `UserAvatar` in `app_scaffold.dart` for user initials/avatar circles.
+- `Dates` utility in `core/utils/date_format.dart` for all date formatting.
+- Chat group creation is available in the main `/chat` UI through "Nhóm mới" and
+  must go through `conversationActionsProvider.createGroup` /
+  `ChatRepository.createGroup`; do not build `/mobile/chat/groups` payloads in
+  presentation.
+- Chat pin/unpin must go through `pinMessageActionProvider` /
+  `ChatRepository.pinMessage` or `unpinMessage`; presentation should render
+  `Message.pinnedAt`, not fake pins by editing message text.
+- Chat info Media/File tabs should derive old images/files from message
+  attachment metadata and use `DownloadAttachmentAction` for preview/download
+  URLs.
+- Create-ticket UI is a focused product intake form: title, issue description,
+  star priority, tag, CC email, and handling team. Keep the header centered,
+  field heights aligned, and description as a composer-style input with inline
+  "Thêm tài liệu" action.
+- Ticket-detail UI mirrors the same support fields and keeps comments ordered
+  newest-first. Render only a small newest comment window first, then reveal
+  older comments locally with "Xem thêm bình luận cũ".
+- Ticket attachments are selected from camera, gallery, or local files in
+  presentation, then uploaded through `MobileAttachmentRepository` after ticket
+  creation. CC email is still appended to the ticket description until the
+  backend exposes a dedicated CC field.
 
 ## Commands
 
@@ -63,16 +211,82 @@ docker run --rm -v "$PWD":/src:ro -v "$PWD/dist":/out ghcr.io/cirruslabs/flutter
   mkdir -p /out && cp build/app/outputs/flutter-apk/app-release.apk /out/vcloud.apk'
 ```
 
+## Delivery workflow for every new feature
+
+Use this sequence for all feature work:
+
+| Step | Required output |
+|---|---|
+| `/spec` | Update `SPEC.md`; update `ARCH.md` when architecture changes. |
+| `/plan` | Update `implementation_plan.md` with a concrete task list. |
+| `/build` | Implement Flutter/Dart code using existing templates/patterns in `lib/`. For Odoo server modules, use the relevant Python/XML/OWL templates in that module repo, not here. |
+| `/test` | Add/update unit, widget, integration, or Playwright/tour coverage appropriate to the change; run `flutter analyze` and `flutter test`. |
+| `/review` | Run repo checks, audit direct backend calls, error handling, security, and docs drift. |
+| `/ship` | Cleanup, update `CHANGELOG.md`, then push target branches `19.0` and `19.0-dev` when shipping is requested. |
+
+For user-sourced product ideas and design/API improvements, update
+`IDEA_IMPROVE.md` alongside the workflow docs. Record the user intent, the
+implemented improvement, and any backend limitation.
+
+## Testing
+
+- `test/widget_test.dart` is a minimal smoke test (no backend dependency).
+- Full app tests require an authenticated Odoo session or a mocked `OdooApiClient`.
+- Repository constructors accept optional `OdooApiClient?` for testability.
+- No CI pipeline yet (planned in M2).
+
 ## Gotchas
 - **`flutter build web` feels web-like** — that's the web target, not the framework.
   Real native feel = `flutter run` on a device / the APK above. See docs/MOBILE_UX_OPTIONS.md.
 - **Service worker caches the web bundle** — after a rebuild, unregister SW + clear
   caches (or hard-reload) or you'll see the old bundle.
-- **RLS recursion (42P17)** was fixed via a `SECURITY DEFINER` helper in migration 0002 —
-  don't reintroduce self-referencing policies on `conversation_members`.
-- **Tickets are self-assigned only** (code + RLS) — cross-user assignment is M4.
+- **Tickets are self-assigned only** in the current mobile flow — cross-user
+  assignment depends on Odoo team/assignment endpoints.
+- **Ticket create/get/list** — use 360 Support mobile endpoints only. Direct
+  `/api/v1/helpdesk.ticket` calls are intentionally blocked for this UI flow.
+- **Ticket attachments** — the create screen has an inline "Thêm tài liệu"
+  composer affordance. Selected camera/gallery/file items upload through
+  `/api/v1/mobile/attachments/upload` after create with
+  `res_model=helpdesk.ticket`; keep this in the repository layer, not
+  presentation.
+- **`passkeys_bundle.js` in `web/`** must load synchronously before the Flutter engine
+  — the transitive `passkeys` package requires `window.PasskeyAuthenticator` at boot.
+- **`web/index.html` script tag** — the `<script src="flutter_bootstrap.js" async>`
+  opening tag must be properly closed (`</script>`); a missing `">"` swallows the
+  bootstrap and the app shows only the blue background.
+- **Dart SDK gap** — project targets `^3.12.2` but Docker images ship `3.12.0`.
+  Docker builds use `sed` to relax this inside the container only; never change the
+  host `pubspec.yaml` SDK constraint.
+- **Attendance model** — `latitude`/`longitude` columns map to `checkoutLat`/`checkoutLng`
+  in the Dart model (the schema reuses those columns for checkout location).
+- **Dark theme** — `buildDarkTheme()` currently returns `buildLightTheme()` (design
+  spec is light-only). Don't assume dark mode works.
 
-## Backend setup (Supabase)
-1. Run `supabase/migrations/0001_init.sql` then `0002_fix_conversation_members_recursion.sql`.
-2. Auth → Providers → Email: disable "Confirm email" (MVP only).
-3. Auth → URL config: add `vcloud://login-callback`.
+## Backend setup (Odoo)
+1. Deploy the Odoo Mobile API Gateway that matches OpenAPI version `19.0.2.7.0`.
+2. Provide runtime config:
+   `--dart-define=VCLOUD_ODOO_API_BASE_URL=https://...` pointing at the master
+   mobile resolver. `VCLOUD_ODOO_DB` is optional and not sent by the default
+   mobile login flow.
+3. Create mobile tenant mappings in Odoo master at
+   `Mobile API -> Tenant Users` (`mobile.api.tenant_user`) before login. Fill
+   Login, Tenant Database, Tenant Base URL, and Allowed Mode.
+4. Authenticate through `POST /api/v1/mobile/auth/login`; the app stores the
+   tenant JWT plus tenant routing metadata in secure storage.
+5. Master admin accounts used to manage tenant mappings may not have a
+   `mobile.api.tenant_user` mapping. When the resolver returns
+   `tenant_not_found`, the client may fall back to direct master
+   `/api/v1/auth/login` and store `scope=master_admin`.
+6. If several tenants accept the same credentials the master returns
+   `409 multiple_tenants`; the app shows a tenant picker and re-calls the login
+   with `tenant_id` to force the chosen tenant. Ensure the picker stays usable if
+   the forced retry 409s again.
+
+## Adding a new feature
+1. Create `lib/features/<name>/{data, application, presentation}/`.
+2. Add a model in `lib/shared/models/` with `fromMap` factory (snake_case → camelCase).
+3. Add a repository in `data/` — constructor takes `OdooApiClient?`, wraps HTTP calls.
+4. Add providers in `application/` — `StreamProvider.autoDispose` for lists, actions class.
+5. Add screens in `presentation/` — extend `ConsumerWidget`, use `AppScaffold`.
+6. Add routes in `core/router/app_router.dart`.
+7. Add a DB migration if schema changes are needed.
