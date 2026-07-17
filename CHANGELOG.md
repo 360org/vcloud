@@ -2,6 +2,13 @@
 
 ## Chưa phát hành
 
+- Sửa trang web hiển thị nhầm lỗi khởi động khi một ảnh avatar hoặc tài nguyên
+  tải không thành công trong lúc tìm người dùng Chat.
+
+- Thêm tìm người dùng nội bộ trong Chat qua `/api/v1/mobile/users/search`; khi
+  tạo tin nhắn trực tiếp, ứng dụng sử dụng đúng `partner_id` trả về thay vì
+  `user_id`.
+
 - Sửa ánh xạ trạng thái chấm công để chấp nhận cả `is_checked_in`/`current_attendance_id` và `checked_in`/`attendance_id`; giao diện Home không còn hiểu sai trạng thái check-in hợp lệ từ Odoo 17.
 
 - Fix mobile attendance status to update immediately after check-in/out, react

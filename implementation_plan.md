@@ -97,6 +97,8 @@
       endpoint usage and payload mapping.
 - [x] Add widget coverage for opening the Home notification sheet.
 - [x] Add repository coverage for chat pin/unpin endpoint usage.
+- [x] Route direct-chat user lookup through the internal-user search endpoint
+      and use the returned `partner_id` when creating a direct conversation.
 
 ## /review
 - [x] Verify Home prefers live attendance over a stale dashboard snapshot and
@@ -130,4 +132,6 @@
       camera/gallery pickers.
 - [x] Update docs and changelog for mobile push notification integration.
 - [x] Update docs and changelog for Home bell notification loading.
+- [x] Update the chat direct-search contract, documentation, and tests for
+      `/api/v1/mobile/users/search` and `partner_id` direct creation.
 - [ ] Push branches `19.0` and `19.0-dev` when credentials/remotes are available.

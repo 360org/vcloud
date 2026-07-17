@@ -90,6 +90,9 @@ Odoo uses integer IDs and snake_case fields. Existing Flutter models keep their 
 ## Chat Boundary
 - Chat list, detail, direct open, group creation, archive, and mark-read calls
   are exposed through `ChatRepository` and `conversationActionsProvider`.
+- Direct-chat user lookup uses `GET /api/v1/mobile/users/search`; the repository
+  keeps the returned user ID for group membership and maps `partner_id`
+  separately for `POST /api/v1/mobile/chat/direct`.
 - Message pin/unpin actions are exposed through `ChatRepository` and
   `pinMessageActionProvider`; presentation reads `Message.pinnedAt` and does not
   fake pinned state by prefixing message content.

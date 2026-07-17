@@ -56,21 +56,45 @@ void main() {
     });
   });
 
-  test('ChatRepository fetches users with schema-safe fields', () async {
-    final client = _FakeOdooApiClient(<Map<String, dynamic>>[
-      <String, dynamic>{'id': 7, 'login': 'an@example.com', 'name': 'An'},
-    ]);
-    final repo = ChatRepository(client: client);
+  test(
+    'ChatRepository searches internal users and keeps their partner IDs',
+    () async {
+      final client = _FakeOdooApiClient(<Map<String, dynamic>>[
+        <String, dynamic>{
+          'id': 6,
+          'partner_id': 7,
+          'login': 'marc@example.com',
+          'name': 'Marc Demo',
+        },
+      ]);
+      final repo = ChatRepository(client: client);
 
-    final users = await repo.allUsers();
+      final users = await repo.searchUsers('marc');
 
-    expect(client.lastGetPath, '/api/v1/res.users');
-    expect(client.lastGetQuery, <String, Object?>{'fields': 'id,login,name'});
-    expect(
-      users.single.avatarUrl,
-      'https://example.test/api/v1/mobile/avatar/users/7',
-    );
-  });
+      expect(client.lastGetPath, '/api/v1/mobile/users/search');
+      expect(client.lastGetQuery, <String, Object?>{'q': 'marc'});
+      expect(users.single.id, '6');
+      expect(users.single.partnerId, '7');
+      expect(
+        users.single.avatarUrl,
+        'https://example.test/api/v1/mobile/avatar/partners/7',
+      );
+    },
+  );
+
+  test(
+    'ChatRepository creates direct conversations with a partner ID',
+    () async {
+      final client = _FakeOdooApiClient(<String, dynamic>{'channel_id': 42});
+      final repo = ChatRepository(client: client);
+
+      final channelId = await repo.openDirect('3');
+
+      expect(channelId, '42');
+      expect(client.lastPostPath, '/api/v1/mobile/chat/direct');
+      expect(client.lastPostBody, <String, dynamic>{'partner_id': 3});
+    },
+  );
 
   test('ChatRepository sends contact card through mobile endpoint', () async {
     final client = _FakeOdooApiClient(<String, dynamic>{'ok': true});
@@ -82,23 +106,25 @@ void main() {
     expect(client.lastPostBody, <String, dynamic>{'partner_id': 7});
   });
 
-  test('ChatRepository pins and unpins messages through mobile endpoints',
-  () async {
-    final client = _FakeOdooApiClient(<String, dynamic>{'ok': true});
-    final repo = ChatRepository(client: client);
+  test(
+    'ChatRepository pins and unpins messages through mobile endpoints',
+    () async {
+      final client = _FakeOdooApiClient(<String, dynamic>{'ok': true});
+      final repo = ChatRepository(client: client);
 
-    await repo.pinMessage('42', '99');
-    await repo.unpinMessage('42', '99');
+      await repo.pinMessage('42', '99');
+      await repo.unpinMessage('42', '99');
 
-    expect(client.postPaths, <String>[
-      '/api/v1/mobile/chat/messages/99/pin',
-      '/api/v1/mobile/chat/messages/99/unpin',
-    ]);
-    expect(client.postBodies, <Object?>[
-      <String, dynamic>{'channel_id': 42},
-      <String, dynamic>{'channel_id': 42},
-    ]);
-  });
+      expect(client.postPaths, <String>[
+        '/api/v1/mobile/chat/messages/99/pin',
+        '/api/v1/mobile/chat/messages/99/unpin',
+      ]);
+      expect(client.postBodies, <Object?>[
+        <String, dynamic>{'channel_id': 42},
+        <String, dynamic>{'channel_id': 42},
+      ]);
+    },
+  );
 
   test('ChatRepository uploads attachments onto discuss channel', () async {
     final client = _FakeOdooApiClient(<String, dynamic>{
@@ -161,49 +187,54 @@ void main() {
     expect(url, 'https://example.test/web/content/9?access_token=abc');
   });
 
-  test('ChatRepository.forwardAttachment re-uploads bytes into target channel',
-  () async {
-    // Flow: fetchBytes → get attachment meta → upload → send message.
-    final client = _FakeOdooApiClient(
-      // GET /api/v1/mobile/attachments/9 → metadata for the source file.
-      <String, dynamic>{
-        'id': 9,
-        'attachment_id': 9,
-        'name': 'anh.png',
-        'mimetype': 'image/png',
-        'download_url': '/web/content/9?download=1',
-      },
-      postResponses: <Map<String, dynamic>>[
-        // POST /api/v1/mobile/attachments/upload → the re-uploaded attachment.
+  test(
+    'ChatRepository.forwardAttachment re-uploads bytes into target channel',
+    () async {
+      // Flow: fetchBytes → get attachment meta → upload → send message.
+      final client = _FakeOdooApiClient(
+        // GET /api/v1/mobile/attachments/9 → metadata for the source file.
         <String, dynamic>{
-          'id': 20,
-          'attachment_id': 20,
+          'id': 9,
+          'attachment_id': 9,
           'name': 'anh.png',
           'mimetype': 'image/png',
+          'download_url': '/web/content/9?download=1',
         },
-        // POST /api/v1/mobile/chat/messages → the forwarded message ack.
-        <String, dynamic>{'id': 100},
-      ],
-    );
-    final repo = ChatRepository(client: client);
+        postResponses: <Map<String, dynamic>>[
+          // POST /api/v1/mobile/attachments/upload → the re-uploaded attachment.
+          <String, dynamic>{
+            'id': 20,
+            'attachment_id': 20,
+            'name': 'anh.png',
+            'mimetype': 'image/png',
+          },
+          // POST /api/v1/mobile/chat/messages → the forwarded message ack.
+          <String, dynamic>{'id': 100},
+        ],
+      );
+      final repo = ChatRepository(client: client);
 
-    await repo.forwardAttachment('55', '9');
+      await repo.forwardAttachment('55', '9');
 
-    // Bytes were fetched from the source attachment's download URL.
-    expect(client.lastFetchBytesPath, '/web/content/9?download=1');
-    // Upload happened first, then the message send to the *target* channel.
-    expect(client.postPaths, <String>[
-      '/api/v1/mobile/attachments/upload',
-      '/api/v1/mobile/chat/messages',
-    ]);
-    // Upload payload carries the re-uploaded bytes (base64) + target res_id.
-    expect(client.postBodies.first, containsPair('res_model', 'discuss.channel'));
-    expect(client.postBodies.first, containsPair('res_id', 55));
-    expect(client.postBodies.first, containsPair('name', 'anh.png'));
-    // Message send targets the target channel and references the new attachment.
-    expect(client.postBodies.last, containsPair('channel_id', 55));
-    expect(client.postBodies.last, containsPair('attachment_ids', <int>[20]));
-  });
+      // Bytes were fetched from the source attachment's download URL.
+      expect(client.lastFetchBytesPath, '/web/content/9?download=1');
+      // Upload happened first, then the message send to the *target* channel.
+      expect(client.postPaths, <String>[
+        '/api/v1/mobile/attachments/upload',
+        '/api/v1/mobile/chat/messages',
+      ]);
+      // Upload payload carries the re-uploaded bytes (base64) + target res_id.
+      expect(
+        client.postBodies.first,
+        containsPair('res_model', 'discuss.channel'),
+      );
+      expect(client.postBodies.first, containsPair('res_id', 55));
+      expect(client.postBodies.first, containsPair('name', 'anh.png'));
+      // Message send targets the target channel and references the new attachment.
+      expect(client.postBodies.last, containsPair('channel_id', 55));
+      expect(client.postBodies.last, containsPair('attachment_ids', <int>[20]));
+    },
+  );
 
   test('ChatChannel maps into conversation summary metadata', () {
     final fetchedAt = DateTime.utc(2026, 7);
@@ -412,9 +443,11 @@ void main() {
 }
 
 class _FakeOdooApiClient extends OdooApiClient {
-  _FakeOdooApiClient(this._response, {List<Map<String, dynamic>>? postResponses})
-    : _postResponses = postResponses ?? const <Map<String, dynamic>>[],
-      super(baseUrl: 'https://example.test');
+  _FakeOdooApiClient(
+    this._response, {
+    List<Map<String, dynamic>>? postResponses,
+  }) : _postResponses = postResponses ?? const <Map<String, dynamic>>[],
+       super(baseUrl: 'https://example.test');
 
   final Object _response;
   final List<Map<String, dynamic>> _postResponses;
@@ -453,10 +486,9 @@ class _FakeOdooApiClient extends OdooApiClient {
     // Return successive post responses for orchestrated flows (forward);
     // hold the last one once exhausted.
     if (_postResponses.isEmpty) return _response;
-    final index =
-        _postCalls < _postResponses.length
-            ? _postCalls
-            : _postResponses.length - 1;
+    final index = _postCalls < _postResponses.length
+        ? _postCalls
+        : _postResponses.length - 1;
     _postCalls++;
     return _postResponses[index];
   }

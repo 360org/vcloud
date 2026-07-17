@@ -279,7 +279,8 @@ class ChatRepository {
     final params = Map<String, String>.from(uri.queryParameters)
       ..remove('download');
     if (uri.hasQuery) {
-      return uri.replace(queryParameters: params.isEmpty ? null : params)
+      return uri
+          .replace(queryParameters: params.isEmpty ? null : params)
           .toString();
     }
     return url;
@@ -347,10 +348,16 @@ class ChatRepository {
     return map;
   }
 
-  Future<String> openDirect(String otherUserId) async {
+  Future<String> openDirect(String partnerId) async {
+    final parsedPartnerId = int.tryParse(partnerId);
+    if (parsedPartnerId == null) {
+      throw Failure(
+        'KhÃ´ng xÃ¡c Ä‘á»‹nh Ä‘Æ°á»£c ngÆ°á»i dÃ¹ng Ä‘á»ƒ táº¡o chat.',
+      );
+    }
     final res = await _client.post(
       '/api/v1/mobile/chat/direct',
-      body: <String, dynamic>{'user_id': int.tryParse(otherUserId)},
+      body: <String, dynamic>{'partner_id': parsedPartnerId},
     );
     return _channelId(res);
   }
@@ -366,22 +373,45 @@ class ChatRepository {
     return _channelId(res);
   }
 
-  Future<List<Profile>> allUsers() async {
+  Future<List<Profile>> searchUsers(String query) async {
     final res = await _client.get(
-      '/api/v1/res.users',
-      query: const <String, Object?>{'fields': 'id,login,name'},
+      '/api/v1/mobile/users/search',
+      query: <String, Object?>{'q': query.trim()},
     );
-    return (res as List).cast<Map<String, dynamic>>().map((m) {
-      final login = (m['login'] ?? '').toString();
-      return Profile(
-        id: m['id'].toString(),
-        email: login,
-        displayName: (m['name'] ?? login).toString(),
-        avatarUrl: _client.absoluteUrl(
-          '/api/v1/mobile/avatar/users/${m['id']}',
-        ),
-      );
-    }).toList();
+    final records = _userSearchRecords(res);
+    return records.map(_profileFromUserSearch).toList();
+  }
+
+  /// Retained for group creation, which still uses the user IDs returned by
+  /// the internal-user search endpoint.
+  Future<List<Profile>> allUsers() => searchUsers('');
+
+  List<Map<String, dynamic>> _userSearchRecords(Object? response) {
+    final raw = response is Map
+        ? response['users'] ?? response['data'] ?? response['result']
+        : response;
+    if (raw is! List) {
+      throw Failure('Pháº£n há»“i tÃ¬m ngÆ°á»i dÃ¹ng khÃ´ng há»£p lá»‡.');
+    }
+    return raw.whereType<Map>().map(Map<String, dynamic>.from).toList();
+  }
+
+  Profile _profileFromUserSearch(Map<String, dynamic> user) {
+    final userId = user['user_id'] ?? user['id'];
+    final partnerId = user['partner_id'];
+    if (userId == null || partnerId == null) {
+      throw Failure('Káº¿t quáº£ tÃ¬m kiáº¿m thiáº¿u user hoáº·c partner id.');
+    }
+    final email = (user['email'] ?? user['login'] ?? '').toString();
+    return Profile(
+      id: userId.toString(),
+      partnerId: partnerId.toString(),
+      email: email,
+      displayName: (user['name'] ?? user['display_name'] ?? email).toString(),
+      avatarUrl: _client.absoluteUrl(
+        '/api/v1/mobile/avatar/partners/$partnerId',
+      ),
+    );
   }
 
   Future<Conversation> conversationDetails(String id) async {

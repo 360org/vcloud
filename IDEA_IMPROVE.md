@@ -4,6 +4,22 @@ Living log for user-sourced ideas, product direction, and implemented
 improvements. Update this when a user asks for a UI/API behavior change so later
 agents can understand the intent, not just the code diff.
 
+## Direct Chat User Search
+
+### User Idea
+- Let employees find internal users from Chat and start a direct conversation.
+
+### Implemented Improvement
+- Direct Chat now searches `/api/v1/mobile/users/search?q={keyword}` instead of
+  reading the generic `res.users` model endpoint.
+- Search results retain both the internal user ID and Odoo `partner_id`.
+  Creating a direct conversation sends the required `partner_id` to
+  `/api/v1/mobile/chat/direct`; group creation continues to use user IDs.
+
+### Follow-Up Ideas
+- Add debounce and result pagination if the internal directory grows beyond the
+  small current result set.
+
 ## Ticket 360 Support API
 
 ### User Idea

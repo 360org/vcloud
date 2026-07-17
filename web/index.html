@@ -49,10 +49,6 @@
       border-top-color: #fff; border-radius: 50%; animation: spin .9s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
-    #boot-error {
-      position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
-      background: #fff; color: #b00020; padding: 24px; font-size: 14px; z-index: 10; text-align: center;
-    }
  </style>
 </head>
 <body>
@@ -76,21 +72,15 @@
     <div>Loading VCloud…</div>
  </div>
 
-  <!-- Visible fallback if Flutter fails to boot (uncaught error in bootstrap) -->
-  <div id="boot-error">
-    VCloud failed to start. Open DevTools (F12) → Console for details.
- </div>
-
   <script>
-    // If Flutter reports a boot failure, swap the loader for the error message.
+    // Hide the loader after Flutter renders its first frame. Do not attach a
+    // global `error` handler here: image, avatar, and other asset failures
+    // also emit browser error events, and must not cover a running app with a
+    // false "failed to start" screen.
     window.addEventListener('flutter-first-frame', function () {
       var el = document.getElementById('boot-loader');
       if (el) el.style.display = 'none';
     });
-    window.addEventListener('error', function (e) {
-      var err = document.getElementById('boot-error');
-      if (err) err.style.display = 'flex';
-    }, true);
- </script>
+  </script>
 </body>
 </html>

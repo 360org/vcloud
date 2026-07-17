@@ -88,6 +88,9 @@ All backend-facing feature work must follow:
   - `POST /api/v1/mobile/chat/messages`
   - `POST /api/v1/mobile/chat/channels/{channel_id}/mark-read`
   - `POST /api/v1/mobile/chat/direct`
+  - `GET /api/v1/mobile/users/search?q={keyword}` for internal-user lookup.
+    Search responses preserve both the Odoo user ID and `partner_id`; direct
+    creation sends only `partner_id`.
   - `POST /api/v1/mobile/chat/groups`
   - `POST /api/v1/mobile/chat/channels/{channel_id}/archive`
   - `POST /api/v1/mobile/chat/channels/{channel_id}/unarchive`

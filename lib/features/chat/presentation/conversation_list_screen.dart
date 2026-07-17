@@ -820,7 +820,7 @@ class _TelegramSearchBar extends StatelessWidget {
   }
 }
 
-class _NewMessageSheet extends StatefulWidget {
+class _NewMessageSheet extends ConsumerStatefulWidget {
   const _NewMessageSheet({
     required this.conversations,
     required this.currentUser,
@@ -834,14 +834,46 @@ class _NewMessageSheet extends StatefulWidget {
   final VoidCallback onCreateGroup;
 
   @override
-  State<_NewMessageSheet> createState() => _NewMessageSheetState();
+  ConsumerState<_NewMessageSheet> createState() => _NewMessageSheetState();
 }
 
-class _NewMessageSheetState extends State<_NewMessageSheet> {
+class _NewMessageSheetState extends ConsumerState<_NewMessageSheet> {
   String _query = '';
+  bool _busy = false;
+
+  Future<void> _openDirect(Profile user) async {
+    final partnerId = user.partnerId;
+    if (partnerId == null) return;
+
+    setState(() => _busy = true);
+    try {
+      final channelId = await ref
+          .read(conversationActionsProvider)
+          .openDirect(partnerId);
+      ref.invalidate(conversationsProvider);
+      if (!mounted) return;
+      Navigator.pop(context);
+      context.push('/chat/$channelId');
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error.toString().replaceFirst('Failure: ', '')),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final normalizedQuery = _query.trim();
+    final userResults = normalizedQuery.isEmpty
+        ? null
+        : ref.watch(_userSearchProvider(normalizedQuery));
     final filtered = widget.conversations.where((conversation) {
       if (conversation.lastMessage == null) return false;
       final preview = conversation.lastMessage?.content ?? '';
@@ -885,7 +917,49 @@ class _NewMessageSheetState extends State<_NewMessageSheet> {
               icon: LucideIcons.megaphone,
               label: 'Kênh mới',
             ),
-            if (filtered.isNotEmpty) ...[
+            if (userResults != null) ...[
+              Expanded(
+                child: userResults.when(
+                  loading: () => const LoadingView(),
+                  error: (error, _) => ErrorView(
+                    error: error,
+                    onRetry: () =>
+                        ref.invalidate(_userSearchProvider(normalizedQuery)),
+                  ),
+                  data: (users) {
+                    final currentUserId = widget.currentUser?.id;
+                    final others = users
+                        .where((user) => user.id != currentUserId)
+                        .toList();
+                    if (others.isEmpty) {
+                      return const Center(
+                        child: Text(
+                          'Không tìm thấy người dùng nội bộ',
+                          style: TextStyle(
+                            color: AppColors.textMuted,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      );
+                    }
+                    return ListView.separated(
+                      padding: const EdgeInsets.only(bottom: 18),
+                      itemCount: others.length,
+                      separatorBuilder: (_, _) => const Padding(
+                        padding: EdgeInsets.only(left: 88),
+                        child: Divider(height: 1, color: AppColors.border),
+                      ),
+                      itemBuilder: (context, index) => _NewMessageUserRow(
+                        user: others[index],
+                        busy: _busy,
+                        onTap: () => _openDirect(others[index]),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ] else if (filtered.isNotEmpty) ...[
               const SizedBox(height: 4),
               Expanded(
                 child: ListView.separated(
@@ -1453,6 +1527,84 @@ class _NewGroupMemberRow extends StatelessWidget {
   }
 }
 
+class _NewMessageUserRow extends StatelessWidget {
+  const _NewMessageUserRow({
+    required this.user,
+    required this.busy,
+    required this.onTap,
+  });
+
+  final Profile user;
+  final bool busy;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = user.displayName.isNotEmpty
+        ? user.displayName
+        : user.email.split('@').first;
+    return PressableScale(
+      onTap: busy || user.partnerId == null ? null : onTap,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(28, 10, 24, 10),
+        child: Row(
+          children: [
+            UserAvatar(
+              userId: user.id,
+              displayName: name,
+              email: user.email,
+              avatarUrl: user.avatarUrl,
+              size: 50,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  if (user.email.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      user.email,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (busy)
+              const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            else
+              const Icon(
+                LucideIcons.messageCircle,
+                color: AppColors.primary,
+                size: 22,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _NewMessageConversationRow extends StatelessWidget {
   const _NewMessageConversationRow({
     required this.conversation,
@@ -1846,6 +1998,12 @@ final _allUsersProvider = FutureProvider.autoDispose<List<Profile>>((
   return repo.allUsers();
 });
 
+final _userSearchProvider = FutureProvider.autoDispose
+    .family<List<Profile>, String>((ref, query) async {
+      final repo = ref.read(chatRepositoryProvider);
+      return repo.searchUsers(query);
+    });
+
 /// Bottom sheet for creating new conversations (Direct + Group tabs).
 class _NewChatSheet extends ConsumerStatefulWidget {
   const _NewChatSheet();
@@ -1865,12 +2023,12 @@ class _NewChatSheetState extends ConsumerState<_NewChatSheet>
     super.dispose();
   }
 
-  Future<void> _open(String otherId) async {
+  Future<void> _open(String partnerId) async {
     setState(() => _busy = true);
     try {
       final id = await ref
           .read(conversationActionsProvider)
-          .openDirect(otherId);
+          .openDirect(partnerId);
       ref.invalidate(conversationsProvider);
       if (mounted) {
         Navigator.pop(context);
@@ -1981,7 +2139,8 @@ class _DirectTabState extends ConsumerState<_DirectTab> {
 
   @override
   Widget build(BuildContext context) {
-    final users = ref.watch(_allUsersProvider).value ?? [];
+    final users =
+        ref.watch(_userSearchProvider(_searchQuery.trim())).value ?? [];
     final me = ref.read(authControllerProvider).value?.id ?? '';
     final others = users.where((u) => u.id != me).toList();
 
@@ -2065,7 +2224,9 @@ class _DirectTabState extends ConsumerState<_DirectTab> {
                                 size: 14,
                                 color: AppColors.textMuted,
                               ),
-                        onTap: widget.busy ? null : () => widget.onOpen(u.id),
+                        onTap: widget.busy || u.partnerId == null
+                            ? null
+                            : () => widget.onOpen(u.partnerId!),
                       ),
                     );
                   },

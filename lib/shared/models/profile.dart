@@ -9,6 +9,7 @@ class Profile {
     required this.email,
     required this.displayName,
     this.avatarUrl,
+    this.partnerId,
     this.role = 'customer',
   });
 
@@ -16,6 +17,9 @@ class Profile {
   final String email;
   final String displayName;
   final String? avatarUrl;
+
+  /// Odoo contact ID used by the mobile direct-chat endpoint.
+  final String? partnerId;
   final String role;
 
   factory Profile.fromMap(Map<String, dynamic> map) => Profile(
@@ -23,6 +27,7 @@ class Profile {
     email: map['email'] as String,
     displayName: map['display_name'] as String? ?? '',
     avatarUrl: map['avatar_url'] as String?,
+    partnerId: map['partner_id'] as String?,
     role: map['role'] as String? ?? 'customer',
   );
 
@@ -31,6 +36,7 @@ class Profile {
     'email': email,
     'display_name': displayName,
     'avatar_url': avatarUrl,
+    'partner_id': partnerId,
     'role': role,
   };
 
