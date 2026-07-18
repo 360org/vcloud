@@ -84,6 +84,8 @@ versioning follows [Semantic Versioning](https://semver.org/).
   setup safely when local builds do not provide Firebase project settings.
 
 ### Fixed
+- Raise the iOS deployment target to 15.0 so the Firebase Core and Firebase
+  Messaging Swift Package Manager products can build on Codemagic.
 - Fix conversation-list timestamps by showing the latest message time in local
   timezone instead of stale conversation update time.
 - Fix create-ticket header overlap, field alignment, and issue-description
