@@ -14,6 +14,7 @@
 - [x] Capture Home bell notification-center behavior using unread chat and open
       ticket data until a notification-list API exists.
 - [x] Capture chat pin-message and historical media/file browsing behavior.
+- [x] Define a GitLab-connected macOS CI route for signed iOS TestFlight builds.
 
 ## /plan
 - [x] Replace Odoo API initialization with Odoo environment/session bootstrap.
@@ -28,6 +29,8 @@
       UI integration requirement.
 - [x] Plan push registration as auth-adjacent infrastructure with Firebase
       setup isolated from presentation.
+- [x] Restrict automatic iOS TestFlight uploads to the `main` release branch
+      and keep App Store publishing as a separately approved action.
 
 ## /build
 - [x] Exclude the ticket-create description echoed by Odoo chatter from the
@@ -77,6 +80,9 @@
       tap-through navigation to chat/ticket details.
 - [x] Add chat pin/unpin repository actions and long-press message controls.
 - [x] Rebuild chat info Media/File tabs from historical attachment metadata.
+- [x] Add a Codemagic workflow that signs an App Store IPA, injects release
+      `--dart-define` values from secrets, increments the App Store build number,
+      and uploads to internal TestFlight.
 
 ## /test
 - [x] Add comment-stream coverage for a duplicate create-description message.
@@ -97,6 +103,10 @@
       endpoint usage and payload mapping.
 - [x] Add widget coverage for opening the Home notification sheet.
 - [x] Add repository coverage for chat pin/unpin endpoint usage.
+- [x] Route direct-chat user lookup through the internal-user search endpoint
+      and use the returned `partner_id` when creating a direct conversation.
+- [x] Validate the Codemagic workflow YAML and include `flutter analyze` and
+      `flutter test` as required release gates.
 
 ## /review
 - [x] Verify Home prefers live attendance over a stale dashboard snapshot and
@@ -112,6 +122,8 @@
 - [x] Review notification bell integration for provider-only data access and
       no direct backend calls from presentation.
 - [x] Review chat pin/media actions for repository-only backend access.
+- [x] Audit the iOS workflow for source-controlled secrets and accidental
+      external/App Store publication.
 
 ## /ship
 - [x] Update `CHANGELOG.md`.
@@ -130,4 +142,9 @@
       camera/gallery pickers.
 - [x] Update docs and changelog for mobile push notification integration.
 - [x] Update docs and changelog for Home bell notification loading.
+- [x] Update the chat direct-search contract, documentation, and tests for
+      `/api/v1/mobile/users/search` and `partner_id` direct creation.
 - [ ] Push branches `19.0` and `19.0-dev` when credentials/remotes are available.
+- [ ] Connect the App Store Connect key, signing identity, and
+      `vcloud_ios_release` secret group in Codemagic, then verify the first
+      TestFlight upload.

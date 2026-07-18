@@ -1,0 +1,59 @@
+workflows:
+  ios-testflight:
+    name: iOS to TestFlight
+    max_build_duration: 60
+    integrations:
+      # Configure this exact key name in Codemagic Team integrations.
+      app_store_connect: vcloud_app_store_connect
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+      cancel_previous_builds: true
+    environment:
+      groups:
+        # Defined only in Codemagic. See docs/IOS_CI_TESTFLIGHT.md.
+        - vcloud_ios_release
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.vcloud.vcloud
+      flutter: stable
+      xcode: latest
+    scripts:
+      - name: Validate release configuration
+        script: |
+          : "${APP_STORE_APPLE_ID:?Set APP_STORE_APPLE_ID in the vcloud_ios_release group.}"
+          : "${VCLOUD_ODOO_API_BASE_URL:?Set VCLOUD_ODOO_API_BASE_URL in the vcloud_ios_release group.}"
+      - name: Apply App Store signing profile
+        script: |
+          xcode-project use-profiles --custom-export-options='{"testFlightInternalTestingOnly": true}'
+      - name: Get Flutter packages
+        script: flutter pub get
+      - name: Analyze Flutter source
+        script: flutter analyze
+      - name: Run Flutter tests
+        script: flutter test
+      - name: Build signed IPA
+        script: |
+          BUILD_NAME=$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d+ -f1)
+          BUILD_NUMBER=$(($(app-store-connect get-latest-app-store-build-number "$APP_STORE_APPLE_ID") + 1))
+          flutter build ipa --release \
+            --build-name="$BUILD_NAME" \
+            --build-number="$BUILD_NUMBER" \
+            --dart-define=VCLOUD_ODOO_API_BASE_URL="$VCLOUD_ODOO_API_BASE_URL" \
+            --dart-define=VCLOUD_ODOO_DB="${VCLOUD_ODOO_DB:-}" \
+            --dart-define=VCLOUD_FIREBASE_API_KEY="${VCLOUD_FIREBASE_API_KEY:-}" \
+            --dart-define=VCLOUD_FIREBASE_APP_ID="${VCLOUD_FIREBASE_APP_ID:-}" \
+            --dart-define=VCLOUD_FIREBASE_MESSAGING_SENDER_ID="${VCLOUD_FIREBASE_MESSAGING_SENDER_ID:-}" \
+            --dart-define=VCLOUD_FIREBASE_PROJECT_ID="${VCLOUD_FIREBASE_PROJECT_ID:-}" \
+            --dart-define=VCLOUD_FIREBASE_IOS_BUNDLE_ID=com.vcloud.vcloud
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - flutter_drive.log
+    publishing:
+      app_store_connect:
+        # Uploads the IPA to TestFlight. Internal testers do not need beta review.
+        auth: integration

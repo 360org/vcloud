@@ -2,6 +2,13 @@
 
 ## Chưa phát hành
 
+- Sửa trang web hiển thị nhầm lỗi khởi động khi một ảnh avatar hoặc tài nguyên
+  tải không thành công trong lúc tìm người dùng Chat.
+
+- Thêm tìm người dùng nội bộ trong Chat qua `/api/v1/mobile/users/search`; khi
+  tạo tin nhắn trực tiếp, ứng dụng sử dụng đúng `partner_id` trả về thay vì
+  `user_id`.
+
 - Sửa ánh xạ trạng thái chấm công để chấp nhận cả `is_checked_in`/`current_attendance_id` và `checked_in`/`attendance_id`; giao diện Home không còn hiểu sai trạng thái check-in hợp lệ từ Odoo 17.
 
 - Fix mobile attendance status to update immediately after check-in/out, react
@@ -17,6 +24,9 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 ### Added
+- Add a Codemagic macOS workflow for signed iOS IPA builds and internal
+  TestFlight upload from GitLab, with App Store build-number incrementing and
+  repository-free release credentials.
 - Add `SPEC.md`, `ARCH.md`, and `implementation_plan.md` for the Odoo Mobile API migration workflow.
 - Add Odoo API client/session storage using JWT bearer auth from the mobile auth flow.
 - Add mobile dashboard summary wiring for Home counters, mobile avatar rendering,
@@ -74,6 +84,8 @@ versioning follows [Semantic Versioning](https://semver.org/).
   setup safely when local builds do not provide Firebase project settings.
 
 ### Fixed
+- Raise the iOS deployment target to 15.0 so the Firebase Core and Firebase
+  Messaging Swift Package Manager products can build on Codemagic.
 - Fix conversation-list timestamps by showing the latest message time in local
   timezone instead of stale conversation update time.
 - Fix create-ticket header overlap, field alignment, and issue-description

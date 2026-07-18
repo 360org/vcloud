@@ -32,12 +32,12 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen>
     super.dispose();
   }
 
-  Future<void> _open(String otherId) async {
+  Future<void> _open(String partnerId) async {
     setState(() => _busy = true);
     try {
       final id = await ref
           .read(conversationActionsProvider)
-          .openDirect(otherId);
+          .openDirect(partnerId);
       if (mounted) context.go('/chat/$id');
     } on Failure catch (f) {
       _snack(f.message);
@@ -107,7 +107,9 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen>
                                   ),
                                 )
                               : const Icon(Icons.chat_bubble_outline),
-                          onTap: _busy ? null : () => _open(p.id),
+                          onTap: _busy || p.partnerId == null
+                              ? null
+                              : () => _open(p.partnerId!),
                         ),
                       );
                     },

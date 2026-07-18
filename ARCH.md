@@ -13,6 +13,18 @@ presentation
 
 Presentation must never call HTTP, Odoo, or storage directly.
 
+## iOS Delivery Boundary
+
+- GitLab remains the source repository. Codemagic connects to it directly and
+  supplies the macOS/Xcode worker required for iOS archive, signing, and
+  TestFlight upload.
+- `codemagic.yaml` references an App Store Connect integration and signing
+  identity managed in Codemagic; no Apple API key, `.p8`, certificate, or
+  provisioning profile is a source artifact.
+- The release workflow injects Odoo/Firebase configuration as `--dart-define`
+  values from the `vcloud_ios_release` secret group. The Flutter app continues
+  to read those values solely through `Env`.
+
 ## Core API Layer
 - `Env.odooApiBaseUrl` points to the master mobile auth resolver.
   `Env.odooDb` remains optional for compatibility, but the default mobile login
@@ -90,6 +102,9 @@ Odoo uses integer IDs and snake_case fields. Existing Flutter models keep their 
 ## Chat Boundary
 - Chat list, detail, direct open, group creation, archive, and mark-read calls
   are exposed through `ChatRepository` and `conversationActionsProvider`.
+- Direct-chat user lookup uses `GET /api/v1/mobile/users/search`; the repository
+  keeps the returned user ID for group membership and maps `partner_id`
+  separately for `POST /api/v1/mobile/chat/direct`.
 - Message pin/unpin actions are exposed through `ChatRepository` and
   `pinMessageActionProvider`; presentation reads `Message.pinnedAt` and does not
   fake pinned state by prefixing message content.

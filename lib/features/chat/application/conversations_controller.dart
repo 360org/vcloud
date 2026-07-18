@@ -26,17 +26,16 @@ final conversationsProvider = StreamProvider<List<ConversationSummary>>((ref) {
     user.userMetadata['display_name']?.toString() ?? '',
     user.userMetadata['partner_id']?.toString() ?? '',
   }.where((value) => value.trim().isNotEmpty).toSet();
-  return ref.read(chatRepositoryProvider).watchConversations(
-    currentIdentityIds: currentIdentityIds,
-  );
+  return ref
+      .read(chatRepositoryProvider)
+      .watchConversations(currentIdentityIds: currentIdentityIds);
 });
 
 class ConversationActions {
   ConversationActions(this._repo);
   final ChatRepository _repo;
 
-  Future<String> openDirect(String otherUserId) =>
-      _repo.openDirect(otherUserId);
+  Future<String> openDirect(String partnerId) => _repo.openDirect(partnerId);
 
   Future<String> createGroup(String name, List<String> memberIds) =>
       _repo.createGroup(name, memberIds);

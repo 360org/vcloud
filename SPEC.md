@@ -88,6 +88,9 @@ All backend-facing feature work must follow:
   - `POST /api/v1/mobile/chat/messages`
   - `POST /api/v1/mobile/chat/channels/{channel_id}/mark-read`
   - `POST /api/v1/mobile/chat/direct`
+  - `GET /api/v1/mobile/users/search?q={keyword}` for internal-user lookup.
+    Search responses preserve both the Odoo user ID and `partner_id`; direct
+    creation sends only `partner_id`.
   - `POST /api/v1/mobile/chat/groups`
   - `POST /api/v1/mobile/chat/channels/{channel_id}/archive`
   - `POST /api/v1/mobile/chat/channels/{channel_id}/unarchive`
@@ -153,6 +156,18 @@ Runtime configuration is passed via `--dart-define`:
 
 If the Firebase defines are omitted, push registration is skipped client-side
 and the rest of the app continues to run.
+
+## iOS distribution
+
+- iOS release artifacts are built only on Codemagic macOS workers. A push to
+  the GitLab `main` branch runs the `ios-testflight` workflow, which must pass
+  `flutter analyze` and `flutter test` before building a signed IPA.
+- The workflow uploads an internal-testing-only IPA to TestFlight. It obtains
+  the next build number from App Store Connect, so every upload has a unique
+  iOS build number.
+- App Store credentials, signing files, the App Store numeric app ID, and Odoo
+  production configuration are stored as Codemagic secrets/integrations and
+  must never be committed to this repository.
 
 ## Acceptance Criteria
 - `flutter analyze` has 0 errors and 0 warnings.
