@@ -13,6 +13,18 @@ presentation
 
 Presentation must never call HTTP, Odoo, or storage directly.
 
+## iOS Delivery Boundary
+
+- GitLab remains the source repository. Codemagic connects to it directly and
+  supplies the macOS/Xcode worker required for iOS archive, signing, and
+  TestFlight upload.
+- `codemagic.yaml` references an App Store Connect integration and signing
+  identity managed in Codemagic; no Apple API key, `.p8`, certificate, or
+  provisioning profile is a source artifact.
+- The release workflow injects Odoo/Firebase configuration as `--dart-define`
+  values from the `vcloud_ios_release` secret group. The Flutter app continues
+  to read those values solely through `Env`.
+
 ## Core API Layer
 - `Env.odooApiBaseUrl` points to the master mobile auth resolver.
   `Env.odooDb` remains optional for compatibility, but the default mobile login

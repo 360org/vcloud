@@ -24,6 +24,9 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 ### Added
+- Add a Codemagic macOS workflow for signed iOS IPA builds and internal
+  TestFlight upload from GitLab, with App Store build-number incrementing and
+  repository-free release credentials.
 - Add `SPEC.md`, `ARCH.md`, and `implementation_plan.md` for the Odoo Mobile API migration workflow.
 - Add Odoo API client/session storage using JWT bearer auth from the mobile auth flow.
 - Add mobile dashboard summary wiring for Home counters, mobile avatar rendering,
