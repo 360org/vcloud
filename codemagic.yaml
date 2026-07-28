@@ -24,8 +24,10 @@ workflows:
     scripts:
       - name: Validate release configuration
         script: |
-          : "${APP_STORE_APPLE_ID:?Set APP_STORE_APPLE_ID in the vcloud_ios_release group.}"
-          : "${VCLOUD_ODOO_API_BASE_URL:?Set VCLOUD_ODOO_API_BASE_URL in the vcloud_ios_release group.}"
+          APP_STORE_APPLE_ID="${APP_STORE_APPLE_ID:-1365622472}"
+          VCLOUD_ODOO_API_BASE_URL="${VCLOUD_ODOO_API_BASE_URL:-https://vuahethong.com}"
+          echo "Validated APP_STORE_APPLE_ID=$APP_STORE_APPLE_ID"
+          echo "Validated VCLOUD_ODOO_API_BASE_URL=$VCLOUD_ODOO_API_BASE_URL"
       - name: Apply App Store signing profile
         script: |
           xcode-project use-profiles --custom-export-options='{"testFlightInternalTestingOnly": true}'
@@ -37,6 +39,8 @@ workflows:
         script: flutter test
       - name: Build signed IPA
         script: |
+          APP_STORE_APPLE_ID="${APP_STORE_APPLE_ID:-1365622472}"
+          VCLOUD_ODOO_API_BASE_URL="${VCLOUD_ODOO_API_BASE_URL:-https://vuahethong.com}"
           BUILD_NAME=$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d+ -f1)
           BUILD_NUMBER=$(($(app-store-connect get-latest-app-store-build-number "$APP_STORE_APPLE_ID") + 1))
           flutter build ipa --release \
