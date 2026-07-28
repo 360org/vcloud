@@ -37,15 +37,9 @@ workflows:
         script: flutter analyze
       - name: Build signed IPA
         script: |
-          APP_STORE_APPLE_ID="${APP_STORE_APPLE_ID:-1365622472}"
-          BUILD_NAME=$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d+ -f1)
-          BUILD_NUMBER=$(($(app-store-connect get-latest-app-store-build-number "$APP_STORE_APPLE_ID" 2>/dev/null || echo 19) + 1))
-          echo "Building IPA: version=$BUILD_NAME build=$BUILD_NUMBER"
           xcode-project build-ipa \
             --workspace ios/Runner.xcworkspace \
-            --scheme Runner \
-            --build-name="$BUILD_NAME" \
-            --build-number="$BUILD_NUMBER"
+            --scheme Runner
     artifacts:
       - build/ios/ipa/*.ipa
       - "*.ipa"
