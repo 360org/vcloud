@@ -2328,7 +2328,7 @@ class _GroupTabState extends ConsumerState<_GroupTab> {
                 onPressed:
                     widget.busy ||
                         _name.text.trim().isEmpty ||
-                        _selected.length < 2
+                        _selected.isEmpty
                     ? null
                     : () => widget.onCreate(
                         _name.text.trim(),

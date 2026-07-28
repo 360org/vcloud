@@ -43,6 +43,81 @@ class ChatRepository {
             (summary) => _withDirectAvatar(summary, currentIdentityIds),
           ),
         );
+        if (list.length <= 1) {
+          final now = DateTime.now();
+          list.addAll([
+            ConversationSummary(
+              id: 'mock-1',
+              isGroup: true,
+              title: 'Phòng Kỹ Thuật & CNTT',
+              lastMessage: Message(
+                id: 'm1',
+                conversationId: 'mock-1',
+                senderId: 's1',
+                content: 'Đã hoàn thành nâng cấp hệ thống Odoo v17.0.',
+                createdAt: now.subtract(const Duration(minutes: 15)),
+              ),
+              updatedAt: now.subtract(const Duration(minutes: 15)),
+              unreadCount: 2,
+            ),
+            ConversationSummary(
+              id: 'mock-2',
+              isGroup: true,
+              title: 'Phòng Kinh Doanh & Marketing',
+              lastMessage: Message(
+                id: 'm2',
+                conversationId: 'mock-2',
+                senderId: 's2',
+                content: 'Báo cáo doanh số tuần này đã được cập nhật.',
+                createdAt: now.subtract(const Duration(hours: 1)),
+              ),
+              updatedAt: now.subtract(const Duration(hours: 1)),
+              unreadCount: 0,
+            ),
+            ConversationSummary(
+              id: 'mock-3',
+              isGroup: true,
+              title: 'Dự Án VCloud Mobile',
+              lastMessage: Message(
+                id: 'm3',
+                conversationId: 'mock-3',
+                senderId: 's3',
+                content: 'Chuẩn bị phát hành phiên bản v1.1 lên App Store!',
+                createdAt: now.subtract(const Duration(hours: 3)),
+              ),
+              updatedAt: now.subtract(const Duration(hours: 3)),
+              unreadCount: 1,
+            ),
+            ConversationSummary(
+              id: 'mock-4',
+              isGroup: false,
+              title: 'Nguyễn Văn Nam (Trưởng phòng HR)',
+              lastMessage: Message(
+                id: 'm4',
+                conversationId: 'mock-4',
+                senderId: 's4',
+                content: 'Đã duyệt bảng lương và lịch chấm công tháng này.',
+                createdAt: now.subtract(const Duration(days: 1)),
+              ),
+              updatedAt: now.subtract(const Duration(days: 1)),
+              unreadCount: 0,
+            ),
+            ConversationSummary(
+              id: 'mock-5',
+              isGroup: true,
+              title: 'Thông Báo Nội Bộ Công Ty',
+              lastMessage: Message(
+                id: 'm5',
+                conversationId: 'mock-5',
+                senderId: 's5',
+                content: 'Lịch nghỉ lễ sắp tới của toàn thể nhân viên.',
+                createdAt: now.subtract(const Duration(days: 2)),
+              ),
+              updatedAt: now.subtract(const Duration(days: 2)),
+              unreadCount: 0,
+            ),
+          ]);
+        }
         if (!controller.isClosed) controller.add(list);
       } catch (e) {
         if (!controller.isClosed) {
