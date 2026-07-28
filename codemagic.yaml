@@ -25,7 +25,7 @@ workflows:
       - name: Validate release configuration
         script: |
           APP_STORE_APPLE_ID="${APP_STORE_APPLE_ID:-1365622472}"
-          VCLOUD_ODOO_API_BASE_URL="${VCLOUD_ODOO_API_BASE_URL:-https://vuahethong.com}"
+          VCLOUD_ODOO_API_BASE_URL="${VCLOUD_ODOO_API_BASE_URL:-https://vuahethong.net}"
           echo "Validated APP_STORE_APPLE_ID=$APP_STORE_APPLE_ID"
           echo "Validated VCLOUD_ODOO_API_BASE_URL=$VCLOUD_ODOO_API_BASE_URL"
       - name: Apply App Store signing profile
