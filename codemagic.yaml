@@ -38,13 +38,14 @@ workflows:
       - name: Build signed IPA
         script: |
           APP_STORE_APPLE_ID="${APP_STORE_APPLE_ID:-1365622472}"
-          VCLOUD_ODOO_API_BASE_URL="${VCLOUD_ODOO_API_BASE_URL:-https://vuahethong.com}"
           BUILD_NAME=$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d+ -f1)
           BUILD_NUMBER=$(($(app-store-connect get-latest-app-store-build-number "$APP_STORE_APPLE_ID" 2>/dev/null || echo 19) + 1))
-          flutter pub get
+          echo "Building IPA: version=$BUILD_NAME build=$BUILD_NUMBER"
           xcode-project build-ipa \
             --workspace ios/Runner.xcworkspace \
-            --scheme Runner
+            --scheme Runner \
+            --build-name="$BUILD_NAME" \
+            --build-number="$BUILD_NUMBER"
     artifacts:
       - build/ios/ipa/*.ipa
       - "*.ipa"
