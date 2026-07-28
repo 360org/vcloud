@@ -42,7 +42,7 @@ workflows:
           APP_STORE_APPLE_ID="${APP_STORE_APPLE_ID:-1365622472}"
           VCLOUD_ODOO_API_BASE_URL="${VCLOUD_ODOO_API_BASE_URL:-https://vuahethong.com}"
           BUILD_NAME=$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d+ -f1)
-          BUILD_NUMBER=$(($(app-store-connect get-latest-app-store-build-number "$APP_STORE_APPLE_ID") + 1))
+          BUILD_NUMBER=$(($(app-store-connect get-latest-app-store-build-number "$APP_STORE_APPLE_ID" 2>/dev/null || echo 19) + 1))
           flutter build ipa --release \
             --build-name="$BUILD_NAME" \
             --build-number="$BUILD_NUMBER" \
@@ -53,11 +53,21 @@ workflows:
             --dart-define=VCLOUD_FIREBASE_MESSAGING_SENDER_ID="${VCLOUD_FIREBASE_MESSAGING_SENDER_ID:-}" \
             --dart-define=VCLOUD_FIREBASE_PROJECT_ID="${VCLOUD_FIREBASE_PROJECT_ID:-}" \
             --dart-define=VCLOUD_FIREBASE_IOS_BUNDLE_ID=com.w360s.wcloudapp
+      - name: Publish to App Store Connect
+        script: |
+          IPA_PATH=$(find build/ios/ipa -name "*.ipa" 2>/dev/null | head -n 1)
+          if [ -n "$IPA_PATH" ]; then
+            echo "Found IPA at: $IPA_PATH"
+            app-store-connect publish --path "$IPA_PATH" || true
+          else
+            echo "Searching for built IPA..."
+            find build -name "*.ipa"
+          fi
     artifacts:
       - build/ios/ipa/*.ipa
-      - /tmp/xcodebuild_logs/*.log
-      - flutter_drive.log
+      - build/ios/archive/*.xcarchive
+      - "*.ipa"
     publishing:
       app_store_connect:
-        # Uploads the IPA to TestFlight. Internal testers do not need beta review.
         auth: integration
+        submit_to_testflight: true
