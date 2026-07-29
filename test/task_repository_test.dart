@@ -180,7 +180,7 @@ class _FakeOdooApiClient extends OdooApiClient {
         },
       ];
     }
-    if (path == '/api/v1/helpdesk.tag') {
+    if (path == '/api/v1/mobile/project/tags') {
       tagRequests++;
       return <Map<String, dynamic>>[
         <String, dynamic>{'id': 9, 'name': 'Urgent', 'color': 1},

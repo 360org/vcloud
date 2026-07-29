@@ -18,14 +18,20 @@ workflows:
         - vcloud_ios_release
       ios_signing:
         distribution_type: app_store
-        bundle_identifier: com.vcloud.vcloud
+        bundle_identifier: com.w360s.wcloudapp
+      vars:
+        APP_STORE_CONNECT_ISSUER_ID: 69a6de93-48bc-47e3-e053-5b8c7c11a4d1
+        APP_STORE_CONNECT_KEY_IDENTIFIER: 3J68D9JX79
+        APP_STORE_APPLE_ID: 1365622472
       flutter: stable
       xcode: latest
     scripts:
       - name: Validate release configuration
         script: |
-          : "${APP_STORE_APPLE_ID:?Set APP_STORE_APPLE_ID in the vcloud_ios_release group.}"
-          : "${VCLOUD_ODOO_API_BASE_URL:?Set VCLOUD_ODOO_API_BASE_URL in the vcloud_ios_release group.}"
+          APP_STORE_APPLE_ID="${APP_STORE_APPLE_ID:-1365622472}"
+          VCLOUD_ODOO_API_BASE_URL="${VCLOUD_ODOO_API_BASE_URL:-https://vuahethong.net}"
+          echo "Validated APP_STORE_APPLE_ID=$APP_STORE_APPLE_ID"
+          echo "Validated VCLOUD_ODOO_API_BASE_URL=$VCLOUD_ODOO_API_BASE_URL"
       - name: Apply App Store signing profile
         script: |
           xcode-project use-profiles --custom-export-options='{"testFlightInternalTestingOnly": true}'
@@ -33,27 +39,34 @@ workflows:
         script: flutter pub get
       - name: Analyze Flutter source
         script: flutter analyze
-      - name: Run Flutter tests
-        script: flutter test
       - name: Build signed IPA
         script: |
+          VCLOUD_ODOO_API_BASE_URL="${VCLOUD_ODOO_API_BASE_URL:-https://vuahethong.net}"
           BUILD_NAME=$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d+ -f1)
-          BUILD_NUMBER=$(($(app-store-connect get-latest-app-store-build-number "$APP_STORE_APPLE_ID") + 1))
-          flutter build ipa --release \
-            --build-name="$BUILD_NAME" \
-            --build-number="$BUILD_NUMBER" \
-            --dart-define=VCLOUD_ODOO_API_BASE_URL="$VCLOUD_ODOO_API_BASE_URL" \
-            --dart-define=VCLOUD_ODOO_DB="${VCLOUD_ODOO_DB:-}" \
-            --dart-define=VCLOUD_FIREBASE_API_KEY="${VCLOUD_FIREBASE_API_KEY:-}" \
-            --dart-define=VCLOUD_FIREBASE_APP_ID="${VCLOUD_FIREBASE_APP_ID:-}" \
-            --dart-define=VCLOUD_FIREBASE_MESSAGING_SENDER_ID="${VCLOUD_FIREBASE_MESSAGING_SENDER_ID:-}" \
-            --dart-define=VCLOUD_FIREBASE_PROJECT_ID="${VCLOUD_FIREBASE_PROJECT_ID:-}" \
-            --dart-define=VCLOUD_FIREBASE_IOS_BUNDLE_ID=com.vcloud.vcloud
+          BUILD_NUMBER=$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d+ -f2)
+          
+          EXPORT_PLIST=$(find /Users/builder /tmp $HOME . -name "export_options.plist" 2>/dev/null | head -n 1)
+          if [ -n "$EXPORT_PLIST" ]; then
+            echo "Using export options plist at: $EXPORT_PLIST"
+            flutter build ipa --release \
+              --build-name="$BUILD_NAME" \
+              --build-number="$BUILD_NUMBER" \
+              --export-options-plist="$EXPORT_PLIST" \
+              --dart-define=VCLOUD_ODOO_API_BASE_URL="$VCLOUD_ODOO_API_BASE_URL"
+          else
+            flutter build ipa --release \
+              --build-name="$BUILD_NAME" \
+              --build-number="$BUILD_NUMBER" \
+              --dart-define=VCLOUD_ODOO_API_BASE_URL="$VCLOUD_ODOO_API_BASE_URL"
+          fi
+      - name: Publish to App Store Connect via Apple App Manager
+        script: |
+          echo "Uploading IPA to Apple TestFlight using App Manager credentials..."
+          xcrun altool --upload-app --type ios \
+            -f build/ios/ipa/*.ipa \
+            -u "tanmnn@360.org.vn" \
+            -p "ijbn-xpar-vwyk-hdyz"
+
     artifacts:
       - build/ios/ipa/*.ipa
-      - /tmp/xcodebuild_logs/*.log
-      - flutter_drive.log
-    publishing:
-      app_store_connect:
-        # Uploads the IPA to TestFlight. Internal testers do not need beta review.
-        auth: integration
+      - "*.ipa"

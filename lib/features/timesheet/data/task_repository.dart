@@ -21,7 +21,7 @@ class TaskRepository {
 
   final OdooApiClient _client;
 
-  /// Cached `id → TagInfo` map for the `helpdesk.tag` endpoint, populated
+  /// Cached `id → TagInfo` map for the `project.tags` endpoint, populated
   /// lazily the first time a task response carries raw `tag_ids`. Resolve-once
   /// is enough for the lifetime of the repo instance: tags rarely change
   /// inside a session, and the next list refresh will pick up new entries
@@ -385,7 +385,7 @@ class TaskRepository {
     };
   }
 
-  /// Memoised load of the helpdesk.tag catalog. Returns an empty map on
+  /// Memoised load of the project.tags catalog. Returns an empty map on
   /// failure so the rendering layer keeps working (still shows raw IDs as
   /// `Tag #N`); a network blip should never block the timesheet list.
   Future<Map<int, _TagInfo>> _ensureTagNames() {
@@ -396,7 +396,7 @@ class TaskRepository {
 
   Future<Map<int, _TagInfo>> _loadTagNames() async {
     try {
-      final raw = await _client.get('/api/v1/helpdesk.tag');
+      final raw = await _client.get('/api/v1/mobile/project/tags');
       final list = _unwrapTagList(raw);
       final lookup = <int, _TagInfo>{};
       for (final entry in list.whereType<Map>()) {
@@ -412,7 +412,7 @@ class TaskRepository {
       _tagNamesCache = lookup;
       return lookup;
     } catch (e) {
-      debugPrint('TaskRepository: helpdesk.tag catalog failed: $e');
+      debugPrint('TaskRepository: project.tags catalog failed: $e');
       return const <int, _TagInfo>{};
     }
   }

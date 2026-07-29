@@ -93,7 +93,16 @@ class TicketRepository {
   }
 
   Future<Ticket> updateStatus(String id, TicketStatus status) async {
-    throw Failure('360 Support API chưa hỗ trợ cập nhật trạng thái ticket.');
+    final odooStatus = status == TicketStatus.done ? 'done' : 'in_progress';
+    try {
+      await _client.put(
+        '/api/v1/mobile/project/task/$id/workflow',
+        body: <String, dynamic>{'status': odooStatus},
+      );
+      return await one(id);
+    } catch (e) {
+      throw Failure('Lỗi khi cập nhật trạng thái: $e');
+    }
   }
 
   Future<Ticket> updatePriority(String id, TicketPriority priority) async {
@@ -118,18 +127,21 @@ class TicketRepository {
   Map<String, dynamic> _ticketFromOdoo(Map<String, dynamic> map) {
     final created =
         map['create_date'] as String? ?? DateTime.now().toIso8601String();
-    final closeDate = map['close_date'] as String?;
+    
+    final state = map['state'] as String?;
+    final isDone = state == '1_done' || state == '1_canceled' || map['date_done'] != null;
+
     return <String, dynamic>{
       'id': map['id'].toString(),
       'title': _ticketTitle(map),
       'description': _cleanOptionalText(map['description']),
-      'status': closeDate == null
-          ? TicketStatus.doing.dbValue
-          : TicketStatus.done.dbValue,
+      'status': isDone
+          ? TicketStatus.done.dbValue
+          : TicketStatus.doing.dbValue,
       'created_by': _many2OneId(map['partner_id']) ?? '',
       'assigned_to': _many2OneId(map['user_id']) ?? '',
       'created_at': created,
-      'updated_at': closeDate ?? map['assign_date'] as String? ?? created,
+      'updated_at': map['date_done'] as String? ?? created,
       'priority': _priorityFromOdoo(map['priority'] as String?),
       'category': map['team_name'] as String?,
       'tag_labels': _tagLabels(map['tags']),
