@@ -37,9 +37,24 @@ workflows:
         script: flutter analyze
       - name: Build signed IPA
         script: |
-          xcode-project build-ipa \
-            --workspace ios/Runner.xcworkspace \
-            --scheme Runner
+          VCLOUD_ODOO_API_BASE_URL="${VCLOUD_ODOO_API_BASE_URL:-https://vuahethong.net}"
+          BUILD_NAME=$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d+ -f1)
+          BUILD_NUMBER=$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d+ -f2)
+          
+          EXPORT_PLIST=$(find /Users/builder /tmp $HOME . -name "export_options.plist" 2>/dev/null | head -n 1)
+          if [ -n "$EXPORT_PLIST" ]; then
+            echo "Using export options plist at: $EXPORT_PLIST"
+            flutter build ipa --release \
+              --build-name="$BUILD_NAME" \
+              --build-number="$BUILD_NUMBER" \
+              --export-options-plist="$EXPORT_PLIST" \
+              --dart-define=VCLOUD_ODOO_API_BASE_URL="$VCLOUD_ODOO_API_BASE_URL"
+          else
+            flutter build ipa --release \
+              --build-name="$BUILD_NAME" \
+              --build-number="$BUILD_NUMBER" \
+              --dart-define=VCLOUD_ODOO_API_BASE_URL="$VCLOUD_ODOO_API_BASE_URL"
+          fi
     artifacts:
       - build/ios/ipa/*.ipa
       - "*.ipa"
