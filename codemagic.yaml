@@ -19,6 +19,10 @@ workflows:
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.w360s.wcloudapp
+      vars:
+        APP_STORE_CONNECT_ISSUER_ID: 69a6de93-48bc-47e3-e053-5b8c7c11a4d1
+        APP_STORE_CONNECT_KEY_IDENTIFIER: 3J68D9JX79
+        APP_STORE_APPLE_ID: 1365622472
       flutter: stable
       xcode: latest
     scripts:
