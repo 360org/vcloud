@@ -55,6 +55,24 @@ workflows:
               --build-number="$BUILD_NUMBER" \
               --dart-define=VCLOUD_ODOO_API_BASE_URL="$VCLOUD_ODOO_API_BASE_URL"
           fi
+      - name: Publish to App Store Connect
+        script: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          cat << 'EOF' > ~/.appstoreconnect/private_keys/AuthKey_3J68D9JX79.p8
+-----BEGIN PRIVATE KEY-----
+MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQgDxxX6W0tqfQvZjt4
+G8upK4pFWQBb1Z5BrXgYpuZt8H2gCgYIKoZIzj0DAQehRANCAATgWrVl8XuPkxaM
+Oc6r9wCobn6YnxaUMZuBLInqviKRQYbOc4sVmXsFcF4pALJhoOuALfP+LX86q5AZ
+NM86TexJ
+-----END PRIVATE KEY-----
+EOF
+          IPA_FILE=$(find build/ios/ipa -name "*.ipa" | head -n 1)
+          echo "Publishing $IPA_FILE to App Store Connect..."
+          app-store-connect publish \
+            --path "$IPA_FILE" \
+            --key-id 3J68D9JX79 \
+            --issuer-id 69a6de93-48bc-47e3-e053-5b8c7c11a4d1 \
+            --private-key ~/.appstoreconnect/private_keys/AuthKey_3J68D9JX79.p8
     artifacts:
       - build/ios/ipa/*.ipa
       - "*.ipa"
