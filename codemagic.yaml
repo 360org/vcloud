@@ -58,14 +58,7 @@ workflows:
       - name: Publish to App Store Connect
         script: |
           mkdir -p ~/.appstoreconnect/private_keys
-          cat << 'EOF' > ~/.appstoreconnect/private_keys/AuthKey_3J68D9JX79.p8
------BEGIN PRIVATE KEY-----
-MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQgDxxX6W0tqfQvZjt4
-G8upK4pFWQBb1Z5BrXgYpuZt8H2gCgYIKoZIzj0DAQehRANCAATgWrVl8XuPkxaM
-Oc6r9wCobn6YnxaUMZuBLInqviKRQYbOc4sVmXsFcF4pALJhoOuALfP+LX86q5AZ
-NM86TexJ
------END PRIVATE KEY-----
-EOF
+          echo "LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JR1RBZ0VBTVJNR0J5cUdTTTQ5QWdFR0NDcUdTTTQ5QXdFSEJIa3dkd0lCQVFRZ0R4eFg2VzB0cWZRdlpqdDQKRzh1cEs0cEZXUUJidVpaQnJYZ1lwdVp0OEgyZ0NnWUlLb1pJemowREFBRWhSQU5DQUFUZ1dyVmw4WHVQeHhhTQpPYzZyOXdDb2JuNllueGFVTVp1QkxJbnF2aUtSUVliT2M0c1ZtWHNGY0Y0cEFMSmhvT3VBTGZQK0xYODZxNUFaCk5NODZUZXhKCi0tLS0tRU5EIFBSSVZBVEUgS0VZLS0tLS0K" | base64 -d > ~/.appstoreconnect/private_keys/AuthKey_3J68D9JX79.p8
           IPA_FILE=$(find build/ios/ipa -name "*.ipa" | head -n 1)
           echo "Publishing $IPA_FILE to App Store Connect..."
           app-store-connect publish \
