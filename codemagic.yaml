@@ -58,13 +58,17 @@ workflows:
       - name: Publish to App Store Connect
         script: |
           mkdir -p ~/.appstoreconnect/private_keys
-          echo "LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JR1RBZ0VBTVJNR0J5cUdTTTQ5QWdFR0NDcUdTTTQ5QXdFSEJIa3dkd0lCQVFRZ0R4eFg2VzB0cWZRdlpqdDQKRzh1cEs0cEZXUUJidVpaQnJYZ1lwdVp0OEgyZ0NnWUlLb1pJemowREFBRWhSQU5DQUFUZ1dyVmw4WHVQeHhhTQpPYzZyOXdDb2JuNllueGFVTVp1QkxJbnF2aUtSUVliT2M0c1ZtWHNGY0Y0cEFMSmhvT3VBTGZQK0xYODZxNUFaCk5NODZUZXhKCi0tLS0tRU5EIFBSSVZBVEUgS0VZLS0tLS0K" | base64 -d > ~/.appstoreconnect/private_keys/AuthKey_3J68D9JX79.p8
+          if [ -n "$APP_STORE_CONNECT_PRIVATE_KEY" ]; then
+            echo "$APP_STORE_CONNECT_PRIVATE_KEY" > ~/.appstoreconnect/private_keys/AuthKey_3J68D9JX79.p8
+          else
+            echo "LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JR1RBZ0VBTVJNR0J5cUdTTTQ5QWdFR0NDcUdTTTQ5QXdFSEJIa3dkd0lCQVFRZ0R4eFg2VzB0cWZRdlpqdDQKRzh1cEs0cEZXUUJidVpaQnJYZ1lwdVp0OEgyZ0NnWUlLb1pJemowREFBRWhSQU5DQUFUZ1dyVmw4WHVQeHhhTQpPYzZyOXdDb2JuNllueGFVTVp1QkxJbnF2aUtSUVliT2M0c1ZtWHNGY0Y0cALJhoOuALfP+LX86q5AZNM86TexJCi0tLS0tRU5EIFBSSVZBVEUgS0VZLS0tLS0K" | base64 -d > ~/.appstoreconnect/private_keys/AuthKey_3J68D9JX79.p8
+          fi
           IPA_FILE=$(find build/ios/ipa -name "*.ipa" | head -n 1)
           echo "Publishing $IPA_FILE to App Store Connect..."
           app-store-connect publish \
             --path "$IPA_FILE" \
-            --key-id 3J68D9JX79 \
-            --issuer-id 69a6de93-48bc-47e3-e053-5b8c7c11a4d1 \
+            --key-id "${APP_STORE_CONNECT_KEY_IDENTIFIER:-3J68D9JX79}" \
+            --issuer-id "${APP_STORE_CONNECT_ISSUER_ID:-69a6de93-48bc-47e3-e053-5b8c7c11a4d1}" \
             --private-key ~/.appstoreconnect/private_keys/AuthKey_3J68D9JX79.p8
     artifacts:
       - build/ios/ipa/*.ipa
