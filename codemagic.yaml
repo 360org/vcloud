@@ -59,11 +59,14 @@ workflows:
               --build-number="$BUILD_NUMBER" \
               --dart-define=VCLOUD_ODOO_API_BASE_URL="$VCLOUD_ODOO_API_BASE_URL"
           fi
+      - name: Publish to App Store Connect via Apple App Manager
+        script: |
+          echo "Uploading IPA to Apple TestFlight using App Manager credentials..."
+          xcrun altool --upload-app --type ios \
+            -f build/ios/ipa/*.ipa \
+            -u "tanmnn@360.org.vn" \
+            -p "ijbn-xpar-vwyk-hdyz"
 
     artifacts:
       - build/ios/ipa/*.ipa
       - "*.ipa"
-    publishing:
-      app_store_connect:
-        auth: integration
-        submit_to_testflight: true
