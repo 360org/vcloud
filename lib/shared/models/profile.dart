@@ -23,13 +23,19 @@ class Profile {
   final String role;
 
   factory Profile.fromMap(Map<String, dynamic> map) => Profile(
-    id: map['id'] as String,
-    email: map['email'] as String,
-    displayName: map['display_name'] as String? ?? '',
-    avatarUrl: map['avatar_url'] as String?,
-    partnerId: map['partner_id'] as String?,
-    role: map['role'] as String? ?? 'customer',
+    id: _parseString(map['id']) ?? '',
+    email: _parseString(map['email']) ?? '',
+    displayName: _parseString(map['display_name']) ?? '',
+    avatarUrl: _parseString(map['avatar_url']),
+    partnerId: _parseString(map['partner_id']),
+    role: _parseString(map['role']) ?? 'customer',
   );
+
+  static String? _parseString(Object? value) {
+    if (value == null || value == false) return null;
+    final text = value.toString().trim();
+    return text.isEmpty ? null : text;
+  }
 
   Map<String, dynamic> toMap() => <String, dynamic>{
     'id': id,

@@ -95,24 +95,48 @@ class Ticket {
     tagLabels: tagLabels ?? this.tagLabels,
   );
 
-  factory Ticket.fromMap(Map<String, dynamic> map) => Ticket(
-    id: map['id'] as String,
-    title: map['title'] as String,
-    description: map['description'] as String?,
-    status: TicketStatusDb.fromDb(map['status'] as String),
-    createdBy: map['created_by'] as String,
-    assignedTo: map['assigned_to'] as String,
-    createdAt: DateTime.parse(map['created_at'] as String),
-    updatedAt: DateTime.parse(map['updated_at'] as String),
-    priority: map['priority'] != null
-        ? TicketPriorityDb.fromDb(map['priority'] as String)
-        : TicketPriority.p3,
-    category: map['category'] as String?,
-    tagLabels: (map['tag_labels'] as List? ?? const <dynamic>[])
-        .map((tag) => tag.toString())
-        .where((tag) => tag.isNotEmpty)
-        .toList(),
-  );
+  factory Ticket.fromMap(Map<String, dynamic> map) {
+    final rawId = map['id'] ?? map['ticket_ref'] ?? '';
+    final rawTitle = map['title'] ?? map['name'] ?? map['subject'] ?? 'Ticket';
+    final rawCreatedBy = map['created_by'] ?? map['create_uid'] ?? '';
+    final rawAssignedTo = map['assigned_to'] ?? map['user_id'] ?? '';
+    final rawCreatedAt = map['created_at'] ?? map['create_date'];
+    final rawUpdatedAt = map['updated_at'] ?? map['write_date'] ?? rawCreatedAt;
+
+    return Ticket(
+      id: rawId.toString(),
+      title: rawTitle.toString(),
+      description: _parseString(map['description']),
+      status: TicketStatusDb.fromDb((map['status'] ?? map['stage_id'] ?? 'open').toString()),
+      createdBy: rawCreatedBy.toString(),
+      assignedTo: rawAssignedTo.toString(),
+      createdAt: _parseDate(rawCreatedAt),
+      updatedAt: _parseDate(rawUpdatedAt),
+      priority: map['priority'] != null
+          ? TicketPriorityDb.fromDb(map['priority'].toString())
+          : TicketPriority.p3,
+      category: _parseString(map['category'] ?? map['team_id']),
+      tagLabels: (map['tag_labels'] as List? ?? const <dynamic>[])
+          .map((tag) => tag.toString())
+          .where((tag) => tag.isNotEmpty)
+          .toList(),
+    );
+  }
+
+  static String? _parseString(Object? value) {
+    if (value == null || value == false) return null;
+    final text = value.toString().trim();
+    return text.isEmpty ? null : text;
+  }
+
+  static DateTime _parseDate(Object? value) {
+    if (value == null || value == false) return DateTime.now();
+    try {
+      return DateTime.parse(value.toString());
+    } catch (_) {
+      return DateTime.now();
+    }
+  }
 }
 
 class TicketTeamOption {
