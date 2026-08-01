@@ -30,63 +30,63 @@ class TaskRepository {
   Future<Map<int, _TagInfo>>? _tagNamesFuture;
 
   Future<List<TimesheetProjectOption>> listProjects() async {
-    final res = await _client.get('/api/v1/mobile/timesheet/projects');
-    return (res as List).cast<Map<String, dynamic>>().map((map) {
-      final name = (map['name'] ?? map['display_name'] ?? 'Project').toString();
-      return TimesheetProjectOption(id: map['id'].toString(), name: name);
-    }).toList();
+    try {
+      final res = await _client.get('/api/v1/mobile/project/list');
+      return (res as List).cast<Map<String, dynamic>>().map((map) {
+        final name = (map['name'] ?? map['display_name'] ?? 'Project').toString();
+        return TimesheetProjectOption(id: map['id'].toString(), name: name);
+      }).toList();
+    } catch (_) {
+      try {
+        final res = await _client.get('/api/v1/mobile/timesheet/projects');
+        return (res as List).cast<Map<String, dynamic>>().map((map) {
+          final name = (map['name'] ?? map['display_name'] ?? 'Project').toString();
+          return TimesheetProjectOption(id: map['id'].toString(), name: name);
+        }).toList();
+      } catch (_) {
+        return const <TimesheetProjectOption>[];
+      }
+    }
   }
 
   Future<List<Task>> listProjectTasks(String projectId) async {
     final project = (await listProjects()).where((p) => p.id == projectId);
     final projectName = project.isEmpty ? null : project.first.name;
-    final res = await _client.get(
-      '/api/v1/mobile/timesheet/projects/$projectId/tasks',
-    );
-    return Future.wait(
-      (res as List).cast<Map<String, dynamic>>().map(
-        (m) async => Task.fromMap(
-          await _taskFromOdooHydrated(
-            m,
-            DateTime.now(),
-            projectId: projectId,
-            projectName: projectName,
+    try {
+      final res = await _client.get(
+        '/api/v1/mobile/project/$projectId/tasks',
+      );
+      return Future.wait(
+        (res as List).cast<Map<String, dynamic>>().map(
+          (m) async => Task.fromMap(
+            await _taskFromOdooHydrated(
+              m,
+              DateTime.now(),
+              projectId: projectId,
+              projectName: projectName,
+            ),
           ),
         ),
-      ),
-    );
+      );
+    } catch (_) {
+      return const <Task>[];
+    }
   }
 
   Stream<List<Task>> watchToday({DateTime? day}) {
     final ctl = StreamController<List<Task>>();
-    final target = day ?? DateTime.now();
 
     Future<void> refresh() async {
       try {
-        final projects = await _client.get('/api/v1/mobile/timesheet/projects');
-        final projectList = (projects as List).cast<Map<String, dynamic>>();
-        if (projectList.isEmpty) {
+        final projectListOptions = await listProjects();
+        if (projectListOptions.isEmpty) {
           if (!ctl.isClosed) ctl.add(const <Task>[]);
           return;
         }
         final tasksById = <String, Task>{};
-        for (final project in projectList) {
-          final projectId = project['id'];
-          if (projectId == null) continue;
-          final projectName = (project['name'] ?? project['display_name'])
-              ?.toString();
-          final res = await _client.get(
-            '/api/v1/mobile/timesheet/projects/$projectId/tasks',
-          );
-          for (final map in (res as List).cast<Map<String, dynamic>>()) {
-            final task = Task.fromMap(
-              await _taskFromOdooHydrated(
-                map,
-                target,
-                projectId: projectId,
-                projectName: projectName,
-              ),
-            );
+        for (final project in projectListOptions) {
+          final projectTasks = await listProjectTasks(project.id);
+          for (final task in projectTasks) {
             tasksById[task.id] = task;
           }
         }
