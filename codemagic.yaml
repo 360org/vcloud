@@ -11,6 +11,10 @@ workflows:
       branch_patterns:
         - pattern: main
           include: true
+        - pattern: release/*
+          include: true
+        - pattern: release/ios-appstore
+          include: true
       cancel_previous_builds: true
     environment:
       groups:
