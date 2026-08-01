@@ -1,3 +1,4 @@
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -87,17 +88,20 @@ Future<void> main() async {
     );
   };
 
-  // Catch unhandled Flutter errors
+  // Catch unhandled Flutter errors & send to Firebase Crashlytics
   FlutterError.onError = (FlutterErrorDetails details) {
+    FirebaseCrashlytics.instance.recordFlutterFatalError(details);
     FlutterError.presentError(details);
     debugPrint('GLOBAL FLUTTER ERROR: ${details.exception}');
   };
 
-  // Catch platform dispatcher errors
+  // Catch platform dispatcher errors & send to Firebase Crashlytics
   PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
+    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
     debugPrint('PLATFORM DISPATCHER ERROR: $error\n$stack');
     return true;
   };
 
   runApp(const ProviderScope(child: VCloudApp()));
 }
+
