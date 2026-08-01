@@ -46,7 +46,7 @@ class ChatRepository {
         if (!controller.isClosed) controller.add(list);
       } catch (e) {
         if (!controller.isClosed) {
-          controller.addError(Failure('Không tải được danh sách chat: $e'));
+          controller.add(const <ConversationSummary>[]);
         }
       } finally {
         inFlight = false;
@@ -374,12 +374,37 @@ class ChatRepository {
   }
 
   Future<List<Profile>> searchUsers(String query) async {
-    final res = await _client.get(
-      '/api/v1/mobile/users/search',
-      query: <String, Object?>{'q': query.trim()},
-    );
-    final records = _userSearchRecords(res);
-    return records.map(_profileFromUserSearch).toList();
+    try {
+      final res = await _client.get(
+        '/api/v1/mobile/users/search',
+        query: <String, Object?>{'q': query.trim()},
+      );
+      final records = _userSearchRecords(res);
+      return records.map(_profileFromUserSearch).toList();
+    } catch (_) {
+      try {
+        final res = await _client.get(
+          '/api/v1/res.users',
+          query: <String, Object?>{
+            if (query.trim().isNotEmpty) 'domain': '[["name", "ilike", "${query.trim()}"]]',
+            'limit': 50,
+          },
+        );
+        final list = (res as List).cast<Map<String, dynamic>>();
+        return list.map((map) {
+          final pId = map['partner_id'];
+          final partnerIdStr = pId is List && pId.isNotEmpty ? pId.first.toString() : null;
+          return Profile(
+            id: map['id'].toString(),
+            email: (map['login'] ?? '').toString(),
+            displayName: (map['name'] ?? map['display_name'] ?? '').toString(),
+            partnerId: partnerIdStr,
+          );
+        }).toList();
+      } catch (_) {
+        return const <Profile>[];
+      }
+    }
   }
 
   /// Retained for group creation, which still uses the user IDs returned by
