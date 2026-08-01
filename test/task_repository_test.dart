@@ -151,13 +151,15 @@ class _FakeOdooApiClient extends OdooApiClient {
     Map<String, Object?> query = const <String, Object?>{},
     bool auth = true,
   }) async {
-    if (path == '/api/v1/mobile/timesheet/projects') {
+    if (path == '/api/v1/mobile/project/list' ||
+        path == '/api/v1/mobile/timesheet/projects') {
       return <Map<String, dynamic>>[
         <String, dynamic>{'id': 1, 'name': 'Project A'},
         <String, dynamic>{'id': 2, 'name': 'Project B'},
       ];
     }
-    if (path == '/api/v1/mobile/timesheet/projects/1/tasks') {
+    if (path == '/api/v1/mobile/project/1/tasks' ||
+        path == '/api/v1/mobile/timesheet/projects/1/tasks') {
       return <Map<String, dynamic>>[
         <String, dynamic>{
           'id': 11,
@@ -169,7 +171,8 @@ class _FakeOdooApiClient extends OdooApiClient {
         },
       ];
     }
-    if (path == '/api/v1/mobile/timesheet/projects/2/tasks') {
+    if (path == '/api/v1/mobile/project/2/tasks' ||
+        path == '/api/v1/mobile/timesheet/projects/2/tasks') {
       return <Map<String, dynamic>>[
         <String, dynamic>{
           'id': 22,
@@ -180,6 +183,7 @@ class _FakeOdooApiClient extends OdooApiClient {
         },
       ];
     }
+
     if (path == '/api/v1/mobile/project/tags') {
       tagRequests++;
       return <Map<String, dynamic>>[

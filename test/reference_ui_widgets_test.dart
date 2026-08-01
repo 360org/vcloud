@@ -372,9 +372,11 @@ void main() {
       ),
     );
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pumpAndSettle();
 
     expect(find.text('Newest comment'), findsOneWidget);
+
     expect(find.text('Oldest comment'), findsOneWidget);
     expect(
       tester.getTopLeft(find.text('Newest comment')).dy,
@@ -521,14 +523,16 @@ class _FakeTimerProjectClient extends OdooApiClient {
     Map<String, Object?> query = const <String, Object?>{},
     bool auth = true,
   }) async {
-    if (path == '/api/v1/mobile/timesheet/projects') {
+    if (path == '/api/v1/mobile/project/list' ||
+        path == '/api/v1/mobile/timesheet/projects') {
       return <Map<String, dynamic>>[
         <String, dynamic>{'id': 1, 'name': 'Open Project'},
         <String, dynamic>{'id': 2, 'name': 'Empty Project'},
         <String, dynamic>{'id': 3, 'name': 'Done Project'},
       ];
     }
-    if (path == '/api/v1/mobile/timesheet/projects/1/tasks') {
+    if (path == '/api/v1/mobile/project/1/tasks' ||
+        path == '/api/v1/mobile/timesheet/projects/1/tasks') {
       return <Map<String, dynamic>>[
         <String, dynamic>{
           'id': 11,
@@ -539,10 +543,12 @@ class _FakeTimerProjectClient extends OdooApiClient {
         },
       ];
     }
-    if (path == '/api/v1/mobile/timesheet/projects/2/tasks') {
+    if (path == '/api/v1/mobile/project/2/tasks' ||
+        path == '/api/v1/mobile/timesheet/projects/2/tasks') {
       return <Map<String, dynamic>>[];
     }
-    if (path == '/api/v1/mobile/timesheet/projects/3/tasks') {
+    if (path == '/api/v1/mobile/project/3/tasks' ||
+        path == '/api/v1/mobile/timesheet/projects/3/tasks') {
       return <Map<String, dynamic>>[
         <String, dynamic>{
           'id': 33,
@@ -553,6 +559,7 @@ class _FakeTimerProjectClient extends OdooApiClient {
         },
       ];
     }
+
     if (path == '/api/v1/project.task/11') {
       return <String, dynamic>{
         'id': 11,
