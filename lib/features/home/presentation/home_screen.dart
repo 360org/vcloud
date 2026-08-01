@@ -64,10 +64,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final notificationCount = notificationState.valueOrNull?.total ?? 0;
     final user = ref.watch(authControllerProvider).valueOrNull;
     final meta = user?.userMetadata;
-    final name = (meta?['display_name'] as String?)?.trim();
-    final avatarUrl = meta?['avatar_url'] as String?;
-    final displayName = name?.isNotEmpty == true
-        ? name!
+    final rawName = meta?['display_name'];
+    final name = (rawName is String ? rawName : (rawName != null && rawName != false ? rawName.toString() : null))?.trim();
+    final rawAvatar = meta?['avatar_url'];
+    final avatarUrl = rawAvatar is String ? rawAvatar : null;
+    final displayName = (name != null && name.isNotEmpty)
+        ? name
         : (user?.email?.split('@').first ?? 'Người dùng');
     final todayTasks = ref
         .watch(todayTasksProvider)
