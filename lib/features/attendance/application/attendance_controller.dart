@@ -41,5 +41,5 @@ final attendanceActionsProvider = Provider(
 /// and home dashboard status card. The source of truth is the `/today`
 /// endpoint, not history, because history can contain stale open rows.
 final openSessionProvider = Provider<Attendance?>((ref) {
-  return ref.watch(attendanceTodayProvider).value;
+  return ref.watch(attendanceTodayProvider).valueOrNull;
 });

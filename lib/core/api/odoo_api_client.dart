@@ -299,7 +299,17 @@ class OdooApiClient {
     };
 
     final text = response.body;
-    final decoded = text.isEmpty ? null : jsonDecode(text);
+    Object? decoded;
+    if (text.isNotEmpty) {
+      try {
+        decoded = jsonDecode(text);
+      } catch (_) {
+        if (response.statusCode >= 400) {
+          throw Failure('Máy chủ phản hồi lỗi (${response.statusCode}).');
+        }
+        throw Failure('Dữ liệu từ máy chủ không đúng định dạng.');
+      }
+    }
     if (response.statusCode < 200 || response.statusCode >= 300) {
       final multiTenants = _tryMultipleTenants(decoded, response.statusCode);
       if (multiTenants != null) throw multiTenants;
