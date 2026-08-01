@@ -1561,7 +1561,9 @@ class _TaskStatusPickerSheet extends StatelessWidget {
                     _TaskStatusChip(
                       status: status,
                       selected: current == status,
-                      onTap: () => Navigator.pop(context, status),
+                      onTap: status == _TaskWorkflowStatus.approved
+                          ? null // Disabled for Employee (Manager only)
+                          : () => Navigator.pop(context, status),
                     ),
                 ],
               ),

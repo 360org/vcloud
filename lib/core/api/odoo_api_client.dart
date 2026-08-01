@@ -282,7 +282,7 @@ class OdooApiClient {
       if (auth) 'Authorization': 'Bearer ${_session!.accessToken}',
     };
 
-    final response = switch (method) {
+    http.Response response = switch (method) {
       'GET' => await _http.get(uri, headers: headers),
       'POST' => await _http.post(
         uri,
@@ -298,6 +298,18 @@ class OdooApiClient {
       _ => throw StateError('Unsupported HTTP method $method'),
     };
 
+    // Fallback: If server returns 405 Method Not Allowed on GET, retry with POST
+    if (response.statusCode == 405 && method == 'GET') {
+      final postHeaders = Map<String, String>.from(headers)
+        ..['Content-Type'] = 'application/json';
+      response = await _http.post(
+        uri,
+        headers: postHeaders,
+        body: jsonEncode(<String, dynamic>{}),
+      );
+    }
+
+
     final text = response.body;
     Object? decoded;
     if (text.isNotEmpty) {
@@ -311,6 +323,10 @@ class OdooApiClient {
       }
     }
     if (response.statusCode < 200 || response.statusCode >= 300) {
+      if (auth && (response.statusCode == 401 || response.statusCode == 403)) {
+        await _sessionStore.clear();
+        _session = null;
+      }
       final multiTenants = _tryMultipleTenants(decoded, response.statusCode);
       if (multiTenants != null) throw multiTenants;
       final tenantNotFound = _tryTenantNotFound(decoded, response.statusCode);
@@ -362,6 +378,12 @@ class OdooApiClient {
           'Chưa cấu hình tenant cho tài khoản này. Vui lòng tạo mapping trong Mobile API > Tenant Users.',
         'multiple_tenants' =>
           'Tài khoản thuộc nhiều tenant. Vui lòng chọn tenant trước khi đăng nhập.',
+        'unauthorized' =>
+          'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại (401).',
+        'access_denied' =>
+          'Bạn không có quyền truy cập chức năng này (403).',
+        'method_not_allowed' =>
+          'Phương thức yêu cầu không được máy chủ hỗ trợ (405).',
         _ => null,
       };
       if (knownMessage != null) return knownMessage;
@@ -370,7 +392,13 @@ class OdooApiClient {
           decoded['message'] ?? decoded['error'] ?? decoded['detail'];
       if (message != null) return message.toString();
     }
-    return 'Request failed ($statusCode).';
+
+    return switch (statusCode) {
+      401 => 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại (401).',
+      403 => 'Bạn không có quyền truy cập chức năng này (403).',
+      405 => 'Phương thức yêu cầu không được máy chủ hỗ trợ (405).',
+      _ => 'Máy chủ phản hồi lỗi ($statusCode).',
+    };
   }
 
   static int? _intOrNull(Object? value) {

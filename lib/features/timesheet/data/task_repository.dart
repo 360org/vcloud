@@ -78,14 +78,20 @@ class TaskRepository {
 
     Future<void> refresh() async {
       try {
-        final projectListOptions = await listProjects();
+        final projectListOptions = await listProjects().timeout(
+          const Duration(seconds: 10),
+          onTimeout: () => const <TimesheetProjectOption>[],
+        );
         if (projectListOptions.isEmpty) {
           if (!ctl.isClosed) ctl.add(const <Task>[]);
           return;
         }
         final tasksById = <String, Task>{};
         for (final project in projectListOptions) {
-          final projectTasks = await listProjectTasks(project.id);
+          final projectTasks = await listProjectTasks(project.id).timeout(
+            const Duration(seconds: 8),
+            onTimeout: () => const <Task>[],
+          );
           for (final task in projectTasks) {
             tasksById[task.id] = task;
           }
@@ -93,13 +99,15 @@ class TaskRepository {
         final tasks = tasksById.values.toList();
         if (!ctl.isClosed) ctl.add(tasks);
       } catch (e) {
-        if (!ctl.isClosed) ctl.addError(Failure('Reload failed: $e'));
+        debugPrint('watchToday error: $e');
+        if (!ctl.isClosed) ctl.add(const <Task>[]);
       }
     }
 
     ctl.onListen = refresh;
     return ctl.stream;
   }
+
 
   Future<Task> create({
     required String title,
@@ -267,17 +275,21 @@ class TaskRepository {
           projectName,
       'tags': _tagsFromOdoo(map),
       'tag_hex_colors': _parseHexColorMap(map['tag_hex_colors']),
-      'allocated_hours': (map['allocated_hours'] as num?)?.toDouble(),
+      'allocated_hours': ((map['allocated_hours'] ?? map['planned_hours'] ?? map['subtask_planned_hours']) as num?)?.toDouble(),
       'spent_hours':
-          ((map['effective_hours'] ?? map['total_hours_spent']) as num?)
+          ((map['spent_hours'] ?? map['effective_hours'] ?? map['total_hours_spent'] ?? map['subtask_effective_hours']) as num?)
               ?.toDouble(),
-      'remaining_hours': (map['remaining_hours'] as num?)?.toDouble(),
+      'remaining_hours': (map['remaining_hours'] as num?)?.toDouble() ??
+          (((map['allocated_hours'] ?? map['planned_hours']) is num && (map['effective_hours'] ?? map['total_hours_spent']) is num)
+              ? (((map['allocated_hours'] ?? map['planned_hours']) as num).toDouble() - ((map['effective_hours'] ?? map['total_hours_spent']) as num).toDouble())
+              : null),
       'stage_name':
-          _many2OneName(map['stage_id']) ?? _stringOrNull(map['stage_name']),
+          _many2OneName(map['stage_id']) ?? _stringOrNull(map['stage_name']) ?? _stringOrNull(map['stage']),
       'state': _stringOrNull(map['state']),
       'category': TimesheetCategory.other.dbValue,
       'due_date': dueDate,
-      'completed_at': isDone ? now : null,
+      'completed_at': isDone ? (map['date_end']?.toString() ?? now) : null,
+
       'timesheet_id': timesheetId,
       'created_at': now,
       'updated_at': now,
