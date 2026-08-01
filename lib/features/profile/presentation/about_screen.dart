@@ -149,10 +149,11 @@ class AboutScreen extends StatelessWidget {
           const SizedBox(height: 8),
           Center(
             child: Text(
-              'Built with ❤️ by Crush',
+              'Built with ❤️ by 360 CORP',
               style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
             ),
           ),
+
         ],
       ),
     );

@@ -350,51 +350,72 @@ class _ThemeRow extends ConsumerWidget {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(26),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 44,
-              height: 5,
-              decoration: BoxDecoration(
-                color: AppColors.border,
-                borderRadius: BorderRadius.circular(99),
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        final isDark = theme.brightness == Brightness.dark;
+        final sheetBg = isDark ? const Color(0xFF1E293B) : Colors.white;
+        final textColor = isDark ? Colors.white : AppColors.textPrimary;
+
+        return Container(
+          margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: sheetBg,
+            borderRadius: BorderRadius.circular(26),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x220F172A),
+                blurRadius: 22,
+                offset: Offset(0, -8),
               ),
-            ),
-            const SizedBox(height: 18),
-            const Text(
-              'Chọn giao diện',
-              style: TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 44,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF475569) : AppColors.border,
+                  borderRadius: BorderRadius.circular(99),
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            for (final mode in AppThemeMode.values)
-              ListTile(
-                title: Text(mode.displayName),
-                trailing: mode == current
-                    ? const Icon(Icons.check_circle, color: AppColors.primary)
-                    : null,
-                onTap: () {
-                  ref.read(themeControllerProvider.notifier).setTheme(mode);
-                  Navigator.pop(ctx);
-                },
+              const SizedBox(height: 18),
+              Text(
+                'Chọn giao diện',
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
-          ],
-        ),
-      ),
+              const SizedBox(height: 12),
+              for (final mode in AppThemeMode.values)
+                ListTile(
+                  title: Text(
+                    mode.displayName,
+                    style: TextStyle(
+                      color: textColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  trailing: mode == current
+                      ? const Icon(Icons.check_circle, color: AppColors.primary)
+                      : null,
+                  onTap: () {
+                    ref.read(themeControllerProvider.notifier).setTheme(mode);
+                    Navigator.pop(ctx);
+                  },
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
+
 
 BoxDecoration _cardDecoration({double radius = 22}) {
   return BoxDecoration(

@@ -290,6 +290,17 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
                 ],
               ),
             ),
+            _TicketActionBar(
+              ticket: ticket,
+              onTake: () async {
+                await ref.read(ticketActionsProvider).updateStatus(widget.ticketId, TicketStatus.doing);
+                _load();
+              },
+              onComplete: () async {
+                await ref.read(ticketActionsProvider).updateStatus(widget.ticketId, TicketStatus.done);
+                _load();
+              },
+            ),
             _CommentComposer(
               controller: _commentController,
               sending: _sendingComment,
@@ -301,6 +312,109 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
     );
   }
 }
+
+class _TicketActionBar extends StatefulWidget {
+  const _TicketActionBar({
+    required this.ticket,
+    required this.onTake,
+    required this.onComplete,
+  });
+
+  final Ticket ticket;
+  final Future<void> Function() onTake;
+  final Future<void> Function() onComplete;
+
+  @override
+  State<_TicketActionBar> createState() => _TicketActionBarState();
+}
+
+class _TicketActionBarState extends State<_TicketActionBar> {
+  bool _loadingTake = false;
+  bool _loadingComplete = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final status = widget.ticket.status;
+    final isDone = status == TicketStatus.done;
+
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          top: BorderSide(color: Color(0xFFE2E8F0)),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2563EB),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onPressed: (_loadingTake || _loadingComplete)
+                  ? null
+                  : () async {
+                      setState(() => _loadingTake = true);
+                      try {
+                        await widget.onTake();
+                      } finally {
+                        if (mounted) setState(() => _loadingTake = false);
+                      }
+                    },
+              icon: _loadingTake
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(LucideIcons.userCheck, size: 18),
+              label: Text(_loadingTake ? 'Đang nhận...' : 'Nhận ticket'),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isDone ? const Color(0xFF94A3B8) : const Color(0xFF16A34A),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onPressed: (isDone || _loadingTake || _loadingComplete)
+                  ? null
+                  : () async {
+                      setState(() => _loadingComplete = true);
+                      try {
+                        await widget.onComplete();
+                      } finally {
+                        if (mounted) setState(() => _loadingComplete = false);
+                      }
+                    },
+              icon: _loadingComplete
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : Icon(isDone ? LucideIcons.checkCheck : LucideIcons.checkCircle, size: 18),
+              label: Text(_loadingComplete ? 'Đang xử lý...' : (isDone ? 'Đã hoàn thành' : 'Hoàn thành')),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 
 class _TicketDetailHeader extends StatelessWidget {
   const _TicketDetailHeader({required this.canDelete, required this.onDelete});

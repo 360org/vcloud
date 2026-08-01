@@ -43,7 +43,19 @@ class _TicketListScreenState extends ConsumerState<TicketListScreen> {
       title: 'Ticket',
       showAppBar: false,
       wrapSafeArea: false,
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => context.push('/tickets/new'),
+        backgroundColor: const Color(0xFF2563EB),
+        foregroundColor: Colors.white,
+        elevation: 4,
+        icon: const Icon(LucideIcons.plus, size: 20),
+        label: const Text(
+          'Tạo ticket',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
+      ),
       body: ColoredBox(
+
         color: const Color(0xFFF7F8FC),
         child: SafeArea(
           child: source.when(
