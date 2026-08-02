@@ -235,7 +235,7 @@ BoxDecoration glassDecoration({
   double radius = 20,
   double opacity = 0.06,
 }) => BoxDecoration(
-  color: AppColors.surface.withValues(alpha: opacity + 0.88),
+  color: (color ?? AppColors.surface).withValues(alpha: opacity + 0.88),
   borderRadius: BorderRadius.circular(radius),
   border: Border.all(
     color: AppColors.border.withValues(alpha: 0.6),
@@ -257,7 +257,8 @@ BoxDecoration premiumGlassDecoration({
   double radius = 28,
   double opacity = 0.12,
 }) => BoxDecoration(
-  color: AppColors.surface.withValues(alpha: opacity + 0.9),
+  color: (color ?? AppColors.surface).withValues(alpha: opacity + 0.9),
+
   borderRadius: BorderRadius.circular(radius),
   border: Border.all(color: AppColors.border.withValues(alpha: 0.8), width: 1),
   boxShadow: [

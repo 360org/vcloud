@@ -354,6 +354,9 @@ class _TelegramConversationListScreenState
 
   @override
   Widget build(BuildContext context) {
+    if (Theme.of(context).brightness == Brightness.dark) {
+      debugPrint('=== [UI LOG] Enterprise Chat Screen đã chuyển sang chế độ Dark Mode ===');
+    }
     final conversations = ref.watch(conversationsProvider);
 
     return AppScaffold(
@@ -361,9 +364,10 @@ class _TelegramConversationListScreenState
       showAppBar: false,
       wrapSafeArea: false,
       body: ColoredBox(
-        color: AppColors.surface,
+        color: Theme.of(context).scaffoldBackgroundColor,
         child: SafeArea(
           child: conversations.when(
+
             data: (list) {
               final currentUser = ref.watch(authControllerProvider).value;
               final filtered = list.where((conversation) {
@@ -520,11 +524,12 @@ class _HeaderActionPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       height: 42,
       padding: const EdgeInsets.symmetric(horizontal: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFFF5F5F5),
+        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF5F5F5),
         borderRadius: BorderRadius.circular(22),
         boxShadow: const [
           BoxShadow(
@@ -541,7 +546,7 @@ class _HeaderActionPill extends StatelessWidget {
             tooltip: 'Tin nhắn mới',
             onPressed: onTap,
             icon: const Icon(LucideIcons.squarePen, size: 20),
-            color: AppColors.textPrimary,
+            color: Theme.of(context).colorScheme.onSurface,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints.tightFor(width: 34, height: 34),
           ),
@@ -559,6 +564,7 @@ class _HeaderPillButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return PressableScale(
       onTap: onTap,
       child: Container(
@@ -566,7 +572,7 @@ class _HeaderPillButton extends StatelessWidget {
         height: 42,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: const Color(0xFFF5F5F5),
+          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF5F5F5),
           borderRadius: BorderRadius.circular(22),
           boxShadow: const [
             BoxShadow(
@@ -576,6 +582,7 @@ class _HeaderPillButton extends StatelessWidget {
             ),
           ],
         ),
+
         child: Text(
           label,
           style: const TextStyle(

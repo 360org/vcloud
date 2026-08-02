@@ -57,6 +57,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (Theme.of(context).brightness == Brightness.dark) {
+      debugPrint('=== [UI LOG] Home Screen đã chuyển sang chế độ Dark Mode ===');
+    }
     final summary = ref.watch(homeSummaryProvider);
     final todayState = ref.watch(attendanceTodayProvider);
     final dashboard = ref.watch(mobileDashboardSummaryProvider).valueOrNull;
@@ -179,13 +182,18 @@ class _GreetingHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final today = _vietnameseDateTime(DateTime.now());
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: isDark ? const Color(0xFF1E293B) : AppColors.surface,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.12)
+              : AppColors.border,
+        ),
         boxShadow: const [
           BoxShadow(
             color: Color(0x0A0F172A),
@@ -216,8 +224,8 @@ class _GreetingHeader extends StatelessWidget {
                       'Xin chào, $displayName',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
                         fontSize: 19,
                         fontWeight: FontWeight.w800,
                         height: 1.12,
@@ -229,13 +237,14 @@ class _GreetingHeader extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: AppTextStyles.caption.copyWith(
-                        color: AppColors.textSecondary,
+                        color: isDark ? AppColors.darkTextMuted : AppColors.textSecondary,
                         height: 1.25,
                       ),
                     ),
                   ],
                 ),
               ),
+
               const SizedBox(width: 12),
               _PresenceIndicator(isOnline: isOnline),
               const SizedBox(width: 10),

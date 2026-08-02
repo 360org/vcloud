@@ -53,6 +53,9 @@ class AppScaffold extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (Theme.of(context).brightness == Brightness.dark) {
+      debugPrint('=== [UI LOG] BottomNavigationBar / AppScaffold đã chuyển sang chế độ Dark Mode ===');
+    }
     final loc = GoRouterState.of(context).matchedLocation;
     final activeIndex = () {
       for (var i = 0; i < _tabs.length; i++) {
@@ -123,6 +126,7 @@ class _FloatingTabBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return SafeArea(
       top: false,
       minimum: const EdgeInsets.fromLTRB(34, 0, 34, 10),
@@ -133,9 +137,15 @@ class _FloatingTabBar extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.82),
+              color: isDark
+                  ? AppColors.darkSurface.withValues(alpha: 0.88)
+                  : Colors.white.withValues(alpha: 0.82),
               borderRadius: BorderRadius.circular(30),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.78)),
+              border: Border.all(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.14)
+                    : Colors.white.withValues(alpha: 0.78),
+              ),
               boxShadow: const [
                 BoxShadow(
                   color: Color(0x120F172A),
@@ -187,7 +197,11 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? AppColors.primary : AppColors.textPrimary;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final color = selected
+        ? AppColors.primary
+        : (isDark ? AppColors.darkTextMuted : AppColors.textPrimary);
+
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,

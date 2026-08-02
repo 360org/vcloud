@@ -399,6 +399,9 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (Theme.of(context).brightness == Brightness.dark) {
+      debugPrint('=== [UI LOG] Timesheet Screen đã chuyển sang chế độ Dark Mode ===');
+    }
     final timesheetEntries = ref.watch(timesheetStreamProvider).valueOrNull;
     final showTodaySummary = timesheetEntries != null;
     final doneCount = ref.watch(todayTasksSplitProvider).done.length;
@@ -413,6 +416,7 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen> {
       body: ColoredBox(
         color: Theme.of(context).scaffoldBackgroundColor,
         child: SafeArea(
+
 
           child: ListView(
             padding: const EdgeInsets.fromLTRB(14, 10, 14, 112),
@@ -569,11 +573,11 @@ class _StopwatchCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              const Expanded(
+              Expanded(
                 child: Text(
                   'Bộ đếm công việc',
                   style: TextStyle(
-                    color: AppColors.textPrimary,
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontSize: 17,
                     fontWeight: FontWeight.w800,
                   ),
@@ -589,14 +593,15 @@ class _StopwatchCard extends StatelessWidget {
           Center(
             child: Text(
               Dates.hms(elapsed),
-              style: const TextStyle(
-                color: AppColors.textPrimary,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 36,
                 fontWeight: FontWeight.w900,
                 height: 1,
               ),
             ),
           ),
+
           const SizedBox(height: 16),
           Row(
             children: [

@@ -28,6 +28,9 @@ class _TicketListScreenState extends ConsumerState<TicketListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (Theme.of(context).brightness == Brightness.dark) {
+      debugPrint('=== [UI LOG] Ticket Screen đã chuyển sang chế độ Dark Mode ===');
+    }
     final source = ref.watch(ticketsProvider);
     final tickets = [...ref.watch(effectiveTicketsProvider)]
       ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
@@ -42,9 +45,7 @@ class _TicketListScreenState extends ConsumerState<TicketListScreen> {
         .toList();
 
     return AppScaffold(
-      title: 'Ticket',
-      showAppBar: false,
-      wrapSafeArea: false,
+      title: 'Ticket hỗ trợ',
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push('/tickets/new'),
         backgroundColor: const Color(0xFF2563EB),
@@ -56,6 +57,7 @@ class _TicketListScreenState extends ConsumerState<TicketListScreen> {
           style: TextStyle(fontWeight: FontWeight.w800),
         ),
       ),
+
       body: ColoredBox(
         color: Theme.of(context).scaffoldBackgroundColor,
         child: SafeArea(
@@ -252,12 +254,13 @@ class _TicketTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
         padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: isDark ? const Color(0xFF1E293B) : Colors.white,
           borderRadius: BorderRadius.circular(22),
           boxShadow: const [
             BoxShadow(
@@ -287,6 +290,7 @@ class _TicketTabs extends StatelessWidget {
     );
   }
 }
+
 
 class _TicketTabButton extends StatelessWidget {
   const _TicketTabButton({
@@ -414,6 +418,7 @@ class _TicketCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final desc = ticket.description?.trim();
     final color = done ? AppColors.success : _priorityColor(ticket.priority);
     return PressableScale(
@@ -422,9 +427,13 @@ class _TicketCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(15),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: isDark ? const Color(0xFF1E293B) : Colors.white,
           borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: AppColors.border.withValues(alpha: 0.7)),
+          border: Border.all(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.12)
+                : AppColors.border.withValues(alpha: 0.7),
+          ),
           boxShadow: const [
             BoxShadow(
               color: Color(0x0A0F172A),
@@ -464,8 +473,8 @@ class _TicketCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: done
-                              ? AppColors.textSecondary
-                              : AppColors.textPrimary,
+                              ? (isDark ? AppColors.darkTextMuted : AppColors.textSecondary)
+                              : Theme.of(context).colorScheme.onSurface,
                           fontSize: 15,
                           height: 1.2,
                           fontWeight: FontWeight.w900,
@@ -473,6 +482,7 @@ class _TicketCard extends StatelessWidget {
                       ),
                     ),
                   ),
+
                   const SizedBox(height: 6),
                   Text(
                     desc?.isNotEmpty == true ? desc! : 'Không có mô tả',
