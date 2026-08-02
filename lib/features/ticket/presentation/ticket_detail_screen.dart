@@ -527,8 +527,8 @@ class _TicketInfoCard extends StatelessWidget {
                 color: Colors.transparent,
                 child: Text(
                   ticket.title,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontSize: 21,
                     fontWeight: FontWeight.w900,
                     height: 1.18,
@@ -545,8 +545,8 @@ class _TicketInfoCard extends StatelessWidget {
               detail.description.isEmpty
                   ? 'Chưa có mô tả vấn đề.'
                   : detail.description,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 15,
                 height: 1.42,
                 fontWeight: FontWeight.w600,
@@ -573,13 +573,14 @@ class _TicketInfoCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     ticket.priority.displayName,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
                       fontSize: 14,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
                 ),
+
               ],
             ),
           ),

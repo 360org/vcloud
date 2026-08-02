@@ -346,7 +346,7 @@ class _NotificationSheet extends ConsumerWidget {
             maxHeight: MediaQuery.sizeOf(context).height * 0.82,
           ),
           decoration: BoxDecoration(
-            color: AppColors.surface,
+            color: Theme.of(context).cardColor,
             borderRadius: BorderRadius.circular(28),
             boxShadow: const [
               BoxShadow(
@@ -356,6 +356,7 @@ class _NotificationSheet extends ConsumerWidget {
               ),
             ],
           ),
+
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -390,14 +391,15 @@ class _NotificationSheet extends ConsumerWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'Thông báo',
                             style: TextStyle(
-                              color: AppColors.textPrimary,
+                              color: Theme.of(context).colorScheme.onSurface,
                               fontSize: 20,
                               fontWeight: FontWeight.w900,
                             ),
                           ),
+
                           const SizedBox(height: 2),
                           Text(
                             totalCount == 0
@@ -1055,13 +1057,14 @@ class _TimesheetRow extends ConsumerWidget {
                 task.title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface,
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
                 ),
               ),
             ),
+
             StatusPill(label: task.tag, color: task.accent),
           ],
         ),
@@ -1191,13 +1194,14 @@ class _TaskQuickEditSheetState extends ConsumerState<_TaskQuickEditSheet> {
                         widget.task.title,
                         maxLines: 3,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
                           fontSize: 18,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
                     ),
+
                     StatusPill(
                       label: widget.task.tag,
                       color: widget.task.accent,

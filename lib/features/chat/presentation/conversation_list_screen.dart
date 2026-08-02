@@ -1712,6 +1712,9 @@ class _ConversationItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryTextColor = Theme.of(context).colorScheme.onSurface;
+    final secondaryTextColor = isDark ? AppColors.darkTextMuted : AppColors.textSecondary;
     final c = conversation;
     final unreadCount = c.unreadCount;
     return PressableScale(
@@ -1721,13 +1724,17 @@ class _ConversationItem extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color: unreadCount > 0
-              ? AppColors.featureBackgroundStrong(AppColors.chat)
-              : AppColors.surface,
+              ? (isDark
+                  ? AppColors.chat.withValues(alpha: 0.25)
+                  : AppColors.featureBackgroundStrong(AppColors.chat))
+              : (isDark ? const Color(0xFF1E293B) : AppColors.surface),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: unreadCount > 0
-                ? AppColors.chat.withValues(alpha: 0.18)
-                : AppColors.border.withValues(alpha: 0.7),
+                ? AppColors.chat.withValues(alpha: 0.3)
+                : (isDark
+                    ? Colors.white.withValues(alpha: 0.12)
+                    : AppColors.border.withValues(alpha: 0.7)),
           ),
           boxShadow: [
             BoxShadow(
@@ -1737,6 +1744,7 @@ class _ConversationItem extends StatelessWidget {
             ),
           ],
         ),
+
         child: Row(
           children: [
             c.isGroup && c.avatarUrl == null
@@ -1765,7 +1773,7 @@ class _ConversationItem extends StatelessWidget {
                               ? FontWeight.w800
                               : FontWeight.w600,
                           fontSize: 15,
-                          color: AppColors.textPrimary,
+                          color: primaryTextColor,
                         ),
                       ),
                     ),
@@ -1777,8 +1785,8 @@ class _ConversationItem extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: unreadCount > 0
-                          ? AppColors.textPrimary
-                          : AppColors.textSecondary,
+                          ? primaryTextColor
+                          : secondaryTextColor,
                       fontSize: 13,
                       fontWeight: unreadCount > 0
                           ? FontWeight.w600
