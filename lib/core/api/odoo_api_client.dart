@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:developer' as dev;
-import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart';
 
 import 'package:http/http.dart' as http;
 
@@ -8,6 +9,9 @@ import '../config/env.dart';
 import '../error/failure.dart';
 import 'odoo_session.dart';
 import 'odoo_session_store.dart';
+
+Object? _parseJsonPayload(String text) => jsonDecode(text);
+
 
 
 /// One selectable tenant returned by the master auth resolver when the same
@@ -332,7 +336,11 @@ class OdooApiClient {
     Object? decoded;
     if (text.isNotEmpty) {
       try {
-        decoded = jsonDecode(text);
+        if (text.length > 4000) {
+          decoded = await compute(_parseJsonPayload, text);
+        } else {
+          decoded = jsonDecode(text);
+        }
       } catch (_) {
         if (response.statusCode >= 400) {
           throw Failure('Máy chủ phản hồi lỗi (${response.statusCode}).');
@@ -340,6 +348,7 @@ class OdooApiClient {
         throw Failure('Dữ liệu từ máy chủ không đúng định dạng.');
       }
     }
+
     if (response.statusCode < 200 || response.statusCode >= 300) {
       if (auth && (response.statusCode == 401 || response.statusCode == 403)) {
         await _sessionStore.clear();

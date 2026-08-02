@@ -22,15 +22,21 @@ class TicketListScreen extends ConsumerStatefulWidget {
   ConsumerState<TicketListScreen> createState() => _TicketListScreenState();
 }
 
-class _TicketListScreenState extends ConsumerState<TicketListScreen> {
+class _TicketListScreenState extends ConsumerState<TicketListScreen>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
   int _tab = 0;
   String _query = '';
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     if (Theme.of(context).brightness == Brightness.dark) {
       debugPrint('=== [UI LOG] Ticket Screen đã chuyển sang chế độ Dark Mode ===');
     }
+
     final source = ref.watch(ticketsProvider);
     final tickets = [...ref.watch(effectiveTicketsProvider)]
       ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));

@@ -8,10 +8,10 @@ final timesheetRepositoryProvider = Provider<TimesheetRepository>(
   (_) => TimesheetRepository(),
 );
 
-final timesheetStreamProvider =
-    StreamProvider.autoDispose<List<TimesheetEntry>>(
-      (ref) => ref.read(timesheetRepositoryProvider).watchRecent(),
-    );
+final timesheetStreamProvider = StreamProvider<List<TimesheetEntry>>(
+  (ref) => ref.read(timesheetRepositoryProvider).watchRecent(),
+);
+
 
 /// Sum of today's durations. Used by the home dashboard.
 final todayTotalMinutesProvider = Provider<int>((ref) {

@@ -24,13 +24,18 @@ class TimesheetListScreen extends ConsumerStatefulWidget {
       _TimesheetListScreenState();
 }
 
-class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen> {
+class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
   Timer? _ticker;
   DateTime? _startedAt;
   Duration _elapsedBeforePause = Duration.zero;
   bool _running = false;
   bool _showCompletedTasks = false;
   final _taskStatusOverrides = <String, _TaskWorkflowStatus>{};
+
 
   @override
   void dispose() {
@@ -399,9 +404,11 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     if (Theme.of(context).brightness == Brightness.dark) {
       debugPrint('=== [UI LOG] Timesheet Screen đã chuyển sang chế độ Dark Mode ===');
     }
+
     final timesheetEntries = ref.watch(timesheetStreamProvider).valueOrNull;
     final showTodaySummary = timesheetEntries != null;
     final doneCount = ref.watch(todayTasksSplitProvider).done.length;
@@ -464,13 +471,23 @@ class _TasksStatusCard extends StatelessWidget {
       padding: const EdgeInsets.all(18),
       child: Row(
         children: [
-          Icon(icon, color: color, size: 22),
+          if (icon == LucideIcons.loaderCircle)
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                color: color,
+              ),
+            )
+          else
+            Icon(icon, color: color, size: 22),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               message,
-              style: const TextStyle(
-                color: AppColors.textSecondary,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontSize: 14,
                 fontWeight: FontWeight.w700,
               ),
@@ -478,6 +495,7 @@ class _TasksStatusCard extends StatelessWidget {
           ),
         ],
       ),
+
     );
   }
 }

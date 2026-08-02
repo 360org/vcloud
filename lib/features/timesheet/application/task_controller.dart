@@ -9,9 +9,10 @@ final taskRepositoryProvider = Provider<TaskRepository>(
 );
 
 /// HTTP refresh stream of the current user's tasks due *today*.
-final todayTasksProvider = StreamProvider.autoDispose<List<Task>>(
+final todayTasksProvider = StreamProvider<List<Task>>(
   (ref) => ref.read(taskRepositoryProvider).watchToday(),
 );
+
 
 final _completedTaskIdsProvider = StateProvider<Set<String>>(
   (_) => const <String>{},

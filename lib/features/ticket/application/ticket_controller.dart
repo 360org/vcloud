@@ -12,13 +12,14 @@ final ticketRepositoryProvider = Provider<TicketRepository>(
   (_) => TicketRepository(),
 );
 
-final ticketsProvider = StreamProvider.autoDispose<List<Ticket>>(
+final ticketsProvider = StreamProvider<List<Ticket>>(
   (ref) => ref.read(ticketRepositoryProvider).watchAssigned(),
 );
 
-final ticketTeamsProvider = FutureProvider.autoDispose<List<TicketTeamOption>>(
+final ticketTeamsProvider = FutureProvider<List<TicketTeamOption>>(
   (ref) => ref.read(ticketRepositoryProvider).teams(),
 );
+
 
 /// Lightweight notifier that holds an *override* list used for
 /// optimistic status updates. When non-null, the rest of the app
