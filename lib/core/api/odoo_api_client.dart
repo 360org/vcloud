@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer' as dev;
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
@@ -7,6 +8,7 @@ import '../config/env.dart';
 import '../error/failure.dart';
 import 'odoo_session.dart';
 import 'odoo_session_store.dart';
+
 
 /// One selectable tenant returned by the master auth resolver when the same
 /// `login`/`password` is accepted by multiple Odoo databases (HTTP 409
@@ -282,6 +284,11 @@ class OdooApiClient {
       if (auth) 'Authorization': 'Bearer ${_session!.accessToken}',
     };
 
+    dev.log(
+      'HTTP $method $uri | Payload: ${body != null ? jsonEncode(body) : "none"}',
+      name: 'OdooApiClient',
+    );
+
     http.Response response = switch (method) {
       'GET' => await _http.get(uri, headers: headers),
       'POST' => await _http.post(
@@ -300,6 +307,11 @@ class OdooApiClient {
 
     // Fallback: If server returns 405 Method Not Allowed, retry with alternate method
     if (response.statusCode == 405) {
+      dev.log(
+        '⚠️ [HTTP 405 METHOD NOT ALLOWED] $method $uri\nResponse Body: ${response.body}',
+        name: 'OdooApiClient',
+        error: 'HTTP 405 Method Not Allowed',
+      );
       if (method == 'GET') {
         final postHeaders = Map<String, String>.from(headers)
           ..['Content-Type'] = 'application/json';
@@ -312,6 +324,7 @@ class OdooApiClient {
         response = await _http.get(uri, headers: headers);
       }
     }
+
 
 
 
