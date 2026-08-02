@@ -7,7 +7,9 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/date_format.dart';
 import '../../../shared/models/ticket.dart';
 import '../../../shared/widgets/app_scaffold.dart';
+import '../../../shared/widgets/brand_logo.dart';
 import '../../../shared/widgets/error_view.dart';
+
 import '../../../shared/widgets/loading_view.dart';
 import '../../../shared/widgets/ui_kit.dart';
 import '../application/ticket_controller.dart';
@@ -55,8 +57,7 @@ class _TicketListScreenState extends ConsumerState<TicketListScreen> {
         ),
       ),
       body: ColoredBox(
-
-        color: const Color(0xFFF7F8FC),
+        color: Theme.of(context).scaffoldBackgroundColor,
         child: SafeArea(
           child: source.when(
             loading: () => const LoadingView(),
@@ -123,50 +124,50 @@ class _TicketHeader extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x0D0F172A),
-                  blurRadius: 14,
-                  offset: Offset(0, 6),
+          Row(
+            children: [
+              const BrandLogo(height: 28),
+              const SizedBox(width: 8),
+              Text(
+                'world360',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
                 ),
-              ],
-            ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(LucideIcons.ticket, color: AppColors.ticket, size: 18),
-                SizedBox(width: 8),
-                Text(
-                  'Ticket',
-                  style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-          const Spacer(),
           PressableScale(
             onTap: onCreate,
             child: Container(
-              width: 44,
-              height: 44,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
-                color: AppColors.soft(AppColors.ticket),
-                shape: BoxShape.circle,
+                color: const Color(0xFF2563EB),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x332563EB),
+                    blurRadius: 10,
+                    offset: Offset(0, 4),
+                  ),
+                ],
               ),
-              child: const Icon(
-                LucideIcons.plus,
-                color: AppColors.ticket,
-                size: 22,
+              child: const Row(
+                children: [
+                  Icon(LucideIcons.plus, color: Colors.white, size: 16),
+                  SizedBox(width: 6),
+                  Text(
+                    'Tạo mới',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -189,17 +190,22 @@ class _TicketSearchBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       child: Container(
         height: 52,
         decoration: BoxDecoration(
-          color: const Color(0xFFF0F3F8),
+          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF0F3F8),
           borderRadius: BorderRadius.circular(16),
         ),
         child: TextField(
           onChanged: onChanged,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 16),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurface,
+            fontSize: 16,
+          ),
           decoration: InputDecoration(
             hintText: 'Tìm kiếm ticket',
             hintStyle: const TextStyle(

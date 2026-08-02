@@ -602,17 +602,23 @@ class _TelegramSearchBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
       child: Container(
         height: 48,
         decoration: BoxDecoration(
-          color: const Color(0xFFF0F3F8),
+          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF0F3F8),
           borderRadius: BorderRadius.circular(14),
         ),
         child: TextField(
           onChanged: onChanged,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 16),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurface,
+            fontSize: 16,
+          ),
+
           decoration: InputDecoration(
             hintText: 'Tìm kiếm',
             hintStyle: const TextStyle(

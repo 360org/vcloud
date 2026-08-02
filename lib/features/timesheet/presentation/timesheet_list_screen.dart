@@ -410,8 +410,9 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen> {
       showAppBar: false,
       wrapSafeArea: false,
       body: ColoredBox(
-        color: const Color(0xFFF7F8FC),
+        color: Theme.of(context).scaffoldBackgroundColor,
         child: SafeArea(
+
           child: ListView(
             padding: const EdgeInsets.fromLTRB(14, 10, 14, 112),
             children: [

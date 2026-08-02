@@ -201,8 +201,9 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
     });
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F8FC),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       resizeToAvoidBottomInset: true,
+
       body: SafeArea(
         child: Column(
           children: [

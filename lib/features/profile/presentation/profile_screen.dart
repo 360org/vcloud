@@ -5,9 +5,11 @@ import 'package:lucide_flutter/lucide_flutter.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/app_scaffold.dart';
+import '../../../shared/widgets/brand_logo.dart';
 import '../../../shared/widgets/ui_kit.dart';
 import '../../auth/application/auth_controller.dart';
 import '../application/theme_controller.dart';
+
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -28,7 +30,7 @@ class ProfileScreen extends ConsumerWidget {
       showAppBar: false,
       wrapSafeArea: false,
       body: ColoredBox(
-        color: const Color(0xFFF7F8FC),
+        color: Theme.of(context).scaffoldBackgroundColor,
         child: SafeArea(
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 112),
@@ -50,54 +52,52 @@ class ProfileScreen extends ConsumerWidget {
                     color: AppColors.primary,
                     onTap: () => context.push('/profile/edit'),
                   ),
-                  _SettingsRow(
-                    icon: LucideIcons.calendarOff,
-                    label: 'Đơn nghỉ phép',
-                    color: AppColors.timesheet,
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Tính năng đơn nghỉ phép sắp ra mắt.'),
-                        ),
-                      );
-                    },
-                  ),
-                  _SettingsRow(
-                    icon: LucideIcons.clock,
-                    label: 'Lịch sử check-in',
-                    color: AppColors.attendance,
-                    onTap: () => context.push('/attendance/history'),
-                  ),
+                  _ThemeRow(),
                   _SettingsRow(
                     icon: LucideIcons.info,
                     label: 'Thông tin ứng dụng',
-                    color: AppColors.chat,
+                    color: AppColors.primary,
                     onTap: () => context.push('/profile/about'),
                   ),
-                  _ThemeRow(),
                   _SettingsRow(
                     icon: LucideIcons.logOut,
                     label: 'Đăng xuất',
                     color: AppColors.danger,
                     danger: true,
-                    onTap: () =>
-                        ref.read(authControllerProvider.notifier).signOut(),
+                    onTap: () => _confirmLogout(context, ref),
                   ),
                 ],
-              ),
-              const SizedBox(height: 22),
-              Center(
-                child: Text(
-                  'VCloud v1.1.0',
-                  style: AppTextStyles.caption.copyWith(
-                    color: AppColors.textMuted,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  void _confirmLogout(BuildContext context, WidgetRef ref) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Đăng xuất?'),
+        content: const Text('Bạn có chắc chắn muốn đăng xuất tài khoản?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () {
+              Navigator.pop(ctx);
+              ref.read(authControllerProvider.notifier).signOut();
+            },
+            child: const Text('Đăng xuất'),
+          ),
+        ],
       ),
     );
   }
@@ -110,26 +110,14 @@ class _ProfileTopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x0D0F172A),
-                blurRadius: 14,
-                offset: Offset(0, 6),
-              ),
-            ],
-          ),
-          child: const Text(
-            'Tôi',
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 16,
-              fontWeight: FontWeight.w900,
-            ),
+        const BrandLogo(height: 28),
+        const SizedBox(width: 8),
+        Text(
+          'world360',
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurface,
+            fontSize: 20,
+            fontWeight: FontWeight.w900,
           ),
         ),
       ],
@@ -154,7 +142,7 @@ class _ProfileHero extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(18),
-      decoration: _cardDecoration(),
+      decoration: _cardDecoration(context),
       child: Row(
         children: [
           UserAvatar(userId: userId, displayName: name, email: email, size: 62),
@@ -167,8 +155,8 @@ class _ProfileHero extends StatelessWidget {
                   name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontSize: 20,
                     fontWeight: FontWeight.w900,
                   ),
@@ -212,7 +200,7 @@ class _SettingsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: _cardDecoration(),
+      decoration: _cardDecoration(context),
       child: Column(
         children: [
           for (var i = 0; i < children.length; i++) ...[
@@ -243,7 +231,9 @@ class _SettingsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textColor = danger ? AppColors.danger : AppColors.textPrimary;
+    final textColor = danger
+        ? AppColors.danger
+        : Theme.of(context).colorScheme.onSurface;
     return PressableScale(
       onTap: onTap,
       child: Padding(
@@ -312,10 +302,10 @@ class _ThemeRow extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Giao diện',
                     style: TextStyle(
-                      color: AppColors.textPrimary,
+                      color: Theme.of(context).colorScheme.onSurface,
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
                     ),
@@ -417,13 +407,19 @@ class _ThemeRow extends ConsumerWidget {
 }
 
 
-BoxDecoration _cardDecoration({double radius = 22}) {
+BoxDecoration _cardDecoration(BuildContext context, {double radius = 22}) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
   return BoxDecoration(
-    color: Colors.white,
+    color: Theme.of(context).cardColor,
     borderRadius: BorderRadius.circular(radius),
-    border: Border.all(color: AppColors.border.withValues(alpha: 0.7)),
+    border: Border.all(
+      color: isDark
+          ? const Color(0xFF334155)
+          : AppColors.border.withValues(alpha: 0.7),
+    ),
     boxShadow: const [
       BoxShadow(color: Color(0x0A0F172A), blurRadius: 16, offset: Offset(0, 8)),
     ],
   );
 }
+
