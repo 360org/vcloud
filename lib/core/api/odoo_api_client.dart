@@ -298,16 +298,21 @@ class OdooApiClient {
       _ => throw StateError('Unsupported HTTP method $method'),
     };
 
-    // Fallback: If server returns 405 Method Not Allowed on GET, retry with POST
-    if (response.statusCode == 405 && method == 'GET') {
-      final postHeaders = Map<String, String>.from(headers)
-        ..['Content-Type'] = 'application/json';
-      response = await _http.post(
-        uri,
-        headers: postHeaders,
-        body: jsonEncode(<String, dynamic>{}),
-      );
+    // Fallback: If server returns 405 Method Not Allowed, retry with alternate method
+    if (response.statusCode == 405) {
+      if (method == 'GET') {
+        final postHeaders = Map<String, String>.from(headers)
+          ..['Content-Type'] = 'application/json';
+        response = await _http.post(
+          uri,
+          headers: postHeaders,
+          body: jsonEncode(<String, dynamic>{}),
+        );
+      } else if (method == 'POST') {
+        response = await _http.get(uri, headers: headers);
+      }
     }
+
 
 
     final text = response.body;
