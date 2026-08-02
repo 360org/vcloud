@@ -750,8 +750,8 @@ class _TaskSection extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontSize: 17,
                     fontWeight: FontWeight.w900,
                   ),
@@ -790,8 +790,8 @@ class _TaskSection extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 10),
               child: Text(
                 emptyText,
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                 ),
@@ -853,6 +853,7 @@ class _TaskTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return PressableScale(
       onTap: onTap,
       scale: 0.99,
@@ -880,8 +881,8 @@ class _TaskTile extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: done
-                          ? AppColors.textSecondary
-                          : AppColors.textPrimary,
+                          ? (isDark ? AppColors.darkTextMuted : AppColors.textSecondary)
+                          : Theme.of(context).colorScheme.onSurface,
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
                       decoration: done ? TextDecoration.lineThrough : null,
@@ -903,8 +904,8 @@ class _TaskTile extends StatelessWidget {
                             task.projectName!,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: AppColors.textSecondary,
+                            style: TextStyle(
+                              color: isDark ? AppColors.darkTextMuted : AppColors.textSecondary,
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
                             ),
@@ -913,6 +914,7 @@ class _TaskTile extends StatelessWidget {
                       ],
                     ),
                   ],
+
                   const SizedBox(height: 5),
                   Wrap(
                     spacing: 8,

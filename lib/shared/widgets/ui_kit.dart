@@ -186,16 +186,23 @@ class GlassCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF1E293B) : AppColors.surface;
+    final borderColor = isDark
+        ? Colors.white.withValues(alpha: 0.12)
+        : AppColors.border.withValues(alpha: 0.6);
     return Container(
       padding: padding,
-      decoration: glassDecoration(radius: radius).copyWith(
+      decoration: glassDecoration(color: cardBg, radius: radius).copyWith(
+        border: Border.all(color: borderColor, width: 0.5),
         boxShadow: glowColor != null
             ? AppColors.glassGlow(glowColor!)
-            : glassDecoration(radius: radius).boxShadow,
+            : glassDecoration(color: cardBg, radius: radius).boxShadow,
       ),
       child: child,
     );
   }
+
 }
 
 /// Gradient background header — animated gradient that shifts subtly.
