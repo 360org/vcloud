@@ -90,14 +90,18 @@ Future<void> main() async {
 
   // Catch unhandled Flutter errors & send to Firebase Crashlytics
   FlutterError.onError = (FlutterErrorDetails details) {
-    FirebaseCrashlytics.instance.recordFlutterFatalError(details);
+    if (!kIsWeb) {
+      FirebaseCrashlytics.instance.recordFlutterFatalError(details);
+    }
     FlutterError.presentError(details);
     debugPrint('GLOBAL FLUTTER ERROR: ${details.exception}');
   };
 
   // Catch platform dispatcher errors & send to Firebase Crashlytics
   PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
-    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    if (!kIsWeb) {
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    }
     debugPrint('PLATFORM DISPATCHER ERROR: $error\n$stack');
     return true;
   };
