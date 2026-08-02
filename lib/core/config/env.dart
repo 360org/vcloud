@@ -8,7 +8,7 @@ class Env {
 
   static const String odooApiBaseUrl = String.fromEnvironment(
     'VCLOUD_ODOO_API_BASE_URL',
-    defaultValue: 'http://localhost:8069',
+    defaultValue: 'https://vuahethong.net',
   );
 
   static const String odooDb = String.fromEnvironment(

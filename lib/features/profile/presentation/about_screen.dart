@@ -116,44 +116,13 @@ class AboutScreen extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
-          // Tech stack
-          GlassCard(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Công nghệ',
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const _TechItem(label: 'Flutter', value: '3.x'),
-                const _TechItem(label: 'Dart', value: '3.12+'),
-                const _TechItem(label: 'Backend', value: 'Odoo Mobile API'),
-                const _TechItem(label: 'State', value: 'Riverpod'),
-                const _TechItem(label: 'Routing', value: 'GoRouter'),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // Credits
+          // Copyright
           Center(
             child: Text(
               '© 2026 360 CORP',
               style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
             ),
           ),
-          const SizedBox(height: 8),
-          Center(
-            child: Text(
-              'Built with ❤️ by 360 CORP',
-              style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
-            ),
-          ),
-
         ],
       ),
     );
@@ -217,32 +186,3 @@ class _FeatureItem extends StatelessWidget {
   }
 }
 
-class _TechItem extends StatelessWidget {
-  const _TechItem({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 14,
-              color: AppColors.textSecondary,
-            ),
-          ),
-          Text(
-            value,
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-          ),
-        ],
-      ),
-    );
-  }
-}
