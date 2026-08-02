@@ -308,7 +308,10 @@ class TaskRepository {
     var merged = map;
     if (id != null) {
       try {
-        final detail = await _client.get('/api/v1/project.task/$id');
+        final detail = await _client.get('/api/v1/project.task/$id').timeout(
+          const Duration(seconds: 3),
+          onTimeout: () => <String, dynamic>{},
+        );
         if (detail is Map) {
           merged = <String, dynamic>{
             ...map,
@@ -319,7 +322,13 @@ class TaskRepository {
         // The mobile list still has enough data to render a task row.
       }
     }
-    merged = await _resolveTagIds(merged);
+    try {
+      merged = await _resolveTagIds(merged).timeout(
+        const Duration(seconds: 3),
+        onTimeout: () => merged,
+      );
+    } catch (_) {}
+
     return _taskFromOdoo(
       merged,
       fallbackDate,

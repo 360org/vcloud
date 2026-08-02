@@ -386,8 +386,9 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen> {
       },
       loading: () => const _TasksStatusCard(
         icon: LucideIcons.loaderCircle,
-        message: 'Đang tải task từ Odoo...',
+        message: 'Đang tải task từ hệ thống...',
       ),
+
       error: (error, _) => _TasksStatusCard(
         icon: LucideIcons.triangleAlert,
         message: describeError(error),
