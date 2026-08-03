@@ -1005,7 +1005,7 @@ class _TaskTile extends StatelessWidget {
                     ),
                     const SizedBox(width: 5),
                     Text(
-                      'Checklist',
+                      task.workflowStatus.label,
                       style: TextStyle(
                         color: task.workflowStatus.color,
                         fontSize: 11,
