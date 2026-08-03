@@ -16,6 +16,8 @@ import '../application/task_controller.dart';
 import '../application/timesheet_controller.dart';
 import 'widgets/checklist_editor.dart';
 
+import '../../../shared/widgets/copyable_error_dialog.dart';
+
 class TimesheetListScreen extends ConsumerStatefulWidget {
   const TimesheetListScreen({super.key});
 
@@ -54,14 +56,15 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
       _running = true;
       _startedAt = DateTime.now();
     });
-    _ticker ??= Timer.periodic(
-      const Duration(seconds: 1),
-      (_) => mounted ? setState(() {}) : null,
-    );
+    _ticker?.cancel();
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
   }
 
   void _pauseTimer() {
     HapticFeedback.selectionClick();
+    _ticker?.cancel();
     setState(() {
       _elapsedBeforePause = _elapsed;
       _running = false;
@@ -70,7 +73,8 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
   }
 
   void _resetTimer() {
-    HapticFeedback.lightImpact();
+    HapticFeedback.selectionClick();
+    _ticker?.cancel();
     setState(() {
       _running = false;
       _startedAt = null;
@@ -115,10 +119,13 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
             elapsed: result.duration,
           );
       ref.invalidate(timesheetStreamProvider);
-    } catch (e) {
+    } catch (e, stackTrace) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lưu task thất bại: ${describeError(e)}')),
+        await showCopyableErrorDialog(
+          context,
+          title: 'Lỗi Lưu Timesheet',
+          error: e,
+          stackTrace: stackTrace,
         );
       }
       rethrow;
@@ -139,12 +146,13 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
         _taskStatusOverrides[task.id] = _TaskWorkflowStatus.inProgress;
       });
       ref.invalidate(timesheetStreamProvider);
-    } catch (e) {
+    } catch (e, stackTrace) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lưu thời gian thất bại: ${describeError(e)}'),
-          ),
+        await showCopyableErrorDialog(
+          context,
+          title: 'Lỗi Lưu Timesheet',
+          error: e,
+          stackTrace: stackTrace,
         );
       }
       rethrow;

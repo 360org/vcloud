@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/error/failure.dart';
+import 'copyable_error_dialog.dart';
 import 'ui_kit.dart';
+
 
 /// Inline error view with an optional Retry callback. Used by every
 /// screen that renders a stream from a repository.
@@ -57,14 +59,29 @@ class ErrorView extends StatelessWidget {
                 ),
                 if (onRetry != null) ...[
                   const SizedBox(height: 20),
-                  Semantics(
-                    button: true,
-                    label: 'Thử lại',
-                    child: FilledButton.icon(
-                      onPressed: onRetry,
-                      icon: const Icon(Icons.refresh, size: 18),
-                      label: const Text('Thử lại'),
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: () => showCopyableErrorDialog(
+                          context,
+                          title: 'Chi Tiết Lỗi System',
+                          error: error,
+                        ),
+                        icon: const Icon(Icons.copy, size: 16),
+                        label: const Text('Copy Lỗi'),
+                      ),
+                      const SizedBox(width: 10),
+                      Semantics(
+                        button: true,
+                        label: 'Thử lại',
+                        child: FilledButton.icon(
+                          onPressed: onRetry,
+                          icon: const Icon(Icons.refresh, size: 18),
+                          label: const Text('Thử lại'),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ],
@@ -75,3 +92,4 @@ class ErrorView extends StatelessWidget {
     );
   }
 }
+

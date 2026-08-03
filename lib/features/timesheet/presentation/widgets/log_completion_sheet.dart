@@ -8,6 +8,8 @@ import '../../../../shared/widgets/ui_kit.dart';
 import '../../application/task_controller.dart';
 import '../../application/timesheet_controller.dart';
 
+import '../../../../shared/widgets/copyable_error_dialog.dart';
+
 /// "Ghi những gì đã làm" + quick duration picker → complete the task
 /// in one shot. Used from [TodayTasksSection] when the user taps an
 /// incomplete row (workflow B in the plan).
@@ -51,16 +53,20 @@ class _LogCompletionSheetState extends ConsumerState<LogCompletionSheet> {
       // "Công việc hôm nay" list stays in sync with the new entry.
       ref.invalidate(timesheetStreamProvider);
       if (mounted) Navigator.of(context).pop(true);
-    } catch (e) {
+    } catch (e, stackTrace) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString().replaceFirst('Failure: ', ''))),
+        await showCopyableErrorDialog(
+          context,
+          title: 'Lỗi Lưu Timesheet',
+          error: e,
+          stackTrace: stackTrace,
         );
       }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
