@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
@@ -30,6 +31,50 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   bool _statusBusy = false;
 
+  Future<void> _showErrorDialog(dynamic error, StackTrace stackTrace) async {
+    final errorMessage = error.toString();
+    final fullDetails = 'Lỗi: $errorMessage\n\nStackTrace:\n$stackTrace';
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Lỗi Check-in (Chấm công)'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SelectableText(
+                errorMessage,
+                style: const TextStyle(fontSize: 14),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: fullDetails));
+              if (dialogContext.mounted) {
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                  const SnackBar(
+                    content: Text('Đã sao chép chi tiết lỗi vào Clipboard!'),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              }
+            },
+            child: const Text('Copy Lỗi'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Đóng'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _toggleAttendance(bool isOnline) async {
     if (_statusBusy) return;
     setState(() => _statusBusy = true);
@@ -44,11 +89,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ref.invalidate(attendanceTodayProvider);
       ref.invalidate(openSessionProvider);
       ref.invalidate(mobileDashboardSummaryProvider);
-    } catch (e) {
+    } catch (e, stackTrace) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(describeError(e))));
+        await _showErrorDialog(e, stackTrace);
       }
     } finally {
       if (mounted) setState(() => _statusBusy = false);

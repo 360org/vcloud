@@ -1,12 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
-import '../../../core/error/failure.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/models/attendance.dart';
 import '../../../shared/widgets/app_scaffold.dart';
@@ -37,6 +37,50 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
     'Thứ Bảy',
     'Chủ Nhật',
   ];
+
+  Future<void> _showErrorDialog(dynamic error, StackTrace stackTrace) async {
+    final errorMessage = error.toString();
+    final fullDetails = 'Lỗi: $errorMessage\n\nStackTrace:\n$stackTrace';
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Lỗi Check-in (Chấm công)'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SelectableText(
+                errorMessage,
+                style: const TextStyle(fontSize: 14),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: fullDetails));
+              if (dialogContext.mounted) {
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                  const SnackBar(
+                    content: Text('Đã sao chép chi tiết lỗi vào Clipboard!'),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              }
+            },
+            child: const Text('Copy Lỗi'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Đóng'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -96,11 +140,9 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
     try {
       final a = ref.read(attendanceActionsProvider);
       checkIn ? await a.checkIn() : await a.checkOut();
-    } catch (e) {
+    } catch (e, stackTrace) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(describeError(e))));
+        await _showErrorDialog(e, stackTrace);
       }
     } finally {
       if (mounted) setState(() => _busy = false);
