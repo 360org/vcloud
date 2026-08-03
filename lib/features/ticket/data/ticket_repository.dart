@@ -128,8 +128,24 @@ class TicketRepository {
     final created =
         map['create_date'] as String? ?? DateTime.now().toIso8601String();
     
-    final state = map['state'] as String?;
-    final isDone = state == '1_done' || state == '1_canceled' || map['date_done'] != null;
+    final stageRaw = map['stage_id'] ?? map['stage_name'];
+    final stageName = stageRaw is List && stageRaw.length > 1
+        ? stageRaw[1].toString().toLowerCase()
+        : (stageRaw?.toString().toLowerCase() ?? '');
+    
+    final closeDate = map['close_date'] ?? map['date_done'];
+    final hasCloseDate = closeDate != null && closeDate != false && closeDate != 'false';
+    final state = map['state']?.toString();
+    
+    final isDone = hasCloseDate ||
+        state == '1_done' ||
+        state == '1_canceled' ||
+        stageName.contains('done') ||
+        stageName.contains('hoàn thành') ||
+        stageName.contains('đã đóng') ||
+        stageName.contains('đã xong');
+
+    final updatedAtStr = hasCloseDate ? closeDate.toString() : created;
 
     return <String, dynamic>{
       'id': map['id'].toString(),
@@ -141,7 +157,7 @@ class TicketRepository {
       'created_by': _many2OneId(map['partner_id']) ?? '',
       'assigned_to': _many2OneId(map['user_id']) ?? '',
       'created_at': created,
-      'updated_at': map['date_done'] as String? ?? created,
+      'updated_at': updatedAtStr,
       'priority': _priorityFromOdoo(map['priority'] as String?),
       'category': map['team_name'] as String?,
       'tag_labels': _tagLabels(map['tags']),
