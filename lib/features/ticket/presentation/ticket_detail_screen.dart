@@ -297,7 +297,18 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
               onTake: () async {
                 try {
                   await ref.read(ticketActionsProvider).updateStatus(widget.ticketId, TicketStatus.doing);
-                  _load();
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('🎉 Đã nhận ticket thành công!'),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                  if (context.canPop()) {
+                    context.pop();
+                  } else {
+                    _load();
+                  }
                 } catch (e, st) {
                   if (mounted) {
                     showCopyableErrorDialog(context, title: 'Lỗi Nhận Ticket', error: e, stackTrace: st);
@@ -307,7 +318,18 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
               onComplete: () async {
                 try {
                   await ref.read(ticketActionsProvider).updateStatus(widget.ticketId, TicketStatus.done);
-                  _load();
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('🎉 Đã hoàn thành ticket!'),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                  if (context.canPop()) {
+                    context.pop();
+                  } else {
+                    _load();
+                  }
                 } catch (e, st) {
                   if (mounted) {
                     showCopyableErrorDialog(context, title: 'Lỗi Hoàn Thành Ticket', error: e, stackTrace: st);
