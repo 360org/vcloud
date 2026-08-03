@@ -330,7 +330,10 @@ class _CreateTicketHeader extends StatelessWidget {
                   child: Container(
                     width: 48,
                     height: 48,
-                    decoration: _softSurfaceDecoration(radius: 24),
+                    decoration: _softSurfaceDecoration(
+                      context: context,
+                      radius: 24,
+                    ),
                     child: const Icon(
                       LucideIcons.chevronLeft,
                       color: AppColors.textPrimary,
@@ -346,7 +349,10 @@ class _CreateTicketHeader extends StatelessWidget {
                     height: 48,
                     padding: const EdgeInsets.symmetric(horizontal: 18),
                     alignment: Alignment.center,
-                    decoration: _softSurfaceDecoration(radius: 24),
+                    decoration: _softSurfaceDecoration(
+                      context: context,
+                      radius: 24,
+                    ),
                     child: const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -478,7 +484,7 @@ class _FormPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
-      decoration: _softSurfaceDecoration(radius: 24),
+      decoration: _softSurfaceDecoration(context: context, radius: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -655,9 +661,13 @@ class _DocumentChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(9, 7, 6, 7),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(
+          color: Theme.of(context).brightness == Brightness.dark
+              ? Colors.white.withValues(alpha: 0.1)
+              : AppColors.border,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -699,9 +709,9 @@ class _AttachmentSourceSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: SafeArea(
         top: false,
@@ -1062,11 +1072,19 @@ BoxDecoration _composerDecoration() {
   );
 }
 
-BoxDecoration _softSurfaceDecoration({required double radius}) {
+BoxDecoration _softSurfaceDecoration({
+  required BuildContext context,
+  required double radius,
+}) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
   return BoxDecoration(
-    color: AppColors.surface,
+    color: isDark ? const Color(0xFF1E293B) : AppColors.surface,
     borderRadius: BorderRadius.circular(radius),
-    border: Border.all(color: AppColors.border.withValues(alpha: 0.7)),
+    border: Border.all(
+      color: isDark
+          ? Colors.white.withValues(alpha: 0.1)
+          : AppColors.border.withValues(alpha: 0.7),
+    ),
     boxShadow: const [
       BoxShadow(color: Color(0x080F172A), blurRadius: 14, offset: Offset(0, 6)),
     ],

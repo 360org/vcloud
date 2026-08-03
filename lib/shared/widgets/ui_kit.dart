@@ -390,12 +390,17 @@ class CompactActionTile extends StatelessWidget {
           final iconRadius = compact ? 10.0 : 12.0;
           final labelFontSize = compact ? 12.0 : 13.0;
 
+          final isDark = Theme.of(context).brightness == Brightness.dark;
           return Container(
             padding: EdgeInsets.all(padding),
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: isDark ? const Color(0xFF1E293B) : AppColors.surface,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.1)
+                    : AppColors.border,
+              ),
               boxShadow: const [
                 BoxShadow(
                   color: Color(0x080F172A),
@@ -404,6 +409,7 @@ class CompactActionTile extends StatelessWidget {
                 ),
               ],
             ),
+
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -574,10 +580,11 @@ class QuickAttachmentSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
+
       child: SafeArea(
         top: false,
         child: Column(

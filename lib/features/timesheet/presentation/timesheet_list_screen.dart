@@ -1151,7 +1151,7 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
           ),
           padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
           decoration: BoxDecoration(
-            color: AppColors.surface,
+            color: Theme.of(context).cardColor,
             borderRadius: BorderRadius.circular(28),
           ),
           child: SingleChildScrollView(
@@ -1544,7 +1544,7 @@ class _TaskStatusPickerSheet extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
           decoration: BoxDecoration(
-            color: AppColors.surface,
+            color: Theme.of(context).cardColor,
             borderRadius: BorderRadius.circular(26),
             boxShadow: const [
               BoxShadow(
@@ -1804,7 +1804,7 @@ class _TimerSaveSheetState extends ConsumerState<_TimerSaveSheet> {
           ),
           padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
           decoration: BoxDecoration(
-            color: AppColors.surface,
+            color: Theme.of(context).cardColor,
             borderRadius: BorderRadius.circular(28),
           ),
           child: SingleChildScrollView(
@@ -2271,7 +2271,7 @@ class _TaskLogSheetState extends State<_TaskLogSheet> {
         child: Container(
           padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
           decoration: BoxDecoration(
-            color: AppColors.surface,
+            color: Theme.of(context).cardColor,
             borderRadius: BorderRadius.circular(28),
           ),
           child: SingleChildScrollView(

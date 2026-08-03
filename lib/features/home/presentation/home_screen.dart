@@ -154,7 +154,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ref.invalidate(mobileNotificationsProvider);
         },
         color: AppColors.primary,
-        backgroundColor: AppColors.surface,
+        backgroundColor: Theme.of(context).cardColor,
+
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
           children: [
@@ -1197,7 +1198,7 @@ class _TaskQuickEditSheetState extends ConsumerState<_TaskQuickEditSheet> {
           ),
           padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
           decoration: BoxDecoration(
-            color: AppColors.surface,
+            color: Theme.of(context).cardColor,
             borderRadius: BorderRadius.circular(28),
           ),
           child: SingleChildScrollView(

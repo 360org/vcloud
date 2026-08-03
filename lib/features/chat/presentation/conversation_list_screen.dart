@@ -730,9 +730,9 @@ class _NewMessageSheetState extends ConsumerState<_NewMessageSheet> {
       child: Container(
         height: MediaQuery.sizeOf(context).height * 0.78,
         margin: const EdgeInsets.only(top: 56),
-        decoration: const BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
         ),
         clipBehavior: Clip.antiAlias,
         child: Column(
@@ -1043,9 +1043,9 @@ class _NewGroupSheetState extends ConsumerState<_NewGroupSheet> {
       child: Container(
         height: MediaQuery.sizeOf(context).height * 0.86,
         margin: const EdgeInsets.only(top: 42),
-        decoration: const BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
         ),
         clipBehavior: Clip.antiAlias,
         child: Column(
