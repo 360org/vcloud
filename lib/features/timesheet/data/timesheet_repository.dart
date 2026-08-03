@@ -1,8 +1,19 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 
 import '../../../core/api/odoo_api_client.dart';
 import '../../../core/error/failure.dart';
 import '../../../shared/models/timesheet.dart';
+
+List<TimesheetEntry> _parseTimesheetList(List<dynamic> rawList) {
+  final repo = TimesheetRepository();
+  return rawList
+      .whereType<Map>()
+      .map((e) => Map<String, dynamic>.from(e))
+      .map(repo._entryFromOdoo)
+      .map(TimesheetEntry.fromMap)
+      .toList();
+}
 
 class TimesheetRepository {
   TimesheetRepository({OdooApiClient? client})
@@ -15,15 +26,7 @@ class TimesheetRepository {
 
     Future<void> refresh() async {
       try {
-        final res = await _client.get(
-          '/api/v1/mobile/timesheet/list',
-          query: <String, Object?>{'limit': limit},
-        );
-        final list = (res as List)
-            .cast<Map<String, dynamic>>()
-            .map(_entryFromOdoo)
-            .map(TimesheetEntry.fromMap)
-            .toList();
+        final list = await fetchPage(limit: limit, offset: 0);
         if (!controller.isClosed) controller.add(list);
       } catch (e) {
         if (!controller.isClosed) {
@@ -34,6 +37,15 @@ class TimesheetRepository {
 
     controller.onListen = refresh;
     return controller.stream;
+  }
+
+  Future<List<TimesheetEntry>> fetchPage({int limit = 20, int offset = 0}) async {
+    final res = await _client.get(
+      '/api/v1/mobile/timesheet/list',
+      query: <String, Object?>{'limit': limit, 'offset': offset},
+    );
+    if (res is! List) return const <TimesheetEntry>[];
+    return compute(_parseTimesheetList, res);
   }
 
   Future<TimesheetEntry> add({
