@@ -354,9 +354,6 @@ class _TelegramConversationListScreenState
 
   @override
   Widget build(BuildContext context) {
-    if (Theme.of(context).brightness == Brightness.dark) {
-      debugPrint('=== [UI LOG] Enterprise Chat Screen đã chuyển sang chế độ Dark Mode ===');
-    }
     final conversations = ref.watch(conversationsProvider);
 
     return AppScaffold(

@@ -100,9 +100,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (Theme.of(context).brightness == Brightness.dark) {
-      debugPrint('=== [UI LOG] Home Screen đã chuyển sang chế độ Dark Mode ===');
-    }
     final summary = ref.watch(homeSummaryProvider);
     final todayState = ref.watch(attendanceTodayProvider);
     final dashboard = ref.watch(mobileDashboardSummaryProvider).valueOrNull;

@@ -33,9 +33,6 @@ class _TicketListScreenState extends ConsumerState<TicketListScreen>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    if (Theme.of(context).brightness == Brightness.dark) {
-      debugPrint('=== [UI LOG] Ticket Screen đã chuyển sang chế độ Dark Mode ===');
-    }
 
     final source = ref.watch(ticketsProvider);
     final tickets = [...ref.watch(effectiveTicketsProvider)]

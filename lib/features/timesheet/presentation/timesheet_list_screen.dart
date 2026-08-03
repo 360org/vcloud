@@ -413,9 +413,6 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    if (Theme.of(context).brightness == Brightness.dark) {
-      debugPrint('=== [UI LOG] Timesheet Screen đã chuyển sang chế độ Dark Mode ===');
-    }
 
     final timesheetEntries = ref.watch(timesheetStreamProvider).valueOrNull;
     final showTodaySummary = timesheetEntries != null;

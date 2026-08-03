@@ -53,9 +53,6 @@ class AppScaffold extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (Theme.of(context).brightness == Brightness.dark) {
-      debugPrint('=== [UI LOG] BottomNavigationBar / AppScaffold đã chuyển sang chế độ Dark Mode ===');
-    }
     final loc = GoRouterState.of(context).matchedLocation;
     final activeIndex = () {
       for (var i = 0; i < _tabs.length; i++) {
