@@ -24,11 +24,8 @@ class TicketCommentRepository {
         final detail = Map<String, dynamic>.from(res as Map);
         final initialDescription = _normalizedContent(detail['description']);
         final messages = (detail['messages'] as List? ?? const <dynamic>[])
-            .cast<Map<String, dynamic>>()
-            // The ticket-create endpoint can add the supplied description to
-            // Odoo's chatter as its first mail.message. It is ticket content,
-            // not a user-authored reply, and is already rendered above the
-            // comment composer.
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
             .where(
               (message) =>
                   initialDescription.isEmpty ||
@@ -82,13 +79,33 @@ class TicketCommentRepository {
     String ticketId,
     Map<String, dynamic> map,
   ) {
+    final rawAuthor = map['author_id'];
+    String authorId = '0';
+    String? authorName = map['author_name']?.toString();
+
+    if (rawAuthor is List && rawAuthor.isNotEmpty) {
+      authorId = rawAuthor.first.toString();
+      if (rawAuthor.length > 1 && (authorName == null || authorName.isEmpty)) {
+        authorName = rawAuthor[1].toString();
+      }
+    } else if (rawAuthor != null && rawAuthor != false && rawAuthor != 'false') {
+      authorId = rawAuthor.toString();
+    } else {
+      authorName ??= 'Hệ thống';
+    }
+
+    final dateVal = map['date'] ?? map['create_date'];
+    final dateStr = (dateVal != null && dateVal != false && dateVal != 'false')
+        ? dateVal.toString()
+        : DateTime.now().toIso8601String();
+
     return <String, dynamic>{
-      'id': map['id'].toString(),
+      'id': map['id']?.toString() ?? '0',
       'ticket_id': ticketId,
-      'author_id': map['author_id']?.toString() ?? '',
+      'author_id': authorId,
       'content': _commentContent(map),
-      'created_at': map['date'] ?? DateTime.now().toIso8601String(),
-      'author_name': map['author_name'] as String?,
+      'created_at': dateStr,
+      'author_name': authorName,
     };
   }
 

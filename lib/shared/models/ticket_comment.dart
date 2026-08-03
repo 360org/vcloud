@@ -17,13 +17,43 @@ class TicketComment {
   final String? authorName;
 
   factory TicketComment.fromMap(Map<String, dynamic> m) {
+    final rawDate = m['created_at'];
+    DateTime parsedDate;
+    if (rawDate is DateTime) {
+      parsedDate = rawDate;
+    } else if (rawDate is String) {
+      parsedDate = DateTime.tryParse(rawDate) ?? DateTime.now();
+    } else {
+      parsedDate = DateTime.now();
+    }
+
+    final rawAuthorId = m['author_id'];
+    String authorIdStr;
+    if (rawAuthorId == null || rawAuthorId == false || rawAuthorId == 'false') {
+      authorIdStr = '0';
+    } else if (rawAuthorId is List && rawAuthorId.isNotEmpty) {
+      authorIdStr = rawAuthorId.first.toString();
+    } else {
+      authorIdStr = rawAuthorId.toString();
+    }
+
+    final rawAuthorName = m['author_name'];
+    String? authorNameStr;
+    if (rawAuthorName != null && rawAuthorName != false && rawAuthorName != 'false') {
+      authorNameStr = rawAuthorName.toString();
+    } else if (rawAuthorId is List && rawAuthorId.length > 1) {
+      authorNameStr = rawAuthorId[1].toString();
+    } else if (authorIdStr == '0') {
+      authorNameStr = 'Hệ thống';
+    }
+
     return TicketComment(
-      id: m['id'] as String,
-      ticketId: m['ticket_id'] as String,
-      authorId: m['author_id'] as String,
-      content: m['content'] as String,
-      createdAt: DateTime.parse(m['created_at'] as String),
-      authorName: m['author_name'] as String?,
+      id: m['id']?.toString() ?? '0',
+      ticketId: m['ticket_id']?.toString() ?? '',
+      authorId: authorIdStr,
+      content: m['content']?.toString() ?? '',
+      createdAt: parsedDate,
+      authorName: authorNameStr,
     );
   }
 
