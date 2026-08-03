@@ -389,7 +389,11 @@ class _TicketActionBarState extends State<_TicketActionBar> {
                       child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                     )
                   : const Icon(LucideIcons.userCheck, size: 18),
-              label: Text(_loadingTake ? 'Đang nhận...' : 'Nhận ticket'),
+              label: Text(
+                _loadingTake ? 'Đang nhận...' : 'Nhận ticket',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -420,7 +424,11 @@ class _TicketActionBarState extends State<_TicketActionBar> {
                       child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                     )
                   : Icon(isDone ? LucideIcons.checkCheck : LucideIcons.checkCircle, size: 18),
-              label: Text(_loadingComplete ? 'Đang xử lý...' : (isDone ? 'Đã hoàn thành' : 'Hoàn thành')),
+              label: Text(
+                _loadingComplete ? 'Đang xử lý...' : (isDone ? 'Đã hoàn thành' : 'Hoàn thành'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ),
         ],
