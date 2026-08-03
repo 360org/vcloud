@@ -95,13 +95,13 @@ class TicketRepository {
   Future<Ticket> updateStatus(String id, TicketStatus status) async {
     final odooStatus = status == TicketStatus.done ? 'done' : 'in_progress';
     try {
-      await _client.put(
-        '/api/v1/mobile/project/task/$id/workflow',
+      await _client.post(
+        '/api/v1/mobile/ticket/$id/workflow',
         body: <String, dynamic>{'status': odooStatus},
       );
       return await one(id);
     } catch (e) {
-      throw Failure('Lỗi khi cập nhật trạng thái: $e');
+      throw Failure('Lỗi khi cập nhật trạng thái Ticket: $e');
     }
   }
 

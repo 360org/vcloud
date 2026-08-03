@@ -7,6 +7,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/date_format.dart';
 import '../../../shared/models/ticket.dart';
 import '../../../shared/models/ticket_comment.dart';
+import '../../../shared/widgets/copyable_error_dialog.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/loading_view.dart';
 import '../../../shared/widgets/ui_kit.dart';
@@ -294,12 +295,24 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
             _TicketActionBar(
               ticket: ticket,
               onTake: () async {
-                await ref.read(ticketActionsProvider).updateStatus(widget.ticketId, TicketStatus.doing);
-                _load();
+                try {
+                  await ref.read(ticketActionsProvider).updateStatus(widget.ticketId, TicketStatus.doing);
+                  _load();
+                } catch (e, st) {
+                  if (mounted) {
+                    showCopyableErrorDialog(context, title: 'Lỗi Nhận Ticket', error: e, stackTrace: st);
+                  }
+                }
               },
               onComplete: () async {
-                await ref.read(ticketActionsProvider).updateStatus(widget.ticketId, TicketStatus.done);
-                _load();
+                try {
+                  await ref.read(ticketActionsProvider).updateStatus(widget.ticketId, TicketStatus.done);
+                  _load();
+                } catch (e, st) {
+                  if (mounted) {
+                    showCopyableErrorDialog(context, title: 'Lỗi Hoàn Thành Ticket', error: e, stackTrace: st);
+                  }
+                }
               },
             ),
             _CommentComposer(
