@@ -7,7 +7,6 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/date_format.dart';
 import '../../../shared/models/ticket.dart';
 import '../../../shared/widgets/app_scaffold.dart';
-import '../../../shared/widgets/brand_logo.dart';
 import '../../../shared/widgets/error_view.dart';
 
 import '../../../shared/widgets/loading_view.dart';
@@ -72,7 +71,7 @@ class _TicketListScreenState extends ConsumerState<TicketListScreen>
             ),
             data: (_) => Column(
               children: [
-                _TicketHeader(onCreate: () => context.push('/tickets/new')),
+                const SizedBox(height: 8),
                 _TicketSearchBar(
                   query: _query,
                   onChanged: (value) => setState(() => _query = value),
@@ -119,68 +118,6 @@ class _TicketListScreenState extends ConsumerState<TicketListScreen>
   }
 }
 
-class _TicketHeader extends StatelessWidget {
-  const _TicketHeader({required this.onCreate});
-
-  final VoidCallback onCreate;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              const BrandLogo(height: 28),
-              const SizedBox(width: 8),
-              Text(
-                'world360',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurface,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ],
-          ),
-          PressableScale(
-            onTap: onCreate,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFF2563EB),
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x332563EB),
-                    blurRadius: 10,
-                    offset: Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: const Row(
-                children: [
-                  Icon(LucideIcons.plus, color: Colors.white, size: 16),
-                  SizedBox(width: 6),
-                  Text(
-                    'Tạo mới',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 class _TicketSearchBar extends StatelessWidget {
   const _TicketSearchBar({

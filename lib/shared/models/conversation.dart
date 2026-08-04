@@ -60,7 +60,10 @@ class ConversationSummary {
               createdAt: lastMessageDate ?? fetchedAt ?? DateTime.now(),
             ),
       updatedAt: lastMessageDate ?? fetchedAt ?? DateTime.now(),
-      unreadCount: (map['unread_count'] as num?)?.toInt() ?? 0,
+      unreadCount: (map['unread_count'] as num?)?.toInt() ??
+          int.tryParse(map['unread_count']?.toString() ?? '') ??
+          (map['message_unread_counter'] as num?)?.toInt() ??
+          0,
       avatarUrl: _stringOrNull(
         map['avatar_url'] ??
             map['channel_avatar_url'] ??

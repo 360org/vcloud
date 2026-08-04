@@ -180,18 +180,23 @@ class ChatRepository {
         final res = await _client.get(
           '/api/v1/mobile/chat/channels/$conversationId/messages',
         );
-        final data = Map<String, dynamic>.from(res as Map);
-        final msgs =
-            (data['messages'] as List? ?? const <dynamic>[])
-                .cast<Map<String, dynamic>>()
-                .map(
-                  (message) => Message.fromOdooMessageInfo(
-                    conversationId: conversationId,
-                    map: message,
-                  ),
-                )
-                .toList()
-              ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+        final List<dynamic> rawList = res is List
+            ? res
+            : (res is Map && res['messages'] is List
+                ? res['messages'] as List
+                : (res is Map && res['data'] is List
+                    ? res['data'] as List
+                    : const <dynamic>[]));
+        final msgs = rawList
+            .whereType<Map>()
+            .map(
+              (message) => Message.fromOdooMessageInfo(
+                conversationId: conversationId,
+                map: Map<String, dynamic>.from(message),
+              ),
+            )
+            .toList()
+          ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
         if (!controller.isClosed) controller.add(msgs);
       } catch (e) {
         if (!controller.isClosed) {

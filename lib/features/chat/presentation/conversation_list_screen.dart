@@ -225,7 +225,7 @@ class _ConversationListScreenState
                             ),
                             padding: const EdgeInsets.only(right: 20),
                             decoration: BoxDecoration(
-                              color: AppColors.warning.withValues(alpha: 0.9),
+                              color: AppColors.warning.withOpacity(0.9),
                               borderRadius: BorderRadius.circular(16),
                             ),
                             child: const Icon(
@@ -1722,21 +1722,24 @@ class _ConversationItem extends StatelessWidget {
         decoration: BoxDecoration(
           color: unreadCount > 0
               ? (isDark
-                  ? AppColors.chat.withValues(alpha: 0.25)
+                  ? AppColors.chat.withOpacity(0.25)
                   : AppColors.featureBackgroundStrong(AppColors.chat))
               : (isDark ? const Color(0xFF1E293B) : AppColors.surface),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: unreadCount > 0
-                ? AppColors.chat.withValues(alpha: 0.3)
+                ? AppColors.chat.withOpacity(0.4)
                 : (isDark
-                    ? Colors.white.withValues(alpha: 0.12)
-                    : AppColors.border.withValues(alpha: 0.7)),
+                    ? Colors.white.withOpacity(0.12)
+                    : AppColors.border.withOpacity(0.7)),
+            width: unreadCount > 0 ? 1.5 : 1.0,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 8,
+              color: unreadCount > 0
+                  ? AppColors.chat.withOpacity(0.1)
+                  : Colors.black.withOpacity(0.03),
+              blurRadius: unreadCount > 0 ? 10 : 8,
               offset: const Offset(0, 2),
             ),
           ],
@@ -1744,14 +1747,36 @@ class _ConversationItem extends StatelessWidget {
 
         child: Row(
           children: [
-            c.isGroup && c.avatarUrl == null
-                ? _GroupAvatar(title: title)
-                : UserAvatar(
-                    userId: c.id,
-                    displayName: title,
-                    avatarUrl: c.avatarUrl,
-                    size: 52,
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                c.isGroup && c.avatarUrl == null
+                    ? _GroupAvatar(title: title)
+                    : UserAvatar(
+                        userId: c.id,
+                        displayName: title,
+                        avatarUrl: c.avatarUrl,
+                        size: 52,
+                      ),
+                if (unreadCount > 0)
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Container(
+                      width: 13,
+                      height: 13,
+                      decoration: BoxDecoration(
+                        color: AppColors.danger,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Theme.of(context).cardColor,
+                          width: 2,
+                        ),
+                      ),
+                    ),
                   ),
+              ],
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -1937,7 +1962,7 @@ class _NewChatSheetState extends ConsumerState<_NewChatSheet>
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: AppColors.textMuted.withValues(alpha: 0.3),
+                    color: AppColors.textMuted.withOpacity(0.3),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),

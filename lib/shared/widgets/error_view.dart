@@ -61,24 +61,29 @@ class ErrorView extends StatelessWidget {
                   const SizedBox(height: 20),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      OutlinedButton.icon(
-                        onPressed: () => showCopyableErrorDialog(
-                          context,
-                          title: 'Chi Tiết Lỗi System',
-                          error: error,
+                      Flexible(
+                        child: OutlinedButton.icon(
+                          onPressed: () => showCopyableErrorDialog(
+                            context,
+                            title: 'Chi Tiết Lỗi System',
+                            error: error,
+                          ),
+                          icon: const Icon(Icons.copy, size: 16),
+                          label: const Text('Copy Lỗi'),
                         ),
-                        icon: const Icon(Icons.copy, size: 16),
-                        label: const Text('Copy Lỗi'),
                       ),
                       const SizedBox(width: 10),
-                      Semantics(
-                        button: true,
-                        label: 'Thử lại',
-                        child: FilledButton.icon(
-                          onPressed: onRetry,
-                          icon: const Icon(Icons.refresh, size: 18),
-                          label: const Text('Thử lại'),
+                      Flexible(
+                        child: Semantics(
+                          button: true,
+                          label: 'Thử lại',
+                          child: FilledButton.icon(
+                            onPressed: onRetry,
+                            icon: const Icon(Icons.refresh, size: 18),
+                            label: const Text('Thử lại'),
+                          ),
                         ),
                       ),
                     ],

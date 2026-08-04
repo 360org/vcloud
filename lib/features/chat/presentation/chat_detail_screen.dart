@@ -129,7 +129,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
       currentUser,
     );
     final fallbackAvatarUrl = _summaryAvatarUrl(ref, widget.conversationId);
-    final conversation = details.value;
+    final conversation = details.valueOrNull;
     final title = _chatTitle(conversation, fallbackTitle, myIdentityIds);
     final senderProfiles = _senderProfiles(conversation);
     final pinnedMessage = _pinnedMessage(messages.valueOrNull);

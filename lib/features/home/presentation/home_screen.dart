@@ -129,8 +129,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final isOnline = summary?.isCheckedIn ?? dashboard?.isCheckedIn ?? false;
     final todayMinutes = dashboard?.todayMinutes ?? summary?.todayMinutes ?? 0;
     final openTickets = dashboard?.openTickets ?? summary?.openTickets ?? 0;
-    final unreadMessages =
-        dashboard?.unreadMessageCount ?? summary?.unreadMessageCount ?? 0;
+    final unreadMessages = ref.watch(totalUnreadCountProvider);
     final chatCount =
         dashboard?.recentConversationCount ??
         summary?.recentConversationCount ??

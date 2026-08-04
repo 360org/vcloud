@@ -415,9 +415,9 @@ class UserAvatar extends StatelessWidget {
     final uri = Uri.tryParse(value);
     if (uri == null) return false;
     return uri.queryParameters.containsKey('access_token') ||
-        uri.path.startsWith('/web/image/') ||
-        uri.path.startsWith('/api/v1/mobile/avatar/');
+        uri.path.startsWith('/web/image/');
   }
+
 
   String? _networkAvatarUrl(String value) {
     if (value.startsWith('http://') || value.startsWith('https://')) {

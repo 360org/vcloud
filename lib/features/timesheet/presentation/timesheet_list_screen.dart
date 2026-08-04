@@ -37,10 +37,51 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
   bool _running = false;
   bool _showCompletedTasks = false;
   final _taskStatusOverrides = <String, _TaskWorkflowStatus>{};
+  final _scrollController = ScrollController();
+  bool _isLoadingMore = false;
+  bool _hasMore = true;
+  int _offset = 0;
 
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    if (_scrollController.hasClients &&
+        _scrollController.position.pixels >=
+            _scrollController.position.maxScrollExtent - 200) {
+      _loadMore();
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_isLoadingMore || !_hasMore) return;
+    setState(() {
+      _isLoadingMore = true;
+    });
+    try {
+      final repo = ref.read(timesheetRepositoryProvider);
+      final newEntries = await repo.fetchPage(limit: 20, offset: _offset + 20);
+      if (newEntries.isEmpty) {
+        _hasMore = false;
+      } else {
+        _offset += newEntries.length;
+      }
+    } catch (_) {
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingMore = false;
+        });
+      }
+    }
+  }
 
   @override
   void dispose() {
+    _scrollController.dispose();
     _ticker?.cancel();
     super.dispose();
   }
@@ -431,6 +472,7 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
 
 
           child: ListView(
+            controller: _scrollController,
             padding: const EdgeInsets.fromLTRB(14, 10, 14, 112),
             children: [
               const _TimesheetHeader(),
@@ -449,6 +491,19 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
               ],
               const SizedBox(height: 16),
               _buildTaskSections(),
+              if (_isLoadingMore) ...[
+                const SizedBox(height: 16),
+                const Center(
+                  child: SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: AppColors.timesheet,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
