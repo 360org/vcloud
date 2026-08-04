@@ -225,7 +225,7 @@ class _ConversationListScreenState
                             ),
                             padding: const EdgeInsets.only(right: 20),
                             decoration: BoxDecoration(
-                              color: AppColors.warning.withOpacity(0.9),
+                              color: AppColors.warning.withValues(alpha: 0.9),
                               borderRadius: BorderRadius.circular(16),
                             ),
                             child: const Icon(
@@ -1722,23 +1722,23 @@ class _ConversationItem extends StatelessWidget {
         decoration: BoxDecoration(
           color: unreadCount > 0
               ? (isDark
-                  ? AppColors.chat.withOpacity(0.25)
+                  ? AppColors.chat.withValues(alpha: 0.25)
                   : AppColors.featureBackgroundStrong(AppColors.chat))
               : (isDark ? const Color(0xFF1E293B) : AppColors.surface),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: unreadCount > 0
-                ? AppColors.chat.withOpacity(0.4)
+                ? AppColors.chat.withValues(alpha: 0.4)
                 : (isDark
-                    ? Colors.white.withOpacity(0.12)
-                    : AppColors.border.withOpacity(0.7)),
+                    ? Colors.white.withValues(alpha: 0.12)
+                    : AppColors.border.withValues(alpha: 0.7)),
             width: unreadCount > 0 ? 1.5 : 1.0,
           ),
           boxShadow: [
             BoxShadow(
               color: unreadCount > 0
-                  ? AppColors.chat.withOpacity(0.1)
-                  : Colors.black.withOpacity(0.03),
+                  ? AppColors.chat.withValues(alpha: 0.1)
+                  : Colors.black.withValues(alpha: 0.03),
               blurRadius: unreadCount > 0 ? 10 : 8,
               offset: const Offset(0, 2),
             ),
@@ -1962,7 +1962,7 @@ class _NewChatSheetState extends ConsumerState<_NewChatSheet>
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: AppColors.textMuted.withOpacity(0.3),
+                    color: AppColors.textMuted.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),

@@ -295,43 +295,47 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
             _TicketActionBar(
               ticket: ticket,
               onTake: () async {
+                final messenger = ScaffoldMessenger.of(context);
+                final router = GoRouter.of(context);
                 try {
                   await ref.read(ticketActionsProvider).updateStatus(widget.ticketId, TicketStatus.doing);
                   if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  messenger.showSnackBar(
                     const SnackBar(
                       content: Text('🎉 Đã nhận ticket thành công!'),
                       behavior: SnackBarBehavior.floating,
                     ),
                   );
-                  if (context.canPop()) {
-                    context.pop();
+                  if (router.canPop()) {
+                    router.pop();
                   } else {
                     _load();
                   }
                 } catch (e, st) {
-                  if (mounted) {
+                  if (mounted && context.mounted) {
                     showCopyableErrorDialog(context, title: 'Lỗi Nhận Ticket', error: e, stackTrace: st);
                   }
                 }
               },
               onComplete: () async {
+                final messenger = ScaffoldMessenger.of(context);
+                final router = GoRouter.of(context);
                 try {
                   await ref.read(ticketActionsProvider).updateStatus(widget.ticketId, TicketStatus.done);
                   if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  messenger.showSnackBar(
                     const SnackBar(
                       content: Text('🎉 Đã hoàn thành ticket!'),
                       behavior: SnackBarBehavior.floating,
                     ),
                   );
-                  if (context.canPop()) {
-                    context.pop();
+                  if (router.canPop()) {
+                    router.pop();
                   } else {
                     _load();
                   }
                 } catch (e, st) {
-                  if (mounted) {
+                  if (mounted && context.mounted) {
                     showCopyableErrorDialog(context, title: 'Lỗi Hoàn Thành Ticket', error: e, stackTrace: st);
                   }
                 }
