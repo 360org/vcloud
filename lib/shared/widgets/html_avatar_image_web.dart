@@ -1,3 +1,4 @@
+import 'dart:js_interop';
 import 'dart:ui_web' as ui_web;
 
 import 'package:flutter/widgets.dart';
@@ -14,6 +15,9 @@ Widget? buildHtmlAvatarImage({required String url, required Widget fallback}) {
     }) {
       final image = web.document.createElement('img') as web.HTMLImageElement;
       image.src = url;
+      image.onerror = ((web.Event e) {
+        image.style.display = 'none';
+      }).toJS;
       image.style
         ..width = '100%'
         ..height = '100%'

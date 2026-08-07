@@ -343,7 +343,15 @@ class UserAvatar extends StatelessWidget {
           gradient: AppColors.accent(_userColor),
           border: Border.all(color: AppColors.surface, width: 2),
         ),
-        child: ClipOval(child: _avatarContent(fallback)),
+        child: ClipOval(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              fallback,
+              _avatarContent(fallback),
+            ],
+          ),
+        ),
       ),
     );
   }
