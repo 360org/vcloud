@@ -134,11 +134,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final unreadMessages = ref.watch(totalUnreadCountProvider);
     final conversationsState = ref.watch(conversationsProvider);
     final conversationsList = conversationsState.value ?? const [];
-    final chatCount = conversationsList.isNotEmpty
-        ? conversationsList.length
-        : (dashboard?.recentConversationCount ??
-            summary?.recentConversationCount ??
-            0);
+    final chatCount = (dashboard?.recentConversationCount != null && dashboard!.recentConversationCount! > 0)
+        ? dashboard.recentConversationCount!
+        : (summary?.recentConversationCount != null && summary!.recentConversationCount > 0
+            ? summary.recentConversationCount
+            : conversationsList.length);
     final statusBusy = _statusBusy || todayState.isLoading;
 
     return AppScaffold(
@@ -707,9 +707,9 @@ class _QuickNavGrid extends ConsumerWidget {
     final liveUnreadCount = ref.watch(totalUnreadCountProvider);
     final conversationsState = ref.watch(conversationsProvider);
     final conversationsList = conversationsState.value ?? const [];
-    final liveChatCount = conversationsList.isNotEmpty
-        ? conversationsList.length
-        : chatCount;
+    final liveChatCount = chatCount > 0
+        ? chatCount
+        : conversationsList.length;
 
     return Column(
       children: [

@@ -37,7 +37,8 @@ class MobileDashboardSummary {
         map['open_tickets'] ?? tickets['open'] ?? tickets['open_count'],
       ),
       recentConversationCount: _intOrNull(
-        map['recent_conversation_count'] ??
+        map['total_channel_count'] ??
+            map['recent_conversation_count'] ??
             chat['recent_conversation_count'] ??
             chat['channel_count'],
       ),
