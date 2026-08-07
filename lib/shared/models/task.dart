@@ -1,3 +1,4 @@
+import '../../core/utils/html_text.dart';
 import 'timesheet.dart';
 
 class TimesheetProjectOption {
@@ -66,7 +67,7 @@ class Task {
     id: map['id'] as String,
     userId: map['user_id'] as String,
     title: map['title'] as String,
-    description: map['description'] as String?,
+    description: cleanHtmlText(map['description']),
     projectId: map['project_id'] as String?,
     projectName: map['project_name'] as String?,
     tags: (map['tags'] as List? ?? const <Object?>[])

@@ -7,67 +7,90 @@ import '../../../core/error/failure.dart';
 import '../../../shared/models/task.dart';
 import '../../../shared/models/timesheet.dart';
 
-/// Lightweight DTO used internally while resolving `tag_ids`. Keeps the name
-/// (always present) and the colour hex (optional — index 0 returns null so
-/// the UI can fall back to a neutral pill colour).
-class _TagInfo {
-  const _TagInfo({required this.name, this.colorHex});
-  final String name;
-  final String? colorHex;
-}
-
 class TaskRepository {
   TaskRepository({OdooApiClient? client}) : _client = client ?? odooApiClient;
 
   final OdooApiClient _client;
 
-  /// Cached `id → TagInfo` map for the `project.tags` endpoint, populated
-  /// lazily the first time a task response carries raw `tag_ids`. Resolve-once
-  /// is enough for the lifetime of the repo instance: tags rarely change
-  /// inside a session, and the next list refresh will pick up new entries
-  /// via [refreshTagNames].
-  Map<int, _TagInfo>? _tagNamesCache;
-  Future<Map<int, _TagInfo>>? _tagNamesFuture;
+  final Map<String, String> _projectNameMap = <String, String>{};
 
   Future<List<TimesheetProjectOption>> listProjects() async {
     try {
       final res = await _client.get('/api/v1/mobile/project/list');
-      return (res as List).cast<Map<String, dynamic>>().map((map) {
+      final list = (res as List).cast<Map<String, dynamic>>().map((map) {
         final name = (map['name'] ?? map['display_name'] ?? 'Project').toString();
-        return TimesheetProjectOption(id: map['id'].toString(), name: name);
+        final id = map['id'].toString();
+        _projectNameMap[id] = name;
+        return TimesheetProjectOption(id: id, name: name);
       }).toList();
+      return list;
     } catch (_) {
       try {
         final res = await _client.get('/api/v1/mobile/timesheet/projects');
-        return (res as List).cast<Map<String, dynamic>>().map((map) {
+        final list = (res as List).cast<Map<String, dynamic>>().map((map) {
           final name = (map['name'] ?? map['display_name'] ?? 'Project').toString();
-          return TimesheetProjectOption(id: map['id'].toString(), name: name);
+          final id = map['id'].toString();
+          _projectNameMap[id] = name;
+          return TimesheetProjectOption(id: id, name: name);
         }).toList();
+        return list;
       } catch (_) {
         return const <TimesheetProjectOption>[];
       }
     }
   }
 
-  Future<List<Task>> listProjectTasks(String projectId) async {
-    final project = (await listProjects()).where((p) => p.id == projectId);
-    final projectName = project.isEmpty ? null : project.first.name;
+  Future<List<Task>> listAllTasks() async {
+    try {
+      final res = await _client.get('/api/v1/mobile/project/all_tasks');
+      if (res is List) {
+        return res
+            .cast<Map<String, dynamic>>()
+            .map((m) => Task.fromMap(_taskFromOdoo(m, DateTime.now())))
+            .toList();
+      }
+    } catch (_) {
+      // Fallback silently if endpoint not deployed on target server yet.
+    }
+    try {
+      final projectListOptions = await listProjects();
+      final tasksById = <String, Task>{};
+      final results = await Future.wait(
+        projectListOptions.map((project) => listProjectTasks(project.id, projectName: project.name)),
+      );
+      for (final list in results) {
+        for (final task in list) {
+          tasksById[task.id] = task;
+        }
+      }
+      return tasksById.values.toList();
+    } catch (_) {
+      return const <Task>[];
+    }
+  }
+
+  Future<List<Task>> listProjectTasks(String projectId, {String? projectName}) async {
+    final projName = projectName ?? _projectNameMap[projectId];
     try {
       final res = await _client.get(
         '/api/v1/mobile/project/$projectId/tasks',
       );
-      return Future.wait(
-        (res as List).cast<Map<String, dynamic>>().map(
-          (m) async => Task.fromMap(
-            await _taskFromOdooHydrated(
-              m,
-              DateTime.now(),
-              projectId: projectId,
-              projectName: projectName,
-            ),
-          ),
-        ),
-      );
+      if (res is List) {
+        return res
+            .cast<Map<String, dynamic>>()
+            .map(
+              (m) => Task.fromMap(
+                _taskFromOdoo(
+                  m,
+                  DateTime.now(),
+                  projectId: projectId,
+                  projectName: projName,
+                ),
+              ),
+            )
+            .toList();
+      }
+      return const <Task>[];
     } catch (_) {
       return const <Task>[];
     }
@@ -78,25 +101,10 @@ class TaskRepository {
 
     Future<void> refresh() async {
       try {
-        final projectListOptions = await listProjects().timeout(
-          const Duration(seconds: 10),
-          onTimeout: () => const <TimesheetProjectOption>[],
+        final tasks = await listAllTasks().timeout(
+          const Duration(seconds: 8),
+          onTimeout: () => const <Task>[],
         );
-        if (projectListOptions.isEmpty) {
-          if (!ctl.isClosed) ctl.add(const <Task>[]);
-          return;
-        }
-        final tasksById = <String, Task>{};
-        for (final project in projectListOptions) {
-          final projectTasks = await listProjectTasks(project.id).timeout(
-            const Duration(seconds: 8),
-            onTimeout: () => const <Task>[],
-          );
-          for (final task in projectTasks) {
-            tasksById[task.id] = task;
-          }
-        }
-        final tasks = tasksById.values.toList();
         if (!ctl.isClosed) ctl.add(tasks);
       } catch (e) {
         debugPrint('watchToday error: $e');
@@ -269,10 +277,14 @@ class TaskRepository {
       'title': (map['name'] ?? map['display_name'] ?? 'Task').toString(),
       'description': _stringOrNull(map['description']),
       'project_id': _idOrNull(map['project_id']) ?? _idOrNull(projectId),
-      'project_name':
-          _stringOrNull(map['project_name']) ??
-          _many2OneName(map['project_id']) ??
-          projectName,
+      'project_name': () {
+        final raw = _stringOrNull(map['project_name']) ?? _many2OneName(map['project_id']);
+        if (raw != null && raw != 'Project' && raw.isNotEmpty) return raw;
+        if (projectName != null && projectName != 'Project' && projectName.isNotEmpty) return projectName;
+        final pId = _idOrNull(map['project_id']) ?? _idOrNull(projectId);
+        if (pId != null && _projectNameMap.containsKey(pId)) return _projectNameMap[pId];
+        return raw ?? projectName ?? 'Dự án khác';
+      }(),
       'tags': _tagsFromOdoo(map),
       'tag_hex_colors': _parseHexColorMap(map['tag_hex_colors']),
       'allocated_hours': ((map['allocated_hours'] ?? map['planned_hours'] ?? map['subtask_planned_hours']) as num?)?.toDouble(),
@@ -296,104 +308,14 @@ class TaskRepository {
     };
   }
 
-  Future<Map<String, dynamic>> _taskFromOdooHydrated(
-    Map<String, dynamic> map,
-    DateTime fallbackDate, {
-    Object? projectId,
-    String? projectName,
-    bool completed = false,
-    String? timesheetId,
-  }) async {
-    final id = map['id'];
-    var merged = map;
-    if (id != null) {
-      try {
-        final detail = await _client.get('/api/v1/project.task/$id').timeout(
-          const Duration(seconds: 3),
-          onTimeout: () => <String, dynamic>{},
-        );
-        if (detail is Map) {
-          merged = <String, dynamic>{
-            ...map,
-            ...Map<String, dynamic>.from(detail),
-          };
-        }
-      } catch (_) {
-        // The mobile list still has enough data to render a task row.
-      }
-    }
-    try {
-      merged = await _resolveTagIds(merged).timeout(
-        const Duration(seconds: 3),
-        onTimeout: () => merged,
-      );
-    } catch (_) {}
 
-    return _taskFromOdoo(
-      merged,
-      fallbackDate,
-      projectId: projectId,
-      projectName: projectName,
-      completed: completed,
-      timesheetId: timesheetId,
-    );
-  }
 
   /// Walk `tag_ids` from a (hydrated) Odoo payload and replace integer IDs
   /// with their human-readable names (+ colour) from the catalog cache.
   /// The mobile list endpoint doesn't expose tags at all, and
   /// `project.task` detail only carries `tag_ids: [int, ...]` — without this
   /// lookup the UI would fall back to `Tag #N`.
-  Future<Map<String, dynamic>> _resolveTagIds(Map<String, dynamic> map) async {
-    final raw = map['tag_ids'];
-    if (raw is! List || raw.isEmpty) return map;
-    // The detail response may already include a resolved `tags` array; skip
-    // resolution to avoid duplicating entries.
-    final existing = map['tags'];
-    final hasNames =
-        existing is List &&
-        existing.isNotEmpty &&
-        existing.every((e) => e is String);
-    final ids = <int>[];
-    for (final entry in raw) {
-      if (entry is num) {
-        ids.add(entry.toInt());
-      } else if (entry is String) {
-        final parsed = int.tryParse(entry);
-        if (parsed != null) ids.add(parsed);
-      }
-    }
-    if (ids.isEmpty) return map;
-    final lookup = await _ensureTagNames();
-    final resolvedNames = <String>[];
-    final resolvedColors = <String, String>{};
-    for (final id in ids) {
-      final info = lookup[id];
-      if (info != null) {
-        resolvedNames.add(info.name);
-        if (info.colorHex != null) {
-          resolvedColors[info.name] = info.colorHex!;
-        }
-      } else {
-        resolvedNames.add('Tag #$id');
-      }
-    }
-    final next = <String, dynamic>{...map, 'tags': resolvedNames};
-    if (resolvedColors.isNotEmpty) {
-      // Merge with whatever the project.task detail already supplied so we
-      // don't overwrite colour information that came in-line.
-      final merged = <String, String>{
-        ..._parseHexColorMap(map['tag_hex_colors']),
-        ...resolvedColors,
-      };
-      next['tag_hex_colors'] = merged;
-    } else if (hasNames) {
-      // Already had pre-resolved names — preserve whatever colours the
-      // detail payload came with.
-      next['tag_hex_colors'] = _parseHexColorMap(map['tag_hex_colors']);
-    }
-    return next;
-  }
+
 
   static Map<String, String> _parseHexColorMap(Object? raw) {
     if (raw is! Map) return <String, String>{};
@@ -406,84 +328,7 @@ class TaskRepository {
     };
   }
 
-  /// Memoised load of the project.tags catalog. Returns an empty map on
-  /// failure so the rendering layer keeps working (still shows raw IDs as
-  /// `Tag #N`); a network blip should never block the timesheet list.
-  Future<Map<int, _TagInfo>> _ensureTagNames() {
-    final cached = _tagNamesCache;
-    if (cached != null) return Future.value(cached);
-    return _tagNamesFuture ??= _loadTagNames();
-  }
 
-  Future<Map<int, _TagInfo>> _loadTagNames() async {
-    try {
-      final raw = await _client.get('/api/v1/mobile/project/tags');
-      final list = _unwrapTagList(raw);
-      final lookup = <int, _TagInfo>{};
-      for (final entry in list.whereType<Map>()) {
-        final id = entry['id'];
-        if (id is! num) continue;
-        final name = entry['name']?.toString();
-        if (name == null || name.isEmpty) continue;
-        lookup[id.toInt()] = _TagInfo(
-          name: name,
-          colorHex: _tagColorToHex(entry['color']),
-        );
-      }
-      _tagNamesCache = lookup;
-      return lookup;
-    } catch (e) {
-      debugPrint('TaskRepository: project.tags catalog failed: $e');
-      return const <int, _TagInfo>{};
-    }
-  }
-
-  /// Force a re-fetch on the next list refresh — pass-through for screens
-  /// that suspect stale tag colours after a sync.
-  void refreshTagNames() {
-    _tagNamesCache = null;
-    _tagNamesFuture = null;
-  }
-
-  /// Accept both the bare-array and `{data|tags|records: [...]}` envelopes
-  /// the Odoo Mobile API has historically shipped under different versions.
-  Iterable _unwrapTagList(Object? raw) {
-    if (raw is List) return raw;
-    if (raw is Map) {
-      for (final key in const ['data', 'tags', 'records', 'items']) {
-        final candidate = raw[key];
-        if (candidate is List) return candidate;
-      }
-    }
-    return const [];
-  }
-
-  String? _tagColorToHex(Object? value) {
-    if (value is num) {
-      const palette = <int, String>{
-        0: '',
-        1: 'F06050',
-        2: 'FAAA38',
-        3: 'F7E928',
-        4: 'A8D245',
-        5: '51BBE5',
-        6: '7D7D7D',
-        7: '7C7BAD',
-        8: '825F5F',
-        9: 'C24668',
-        10: '1F8E76',
-        11: '0F8FA9',
-      };
-      return palette[value.toInt()];
-    }
-    if (value is String) {
-      var hex = value.trim();
-      if (hex.startsWith('#')) hex = hex.substring(1);
-      if (hex.length == 6) return hex.toUpperCase();
-      if (hex.length == 8) return hex.substring(2).toUpperCase();
-    }
-    return null;
-  }
 
   Future<int> _projectIdForTask(String taskId) async {
     final task = await _client.get('/api/v1/project.task/$taskId');

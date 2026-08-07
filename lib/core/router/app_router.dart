@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -68,7 +68,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Chat
       GoRoute(
         path: '/chat',
-        builder: (_, _) => const TelegramConversationListScreen(),
+        builder: (_, s) => TelegramConversationListScreen(
+          unreadOnly: s.uri.queryParameters['filter'] == 'unread',
+        ),
       ),
       GoRoute(path: '/chat/new', builder: (_, _) => const NewChatScreen()),
       GoRoute(
@@ -98,12 +100,61 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/tickets', builder: (_, _) => const TicketListScreen()),
       GoRoute(
         path: '/tickets/new',
-        builder: (_, _) => const CreateTicketScreen(),
+        pageBuilder: (context, state) => CustomTransitionPage<void>(
+          key: state.pageKey,
+          child: const CreateTicketScreen(),
+          transitionDuration: const Duration(milliseconds: 380),
+          reverseTransitionDuration: const Duration(milliseconds: 320),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            final curvedSlide = CurvedAnimation(
+              parent: animation,
+              curve: Curves.fastOutSlowIn,
+            );
+            final curvedFade = CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+            );
+            return SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0.0, 1.0),
+                end: Offset.zero,
+              ).animate(curvedSlide),
+              child: FadeTransition(
+                opacity: curvedFade,
+                child: child,
+              ),
+            );
+          },
+        ),
       ),
       GoRoute(
         path: '/tickets/:id',
-        builder: (_, s) =>
-            TicketDetailScreen(ticketId: s.pathParameters['id']!),
+        pageBuilder: (context, state) => CustomTransitionPage<void>(
+          key: state.pageKey,
+          child: TicketDetailScreen(ticketId: state.pathParameters['id']!),
+          transitionDuration: const Duration(milliseconds: 380),
+          reverseTransitionDuration: const Duration(milliseconds: 320),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            final curvedSlide = CurvedAnimation(
+              parent: animation,
+              curve: Curves.fastOutSlowIn,
+            );
+            final curvedFade = CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+            );
+            return SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0.0, 1.0),
+                end: Offset.zero,
+              ).animate(curvedSlide),
+              child: FadeTransition(
+                opacity: curvedFade,
+                child: child,
+              ),
+            );
+          },
+        ),
       ),
     ],
   );

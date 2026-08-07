@@ -1,24 +1,30 @@
+import 'dart:io';
 import 'dart:ui';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/api/auth_user.dart';
+import '../../../core/config/env.dart';
 import '../../../core/api/mobile_attachment_repository.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/date_format.dart';
 import '../../../core/utils/file_download.dart';
+import '../../../core/utils/magic_bytes_validator.dart';
 import '../../../shared/models/conversation.dart';
 import '../../../shared/models/message.dart';
 import '../../../shared/models/profile.dart';
 import '../../../shared/widgets/app_scaffold.dart';
 import '../../../shared/widgets/error_view.dart';
-import '../../../shared/widgets/html_network_image.dart';
 import '../../../shared/widgets/loading_view.dart';
 import '../../../shared/widgets/ui_kit.dart';
 import '../../auth/application/auth_controller.dart';
@@ -205,6 +211,11 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
                                     message.createdAt,
                                   ));
 
+                          final isBurst = older != null &&
+                              older.senderId == message.senderId &&
+                              _sameDay(older.createdAt, message.createdAt);
+                          final topSpacing = showDate ? 0.0 : (isBurst ? 3.0 : 8.0);
+
                           return Column(
                             children: [
                               if (showDate)
@@ -214,6 +225,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
                                 mine: mine,
                                 sender: senderProfiles[message.senderId],
                                 showAvatar: showAvatar,
+                                topSpacing: topSpacing,
                                 readBy:
                                     mine && message.id == lastReadOwnMessageId
                                     ? _readerProfilesForMessage(
@@ -436,7 +448,19 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
 
   bool _isMine(Message message, AuthUser? user, Set<String> myIdentityIds) {
     if (message.authoredByMe) return true;
+
+    final messageSenderId = int.tryParse(message.senderId);
+    final partnerIdRaw = user?.userMetadata['partner_id'];
+    final currentPartnerId = partnerIdRaw != null ? int.tryParse(partnerIdRaw.toString()) : null;
+    final currentUserId = user?.id != null ? int.tryParse(user!.id) : null;
+    final targetId = currentPartnerId ?? currentUserId;
+
+    if (messageSenderId != null && targetId != null && messageSenderId == targetId) {
+      return true;
+    }
+
     if (myIdentityIds.contains(message.senderId)) return true;
+    if (partnerIdRaw != null && message.senderId == partnerIdRaw.toString()) return true;
 
     final senderName = _identityText(message.senderName);
     if (senderName.isEmpty || user == null) return false;
@@ -653,15 +677,55 @@ class _FloatingChatHeader extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 1),
-                          Text(
-                            conversation?.isGroup == true
-                                ? 'Nhóm trò chuyện'
-                                : 'Đang hoạt động',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppTextStyles.caption.copyWith(
-                              color: AppColors.textSecondary,
-                            ),
+                          Builder(
+                            builder: (_) {
+                              final String statusText;
+                              final Color statusDotColor;
+                              if (conversation?.isGroup == true) {
+                                statusText = 'Nhóm trò chuyện';
+                                statusDotColor = Colors.transparent;
+                              } else {
+                                final imStatus = other?.imStatus ?? 'offline';
+                                switch (imStatus) {
+                                  case 'online':
+                                    statusText = 'Đang hoạt động';
+                                    statusDotColor = const Color(0xFF22C55E);
+                                    break;
+                                  case 'away':
+                                    statusText = 'Vắng mặt';
+                                    statusDotColor = const Color(0xFFF59E0B);
+                                    break;
+                                  case 'offline':
+                                  default:
+                                    statusText = 'Ngoại tuyến';
+                                    statusDotColor = const Color(0xFF94A3B8);
+                                    break;
+                                }
+                              }
+                              return Row(
+                                children: [
+                                  if (statusDotColor != Colors.transparent) ...[
+                                    Container(
+                                      width: 7,
+                                      height: 7,
+                                      decoration: BoxDecoration(
+                                        color: statusDotColor,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 5),
+                                  ],
+                                  Text(
+                                    statusText,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppTextStyles.caption.copyWith(
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
                           ),
                         ],
                       ),
@@ -858,7 +922,8 @@ class _ChatInfoSheetState extends ConsumerState<_ChatInfoSheet> {
   @override
   Widget build(BuildContext context) {
     final other = _otherProfile;
-    final shareLink = 'vcloud://chat/${widget.conversation?.id ?? 'direct'}';
+    final shareLink =
+        '${Env.odooApiBaseUrl}/chat/${widget.conversation?.id ?? 'direct'}';
     return DraggableScrollableSheet(
       initialChildSize: 0.92,
       minChildSize: 0.5,
@@ -1050,46 +1115,221 @@ class _ShareLinkCard extends StatelessWidget {
 
   final String link;
 
+  Future<void> _copyLink(BuildContext context) async {
+    HapticFeedback.lightImpact();
+    await Clipboard.setData(ClipboardData(text: link));
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Đã sao chép liên kết chia sẻ: $link'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _openShareOptions(BuildContext context) {
+    HapticFeedback.lightImpact();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => _ShareLinkSheet(link: link),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(18, 14, 14, 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Liên kết chia sẻ',
-                  style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  link,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.primary,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
+    return PressableScale(
+      onTap: () => _copyLink(context),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(18, 14, 12, 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x0F0F172A),
+              blurRadius: 10,
+              offset: Offset(0, 4),
             ),
-          ),
-          const SizedBox(width: 12),
-          const Icon(LucideIcons.qrCode, color: AppColors.primary, size: 26),
-        ],
+          ],
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Text(
+                        'Liên kết chia sẻ',
+                        style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      SizedBox(width: 6),
+                      Icon(
+                        LucideIcons.copy,
+                        color: AppColors.textMuted,
+                        size: 14,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    link,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.primary,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              tooltip: 'Tùy chọn chia sẻ & Mã QR',
+              onPressed: () => _openShareOptions(context),
+              icon: const Icon(
+                LucideIcons.qrCode,
+                color: AppColors.primary,
+                size: 26,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ShareLinkSheet extends ConsumerWidget {
+  const _ShareLinkSheet({required this.link});
+
+  final String link;
+
+  Future<void> _copy(BuildContext context) async {
+    HapticFeedback.lightImpact();
+    await Clipboard.setData(ClipboardData(text: link));
+    if (!context.mounted) return;
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Đã sao chép liên kết chia sẻ: $link')),
+    );
+  }
+
+  Future<void> _forward(BuildContext context, WidgetRef ref) async {
+    HapticFeedback.lightImpact();
+    Navigator.pop(context);
+    final target = await showForwardConversationPicker(context);
+    if (target == null || !context.mounted) return;
+    try {
+      await ref
+          .read(sendMessageActionProvider)
+          .send(target.id, 'Tham gia trò chuyện: $link');
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Đã chia sẻ liên kết đến ${target.title}')),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Chia sẻ thất bại: $e')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return SafeArea(
+      top: false,
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(26),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x260F172A),
+              blurRadius: 20,
+              offset: Offset(0, -6),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(99),
+              ),
+            ),
+            const SizedBox(height: 14),
+            const Text(
+              'Liên kết chia sẻ cuộc trò chuyện',
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: SelectableText(
+                link,
+                style: const TextStyle(
+                  color: AppColors.primary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            ListTile(
+              leading: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.14),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(LucideIcons.copy, color: AppColors.primary, size: 20),
+              ),
+              title: const Text('Sao chép liên kết', style: TextStyle(fontWeight: FontWeight.w700)),
+              subtitle: const Text('Lưu liên kết vào bộ nhớ tạm'),
+              onTap: () => _copy(context),
+            ),
+            ListTile(
+              leading: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF10B981).withValues(alpha: 0.14),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(LucideIcons.send, color: Color(0xFF10B981), size: 20),
+              ),
+              title: const Text('Gửi đến cuộc trò chuyện khác', style: TextStyle(fontWeight: FontWeight.w700)),
+              subtitle: const Text('Chuyển tiếp liên kết cho người dùng khác'),
+              onTap: () => _forward(context, ref),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1228,17 +1468,17 @@ class _FileInfoList extends ConsumerWidget {
     _FileInfo item,
   ) async {
     try {
-      final url = await ref
+      final bytes = await ref
           .read(downloadAttachmentActionProvider)
-          .downloadUrl(item.attachmentId);
-      final opened = openDownloadUrl(url);
+          .bytes(item.attachmentId);
+      final saved = await saveBytesToFile(bytes, item.name);
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            opened
-                ? 'Đang tải ${item.name}'
-                : 'Tải xuống hiện chỉ hỗ trợ trên web.',
+            saved
+                ? 'Đã tải tệp ${item.name} thành công'
+                : 'Hủy tải tệp ${item.name}',
           ),
         ),
       );
@@ -1571,6 +1811,7 @@ class _Bubble extends ConsumerWidget {
     required this.sender,
     required this.showAvatar,
     required this.readBy,
+    this.topSpacing = 8.0,
   });
 
   final Message message;
@@ -1578,6 +1819,7 @@ class _Bubble extends ConsumerWidget {
   final Profile? sender;
   final bool showAvatar;
   final List<Profile> readBy;
+  final double topSpacing;
 
   void _openImageViewer(BuildContext context, String url) {
     Navigator.of(context).push(
@@ -1755,8 +1997,8 @@ class _Bubble extends ConsumerWidget {
 
     return Padding(
       padding: EdgeInsets.only(
-        top: 3,
-        bottom: readBy.isNotEmpty ? 2 : (showAvatar || mine ? 5 : 1),
+        top: topSpacing,
+        bottom: readBy.isNotEmpty ? 2 : 0,
       ),
       child: Column(
         crossAxisAlignment: mine
@@ -1775,7 +2017,11 @@ class _Bubble extends ConsumerWidget {
                   child: showAvatar
                       ? UserAvatar(
                           userId: sender?.id ?? message.senderId,
-                          displayName: sender?.displayName ?? 'Bạn',
+                          displayName: (sender?.displayName.isNotEmpty == true)
+                              ? sender!.displayName
+                              : ((message.senderName?.isNotEmpty == true)
+                                  ? message.senderName!
+                                  : 'User'),
                           email: sender?.email,
                           avatarUrl:
                               sender?.avatarUrl ?? message.senderAvatarUrl,
@@ -1790,7 +2036,7 @@ class _Bubble extends ConsumerWidget {
                     ? null
                     : () => _openImageViewer(context, imagePreviewUrl),
                 onLongPress: () => _showContextMenu(context, ref),
-                child: message.attachmentIds.isNotEmpty
+                child: _hasAttachmentOrDocument(message)
                     ? _AttachmentBubble(
                         message: message,
                         mine: mine,
@@ -1865,9 +2111,11 @@ class _TextBubble extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.only(right: 8, bottom: 2),
-            child: Text(
-              message.content,
-              style: TextStyle(color: textColor, fontSize: 15, height: 1.35),
+            child: _buildParsedMessageText(
+              context: context,
+              rawText: message.content,
+              mine: mine,
+              textColor: textColor,
             ),
           ),
           _Timestamp(
@@ -1878,6 +2126,127 @@ class _TextBubble extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Widget _buildParsedMessageText({
+    required BuildContext context,
+    required String rawText,
+    required bool mine,
+    required Color textColor,
+  }) {
+    final cleanText = _stripHtml(rawText);
+    final linkColor = mine ? Colors.white : const Color(0xFF1D4ED8);
+
+    final urlRegex = RegExp(
+      r'((?:https?:\/\/|vcloud:\/\/|www\.)[^\s<]+|(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(?:\/[^\s<]*)?)',
+      caseSensitive: false,
+    );
+
+    final matches = urlRegex.allMatches(cleanText);
+    if (matches.isEmpty) {
+      return Text(
+        cleanText,
+        style: TextStyle(color: textColor, fontSize: 15, height: 1.35),
+      );
+    }
+
+    final spans = <InlineSpan>[];
+    int lastMatchEnd = 0;
+
+    for (final match in matches) {
+      if (match.start > lastMatchEnd) {
+        spans.add(TextSpan(
+          text: cleanText.substring(lastMatchEnd, match.start),
+          style: TextStyle(color: textColor, fontSize: 15, height: 1.35),
+        ));
+      }
+
+      final linkText = cleanText.substring(match.start, match.end);
+      var targetUrl = linkText;
+      if (linkText.startsWith('www.')) {
+        targetUrl = 'https://$linkText';
+      }
+
+      spans.add(
+        TextSpan(
+          text: linkText,
+          style: TextStyle(
+            color: linkColor,
+            fontSize: 15,
+            height: 1.35,
+            decoration: TextDecoration.underline,
+            decorationColor: linkColor,
+            decorationThickness: 1.5,
+            fontWeight: FontWeight.w600,
+          ),
+          recognizer: TapGestureRecognizer()
+            ..onTap = () => _handleLinkClick(context, targetUrl),
+        ),
+      );
+
+      lastMatchEnd = match.end;
+    }
+
+    if (lastMatchEnd < cleanText.length) {
+      spans.add(TextSpan(
+        text: cleanText.substring(lastMatchEnd),
+        style: TextStyle(color: textColor, fontSize: 15, height: 1.35),
+      ));
+    }
+
+    return SelectableText.rich(
+      TextSpan(children: spans),
+    );
+  }
+
+  void _handleLinkClick(BuildContext context, String rawUrl) async {
+    HapticFeedback.mediumImpact();
+    final url = rawUrl.trim();
+
+    // 1. Internal chat link (vcloud://chat/<id> or https://.../chat/<id> or http://.../chat/<id>)
+    final uri = Uri.tryParse(url);
+    if (uri != null) {
+      if (uri.scheme == 'vcloud' && uri.host == 'chat') {
+        final channelId =
+            uri.pathSegments.isNotEmpty ? uri.pathSegments.first : null;
+        if (channelId != null && channelId.isNotEmpty) {
+          context.push('/chat/$channelId');
+          return;
+        }
+      } else if (uri.path.contains('/chat/')) {
+        final segments = uri.pathSegments;
+        final chatIdx = segments.indexOf('chat');
+        if (chatIdx >= 0 && chatIdx + 1 < segments.length) {
+          final channelId = segments[chatIdx + 1];
+          context.push('/chat/$channelId');
+          return;
+        }
+      }
+    }
+
+    // 2. External Web URL launch
+    final parsedUri = Uri.tryParse(url.contains('://') ? url : 'https://$url');
+    if (parsedUri != null) {
+      try {
+        final launched = await launchUrl(
+          parsedUri,
+          mode: LaunchMode.externalApplication,
+        );
+        if (!launched && context.mounted) {
+          Clipboard.setData(ClipboardData(text: url));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Đã sao chép liên kết: $url')),
+          );
+        }
+      } catch (_) {
+        if (context.mounted) {
+          Clipboard.setData(ClipboardData(text: url));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Đã sao chép liên kết: $url')),
+          );
+        }
+      }
+    }
   }
 }
 
@@ -1901,22 +2270,55 @@ class _AttachmentBubbleState extends ConsumerState<_AttachmentBubble> {
 
   Future<void> _download() async {
     if (_downloading || widget.message.attachmentIds.isEmpty) return;
+    final attachmentId = widget.message.attachmentIds.first;
+    final fileName = _attachmentFileName(widget.message);
+    final ext = _fileExtension(fileName).toLowerCase();
+
     setState(() => _downloading = true);
     try {
-      final url = await ref
+      final bytes = await ref
           .read(downloadAttachmentActionProvider)
-          .downloadUrl(widget.message.attachmentIds.first);
-      final opened = openDownloadUrl(url);
+          .bytes(attachmentId);
+
+      // Task 1: Check Error Payload (JSON or HTML response returned instead of binary)
+      if (MagicBytesValidator.isErrorPayload(bytes)) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Tải tệp thất bại. Vui lòng kiểm tra lại kết nối hoặc quyền truy cập.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      // Task 1: Check ZIP magic bytes if file is .zip
+      if (ext == 'zip' && !MagicBytesValidator.isValidZipBytes(bytes)) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Tải tệp nén thất bại. Vui lòng kiểm tra lại kết nối hoặc quyền truy cập.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      // Document file download behavior for PDF, Word, Excel, TXT, ZIP, etc.
+      final saved = await saveBytesToFile(bytes, fileName);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            opened
-                ? 'Đang tải ${_attachmentFileName(widget.message)}'
-                : 'Tải xuống hiện chỉ hỗ trợ trên web.',
+            saved
+                ? 'Đã tải tệp $fileName thành công'
+                : 'Hủy tải tệp $fileName',
           ),
         ),
       );
+      return;
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -1950,12 +2352,12 @@ class _AttachmentBubbleState extends ConsumerState<_AttachmentBubble> {
               .read(downloadAttachmentActionProvider)
               .contentUrl(attachmentId, url: message.attachmentUrl);
 
-    if (_isImageAttachment(message, fileName) && previewUrl != null) {
+    if (_isImageAttachment(message, fileName)) {
       return _ImageAttachmentBubble(
         message: message,
         mine: mine,
         maxWidth: widget.maxWidth,
-        imageUrl: previewUrl,
+        imageUrl: previewUrl ?? '',
       );
     }
 
@@ -1985,61 +2387,61 @@ class _AttachmentBubbleState extends ConsumerState<_AttachmentBubble> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: innerColor,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: mine
-                    ? Colors.white.withValues(alpha: 0.08)
-                    : AppColors.primary.withValues(alpha: 0.10),
+          PressableScale(
+            onTap: _downloading ? null : _download,
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: innerColor,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: mine
+                      ? Colors.white.withValues(alpha: 0.08)
+                      : AppColors.primary.withValues(alpha: 0.10),
+                ),
               ),
-            ),
-            child: Row(
-              children: [
-                _DocumentPreviewThumb(
-                  label: extension,
-                  color: iconColor,
-                  previewUrl: _documentThumbnailUrl(message),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        fileName,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: textColor,
-                          fontSize: 15,
-                          height: 1.18,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        message.attachmentIds.length == 1
-                            ? _formatFileSize(message.attachmentSize)
-                            : '${message.attachmentIds.length} tệp đính kèm',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: mutedColor,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
+              child: Row(
+                children: [
+                  _DocumentPreviewThumb(
+                    label: extension,
+                    color: iconColor,
+                    previewUrl: _documentThumbnailUrl(message),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Tooltip(
-                  message: 'Tải xuống',
-                  child: PressableScale(
-                    onTap: _downloading ? null : _download,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          fileName,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: textColor,
+                            fontSize: 15,
+                            height: 1.18,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          message.attachmentIds.length == 1
+                              ? _formatFileSize(message.attachmentSize)
+                              : '${message.attachmentIds.length} tệp đính kèm',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: mutedColor,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Tooltip(
+                    message: 'Tải xuống',
                     child: Container(
                       width: 38,
                       height: 38,
@@ -2064,8 +2466,8 @@ class _AttachmentBubbleState extends ConsumerState<_AttachmentBubble> {
                             ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 5),
@@ -2181,7 +2583,7 @@ class _ImageAttachmentFallback extends StatelessWidget {
   }
 }
 
-class _NetworkPreviewImage extends ConsumerWidget {
+class _NetworkPreviewImage extends ConsumerStatefulWidget {
   const _NetworkPreviewImage({
     required this.url,
     required this.fallback,
@@ -2195,37 +2597,141 @@ class _NetworkPreviewImage extends ConsumerWidget {
   final String? attachmentId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_NetworkPreviewImage> createState() => _NetworkPreviewImageState();
+}
+
+class _NetworkPreviewImageState extends ConsumerState<_NetworkPreviewImage> {
+  Future<dynamic>? _futureContent;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant _NetworkPreviewImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.attachmentId != widget.attachmentId) {
+      _load();
+    }
+  }
+
+  void _load() {
+    final id = widget.attachmentId;
+    if (id != null) {
+      _futureContent = _fetchAndCache(id);
+    } else {
+      _futureContent = null;
+    }
+  }
+
+  Future<dynamic> _fetchAndCache(String id) async {
+    final bytes = await ref.read(downloadAttachmentActionProvider).bytes(id);
+    if (bytes.isEmpty) return null;
+
     if (kIsWeb) {
-      final htmlImage = buildHtmlNetworkImage(url: url, fit: fit);
-      if (htmlImage != null) return htmlImage;
+      return bytes;
+    } else {
+      final tempDir = await getTemporaryDirectory();
+      final file = File('${tempDir.path}/img_$id.png');
+      if (!await file.exists()) {
+        await file.writeAsBytes(bytes, flush: true);
+      }
+      return file;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_futureContent == null) {
+      return const Icon(Icons.broken_image, color: Colors.grey, size: 40);
     }
 
-    final id = attachmentId;
-    if (id != null) {
-      return FutureBuilder<Uint8List>(
-        future: ref.read(downloadAttachmentActionProvider).bytes(id),
-        builder: (context, snapshot) {
-          final bytes = snapshot.data;
-          if (bytes != null) {
-            return Image.memory(bytes, fit: fit, gaplessPlayback: true);
-          }
-          if (snapshot.hasError) return fallback;
+    return FutureBuilder<dynamic>(
+      future: _futureContent,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
           return ColoredBox(
             color: AppColors.soft(AppColors.chat),
             child: const Center(
               child: SizedBox(
-                width: 22,
-                height: 22,
-                child: CircularProgressIndicator(strokeWidth: 2),
+                width: 30,
+                height: 30,
+                child: CircularProgressIndicator(strokeWidth: 2.0),
               ),
             ),
           );
-        },
-      );
-    }
+        }
 
-    return Image.network(url, fit: fit, errorBuilder: (_, _, _) => fallback);
+        if (snapshot.hasError) {
+          final attachmentId = widget.attachmentId;
+          debugPrint('❌ === [Image Loading Exception Detected] ===');
+          debugPrint('Attachment ID: $attachmentId');
+          debugPrint('Error: ${snapshot.error}');
+          debugPrint('Stack Trace: ${snapshot.stackTrace}');
+          return const Icon(Icons.broken_image, color: Colors.grey, size: 40);
+        }
+
+        final data = snapshot.data;
+        if (snapshot.connectionState == ConnectionState.done && data == null) {
+          final attachmentId = widget.attachmentId;
+          debugPrint('⚠️ Warning: Future resolved successfully but returned NULL bytes for ID: $attachmentId');
+        }
+        
+        if (data == null) {
+          return const Icon(Icons.broken_image, color: Colors.grey, size: 40);
+        }
+
+        Widget imageWidget;
+        if (kIsWeb && data is Uint8List) {
+          imageWidget = Image.memory(
+            data,
+            fit: widget.fit,
+            gaplessPlayback: true,
+            errorBuilder: (_, _, _) => const Icon(Icons.broken_image, color: Colors.grey, size: 40),
+          );
+        } else if (!kIsWeb && data is File) {
+          imageWidget = Image.file(
+            data,
+            fit: widget.fit,
+            gaplessPlayback: true,
+            errorBuilder: (_, _, _) => const Icon(Icons.broken_image, color: Colors.grey, size: 40),
+          );
+        } else {
+          return const Icon(Icons.broken_image, color: Colors.grey, size: 40);
+        }
+
+        final heroTag = widget.attachmentId != null
+            ? 'hero_image_${widget.attachmentId}'
+            : 'hero_image_${widget.url.hashCode}';
+
+        return GestureDetector(
+          onTap: () {
+            Navigator.of(context).push(
+              PageRouteBuilder<void>(
+                opaque: false,
+                barrierDismissible: true,
+                barrierColor: Colors.black.withValues(alpha: 0.9),
+                pageBuilder: (context, animation, secondaryAnimation) {
+                  return FadeTransition(
+                    opacity: animation,
+                    child: ImageDetailViewer(
+                      heroTag: heroTag,
+                      imageData: data,
+                    ),
+                  );
+                },
+              ),
+            );
+          },
+          child: Hero(
+            tag: heroTag,
+            child: imageWidget,
+          ),
+        );
+      },
+    );
   }
 }
 
@@ -2262,12 +2768,12 @@ class _DocumentPreviewThumb extends StatelessWidget {
         children: [
           Positioned.fill(
             child: url == null
-                ? _DocumentPreviewLines(color: color)
+                ? _DocumentPreviewLines(color: color, label: label)
                 : _NetworkPreviewImage(
                     url: url,
                     fit: BoxFit.cover,
                     attachmentId: null,
-                    fallback: _DocumentPreviewLines(color: color),
+                    fallback: _DocumentPreviewLines(color: color, label: label),
                   ),
           ),
           Positioned(
@@ -2296,30 +2802,44 @@ class _DocumentPreviewThumb extends StatelessWidget {
 }
 
 class _DocumentPreviewLines extends StatelessWidget {
-  const _DocumentPreviewLines({required this.color});
+  const _DocumentPreviewLines({required this.color, this.label = ''});
 
   final Color color;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(10, 9, 10, 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          Container(width: 42, height: 5, color: color.withValues(alpha: 0.22)),
-          const SizedBox(height: 7),
-          for (final width in const [64.0, 58.0, 68.0, 52.0, 61.0]) ...[
-            Container(
-              width: width,
-              height: 3,
-              decoration: BoxDecoration(
-                color: AppColors.textMuted.withValues(alpha: 0.24),
-                borderRadius: BorderRadius.circular(99),
-              ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(width: 42, height: 5, color: color.withValues(alpha: 0.22)),
+              const SizedBox(height: 7),
+              for (final width in const [64.0, 58.0, 68.0, 52.0, 61.0]) ...[
+                Container(
+                  width: width,
+                  height: 3,
+                  decoration: BoxDecoration(
+                    color: AppColors.textMuted.withValues(alpha: 0.24),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+                const SizedBox(height: 5),
+              ],
+            ],
+          ),
+          Positioned(
+            right: 2,
+            top: 2,
+            child: Icon(
+              _fileIcon(label),
+              color: color.withValues(alpha: 0.35),
+              size: 26,
             ),
-            const SizedBox(height: 5),
-          ],
+          ),
         ],
       ),
     );
@@ -3594,17 +4114,15 @@ class _AttachmentPickerSheet extends StatefulWidget {
 }
 
 class _AttachmentPickerSheetState extends State<_AttachmentPickerSheet> {
-  _AttachmentType _selected = _AttachmentType.gallery;
-
   static const _actions = [
     _AttachmentAction(
       type: _AttachmentType.gallery,
-      label: 'Ảnh',
+      label: 'Thư viện ảnh',
       icon: LucideIcons.image,
     ),
     _AttachmentAction(
       type: _AttachmentType.camera,
-      label: 'Camera',
+      label: 'Máy ảnh',
       icon: LucideIcons.camera,
     ),
     _AttachmentAction(
@@ -3614,7 +4132,7 @@ class _AttachmentPickerSheetState extends State<_AttachmentPickerSheet> {
     ),
     _AttachmentAction(
       type: _AttachmentType.poll,
-      label: 'Bình chọn',
+      label: 'Tạo bình chọn',
       icon: LucideIcons.barChart3,
     ),
     _AttachmentAction(
@@ -3629,26 +4147,13 @@ class _AttachmentPickerSheetState extends State<_AttachmentPickerSheet> {
     ),
   ];
 
-  static const _tileColors = [
-    Color(0xFF111827),
-    Color(0xFFEFF6FF),
-    Color(0xFF8ED8BE),
-    Color(0xFFFEE2E2),
-    Color(0xFFF0FDFA),
-    Color(0xFFE0E7FF),
-    Color(0xFFFFEDD5),
-    Color(0xFFE2E8F0),
-    Color(0xFFDBEAFE),
-  ];
-
   @override
   Widget build(BuildContext context) {
-    final height = MediaQuery.sizeOf(context).height * 0.64;
     return SafeArea(
       top: false,
       child: Container(
-        height: height,
         margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+        padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(26),
@@ -3660,79 +4165,51 @@ class _AttachmentPickerSheetState extends State<_AttachmentPickerSheet> {
             ),
           ],
         ),
-        clipBehavior: Clip.antiAlias,
-        child: Stack(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Column(
-              children: [
-                const _AttachmentSheetHeader(),
-                Expanded(
-                  child: GridView.builder(
-                    padding: const EdgeInsets.only(bottom: 76),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 3,
-                          mainAxisSpacing: 1,
-                          crossAxisSpacing: 1,
-                        ),
-                    itemCount: 24,
-                    itemBuilder: (context, index) {
-                      return _RecentTile(
-                        index: index,
-                        color: _tileColors[index % _tileColors.length],
-                        selected: index == 2 || index == 6,
-                        onTap: () => HapticFeedback.selectionClick(),
-                      );
-                    },
-                  ),
-                ),
-              ],
+            const _AttachmentSheetHeader(),
+            _AttachmentMenuItem(
+              icon: LucideIcons.image,
+              color: const Color(0xFF10B981),
+              title: 'Thư viện ảnh',
+              subtitle: 'Tải ảnh hoặc video từ bộ sưu tập thiết bị',
+              onTap: () => widget.onSelected(_actions[0]),
             ),
-            Positioned(
-              left: 18,
-              right: 18,
-              bottom: 14,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(24),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.78),
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.84),
-                      ),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x180F172A),
-                          blurRadius: 14,
-                          offset: Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        for (final action in _actions)
-                          Expanded(
-                            child: _AttachmentActionButton(
-                              action: action,
-                              selected: action.type == _selected,
-                              onTap: () {
-                                setState(() => _selected = action.type);
-                                widget.onSelected(action);
-                              },
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+            _AttachmentMenuItem(
+              icon: LucideIcons.camera,
+              color: const Color(0xFF3B82F6),
+              title: 'Máy ảnh',
+              subtitle: 'Chụp ảnh mới trực tiếp từ camera',
+              onTap: () => widget.onSelected(_actions[1]),
+            ),
+            _AttachmentMenuItem(
+              icon: LucideIcons.fileText,
+              color: const Color(0xFFF59E0B),
+              title: 'Tài liệu',
+              subtitle: 'Gửi tệp PDF, Word, Excel, ZIP, TXT...',
+              onTap: () => widget.onSelected(_actions[2]),
+            ),
+            _AttachmentMenuItem(
+              icon: LucideIcons.barChart3,
+              color: const Color(0xFF8B5CF6),
+              title: 'Tạo bình chọn',
+              subtitle: 'Tạo cuộc thăm dò ý kiến trong nhóm',
+              onTap: () => widget.onSelected(_actions[3]),
+            ),
+            _AttachmentMenuItem(
+              icon: LucideIcons.mapPin,
+              color: const Color(0xFFEF4444),
+              title: 'Vị trí',
+              subtitle: 'Chia sẻ vị trí hiện tại',
+              onTap: () => widget.onSelected(_actions[4]),
+            ),
+            _AttachmentMenuItem(
+              icon: LucideIcons.contact,
+              color: const Color(0xFF06B6D4),
+              title: 'Liên hệ',
+              subtitle: 'Chia sẻ thông tin người liên hệ',
+              onTap: () => widget.onSelected(_actions[5]),
             ),
           ],
         ),
@@ -3747,7 +4224,7 @@ class _AttachmentSheetHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 64,
+      height: 52,
       child: Stack(
         alignment: Alignment.center,
         children: [
@@ -3762,140 +4239,84 @@ class _AttachmentSheetHeader extends StatelessWidget {
               ),
             ),
           ),
-          const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Gần đây',
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              SizedBox(width: 5),
-              Icon(
-                LucideIcons.chevronDown,
-                color: AppColors.textSecondary,
-                size: 18,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _RecentTile extends StatelessWidget {
-  const _RecentTile({
-    required this.index,
-    required this.color,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final int index;
-  final Color color;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final icon = switch (index % 6) {
-      0 => LucideIcons.camera,
-      1 => LucideIcons.fileText,
-      2 => LucideIcons.image,
-      3 => LucideIcons.map,
-      4 => LucideIcons.qrCode,
-      _ => LucideIcons.galleryHorizontalEnd,
-    };
-
-    return PressableScale(
-      onTap: onTap,
-      scale: 0.99,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color.lerp(color, Colors.white, 0.18)!, color],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-            child: Icon(
-              icon,
-              color: AppColors.midnight.withValues(alpha: 0.34),
-              size: 34,
-            ),
-          ),
-          Positioned(
-            right: 10,
-            top: 10,
-            child: Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: selected ? AppColors.primary : Colors.transparent,
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2.2),
-              ),
-              child: selected
-                  ? const Icon(Icons.check, color: Colors.white, size: 20)
-                  : null,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AttachmentActionButton extends StatelessWidget {
-  const _AttachmentActionButton({
-    required this.action,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final _AttachmentAction action;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return PressableScale(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        decoration: BoxDecoration(
-          color: selected
-              ? AppColors.primary.withValues(alpha: 0.12)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              action.icon,
-              color: selected ? AppColors.primary : AppColors.textPrimary,
-              size: 22,
-            ),
-            const SizedBox(height: 3),
-            Text(
-              action.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+          const Positioned(
+            bottom: 6,
+            child: Text(
+              'Thêm tệp đính kèm',
               style: TextStyle(
-                color: selected ? AppColors.primary : AppColors.textPrimary,
-                fontSize: 10,
-                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                color: AppColors.textPrimary,
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AttachmentMenuItem extends StatelessWidget {
+  const _AttachmentMenuItem({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.14),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 22),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              LucideIcons.chevronRight,
+              color: AppColors.textMuted,
+              size: 18,
             ),
           ],
         ),
@@ -3924,10 +4345,23 @@ String? _mimetypeForName(String name) {
   };
 }
 
+String _stripHtml(String input) {
+  if (input.isEmpty) return '';
+  final stripped = input.replaceAll(RegExp(r'<[^>]*>'), '');
+  return stripped
+      .replaceAll('&amp;', '&')
+      .replaceAll('&lt;', '<')
+      .replaceAll('&gt;', '>')
+      .replaceAll('&quot;', '"')
+      .replaceAll('&#39;', "'")
+      .replaceAll('&nbsp;', ' ')
+      .trim();
+}
+
 String _attachmentFileName(Message message) {
   final metaName = message.attachmentName?.trim();
   if (metaName != null && metaName.isNotEmpty) return metaName;
-  final content = message.content.trim();
+  final content = _stripHtml(message.content);
   if (content.isNotEmpty) return content;
   if (message.attachmentIds.length == 1) {
     return 'Tệp đính kèm ${message.attachmentIds.single}';
@@ -3951,6 +4385,44 @@ Color _fileAccentColor(String name) {
     'jpg' || 'jpeg' || 'png' => AppColors.chat,
     'txt' => AppColors.primary,
     _ => AppColors.ticket,
+  };
+}
+
+IconData _fileIcon(String name) {
+  return switch (_fileExtension(name).toLowerCase()) {
+    'pdf' => LucideIcons.fileText,
+    'doc' || 'docx' => LucideIcons.fileText,
+    'xls' || 'xlsx' || 'csv' => LucideIcons.sheet,
+    'ppt' || 'pptx' => LucideIcons.presentation,
+    'zip' || 'rar' || '7z' || 'tar' || 'gz' => LucideIcons.archive,
+    'txt' => LucideIcons.fileCode,
+    _ => LucideIcons.paperclip,
+  };
+}
+
+bool _hasAttachmentOrDocument(Message message) {
+  if (message.attachmentIds.isNotEmpty) return true;
+  final fileName = _attachmentFileName(message);
+  final ext = _fileExtension(fileName).toLowerCase();
+  return switch (ext) {
+    'pdf' ||
+    'doc' ||
+    'docx' ||
+    'xls' ||
+    'xlsx' ||
+    'csv' ||
+    'ppt' ||
+    'pptx' ||
+    'zip' ||
+    'rar' ||
+    '7z' ||
+    'txt' ||
+    'png' ||
+    'jpg' ||
+    'jpeg' ||
+    'webp' ||
+    'gif' => true,
+    _ => false,
   };
 }
 
@@ -3987,4 +4459,89 @@ String _formatFileSize(int? bytes) {
   }
   final value = bytes / kb;
   return '${value.toStringAsFixed(value >= 10 ? 0 : 1)} KB';
+}
+
+class ImageDetailViewer extends StatefulWidget {
+  const ImageDetailViewer({
+    super.key,
+    required this.heroTag,
+    required this.imageData,
+  });
+
+  final String heroTag;
+  final dynamic imageData;
+
+  @override
+  State<ImageDetailViewer> createState() => _ImageDetailViewerState();
+}
+
+class _ImageDetailViewerState extends State<ImageDetailViewer> {
+  double _dragOffset = 0.0;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget imageWidget;
+    if (widget.imageData is Uint8List) {
+      imageWidget = Image.memory(
+        widget.imageData as Uint8List,
+        fit: BoxFit.contain,
+      );
+    } else if (widget.imageData is File) {
+      imageWidget = Image.file(
+        widget.imageData as File,
+        fit: BoxFit.contain,
+      );
+    } else {
+      imageWidget = const Icon(Icons.broken_image, color: Colors.white, size: 60);
+    }
+
+    final opacity = (1.0 - (_dragOffset.abs() / 300.0)).clamp(0.2, 1.0);
+
+    return Scaffold(
+      backgroundColor: Colors.black.withValues(alpha: opacity),
+      body: SafeArea(
+        child: Stack(
+          children: [
+            GestureDetector(
+              onVerticalDragUpdate: (details) {
+                setState(() {
+                  _dragOffset += details.delta.dy;
+                });
+              },
+              onVerticalDragEnd: (details) {
+                if (_dragOffset.abs() > 100 || details.velocity.pixelsPerSecond.dy.abs() > 500) {
+                  Navigator.of(context).pop();
+                } else {
+                  setState(() {
+                    _dragOffset = 0.0;
+                  });
+                }
+              },
+              child: Transform.translate(
+                offset: Offset(0, _dragOffset),
+                child: Center(
+                  child: Hero(
+                    tag: widget.heroTag,
+                    child: InteractiveViewer(
+                      minScale: 0.5,
+                      maxScale: 4.0,
+                      child: imageWidget,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 10,
+              right: 10,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white, size: 28),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

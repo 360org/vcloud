@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/date_format.dart';
+import '../../../core/utils/html_text.dart';
 import '../../../shared/models/ticket.dart';
 import '../../../shared/models/ticket_comment.dart';
 import '../../../shared/widgets/copyable_error_dialog.dart';
@@ -376,7 +378,54 @@ class _TicketActionBarState extends State<_TicketActionBar> {
   Widget build(BuildContext context) {
     final status = widget.ticket.status;
     final isDone = status == TicketStatus.done;
+    final isOverdue = widget.ticket.isOverdue;
+    final isTaken = isDone || status == TicketStatus.doing || widget.ticket.assignedTo.trim().isNotEmpty;
+    final isTakeDisabled = isDone || isOverdue || isTaken;
 
+    String takeLabel = 'Nhận ticket';
+    IconData takeIcon = LucideIcons.userCheck;
+    if (_loadingTake) {
+      takeLabel = 'Đang nhận...';
+      takeIcon = LucideIcons.userCheck;
+    } else if (isDone) {
+      takeLabel = 'Đã nhận';
+      takeIcon = LucideIcons.checkCheck;
+    } else if (isOverdue) {
+      takeLabel = 'Đã hết hạn';
+      takeIcon = LucideIcons.alertTriangle;
+    } else if (isTaken) {
+      takeLabel = 'Đã nhận';
+      takeIcon = LucideIcons.checkCheck;
+    }
+
+    // ==========================================
+    // 🔴 NÚT 2: HOÀN THÀNH TICKET (RIGHT BUTTON)
+    // ==========================================
+    String completeLabel = 'Hoàn thành';
+    IconData completeIcon = LucideIcons.check;
+    Color completeBgColor = const Color(0xFF2563EB); // Xanh dương chủ đạo
+    Color completeFgColor = Colors.white;
+    bool enableComplete = true;
+
+    if (_loadingComplete) {
+      completeLabel = 'Đang xử lý...';
+      completeIcon = LucideIcons.checkCircle;
+      completeBgColor = const Color(0xFF2563EB);
+      completeFgColor = Colors.white;
+      enableComplete = false;
+    } else if (isDone) {
+      completeLabel = 'Đã hoàn thành';
+      completeIcon = LucideIcons.checkCheck;
+      completeBgColor = const Color(0xFF10B981); // Xanh lá thành công
+      completeFgColor = Colors.white;
+      enableComplete = false;
+    } else if (isOverdue) {
+      completeLabel = 'Thất bại (Quá hạn)';
+      completeIcon = LucideIcons.xCircle;
+      completeBgColor = const Color(0xFFF1F5F9); // Xám nhạt tương phản thấp
+      completeFgColor = const Color(0xFF94A3B8); // Chữ xám mờ
+      enableComplete = false; // Khóa tương tác tuyệt đối
+    }
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -391,14 +440,16 @@ class _TicketActionBarState extends State<_TicketActionBar> {
           Expanded(
             child: ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2563EB),
+                backgroundColor: isTakeDisabled ? const Color(0xFF94A3B8) : const Color(0xFF2563EB),
                 foregroundColor: Colors.white,
+                disabledBackgroundColor: isTakeDisabled ? const Color(0xFF94A3B8) : null,
+                disabledForegroundColor: isTakeDisabled ? Colors.white : null,
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              onPressed: (_loadingTake || _loadingComplete)
+              onPressed: (isTakeDisabled || _loadingTake || _loadingComplete)
                   ? null
                   : () async {
                       setState(() => _loadingTake = true);
@@ -414,9 +465,9 @@ class _TicketActionBarState extends State<_TicketActionBar> {
                       height: 16,
                       child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                     )
-                  : const Icon(LucideIcons.userCheck, size: 18),
+                  : Icon(takeIcon, size: 18),
               label: Text(
-                _loadingTake ? 'Đang nhận...' : 'Nhận ticket',
+                takeLabel,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -426,14 +477,16 @@ class _TicketActionBarState extends State<_TicketActionBar> {
           Expanded(
             child: ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
-                backgroundColor: isDone ? const Color(0xFF94A3B8) : const Color(0xFF16A34A),
-                foregroundColor: Colors.white,
+                backgroundColor: completeBgColor,
+                foregroundColor: completeFgColor,
+                disabledBackgroundColor: completeBgColor,
+                disabledForegroundColor: completeFgColor,
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              onPressed: (isDone || _loadingTake || _loadingComplete)
+              onPressed: (!enableComplete || _loadingTake || _loadingComplete)
                   ? null
                   : () async {
                       setState(() => _loadingComplete = true);
@@ -449,11 +502,15 @@ class _TicketActionBarState extends State<_TicketActionBar> {
                       height: 16,
                       child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                     )
-                  : Icon(isDone ? LucideIcons.checkCheck : LucideIcons.checkCircle, size: 18),
+                  : Icon(completeIcon, size: 18, color: completeFgColor),
               label: Text(
-                _loadingComplete ? 'Đang xử lý...' : (isDone ? 'Đã hoàn thành' : 'Hoàn thành'),
+                completeLabel,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: completeFgColor,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
           ),
@@ -462,7 +519,6 @@ class _TicketActionBarState extends State<_TicketActionBar> {
     );
   }
 }
-
 
 class _TicketDetailHeader extends StatelessWidget {
   const _TicketDetailHeader({required this.canDelete, required this.onDelete});
@@ -588,16 +644,20 @@ class _TicketInfoCard extends StatelessWidget {
           _DetailField(
             label: 'Mô tả vấn đề',
             icon: LucideIcons.fileText,
-            child: Text(
-              detail.description.isEmpty
-                  ? 'Chưa có mô tả vấn đề.'
-                  : detail.description,
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurface,
-                fontSize: 15,
-                height: 1.42,
-                fontWeight: FontWeight.w600,
-              ),
+            child: Builder(
+              builder: (context) {
+                final cleaned = cleanHtmlText(detail.description);
+                final text = cleaned.isEmpty ? 'Chưa có mô tả vấn đề.' : cleaned;
+                return SelectableText(
+                  text,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
+                    fontSize: 15,
+                    height: 1.42,
+                    fontWeight: FontWeight.w600,
+                  ),
+                );
+              },
             ),
           ),
           const SizedBox(height: 14),
@@ -656,7 +716,7 @@ class _TicketInfoCard extends StatelessWidget {
             ],
           ),
         ],
-      ),
+      ).animate().fadeIn(duration: 450.ms, curve: Curves.easeOutCubic).slideY(begin: -0.12, end: 0.0, duration: 450.ms, curve: Curves.easeOutCubic),
     );
   }
 }
@@ -913,13 +973,22 @@ class _CommentCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            Text(
-              comment.content,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 14,
-                height: 1.35,
-              ),
+            Builder(
+              builder: (_) {
+                final rawContent = comment.content.trim();
+                final displayContent = rawContent.isNotEmpty
+                    ? rawContent
+                    : '$name đã nhận xử lý ticket này.';
+                return Text(
+                  displayContent,
+                  style: TextStyle(
+                    color: rawContent.isNotEmpty ? AppColors.textPrimary : AppColors.primary,
+                    fontSize: 14,
+                    height: 1.35,
+                    fontWeight: rawContent.isNotEmpty ? FontWeight.normal : FontWeight.w600,
+                  ),
+                );
+              },
             ),
           ],
         ),

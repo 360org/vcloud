@@ -1,53 +1,67 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/app_scaffold.dart';
 import '../../../shared/widgets/brand_logo.dart';
 import '../../../shared/widgets/ui_kit.dart';
 
+final appVersionProvider = FutureProvider<String>((ref) async {
+  try {
+    final info = await PackageInfo.fromPlatform();
+    final version = info.version.isNotEmpty ? info.version : '2.4.0';
+    final build = info.buildNumber.isNotEmpty ? info.buildNumber : '28';
+    return 'v$version+$build';
+  } catch (_) {
+    return 'v2.4.0+28';
+  }
+});
+
 /// About screen — app info, version, credits.
-class AboutScreen extends StatelessWidget {
+class AboutScreen extends ConsumerWidget {
   const AboutScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final versionAsync = ref.watch(appVersionProvider);
+    final versionText = versionAsync.maybeWhen(
+      data: (v) => 'Phiên bản $v',
+      orElse: () => 'Phiên bản v2.4.0+28',
+    );
+
     return AppScaffold(
       title: 'Thông tin',
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // App icon and name
+          // App icon and version
           Center(
             child: Column(
               children: [
                 Container(
-                  width: 230,
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 12,
+                    horizontal: 28,
+                    vertical: 18,
                   ),
                   decoration: BoxDecoration(
                     color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(22),
+                    borderRadius: BorderRadius.circular(24),
                     border: Border.all(color: AppColors.border),
-                    boxShadow: AppColors.glow(AppColors.primary, opacity: 0.3),
+                    boxShadow: AppColors.glow(AppColors.primary, opacity: 0.18),
                   ),
-                  child: const BrandLogo(height: 62),
+                  child: const BrandLogo(height: 72),
                 ),
-                const SizedBox(height: 16),
-                const Text(
-                  'world360',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
+                const SizedBox(height: 14),
+                Text(
+                  versionText,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textMuted,
+                    letterSpacing: 0.2,
                   ),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'v1.1.0+2',
-                  style: TextStyle(fontSize: 14, color: AppColors.textMuted),
                 ),
               ],
             ),
@@ -61,7 +75,7 @@ class AboutScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Ứng dụng quản lý nhân viên',
+                  'Ứng dụng quản lý công việc',
                   style: AppTextStyles.bodyMedium.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
@@ -185,4 +199,3 @@ class _FeatureItem extends StatelessWidget {
     );
   }
 }
-

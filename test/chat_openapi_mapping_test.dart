@@ -230,6 +230,9 @@ void main() {
       );
       expect(client.postBodies.first, containsPair('res_id', 55));
       expect(client.postBodies.first, containsPair('name', 'anh.png'));
+      expect(client.postBodies.first, containsPair('filename', 'anh.png'));
+      expect(client.postBodies.first, containsPair('base64', isNotEmpty));
+      expect(client.postBodies.first, containsPair('datas', isNotEmpty));
       // Message send targets the target channel and references the new attachment.
       expect(client.postBodies.last, containsPair('channel_id', 55));
       expect(client.postBodies.last, containsPair('attachment_ids', <int>[20]));

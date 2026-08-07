@@ -4,7 +4,10 @@ import '../../../shared/models/conversation.dart';
 import '../../auth/application/auth_controller.dart';
 import '../data/chat_repository.dart';
 
+export 'unread_chat_controller.dart' show totalUnreadCountProvider;
+
 final chatRepositoryProvider = Provider<ChatRepository>(
+
   (_) => ChatRepository(),
 );
 
@@ -53,16 +56,6 @@ class ConversationActions {
 final conversationActionsProvider = Provider<ConversationActions>(
   (ref) => ConversationActions(ref.read(chatRepositoryProvider)),
 );
-
-/// Total unread message count across all conversations (for badge display).
-final totalUnreadCountProvider = Provider<int>((ref) {
-  final conversations = ref.watch(conversationsProvider);
-  return conversations.when(
-    data: (list) => list.fold(0, (sum, c) => sum + c.unreadCount),
-    loading: () => 0,
-    error: (e, st) => 0,
-  );
-});
 
 final conversationDetailsProvider = FutureProvider.autoDispose
     .family<Conversation, String>(

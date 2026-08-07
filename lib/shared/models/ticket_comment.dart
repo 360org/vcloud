@@ -17,15 +17,8 @@ class TicketComment {
   final String? authorName;
 
   factory TicketComment.fromMap(Map<String, dynamic> m) {
-    final rawDate = m['created_at'];
-    DateTime parsedDate;
-    if (rawDate is DateTime) {
-      parsedDate = rawDate;
-    } else if (rawDate is String) {
-      parsedDate = DateTime.tryParse(rawDate) ?? DateTime.now();
-    } else {
-      parsedDate = DateTime.now();
-    }
+    final rawDate = m['created_at'] ?? m['date'] ?? m['create_date'];
+    final parsedDate = _parseDate(rawDate);
 
     final rawAuthorId = m['author_id'];
     String authorIdStr;
@@ -51,10 +44,40 @@ class TicketComment {
       id: m['id']?.toString() ?? '0',
       ticketId: m['ticket_id']?.toString() ?? '',
       authorId: authorIdStr,
-      content: m['content']?.toString() ?? '',
+      content: m['content']?.toString() ?? m['body']?.toString() ?? '',
       createdAt: parsedDate,
       authorName: authorNameStr,
     );
+  }
+
+  static DateTime _parseDate(Object? value) {
+    if (value == null || value == false) return DateTime.now();
+    if (value is DateTime) {
+      final utc = value.isUtc ? value : value.toUtc();
+      return utc.toLocal();
+    }
+    final text = value.toString();
+    final parsed = DateTime.tryParse(text);
+    if (parsed == null) return DateTime.now();
+    final utcDt = (parsed.isUtc || _hasTimezone(text))
+        ? parsed.toUtc()
+        : DateTime.utc(
+            parsed.year,
+            parsed.month,
+            parsed.day,
+            parsed.hour,
+            parsed.minute,
+            parsed.second,
+            parsed.millisecond,
+            parsed.microsecond,
+          );
+    return utcDt.toLocal();
+  }
+
+  static bool _hasTimezone(String value) {
+    return value.endsWith('Z') ||
+        value.contains('+') ||
+        (value.contains('-') && value.lastIndexOf('-') > 10);
   }
 
   Map<String, dynamic> toMap() {

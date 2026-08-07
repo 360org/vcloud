@@ -24,3 +24,11 @@ Future<bool> saveBytesToFile(Uint8List bytes, String suggestedName) async {
   web.URL.revokeObjectURL(url);
   return true;
 }
+
+/// Opens PDF `bytes` in a new browser tab for inline reading.
+bool openPdfBlobPreview(Uint8List bytes) {
+  final parts = <JSAny>[bytes.toJS].toJS;
+  final blob = web.Blob(parts, web.BlobPropertyBag(type: 'application/pdf'));
+  final url = web.URL.createObjectURL(blob);
+  return web.window.open(url, '_blank') != null;
+}

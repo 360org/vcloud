@@ -11,6 +11,7 @@ class Profile {
     this.avatarUrl,
     this.partnerId,
     this.role = 'customer',
+    this.imStatus,
   });
 
   final String id;
@@ -21,6 +22,7 @@ class Profile {
   /// Odoo contact ID used by the mobile direct-chat endpoint.
   final String? partnerId;
   final String role;
+  final String? imStatus;
 
   factory Profile.fromMap(Map<String, dynamic> map) => Profile(
     id: _parseString(map['id']) ?? '',
@@ -29,6 +31,7 @@ class Profile {
     avatarUrl: _parseString(map['avatar_url']),
     partnerId: _parseString(map['partner_id']),
     role: _parseString(map['role']) ?? 'customer',
+    imStatus: _parseString(map['im_status'] ?? map['imStatus']),
   );
 
   static String? _parseString(Object? value) {

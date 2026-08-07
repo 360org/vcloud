@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
@@ -48,16 +49,13 @@ class _TicketListScreenState extends ConsumerState<TicketListScreen>
 
     return AppScaffold(
       title: 'Ticket hỗ trợ',
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: FloatingActionButton(
         onPressed: () => context.push('/tickets/new'),
         backgroundColor: const Color(0xFF2563EB),
         foregroundColor: Colors.white,
         elevation: 4,
-        icon: const Icon(LucideIcons.plus, size: 20),
-        label: const Text(
-          'Tạo ticket',
-          style: TextStyle(fontWeight: FontWeight.w800),
-        ),
+        shape: const CircleBorder(),
+        child: const Icon(LucideIcons.plus, size: 26),
       ),
 
       body: ColoredBox(
@@ -87,7 +85,9 @@ class _TicketListScreenState extends ConsumerState<TicketListScreen>
                 const SizedBox(height: 8),
                 Expanded(
                   child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 180),
+                    duration: 450.ms,
+                    switchInCurve: Curves.easeOutCubic,
+                    switchOutCurve: Curves.easeOutCubic,
                     child: _tab == 0
                         ? _TicketList(
                             key: const ValueKey('doing'),
@@ -360,7 +360,13 @@ class _TicketCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final desc = ticket.description?.trim();
-    final color = done ? AppColors.success : _priorityColor(ticket.priority);
+    final isOverdue = ticket.isOverdue;
+    final color = done
+        ? AppColors.success
+        : (isOverdue ? AppColors.danger : _priorityColor(ticket.priority));
+    final displayDate = ticket.deadline ?? ticket.createdAt;
+    final formattedDate = Dates.isoDate(displayDate);
+
     return PressableScale(
       onTap: () => context.push('/tickets/${ticket.id}'),
       scale: 0.99,
@@ -370,17 +376,28 @@ class _TicketCard extends StatelessWidget {
           color: isDark ? const Color(0xFF1E293B) : Colors.white,
           borderRadius: BorderRadius.circular(22),
           border: Border.all(
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.12)
-                : AppColors.border.withValues(alpha: 0.7),
+            color: isOverdue
+                ? AppColors.danger.withValues(alpha: 0.45)
+                : (isDark
+                    ? Colors.white.withValues(alpha: 0.12)
+                    : AppColors.border.withValues(alpha: 0.7)),
+            width: isOverdue ? 1.5 : 1.0,
           ),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x0A0F172A),
-              blurRadius: 16,
-              offset: Offset(0, 8),
-            ),
-          ],
+          boxShadow: isOverdue
+              ? [
+                  BoxShadow(
+                    color: AppColors.danger.withValues(alpha: 0.1),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  ),
+                ]
+              : const [
+                  BoxShadow(
+                    color: Color(0x0A0F172A),
+                    blurRadius: 16,
+                    offset: Offset(0, 8),
+                  ),
+                ],
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -393,7 +410,9 @@ class _TicketCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Icon(
-                done ? LucideIcons.check : LucideIcons.ticket,
+                done
+                    ? LucideIcons.check
+                    : (isOverdue ? LucideIcons.alertTriangle : LucideIcons.ticket),
                 color: color,
                 size: 22,
               ),
@@ -413,7 +432,9 @@ class _TicketCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: done
-                              ? (isDark ? AppColors.darkTextMuted : AppColors.textSecondary)
+                              ? (isDark
+                                  ? AppColors.darkTextMuted
+                                  : AppColors.textSecondary)
                               : Theme.of(context).colorScheme.onSurface,
                           fontSize: 15,
                           height: 1.2,
@@ -447,14 +468,21 @@ class _TicketCard extends StatelessWidget {
                         label: ticket.priority.label,
                         color: _priorityColor(ticket.priority),
                       ),
-                      _TicketPill(
-                        label: Dates.relativeShort(ticket.updatedAt),
-                        color: AppColors.textMuted,
-                      ),
+                      if (isOverdue)
+                        _TicketPill(
+                          label: 'Trễ hạn · $formattedDate',
+                          color: AppColors.danger,
+                          icon: LucideIcons.clock,
+                        )
+                      else
+                        _TicketPill(
+                          label: formattedDate,
+                          color: AppColors.textMuted,
+                        ),
                     ],
                   ),
                 ],
-              ),
+              ).animate().fadeIn(duration: 450.ms, curve: Curves.easeOutCubic).slideY(begin: -0.15, end: 0.0, duration: 450.ms, curve: Curves.easeOutCubic),
             ),
             const SizedBox(width: 8),
             const Icon(
@@ -470,10 +498,15 @@ class _TicketCard extends StatelessWidget {
 }
 
 class _TicketPill extends StatelessWidget {
-  const _TicketPill({required this.label, required this.color});
+  const _TicketPill({
+    required this.label,
+    required this.color,
+    this.icon,
+  });
 
   final String label;
   final Color color;
+  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
@@ -483,13 +516,22 @@ class _TicketPill extends StatelessWidget {
         color: AppColors.soft(color),
         borderRadius: BorderRadius.circular(999),
       ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 11,
-          fontWeight: FontWeight.w900,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 12, color: color),
+            const SizedBox(width: 4),
+          ],
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
       ),
     );
   }

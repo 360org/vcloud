@@ -10,7 +10,6 @@ import 'package:lucide_flutter/lucide_flutter.dart';
 import '../../core/api/odoo_api_client.dart';
 import '../../core/theme/app_theme.dart';
 import '../../features/chat/application/conversations_controller.dart';
-import 'brand_logo.dart';
 import 'html_avatar_image.dart';
 import 'ui_kit.dart';
 
@@ -78,22 +77,16 @@ class AppScaffold extends ConsumerWidget {
     return Scaffold(
       appBar: showAppBar
           ? AppBar(
-              title: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.all(Radius.circular(10)),
-                    ),
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-                      child: BrandLogo(height: 24),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Flexible(child: Text(title)),
-                ],
+              centerTitle: true,
+              elevation: 0,
+              title: Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                  letterSpacing: -0.2,
+                ),
               ),
               actions: actions,
               flexibleSpace: Container(
@@ -235,7 +228,7 @@ class _NavItem extends StatelessWidget {
                   if (badgeCount > 0)
                     Positioned(
                       top: -4,
-                      right: -6,
+                      right: -4,
                       child: UnreadBadge(
                         count: badgeCount,
                         compact: true,
@@ -415,7 +408,9 @@ class UserAvatar extends StatelessWidget {
     final uri = Uri.tryParse(value);
     if (uri == null) return false;
     return uri.queryParameters.containsKey('access_token') ||
-        uri.path.startsWith('/web/image/');
+        uri.path.startsWith('/web/image/') ||
+        uri.path.contains('/avatar/') ||
+        uri.path.contains('/contacts/');
   }
 
 

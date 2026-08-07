@@ -19,3 +19,9 @@ Future<bool> saveBytesToFile(Uint8List bytes, String suggestedName) async {
   await File(path).writeAsBytes(bytes);
   return true;
 }
+
+bool openPdfBlobPreview(Uint8List bytes) => false;
+
+String? createBlobUrl(Uint8List bytes, String mimeType) => null;
+
+void revokeBlobUrl(String url) {}

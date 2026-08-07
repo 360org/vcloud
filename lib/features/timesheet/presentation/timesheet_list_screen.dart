@@ -8,6 +8,7 @@ import 'package:lucide_flutter/lucide_flutter.dart';
 import '../../../core/error/failure.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/date_format.dart';
+import '../../../core/utils/html_text.dart';
 import '../../../shared/models/task.dart';
 import '../../../shared/models/timesheet.dart';
 import '../../../shared/widgets/app_scaffold.dart';
@@ -144,6 +145,7 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
     return showModalBottomSheet<_TimerSaveResult>(
       context: context,
       isScrollControlled: true,
+      enableDrag: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _TimerSaveSheet(duration: duration),
     );
@@ -325,6 +327,7 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      enableDrag: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _TaskDetailSheet(
         task: task,
@@ -342,6 +345,8 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
     HapticFeedback.lightImpact();
     return showModalBottomSheet<_TaskWorkflowStatus>(
       context: context,
+      isScrollControlled: true,
+      enableDrag: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _TaskStatusPickerSheet(
         current: _taskStatusOverrides[task.id] ?? task.workflowStatus,
@@ -1040,7 +1045,7 @@ class _TaskTile extends StatelessWidget {
               onTap: onChecklist,
               child: Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
+                  horizontal: 11,
                   vertical: 8,
                 ),
                 decoration: BoxDecoration(
@@ -1054,16 +1059,16 @@ class _TaskTile extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
-                      LucideIcons.listChecks,
+                      task.workflowStatus.icon,
                       color: task.workflowStatus.color,
-                      size: 16,
+                      size: 17,
                     ),
                     const SizedBox(width: 5),
                     Text(
                       task.workflowStatus.label,
                       style: TextStyle(
                         color: task.workflowStatus.color,
-                        fontSize: 11,
+                        fontSize: 13.5,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -1207,6 +1212,7 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
             borderRadius: BorderRadius.circular(28),
           ),
           child: SingleChildScrollView(
+            physics: const ClampingScrollPhysics(),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1221,7 +1227,27 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(LucideIcons.x, color: AppColors.textSecondary),
+                      tooltip: 'Hủy',
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    const SizedBox(width: 4),
+                    const Text(
+                      'Chi tiết task',
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
                 Row(
                   children: [
                     Container(
@@ -1257,6 +1283,7 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
                               StatusPill(
                                 label: _status.label,
                                 color: _status.color,
+                                icon: _status.icon,
                               ),
                             ],
                           ),
@@ -1305,7 +1332,7 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
                     Expanded(
                       child: _TaskDetailMetric(
                         icon: LucideIcons.timer,
-                        label: 'Thời gian làm',
+                        label: 'Lần log gần nhất',
                         value: _formatTaskDuration(task.logged),
                       ),
                     ),
@@ -1327,7 +1354,7 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
                     Expanded(
                       child: _TaskDetailMetric(
                         icon: LucideIcons.hourglass,
-                        label: 'Allocated time',
+                        label: 'Thời gian dự kiến',
                         value: _formatHours(task.allocatedHours),
                       ),
                     ),
@@ -1335,7 +1362,7 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
                     Expanded(
                       child: _TaskDetailMetric(
                         icon: LucideIcons.activity,
-                        label: 'Đã dùng',
+                        label: 'Tổng thời gian đã làm',
                         value: _formatHours(task.spentHours),
                       ),
                     ),
@@ -1414,8 +1441,70 @@ class _TaskInfoBlock extends StatelessWidget {
   final String value;
   final bool multiline;
 
+  Widget _buildValueWidget(String cleanValue) {
+    if (!multiline) {
+      return Text(
+        cleanValue,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          color: AppColors.textPrimary,
+          fontSize: 14,
+          fontWeight: FontWeight.w800,
+          height: 1.35,
+        ),
+      );
+    }
+
+    const defaultStyle = TextStyle(
+      color: AppColors.textPrimary,
+      fontSize: 14,
+      fontWeight: FontWeight.w700,
+      height: 1.45,
+    );
+
+    final linkStyle = defaultStyle.copyWith(
+      color: const Color(0xFF2563EB),
+      fontWeight: FontWeight.w800,
+      decoration: TextDecoration.underline,
+    );
+
+    final regex = RegExp(
+      r'((https?://[^\s<]+)|(www\.[^\s<]+)|([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}))',
+      caseSensitive: false,
+    );
+
+    final spans = <InlineSpan>[];
+    int start = 0;
+
+    for (final match in regex.allMatches(cleanValue)) {
+      if (match.start > start) {
+        spans.add(TextSpan(text: cleanValue.substring(start, match.start)));
+      }
+      final matchedText = match.group(0)!;
+      spans.add(
+        TextSpan(
+          text: matchedText,
+          style: linkStyle,
+        ),
+      );
+      start = match.end;
+    }
+
+    if (start < cleanValue.length) {
+      spans.add(TextSpan(text: cleanValue.substring(start)));
+    }
+
+    return SelectableText.rich(
+      TextSpan(children: spans, style: defaultStyle),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final cleanValue = cleanHtmlText(value);
+    final displayValue = cleanValue.isEmpty ? value : cleanValue;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
@@ -1443,19 +1532,7 @@ class _TaskInfoBlock extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  value,
-                  maxLines: multiline ? 6 : 1,
-                  overflow: multiline
-                      ? TextOverflow.fade
-                      : TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    height: 1.35,
-                  ),
-                ),
+                _buildValueWidget(displayValue),
               ],
             ),
           ),
@@ -1500,7 +1577,7 @@ class _TaskStatusChip extends StatelessWidget {
               status.label,
               style: TextStyle(
                 color: selected ? status.color : AppColors.textSecondary,
-                fontSize: 12,
+                fontSize: 14,
                 fontWeight: FontWeight.w900,
               ),
             ),
@@ -1547,27 +1624,13 @@ class _TaskChecklistButton extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Checklist / Đổi trạng thái',
-                    style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    status.label,
-                    style: TextStyle(
-                      color: status.color,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ],
+              child: Text(
+                status.label,
+                style: TextStyle(
+                  color: status.color,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
             ),
             Icon(
@@ -1799,16 +1862,29 @@ class _TimerSaveSheetState extends ConsumerState<_TimerSaveSheet> {
 
   Future<List<_TimerProjectTasks>> _loadProjectTaskGroups() async {
     final actions = ref.read(taskActionsProvider);
-    final projects = await actions.listProjects();
-    final groups = await Future.wait(
-      projects.map((project) async {
-        final tasks = (await actions.listProjectTasks(
-          project.id,
-        )).where((task) => !task.isCompleted).toList();
-        return _TimerProjectTasks(project: project, tasks: tasks);
-      }),
-    );
-    return groups.where((group) => group.tasks.isNotEmpty).toList();
+    final allTasks = await actions.listAllTasks();
+
+    final groupsMap = <String, ({TimesheetProjectOption project, List<Task> tasks})>{};
+    for (final task in allTasks) {
+      if (task.isCompleted) continue;
+      final projId = task.projectId ?? '0';
+      final projName = (task.projectName != null && task.projectName != 'Project' && task.projectName!.isNotEmpty)
+          ? task.projectName!
+          : 'Dự án khác';
+      final existing = groupsMap[projId];
+      if (existing == null) {
+        groupsMap[projId] = (
+          project: TimesheetProjectOption(id: projId, name: projName),
+          tasks: [task],
+        );
+      } else {
+        existing.tasks.add(task);
+      }
+    }
+
+    return groupsMap.values
+        .map((g) => _TimerProjectTasks(project: g.project, tasks: g.tasks))
+        .toList();
   }
 
   void _toggleProject(_TimerProjectTasks group) {
@@ -1860,6 +1936,7 @@ class _TimerSaveSheetState extends ConsumerState<_TimerSaveSheet> {
             borderRadius: BorderRadius.circular(28),
           ),
           child: SingleChildScrollView(
+            physics: const ClampingScrollPhysics(),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1874,7 +1951,27 @@ class _TimerSaveSheetState extends ConsumerState<_TimerSaveSheet> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(LucideIcons.x, color: AppColors.textSecondary),
+                      tooltip: 'Hủy',
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    const SizedBox(width: 4),
+                    const Text(
+                      'Hủy',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
                 Row(
                   children: [
                     Container(

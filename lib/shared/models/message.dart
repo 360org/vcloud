@@ -94,6 +94,8 @@ class Message {
           '',
       content: body.isNotEmpty ? body : preview,
       createdAt: _dateTimeOrNull(map['date']) ?? DateTime.now(),
+      status: (map['status'] as String?) ??
+          ((map['is_read'] == true) ? 'read' : 'sent'),
       senderName:
           _stringOrNull(map['author_name']) ?? _recordName(map['author_id']),
       senderAvatarUrl: _stringOrNull(map['author_avatar']),
@@ -127,17 +129,20 @@ class Message {
     if (value == null || value == false) return null;
     final text = value.toString();
     final parsed = DateTime.tryParse(text);
-    if (parsed == null || parsed.isUtc || _hasTimezone(text)) return parsed;
-    return DateTime.utc(
-      parsed.year,
-      parsed.month,
-      parsed.day,
-      parsed.hour,
-      parsed.minute,
-      parsed.second,
-      parsed.millisecond,
-      parsed.microsecond,
-    );
+    if (parsed == null) return null;
+    final utcDt = (parsed.isUtc || _hasTimezone(text))
+        ? parsed.toUtc()
+        : DateTime.utc(
+            parsed.year,
+            parsed.month,
+            parsed.day,
+            parsed.hour,
+            parsed.minute,
+            parsed.second,
+            parsed.millisecond,
+            parsed.microsecond,
+          );
+    return utcDt.toLocal();
   }
 
   static String? _stringOrNull(Object? value) {

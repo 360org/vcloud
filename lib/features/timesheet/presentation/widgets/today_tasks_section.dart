@@ -55,6 +55,7 @@ class TodayTasksSection extends ConsumerWidget {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      enableDrag: true,
       backgroundColor: Colors.transparent,
       builder: (_) => Container(
         decoration: const BoxDecoration(
@@ -321,6 +322,7 @@ Future<void> showCreateTaskSheet(BuildContext context, WidgetRef ref) async {
   await showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
+    enableDrag: true,
     backgroundColor: Colors.transparent,
     builder: (_) => Container(
       decoration: const BoxDecoration(
@@ -387,29 +389,42 @@ class _CreateTaskSheetState extends ConsumerState<_CreateTaskSheet> {
           top: 8,
           bottom: padding + 16,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Center(
-              child: Container(
-                width: 44,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.border,
-                  borderRadius: BorderRadius.circular(2),
+        child: SingleChildScrollView(
+          physics: const ClampingScrollPhysics(),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 14),
-            Text(
-              'Tạo task',
-              style: AppTextStyles.title.copyWith(
-                fontSize: 20,
-                color: AppColors.textPrimary,
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close_rounded, color: AppColors.textSecondary),
+                    tooltip: 'Hủy',
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Tạo task',
+                    style: AppTextStyles.title.copyWith(
+                      fontSize: 18,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(height: 16),
+              const SizedBox(height: 12),
             TextField(
               controller: _title,
               maxLength: 200,
@@ -480,6 +495,7 @@ class _CreateTaskSheetState extends ConsumerState<_CreateTaskSheet> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }

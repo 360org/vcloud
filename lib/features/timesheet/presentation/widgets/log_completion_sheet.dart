@@ -80,23 +80,45 @@ class _LogCompletionSheetState extends ConsumerState<LogCompletionSheet> {
           top: 8,
           bottom: MediaQuery.of(context).viewInsets.bottom + 16,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Center(
-              child: Container(
-                width: 44,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.border,
-                  borderRadius: BorderRadius.circular(2),
+        child: SingleChildScrollView(
+          physics: const ClampingScrollPhysics(),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 14),
-            // Task header
-            GlassCard(
+              const SizedBox(height: 6),
+              // Navigation Header with Emergency Exit (iOS HIG)
+              Row(
+                children: [
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close_rounded, color: AppColors.textSecondary),
+                    tooltip: 'Hủy',
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Lưu Timesheet',
+                    style: AppTextStyles.title.copyWith(
+                      fontSize: 16,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              // Task header
+              GlassCard(
               glowColor: catColor,
               padding: const EdgeInsets.all(14),
               radius: 16,
@@ -221,8 +243,9 @@ class _LogCompletionSheetState extends ConsumerState<LogCompletionSheet> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }
 
 /// Inline helper — equivalent to `categoryColor(category)` but

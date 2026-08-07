@@ -212,8 +212,9 @@ class _ConversationListScreenState
                           c,
                           currentUser,
                         );
-                        final preview =
-                            c.lastMessage?.content ?? 'Chưa có tin nhắn';
+                        final rawPreview = c.lastMessage?.content ?? '';
+                        final cleanedPreview = _stripHtml(rawPreview);
+                        final preview = cleanedPreview.isEmpty ? 'Chưa có tin nhắn' : cleanedPreview;
                         return Dismissible(
                           key: ValueKey(c.id),
                           direction: DismissDirection.endToStart,
@@ -306,7 +307,12 @@ class _ConversationListScreenState
 }
 
 class TelegramConversationListScreen extends ConsumerStatefulWidget {
-  const TelegramConversationListScreen({super.key});
+  const TelegramConversationListScreen({
+    super.key,
+    this.unreadOnly = false,
+  });
+
+  final bool unreadOnly;
 
   @override
   ConsumerState<TelegramConversationListScreen> createState() =>
@@ -316,6 +322,21 @@ class TelegramConversationListScreen extends ConsumerStatefulWidget {
 class _TelegramConversationListScreenState
     extends ConsumerState<TelegramConversationListScreen> {
   String _query = '';
+  late bool _filterUnread = widget.unreadOnly;
+
+  @override
+  void initState() {
+    super.initState();
+    _filterUnread = widget.unreadOnly;
+  }
+
+  @override
+  void didUpdateWidget(covariant TelegramConversationListScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.unreadOnly != widget.unreadOnly) {
+      _filterUnread = widget.unreadOnly;
+    }
+  }
 
   static String _timeLabel(DateTime dt) => Dates.chatListLabelVi(dt);
 
@@ -367,7 +388,12 @@ class _TelegramConversationListScreenState
 
             data: (list) {
               final currentUser = ref.watch(authControllerProvider).value;
+              final unreadTotal =
+                  list.where((c) => c.unreadCount > 0).length;
               final filtered = list.where((conversation) {
+                if (_filterUnread && conversation.unreadCount <= 0) {
+                  return false;
+                }
                 if (conversation.lastMessage == null) return false;
                 final preview = conversation.lastMessage?.content ?? '';
                 final title = _conversationTitleForCurrentUser(
@@ -394,9 +420,22 @@ class _TelegramConversationListScreenState
                       HapticFeedback.lightImpact();
                     },
                   ),
+                  _ChatFilterChips(
+                    filterUnread: _filterUnread,
+                    unreadCount: unreadTotal,
+                    totalCount: list.length,
+                    onSelect: (unread) {
+                      setState(() => _filterUnread = unread);
+                      HapticFeedback.selectionClick();
+                    },
+                  ),
                   Expanded(
                     child: filtered.isEmpty
-                        ? const _TelegramEmptyChats()
+                        ? _TelegramEmptyChats(
+                            message: _filterUnread
+                                ? 'Không có tin nhắn chưa đọc'
+                                : 'Chưa có cuộc trò chuyện',
+                          )
                         : RefreshIndicator(
                             onRefresh: () async {
                               ref.invalidate(conversationsProvider);
@@ -1675,18 +1714,68 @@ class _TelegramGroupAvatar extends StatelessWidget {
 }
 
 class _TelegramEmptyChats extends StatelessWidget {
-  const _TelegramEmptyChats();
+  const _TelegramEmptyChats({this.message = 'Chưa có cuộc trò chuyện'});
+
+  final String message;
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    return Center(
       child: Text(
-        'Chưa có cuộc trò chuyện',
-        style: TextStyle(
+        message,
+        style: const TextStyle(
           color: AppColors.textMuted,
           fontSize: 16,
           fontWeight: FontWeight.w600,
         ),
+      ),
+    );
+  }
+}
+
+class _ChatFilterChips extends StatelessWidget {
+  const _ChatFilterChips({
+    required this.filterUnread,
+    required this.unreadCount,
+    required this.totalCount,
+    required this.onSelect,
+  });
+
+  final bool filterUnread;
+  final int unreadCount;
+  final int totalCount;
+  final ValueChanged<bool> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      child: Row(
+        children: [
+          ChoiceChip(
+            label: Text('Tất cả ($totalCount)'),
+            selected: !filterUnread,
+            selectedColor: AppColors.primary.withValues(alpha: 0.15),
+            labelStyle: TextStyle(
+              color: !filterUnread ? AppColors.primary : AppColors.textSecondary,
+              fontWeight: !filterUnread ? FontWeight.bold : FontWeight.normal,
+              fontSize: 13,
+            ),
+            onSelected: (_) => onSelect(false),
+          ),
+          const SizedBox(width: 8),
+          ChoiceChip(
+            label: Text('Chưa đọc ($unreadCount)'),
+            selected: filterUnread,
+            selectedColor: AppColors.primary.withValues(alpha: 0.15),
+            labelStyle: TextStyle(
+              color: filterUnread ? AppColors.primary : AppColors.textSecondary,
+              fontWeight: filterUnread ? FontWeight.bold : FontWeight.normal,
+              fontSize: 13,
+            ),
+            onSelected: (_) => onSelect(true),
+          ),
+        ],
       ),
     );
   }
@@ -2214,4 +2303,17 @@ class _GroupTabState extends ConsumerState<_GroupTab> {
           ErrorView(error: e, onRetry: () => ref.invalidate(_allUsersProvider)),
     );
   }
+}
+
+String _stripHtml(String input) {
+  if (input.isEmpty) return '';
+  final stripped = input.replaceAll(RegExp(r'<[^>]*>'), '');
+  return stripped
+      .replaceAll('&amp;', '&')
+      .replaceAll('&lt;', '<')
+      .replaceAll('&gt;', '>')
+      .replaceAll('&quot;', '"')
+      .replaceAll('&#39;', "'")
+      .replaceAll('&nbsp;', ' ')
+      .trim();
 }

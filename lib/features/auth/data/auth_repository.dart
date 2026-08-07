@@ -1,3 +1,5 @@
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
 import '../../../core/api/auth_user.dart';
 import '../../../core/api/odoo_api_client.dart';
 import '../../../core/api/odoo_session.dart';
@@ -6,9 +8,12 @@ import '../../../core/error/failure.dart';
 /// Thin facade around Odoo auth. All auth flows in the app go
 /// through here so controllers do not talk to HTTP directly.
 class AuthRepository {
-  AuthRepository({OdooApiClient? client}) : _client = client ?? odooApiClient;
+  AuthRepository({OdooApiClient? client, FlutterSecureStorage? storage})
+      : _client = client ?? odooApiClient,
+        _storage = storage ?? const FlutterSecureStorage();
 
   final OdooApiClient _client;
+  final FlutterSecureStorage _storage;
 
   Future<AuthUser?> currentUser() async {
     final session = await _client.restoreSession();
@@ -21,8 +26,6 @@ class AuthRepository {
     required String displayName,
     int? tenantId,
   }) {
-    // The provided gateway exposes login, not registration. Keep the existing
-    // screen functional for provisioned Odoo users by logging in.
     return signIn(email: email, password: password, tenantId: tenantId);
   }
 
@@ -49,6 +52,27 @@ class AuthRepository {
     return _client.logout();
   }
 
+  Future<void> saveLocalAvatar(String uid, String avatarData) async {
+    await _storage.write(key: 'custom_avatar_$uid', value: avatarData);
+  }
+
+  Future<String?> getLocalAvatar(String uid) async {
+    return await _storage.read(key: 'custom_avatar_$uid');
+  }
+
+  Future<String> uploadAvatar(String base64Image) async {
+    try {
+      final res = await _client.post(
+        '/api/v1/mobile/avatar/upload',
+        body: <String, dynamic>{'avatar': base64Image},
+      );
+      if (res is Map && res['avatar_url'] != null) {
+        return res['avatar_url'].toString();
+      }
+    } catch (_) {}
+    return '';
+  }
+
   Future<AuthUser> _toUser(OdooSession session) async {
     final profile = await _currentUserProfile(session.uid);
     final partnerId = (session.partnerId ?? _many2OneId(profile?['partner_id']))
@@ -60,14 +84,21 @@ class AuthRepository {
       'db': session.db,
     };
     if (partnerId != null) metadata['partner_id'] = partnerId;
-    final avatar = _stringOrNull(
-      profile?['avatar_url'] ??
-          profile?['avatar_128_url'] ??
-          profile?['image_128_url'] ??
-          profile?['avatar_128'] ??
-          profile?['image_128'] ??
-          profile?['image'],
-    );
+
+    // Check local storage for persistent custom avatar
+    final localAvatar = await getLocalAvatar(session.uid.toString());
+
+    final avatar = (localAvatar != null && localAvatar.isNotEmpty)
+        ? localAvatar
+        : (_stringOrNull(
+            profile?['avatar_url'] ??
+                profile?['avatar_128_url'] ??
+                profile?['image_128_url'] ??
+                profile?['avatar_128'] ??
+                profile?['image_128'] ??
+                profile?['image'],
+          ) ?? (partnerId != null ? '/api/v1/mobile/contacts/$partnerId/avatar' : null));
+
     if (avatar != null) {
       metadata['avatar_url'] = avatar;
     }

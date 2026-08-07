@@ -67,12 +67,14 @@ class MobileAttachmentRepository {
   final OdooApiClient _client;
 
   Future<MobileAttachment> upload(MobileAttachmentUpload file) async {
+    final b64 = base64Encode(file.bytes);
     final res = await _client.post(
       '/api/v1/mobile/attachments/upload',
       body: <String, dynamic>{
         'filename': file.filename,
         'name': file.filename,
-        'datas': base64Encode(file.bytes),
+        'base64': b64,
+        'datas': b64,
         if (file.mimetype != null) 'mimetype': file.mimetype,
         if (file.resModel != null) 'res_model': file.resModel,
         if (file.resId != null) 'res_id': file.resId,
@@ -86,15 +88,12 @@ class MobileAttachmentRepository {
     return MobileAttachment.fromMap(_responseMap(res));
   }
 
-  /// Downloads the raw bytes of an attachment. Used to forward (re-upload into
-  /// another channel) and to save to disk on platforms that can't stream a URL.
+  /// Downloads the raw bytes of an attachment via the dedicated Bearer-
+  /// authenticated download endpoint. This avoids the /web/content/ route
+  /// which requires session cookies and silently returns an HTML login page
+  /// when called with Bearer tokens.
   Future<Uint8List> fetchBytes(int attachmentId) async {
-    final meta = await one(attachmentId);
-    final path =
-        meta.downloadUrl ??
-        meta.url ??
-        '/web/content/${meta.attachmentId}?download=1';
-    return _client.fetchBytes(path);
+    return _client.fetchBytes('/api/v1/mobile/attachments/$attachmentId/download');
   }
 
   Map<String, dynamic> _responseMap(Object? res) {

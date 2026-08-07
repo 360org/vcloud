@@ -71,6 +71,43 @@ class AuthController extends AsyncNotifier<AuthUser?> {
     state = const AsyncData(null);
   }
 
+  Future<void> uploadAvatar(String base64Image) async {
+    final dataUri = 'data:image/png;base64,$base64Image';
+    final current = state.value;
+    if (current != null) {
+      await _repo.saveLocalAvatar(current.id, dataUri);
+      final updatedMetadata = <String, dynamic>{
+        ...current.userMetadata,
+        'avatar_url': dataUri,
+      };
+      state = AsyncData(
+        AuthUser(
+          id: current.id,
+          email: current.email,
+          userMetadata: updatedMetadata,
+        ),
+      );
+    }
+    try {
+      final newUrl = await _repo.uploadAvatar(base64Image);
+      if (newUrl.isNotEmpty && current != null) {
+        final updatedMetadata = <String, dynamic>{
+          ...current.userMetadata,
+          'avatar_url': newUrl,
+        };
+        state = AsyncData(
+          AuthUser(
+            id: current.id,
+            email: current.email,
+            userMetadata: updatedMetadata,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Remote avatar upload failed, keeping local base64 avatar: $e');
+    }
+  }
+
   Future<void> _registerPushDevice() async {
     try {
       await _pushNotifications.registerCurrentDevice();

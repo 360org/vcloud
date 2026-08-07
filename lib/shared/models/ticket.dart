@@ -12,11 +12,27 @@ extension TicketStatusDb on TicketStatus {
 
   bool get isOpen => this != TicketStatus.done;
 
-  static TicketStatus fromDb(String v) {
-    return TicketStatus.values.firstWhere(
-      (s) => s.dbValue == v,
-      orElse: () => TicketStatus.todo,
-    );
+  static TicketStatus fromDb(Object? value) {
+    if (value == null || value == false) return TicketStatus.todo;
+    final str = value.toString().toLowerCase().trim();
+    if (str == 'done' ||
+        str == 'completed' ||
+        str == 'solved' ||
+        str.contains('done') ||
+        str.contains('solved') ||
+        str.contains('hoàn thành') ||
+        str.contains('đã giải quyết')) {
+      return TicketStatus.done;
+    }
+    if (str == 'doing' ||
+        str == 'in_progress' ||
+        str == 'take' ||
+        str.contains('doing') ||
+        str.contains('progress') ||
+        str.contains('đang xử lý')) {
+      return TicketStatus.doing;
+    }
+    return TicketStatus.todo;
   }
 }
 
@@ -59,6 +75,7 @@ class Ticket {
     required this.assignedTo,
     required this.createdAt,
     required this.updatedAt,
+    this.deadline,
     this.priority = TicketPriority.p3,
     this.category,
     this.tagLabels = const <String>[],
@@ -72,15 +89,26 @@ class Ticket {
   final String assignedTo;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final DateTime? deadline;
   final TicketPriority priority;
   final String? category;
   final List<String> tagLabels;
+
+  bool get isOverdue {
+    if (status == TicketStatus.done) return false;
+    final target = deadline ?? createdAt;
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    final targetDay = DateTime(target.year, target.month, target.day);
+    return targetDay.isBefore(todayStart);
+  }
 
   Ticket copyWith({
     TicketStatus? status,
     TicketPriority? priority,
     String? category,
     List<String>? tagLabels,
+    DateTime? deadline,
   }) => Ticket(
     id: id,
     title: title,
@@ -90,6 +118,7 @@ class Ticket {
     assignedTo: assignedTo,
     createdAt: createdAt,
     updatedAt: updatedAt,
+    deadline: deadline ?? this.deadline,
     priority: priority ?? this.priority,
     category: category ?? this.category,
     tagLabels: tagLabels ?? this.tagLabels,
@@ -102,6 +131,7 @@ class Ticket {
     final rawAssignedTo = map['assigned_to'] ?? map['user_id'] ?? '';
     final rawCreatedAt = map['created_at'] ?? map['create_date'];
     final rawUpdatedAt = map['updated_at'] ?? map['write_date'] ?? rawCreatedAt;
+    final rawDeadline = map['date_deadline'] ?? map['deadline'];
 
     return Ticket(
       id: rawId.toString(),
@@ -112,6 +142,7 @@ class Ticket {
       assignedTo: rawAssignedTo.toString(),
       createdAt: _parseDate(rawCreatedAt),
       updatedAt: _parseDate(rawUpdatedAt),
+      deadline: rawDeadline != null && rawDeadline != false ? _parseDate(rawDeadline) : null,
       priority: map['priority'] != null
           ? TicketPriorityDb.fromDb(map['priority'].toString())
           : TicketPriority.p3,
@@ -131,11 +162,32 @@ class Ticket {
 
   static DateTime _parseDate(Object? value) {
     if (value == null || value == false) return DateTime.now();
-    try {
-      return DateTime.parse(value.toString());
-    } catch (_) {
-      return DateTime.now();
+    if (value is DateTime) {
+      final utc = value.isUtc ? value : value.toUtc();
+      return utc.toLocal();
     }
+    final text = value.toString();
+    final parsed = DateTime.tryParse(text);
+    if (parsed == null) return DateTime.now();
+    final utcDt = (parsed.isUtc || _hasTimezone(text))
+        ? parsed.toUtc()
+        : DateTime.utc(
+            parsed.year,
+            parsed.month,
+            parsed.day,
+            parsed.hour,
+            parsed.minute,
+            parsed.second,
+            parsed.millisecond,
+            parsed.microsecond,
+          );
+    return utcDt.toLocal();
+  }
+
+  static bool _hasTimezone(String value) {
+    return value.endsWith('Z') ||
+        value.contains('+') ||
+        (value.contains('-') && value.lastIndexOf('-') > 10);
   }
 }
 

@@ -19,6 +19,7 @@ class ConversationSummary {
     this.memberCount = 0,
     this.lastSeenMessageId,
     this.lastSeenDt,
+    this.imStatus,
   });
 
   final String id;
@@ -34,6 +35,7 @@ class ConversationSummary {
   final int memberCount;
   final String? lastSeenMessageId;
   final DateTime? lastSeenDt;
+  final String? imStatus;
 
   bool get isArchived => archivedAt != null;
 
@@ -77,6 +79,7 @@ class ConversationSummary {
       memberCount: (map['member_count'] as num?)?.toInt() ?? 0,
       lastSeenMessageId: _stringOrNull(map['last_seen_message_id']),
       lastSeenDt: _dateTimeOrNull(map['last_seen_dt']),
+      imStatus: _stringOrNull(map['im_status'] ?? map['imStatus']),
     );
   }
 
@@ -84,17 +87,20 @@ class ConversationSummary {
     if (value == null || value == false) return null;
     final text = value.toString();
     final parsed = DateTime.tryParse(text);
-    if (parsed == null || parsed.isUtc || _hasTimezone(text)) return parsed;
-    return DateTime.utc(
-      parsed.year,
-      parsed.month,
-      parsed.day,
-      parsed.hour,
-      parsed.minute,
-      parsed.second,
-      parsed.millisecond,
-      parsed.microsecond,
-    );
+    if (parsed == null) return null;
+    final utcDt = (parsed.isUtc || _hasTimezone(text))
+        ? parsed.toUtc()
+        : DateTime.utc(
+            parsed.year,
+            parsed.month,
+            parsed.day,
+            parsed.hour,
+            parsed.minute,
+            parsed.second,
+            parsed.millisecond,
+            parsed.microsecond,
+          );
+    return utcDt.toLocal();
   }
 
   static bool _hasTimezone(String value) {

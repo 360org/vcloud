@@ -24,6 +24,11 @@ class ProfileScreen extends ConsumerWidget {
         : (user?.email?.split('@').first ?? 'Người dùng');
     final role = (meta?['role'] as String?) ?? 'Nhân viên triển khai';
     final company = (meta?['company'] as String?) ?? '360 CORP';
+    final rawAvatar = meta?['avatar_url'] ??
+        meta?['avatar_128_url'] ??
+        meta?['image_128_url'] ??
+        (user != null ? '/api/v1/mobile/contacts/${meta?['partner_id'] ?? user.id}/avatar' : null);
+    final avatarUrl = rawAvatar is String && rawAvatar.isNotEmpty ? rawAvatar : null;
 
     return AppScaffold(
       title: 'Tôi',
@@ -42,6 +47,7 @@ class ProfileScreen extends ConsumerWidget {
                 name: displayName,
                 role: '$role · $company',
                 email: user?.email ?? '',
+                avatarUrl: avatarUrl,
               ),
               const SizedBox(height: 16),
               _SettingsCard(
@@ -108,19 +114,11 @@ class _ProfileTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        const BrandLogo(height: 28),
-        const SizedBox(width: 8),
-        Text(
-          'world360',
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onSurface,
-            fontSize: 20,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-      ],
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 6),
+      child: Center(
+        child: BrandLogo(height: 48),
+      ),
     );
   }
 }
@@ -131,21 +129,52 @@ class _ProfileHero extends StatelessWidget {
     required this.name,
     required this.role,
     required this.email,
+    this.avatarUrl,
   });
 
   final String userId;
   final String name;
   final String role;
   final String email;
+  final String? avatarUrl;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: _cardDecoration(context),
-      child: Row(
-        children: [
-          UserAvatar(userId: userId, displayName: name, email: email, size: 62),
+    return InkWell(
+      onTap: () => context.push('/profile/edit'),
+      borderRadius: BorderRadius.circular(22),
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: _cardDecoration(context),
+        child: Row(
+          children: [
+            Stack(
+              children: [
+                UserAvatar(
+                  userId: userId,
+                  displayName: name,
+                  email: email,
+                  avatarUrl: avatarUrl,
+                  size: 62,
+                ),
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: AppColors.primary,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      LucideIcons.camera,
+                      color: Colors.white,
+                      size: 11,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
@@ -188,8 +217,9 @@ class _ProfileHero extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 }
 
 class _SettingsCard extends StatelessWidget {
@@ -382,21 +412,24 @@ class _ThemeRow extends ConsumerWidget {
               ),
               const SizedBox(height: 12),
               for (final mode in AppThemeMode.values)
-                ListTile(
-                  title: Text(
-                    mode.displayName,
-                    style: TextStyle(
-                      color: textColor,
-                      fontWeight: FontWeight.w600,
+                Material(
+                  color: Colors.transparent,
+                  child: ListTile(
+                    title: Text(
+                      mode.displayName,
+                      style: TextStyle(
+                        color: textColor,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
+                    trailing: mode == current
+                        ? const Icon(Icons.check_circle, color: AppColors.primary)
+                        : null,
+                    onTap: () {
+                      ref.read(themeControllerProvider.notifier).setTheme(mode);
+                      Navigator.pop(ctx);
+                    },
                   ),
-                  trailing: mode == current
-                      ? const Icon(Icons.check_circle, color: AppColors.primary)
-                      : null,
-                  onTap: () {
-                    ref.read(themeControllerProvider.notifier).setTheme(mode);
-                    Navigator.pop(ctx);
-                  },
                 ),
             ],
           ),

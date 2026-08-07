@@ -64,6 +64,10 @@ class TaskActions {
     return _repo.listProjects();
   }
 
+  Future<List<Task>> listAllTasks() {
+    return _repo.listAllTasks();
+  }
+
   Future<List<Task>> listProjectTasks(String projectId) {
     return _repo.listProjectTasks(projectId);
   }

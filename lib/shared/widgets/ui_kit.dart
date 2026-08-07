@@ -277,17 +277,19 @@ class StatusPill extends StatelessWidget {
     required this.color,
     this.onTap,
     this.icon,
+    this.fontSize = 13,
   });
 
   final String label;
   final Color color;
   final VoidCallback? onTap;
   final IconData? icon;
+  final double fontSize;
 
   @override
   Widget build(BuildContext context) {
     final content = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
       decoration: BoxDecoration(
         color: AppColors.soft(color),
         borderRadius: BorderRadius.circular(999),
@@ -311,8 +313,8 @@ class StatusPill extends StatelessWidget {
             label,
             style: TextStyle(
               color: color,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
+              fontSize: fontSize,
+              fontWeight: FontWeight.w800,
             ),
           ),
         ],

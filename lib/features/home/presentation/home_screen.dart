@@ -17,6 +17,8 @@ import '../../attendance/application/attendance_controller.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../chat/application/conversations_controller.dart';
 import '../../timesheet/application/task_controller.dart';
+
+
 import '../../timesheet/application/timesheet_controller.dart';
 import '../../timesheet/presentation/widgets/checklist_editor.dart';
 import '../application/home_summary_controller.dart';
@@ -130,10 +132,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final todayMinutes = dashboard?.todayMinutes ?? summary?.todayMinutes ?? 0;
     final openTickets = dashboard?.openTickets ?? summary?.openTickets ?? 0;
     final unreadMessages = ref.watch(totalUnreadCountProvider);
-    final chatCount =
-        dashboard?.recentConversationCount ??
-        summary?.recentConversationCount ??
-        0;
+    final conversationsState = ref.watch(conversationsProvider);
+    final conversationsList = conversationsState.value ?? const [];
+    final chatCount = conversationsList.isNotEmpty
+        ? conversationsList.length
+        : (dashboard?.recentConversationCount ??
+            summary?.recentConversationCount ??
+            0);
     final statusBusy = _statusBusy || todayState.isLoading;
 
     return AppScaffold(
@@ -684,7 +689,7 @@ class _NotificationEmptyState extends StatelessWidget {
   }
 }
 
-class _QuickNavGrid extends StatelessWidget {
+class _QuickNavGrid extends ConsumerWidget {
   const _QuickNavGrid({
     required this.ticketCount,
     required this.unreadCount,
@@ -698,7 +703,14 @@ class _QuickNavGrid extends StatelessWidget {
   final int taskCount;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final liveUnreadCount = ref.watch(totalUnreadCountProvider);
+    final conversationsState = ref.watch(conversationsProvider);
+    final conversationsList = conversationsState.value ?? const [];
+    final liveChatCount = conversationsList.isNotEmpty
+        ? conversationsList.length
+        : chatCount;
+
     return Column(
       children: [
         SectionHeader(
@@ -726,15 +738,15 @@ class _QuickNavGrid extends StatelessWidget {
             _MetricPill(
               icon: LucideIcons.mailOpen,
               label: 'Chưa đọc',
-              value: unreadCount.toString(),
+              value: liveUnreadCount.toString(),
               caption: 'Tin nhắn mới',
               gradient: AppColors.chatGrad,
-              onTap: () => context.go('/chat'),
+              onTap: () => context.go('/chat?filter=unread'),
             ),
             _MetricPill(
               icon: LucideIcons.messagesSquare,
-              label: 'Kênh chat',
-              value: chatCount.toString(),
+              label: 'Chats',
+              value: liveChatCount.toString(),
               caption: 'Cuộc trò chuyện',
               gradient: AppColors.brandWide,
               onTap: () => context.go('/chat'),
@@ -776,7 +788,7 @@ class _MetricPill extends StatelessWidget {
     return PressableScale(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           gradient: gradient,
           borderRadius: BorderRadius.circular(20),
@@ -801,12 +813,13 @@ class _MetricPill extends StatelessWidget {
             ),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Row(
                   children: [
                     Container(
-                      width: 38,
-                      height: 38,
+                      width: 36,
+                      height: 36,
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.18),
                         borderRadius: BorderRadius.circular(14),
@@ -824,24 +837,24 @@ class _MetricPill extends StatelessWidget {
                     ),
                   ],
                 ),
-                const Spacer(),
+                const SizedBox(height: 6),
                 Text(
                   value,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 26,
+                    fontSize: 22,
                     fontWeight: FontWeight.w900,
                     height: 1,
                   ),
                 ),
-                const SizedBox(height: 5),
+                const SizedBox(height: 4),
                 Text(
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 14,
+                    fontSize: 13,
                     fontWeight: FontWeight.w900,
                   ),
                 ),

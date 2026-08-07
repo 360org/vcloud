@@ -12,6 +12,7 @@ import 'odoo_session_store.dart';
 
 Object? _parseJsonPayload(String text) => jsonDecode(text);
 
+Uint8List _decodeBase64(String encoded) => base64Decode(encoded);
 
 
 /// One selectable tenant returned by the master auth resolver when the same
@@ -255,11 +256,61 @@ class OdooApiClient {
       'Accept': '*/*',
       if (_session != null) 'Authorization': 'Bearer ${_session!.accessToken}',
     };
-    final response = await _http.get(uri, headers: headers);
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Failure('Request failed (${response.statusCode}).');
+    
+    try {
+      final response = await _http.get(uri, headers: headers);
+
+      // --- [RAW HTTP RESPONSE DIAGNOSTICS - INJECTED] ---
+      debugPrint('==================================================');
+      debugPrint('📥 RAW HTTP RESPONSE DIAGNOSTICS');
+      debugPrint('Target Path/URL: $path');
+      debugPrint('Status Code: ${response.statusCode}');
+      debugPrint('Content-Type Header: ${response.headers['content-type'] ?? "unknown"}');
+      debugPrint('All Headers: ${response.headers}');
+      
+      try {
+        final bodyStr = response.body;
+        final bodyPreview = bodyStr.length > 500 
+            ? '${bodyStr.substring(0, 500)}...' 
+            : bodyStr;
+        debugPrint('Body Preview (Text): $bodyPreview');
+      } catch (e) {
+        debugPrint('Failed to read response body as text: $e');
+      }
+      
+      debugPrint('Raw BodyBytes Length: ${response.bodyBytes.length}');
+      debugPrint('==================================================');
+      // --------------------------------------------------
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw Failure('Request failed (${response.statusCode}).');
+      }
+
+      final contentType = response.headers['content-type']?.toLowerCase() ?? '';
+      final bodyStr = response.body;
+
+      // Defensive Parsing: Check Content-Type or if body resembles JSON
+      if (contentType.contains('application/json') || bodyStr.trimLeft().startsWith('{')) {
+        final decoded = jsonDecode(bodyStr);
+        if (decoded is Map) {
+          final result = decoded['result'] ?? decoded['data'];
+          if (result is Map) {
+            final base64String = result['datas'] ?? result['data'];
+            if (base64String is String) {
+              return await compute(_decodeBase64, base64String);
+            }
+          } else if (result is String) {
+            return await compute(_decodeBase64, result);
+          }
+        }
+      }
+
+      // Fallback: Return raw binary bytes directly
+      return response.bodyBytes;
+    } catch (e, stackTrace) {
+      dev.log('Failed to fetch or parse bytes payload: $e', name: 'OdooApi', error: e, stackTrace: stackTrace);
+      throw Failure('Lỗi tải tệp: $e');
     }
-    return response.bodyBytes;
   }
 
   Future<dynamic> _send(
