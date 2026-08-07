@@ -101,6 +101,7 @@ class TicketRepository {
       );
       return await one(id);
     } catch (e) {
+      if (e is Failure) rethrow;
       throw Failure('Lỗi khi cập nhật trạng thái Ticket: $e');
     }
   }
