@@ -1591,8 +1591,10 @@ class _TelegramConversationRow extends StatelessWidget {
                           title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: AppColors.textPrimary,
+                          style: TextStyle(
+                            color: Theme.of(context).brightness == Brightness.dark
+                                ? AppColors.darkTextPrimary
+                                : AppColors.textPrimary,
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
                             height: 1.15,
@@ -1603,8 +1605,10 @@ class _TelegramConversationRow extends StatelessWidget {
                         const SizedBox(width: 8),
                         Text(
                           timeLabel,
-                          style: const TextStyle(
-                            color: AppColors.textSecondary,
+                          style: TextStyle(
+                            color: Theme.of(context).brightness == Brightness.dark
+                                ? AppColors.darkTextSecondary
+                                : AppColors.textSecondary,
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
                           ),

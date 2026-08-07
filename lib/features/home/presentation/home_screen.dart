@@ -111,8 +111,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final meta = user?.userMetadata;
     final rawName = meta?['display_name'];
     final name = (rawName is String ? rawName : (rawName != null && rawName != false ? rawName.toString() : null))?.trim();
-    final rawAvatar = meta?['avatar_url'];
-    final avatarUrl = rawAvatar is String ? rawAvatar : null;
+    final rawAvatar = meta?['avatar_url'] ??
+        meta?['avatar_128_url'] ??
+        meta?['image_128_url'] ??
+        (user != null ? '/api/v1/mobile/avatar/users/${user.id}' : null);
+    final avatarUrl = rawAvatar is String && rawAvatar.isNotEmpty ? rawAvatar : null;
     final displayName = (name != null && name.isNotEmpty)
         ? name
         : (user?.email?.split('@').first ?? 'Người dùng');
@@ -138,7 +141,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ? dashboard.recentConversationCount!
         : (summary?.recentConversationCount != null && summary!.recentConversationCount > 0
             ? summary.recentConversationCount
-            : conversationsList.length);
+            : (conversationsList.length >= 100 ? conversationsList.length : conversationsList.length));
     final statusBusy = _statusBusy || todayState.isLoading;
 
     return AppScaffold(

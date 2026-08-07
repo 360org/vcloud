@@ -3001,8 +3001,7 @@ class _NetworkPreviewImageState extends ConsumerState<_NetworkPreviewImage> {
           debugPrint('❌ === [Image Loading Exception Detected] ===');
           debugPrint('Attachment ID: $attachmentId');
           debugPrint('Error: ${snapshot.error}');
-          debugPrint('Stack Trace: ${snapshot.stackTrace}');
-          return const Icon(Icons.broken_image, color: Colors.grey, size: 40);
+          return widget.fallback;
         }
 
         final data = snapshot.data;
@@ -3012,7 +3011,7 @@ class _NetworkPreviewImageState extends ConsumerState<_NetworkPreviewImage> {
         }
         
         if (data == null) {
-          return const Icon(Icons.broken_image, color: Colors.grey, size: 40);
+          return widget.fallback;
         }
 
         Widget imageWidget;
@@ -3021,17 +3020,17 @@ class _NetworkPreviewImageState extends ConsumerState<_NetworkPreviewImage> {
             data,
             fit: widget.fit,
             gaplessPlayback: true,
-            errorBuilder: (_, _, _) => const Icon(Icons.broken_image, color: Colors.grey, size: 40),
+            errorBuilder: (_, _, _) => widget.fallback,
           );
         } else if (!kIsWeb && data is File) {
           imageWidget = Image.file(
             data,
             fit: widget.fit,
             gaplessPlayback: true,
-            errorBuilder: (_, _, _) => const Icon(Icons.broken_image, color: Colors.grey, size: 40),
+            errorBuilder: (_, _, _) => widget.fallback,
           );
         } else {
-          return const Icon(Icons.broken_image, color: Colors.grey, size: 40);
+          return widget.fallback;
         }
 
         final heroTag = widget.attachmentId != null
@@ -4825,9 +4824,11 @@ bool _hasAttachmentOrDocument(Message message) {
 }
 
 bool _isImageAttachment(Message message, String fileName) {
+  final ext = _fileExtension(fileName).toLowerCase();
+  if (ext == 'svg') return false;
   final mimetype = message.attachmentMimeType?.toLowerCase();
-  if (mimetype?.startsWith('image/') == true) return true;
-  return switch (_fileExtension(fileName).toLowerCase()) {
+  if (mimetype?.startsWith('image/') == true && mimetype != 'image/svg+xml') return true;
+  return switch (ext) {
     'jpg' || 'jpeg' || 'png' || 'gif' || 'webp' => true,
     _ => false,
   };
