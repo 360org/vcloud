@@ -978,7 +978,7 @@ class _CommentCard extends StatelessWidget {
                 final rawContent = comment.content.trim();
                 final displayContent = rawContent.isNotEmpty
                     ? rawContent
-                    : '$name đã nhận xử lý ticket này.';
+                    : '$name đã tạo ticket này.';
                 return Text(
                   displayContent,
                   style: TextStyle(
