@@ -74,7 +74,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
       await ref
           .read(sendMessageActionProvider)
           .send(widget.conversationId, text);
-      _input.clear();
+      _input.value = TextEditingValue.empty;
       _scrollToBottom();
     } catch (e) {
       if (mounted) {

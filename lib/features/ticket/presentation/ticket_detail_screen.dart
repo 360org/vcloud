@@ -75,7 +75,7 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
     setState(() {
       _sendingComment = true;
       _optimisticComments.add(pendingComment);
-      _commentController.clear();
+      _commentController.value = TextEditingValue.empty;
     });
     _scrollToComments();
 
