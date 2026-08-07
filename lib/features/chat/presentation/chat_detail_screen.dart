@@ -14,6 +14,7 @@ import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/api/auth_user.dart';
+import '../../../core/api/odoo_api_client.dart';
 import '../../../core/config/env.dart';
 import '../../../core/api/mobile_attachment_repository.dart';
 import '../../../core/theme/app_theme.dart';
@@ -2944,17 +2945,31 @@ class _NetworkPreviewImageState extends ConsumerState<_NetworkPreviewImage> {
   @override
   void didUpdateWidget(covariant _NetworkPreviewImage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.attachmentId != widget.attachmentId) {
+    if (oldWidget.attachmentId != widget.attachmentId || oldWidget.url != widget.url) {
       _load();
     }
   }
 
   void _load() {
     final id = widget.attachmentId;
-    if (id != null) {
-      _futureContent = _fetchAndCache(id);
+    if (id != null && id.trim().isNotEmpty) {
+      _futureContent = _fetchAndCache(id.trim());
+    } else if (widget.url.trim().isNotEmpty) {
+      _futureContent = _fetchUrlBytes(widget.url.trim());
     } else {
       _futureContent = null;
+    }
+  }
+
+  Future<dynamic> _fetchUrlBytes(String rawUrl) async {
+    try {
+      final fullUrl = odooApiClient.absoluteUrl(rawUrl);
+      final bytes = await odooApiClient.fetchBytes(fullUrl);
+      if (bytes.isEmpty) return null;
+      return bytes;
+    } catch (e) {
+      debugPrint('Error fetching image URL $rawUrl: $e');
+      return null;
     }
   }
 
@@ -2977,7 +2992,7 @@ class _NetworkPreviewImageState extends ConsumerState<_NetworkPreviewImage> {
   @override
   Widget build(BuildContext context) {
     if (_futureContent == null) {
-      return const Icon(Icons.broken_image, color: Colors.grey, size: 40);
+      return widget.fallback;
     }
 
     return FutureBuilder<dynamic>(
