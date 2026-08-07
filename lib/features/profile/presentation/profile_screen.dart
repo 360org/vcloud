@@ -27,7 +27,7 @@ class ProfileScreen extends ConsumerWidget {
     final rawAvatar = meta?['avatar_url'] ??
         meta?['avatar_128_url'] ??
         meta?['image_128_url'] ??
-        (user != null ? '/api/v1/mobile/avatar/users/${user.id}' : null);
+        (user != null ? '/web/image/res.users/${user.id}/avatar_128' : null);
     final avatarUrl = rawAvatar is String && rawAvatar.isNotEmpty ? rawAvatar : null;
 
     return AppScaffold(

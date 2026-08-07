@@ -97,11 +97,9 @@ class AuthRepository {
                 profile?['avatar_128'] ??
                 profile?['image_128'] ??
                 profile?['image'],
-          ) ?? (partnerId != null ? '/api/v1/mobile/contacts/$partnerId/avatar' : null));
+          ) ?? '/web/image/res.users/${session.uid}/avatar_128');
 
-    if (avatar != null) {
-      metadata['avatar_url'] = avatar;
-    }
+    metadata['avatar_url'] = avatar;
 
     return AuthUser(
       id: session.uid.toString(),

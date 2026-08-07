@@ -89,11 +89,15 @@ class MobileAttachmentRepository {
   }
 
   /// Downloads the raw bytes of an attachment via the dedicated Bearer-
-  /// authenticated download endpoint. This avoids the /web/content/ route
-  /// which requires session cookies and silently returns an HTML login page
-  /// when called with Bearer tokens.
+  /// authenticated download endpoint. Falls back to Odoo standard
+  /// /web/content/ route if the custom endpoint is not available.
   Future<Uint8List> fetchBytes(int attachmentId) async {
-    return _client.fetchBytes('/api/v1/mobile/attachments/$attachmentId/download');
+    try {
+      return await _client.fetchBytes('/api/v1/mobile/attachments/$attachmentId/download');
+    } catch (_) {
+      // Fallback: try Odoo standard /web/content/<id> endpoint
+      return _client.fetchBytes('/web/content/$attachmentId');
+    }
   }
 
   Map<String, dynamic> _responseMap(Object? res) {
