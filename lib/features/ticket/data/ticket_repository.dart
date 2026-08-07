@@ -147,15 +147,18 @@ class TicketRepository {
 
     final updatedAtStr = hasCloseDate ? closeDate.toString() : created;
 
+    final assignedTo = _many2OneId(map['user_id']) ?? '';
+    final hasAssignee = assignedTo.isNotEmpty;
+
     return <String, dynamic>{
       'id': map['id'].toString(),
       'title': _ticketTitle(map),
       'description': _cleanOptionalText(map['description']),
       'status': isDone
           ? TicketStatus.done.dbValue
-          : TicketStatus.doing.dbValue,
+          : (hasAssignee ? TicketStatus.doing.dbValue : TicketStatus.todo.dbValue),
       'created_by': _many2OneId(map['partner_id']) ?? '',
-      'assigned_to': _many2OneId(map['user_id']) ?? '',
+      'assigned_to': assignedTo,
       'created_at': created,
       'updated_at': updatedAtStr,
       'priority': _priorityFromOdoo(map['priority'] as String?),
