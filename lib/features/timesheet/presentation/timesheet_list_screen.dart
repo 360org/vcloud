@@ -263,9 +263,15 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
     }
   }
 
-  _TodayTask _taskFromApi(Task task) {
-    final entry = _entryByTaskId()[task.id];
-    final localLog = ref.watch(completedTaskLogsProvider)[task.id];
+  _TodayTask _taskFromApi(
+    Task task, {
+    Map<String, TimesheetEntry>? entryByTaskMap,
+    Map<String, CompletedTaskLog>? completedLogsMap,
+  }) {
+    final entryMap = entryByTaskMap ?? _entryByTaskId();
+    final logsMap = completedLogsMap ?? ref.read(completedTaskLogsProvider) ?? const <String, CompletedTaskLog>{};
+    final entry = entryMap[task.id];
+    final localLog = logsMap[task.id];
     final accent = _categoryColor(task.category);
     final done = task.isCompleted || localLog != null;
     return _TodayTask(
@@ -412,8 +418,14 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
     return tasks.when(
       data: (_) {
         final split = ref.watch(todayTasksSplitProvider);
-        final openTasks = split.open.map(_taskFromApi).toList();
-        final doneTasks = split.done.map(_taskFromApi).toList();
+        final entryByTask = _entryByTaskId();
+        final completedLogs = ref.watch(completedTaskLogsProvider);
+        final openTasks = split.open
+            .map((t) => _taskFromApi(t, entryByTaskMap: entryByTask, completedLogsMap: completedLogs))
+            .toList();
+        final doneTasks = split.done
+            .map((t) => _taskFromApi(t, entryByTaskMap: entryByTask, completedLogsMap: completedLogs))
+            .toList();
 
         return Column(
           children: [
@@ -797,7 +809,7 @@ class _TodaySummaryCard extends StatelessWidget {
   }
 }
 
-class _TaskSection extends StatelessWidget {
+class _TaskSection extends StatefulWidget {
   const _TaskSection({
     required this.title,
     required this.count,
@@ -821,7 +833,18 @@ class _TaskSection extends StatelessWidget {
   final VoidCallback? onToggleCollapsed;
 
   @override
+  State<_TaskSection> createState() => _TaskSectionState();
+}
+
+class _TaskSectionState extends State<_TaskSection> {
+  int _limit = 20;
+
+  @override
   Widget build(BuildContext context) {
+    final tasks = widget.tasks;
+    final visibleCount = _limit.clamp(0, tasks.length);
+    final hasMore = tasks.length > visibleCount;
+
     return GlassCard(
       radius: 20,
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
@@ -832,7 +855,7 @@ class _TaskSection extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  title,
+                  widget.title,
                   style: TextStyle(
                     color: Theme.of(context).colorScheme.onSurface,
                     fontSize: 17,
@@ -841,8 +864,8 @@ class _TaskSection extends StatelessWidget {
                 ),
               ),
               GradientBadge(
-                label: '$count',
-                gradient: done
+                label: '${widget.count}',
+                gradient: widget.done
                     ? AppColors.featureGrad(
                         AppColors.success,
                         AppColors.successLight,
@@ -853,13 +876,13 @@ class _TaskSection extends StatelessWidget {
                       ),
                 fontSize: 12,
               ),
-              if (onToggleCollapsed != null) ...[
+              if (widget.onToggleCollapsed != null) ...[
                 const SizedBox(width: 6),
                 IconButton(
-                  onPressed: onToggleCollapsed,
+                  onPressed: widget.onToggleCollapsed,
                   visualDensity: VisualDensity.compact,
                   icon: Icon(
-                    collapsed ? LucideIcons.chevronDown : LucideIcons.chevronUp,
+                    widget.collapsed ? LucideIcons.chevronDown : LucideIcons.chevronUp,
                     color: AppColors.textMuted,
                     size: 20,
                   ),
@@ -872,7 +895,7 @@ class _TaskSection extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: Text(
-                emptyText,
+                widget.emptyText,
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontSize: 14,
@@ -880,11 +903,11 @@ class _TaskSection extends StatelessWidget {
                 ),
               ),
             )
-          else if (collapsed)
+          else if (widget.collapsed)
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: PressableScale(
-                onTap: onToggleCollapsed,
+                onTap: widget.onToggleCollapsed,
                 scale: 0.99,
                 child: const Row(
                   children: [
@@ -904,17 +927,35 @@ class _TaskSection extends StatelessWidget {
                 ),
               ),
             )
-          else
-            for (var i = 0; i < tasks.length; i++) ...[
+          else ...[
+            for (var i = 0; i < visibleCount; i++) ...[
               _TaskTile(
                 task: tasks[i],
-                done: done,
-                onTap: () => onTap(tasks[i]),
-                onChecklist: () => onChecklist(tasks[i]),
+                done: widget.done,
+                onTap: () => widget.onTap(tasks[i]),
+                onChecklist: () => widget.onChecklist(tasks[i]),
               ),
-              if (i != tasks.length - 1)
+              if (i != visibleCount - 1)
                 const Divider(height: 1, indent: 58, color: AppColors.border),
             ],
+            if (hasMore) ...[
+              const SizedBox(height: 10),
+              Center(
+                child: TextButton.icon(
+                  onPressed: () => setState(() => _limit += 30),
+                  icon: const Icon(LucideIcons.chevronDown, size: 16, color: AppColors.primary),
+                  label: Text(
+                    'Xem thêm (${tasks.length - visibleCount} task khác)',
+                    style: const TextStyle(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
         ],
       ),
     );
