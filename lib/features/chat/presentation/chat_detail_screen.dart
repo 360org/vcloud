@@ -2823,39 +2823,41 @@ class _ImageAttachmentBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: maxWidth.clamp(220.0, 318.0),
-      decoration: BoxDecoration(
-        color: mine ? AppColors.primary : _incomingBubbleColor,
-        border: mine
-            ? null
-            : Border.all(color: _incomingBubbleBorder.withValues(alpha: 0.7)),
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(mine ? 20 : 7),
-          topRight: Radius.circular(mine ? 7 : 20),
-          bottomLeft: const Radius.circular(20),
-          bottomRight: const Radius.circular(20),
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x160F172A),
-            blurRadius: 12,
-            offset: Offset(0, 6),
-          ),
-        ],
+    final maxBubbleWidth = (maxWidth * 0.72).clamp(200.0, 300.0);
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxWidth: maxBubbleWidth,
+        maxHeight: 320.0,
+        minWidth: 140.0,
+        minHeight: 120.0,
       ),
-      clipBehavior: Clip.antiAlias,
-      child: Stack(
-        alignment: Alignment.bottomRight,
-        children: [
-          ConstrainedBox(
-            constraints: const BoxConstraints(
-              maxHeight: 320,
-              minHeight: 180,
+      child: Container(
+        decoration: BoxDecoration(
+          color: mine ? AppColors.primary : _incomingBubbleColor,
+          border: mine
+              ? null
+              : Border.all(color: _incomingBubbleBorder.withValues(alpha: 0.7)),
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(mine ? 20 : 7),
+            topRight: Radius.circular(mine ? 7 : 20),
+            bottomLeft: const Radius.circular(20),
+            bottomRight: const Radius.circular(20),
+          ),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x160F172A),
+              blurRadius: 12,
+              offset: Offset(0, 6),
             ),
-            child: _NetworkPreviewImage(
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Stack(
+          alignment: Alignment.bottomRight,
+          children: [
+            _NetworkPreviewImage(
               url: imageUrl,
-              fit: BoxFit.contain,
+              fit: BoxFit.cover,
               attachmentId: message.attachmentIds.isEmpty
                   ? null
                   : message.attachmentIds.first,
@@ -2863,21 +2865,21 @@ class _ImageAttachmentBubble extends StatelessWidget {
                 fileName: _attachmentFileName(message),
               ),
             ),
-          ),
-          Container(
-            margin: const EdgeInsets.all(8),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.46),
-              borderRadius: BorderRadius.circular(999),
+            Container(
+              margin: const EdgeInsets.all(8),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.50),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: _Timestamp(
+                message: message,
+                mine: mine,
+                color: Colors.white,
+              ),
             ),
-            child: _Timestamp(
-              message: message,
-              mine: mine,
-              color: Colors.white,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -3604,11 +3606,25 @@ class _ComposerWithAttachments extends StatelessWidget {
         maxWidth: 2200,
       );
       if (!context.mounted || image == null) return;
-      await onAttachment(
-        MobileAttachmentUpload(
+      final bytes = await image.readAsBytes();
+      if (!context.mounted) return;
+
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (sheetContext) => _ImagePreviewSheet(
           filename: image.name,
-          bytes: await image.readAsBytes(),
-          mimetype: _mimetypeForName(image.name),
+          bytes: bytes,
+          mimetype: _mimetypeForName(image.name) ?? 'image/jpeg',
+          onSend: (upload, caption) async {
+            Navigator.pop(sheetContext);
+            if (caption != null && caption.trim().isNotEmpty) {
+              controller.text = caption.trim();
+              onSubmit();
+            }
+            await onAttachment(upload);
+          },
         ),
       );
     } catch (e) {
@@ -4559,71 +4575,54 @@ class _AttachmentPickerSheetState extends State<_AttachmentPickerSheet> {
     ),
   ];
 
+  static const _itemColors = [
+    Color(0xFF10B981), // Gallery - Green
+    Color(0xFF3B82F6), // Camera - Blue
+    Color(0xFFF59E0B), // Document - Orange
+    Color(0xFF8B5CF6), // Poll - Purple
+    Color(0xFFEF4444), // Location - Red
+    Color(0xFF06B6D4), // Contact - Teal
+  ];
+
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-        padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(26),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x260F172A),
-              blurRadius: 20,
-              offset: Offset(0, -6),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const _AttachmentSheetHeader(),
-            _AttachmentMenuItem(
-              icon: LucideIcons.image,
-              color: const Color(0xFF10B981),
-              title: 'Thư viện ảnh',
-              subtitle: 'Tải ảnh hoặc video từ bộ sưu tập thiết bị',
-              onTap: () => widget.onSelected(_actions[0]),
-            ),
-            _AttachmentMenuItem(
-              icon: LucideIcons.camera,
-              color: const Color(0xFF3B82F6),
-              title: 'Máy ảnh',
-              subtitle: 'Chụp ảnh mới trực tiếp từ camera',
-              onTap: () => widget.onSelected(_actions[1]),
-            ),
-            _AttachmentMenuItem(
-              icon: LucideIcons.fileText,
-              color: const Color(0xFFF59E0B),
-              title: 'Tài liệu',
-              subtitle: 'Gửi tệp PDF, Word, Excel, ZIP, TXT...',
-              onTap: () => widget.onSelected(_actions[2]),
-            ),
-            _AttachmentMenuItem(
-              icon: LucideIcons.barChart3,
-              color: const Color(0xFF8B5CF6),
-              title: 'Tạo bình chọn',
-              subtitle: 'Tạo cuộc thăm dò ý kiến trong nhóm',
-              onTap: () => widget.onSelected(_actions[3]),
-            ),
-            _AttachmentMenuItem(
-              icon: LucideIcons.mapPin,
-              color: const Color(0xFFEF4444),
-              title: 'Vị trí',
-              subtitle: 'Chia sẻ vị trí hiện tại',
-              onTap: () => widget.onSelected(_actions[4]),
-            ),
-            _AttachmentMenuItem(
-              icon: LucideIcons.contact,
-              color: const Color(0xFF06B6D4),
-              title: 'Liên hệ',
-              subtitle: 'Chia sẻ thông tin người liên hệ',
-              onTap: () => widget.onSelected(_actions[5]),
-            ),
-          ],
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const _AttachmentSheetHeader(),
+              const SizedBox(height: 12),
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _actions.length,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  mainAxisSpacing: 16,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: 1.0,
+                ),
+                itemBuilder: (context, index) {
+                  final action = _actions[index];
+                  final color = _itemColors[index];
+                  return _AttachmentGridItem(
+                    icon: action.icon,
+                    color: color,
+                    label: action.label,
+                    onTap: () => widget.onSelected(action),
+                  );
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -4635,31 +4634,25 @@ class _AttachmentSheetHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 52,
-      child: Stack(
-        alignment: Alignment.center,
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 4),
+      child: Column(
         children: [
-          Positioned(
-            top: 9,
-            child: Container(
-              width: 42,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.border,
-                borderRadius: BorderRadius.circular(99),
-              ),
+          Container(
+            width: 36,
+            height: 4,
+            decoration: BoxDecoration(
+              color: AppColors.border,
+              borderRadius: BorderRadius.circular(2),
             ),
           ),
-          const Positioned(
-            bottom: 6,
-            child: Text(
-              'Thêm tệp đính kèm',
-              style: TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 17,
-                fontWeight: FontWeight.w800,
-              ),
+          const SizedBox(height: 10),
+          const Text(
+            'Thêm tệp đính kèm',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],
@@ -4668,70 +4661,48 @@ class _AttachmentSheetHeader extends StatelessWidget {
   }
 }
 
-class _AttachmentMenuItem extends StatelessWidget {
-  const _AttachmentMenuItem({
+class _AttachmentGridItem extends StatelessWidget {
+  const _AttachmentGridItem({
     required this.icon,
     required this.color,
-    required this.title,
-    required this.subtitle,
+    required this.label,
     required this.onTap,
   });
 
   final IconData icon;
   final Color color;
-  final String title;
-  final String subtitle;
+  final String label;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    return PressableScale(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.14),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: color, size: 22),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 54,
+            height: 54,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.14),
+              shape: BoxShape.circle,
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
+            child: Icon(icon, color: color, size: 26),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
             ),
-            const Icon(
-              LucideIcons.chevronRight,
-              color: AppColors.textMuted,
-              size: 18,
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -4959,3 +4930,185 @@ class _ImageDetailViewerState extends State<ImageDetailViewer> {
     );
   }
 }
+
+class _ImagePreviewSheet extends StatefulWidget {
+  const _ImagePreviewSheet({
+    required this.filename,
+    required this.bytes,
+    required this.mimetype,
+    required this.onSend,
+  });
+
+  final String filename;
+  final Uint8List bytes;
+  final String mimetype;
+  final Future<void> Function(MobileAttachmentUpload upload, String? caption) onSend;
+
+  @override
+  State<_ImagePreviewSheet> createState() => _ImagePreviewSheetState();
+}
+
+class _ImagePreviewSheetState extends State<_ImagePreviewSheet> {
+  final TextEditingController _captionController = TextEditingController();
+  bool _sending = false;
+
+  @override
+  void dispose() {
+    _captionController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleSend() async {
+    if (_sending) return;
+    setState(() => _sending = true);
+    final upload = MobileAttachmentUpload(
+      filename: widget.filename,
+      bytes: widget.bytes,
+      mimetype: widget.mimetype,
+    );
+    await widget.onSend(upload, _captionController.text);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 10),
+              Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Gửi hình ảnh',
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(LucideIcons.x, size: 20),
+                      color: AppColors.textSecondary,
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+                constraints: const BoxConstraints(maxHeight: 280),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: AppColors.border.withValues(alpha: 0.6),
+                  ),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(18),
+                  child: Image.memory(
+                    widget.bytes,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(22),
+                        ),
+                        child: TextField(
+                          controller: _captionController,
+                          minLines: 1,
+                          maxLines: 3,
+                          textInputAction: TextInputAction.send,
+                          onSubmitted: (_) => _handleSend(),
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 15,
+                          ),
+                          decoration: const InputDecoration(
+                            hintText: 'Thêm chú thích...',
+                            hintStyle: TextStyle(
+                              color: AppColors.textMuted,
+                              fontSize: 15,
+                            ),
+                            border: InputBorder.none,
+                            isDense: true,
+                            contentPadding: EdgeInsets.symmetric(vertical: 10),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    PressableScale(
+                      onTap: _sending ? null : _handleSend,
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF2AABEE),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Color(0x332AABEE),
+                              blurRadius: 10,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: _sending
+                            ? const Padding(
+                                padding: EdgeInsets.all(12),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(
+                                LucideIcons.send,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
