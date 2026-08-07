@@ -10,7 +10,6 @@ import 'package:lucide_flutter/lucide_flutter.dart';
 import '../../core/api/odoo_api_client.dart';
 import '../../core/theme/app_theme.dart';
 import '../../features/chat/application/conversations_controller.dart';
-import 'html_avatar_image.dart';
 import 'ui_kit.dart';
 
 /// Standard scaffold for top-level tabs (Home/Chat/...). Draws the
@@ -375,19 +374,11 @@ class UserAvatar extends StatelessWidget {
 
     final networkUrl = _networkAvatarUrl(value);
     if (networkUrl == null) return fallback;
-    final usesSignedWebImageUrl = _usesHtmlImageUrl(networkUrl);
-    final htmlImage = usesSignedWebImageUrl
-        ? buildHtmlAvatarImage(url: networkUrl, fallback: fallback)
-        : null;
-    if (htmlImage != null) return htmlImage;
     return Image.network(
       networkUrl,
-      headers: usesSignedWebImageUrl ? null : _authHeaders(),
+      headers: _authHeaders(),
       fit: BoxFit.cover,
       gaplessPlayback: true,
-      webHtmlElementStrategy: usesSignedWebImageUrl
-          ? WebHtmlElementStrategy.prefer
-          : WebHtmlElementStrategy.never,
       errorBuilder: (_, _, _) => fallback,
     );
   }
@@ -411,16 +402,6 @@ class UserAvatar extends StatelessWidget {
     if (token == null || token.isEmpty) return null;
     return <String, String>{'Authorization': 'Bearer $token'};
   }
-
-  bool _usesHtmlImageUrl(String value) {
-    final uri = Uri.tryParse(value);
-    if (uri == null) return false;
-    return uri.queryParameters.containsKey('access_token') ||
-        uri.path.startsWith('/web/image/') ||
-        uri.path.contains('/avatar/') ||
-        uri.path.contains('/contacts/');
-  }
-
 
   String? _networkAvatarUrl(String value) {
     if (value.startsWith('http://') || value.startsWith('https://')) {

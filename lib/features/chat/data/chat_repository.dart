@@ -43,6 +43,11 @@ class ChatRepository {
             (summary) => _withDirectAvatar(summary, currentIdentityIds),
           ),
         );
+        list.sort((a, b) {
+          final timeA = a.lastMessage?.createdAt ?? a.updatedAt;
+          final timeB = b.lastMessage?.createdAt ?? b.updatedAt;
+          return timeB.compareTo(timeA);
+        });
         if (!controller.isClosed) controller.add(list);
       } catch (e) {
         if (!controller.isClosed) {
@@ -69,6 +74,9 @@ class ChatRepository {
     Set<String> currentIdentityIds,
   ) async {
     if (summary.isGroup) return summary;
+    if (summary.avatarUrl != null && summary.avatarUrl!.trim().isNotEmpty) {
+      return summary;
+    }
     final directAvatar = await _directAvatarFromMessages(
       summary.id,
       currentIdentityIds,

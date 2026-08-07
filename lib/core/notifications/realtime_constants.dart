@@ -12,10 +12,10 @@ class RealtimeIntervals {
   const RealtimeIntervals._();
 
   /// Conversation list + bottom-nav unread badge.
-  static const Duration chatList = Duration(seconds: 30);
+  static const Duration chatList = Duration(seconds: 6);
 
   /// Messages for the currently-open chat detail screen.
-  static const Duration chatDetail = Duration(seconds: 15);
+  static const Duration chatDetail = Duration(seconds: 3);
 
   /// Open check-in/out state and the Home presence indicator.
   ///

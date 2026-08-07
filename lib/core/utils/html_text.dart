@@ -4,7 +4,10 @@ String cleanHtmlText(Object? value) {
   final text = value.toString();
   if (text.isEmpty) return '';
 
-  final withoutHiddenBlocks = text
+  // Decode html entities first so &lt;br&gt; becomes <br> before stripping/replacing
+  final decodedFirst = _decodeHtmlEntities(text);
+
+  final withoutHiddenBlocks = decodedFirst
       .replaceAll(
         RegExp(
           r'<\s*(script|style)[^>]*>.*?<\s*/\s*\1\s*>',
@@ -21,9 +24,8 @@ String cleanHtmlText(Object? value) {
       .replaceAll(RegExp(r'</\s*div\s*>', caseSensitive: false), '\n')
       .replaceAll(RegExp(r'</\s*li\s*>', caseSensitive: false), '\n');
   final withoutTags = withBreaks.replaceAll(RegExp(r'<[^>]*>'), '');
-  final decoded = _decodeHtmlEntities(withoutTags);
 
-  return decoded
+  return withoutTags
       .split('\n')
       .map((line) => line.replaceAll(RegExp(r'[ \t]+'), ' ').trim())
       .where((line) => line.isNotEmpty)

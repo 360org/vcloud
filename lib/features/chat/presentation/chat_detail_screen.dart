@@ -1791,7 +1791,7 @@ class _DateSeparator extends StatelessWidget {
             borderRadius: BorderRadius.circular(999),
           ),
           child: Text(
-            Dates.date(date),
+            Dates.dateVi(date),
             style: const TextStyle(
               color: Colors.white,
               fontSize: 12,
@@ -2036,24 +2036,39 @@ class _Bubble extends ConsumerWidget {
                     ? null
                     : () => _openImageViewer(context, imagePreviewUrl),
                 onLongPress: () => _showContextMenu(context, ref),
-                child: _hasAttachmentOrDocument(message)
-                    ? _AttachmentBubble(
-                        message: message,
-                        mine: mine,
-                        maxWidth: maxWidth,
-                      )
-                    : media == null
-                    ? _TextBubble(
-                        message: message,
-                        mine: mine,
-                        maxWidth: maxWidth,
-                      )
-                    : _MediaBubble(
-                        message: message,
-                        media: media,
-                        mine: mine,
-                        maxWidth: maxWidth,
-                      ),
+                child: Builder(builder: (context) {
+                  final senderName = (sender?.displayName.isNotEmpty == true)
+                      ? sender!.displayName
+                      : ((message.senderName?.isNotEmpty == true)
+                          ? message.senderName
+                          : null);
+                  return _hasAttachmentOrDocument(message)
+                      ? _AttachmentBubble(
+                          message: message,
+                          mine: mine,
+                          maxWidth: maxWidth,
+                        )
+                      : _isPollMessage(message)
+                          ? _PollCardBubble(
+                              message: message,
+                              mine: mine,
+                              maxWidth: maxWidth,
+                              senderName: senderName,
+                            )
+                          : media == null
+                              ? _TextBubble(
+                                  message: message,
+                                  mine: mine,
+                                  maxWidth: maxWidth,
+                                  senderName: senderName,
+                                )
+                              : _MediaBubble(
+                                  message: message,
+                                  media: media,
+                                  mine: mine,
+                                  maxWidth: maxWidth,
+                                );
+                }),
               ),
             ],
           ),
@@ -2068,21 +2083,316 @@ class _Bubble extends ConsumerWidget {
   }
 }
 
-class _TextBubble extends StatelessWidget {
-  const _TextBubble({
+Color _senderNameColor(String name) {
+  const colors = [
+    Color(0xFF0D9488), // Teal
+    Color(0xFF2563EB), // Blue
+    Color(0xFFD97706), // Amber
+    Color(0xFF7C3AED), // Purple
+    Color(0xFF059669), // Emerald
+    Color(0xFFDC2626), // Rose
+  ];
+  final hash = name.codeUnits.fold(0, (prev, elem) => prev + elem);
+  return colors[hash.abs() % colors.length];
+}
+
+bool _isPollMessage(Message message) {
+  if (message.attachmentIds.isNotEmpty) return false;
+  final clean = _stripHtml(message.content).trim();
+  return clean.contains('BÌNH CHỌN:') || clean.startsWith('📊');
+}
+
+class _PollData {
+  _PollData({
+    required this.question,
+    required this.options,
+    required this.isMultiple,
+    required this.isAnonymous,
+  });
+
+  factory _PollData.fromContent(String rawContent) {
+    final text = _stripHtml(rawContent).trim();
+    final lines = text.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
+
+    String question = '';
+    final options = <String>[];
+    bool isMultiple = false;
+    bool isAnonymous = false;
+
+    for (final line in lines) {
+      if (line.contains('BÌNH CHỌN:')) {
+        question = line.substring(line.indexOf('BÌNH CHỌN:') + 10).trim();
+      } else if (line.startsWith('📊')) {
+        question = line.replaceAll('📊', '').replaceAll('BÌNH CHỌN:', '').trim();
+      } else if (line.startsWith('(') && line.endsWith(')')) {
+        if (line.contains('Nhiều đáp án')) isMultiple = true;
+        if (line.contains('Ẩn danh')) isAnonymous = true;
+      } else {
+        final cleaned = line
+            .replaceAll(RegExp(r'^[0-9️⃣1️⃣2️⃣3️⃣4️⃣5️⃣6️⃣7️⃣8️⃣9️⃣\.\-\s]+'), '')
+            .trim();
+        if (cleaned.isNotEmpty) {
+          options.add(cleaned);
+        }
+      }
+    }
+
+    if (question.isEmpty) question = 'Bình chọn';
+    if (options.isEmpty) {
+      options.addAll(['Đồng ý', 'Không đồng ý']);
+    }
+
+    return _PollData(
+      question: question,
+      options: options,
+      isMultiple: isMultiple,
+      isAnonymous: isAnonymous,
+    );
+  }
+
+  final String question;
+  final List<String> options;
+  final bool isMultiple;
+  final bool isAnonymous;
+}
+
+class _PollCardBubble extends StatefulWidget {
+  const _PollCardBubble({
     required this.message,
     required this.mine,
     required this.maxWidth,
+    this.senderName,
   });
 
   final Message message;
   final bool mine;
   final double maxWidth;
+  final String? senderName;
+
+  @override
+  State<_PollCardBubble> createState() => _PollCardBubbleState();
+}
+
+class _PollCardBubbleState extends State<_PollCardBubble> {
+  final Set<int> _votedIndices = {};
+
+  void _toggleVote(int index, bool isMultiple) {
+    HapticFeedback.selectionClick();
+    setState(() {
+      if (_votedIndices.contains(index)) {
+        _votedIndices.remove(index);
+      } else {
+        if (!isMultiple) _votedIndices.clear();
+        _votedIndices.add(index);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final poll = _PollData.fromContent(widget.message.content);
+    final mine = widget.mine;
+    final bubbleColor = mine ? AppColors.primary : _incomingBubbleColor;
+    final textColor = mine ? Colors.white : AppColors.textPrimary;
+    final mutedColor = textColor.withValues(alpha: mine ? 0.76 : 0.62);
+    final totalVotes = _votedIndices.length;
+
+    return Container(
+      width: widget.maxWidth.clamp(280.0, 340.0),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+      decoration: BoxDecoration(
+        color: bubbleColor,
+        border: mine
+            ? null
+            : Border.all(color: _incomingBubbleBorder.withValues(alpha: 0.7)),
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(mine ? 20 : 7),
+          topRight: Radius.circular(mine ? 7 : 20),
+          bottomLeft: const Radius.circular(20),
+          bottomRight: const Radius.circular(20),
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x160F172A),
+            blurRadius: 12,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: mine
+                      ? Colors.white.withValues(alpha: 0.2)
+                      : AppColors.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  LucideIcons.barChart3,
+                  size: 18,
+                  color: mine ? Colors.white : AppColors.primary,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      poll.question,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: textColor,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        height: 1.25,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${poll.isMultiple ? "Chọn nhiều" : "Chọn một"} • ${poll.isAnonymous ? "Ẩn danh" : "Công khai"}',
+                      style: TextStyle(
+                        color: mutedColor,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          for (var i = 0; i < poll.options.length; i++) ...[
+            Builder(builder: (context) {
+              final isSelected = _votedIndices.contains(i);
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: PressableScale(
+                  onTap: () => _toggleVote(i, poll.isMultiple),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? (mine
+                              ? Colors.white.withValues(alpha: 0.28)
+                              : AppColors.primary.withValues(alpha: 0.15))
+                          : (mine
+                              ? Colors.white.withValues(alpha: 0.12)
+                              : AppColors.surface),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: isSelected
+                            ? (mine ? Colors.white : AppColors.primary)
+                            : (mine
+                                ? Colors.white.withValues(alpha: 0.1)
+                                : AppColors.border),
+                        width: isSelected ? 1.5 : 1.0,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          isSelected
+                              ? (poll.isMultiple
+                                  ? LucideIcons.checkSquare
+                                  : LucideIcons.checkCircle2)
+                              : (poll.isMultiple
+                                  ? LucideIcons.square
+                                  : LucideIcons.circle),
+                          size: 18,
+                          color: isSelected
+                              ? (mine ? Colors.white : AppColors.primary)
+                              : mutedColor,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            poll.options[i],
+                            style: TextStyle(
+                              color: textColor,
+                              fontSize: 14,
+                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        if (isSelected)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: mine
+                                  ? Colors.white.withValues(alpha: 0.25)
+                                  : AppColors.primary.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              'Đã chọn',
+                              style: TextStyle(
+                                color: mine ? Colors.white : AppColors.primary,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ],
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '$totalVotes lượt bình chọn',
+                style: TextStyle(
+                  color: mutedColor,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              _Timestamp(
+                message: widget.message,
+                mine: mine,
+                color: mutedColor,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TextBubble extends StatelessWidget {
+  const _TextBubble({
+    required this.message,
+    required this.mine,
+    required this.maxWidth,
+    this.senderName,
+  });
+
+  final Message message;
+  final bool mine;
+  final double maxWidth;
+  final String? senderName;
 
   @override
   Widget build(BuildContext context) {
     final bubbleColor = mine ? AppColors.primary : _incomingBubbleColor;
     final textColor = mine ? Colors.white : AppColors.textPrimary;
+    final hasSenderName =
+        !mine && senderName != null && senderName!.trim().isNotEmpty;
+
     return Container(
       constraints: BoxConstraints(maxWidth: maxWidth),
       padding: const EdgeInsets.fromLTRB(13, 9, 10, 7),
@@ -2105,23 +2415,42 @@ class _TextBubble extends StatelessWidget {
           ),
         ],
       ),
-      child: Wrap(
-        alignment: WrapAlignment.end,
-        crossAxisAlignment: WrapCrossAlignment.end,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8, bottom: 2),
-            child: _buildParsedMessageText(
-              context: context,
-              rawText: message.content,
-              mine: mine,
-              textColor: textColor,
+          if (hasSenderName) ...[
+            Padding(
+              padding: const EdgeInsets.only(bottom: 3),
+              child: Text(
+                senderName!.trim(),
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: _senderNameColor(senderName!),
+                ),
+              ),
             ),
-          ),
-          _Timestamp(
-            message: message,
-            mine: mine,
-            color: textColor.withValues(alpha: 0.62),
+          ],
+          Wrap(
+            alignment: WrapAlignment.end,
+            crossAxisAlignment: WrapCrossAlignment.end,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(right: 8, bottom: 2),
+                child: _buildParsedMessageText(
+                  context: context,
+                  rawText: message.content,
+                  mine: mine,
+                  textColor: textColor,
+                ),
+              ),
+              _Timestamp(
+                message: message,
+                mine: mine,
+                color: textColor.withValues(alpha: 0.62),
+              ),
+            ],
           ),
         ],
       ),
@@ -2518,11 +2847,14 @@ class _ImageAttachmentBubble extends StatelessWidget {
       child: Stack(
         alignment: Alignment.bottomRight,
         children: [
-          AspectRatio(
-            aspectRatio: 0.74,
+          ConstrainedBox(
+            constraints: const BoxConstraints(
+              maxHeight: 320,
+              minHeight: 180,
+            ),
             child: _NetworkPreviewImage(
               url: imageUrl,
-              fit: BoxFit.cover,
+              fit: BoxFit.contain,
               attachmentId: message.attachmentIds.isEmpty
                   ? null
                   : message.attachmentIds.first,
@@ -3150,7 +3482,7 @@ class _Composer extends StatelessWidget {
                     fontSize: 16,
                   ),
                   decoration: InputDecoration(
-                    hintText: 'Message',
+                    hintText: 'Nhập tin nhắn...',
                     hintStyle: TextStyle(
                       color: AppColors.textMuted.withValues(alpha: 0.9),
                       fontSize: 20,
@@ -3357,8 +3689,38 @@ class _ComposerWithAttachments extends StatelessWidget {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (_) => const _PollSheet(),
+      builder: (_) => _PollSheet(
+        onCreated: (question, options, isMultiple, isAnonymous) {
+          _sendPollMessage(question, options, isMultiple, isAnonymous);
+        },
+      ),
     );
+  }
+
+  void _sendPollMessage(
+    String question,
+    List<String> options,
+    bool isMultiple,
+    bool isAnonymous,
+  ) {
+    final buffer = StringBuffer();
+    buffer.writeln('📊 BÌNH CHỌN: $question');
+    final settings = <String>[];
+    if (isMultiple) settings.add('Nhiều đáp án');
+    if (isAnonymous) settings.add('Ẩn danh');
+    if (settings.isNotEmpty) {
+      buffer.writeln('(${settings.join(' • ')})');
+    }
+    buffer.writeln();
+
+    final numberEmojis = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣'];
+    for (var i = 0; i < options.length; i++) {
+      final emoji = i < numberEmojis.length ? numberEmojis[i] : '${i + 1}.';
+      buffer.writeln('$emoji ${options[i]}');
+    }
+
+    controller.text = buffer.toString();
+    onSubmit();
   }
 
   @override
@@ -3401,7 +3763,7 @@ class _ComposerWithAttachments extends StatelessWidget {
                     fontSize: 16,
                   ),
                   decoration: InputDecoration(
-                    hintText: 'Message',
+                    hintText: 'Nhập tin nhắn...',
                     hintStyle: TextStyle(
                       color: AppColors.textMuted.withValues(alpha: 0.9),
                       fontSize: 20,
@@ -3710,7 +4072,14 @@ class _CreateProkChips extends StatelessWidget {
 }
 
 class _PollSheet extends StatefulWidget {
-  const _PollSheet();
+  const _PollSheet({this.onCreated});
+
+  final void Function(
+    String question,
+    List<String> options,
+    bool isMultiple,
+    bool isAnonymous,
+  )? onCreated;
 
   @override
   State<_PollSheet> createState() => _PollSheetState();
@@ -3894,10 +4263,39 @@ class _PollSheetState extends State<_PollSheet> {
                     label: 'Tạo bình chọn',
                     icon: LucideIcons.send,
                     onPressed: () {
+                      final question = _questionController.text.trim();
+                      final options = _optionControllers
+                          .map((c) => c.text.trim())
+                          .where((t) => t.isNotEmpty)
+                          .toList();
+
+                      if (question.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Vui lòng nhập câu hỏi bình chọn.'),
+                          ),
+                        );
+                        return;
+                      }
+                      if (options.length < 2) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Vui lòng nhập ít nhất 2 lựa chọn.'),
+                          ),
+                        );
+                        return;
+                      }
+
                       Navigator.pop(context);
+                      widget.onCreated?.call(
+                        question,
+                        options,
+                        _multipleChoice,
+                        _anonymous,
+                      );
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text('Bình chọn sẽ được nối dữ liệu sau.'),
+                          content: Text('Đã tạo bình chọn thành công!'),
                         ),
                       );
                     },
@@ -4348,14 +4746,14 @@ String? _mimetypeForName(String name) {
 String _stripHtml(String input) {
   if (input.isEmpty) return '';
   final stripped = input.replaceAll(RegExp(r'<[^>]*>'), '');
-  return stripped
+  final decoded = stripped
       .replaceAll('&amp;', '&')
       .replaceAll('&lt;', '<')
       .replaceAll('&gt;', '>')
       .replaceAll('&quot;', '"')
       .replaceAll('&#39;', "'")
-      .replaceAll('&nbsp;', ' ')
-      .trim();
+      .replaceAll('&nbsp;', ' ');
+  return decoded.replaceAll(RegExp(r'[\u2580-\u259F]'), '').trim();
 }
 
 String _attachmentFileName(Message message) {

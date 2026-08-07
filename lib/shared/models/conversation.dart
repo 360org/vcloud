@@ -46,7 +46,8 @@ class ConversationSummary {
     final id = map['id'].toString();
     final lastMessageDate = _dateTimeOrNull(map['last_message_date']);
     final lastMessageId = _stringOrNull(map['last_message_id']);
-    final lastMessageText = _stringOrNull(cleanHtmlText(map['last_message']));
+    final rawCleanText = _stringOrNull(cleanHtmlText(map['last_message']));
+    final lastMessageText = rawCleanText?.replaceAll('\n', ' ');
 
     return ConversationSummary(
       id: id,

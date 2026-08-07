@@ -21,7 +21,9 @@ Future<bool> saveBytesToFile(Uint8List bytes, String suggestedName) async {
   web.document.body!.appendChild(anchor);
   anchor.click();
   anchor.remove();
-  web.URL.revokeObjectURL(url);
+  Future.delayed(const Duration(seconds: 10), () {
+    web.URL.revokeObjectURL(url);
+  });
   return true;
 }
 

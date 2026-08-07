@@ -1587,33 +1587,29 @@ class _TelegramConversationRow extends StatelessWidget {
                   Row(
                     children: [
                       Expanded(
-                        child: Hero(
-                          tag: 'chat-title-${conversation.id}',
-                          child: Material(
-                            color: Colors.transparent,
-                            child: Text(
-                              title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: AppColors.textPrimary,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w800,
-                                height: 1.15,
-                              ),
-                            ),
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            height: 1.15,
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Text(
-                        timeLabel,
-                        style: const TextStyle(
-                          color: AppColors.textMuted,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
+                      if (timeLabel.isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        Text(
+                          timeLabel,
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 3),
@@ -1622,7 +1618,8 @@ class _TelegramConversationRow extends StatelessWidget {
                       Expanded(
                         child: Text(
                           preview,
-                          maxLines: 2,
+                          maxLines: 1,
+                          softWrap: false,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             color: unreadCount > 0

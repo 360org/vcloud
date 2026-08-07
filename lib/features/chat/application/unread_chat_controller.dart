@@ -100,6 +100,7 @@ class UnreadChatNotifier extends StateNotifier<UnreadChatState> {
   /// Implements retry & exponential backoff on socket connection resets.
   Future<void> loadUnreadCount() async {
     if (_isRefreshing) return;
+    if (_client.session == null) return;
     _isRefreshing = true;
     try {
       final res = await _client.get('/api/v1/mobile/chat/channels');

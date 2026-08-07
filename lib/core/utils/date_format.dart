@@ -16,6 +16,13 @@ class Dates {
 
   static String date(DateTime dt) => _date.format(dt.toLocal());
 
+  static String dateVi(DateTime dt) {
+    final local = dt.toLocal();
+    final day = local.day.toString().padLeft(2, '0');
+    final month = local.month.toString().padLeft(2, '0');
+    return '$day/$month/${local.year}';
+  }
+
   static String isoDate(DateTime dt) => _iso.format(dt.toLocal());
 
   static String hm(DateTime dt) => _hm.format(dt.toLocal());
