@@ -127,8 +127,10 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
   Future<void> _saveTimer() async {
     final elapsed = _elapsed;
     if (elapsed.inSeconds == 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bấm bắt đầu để đếm giờ trước.')),
+      showTopNotification(
+        context,
+        message: 'Bấm bắt đầu để đếm giờ trước.',
+        isError: true,
       );
       return;
     }
@@ -205,15 +207,14 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
   /// Edit the logged work-time / note of an already-completed task.
   /// Pulls the matching timesheet entry out of the local
   /// [timesheetStreamProvider] cache so we know which
-  /// `account.analytic.line` to PUT.
   Future<void> _updateTask(_TodayTask task, _TaskLogResult result) async {
     final entry = _entryByTaskId()[task.id];
     if (entry == null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Không tìm thấy entry timesheet để cập nhật.'),
-          ),
+        showTopNotification(
+          context,
+          message: 'Không tìm thấy entry timesheet để cập nhật.',
+          isError: true,
         );
       }
       return;
@@ -230,10 +231,10 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
       ref.invalidate(timesheetStreamProvider);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Cập nhật task thất bại: ${describeError(e)}'),
-          ),
+        showTopNotification(
+          context,
+          message: 'Cập nhật task thất bại: ${describeError(e)}',
+          isError: true,
         );
       }
       rethrow;
@@ -255,8 +256,10 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
       ref.invalidate(timesheetStreamProvider);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lưu log thất bại: ${describeError(e)}')),
+        showTopNotification(
+          context,
+          message: 'Lưu log thất bại: ${describeError(e)}',
+          isError: true,
         );
       }
       rethrow;
@@ -1888,6 +1891,9 @@ class _TimerSaveSheetState extends ConsumerState<_TimerSaveSheet> {
   late Future<List<_TimerProjectTasks>> _projectTaskGroupsFuture;
   String? _expandedProjectId;
   Task? _selectedTask;
+  String? _validationError;
+  bool _noteError = false;
+  bool _taskError = false;
 
   @override
   void initState() {
@@ -1936,22 +1942,42 @@ class _TimerSaveSheetState extends ConsumerState<_TimerSaveSheet> {
       if (!group.tasks.any((task) => task.id == _selectedTask?.id)) {
         _selectedTask = null;
       }
+      _taskError = false;
+      if (_validationError != null && _selectedTask != null) {
+        _validationError = null;
+      }
     });
   }
 
   void _submit() {
     final note = _note.text.trim();
     if (note.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nhập nội dung công việc đã làm.')),
+      HapticFeedback.mediumImpact();
+      setState(() {
+        _noteError = true;
+        _taskError = false;
+        _validationError = 'Vui lòng nhập nội dung công việc đã làm trước khi lưu.';
+      });
+      showTopNotification(
+        context,
+        message: 'Vui lòng nhập nội dung công việc đã làm.',
+        isError: true,
       );
       return;
     }
     final task = _selectedTask;
     if (task == null) {
-      ScaffoldMessenger.of(
+      HapticFeedback.mediumImpact();
+      setState(() {
+        _noteError = false;
+        _taskError = true;
+        _validationError = 'Vui lòng chọn project và task cần lưu.';
+      });
+      showTopNotification(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Chọn task cần lưu.')));
+        message: 'Vui lòng chọn project và task cần lưu.',
+        isError: true,
+      );
       return;
     }
     Navigator.pop(context, _TimerSaveResult(task: task, note: note));
@@ -2056,10 +2082,45 @@ class _TimerSaveSheetState extends ConsumerState<_TimerSaveSheet> {
                   ],
                 ),
                 const SizedBox(height: 16),
+                if (_validationError != null) ...[
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF0F2),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppColors.danger.withValues(alpha: 0.4)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(LucideIcons.triangleAlert, color: AppColors.danger, size: 18),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            _validationError!,
+                            style: const TextStyle(
+                              color: AppColors.danger,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 TextField(
                   controller: _note,
                   maxLines: 4,
                   minLines: 3,
+                  onChanged: (_) {
+                    if (_noteError || _validationError != null) {
+                      setState(() {
+                        _noteError = false;
+                        _validationError = null;
+                      });
+                    }
+                  },
                   style: const TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 15,
@@ -2072,10 +2133,18 @@ class _TimerSaveSheetState extends ConsumerState<_TimerSaveSheet> {
                       fontWeight: FontWeight.w500,
                     ),
                     filled: true,
-                    fillColor: const Color(0xFFF3F6FC),
-                    border: OutlineInputBorder(
+                    fillColor: _noteError ? const Color(0xFFFFF0F2) : const Color(0xFFF3F6FC),
+                    enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none,
+                      borderSide: _noteError
+                          ? const BorderSide(color: AppColors.danger, width: 1.5)
+                          : BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: _noteError
+                          ? const BorderSide(color: AppColors.danger, width: 2.0)
+                          : const BorderSide(color: AppColors.timesheet, width: 1.5),
                     ),
                   ),
                 ),
@@ -2121,9 +2190,15 @@ class _TimerSaveSheetState extends ConsumerState<_TimerSaveSheet> {
                             group: group,
                             expanded: _expandedProjectId == group.project.id,
                             selectedTaskId: _selectedTask?.id,
+                            hasError: _taskError,
                             onProjectTap: () => _toggleProject(group),
-                            onTaskTap: (task) =>
-                                setState(() => _selectedTask = task),
+                            onTaskTap: (task) => setState(() {
+                              _selectedTask = task;
+                              _taskError = false;
+                              if (_validationError != null) {
+                                _validationError = null;
+                              }
+                            }),
                           ),
                       ],
                     );
@@ -2208,6 +2283,7 @@ class _ProjectTaskDropdown extends StatelessWidget {
     required this.selectedTaskId,
     required this.onProjectTap,
     required this.onTaskTap,
+    this.hasError = false,
   });
 
   final _TimerProjectTasks group;
@@ -2215,6 +2291,7 @@ class _ProjectTaskDropdown extends StatelessWidget {
   final String? selectedTaskId;
   final VoidCallback onProjectTap;
   final ValueChanged<Task> onTaskTap;
+  final bool hasError;
 
   @override
   Widget build(BuildContext context) {
@@ -2227,12 +2304,17 @@ class _ProjectTaskDropdown extends StatelessWidget {
       duration: const Duration(milliseconds: 180),
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: highlighted
-            ? AppColors.timesheet.withValues(alpha: 0.08)
-            : Colors.transparent,
+        color: hasError
+            ? const Color(0xFFFFF0F2)
+            : (highlighted
+                ? AppColors.timesheet.withValues(alpha: 0.08)
+                : Colors.transparent),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: highlighted ? AppColors.timesheet : Colors.transparent,
+          color: hasError
+              ? AppColors.danger
+              : (highlighted ? AppColors.timesheet : Colors.transparent),
+          width: hasError ? 1.5 : 1.0,
         ),
       ),
       child: Column(
@@ -2441,11 +2523,34 @@ class _TaskLogSheet extends StatefulWidget {
 class _TaskLogSheetState extends State<_TaskLogSheet> {
   final _note = TextEditingController();
   late Duration _duration = widget.initialDuration;
+  String? _validationError;
+  bool _noteError = false;
 
   @override
   void dispose() {
     _note.dispose();
     super.dispose();
+  }
+
+  void _submit() {
+    final note = _note.text.trim();
+    if (note.isEmpty) {
+      HapticFeedback.mediumImpact();
+      setState(() {
+        _noteError = true;
+        _validationError = 'Vui lòng nhập nội dung công việc đã làm trước khi lưu.';
+      });
+      showTopNotification(
+        context,
+        message: 'Vui lòng nhập nội dung công việc đã làm.',
+        isError: true,
+      );
+      return;
+    }
+    Navigator.pop(
+      context,
+      _TaskLogResult(note: note, duration: _duration),
+    );
   }
 
   @override
@@ -2525,10 +2630,45 @@ class _TaskLogSheetState extends State<_TaskLogSheet> {
                   ],
                 ),
                 const SizedBox(height: 16),
+                if (_validationError != null) ...[
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF0F2),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppColors.danger.withValues(alpha: 0.4)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(LucideIcons.triangleAlert, color: AppColors.danger, size: 18),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            _validationError!,
+                            style: const TextStyle(
+                              color: AppColors.danger,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 TextField(
                   controller: _note,
                   maxLines: 4,
                   minLines: 3,
+                  onChanged: (_) {
+                    if (_noteError || _validationError != null) {
+                      setState(() {
+                        _noteError = false;
+                        _validationError = null;
+                      });
+                    }
+                  },
                   style: const TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 15,
@@ -2541,10 +2681,18 @@ class _TaskLogSheetState extends State<_TaskLogSheet> {
                       fontWeight: FontWeight.w500,
                     ),
                     filled: true,
-                    fillColor: const Color(0xFFF3F6FC),
-                    border: OutlineInputBorder(
+                    fillColor: _noteError ? const Color(0xFFFFF0F2) : const Color(0xFFF3F6FC),
+                    enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none,
+                      borderSide: _noteError
+                          ? const BorderSide(color: AppColors.danger, width: 1.5)
+                          : BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: _noteError
+                          ? const BorderSide(color: AppColors.danger, width: 2.0)
+                          : const BorderSide(color: AppColors.timesheet, width: 1.5),
                     ),
                   ),
                 ),
@@ -2611,21 +2759,7 @@ class _TaskLogSheetState extends State<_TaskLogSheet> {
                       AppColors.timesheetDeep,
                     ),
                     glowColor: AppColors.timesheet,
-                    onPressed: () {
-                      final note = _note.text.trim();
-                      if (note.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Nhập nội dung đã làm trước.'),
-                          ),
-                        );
-                        return;
-                      }
-                      Navigator.pop(
-                        context,
-                        _TaskLogResult(note: note, duration: _duration),
-                      );
-                    },
+                    onPressed: _submit,
                   ),
                 ),
               ],

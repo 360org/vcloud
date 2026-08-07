@@ -1226,3 +1226,129 @@ class _ShakeOnErrorState extends State<ShakeOnError>
     );
   }
 }
+
+/// Displays a high-priority floating notification banner at the TOP of the viewport,
+/// ensuring it is never submerged behind Modal Bottom Sheets or Navigation Bars.
+void showTopNotification(
+  BuildContext context, {
+  required String message,
+  bool isError = false,
+  Duration duration = const Duration(seconds: 3),
+}) {
+  final overlay = Overlay.maybeOf(context);
+  if (overlay == null) return;
+
+  late OverlayEntry entry;
+  entry = OverlayEntry(
+    builder: (context) => _TopNotificationOverlay(
+      message: message,
+      isError: isError,
+      onDismiss: () {
+        if (entry.mounted) entry.remove();
+      },
+    ),
+  );
+
+  overlay.insert(entry);
+  Future.delayed(duration, () {
+    if (entry.mounted) entry.remove();
+  });
+}
+
+class _TopNotificationOverlay extends StatefulWidget {
+  const _TopNotificationOverlay({
+    required this.message,
+    required this.isError,
+    required this.onDismiss,
+  });
+
+  final String message;
+  final bool isError;
+  final VoidCallback onDismiss;
+
+  @override
+  State<_TopNotificationOverlay> createState() => _TopNotificationOverlayState();
+}
+
+class _TopNotificationOverlayState extends State<_TopNotificationOverlay>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<Offset> _offsetAnimation;
+  late final Animation<double> _fadeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 320),
+    );
+    _offsetAnimation = Tween<Offset>(
+      begin: const Offset(0, -0.8),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
+    _fadeAnimation = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final topPadding = MediaQuery.paddingOf(context).top + 12;
+    final bgColor = widget.isError ? const Color(0xFFE53935) : const Color(0xFF1E293B);
+    final icon = widget.isError ? LucideIcons.triangleAlert : LucideIcons.circleCheck;
+
+    return Positioned(
+      top: topPadding,
+      left: 16,
+      right: 16,
+      child: SlideTransition(
+        position: _offsetAnimation,
+        child: FadeTransition(
+          opacity: _fadeAnimation,
+          child: Material(
+            color: Colors.transparent,
+            child: GestureDetector(
+              onTap: widget.onDismiss,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+                decoration: BoxDecoration(
+                  color: bgColor,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x33000000),
+                      blurRadius: 16,
+                      offset: Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Icon(icon, color: Colors.white, size: 20),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        widget.message,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
