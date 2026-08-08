@@ -218,7 +218,13 @@ class Message {
         'thumbnail_url',
         'download_url',
       ]);
-      if (url != null) return url;
+      final accessToken = _attachmentField(value, const ['access_token']);
+      if (url != null) {
+        if (accessToken != null && accessToken.isNotEmpty && !url.contains('access_token=')) {
+          return '$url${url.contains('?') ? '&' : '?'}access_token=$accessToken';
+        }
+        return url;
+      }
     }
     return null;
   }

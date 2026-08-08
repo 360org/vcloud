@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/local_attachment_cache.dart';
 import '../../../shared/widgets/app_scaffold.dart';
 import '../../../shared/widgets/brand_logo.dart';
 import '../../../shared/widgets/ui_kit.dart';
@@ -59,6 +60,7 @@ class ProfileScreen extends ConsumerWidget {
                     onTap: () => context.push('/profile/edit'),
                   ),
                   _ThemeRow(),
+                  const _CacheRow(),
                   _SettingsRow(
                     icon: LucideIcons.info,
                     label: 'Thông tin ứng dụng',
@@ -435,6 +437,170 @@ class _ThemeRow extends ConsumerWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _CacheRow extends StatefulWidget {
+  const _CacheRow();
+
+  @override
+  State<_CacheRow> createState() => _CacheRowState();
+}
+
+class _CacheRowState extends State<_CacheRow> {
+  double _cacheSizeMB = 0.0;
+  bool _loading = false;
+  bool _clearing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCacheSize();
+  }
+
+  Future<void> _loadCacheSize() async {
+    if (!mounted) return;
+    setState(() => _loading = true);
+    try {
+      final size = await LocalAttachmentCache.getCacheSizeInMB();
+      if (mounted) {
+        setState(() {
+          _cacheSizeMB = size;
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _confirmClearCache() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Dọn dẹp bộ nhớ đệm?'),
+        content: Text(
+          'Bạn có chắc chắn muốn dọn dẹp ${_cacheSizeMB.toStringAsFixed(1)} MB bộ nhớ đệm đính kèm? Dữ liệu đính kèm sẽ được tải lại từ máy chủ khi cần.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Dọn dẹp'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+
+    setState(() => _clearing = true);
+    try {
+      await LocalAttachmentCache.clearAllCache();
+      final newSize = await LocalAttachmentCache.getCacheSizeInMB();
+      if (!mounted) return;
+      setState(() {
+        _cacheSizeMB = newSize;
+        _clearing = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Đã dọn dẹp bộ nhớ đệm thành công!'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _clearing = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Dọn dẹp bộ nhớ đệm thất bại: $e')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PressableScale(
+      onTap: _clearing ? null : _confirmClearCache,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: AppColors.soft(AppColors.primary),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(
+                LucideIcons.hardDrive,
+                color: AppColors.primary,
+                size: 19,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Bộ nhớ đệm & Dữ liệu',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  Text(
+                    _loading || _clearing
+                        ? 'Đang tính toán...'
+                        : 'Dung lượng: ${_cacheSizeMB.toStringAsFixed(1)} MB',
+                    style: const TextStyle(
+                      color: AppColors.textMuted,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (_clearing)
+              const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppColors.primary,
+                ),
+              )
+            else
+              TextButton(
+                onPressed: _confirmClearCache,
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text(
+                  'Dọn dẹp',
+                  style: TextStyle(
+                    color: AppColors.danger,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

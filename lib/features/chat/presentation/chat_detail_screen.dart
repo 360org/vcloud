@@ -1,8 +1,8 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui';
 
 import 'package:file_picker/file_picker.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -21,8 +21,10 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/date_format.dart';
 import '../../../core/utils/file_download.dart';
 import '../../../core/utils/magic_bytes_validator.dart';
+import '../../../core/utils/local_attachment_cache.dart';
 import '../../../shared/models/conversation.dart';
 import '../../../shared/models/message.dart';
+import '../../../shared/widgets/html_network_image.dart';
 import '../../../shared/models/profile.dart';
 import '../../../shared/widgets/app_scaffold.dart';
 import '../../../shared/widgets/error_view.dart';
@@ -88,11 +90,15 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
   }
 
   Future<void> _sendAttachment(MobileAttachmentUpload attachment) async {
+    LocalAttachmentCache.save(attachment.filename, attachment.bytes);
     setState(() => _sending = true);
     try {
-      await ref
+      final uploaded = await ref
           .read(sendAttachmentActionProvider)
           .send(widget.conversationId, attachment);
+      if (uploaded.attachmentId > 0) {
+        LocalAttachmentCache.save(uploaded.attachmentId.toString(), attachment.bytes);
+      }
       _scrollToBottom();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1700,7 +1706,16 @@ class _PinnedMessageBanner extends StatelessWidget {
               ),
               clipBehavior: Clip.antiAlias,
               child: media?.isImage == true
-                  ? Image.network(media!.url, fit: BoxFit.cover)
+                  ? Image.network(
+                      odooApiClient.authenticatedUrl(media!.url),
+                      fit: BoxFit.cover,
+                      headers: odooApiClient.authHeaders,
+                      errorBuilder: (_, _, _) => const Icon(
+                        LucideIcons.image,
+                        color: AppColors.chat,
+                        size: 22,
+                      ),
+                    )
                   : Icon(
                       media?.isVideo == true
                           ? LucideIcons.video
@@ -2620,65 +2635,107 @@ class _AttachmentBubbleState extends ConsumerState<_AttachmentBubble> {
   bool _downloading = false;
 
   Future<void> _download() async {
-    if (_downloading || widget.message.attachmentIds.isEmpty) return;
-    final attachmentId = widget.message.attachmentIds.first;
+    if (_downloading) return;
+    final attachmentId = widget.message.attachmentIds.isNotEmpty
+        ? widget.message.attachmentIds.first
+        : null;
     final fileName = _attachmentFileName(widget.message);
     final ext = _fileExtension(fileName).toLowerCase();
 
-    setState(() => _downloading = true);
-    try {
-      final bytes = await ref
-          .read(downloadAttachmentActionProvider)
-          .bytes(attachmentId);
+    // Check Zalo-Style Local Memory Cache first!
+    Uint8List? bytes = LocalAttachmentCache.get(
+      attachmentId,
+      altKey: fileName,
+    );
 
-      // Task 1: Check Error Payload (JSON or HTML response returned instead of binary)
-      if (MagicBytesValidator.isErrorPayload(bytes)) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Tải tệp thất bại. Vui lòng kiểm tra lại kết nối hoặc quyền truy cập.',
+    if (bytes == null || bytes.isEmpty) {
+      if (attachmentId == null) return;
+      setState(() => _downloading = true);
+      try {
+        bytes = await ref
+            .read(downloadAttachmentActionProvider)
+            .bytes(attachmentId);
+
+        // Task 1: Check Error Payload (JSON or HTML response returned instead of binary)
+        if (MagicBytesValidator.isErrorPayload(bytes)) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Tải tệp thất bại. Vui lòng kiểm tra lại kết nối hoặc quyền truy cập.',
+              ),
             ),
-          ),
-        );
-        return;
-      }
+          );
+          return;
+        }
 
-      // Task 1: Check ZIP magic bytes if file is .zip
-      if (ext == 'zip' && !MagicBytesValidator.isValidZipBytes(bytes)) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Tải tệp nén thất bại. Vui lòng kiểm tra lại kết nối hoặc quyền truy cập.',
+        // Task 1: Check ZIP magic bytes if file is .zip
+        if (ext == 'zip' && !MagicBytesValidator.isValidZipBytes(bytes)) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Tải tệp nén thất bại. Vui lòng kiểm tra lại kết nối hoặc quyền truy cập.',
+              ),
             ),
-          ),
-        );
-        return;
-      }
+          );
+          return;
+        }
 
-      // Document file download behavior for PDF, Word, Excel, TXT, ZIP, etc.
-      final saved = await saveBytesToFile(bytes, fileName);
+        // Cache downloaded file bytes locally for instant offline access
+        LocalAttachmentCache.save(attachmentId, bytes);
+        LocalAttachmentCache.save(fileName, bytes);
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Không thể tải tệp: $e')));
+        }
+        return;
+      } finally {
+        if (mounted) setState(() => _downloading = false);
+      }
+    }
+
+    final nonNullBytes = bytes;
+    if (nonNullBytes.isEmpty) return;
+
+    // Document Reader & Action Suite for TXT, Word, Excel, PPT, PDF, ZIP...
+    if (ext == 'txt') {
+      final textContent = utf8.decode(nonNullBytes, allowMalformed: true);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            saved
-                ? 'Đã tải tệp $fileName thành công'
-                : 'Hủy tải tệp $fileName',
-          ),
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => _TxtReaderSheet(
+          fileName: fileName,
+          content: textContent,
+          bytes: nonNullBytes,
         ),
       );
       return;
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Không thể tải tệp: $e')));
-      }
-    } finally {
-      if (mounted) setState(() => _downloading = false);
     }
+
+    if (ext == 'pdf' && kIsWeb) {
+      openPdfBlobPreview(nonNullBytes);
+      return;
+    }
+
+    // For Word (.doc, .docx), Excel (.xls, .xlsx), PPT (.ppt, .pptx), ZIP, PDF...
+    if (!mounted) return;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _DocumentActionSheet(
+        fileName: fileName,
+        ext: ext,
+        bytes: nonNullBytes,
+        previewUrl: attachmentId != null
+            ? odooApiClient.authenticatedUrl('/api/v1/mobile/attachments/$attachmentId/download')
+            : widget.message.attachmentUrl,
+      ),
+    );
   }
 
   @override
@@ -2698,7 +2755,9 @@ class _AttachmentBubbleState extends ConsumerState<_AttachmentBubble> {
         ? null
         : message.attachmentIds.first;
     final previewUrl = attachmentId == null
-        ? null
+        ? (message.attachmentUrl != null && message.attachmentUrl!.isNotEmpty
+            ? odooApiClient.authenticatedUrl(message.attachmentUrl!)
+            : null)
         : ref
               .read(downloadAttachmentActionProvider)
               .contentUrl(attachmentId, url: message.attachmentUrl);
@@ -2957,149 +3016,114 @@ class _NetworkPreviewImage extends ConsumerStatefulWidget {
 }
 
 class _NetworkPreviewImageState extends ConsumerState<_NetworkPreviewImage> {
-  Future<dynamic>? _futureContent;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  @override
-  void didUpdateWidget(covariant _NetworkPreviewImage oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.attachmentId != widget.attachmentId || oldWidget.url != widget.url) {
-      _load();
-    }
-  }
-
-  void _load() {
-    final id = widget.attachmentId;
-    if (id != null && id.trim().isNotEmpty) {
-      _futureContent = _fetchAndCache(id.trim());
-    } else if (widget.url.trim().isNotEmpty) {
-      _futureContent = _fetchUrlBytes(widget.url.trim());
-    } else {
-      _futureContent = null;
-    }
-  }
-
-  Future<dynamic> _fetchUrlBytes(String rawUrl) async {
-    try {
-      final fullUrl = odooApiClient.absoluteUrl(rawUrl);
-      final bytes = await odooApiClient.fetchBytes(fullUrl);
-      if (bytes.isEmpty) return null;
-      return bytes;
-    } catch (e) {
-      debugPrint('Error fetching image URL $rawUrl: $e');
-      return null;
-    }
-  }
-
-  Future<dynamic> _fetchAndCache(String id) async {
-    final bytes = await ref.read(downloadAttachmentActionProvider).bytes(id);
-    if (bytes.isEmpty) return null;
-
-    if (kIsWeb) {
-      return bytes;
-    } else {
-      final tempDir = await getTemporaryDirectory();
-      final file = File('${tempDir.path}/img_$id.png');
-      if (!await file.exists()) {
-        await file.writeAsBytes(bytes, flush: true);
-      }
-      return file;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    if (_futureContent == null) {
+    final fileName = widget.fallback is _ImageAttachmentFallback
+        ? (widget.fallback as _ImageAttachmentFallback).fileName
+        : null;
+
+    // Zalo-Style Local Memory Cache Check (Instant 0ms display for sender)
+    final localBytes = LocalAttachmentCache.get(
+      widget.attachmentId,
+      altKey: fileName ?? widget.url,
+    );
+
+    final heroTag = widget.attachmentId != null
+        ? 'hero_image_${widget.attachmentId}'
+        : 'hero_image_${widget.url.hashCode}';
+
+    if (localBytes != null && localBytes.isNotEmpty) {
+      return GestureDetector(
+        onTap: () {
+          Navigator.of(context).push(
+            PageRouteBuilder<void>(
+              opaque: false,
+              barrierDismissible: true,
+              barrierColor: Colors.black.withValues(alpha: 0.9),
+              pageBuilder: (context, animation, secondaryAnimation) {
+                return FadeTransition(
+                  opacity: animation,
+                  child: ImageViewerScreen(
+                    imageUrl: widget.url,
+                    fileName: fileName ?? 'Image',
+                    attachmentId: widget.attachmentId == null
+                        ? null
+                        : int.tryParse(widget.attachmentId!),
+                  ),
+                );
+              },
+            ),
+          );
+        },
+        child: Hero(
+          tag: heroTag,
+          child: Image.memory(
+            localBytes,
+            fit: widget.fit,
+            gaplessPlayback: true,
+            errorBuilder: (_, _, _) => widget.fallback,
+          ),
+        ),
+      );
+    }
+
+    final rawUrl = (widget.attachmentId != null && widget.attachmentId!.trim().isNotEmpty)
+        ? '/api/v1/mobile/attachments/${widget.attachmentId}/download'
+        : (widget.url.trim().isNotEmpty ? widget.url.trim() : '');
+
+    if (rawUrl.isEmpty) {
       return widget.fallback;
     }
 
-    return FutureBuilder<dynamic>(
-      future: _futureContent,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return ColoredBox(
-            color: AppColors.soft(AppColors.chat),
-            child: const Center(
-              child: SizedBox(
-                width: 30,
-                height: 30,
-                child: CircularProgressIndicator(strokeWidth: 2.0),
-              ),
-            ),
-          );
-        }
+    final authUrl = odooApiClient.authenticatedUrl(rawUrl);
 
-        if (snapshot.hasError) {
-          final attachmentId = widget.attachmentId;
-          debugPrint('❌ === [Image Loading Exception Detected] ===');
-          debugPrint('Attachment ID: $attachmentId');
-          debugPrint('Error: ${snapshot.error}');
-          return widget.fallback;
-        }
-
-        final data = snapshot.data;
-        if (snapshot.connectionState == ConnectionState.done && data == null) {
-          final attachmentId = widget.attachmentId;
-          debugPrint('⚠️ Warning: Future resolved successfully but returned NULL bytes for ID: $attachmentId');
-        }
-        
-        if (data == null) {
-          return widget.fallback;
-        }
-
-        Widget imageWidget;
-        if (kIsWeb && data is Uint8List) {
-          imageWidget = Image.memory(
-            data,
+    Widget imageWidget;
+    if (kIsWeb) {
+      final htmlWidget = buildHtmlNetworkImage(url: authUrl, fit: widget.fit);
+      imageWidget = htmlWidget ??
+          Image.network(
+            authUrl,
             fit: widget.fit,
+            headers: odooApiClient.authHeaders,
             gaplessPlayback: true,
             errorBuilder: (_, _, _) => widget.fallback,
           );
-        } else if (!kIsWeb && data is File) {
-          imageWidget = Image.file(
-            data,
-            fit: widget.fit,
-            gaplessPlayback: true,
-            errorBuilder: (_, _, _) => widget.fallback,
-          );
-        } else {
-          return widget.fallback;
-        }
+    } else {
+      imageWidget = Image.network(
+        authUrl,
+        fit: widget.fit,
+        headers: odooApiClient.authHeaders,
+        gaplessPlayback: true,
+        errorBuilder: (_, _, _) => widget.fallback,
+      );
+    }
 
-        final heroTag = widget.attachmentId != null
-            ? 'hero_image_${widget.attachmentId}'
-            : 'hero_image_${widget.url.hashCode}';
-
-        return GestureDetector(
-          onTap: () {
-            Navigator.of(context).push(
-              PageRouteBuilder<void>(
-                opaque: false,
-                barrierDismissible: true,
-                barrierColor: Colors.black.withValues(alpha: 0.9),
-                pageBuilder: (context, animation, secondaryAnimation) {
-                  return FadeTransition(
-                    opacity: animation,
-                    child: ImageDetailViewer(
-                      heroTag: heroTag,
-                      imageData: data,
-                    ),
-                  );
-                },
-              ),
-            );
-          },
-          child: Hero(
-            tag: heroTag,
-            child: imageWidget,
+    return GestureDetector(
+      onTap: () {
+        Navigator.of(context).push(
+          PageRouteBuilder<void>(
+            opaque: false,
+            barrierDismissible: true,
+            barrierColor: Colors.black.withValues(alpha: 0.9),
+            pageBuilder: (context, animation, secondaryAnimation) {
+              return FadeTransition(
+                opacity: animation,
+                child: ImageViewerScreen(
+                  imageUrl: authUrl,
+                  fileName: fileName ?? 'Image',
+                  attachmentId: widget.attachmentId == null
+                      ? null
+                      : int.tryParse(widget.attachmentId!),
+                ),
+              );
+            },
           ),
         );
       },
+      child: Hero(
+        tag: heroTag,
+        child: imageWidget,
+      ),
     );
   }
 }
@@ -3681,12 +3705,14 @@ class _ComposerWithAttachmentsState extends State<_ComposerWithAttachments> {
     try {
       final image = await ImagePicker().pickImage(
         source: source,
-        imageQuality: 86,
-        maxWidth: 2200,
+        imageQuality: 70,
+        maxWidth: 1400,
+        maxHeight: 1400,
       );
       if (!context.mounted || image == null) return;
       final bytes = await image.readAsBytes();
       if (!context.mounted) return;
+      LocalAttachmentCache.save(image.name, bytes);
 
       showModalBottomSheet(
         context: context,
@@ -3743,6 +3769,7 @@ class _ComposerWithAttachmentsState extends State<_ComposerWithAttachments> {
         );
         return;
       }
+      LocalAttachmentCache.save(file.name, bytes);
       await widget.onAttachment(
         MobileAttachmentUpload(
           filename: file.name,
@@ -4871,7 +4898,10 @@ IconData _fileIcon(String name) {
 
 bool _hasAttachmentOrDocument(Message message) {
   if (message.attachmentIds.isNotEmpty) return true;
+  if (message.attachmentUrl != null && message.attachmentUrl!.trim().isNotEmpty) return true;
+  if (message.attachmentName != null && message.attachmentName!.trim().isNotEmpty) return true;
   final fileName = _attachmentFileName(message);
+  if (fileName.contains('image_picker') || fileName.startsWith('img_') || fileName.startsWith('doc_')) return true;
   final ext = _fileExtension(fileName).toLowerCase();
   return switch (ext) {
     'pdf' ||
@@ -4900,6 +4930,7 @@ bool _isImageAttachment(Message message, String fileName) {
   if (ext == 'svg') return false;
   final mimetype = message.attachmentMimeType?.toLowerCase();
   if (mimetype?.startsWith('image/') == true && mimetype != 'image/svg+xml') return true;
+  if (fileName.contains('image_picker') || fileName.startsWith('img_')) return true;
   return switch (ext) {
     'jpg' || 'jpeg' || 'png' || 'gif' || 'webp' => true,
     _ => false,
@@ -5198,6 +5229,259 @@ class _ImagePreviewSheetState extends State<_ImagePreviewSheet> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _TxtReaderSheet extends StatelessWidget {
+  const _TxtReaderSheet({
+    required this.fileName,
+    required this.content,
+    required this.bytes,
+  });
+
+  final String fileName;
+  final String content;
+  final Uint8List bytes;
+
+  @override
+  Widget build(BuildContext context) {
+    final lines = content.split('\n');
+    return DraggableScrollableSheet(
+      initialChildSize: 0.85,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      builder: (context, scrollController) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 40,
+              height: 5,
+              decoration: BoxDecoration(
+                color: Colors.black12,
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 12, 12, 12),
+              child: Row(
+                children: [
+                  const Icon(LucideIcons.fileCode, color: AppColors.primary, size: 24),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          fileName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        Text(
+                          '${lines.length} dòng • ${_formatFileSize(bytes.length)}',
+                          style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(LucideIcons.copy, size: 20),
+                    tooltip: 'Sao chép',
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: content));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Đã sao chép nội dung tệp.')),
+                      );
+                    },
+                  ),
+                  IconButton(
+                    icon: const Icon(LucideIcons.download, size: 20),
+                    tooltip: 'Tải về',
+                    onPressed: () async {
+                      await saveBytesToFile(bytes, fileName);
+                    },
+                  ),
+                  IconButton(
+                    icon: const Icon(LucideIcons.x, size: 20),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: ListView.builder(
+                controller: scrollController,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                itemCount: lines.length,
+                itemBuilder: (context, index) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                          width: 38,
+                          child: Text(
+                            '${index + 1}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textMuted,
+                              fontFamily: 'monospace',
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Text(
+                            lines[index],
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: AppColors.textPrimary,
+                              fontFamily: 'monospace',
+                              height: 1.3,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DocumentActionSheet extends StatelessWidget {
+  const _DocumentActionSheet({
+    required this.fileName,
+    required this.ext,
+    required this.bytes,
+    this.previewUrl,
+  });
+
+  final String fileName;
+  final String ext;
+  final Uint8List bytes;
+  final String? previewUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final iconColor = _fileAccentColor(fileName);
+    final icon = _fileIcon(fileName);
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40,
+            height: 5,
+            decoration: BoxDecoration(
+              color: Colors.black12,
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: iconColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(icon, color: iconColor, size: 26),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      fileName,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Định dạng ${ext.toUpperCase()} • ${_formatFileSize(bytes.length)}',
+                      style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              minimumSize: const Size.fromHeight(48),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            icon: const Icon(LucideIcons.download, size: 20),
+            label: const Text(
+              'Tải xuống & Mở bằng ứng dụng',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+            ),
+            onPressed: () async {
+              Navigator.pop(context);
+              await saveBytesToFile(bytes, fileName);
+            },
+          ),
+          if (previewUrl != null && previewUrl!.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.textPrimary,
+                minimumSize: const Size.fromHeight(48),
+                side: const BorderSide(color: AppColors.border),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              icon: const Icon(LucideIcons.externalLink, size: 20),
+              label: const Text(
+                'Xem trực tuyến (Google / Office)',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+              ),
+              onPressed: () {
+                Navigator.pop(context);
+                final docsViewer = 'https://docs.google.com/viewer?url=${Uri.encodeComponent(previewUrl!)}';
+                openDownloadUrl(docsViewer);
+              },
+            ),
+          ],
+        ],
       ),
     );
   }

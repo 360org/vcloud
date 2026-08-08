@@ -112,6 +112,30 @@ class OdooApiClient {
     return '${_activeBaseUrl()}$normalized';
   }
 
+  /// Transforms [path] into an absolute URL and attaches `access_token` query
+  /// parameter if not present and a session token or [accessToken] is available.
+  String authenticatedUrl(String path, {String? accessToken}) {
+    final absUrl = absoluteUrl(path);
+    final token = (accessToken != null && accessToken.isNotEmpty)
+        ? accessToken
+        : _session?.accessToken;
+    if (token == null || token.isEmpty) return absUrl;
+
+    final uri = Uri.parse(absUrl);
+    if (uri.queryParameters.containsKey('access_token')) return absUrl;
+
+    final params = Map<String, String>.from(uri.queryParameters);
+    params['access_token'] = token;
+    return uri.replace(queryParameters: params).toString();
+  }
+
+  /// Map containing Authorization Bearer header for HTTP network requests.
+  Map<String, String>? get authHeaders {
+    final token = _session?.accessToken;
+    if (token == null || token.isEmpty) return null;
+    return <String, String>{'Authorization': 'Bearer $token'};
+  }
+
   Future<OdooSession?> restoreSession() async {
     final stored = await _sessionStore.read();
     if (stored == null || stored.isExpired) {
@@ -290,19 +314,26 @@ class OdooApiClient {
       final bodyStr = response.body;
 
       // Defensive Parsing: Check Content-Type or if body resembles JSON
-      if (contentType.contains('application/json') || bodyStr.trimLeft().startsWith('{')) {
-        final decoded = jsonDecode(bodyStr);
-        if (decoded is Map) {
-          final result = decoded['result'] ?? decoded['data'];
-          if (result is Map) {
-            final base64String = result['datas'] ?? result['data'];
-            if (base64String is String) {
-              return await compute(_decodeBase64, base64String);
+      final trimmedBody = bodyStr.trimLeft();
+      if (contentType.contains('application/json') || trimmedBody.startsWith('{') || trimmedBody.startsWith('[')) {
+        try {
+          final decoded = jsonDecode(bodyStr);
+          if (decoded is Map) {
+            final result = decoded['result'] ?? decoded['data'] ?? decoded['attachment'] ?? decoded['file'];
+            if (result is Map) {
+              final base64String = result['datas'] ?? result['data'] ?? result['base64'] ?? result['content'];
+              if (base64String is String && base64String.isNotEmpty) {
+                return await compute(_decodeBase64, base64String);
+              }
+            } else if (result is String && result.isNotEmpty && !result.startsWith('{')) {
+              return await compute(_decodeBase64, result);
             }
-          } else if (result is String) {
-            return await compute(_decodeBase64, result);
+            final topBase64 = decoded['datas'] ?? decoded['base64'] ?? decoded['content'];
+            if (topBase64 is String && topBase64.isNotEmpty) {
+              return await compute(_decodeBase64, topBase64);
+            }
           }
-        }
+        } catch (_) {}
       }
 
       // Fallback: Return raw binary bytes directly

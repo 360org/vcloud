@@ -67,7 +67,7 @@ class MobileAttachmentRepository {
   final OdooApiClient _client;
 
   Future<MobileAttachment> upload(MobileAttachmentUpload file) async {
-    final b64 = base64Encode(file.bytes);
+    final b64 = base64Encode(file.bytes).replaceAll('\r', '').replaceAll('\n', '').trim();
     final res = await _client.post(
       '/api/v1/mobile/attachments/upload',
       body: <String, dynamic>{
@@ -91,12 +91,14 @@ class MobileAttachmentRepository {
   /// Downloads the raw bytes of an attachment via the dedicated Bearer-
   /// authenticated download endpoint. Falls back to Odoo standard
   /// /web/content/ route if the custom endpoint is not available.
-  Future<Uint8List> fetchBytes(int attachmentId) async {
+  Future<Uint8List> fetchBytes(int attachmentId, {String? accessToken}) async {
+    final token = accessToken?.trim();
+    final query = (token != null && token.isNotEmpty) ? '?access_token=$token' : '';
     try {
-      return await _client.fetchBytes('/api/v1/mobile/attachments/$attachmentId/download');
+      return await _client.fetchBytes('/api/v1/mobile/attachments/$attachmentId/download$query');
     } catch (_) {
       // Fallback: try Odoo standard /web/content/<id> endpoint
-      return _client.fetchBytes('/web/content/$attachmentId');
+      return _client.fetchBytes('/web/content/$attachmentId$query');
     }
   }
 

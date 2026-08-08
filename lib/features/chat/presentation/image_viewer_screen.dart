@@ -4,7 +4,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
+import '../../../core/api/odoo_api_client.dart';
 import '../../../core/utils/file_download.dart';
+import '../../../core/utils/local_attachment_cache.dart';
 import '../../../shared/widgets/html_network_image.dart';
 import '../application/messages_controller.dart';
 import 'forward_conversation_sheet.dart';
@@ -116,6 +118,7 @@ class _ImageViewerScreenState extends ConsumerState<ImageViewerScreen> {
                 child: _ViewerImage(
                   url: widget.imageUrl,
                   attachmentId: widget.attachmentId,
+                  fileName: widget.fileName,
                 ),
               ),
             ),
@@ -217,25 +220,54 @@ class _ActionButton extends StatelessWidget {
 }
 
 class _ViewerImage extends ConsumerWidget {
-  const _ViewerImage({required this.url, required this.attachmentId});
+  const _ViewerImage({
+    required this.url,
+    required this.attachmentId,
+    this.fileName,
+  });
 
   final String url;
   final int? attachmentId;
+  final String? fileName;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Local-First Architecture: Check local persistent attachment cache first (0ms)
+    final localBytes = LocalAttachmentCache.get(
+      attachmentId?.toString(),
+      altKey: fileName ?? url,
+    );
+
+    if (localBytes != null && localBytes.isNotEmpty) {
+      return Image.memory(
+        localBytes,
+        fit: BoxFit.contain,
+        gaplessPlayback: true,
+        errorBuilder: (_, _, _) => const _ViewerImageError(),
+      );
+    }
+
+    final rawUrl = (attachmentId != null && attachmentId! > 0)
+        ? '/api/v1/mobile/attachments/$attachmentId/download'
+        : (url.trim().isNotEmpty ? url.trim() : '');
+
+    final authUrl = odooApiClient.authenticatedUrl(rawUrl);
+
     if (kIsWeb) {
-      final htmlImage = buildHtmlNetworkImage(url: url, fit: BoxFit.contain);
+      final htmlImage = buildHtmlNetworkImage(url: authUrl, fit: BoxFit.contain);
       if (htmlImage != null) return htmlImage;
     }
 
     final id = attachmentId;
-    if (id != null) {
+    if (id != null && id > 0) {
       return FutureBuilder<Uint8List>(
         future: ref.read(downloadAttachmentActionProvider).bytes(id.toString()),
         builder: (context, snapshot) {
           final bytes = snapshot.data;
-          if (bytes != null) {
+          if (bytes != null && bytes.isNotEmpty) {
+            // Save to LocalAttachmentCache once loaded from server
+            LocalAttachmentCache.save(id.toString(), bytes);
+            if (fileName != null) LocalAttachmentCache.save(fileName!, bytes);
             return Image.memory(bytes, fit: BoxFit.contain);
           }
           if (snapshot.hasError) {
@@ -249,8 +281,9 @@ class _ViewerImage extends ConsumerWidget {
     }
 
     return Image.network(
-      url,
+      authUrl,
       fit: BoxFit.contain,
+      headers: odooApiClient.authHeaders,
       loadingBuilder: (context, child, progress) {
         if (progress == null) return child;
         return Center(

@@ -275,37 +275,27 @@ class ChatRepository {
         attachment.downloadUrl ??
         attachment.url ??
         '/web/content/${attachment.attachmentId}?download=1';
-    return _client.absoluteUrl(path);
+    return _client.authenticatedUrl(path, accessToken: attachment.accessToken);
   }
 
-  String attachmentContentUrl(String attachmentId, {String? url}) {
-    final path = _previewPath(attachmentId, url);
-    return _client.absoluteUrl(path);
-  }
-
-  String _previewPath(String attachmentId, String? url) {
-    if (url == null || url.trim().isEmpty) {
-      return '/web/content/$attachmentId';
-    }
-    final uri = Uri.tryParse(url.trim());
-    if (uri == null) return url;
-    final params = Map<String, String>.from(uri.queryParameters)
-      ..remove('download');
-    if (uri.hasQuery) {
-      return uri
-          .replace(queryParameters: params.isEmpty ? null : params)
-          .toString();
-    }
-    return url;
+  String attachmentContentUrl(String attachmentId, {String? url, String? accessToken}) {
+    return _client.authenticatedUrl('/api/v1/mobile/attachments/$attachmentId/download', accessToken: accessToken);
   }
 
   /// Raw bytes of an attachment, for download/forward.
-  Future<Uint8List> attachmentBytes(String attachmentId) async {
+  Future<Uint8List> attachmentBytes(String attachmentId, {String? accessToken}) async {
     final id = int.tryParse(attachmentId);
     if (id == null) {
       throw Failure('Tệp đính kèm không hợp lệ.');
     }
-    return _attachmentRepository.fetchBytes(id);
+    String? token = accessToken;
+    if (token == null || token.isEmpty) {
+      try {
+        final attachment = await _attachmentRepository.one(id);
+        token = attachment.accessToken;
+      } catch (_) {}
+    }
+    return _attachmentRepository.fetchBytes(id, accessToken: token);
   }
 
   /// Re-sends an existing attachment into another conversation. Downloads the
