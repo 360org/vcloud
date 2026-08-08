@@ -571,12 +571,14 @@ class _FrostedSurface extends StatelessWidget {
     this.height,
     this.padding,
     this.radius = 28,
+    this.isFocused = false,
   });
 
   final Widget child;
   final double? height;
   final EdgeInsetsGeometry? padding;
   final double radius;
+  final bool isFocused;
 
   @override
   Widget build(BuildContext context) {
@@ -584,23 +586,42 @@ class _FrostedSurface extends StatelessWidget {
       borderRadius: BorderRadius.circular(radius),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-        child: Container(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
           height: height,
           padding: padding,
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.58),
+            color: isFocused
+                ? Colors.white.withValues(alpha: 0.76)
+                : Colors.white.withValues(alpha: 0.58),
             borderRadius: BorderRadius.circular(radius),
             border: Border.all(
-              color: Colors.white.withValues(alpha: 0.72),
-              width: 1.1,
+              color: isFocused
+                  ? AppColors.primary.withValues(alpha: 0.85)
+                  : Colors.white.withValues(alpha: 0.72),
+              width: isFocused ? 1.6 : 1.1,
             ),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x140F172A),
-                blurRadius: 18,
-                offset: Offset(0, 8),
-              ),
-            ],
+            boxShadow: isFocused
+                ? [
+                    BoxShadow(
+                      color: AppColors.primary.withValues(alpha: 0.25),
+                      blurRadius: 14,
+                      spreadRadius: 1,
+                    ),
+                    const BoxShadow(
+                      color: Color(0x140F172A),
+                      blurRadius: 18,
+                      offset: Offset(0, 8),
+                    ),
+                  ]
+                : const [
+                    BoxShadow(
+                      color: Color(0x140F172A),
+                      blurRadius: 18,
+                      offset: Offset(0, 8),
+                    ),
+                  ],
           ),
           child: child,
         ),
@@ -3430,7 +3451,7 @@ class _ReadAvatars extends StatelessWidget {
 }
 
 // ignore: unused_element
-class _Composer extends StatelessWidget {
+class _Composer extends StatefulWidget {
   const _Composer({
     required this.controller,
     required this.sending,
@@ -3440,6 +3461,31 @@ class _Composer extends StatelessWidget {
   final TextEditingController controller;
   final bool sending;
   final VoidCallback onSubmit;
+
+  @override
+  State<_Composer> createState() => _ComposerState();
+}
+
+class _ComposerState extends State<_Composer> {
+  late final FocusNode _focusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode = FocusNode();
+    _focusNode.addListener(_onFocusChange);
+  }
+
+  void _onFocusChange() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_onFocusChange);
+    _focusNode.dispose();
+    super.dispose();
+  }
 
   void _openAttachmentSheet(BuildContext context) {
     HapticFeedback.lightImpact();
@@ -3486,13 +3532,15 @@ class _Composer extends StatelessWidget {
             Expanded(
               child: _FrostedSurface(
                 radius: 26,
+                isFocused: _focusNode.hasFocus,
                 child: TextField(
-                  controller: controller,
-                  enabled: !sending,
+                  focusNode: _focusNode,
+                  controller: widget.controller,
+                  enabled: !widget.sending,
                   minLines: 1,
                   maxLines: 5,
                   textInputAction: TextInputAction.send,
-                  onSubmitted: (_) => onSubmit(),
+                  onSubmitted: (_) => widget.onSubmit(),
                   style: const TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 16,
@@ -3513,21 +3561,26 @@ class _Composer extends StatelessWidget {
                     filled: false,
                     contentPadding: const EdgeInsets.fromLTRB(18, 12, 6, 12),
                     border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    disabledBorder: InputBorder.none,
+                    errorBorder: InputBorder.none,
+                    focusedErrorBorder: InputBorder.none,
                   ),
                 ),
               ),
             ),
             const SizedBox(width: 8),
             AnimatedBuilder(
-              animation: controller,
+              animation: widget.controller,
               builder: (context, _) {
-                final hasText = controller.text.trim().isNotEmpty;
+                final hasText = widget.controller.text.trim().isNotEmpty;
                 if (!hasText) return const SizedBox.shrink();
                 return _ComposerCircleButton(
                   tooltip: 'Gửi',
                   icon: LucideIcons.send,
-                  loading: sending,
-                  onTap: sending ? null : onSubmit,
+                  loading: widget.sending,
+                  onTap: widget.sending ? null : widget.onSubmit,
                 );
               },
             ),
@@ -3585,7 +3638,7 @@ class _ComposerCircleButton extends StatelessWidget {
   }
 }
 
-class _ComposerWithAttachments extends StatelessWidget {
+class _ComposerWithAttachments extends StatefulWidget {
   const _ComposerWithAttachments({
     required this.controller,
     required this.sending,
@@ -3597,6 +3650,32 @@ class _ComposerWithAttachments extends StatelessWidget {
   final bool sending;
   final VoidCallback onSubmit;
   final Future<void> Function(MobileAttachmentUpload attachment) onAttachment;
+
+  @override
+  State<_ComposerWithAttachments> createState() =>
+      _ComposerWithAttachmentsState();
+}
+
+class _ComposerWithAttachmentsState extends State<_ComposerWithAttachments> {
+  late final FocusNode _focusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode = FocusNode();
+    _focusNode.addListener(_onFocusChange);
+  }
+
+  void _onFocusChange() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_onFocusChange);
+    _focusNode.dispose();
+    super.dispose();
+  }
 
   Future<void> _pickImage(BuildContext context, ImageSource source) async {
     try {
@@ -3620,10 +3699,10 @@ class _ComposerWithAttachments extends StatelessWidget {
           onSend: (upload, caption) async {
             Navigator.pop(sheetContext);
             if (caption != null && caption.trim().isNotEmpty) {
-              controller.text = caption.trim();
-              onSubmit();
+              widget.controller.text = caption.trim();
+              widget.onSubmit();
             }
-            await onAttachment(upload);
+            await widget.onAttachment(upload);
           },
         ),
       );
@@ -3664,7 +3743,7 @@ class _ComposerWithAttachments extends StatelessWidget {
         );
         return;
       }
-      await onAttachment(
+      await widget.onAttachment(
         MobileAttachmentUpload(
           filename: file.name,
           bytes: bytes,
@@ -3749,8 +3828,8 @@ class _ComposerWithAttachments extends StatelessWidget {
       buffer.writeln('$emoji ${options[i]}');
     }
 
-    controller.text = buffer.toString();
-    onSubmit();
+    widget.controller.text = buffer.toString();
+    widget.onSubmit();
   }
 
   @override
@@ -3781,13 +3860,15 @@ class _ComposerWithAttachments extends StatelessWidget {
             Expanded(
               child: _FrostedSurface(
                 radius: 26,
+                isFocused: _focusNode.hasFocus,
                 child: TextField(
-                  controller: controller,
-                  enabled: !sending,
+                  focusNode: _focusNode,
+                  controller: widget.controller,
+                  enabled: !widget.sending,
                   minLines: 1,
                   maxLines: 5,
                   textInputAction: TextInputAction.send,
-                  onSubmitted: (_) => onSubmit(),
+                  onSubmitted: (_) => widget.onSubmit(),
                   style: const TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 16,
@@ -3808,21 +3889,26 @@ class _ComposerWithAttachments extends StatelessWidget {
                     filled: false,
                     contentPadding: const EdgeInsets.fromLTRB(18, 12, 6, 12),
                     border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    disabledBorder: InputBorder.none,
+                    errorBorder: InputBorder.none,
+                    focusedErrorBorder: InputBorder.none,
                   ),
                 ),
               ),
             ),
             const SizedBox(width: 8),
             AnimatedBuilder(
-              animation: controller,
+              animation: widget.controller,
               builder: (context, _) {
-                final hasText = controller.text.trim().isNotEmpty;
+                final hasText = widget.controller.text.trim().isNotEmpty;
                 if (!hasText) return const SizedBox.shrink();
                 return _ComposerCircleButton(
                   tooltip: 'Gửi',
                   icon: LucideIcons.send,
-                  loading: sending,
-                  onTap: sending ? null : onSubmit,
+                  loading: widget.sending,
+                  onTap: widget.sending ? null : widget.onSubmit,
                 );
               },
             ),
@@ -5063,6 +5149,11 @@ class _ImagePreviewSheetState extends State<_ImagePreviewSheet> {
                               fontSize: 15,
                             ),
                             border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            disabledBorder: InputBorder.none,
+                            errorBorder: InputBorder.none,
+                            focusedErrorBorder: InputBorder.none,
                             isDense: true,
                             contentPadding: EdgeInsets.symmetric(vertical: 10),
                           ),
