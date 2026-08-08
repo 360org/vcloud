@@ -58,10 +58,18 @@ extension AppThemeModeX on AppThemeMode {
     switch (this) {
       case AppThemeMode.dark:
         return ThemeMode.dark;
-      case AppThemeMode.system:
-        return ThemeMode.system;
       case AppThemeMode.light:
         return ThemeMode.light;
+      case AppThemeMode.system:
+        final hour = DateTime.now().hour;
+        // Theo giờ Việt Nam (UTC+7):
+        // Từ 06:00 sáng đến 18:00 tối -> Giao diện Sáng (Light Mode)
+        // Từ 18:00 tối đến 06:00 sáng -> Giao diện Tối (Dark Mode)
+        if (hour >= 6 && hour < 18) {
+          return ThemeMode.light;
+        } else {
+          return ThemeMode.dark;
+        }
     }
   }
 
