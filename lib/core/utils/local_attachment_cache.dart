@@ -1,11 +1,10 @@
-import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:web/web.dart' as web;
+import 'web_storage_helper.dart';
 
 /// Zalo-style Local & Persistent Attachment Cache with Auto Platform Detection.
-/// - Web (kIsWeb == true): RAM Cache + LocalStorage (Base64).
+/// - Web (kIsWeb == true): RAM Cache + LocalStorage (Base64 via web_storage_helper).
 /// - Mobile (kIsWeb == false): RAM Cache + physical disk file storage via path_provider.
 class LocalAttachmentCache {
   LocalAttachmentCache._();
@@ -46,15 +45,7 @@ class LocalAttachmentCache {
     _memCache[key.trim()] = bytes;
 
     if (kIsWeb) {
-      try {
-        // Persistent browser LocalStorage on Web (up to ~4MB per file entry)
-        if (bytes.length < 4 * 1024 * 1024) {
-          final b64 = base64Encode(bytes);
-          web.window.localStorage.setItem('vcloud_att_$clean', b64);
-        }
-      } catch (e) {
-        debugPrint('LocalStorage save skipped: $e');
-      }
+      saveToWebLocalStorage(clean, bytes);
     } else {
       // Mobile Environment (iOS/Android): Save physical file under app documents directory
       _saveMobileFile(clean, bytes);
@@ -89,14 +80,11 @@ class LocalAttachmentCache {
 
       // 2. Check platform persistent storage
       if (kIsWeb) {
-        try {
-          final storedB64 = web.window.localStorage.getItem('vcloud_att_$k');
-          if (storedB64 != null && storedB64.isNotEmpty) {
-            final bytes = base64Decode(storedB64);
-            _memCache[k] = bytes; // Populate RAM cache for future accesses
-            return bytes;
-          }
-        } catch (_) {}
+        final bytes = getFromWebLocalStorage(k);
+        if (bytes != null && bytes.isNotEmpty) {
+          _memCache[k] = bytes; // Populate RAM cache for future accesses
+          return bytes;
+        }
       } else {
         // Mobile Environment: Check physical disk file
         try {
@@ -143,21 +131,7 @@ class LocalAttachmentCache {
     int totalBytes = 0;
 
     if (kIsWeb) {
-      try {
-        final storage = web.window.localStorage;
-        final length = storage.length;
-        for (int i = 0; i < length; i++) {
-          final key = storage.key(i);
-          if (key != null && key.startsWith('vcloud_att_')) {
-            final val = storage.getItem(key);
-            if (val != null) {
-              totalBytes += val.length;
-            }
-          }
-        }
-      } catch (e) {
-        debugPrint('Error getting Web cache size: $e');
-      }
+      totalBytes += getWebCacheSizeInBytes();
     } else {
       try {
         final dirPath = await _getMobileDirPath();
@@ -190,22 +164,7 @@ class LocalAttachmentCache {
     _memCache.clear();
 
     if (kIsWeb) {
-      try {
-        final storage = web.window.localStorage;
-        final keysToRemove = <String>[];
-        final length = storage.length;
-        for (int i = 0; i < length; i++) {
-          final key = storage.key(i);
-          if (key != null && key.startsWith('vcloud_att_')) {
-            keysToRemove.add(key);
-          }
-        }
-        for (final key in keysToRemove) {
-          storage.removeItem(key);
-        }
-      } catch (e) {
-        debugPrint('Error clearing Web cache: $e');
-      }
+      clearWebLocalStorage();
     } else {
       try {
         final dirPath = await _getMobileDirPath();
