@@ -27,6 +27,7 @@ class Task {
     this.projectId,
     this.projectName,
     this.userName,
+    this.partnerName,
     this.dateAssign,
     this.tags = const <String>[],
     this.tagHexColors = const <String, String>{},
@@ -46,6 +47,7 @@ class Task {
   final String? projectId;
   final String? projectName;
   final String? userName;
+  final String? partnerName;
   final DateTime? dateAssign;
   final List<String> tags;
   final Map<String, String> tagHexColors;
@@ -72,6 +74,10 @@ class Task {
     projectId: map['project_id']?.toString(),
     projectName: map['project_name']?.toString(),
     userName: map['user_name']?.toString(),
+    partnerName: map['partner_name']?.toString() ??
+        (map['partner_id'] is List && (map['partner_id'] as List).length > 1
+            ? (map['partner_id'] as List)[1].toString()
+            : null),
     dateAssign: map['date_assign'] == null || map['date_assign'] == false
         ? null
         : DateTime.tryParse(map['date_assign'].toString()),

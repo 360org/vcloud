@@ -284,6 +284,7 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
       tag: task.category.label,
       projectName: task.projectName,
       userName: task.userName,
+      partnerName: task.partnerName,
       dateAssign: task.dateAssign,
       tags: task.tags,
       tagHexColors: task.tagHexColors,
@@ -1185,6 +1186,9 @@ class _TaskDetailSheetState extends ConsumerState<_TaskDetailSheet> {
             description: fullTask.description,
             tag: fullTask.category.label,
             projectName: fullTask.projectName ?? widget.task.projectName,
+            userName: fullTask.userName ?? widget.task.userName,
+            partnerName: fullTask.partnerName ?? widget.task.partnerName,
+            dateAssign: fullTask.dateAssign ?? widget.task.dateAssign,
             tags: fullTask.tags.isNotEmpty ? fullTask.tags : widget.task.tags,
             tagHexColors: fullTask.tagHexColors.isNotEmpty ? fullTask.tagHexColors : widget.task.tagHexColors,
             allocatedHours: fullTask.allocatedHours ?? widget.task.allocatedHours,
@@ -1386,6 +1390,15 @@ class _TaskDetailSheetState extends ConsumerState<_TaskDetailSheet> {
                     value: Dates.isoDate(task.dateAssign!),
                   ),
                 ],
+                if (task.partnerName != null &&
+                    task.partnerName!.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  _TaskInfoBlock(
+                    icon: LucideIcons.building2,
+                    label: 'Khách hàng',
+                    value: task.partnerName!,
+                  ),
+                ],
                 const SizedBox(height: 14),
                 _TaskInfoBlock(
                   icon: LucideIcons.alignLeft,
@@ -1427,7 +1440,7 @@ class _TaskDetailSheetState extends ConsumerState<_TaskDetailSheet> {
                         icon: LucideIcons.checkCircle2,
                         label: 'Hoàn thành lúc',
                         value: task.completedAt == null
-                            ? 'Chưa có dữ liệu'
+                            ? 'Đang thực hiện'
                             : Dates.hm(task.completedAt!),
                       ),
                     ),
@@ -2887,6 +2900,7 @@ class _TodayTask {
     required this.tag,
     this.projectName,
     this.userName,
+    this.partnerName,
     this.dateAssign,
     this.tags = const <String>[],
     this.tagHexColors = const <String, String>{},
@@ -2910,6 +2924,7 @@ class _TodayTask {
   final String tag;
   final String? projectName;
   final String? userName;
+  final String? partnerName;
   final DateTime? dateAssign;
   final List<String> tags;
 
@@ -2972,14 +2987,14 @@ class _TimerSaveResult {
 }
 
 String _formatTaskDuration(Duration duration) {
-  if (duration == Duration.zero) return 'Chưa có dữ liệu';
+  if (duration == Duration.zero) return 'Chưa log (0h)';
   return _formatDuration(duration);
 }
 
 String _formatHours(double? hours) {
-  if (hours == null) return 'Chưa có dữ liệu';
+  if (hours == null || hours <= 0) return '0 giờ';
   final minutes = (hours * 60).round();
-  if (minutes <= 0) return '0 phút';
+  if (minutes <= 0) return '0 giờ';
   return _formatMinutes(minutes);
 }
 
