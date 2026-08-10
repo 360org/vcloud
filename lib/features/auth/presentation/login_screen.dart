@@ -231,34 +231,27 @@ class _BrandLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          width: 230,
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.midnight.withValues(alpha: 0.16),
-                blurRadius: 24,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: const BrandLogo(height: 66),
+    return Center(
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 320),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.midnight.withValues(alpha: 0.16),
+              blurRadius: 20,
+              offset: const Offset(0, 6),
+            ),
+          ],
         ),
-        const SizedBox(height: 14),
-        Text(
-          'Vua hệ thống',
-          style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.92),
-            fontSize: 22,
-            fontWeight: FontWeight.w800,
-          ),
+        child: const Center(
+          child: BrandLogo(height: 120),
         ),
-      ],
+      ),
     );
   }
 }
+
+

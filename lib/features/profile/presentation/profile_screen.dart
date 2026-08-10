@@ -117,9 +117,9 @@ class _ProfileTopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Padding(
-      padding: EdgeInsets.symmetric(vertical: 6),
+      padding: EdgeInsets.symmetric(vertical: 12),
       child: Center(
-        child: BrandLogo(height: 48),
+        child: BrandLogo(height: 90),
       ),
     );
   }

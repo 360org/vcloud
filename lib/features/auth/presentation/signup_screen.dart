@@ -92,23 +92,23 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                   const SizedBox(height: 8),
                   Center(
                     child: Container(
-                      width: 220,
+                      constraints: const BoxConstraints(maxWidth: 300),
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 18,
-                        vertical: 12,
+                        horizontal: 16,
+                        vertical: 10,
                       ),
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(22),
+                        borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
                             color: AppColors.midnight.withValues(alpha: 0.16),
-                            blurRadius: 22,
-                            offset: const Offset(0, 8),
+                            blurRadius: 20,
+                            offset: const Offset(0, 6),
                           ),
                         ],
                       ),
-                      child: const BrandLogo(height: 58),
+                      child: const Center(child: BrandLogo(height: 80)),
                     ),
                   ),
                   const SizedBox(height: 22),
