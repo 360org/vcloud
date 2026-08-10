@@ -7,11 +7,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
+import '../../../core/error/failure.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/models/attendance.dart';
 import '../../../shared/widgets/app_scaffold.dart';
 import '../../../shared/widgets/ui_kit.dart';
 import '../../auth/application/auth_controller.dart';
+import '../../../shared/widgets/location_prompt_dialog.dart';
 import '../application/attendance_controller.dart';
 import 'widgets/checkout_dialog.dart';
 
@@ -142,7 +144,11 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
       checkIn ? await a.checkIn() : await a.checkOut();
     } catch (e, stackTrace) {
       if (mounted) {
-        await _showErrorDialog(e, stackTrace);
+        if (isLocationError(e)) {
+          await showLocationPromptDialog(context, message: e is Failure ? e.message : e.toString());
+        } else {
+          await _showErrorDialog(e, stackTrace);
+        }
       }
     } finally {
       if (mounted) setState(() => _busy = false);

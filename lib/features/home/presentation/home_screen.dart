@@ -13,6 +13,7 @@ import '../../../shared/models/task.dart';
 import '../../../shared/models/timesheet.dart';
 import '../../../shared/widgets/app_scaffold.dart';
 import '../../../shared/widgets/ui_kit.dart';
+import '../../../shared/widgets/location_prompt_dialog.dart';
 import '../../attendance/application/attendance_controller.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../chat/application/conversations_controller.dart';
@@ -40,7 +41,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Lỗi Check-in (Chấm công)'),
+        title: const Text('Lỗi Chấm công'),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -93,7 +94,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ref.invalidate(mobileDashboardSummaryProvider);
     } catch (e, stackTrace) {
       if (mounted) {
-        await _showErrorDialog(e, stackTrace);
+        if (isLocationError(e)) {
+          await showLocationPromptDialog(context, message: e is Failure ? e.message : e.toString());
+        } else {
+          await _showErrorDialog(e, stackTrace);
+        }
       }
     } finally {
       if (mounted) setState(() => _statusBusy = false);
@@ -814,65 +819,68 @@ class _MetricPill extends StatelessWidget {
                 size: 92,
               ),
             ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.18),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.2),
+            ClipRect(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.2),
+                          ),
                         ),
+                        child: Icon(icon, color: Colors.white, size: 20),
                       ),
-                      child: Icon(icon, color: Colors.white, size: 20),
+                      const Spacer(),
+                      const Icon(
+                        LucideIcons.chevronRight,
+                        color: Colors.white70,
+                        size: 18,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    value,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                      height: 1,
                     ),
-                    const Spacer(),
-                    const Icon(
-                      LucideIcons.chevronRight,
-                      color: Colors.white70,
-                      size: 18,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                      height: 1.1,
                     ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900,
-                    height: 1,
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w900,
+                  Text(
+                    caption,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.78),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      height: 1.1,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  caption,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.78),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),
