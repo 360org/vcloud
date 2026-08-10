@@ -79,11 +79,25 @@ class AuthRepository {
         ?.toString();
     final name = _stringOrNull(profile?['name']);
     final login = _stringOrNull(profile?['login']) ?? session.login;
+    final companyName = _stringOrNull(profile?['company_name']);
+    var function = _stringOrNull(profile?['job_title'] ?? profile?['function']);
+
+    if ((function == null || function.isEmpty) && partnerId != null) {
+      try {
+        final contactRes = await _client.get('/api/v1/mobile/contacts/$partnerId');
+        if (contactRes is Map) {
+          function = _stringOrNull(contactRes['function']);
+        }
+      } catch (_) {}
+    }
+
     final metadata = <String, dynamic>{
       'display_name': name ?? login.split('@').first,
       'db': session.db,
     };
     if (partnerId != null) metadata['partner_id'] = partnerId;
+    if (companyName != null) metadata['company'] = companyName;
+    if (function != null && function.isNotEmpty) metadata['role'] = function;
 
     // Check local storage for persistent custom avatar
     final localAvatar = await getLocalAvatar(session.uid.toString());

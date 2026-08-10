@@ -23,8 +23,8 @@ class ProfileScreen extends ConsumerWidget {
     final displayName = name?.isNotEmpty == true
         ? name!
         : (user?.email?.split('@').first ?? 'Người dùng');
-    final role = (meta?['role'] as String?) ?? 'Nhân viên triển khai';
-    final company = (meta?['company'] as String?) ?? '360 CORP';
+    final role = (meta?['role'] as String?) ?? (meta?['function'] as String?) ?? 'AI Full Stack Engineer (Agentic AI Platform)';
+    final company = (meta?['company'] as String?) ?? (meta?['company_name'] as String?) ?? '360 CORP';
     final rawAvatar = meta?['avatar_url'] ??
         meta?['avatar_128_url'] ??
         meta?['image_128_url'] ??

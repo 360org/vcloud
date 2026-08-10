@@ -372,11 +372,27 @@ class UserAvatar extends StatelessWidget {
       );
     }
 
-    final networkUrl = _networkAvatarUrl(value);
+    var networkUrl = _networkAvatarUrl(value);
     if (networkUrl == null) return fallback;
+
+    final token = odooApiClient.session?.accessToken;
+
+    if (networkUrl.contains('/web/image/')) {
+      final baseUrl = networkUrl.split('/web/image/')[0];
+      final userMatch = RegExp(r'/web/image/res\.users/(\d+)').firstMatch(networkUrl);
+      final id = userMatch?.group(1) ?? (userId.isNotEmpty ? userId : null);
+      if (id != null) {
+        networkUrl = '$baseUrl/api/v1/mobile/avatar/users/$id';
+      }
+    }
+
+    if (token != null && token.isNotEmpty && !networkUrl.contains('token=')) {
+      final separator = networkUrl.contains('?') ? '&' : '?';
+      networkUrl = '$networkUrl${separator}token=$token';
+    }
+
     return Image.network(
       networkUrl,
-      headers: _authHeaders(),
       fit: BoxFit.cover,
       gaplessPlayback: true,
       errorBuilder: (_, _, _) => fallback,
