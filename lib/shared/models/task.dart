@@ -26,6 +26,8 @@ class Task {
     this.description,
     this.projectId,
     this.projectName,
+    this.userName,
+    this.dateAssign,
     this.tags = const <String>[],
     this.tagHexColors = const <String, String>{},
     this.allocatedHours,
@@ -43,10 +45,9 @@ class Task {
   final String? description;
   final String? projectId;
   final String? projectName;
+  final String? userName;
+  final DateTime? dateAssign;
   final List<String> tags;
-  /// Tag name → 6-char hex colour (e.g. `F06050`) sourced from the
-  /// `helpdesk.tag.color` field. Empty when the catalog hasn't loaded or
-  /// the tag has no colour defined.
   final Map<String, String> tagHexColors;
   final double? allocatedHours;
   final double? spentHours;
@@ -64,12 +65,16 @@ class Task {
   bool get isCompleted => completedAt != null;
 
   factory Task.fromMap(Map<String, dynamic> map) => Task(
-    id: map['id'] as String,
-    userId: map['user_id'] as String,
-    title: map['title'] as String,
+    id: map['id'].toString(),
+    userId: (map['user_id'] ?? '').toString(),
+    title: (map['title'] ?? map['name'] ?? 'Task').toString(),
     description: cleanHtmlText(map['description']),
-    projectId: map['project_id'] as String?,
-    projectName: map['project_name'] as String?,
+    projectId: map['project_id']?.toString(),
+    projectName: map['project_name']?.toString(),
+    userName: map['user_name']?.toString(),
+    dateAssign: map['date_assign'] == null || map['date_assign'] == false
+        ? null
+        : DateTime.tryParse(map['date_assign'].toString()),
     tags: (map['tags'] as List? ?? const <Object?>[])
         .map((tag) => tag.toString())
         .where((tag) => tag.isNotEmpty)
@@ -80,14 +85,20 @@ class Task {
     remainingHours: (map['remaining_hours'] as num?)?.toDouble(),
     stageName: map['stage_name'] as String?,
     state: map['state'] as String?,
-    category: TimesheetCategoryDb.fromDb(map['category'] as String),
-    dueDate: DateTime.parse(map['due_date'] as String),
-    completedAt: map['completed_at'] == null
+    category: TimesheetCategoryDb.fromDb(map['category'] as String? ?? 'other'),
+    dueDate: map['due_date'] == null
+        ? DateTime.now()
+        : DateTime.tryParse(map['due_date'].toString()) ?? DateTime.now(),
+    completedAt: map['completed_at'] == null || map['completed_at'] == false
         ? null
-        : DateTime.parse(map['completed_at'] as String),
-    timesheetId: map['timesheet_id'] as String?,
-    createdAt: DateTime.parse(map['created_at'] as String),
-    updatedAt: DateTime.parse(map['updated_at'] as String),
+        : DateTime.tryParse(map['completed_at'].toString()),
+    timesheetId: map['timesheet_id']?.toString(),
+    createdAt: map['created_at'] == null
+        ? DateTime.now()
+        : DateTime.tryParse(map['created_at'].toString()) ?? DateTime.now(),
+    updatedAt: map['updated_at'] == null
+        ? DateTime.now()
+        : DateTime.tryParse(map['updated_at'].toString()) ?? DateTime.now(),
   );
 
   static Map<String, String> _parseHexColors(Object? raw) {

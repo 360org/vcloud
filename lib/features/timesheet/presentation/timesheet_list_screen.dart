@@ -283,6 +283,8 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
       description: task.description,
       tag: task.category.label,
       projectName: task.projectName,
+      userName: task.userName,
+      dateAssign: task.dateAssign,
       tags: task.tags,
       tagHexColors: task.tagHexColors,
       allocatedHours: task.allocatedHours,
@@ -1366,6 +1368,22 @@ class _TaskDetailSheetState extends ConsumerState<_TaskDetailSheet> {
                     icon: LucideIcons.folderKanban,
                     label: 'Project',
                     value: task.projectName!,
+                  ),
+                ],
+                if (task.userName != null && task.userName!.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  _TaskInfoBlock(
+                    icon: LucideIcons.user,
+                    label: 'Người thực hiện',
+                    value: task.userName!,
+                  ),
+                ],
+                if (task.dateAssign != null) ...[
+                  const SizedBox(height: 14),
+                  _TaskInfoBlock(
+                    icon: LucideIcons.calendar,
+                    label: 'Ngày phân công',
+                    value: Dates.isoDate(task.dateAssign!),
                   ),
                 ],
                 const SizedBox(height: 14),
@@ -2868,6 +2886,8 @@ class _TodayTask {
     this.description,
     required this.tag,
     this.projectName,
+    this.userName,
+    this.dateAssign,
     this.tags = const <String>[],
     this.tagHexColors = const <String, String>{},
     this.allocatedHours,
@@ -2889,10 +2909,10 @@ class _TodayTask {
   final String? description;
   final String tag;
   final String? projectName;
+  final String? userName;
+  final DateTime? dateAssign;
   final List<String> tags;
 
-  /// Resolved tag name → 6-char hex colour (from `helpdesk.tag.color`).
-  /// Tags with no entry fall back to a neutral pill colour in the UI.
   final Map<String, String> tagHexColors;
   final double? allocatedHours;
   final double? spentHours;
