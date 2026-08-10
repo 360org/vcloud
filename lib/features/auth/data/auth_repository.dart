@@ -102,7 +102,16 @@ class AuthRepository {
     // Check local storage for persistent custom avatar
     final localAvatar = await getLocalAvatar(session.uid.toString());
 
-    final avatar = (localAvatar != null && localAvatar.isNotEmpty)
+    final isValidLocal = localAvatar != null &&
+        localAvatar.trim().isNotEmpty &&
+        localAvatar != 'false' &&
+        localAvatar != 'null' &&
+        (localAvatar.startsWith('data:image') ||
+            localAvatar.startsWith('http://') ||
+            localAvatar.startsWith('https://') ||
+            localAvatar.startsWith('/'));
+
+    final avatar = isValidLocal
         ? localAvatar
         : (_stringOrNull(
             profile?['avatar_url'] ??
