@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +11,7 @@ import 'package:lucide_flutter/lucide_flutter.dart';
 import '../../core/api/odoo_api_client.dart';
 import '../../core/theme/app_theme.dart';
 import '../../features/chat/application/conversations_controller.dart';
+import 'html_network_image.dart';
 import 'ui_kit.dart';
 
 /// Standard scaffold for top-level tabs (Home/Chat/...). Draws the
@@ -374,6 +376,14 @@ class UserAvatar extends StatelessWidget {
 
     final networkUrl = _networkAvatarUrl(value);
     if (networkUrl == null) return fallback;
+
+    if (kIsWeb) {
+      final htmlWidget = buildHtmlNetworkImage(
+        url: networkUrl,
+        fit: BoxFit.cover,
+      );
+      if (htmlWidget != null) return htmlWidget;
+    }
 
     return Image.network(
       networkUrl,
