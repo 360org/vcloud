@@ -372,15 +372,8 @@ class UserAvatar extends StatelessWidget {
       );
     }
 
-    var networkUrl = _networkAvatarUrl(value);
+    final networkUrl = _networkAvatarUrl(value);
     if (networkUrl == null) return fallback;
-
-    final token = odooApiClient.session?.accessToken;
-
-    if (token != null && token.isNotEmpty && !networkUrl.contains('token=')) {
-      final separator = networkUrl.contains('?') ? '&' : '?';
-      networkUrl = '$networkUrl${separator}token=$token';
-    }
 
     return Image.network(
       networkUrl,
