@@ -1159,6 +1159,8 @@ class _TaskDetailSheetState extends ConsumerState<_TaskDetailSheet> {
   late _TaskWorkflowStatus _status;
   late TimesheetDuration _duration;
   bool _saving = false;
+  bool _noteError = false;
+  String? _validationError;
   _TodayTask? _detailedTask;
 
   _TodayTask get task => _detailedTask ?? widget.task;
@@ -1221,12 +1223,24 @@ class _TaskDetailSheetState extends ConsumerState<_TaskDetailSheet> {
   Future<void> _saveComplete() async {
     final note = _noteController.text.trim();
     if (note.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng nhập nội dung đã làm.')),
+      HapticFeedback.mediumImpact();
+      setState(() {
+        _noteError = true;
+        _validationError =
+            'Vui lòng nhập nội dung công việc đã làm trước khi lưu.';
+      });
+      showTopNotification(
+        context,
+        message: 'Vui lòng nhập nội dung công việc đã làm.',
+        isError: true,
       );
       return;
     }
-    setState(() => _saving = true);
+    setState(() {
+      _noteError = false;
+      _validationError = null;
+      _saving = true;
+    });
     try {
       final result = _TaskLogResult(note: note, duration: _duration.duration);
       if (task.done) {
@@ -1512,6 +1526,8 @@ class _TaskDetailSheetState extends ConsumerState<_TaskDetailSheet> {
                   noteController: _noteController,
                   duration: _duration,
                   saving: _saving,
+                  hasError: _noteError,
+                  errorMessage: _validationError,
                   onDurationChanged: _saving
                       ? null
                       : (duration) {

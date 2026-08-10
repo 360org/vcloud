@@ -19,6 +19,8 @@ class TaskChecklistEditor extends StatefulWidget {
     this.saveLabel = 'Lưu & đánh dấu hoàn thành',
     this.noteLabelText = 'Nội dung công việc đã làm',
     this.noteHintText = 'Ghi ngắn gọn kết quả, phần đã xử lý...',
+    this.hasError = false,
+    this.errorMessage,
   });
 
   final TextEditingController noteController;
@@ -30,6 +32,8 @@ class TaskChecklistEditor extends StatefulWidget {
   final String saveLabel;
   final String noteLabelText;
   final String noteHintText;
+  final bool hasError;
+  final String? errorMessage;
 
   @override
   State<TaskChecklistEditor> createState() => _TaskChecklistEditorState();
@@ -128,13 +132,58 @@ class _TaskChecklistEditorState extends State<TaskChecklistEditor> {
             ],
           ),
           const SizedBox(height: 12),
-          TextField(
-            controller: widget.noteController,
-            minLines: 3,
-            maxLines: 5,
-            decoration: InputDecoration(
-              labelText: widget.noteLabelText,
-              hintText: widget.noteHintText,
+          if (widget.errorMessage != null &&
+              widget.errorMessage!.isNotEmpty) ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF0F2),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: AppColors.danger.withValues(alpha: 0.4),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    LucideIcons.triangleAlert,
+                    color: AppColors.danger,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      widget.errorMessage!,
+                      style: const TextStyle(
+                        color: AppColors.danger,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: widget.hasError ? AppColors.danger : Colors.transparent,
+                width: widget.hasError ? 1.5 : 0,
+              ),
+            ),
+            child: TextField(
+              controller: widget.noteController,
+              minLines: 3,
+              maxLines: 5,
+              decoration: InputDecoration(
+                labelText: widget.noteLabelText,
+                hintText: widget.noteHintText,
+                fillColor: widget.hasError ? const Color(0xFFFFF5F5) : null,
+              ),
             ),
           ),
           const SizedBox(height: 12),
