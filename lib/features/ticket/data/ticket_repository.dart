@@ -16,6 +16,7 @@ class TicketRepository {
            MobileAttachmentRepository(client: client ?? odooApiClient);
 
   static const _ticketBasePath = '/api/v1/mobile/ticket';
+  static final Map<String, String> _descriptionCache = <String, String>{};
 
   final OdooApiClient _client;
   final MobileAttachmentRepository _attachmentRepository;
@@ -26,8 +27,29 @@ class TicketRepository {
     Future<void> refresh() async {
       try {
         final res = await _client.get('$_ticketBasePath/list');
-        final list = (res as List)
-            .cast<Map<String, dynamic>>()
+        final rawList = (res as List).cast<Map<String, dynamic>>();
+
+        await Future.wait(
+          rawList.map((map) async {
+            final id = map['id'].toString();
+            final desc = _cleanOptionalText(map['description']);
+            if (desc != null && desc.isNotEmpty) {
+              _descriptionCache[id] = desc;
+            } else if (!_descriptionCache.containsKey(id)) {
+              try {
+                final detail = await _client.get('$_ticketBasePath/$id');
+                if (detail is Map) {
+                  final cleaned = _cleanOptionalText(detail['description']);
+                  if (cleaned != null && cleaned.isNotEmpty) {
+                    _descriptionCache[id] = cleaned;
+                  }
+                }
+              } catch (_) {}
+            }
+          }),
+        );
+
+        final list = rawList
             .map(_ticketFromOdoo)
             .map(Ticket.fromMap)
             .toList();
@@ -150,11 +172,16 @@ class TicketRepository {
 
     final assignedTo = _many2OneId(map['user_id']) ?? '';
     final hasAssignee = assignedTo.isNotEmpty;
+    final idStr = map['id'].toString();
+    var desc = _cleanOptionalText(map['description']);
+    if ((desc == null || desc.isEmpty) && _descriptionCache.containsKey(idStr)) {
+      desc = _descriptionCache[idStr];
+    }
 
     return <String, dynamic>{
-      'id': map['id'].toString(),
+      'id': idStr,
       'title': _ticketTitle(map),
-      'description': _cleanOptionalText(map['description']),
+      'description': desc,
       'status': isDone
           ? TicketStatus.done.dbValue
           : (hasAssignee ? TicketStatus.doing.dbValue : TicketStatus.todo.dbValue),
