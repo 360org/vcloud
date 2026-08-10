@@ -52,17 +52,28 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
   final _input = TextEditingController();
   final _scroll = ScrollController();
   bool _sending = false;
+  bool _showScrollToBottom = false;
 
   @override
   void initState() {
     super.initState();
+    _scroll.addListener(_onScrollChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(markAsReadActionProvider).markAsRead(widget.conversationId);
     });
   }
 
+  void _onScrollChanged() {
+    if (!_scroll.hasClients) return;
+    final isScrolledUp = _scroll.position.pixels > 160;
+    if (isScrolledUp != _showScrollToBottom) {
+      setState(() => _showScrollToBottom = isScrolledUp);
+    }
+  }
+
   @override
   void dispose() {
+    _scroll.removeListener(_onScrollChanged);
     _input.dispose();
     _scroll.dispose();
     super.dispose();
@@ -133,6 +144,33 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
     final myId = currentUser?.id ?? '';
     final myIdentityIds = _myIdentityIds(currentUser);
     final messages = ref.watch(messagesProvider(widget.conversationId));
+
+    ref.listen<AsyncValue<List<Message>>>(
+      messagesProvider(widget.conversationId),
+      (previous, next) {
+        final prevList = previous?.valueOrNull ?? const [];
+        final nextList = next.valueOrNull ?? const [];
+
+        // 1. Initial load for conversation
+        if (prevList.isEmpty && nextList.isNotEmpty) {
+          _scrollToBottom();
+          return;
+        }
+
+        // 2. New message added
+        if (nextList.length > prevList.length) {
+          final newestMsg = nextList.last;
+          final mine = _isMine(newestMsg, currentUser, myIdentityIds);
+          final isNearBottom =
+              !_scroll.hasClients || _scroll.position.pixels < 120;
+
+          if (mine || isNearBottom) {
+            _scrollToBottom();
+          }
+        }
+      },
+    );
+
     final details = ref.watch(
       conversationDetailsProvider(widget.conversationId),
     );
@@ -179,9 +217,6 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
                       if (list.isEmpty) {
                         return const _EmptyConversation();
                       }
-                      WidgetsBinding.instance.addPostFrameCallback(
-                        (_) => _scrollToBottom(),
-                      );
                       final lastReadOwnMessageId = _lastReadOwnMessageId(
                         list,
                         currentUser,
@@ -268,6 +303,42 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
               ],
             ),
           ),
+          if (_showScrollToBottom)
+            Positioned(
+              bottom: 76,
+              right: 16,
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 180),
+                opacity: _showScrollToBottom ? 1.0 : 0.0,
+                child: PressableScale(
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    _scrollToBottom();
+                  },
+                  child: Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.12),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: const Icon(
+                      LucideIcons.chevronDown,
+                      color: AppColors.primary,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
