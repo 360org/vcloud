@@ -144,6 +144,27 @@ class TaskRepository {
     );
   }
 
+  Future<Task> getTaskDetail(String taskId) async {
+    try {
+      final res = await _client.get('/api/v1/mobile/project/task/$taskId');
+      if (res is Map) {
+        return Task.fromMap(
+          _taskFromOdoo(Map<String, dynamic>.from(res), DateTime.now()),
+        );
+      }
+    } catch (_) {
+      try {
+        final res = await _client.get('/api/v1/project.task/$taskId');
+        if (res is Map) {
+          return Task.fromMap(
+            _taskFromOdoo(Map<String, dynamic>.from(res), DateTime.now()),
+          );
+        }
+      } catch (_) {}
+    }
+    throw Failure('Không thể nạp chi tiết task $taskId');
+  }
+
   Future<void> delete(String id) async {
     await _client.delete('/api/v1/project.task/$id');
   }

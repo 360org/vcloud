@@ -1127,7 +1127,7 @@ class _TaskTile extends StatelessWidget {
   }
 }
 
-class _TaskDetailSheet extends StatefulWidget {
+class _TaskDetailSheet extends ConsumerStatefulWidget {
   const _TaskDetailSheet({
     required this.task,
     required this.onComplete,
@@ -1140,35 +1140,25 @@ class _TaskDetailSheet extends StatefulWidget {
 
   final _TodayTask task;
 
-  /// Save path used when the user transitions an **open** task to
-  /// `Hoàn thành`: writes a fresh timesheet entry AND flips the task
-  /// to state `1_done`.
   final Future<void> Function(_TaskLogResult result) onComplete;
-
-  /// Save path used for **already-completed** tasks: PUTs the existing
-  /// timesheet entry in place with the new time + note.
   final Future<void> Function(_TaskLogResult result) onUpdate;
-
-  /// Save path used when the user wants to log work on a task that's
-  /// still in progress. Writes a fresh timesheet row but leaves the
-  /// task workflow status alone.
   final Future<void> Function(_TaskLogResult result) onLogTime;
-
   final Future<void> Function(_TaskWorkflowStatus status) onStatusChange;
   final Future<_TaskWorkflowStatus?> Function() onStatusPicker;
   final _TaskWorkflowStatus? initialStatus;
 
   @override
-  State<_TaskDetailSheet> createState() => _TaskDetailSheetState();
+  ConsumerState<_TaskDetailSheet> createState() => _TaskDetailSheetState();
 }
 
-class _TaskDetailSheetState extends State<_TaskDetailSheet> {
+class _TaskDetailSheetState extends ConsumerState<_TaskDetailSheet> {
   late final TextEditingController _noteController;
   late _TaskWorkflowStatus _status;
   late TimesheetDuration _duration;
   bool _saving = false;
+  _TodayTask? _detailedTask;
 
-  _TodayTask get task => widget.task;
+  _TodayTask get task => _detailedTask ?? widget.task;
 
   @override
   void initState() {
@@ -1178,6 +1168,39 @@ class _TaskDetailSheetState extends State<_TaskDetailSheet> {
     _duration = durationBucketForElapsed(
       task.logged == Duration.zero ? const Duration(minutes: 30) : task.logged,
     );
+    _loadTaskDetail();
+  }
+
+  Future<void> _loadTaskDetail() async {
+    try {
+      final repo = ref.read(taskRepositoryProvider);
+      final fullTask = await repo.getTaskDetail(widget.task.id);
+      if (mounted) {
+        setState(() {
+          _detailedTask = _TodayTask(
+            id: fullTask.id,
+            title: fullTask.title,
+            description: fullTask.description,
+            tag: fullTask.category.label,
+            projectName: fullTask.projectName ?? widget.task.projectName,
+            tags: fullTask.tags.isNotEmpty ? fullTask.tags : widget.task.tags,
+            tagHexColors: fullTask.tagHexColors.isNotEmpty ? fullTask.tagHexColors : widget.task.tagHexColors,
+            allocatedHours: fullTask.allocatedHours ?? widget.task.allocatedHours,
+            spentHours: fullTask.spentHours ?? widget.task.spentHours,
+            remainingHours: fullTask.remainingHours ?? widget.task.remainingHours,
+            stageName: fullTask.stageName ?? widget.task.stageName,
+            state: fullTask.state ?? widget.task.state,
+            workflowStatus: widget.task.workflowStatus,
+            accent: widget.task.accent,
+            icon: widget.task.icon,
+            done: widget.task.done,
+            logged: widget.task.logged,
+            note: widget.task.note,
+            completedAt: fullTask.completedAt ?? widget.task.completedAt,
+          );
+        });
+      }
+    } catch (_) {}
   }
 
   @override
