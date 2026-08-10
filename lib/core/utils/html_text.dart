@@ -1,8 +1,8 @@
 String cleanHtmlText(Object? value) {
   if (value == null || value == false) return '';
 
-  final text = value.toString();
-  if (text.isEmpty) return '';
+  final text = value.toString().trim();
+  if (text.isEmpty || text == 'False' || text == 'false') return '';
 
   // Decode html entities first so &lt;br&gt; becomes <br> before stripping/replacing
   final decodedFirst = _decodeHtmlEntities(text);

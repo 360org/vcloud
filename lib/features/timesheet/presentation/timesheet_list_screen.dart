@@ -1183,7 +1183,10 @@ class _TaskDetailSheetState extends ConsumerState<_TaskDetailSheet> {
           _detailedTask = _TodayTask(
             id: fullTask.id,
             title: fullTask.title,
-            description: fullTask.description,
+            description: (fullTask.description != null &&
+                    fullTask.description!.trim().isNotEmpty)
+                ? fullTask.description
+                : widget.task.description,
             tag: fullTask.category.label,
             projectName: fullTask.projectName ?? widget.task.projectName,
             userName: fullTask.userName ?? widget.task.userName,
