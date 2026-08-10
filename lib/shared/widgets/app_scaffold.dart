@@ -458,9 +458,17 @@ class _AvatarNetworkImageState extends State<_AvatarNetworkImage> {
     }
 
     try {
+      final session = odooApiClient.session;
+      final headers = <String, String>{
+        'User-Agent': 'Mozilla/5.0',
+      };
+      if (session != null && session.accessToken.isNotEmpty) {
+        headers['Authorization'] = 'Bearer ${session.accessToken}';
+      }
+
       final res = await http.get(
         Uri.parse(widget.url),
-        headers: const {'User-Agent': 'Mozilla/5.0'},
+        headers: headers,
       );
       if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
         final cd = (res.headers['content-disposition'] ?? '').toLowerCase();
