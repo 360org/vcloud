@@ -413,11 +413,6 @@ class UserAvatar extends StatelessWidget {
     return _safeMemoryImage(value.substring(comma + 1));
   }
 
-  Map<String, String>? _authHeaders() {
-    final token = odooApiClient.session?.accessToken;
-    if (token == null || token.isEmpty) return null;
-    return <String, String>{'Authorization': 'Bearer $token'};
-  }
 
   String? _networkAvatarUrl(String value) {
     if (value.startsWith('http://') || value.startsWith('https://')) {
