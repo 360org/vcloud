@@ -47,7 +47,14 @@ workflows:
         script: |
           VCLOUD_ODOO_API_BASE_URL="${VCLOUD_ODOO_API_BASE_URL:-https://vuahethong.net}"
           BUILD_NAME=$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d+ -f1)
-          BUILD_NUMBER=$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d+ -f2)
+          PUBSPEC_BUILD=$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d+ -f2)
+          
+          # Auto-calculate build number from Codemagic build index or fallback to pubspec
+          BUILD_NUMBER="${BUILD_NUMBER:-$PROJECT_BUILD_NUMBER}"
+          if [ -z "$BUILD_NUMBER" ]; then
+            BUILD_NUMBER="$PUBSPEC_BUILD"
+          fi
+          echo "Building IPA for Version: $BUILD_NAME, Build Number: $BUILD_NUMBER"
           
           EXPORT_PLIST=$(find /Users/builder /tmp $HOME . -name "export_options.plist" 2>/dev/null | head -n 1)
           if [ -n "$EXPORT_PLIST" ]; then
