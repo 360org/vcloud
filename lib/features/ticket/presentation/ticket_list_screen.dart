@@ -359,7 +359,8 @@ class _TicketCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final desc = ticket.description?.trim();
+    final rawDesc = cleanHtmlText(ticket.description);
+    final desc = rawDesc.isNotEmpty ? rawDesc : null;
     final isOverdue = ticket.isOverdue;
     final color = done
         ? AppColors.success
