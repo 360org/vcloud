@@ -12,10 +12,10 @@ final appVersionProvider = FutureProvider<String>((ref) async {
   try {
     final info = await PackageInfo.fromPlatform();
     final version = info.version.isNotEmpty ? info.version : '2.4.0';
-    final build = info.buildNumber.isNotEmpty ? info.buildNumber : '34';
+    final build = info.buildNumber.isNotEmpty ? info.buildNumber : '39';
     return 'v$version+$build';
   } catch (_) {
-    return 'v2.4.0+34';
+    return 'v2.4.0+39';
   }
 });
 
