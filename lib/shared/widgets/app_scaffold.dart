@@ -463,6 +463,14 @@ class _AvatarNetworkImageState extends State<_AvatarNetworkImage> {
         headers: const {'User-Agent': 'Mozilla/5.0'},
       );
       if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
+        final cd = (res.headers['content-disposition'] ?? '').toLowerCase();
+        final isPlaceholder = cd.contains('placeholder.png') ||
+            res.bodyBytes.length == 6314 ||
+            res.bodyBytes.length == 6078;
+        if (isPlaceholder) {
+          if (mounted) setState(() => _hasError = true);
+          return;
+        }
         _avatarBytesCache[widget.url] = res.bodyBytes;
         if (mounted) {
           setState(() {
