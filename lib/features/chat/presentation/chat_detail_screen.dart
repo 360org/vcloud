@@ -908,7 +908,12 @@ class _HeaderAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (conversation?.isGroup == true) {
+    final avatar =
+        (fallbackAvatarUrl != null && fallbackAvatarUrl!.trim().isNotEmpty)
+            ? fallbackAvatarUrl
+            : other?.avatarUrl;
+    if (conversation?.isGroup == true &&
+        (avatar == null || avatar.trim().isEmpty)) {
       return Container(
         width: 34,
         height: 34,
@@ -923,7 +928,7 @@ class _HeaderAvatar extends StatelessWidget {
       userId: other?.id ?? title,
       displayName: other?.displayName ?? title,
       email: other?.email,
-      avatarUrl: other?.avatarUrl ?? fallbackAvatarUrl,
+      avatarUrl: avatar,
       size: 34,
     );
   }

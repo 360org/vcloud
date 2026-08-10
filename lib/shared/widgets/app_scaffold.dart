@@ -377,11 +377,11 @@ class UserAvatar extends StatelessWidget {
 
     final token = odooApiClient.session?.accessToken;
 
-    if (networkUrl.contains('/web/image/')) {
+    if (networkUrl.contains('/web/image/res.users/')) {
       final baseUrl = networkUrl.split('/web/image/')[0];
       final userMatch = RegExp(r'/web/image/res\.users/(\d+)').firstMatch(networkUrl);
-      final id = userMatch?.group(1) ?? (userId.isNotEmpty ? userId : null);
-      if (id != null) {
+      if (userMatch != null) {
+        final id = userMatch.group(1)!;
         networkUrl = '$baseUrl/api/v1/mobile/avatar/users/$id';
       }
     }
