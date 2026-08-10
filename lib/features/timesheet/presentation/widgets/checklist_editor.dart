@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
 import '../../../../core/theme/app_theme.dart';
@@ -203,51 +204,91 @@ class _TaskChecklistEditorState extends State<TaskChecklistEditor> {
               PressableScale(
                 onTap: (widget.onDurationChanged == null || widget.saving)
                     ? null
-                    : () => _updateMinutes(_minutes - 15 < 5 ? 5 : _minutes - 15),
-                child: Container(
+                    : () {
+                        HapticFeedback.lightImpact();
+                        _updateMinutes(_minutes - 15 < 5 ? 5 : _minutes - 15);
+                      },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: AppColors.border),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.04),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
-                  child: const Icon(LucideIcons.minus, size: 20, color: AppColors.textPrimary),
+                  child: const Icon(
+                    LucideIcons.minus,
+                    size: 20,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: Container(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
                   height: 44,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.success),
+                    border: Border.all(
+                      color: AppColors.success,
+                      width: 1.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.success.withValues(alpha: 0.12),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(LucideIcons.clock, size: 16, color: AppColors.success),
+                      const Icon(
+                        LucideIcons.clock,
+                        size: 16,
+                        color: AppColors.success,
+                      ),
                       const SizedBox(width: 8),
-                      Expanded(
+                      SizedBox(
+                        width: 48,
                         child: TextField(
                           controller: _minutesController,
                           keyboardType: TextInputType.number,
-                          enabled: widget.onDurationChanged != null && !widget.saving,
+                          textAlign: TextAlign.center,
+                          enabled: widget.onDurationChanged != null &&
+                              !widget.saving,
                           style: const TextStyle(
                             color: AppColors.textPrimary,
-                            fontSize: 15,
+                            fontSize: 16,
                             fontWeight: FontWeight.w900,
                           ),
                           decoration: const InputDecoration(
-                            hintText: 'Nhập phút...',
                             border: InputBorder.none,
-                            contentPadding: EdgeInsets.symmetric(vertical: 10),
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            errorBorder: InputBorder.none,
+                            disabledBorder: InputBorder.none,
+                            filled: false,
+                            fillColor: Colors.transparent,
+                            contentPadding: EdgeInsets.zero,
                             isDense: true,
                           ),
                           onChanged: _onTyped,
                         ),
                       ),
+                      const SizedBox(width: 4),
                       const Text(
                         'phút',
                         style: TextStyle(
@@ -264,16 +305,31 @@ class _TaskChecklistEditorState extends State<TaskChecklistEditor> {
               PressableScale(
                 onTap: (widget.onDurationChanged == null || widget.saving)
                     ? null
-                    : () => _updateMinutes(_minutes + 15),
-                child: Container(
+                    : () {
+                        HapticFeedback.lightImpact();
+                        _updateMinutes(_minutes + 15);
+                      },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: AppColors.border),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.04),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
-                  child: const Icon(LucideIcons.plus, size: 20, color: AppColors.textPrimary),
+                  child: const Icon(
+                    LucideIcons.plus,
+                    size: 20,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
               ),
             ],
@@ -285,26 +341,75 @@ class _TaskChecklistEditorState extends State<TaskChecklistEditor> {
             spacing: 8,
             runSpacing: 8,
             children: [
-              for (final item in TimesheetDuration.values)
-                ChoiceChip(
-                  label: Text(item.label),
-                  selected: _minutes == _durationToMinutes(item),
-                  onSelected: widget.onDurationChanged == null || widget.saving
-                      ? null
-                      : (_) => _updateMinutes(_durationToMinutes(item)),
-                  selectedColor: AppColors.success.withValues(alpha: 0.18),
-                  labelStyle: TextStyle(
-                    color: _minutes == _durationToMinutes(item)
-                        ? AppColors.success
-                        : AppColors.textSecondary,
-                    fontWeight: FontWeight.w800,
-                  ),
-                  side: BorderSide(
-                    color: _minutes == _durationToMinutes(item)
-                        ? AppColors.success
-                        : AppColors.border,
-                  ),
-                ),
+              for (final item in TimesheetDuration.values) ...[
+                () {
+                  final isSelected = _minutes == _durationToMinutes(item);
+                  return PressableScale(
+                    onTap: (widget.onDurationChanged == null || widget.saving)
+                        ? null
+                        : () {
+                            HapticFeedback.selectionClick();
+                            _updateMinutes(_durationToMinutes(item));
+                          },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeOutCubic,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 13,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? AppColors.soft(AppColors.success)
+                            : Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isSelected
+                              ? AppColors.success
+                              : AppColors.border,
+                          width: isSelected ? 1.5 : 1,
+                        ),
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                  color: AppColors.success.withValues(
+                                    alpha: 0.15,
+                                  ),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ]
+                            : const [],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (isSelected) ...[
+                            const Icon(
+                              LucideIcons.check,
+                              size: 14,
+                              color: AppColors.success,
+                            ),
+                            const SizedBox(width: 5),
+                          ],
+                          Text(
+                            item.label,
+                            style: TextStyle(
+                              color: isSelected
+                                  ? AppColors.success
+                                  : AppColors.textSecondary,
+                              fontSize: 13,
+                              fontWeight: isSelected
+                                  ? FontWeight.w900
+                                  : FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }(),
+              ],
             ],
           ),
           const SizedBox(height: 14),
