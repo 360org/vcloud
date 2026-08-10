@@ -6,6 +6,7 @@ import 'package:lucide_flutter/lucide_flutter.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/date_format.dart';
+import '../../../core/utils/html_text.dart';
 import '../../../shared/models/ticket.dart';
 import '../../../shared/widgets/app_scaffold.dart';
 import '../../../shared/widgets/error_view.dart';
