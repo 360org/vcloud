@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
 import 'package:lucide_flutter/lucide_flutter.dart';
 
 import '../../core/api/odoo_api_client.dart';
@@ -377,11 +378,9 @@ class UserAvatar extends StatelessWidget {
     final networkUrl = _networkAvatarUrl(value);
     if (networkUrl == null) return fallback;
 
-    return Image.network(
-      networkUrl,
-      fit: BoxFit.cover,
-      gaplessPlayback: true,
-      errorBuilder: (_, _, _) => fallback,
+    return _AvatarNetworkImage(
+      url: networkUrl,
+      fallback: fallback,
     );
   }
 
@@ -404,16 +403,89 @@ class UserAvatar extends StatelessWidget {
     if (value.startsWith('http://') || value.startsWith('https://')) {
       return value;
     }
-    // Relative URL returned by `/api/v1/mobile/*` endpoints
-    // (e.g. `/web/image/discuss.channel/5/avatar_128/000abc...`).
-    // Resolve via the Odoo API base URL. If a base URL is unknown
-    // (`Env.odooApiBaseUrl` hasn't been bootstrapped), fall back to
-    // initials rather than throwing.
     if (!value.startsWith('/')) return null;
     try {
       return odooApiClient.absoluteUrl(value);
     } on FormatException {
       return null;
     }
+  }
+}
+
+final Map<String, Uint8List> _avatarBytesCache = {};
+
+class _AvatarNetworkImage extends StatefulWidget {
+  const _AvatarNetworkImage({
+    required this.url,
+    required this.fallback,
+  });
+
+  final String url;
+  final Widget fallback;
+
+  @override
+  State<_AvatarNetworkImage> createState() => _AvatarNetworkImageState();
+}
+
+class _AvatarNetworkImageState extends State<_AvatarNetworkImage> {
+  Uint8List? _bytes;
+  bool _hasError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadImage();
+  }
+
+  @override
+  void didUpdateWidget(_AvatarNetworkImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.url != widget.url) {
+      _loadImage();
+    }
+  }
+
+  Future<void> _loadImage() async {
+    final cached = _avatarBytesCache[widget.url];
+    if (cached != null) {
+      if (mounted) {
+        setState(() {
+          _bytes = cached;
+          _hasError = false;
+        });
+      }
+      return;
+    }
+
+    try {
+      final res = await http.get(
+        Uri.parse(widget.url),
+        headers: const {'User-Agent': 'Mozilla/5.0'},
+      );
+      if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
+        _avatarBytesCache[widget.url] = res.bodyBytes;
+        if (mounted) {
+          setState(() {
+            _bytes = res.bodyBytes;
+            _hasError = false;
+          });
+        }
+      } else {
+        if (mounted) setState(() => _hasError = true);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _hasError = true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_hasError || _bytes == null) return widget.fallback;
+    return Image.memory(
+      _bytes!,
+      fit: BoxFit.cover,
+      gaplessPlayback: true,
+      errorBuilder: (_, _, _) => widget.fallback,
+    );
   }
 }
