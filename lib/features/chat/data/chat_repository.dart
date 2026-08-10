@@ -144,9 +144,11 @@ class ChatRepository {
       updatedAt: summary.updatedAt,
       unreadCount: summary.unreadCount,
       archivedAt: summary.archivedAt,
-      avatarUrl: _client.absoluteUrl(
-        '/api/v1/mobile/avatar/channels/${summary.id}',
-      ),
+      avatarUrl: (summary.avatarUrl != null && summary.avatarUrl!.trim().isNotEmpty)
+          ? summary.avatarUrl
+          : _client.absoluteUrl(
+              '/web/image/discuss.channel/${summary.id}/avatar_128',
+            ),
       description: summary.description,
       isEditable: summary.isEditable,
       memberCount: summary.memberCount,
@@ -437,7 +439,7 @@ class ChatRepository {
       email: email,
       displayName: (user['name'] ?? user['display_name'] ?? email).toString(),
       avatarUrl: _client.absoluteUrl(
-        '/api/v1/mobile/avatar/partners/$partnerId',
+        '/web/image/res.partner/$partnerId/avatar_128',
       ),
     );
   }
@@ -528,7 +530,7 @@ class ChatRepository {
           id: id,
           email: '',
           displayName: name,
-          avatarUrl: _client.absoluteUrl('/api/v1/mobile/avatar/partners/$id'),
+          avatarUrl: _client.absoluteUrl('/web/image/res.partner/$id/avatar_128'),
         ),
         joinedAt: fallbackJoinedAt,
       );
@@ -565,7 +567,7 @@ class ChatRepository {
               member['image_128'] ??
               member['image'],
         ) ??
-        _client.absoluteUrl('/api/v1/mobile/avatar/partners/$id');
+        _client.absoluteUrl('/web/image/res.partner/$id/avatar_128');
 
     return ConversationMember(
       profile: Profile(
