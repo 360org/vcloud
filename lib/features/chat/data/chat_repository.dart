@@ -32,17 +32,23 @@ class ChatRepository {
       if (inFlight || controller.isClosed) return;
       inFlight = true;
       try {
+        try {
+          final usersRes = await _client.get('/api/v1/mobile/users/search?limit=300');
+          if (usersRes is List) {
+            for (final u in usersRes.whereType<Map>()) {
+              _client.registerPartnerUserMapping(u['partner_id'], u['id']);
+            }
+          }
+        } catch (_) {}
+
         final res = await _client.get('/api/v1/mobile/chat/channels');
         final fetchedAt = DateTime.now();
-        final summaries = (res as List)
-            .cast<Map<String, dynamic>>()
-            .map((channel) => _summaryFromChannel(channel, fetchedAt))
-            .toList();
-        final list = await Future.wait(
-          summaries.map(
-            (summary) => _withDirectAvatar(summary, currentIdentityIds),
-          ),
-        );
+        final list = (res as List).cast<Map<String, dynamic>>().map(
+          (channel) {
+            final summary = _summaryFromChannel(channel, fetchedAt);
+            return _withDirectAvatar(summary, channel, currentIdentityIds);
+          },
+        ).toList();
         list.sort((a, b) {
           final timeA = a.lastMessage?.createdAt ?? a.updatedAt;
           final timeB = b.lastMessage?.createdAt ?? b.updatedAt;
@@ -69,61 +75,98 @@ class ChatRepository {
     return controller.stream;
   }
 
-  Future<ConversationSummary> _withDirectAvatar(
+  ConversationSummary _withDirectAvatar(
     ConversationSummary summary,
+    Map<String, dynamic> channelMap,
     Set<String> currentIdentityIds,
-  ) async {
-    if (summary.isGroup) return summary;
-    if (summary.avatarUrl != null && summary.avatarUrl!.trim().isNotEmpty) {
-      return summary;
+  ) {
+    if (summary.isGroup) {
+      if (summary.avatarUrl != null && summary.avatarUrl!.trim().isNotEmpty) {
+        return _copySummary(
+          summary,
+          avatarUrl: _client.absoluteUrl(summary.avatarUrl!),
+        );
+      }
+      return _copySummary(summary, avatarUrl: null);
     }
-    final directAvatar = await _directAvatarFromMessages(
-      summary.id,
-      currentIdentityIds,
-    );
-    if (directAvatar == null) return summary;
-    return _copySummary(summary, avatarUrl: directAvatar);
+
+    if (summary.avatarUrl != null && summary.avatarUrl!.trim().isNotEmpty) {
+      return _copySummary(
+        summary,
+        avatarUrl: _client.absoluteUrl(summary.avatarUrl!),
+      );
+    }
+
+    if (channelMap['has_avatar'] == false) {
+      return _copySummary(summary, avatarUrl: null);
+    }
+
+    final memberAvatar = _directAvatarFromMembers(summary, channelMap, currentIdentityIds);
+    if (memberAvatar != null) {
+      return _copySummary(summary, avatarUrl: memberAvatar);
+    }
+    return summary;
   }
 
-  Future<String?> _directAvatarFromMessages(
-    String conversationId,
+  String? _directAvatarFromMembers(
+    ConversationSummary summary,
+    Map<String, dynamic> channelMap,
     Set<String> currentIdentityIds,
-  ) async {
+  ) {
     try {
-      final res = await _client.get(
-        '/api/v1/mobile/chat/channels/$conversationId/messages',
-      );
-      if (res is! Map) return null;
-      final messages = res['messages'];
-      if (messages is! List) return null;
+      final members = channelMap['channel_member_ids'] ??
+          channelMap['channel_partner_ids'] ??
+          channelMap['members'];
+      if (members is! List) return null;
       final currentLabels = currentIdentityIds
-          .map((value) => value.trim().toLowerCase())
-          .where((value) => value.isNotEmpty)
+          .map((v) => v.trim().toLowerCase())
+          .where((v) => v.isNotEmpty)
           .toSet();
-      for (final raw in messages.reversed) {
-        if (raw is! Map) continue;
-        final message = Map<String, dynamic>.from(raw);
-        final authorId = _recordId(
-          message['author_id'] ??
-              message['author_partner_id'] ??
-              message['partner_id'],
-        );
-        final authorName =
-            _stringOrNull(message['author_name']) ??
-            _recordName(message['author_id']);
-        final authorLabels = <String?>{
-          ?authorId,
-          ?authorName,
-        }.map((value) => value!.trim().toLowerCase()).toSet();
-        final isCurrentAuthor =
-            authorLabels.isNotEmpty && authorLabels.any(currentLabels.contains);
-        if (isCurrentAuthor) continue;
-        final avatar = _stringOrNull(message['author_avatar']);
-        if (avatar != null) return avatar;
+
+      final channelNameLower = summary.title.trim().toLowerCase();
+
+      // Pass 1: Match member whose name corresponds to channel title (e.g. Huy Erp)
+      for (final item in members) {
+        String? partnerId;
+        String? partnerName;
+        if (item is Map) {
+          partnerId = _recordId(item['partner_id'] ?? item['id']);
+          partnerName = _recordName(item['partner_id'] ?? item['name']);
+        } else if (item is List && item.isNotEmpty) {
+          partnerId = item[0].toString();
+          if (item.length > 1) partnerName = item[1].toString();
+        } else if (item is num) {
+          partnerId = item.toString();
+        }
+        if (partnerId == null || partnerId.trim().isEmpty) continue;
+        if (currentLabels.contains(partnerId.trim().toLowerCase())) continue;
+
+        if (partnerName != null && partnerName.trim().isNotEmpty) {
+          final firstWordP = partnerName.trim().split(' ').first.toLowerCase();
+          final firstWordC = channelNameLower.split(' ').first;
+          if (channelNameLower.contains(firstWordP) || partnerName.toLowerCase().contains(firstWordC)) {
+            return _client.absoluteUrl('/api/v1/mobile/avatar/partners/$partnerId');
+          }
+        }
       }
-    } catch (_) {
-      // Direct avatar enrichment is best-effort; keep the channel avatar.
-    }
+
+      // Pass 2: 1-on-1 chats (2 members total) → pick the other member's avatar
+      if (members.length <= 2) {
+        for (final item in members) {
+          String? partnerId;
+          if (item is Map) {
+            partnerId = _recordId(item['partner_id'] ?? item['id']);
+          } else if (item is List && item.isNotEmpty) {
+            partnerId = item[0].toString();
+          } else if (item is num) {
+            partnerId = item.toString();
+          }
+          if (partnerId == null || partnerId.trim().isEmpty) continue;
+          if (currentLabels.contains(partnerId.trim().toLowerCase())) continue;
+          return _client.absoluteUrl('/api/v1/mobile/avatar/partners/$partnerId');
+        }
+      }
+    } catch (_) {}
     return null;
   }
 
@@ -131,29 +174,9 @@ class ChatRepository {
     Map<String, dynamic> channel,
     DateTime fetchedAt,
   ) {
-    final summary = ConversationSummary.fromOdooChatChannel(
+    return ConversationSummary.fromOdooChatChannel(
       channel,
       fetchedAt: fetchedAt,
-    );
-    if (summary.avatarUrl != null) return summary;
-    return ConversationSummary(
-      id: summary.id,
-      isGroup: summary.isGroup,
-      title: summary.title,
-      lastMessage: summary.lastMessage,
-      updatedAt: summary.updatedAt,
-      unreadCount: summary.unreadCount,
-      archivedAt: summary.archivedAt,
-      avatarUrl: (summary.avatarUrl != null && summary.avatarUrl!.trim().isNotEmpty)
-          ? summary.avatarUrl
-          : _client.absoluteUrl(
-              '/web/image/discuss.channel/${summary.id}/avatar_128',
-            ),
-      description: summary.description,
-      isEditable: summary.isEditable,
-      memberCount: summary.memberCount,
-      lastSeenMessageId: summary.lastSeenMessageId,
-      lastSeenDt: summary.lastSeenDt,
     );
   }
 
@@ -439,7 +462,7 @@ class ChatRepository {
       email: email,
       displayName: (user['name'] ?? user['display_name'] ?? email).toString(),
       avatarUrl: _client.absoluteUrl(
-        '/web/image/res.partner/$partnerId/avatar_128',
+        '/api/v1/mobile/avatar/partners/$partnerId',
       ),
     );
   }
@@ -454,13 +477,15 @@ class ChatRepository {
     );
     final map = Map<String, dynamic>.from(res as Map);
     final createdAt = _dateTimeOrNow(map['create_date']);
+    final memberRows = _conversationMembers(map, createdAt);
+    final channelType = (map['channel_type'] ?? '').toString();
     return Conversation(
       id: map['id'].toString(),
-      isGroup: map['channel_type'] != 'chat',
+      isGroup: channelType != 'chat' && memberRows.length > 2,
       name: map['name'] as String?,
       createdBy: map['create_uid']?.toString() ?? '',
       createdAt: createdAt,
-      members: _conversationMembers(map, createdAt),
+      members: memberRows,
     );
   }
 
@@ -530,7 +555,7 @@ class ChatRepository {
           id: id,
           email: '',
           displayName: name,
-          avatarUrl: _client.absoluteUrl('/web/image/res.partner/$id/avatar_128'),
+          avatarUrl: _client.absoluteUrl('/api/v1/mobile/avatar/partners/$id'),
         ),
         joinedAt: fallbackJoinedAt,
       );
@@ -567,7 +592,7 @@ class ChatRepository {
               member['image_128'] ??
               member['image'],
         ) ??
-        _client.absoluteUrl('/web/image/res.partner/$id/avatar_128');
+        _client.absoluteUrl('/api/v1/mobile/avatar/partners/$id');
 
     return ConversationMember(
       profile: Profile(

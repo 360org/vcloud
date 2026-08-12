@@ -49,9 +49,12 @@ class ConversationSummary {
     final rawCleanText = _stringOrNull(cleanHtmlText(map['last_message']));
     final lastMessageText = rawCleanText?.replaceAll('\n', ' ');
 
+    final memberCount = (map['member_count'] as num?)?.toInt() ?? 0;
+    final channelType = (map['channel_type'] ?? '').toString();
+
     return ConversationSummary(
       id: id,
-      isGroup: map['channel_type'] != 'chat',
+      isGroup: channelType != 'chat' && memberCount > 2,
       title: (map['name'] ?? 'Chat').toString(),
       lastMessage: lastMessageText == null
           ? null
@@ -67,14 +70,16 @@ class ConversationSummary {
           int.tryParse(map['unread_count']?.toString() ?? '') ??
           (map['message_unread_counter'] as num?)?.toInt() ??
           0,
-      avatarUrl: _stringOrNull(
-        map['avatar_url'] ??
-            map['channel_avatar_url'] ??
-            map['avatar_128_url'] ??
-            map['image_128_url'] ??
-            map['avatar_128'] ??
-            map['image_128'],
-      ),
+      avatarUrl: (map['has_avatar'] == false)
+          ? null
+          : _stringOrNull(
+              map['avatar_url'] ??
+                  map['channel_avatar_url'] ??
+                  map['avatar_128_url'] ??
+                  map['image_128_url'] ??
+                  map['avatar_128'] ??
+                  map['image_128'],
+            ),
       description: _stringOrNull(map['description']),
       isEditable: map['is_editable'] as bool? ?? false,
       memberCount: (map['member_count'] as num?)?.toInt() ?? 0,

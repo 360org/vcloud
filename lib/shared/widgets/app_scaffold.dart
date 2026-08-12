@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:http/http.dart' as http;
 import 'package:lucide_flutter/lucide_flutter.dart';
 
 import '../../core/api/odoo_api_client.dart';
@@ -271,8 +270,8 @@ class _TabSpec {
   final IconData icon;
 }
 
-/// Avatar circle with initials fallback and per-user gradient ring.
-/// Used wherever a user is referenced in chat/tickets/attendance.
+/// Avatar circle with initials fallback and per-user/group gradient ring.
+/// Used wherever a user or chat group is referenced in chat/tickets/attendance.
 class UserAvatar extends StatelessWidget {
   const UserAvatar({
     super.key,
@@ -281,6 +280,7 @@ class UserAvatar extends StatelessWidget {
     this.email,
     this.avatarUrl,
     this.size = 40,
+    this.isGroup = false,
   });
 
   final String userId;
@@ -288,59 +288,87 @@ class UserAvatar extends StatelessWidget {
   final String? email;
   final String? avatarUrl;
   final double size;
+  final bool isGroup;
 
   String get _initials {
     final cleaned = displayName.trim();
     if (cleaned.isEmpty) {
-      if (email != null && email!.isNotEmpty) {
-        return email![0].toUpperCase();
+      if (email != null && email!.trim().isNotEmpty) {
+        return email!.trim()[0].toUpperCase();
       }
-      return userId.isEmpty ? '?' : userId[0].toUpperCase();
+      return userId.trim().isEmpty ? '?' : userId.trim()[0].toUpperCase();
     }
-    final parts = cleaned.split(RegExp(r'\s+'));
+    final parts = cleaned.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
     if (parts.length == 1) {
-      return parts.first.substring(0, parts.length.clamp(0, 1)).toUpperCase();
+      return parts.first.substring(0, parts.first.length.clamp(0, 1)).toUpperCase();
     }
-    return (parts.first[0] + parts.last[0]).toUpperCase();
+    final firstChar = parts.first.isNotEmpty ? parts.first[0] : '';
+    final lastChar = parts.last.isNotEmpty ? parts.last[0] : '';
+    final combined = (firstChar + lastChar).toUpperCase();
+    return combined.isEmpty ? '?' : combined;
   }
 
-  /// Stable hue from 0..1 based on user id so each person gets a
+  /// Stable hue from 0..1 based on user id or name so each person gets a
   /// consistent colour across the app.
   Color get _userColor {
-    final h = (userId.hashCode & 0x7FFFFFFF) % 360;
-    return HSLColor.fromAHSL(1, h.toDouble(), 0.55, 0.55).toColor();
+    final seed = (userId.trim() + displayName.trim()).hashCode & 0x7FFFFFFF;
+    final h = seed % 360;
+    return HSLColor.fromAHSL(1, h.toDouble(), 0.55, 0.52).toColor();
   }
 
   @override
   Widget build(BuildContext context) {
     final fallback = Center(
-      child: Text(
-        _initials,
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: size * 0.36,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
+      child: isGroup
+          ? Icon(
+              LucideIcons.users,
+              color: Colors.white,
+              size: size * 0.48,
+            )
+          : Text(
+              _initials,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: size * 0.36,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
     );
+
+    final borderGradient = isGroup
+        ? const LinearGradient(
+            colors: [Color(0xFF0D9488), Color(0xFF2563EB)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          )
+        : LinearGradient(
+            colors: [_userColor, _userColor.withValues(alpha: 0.6)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          );
+
+    final backgroundGradient = isGroup
+        ? const LinearGradient(
+            colors: [Color(0xFF14B8A6), Color(0xFF3B82F6)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          )
+        : AppColors.accent(_userColor);
+
     return Container(
       width: size + 4,
       height: size + 4,
       padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: LinearGradient(
-          colors: [_userColor, _userColor.withValues(alpha: 0.6)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        gradient: borderGradient,
       ),
       child: Container(
         width: size,
         height: size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          gradient: AppColors.accent(_userColor),
+          gradient: backgroundGradient,
           border: Border.all(color: AppColors.surface, width: 2),
         ),
         child: ClipOval(
@@ -358,7 +386,11 @@ class UserAvatar extends StatelessWidget {
 
   Widget _avatarContent(Widget fallback) {
     final value = avatarUrl?.trim();
-    if (value == null || value.isEmpty || value == 'false' || value == 'null') {
+    if (value == null ||
+        value.isEmpty ||
+        value == 'false' ||
+        value == 'null' ||
+        value == 'undefined') {
       return fallback;
     }
     final memoryImage = value.startsWith('data:image')
@@ -398,110 +430,50 @@ class UserAvatar extends StatelessWidget {
     return _safeMemoryImage(value.substring(comma + 1));
   }
 
+  String? _networkAvatarUrl(String rawValue) {
+    if (rawValue.trim().isEmpty) return null;
+    final value = rawValue.trim();
 
-  String? _networkAvatarUrl(String value) {
+    String absoluteUrl;
     if (value.startsWith('http://') || value.startsWith('https://')) {
-      return value;
-    }
-    if (!value.startsWith('/')) return null;
-    try {
-      return odooApiClient.absoluteUrl(value);
-    } on FormatException {
+      absoluteUrl = value;
+    } else if (value.startsWith('/')) {
+      try {
+        if (value.contains('/api/v1/mobile/avatar/')) {
+          absoluteUrl = odooApiClient.absoluteUrl(value);
+        } else {
+          absoluteUrl = odooApiClient.authenticatedUrl(value);
+        }
+      } on FormatException {
+        return null;
+      }
+    } else {
       return null;
     }
+
+    return absoluteUrl;
   }
 }
 
-final Map<String, Uint8List> _avatarBytesCache = {};
-
-class _AvatarNetworkImage extends StatefulWidget {
-  const _AvatarNetworkImage({
+class _AvatarNetworkImage extends StatelessWidget {
+  _AvatarNetworkImage({
     required this.url,
     required this.fallback,
-  });
+  }) : super(key: ValueKey(url));
 
   final String url;
   final Widget fallback;
 
   @override
-  State<_AvatarNetworkImage> createState() => _AvatarNetworkImageState();
-}
-
-class _AvatarNetworkImageState extends State<_AvatarNetworkImage> {
-  Uint8List? _bytes;
-  bool _hasError = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadImage();
-  }
-
-  @override
-  void didUpdateWidget(_AvatarNetworkImage oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.url != widget.url) {
-      _loadImage();
-    }
-  }
-
-  Future<void> _loadImage() async {
-    final cached = _avatarBytesCache[widget.url];
-    if (cached != null) {
-      if (mounted) {
-        setState(() {
-          _bytes = cached;
-          _hasError = false;
-        });
-      }
-      return;
-    }
-
-    try {
-      final session = odooApiClient.session;
-      final headers = <String, String>{
-        'User-Agent': 'Mozilla/5.0',
-      };
-      if (session != null && session.accessToken.isNotEmpty) {
-        headers['Authorization'] = 'Bearer ${session.accessToken}';
-      }
-
-      final res = await http.get(
-        Uri.parse(widget.url),
-        headers: headers,
-      );
-      if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
-        final cd = (res.headers['content-disposition'] ?? '').toLowerCase();
-        final isPlaceholder = cd.contains('placeholder.png') ||
-            res.bodyBytes.length == 6314 ||
-            res.bodyBytes.length == 6078;
-        if (isPlaceholder) {
-          if (mounted) setState(() => _hasError = true);
-          return;
-        }
-        _avatarBytesCache[widget.url] = res.bodyBytes;
-        if (mounted) {
-          setState(() {
-            _bytes = res.bodyBytes;
-            _hasError = false;
-          });
-        }
-      } else {
-        if (mounted) setState(() => _hasError = true);
-      }
-    } catch (_) {
-      if (mounted) setState(() => _hasError = true);
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    if (_hasError || _bytes == null) return widget.fallback;
-    return Image.memory(
-      _bytes!,
+    return Image.network(
+      url,
+      key: ValueKey(url),
       fit: BoxFit.cover,
       gaplessPlayback: true,
-      errorBuilder: (_, _, _) => widget.fallback,
+      errorBuilder: (context, error, stackTrace) {
+        return fallback;
+      },
     );
   }
 }

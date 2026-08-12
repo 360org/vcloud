@@ -98,16 +98,9 @@ class Message {
           ((map['is_read'] == true) ? 'read' : 'sent'),
       senderName:
           _stringOrNull(map['author_name']) ?? _recordName(map['author_id']),
-      senderAvatarUrl: _stringOrNull(map['author_avatar']) ??
-          _stringOrNull(map['avatar_url']) ??
-          (_recordId(
-                    map['author_id'] ??
-                        map['author_partner_id'] ??
-                        map['partner_id'],
-                  ) !=
-                  null
-              ? '/web/image/res.partner/${_recordId(map['author_id'] ?? map['author_partner_id'] ?? map['partner_id'])}/avatar_128'
-              : null),
+      senderAvatarUrl:
+          _stringOrNull(map['author_avatar']) ??
+          _stringOrNull(map['avatar_url']),
       messageType: _stringOrNull(map['message_type']),
       isInternal: map['is_internal'] as bool? ?? false,
       parentId: _stringOrNull(map['parent_id']),

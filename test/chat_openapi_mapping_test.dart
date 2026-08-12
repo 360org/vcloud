@@ -184,7 +184,7 @@ void main() {
       url: '/web/content/9?download=1&access_token=abc',
     );
 
-    expect(url, 'https://example.test/web/content/9?access_token=abc');
+    expect(url, 'https://example.test/api/v1/mobile/attachments/9/download');
   });
 
   test(
@@ -217,7 +217,7 @@ void main() {
       await repo.forwardAttachment('55', '9');
 
       // Bytes were fetched from the source attachment's download URL.
-      expect(client.lastFetchBytesPath, '/web/content/9?download=1');
+      expect(client.lastFetchBytesPath, '/api/v1/mobile/attachments/9/download');
       // Upload happened first, then the message send to the *target* channel.
       expect(client.postPaths, <String>[
         '/api/v1/mobile/attachments/upload',
@@ -260,7 +260,7 @@ void main() {
     expect(summary.id, '42');
     expect(summary.isGroup, isTrue);
     expect(summary.title, 'Du an VCloud');
-    expect(summary.updatedAt, DateTime.parse('2026-07-01T08:30:00Z'));
+    expect(summary.updatedAt, DateTime.parse('2026-07-01T08:30:00Z').toLocal());
     expect(summary.avatarUrl, isNull);
     expect(summary.description, 'Nhom trien khai');
     expect(summary.isEditable, isTrue);
@@ -269,7 +269,7 @@ void main() {
     expect(summary.lastMessage?.content, 'Hello & team');
     expect(summary.unreadCount, 3);
     expect(summary.lastSeenMessageId, '98');
-    expect(summary.lastSeenDt, DateTime.parse('2026-07-01T08:00:00Z'));
+    expect(summary.lastSeenDt, DateTime.parse('2026-07-01T08:00:00Z').toLocal());
   });
 
   test('ChatChannel avatar_url is read into avatarUrl field', () {
@@ -299,7 +299,7 @@ void main() {
         'body': '<p>Hello&nbsp;&amp; welcome</p>',
         'preview': 'Hello',
         'author_id': <Object>[7, 'Nguyen An'],
-        'author_avatar': false,
+        'author_avatar': '/api/v1/mobile/avatar/partners/7',
         'date': '2026-07-01T08:30:00Z',
         'message_type': 'comment',
         'is_internal': false,
@@ -319,11 +319,11 @@ void main() {
     expect(message.senderId, '7');
     expect(message.content, 'Hello & welcome');
     expect(message.senderName, 'Nguyen An');
-    expect(message.senderAvatarUrl, isNull);
+    expect(message.senderAvatarUrl, '/api/v1/mobile/avatar/partners/7');
     expect(message.messageType, 'comment');
     expect(message.attachmentIds, <String>['1', '2']);
     expect(message.starred, isTrue);
-    expect(message.pinnedAt, DateTime.parse('2026-07-01T09:00:00Z'));
+    expect(message.pinnedAt, DateTime.parse('2026-07-01T09:00:00Z').toLocal());
     expect(message.isReadByMe, isTrue);
     expect(message.readBy, <String>['8', '9']);
     expect(message.readByCount, 4);
@@ -376,8 +376,8 @@ void main() {
       'last_message_date': '2026-07-01 08:30:00',
     });
 
-    expect(message.createdAt, DateTime.utc(2026, 7, 1, 8, 30));
-    expect(summary.updatedAt, DateTime.utc(2026, 7, 1, 8, 30));
+    expect(message.createdAt, DateTime.parse('2026-07-01T08:30:00Z').toLocal());
+    expect(summary.updatedAt, DateTime.parse('2026-07-01T08:30:00Z').toLocal());
   });
 
   test('Direct conversation title removes current user labels', () {
