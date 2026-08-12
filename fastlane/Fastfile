@@ -163,15 +163,23 @@ platform :android do
       # 2. Build App Bundle (AAB) for Google Play
       sh("cd .. && flutter build appbundle --release --build-name=#{build_name} --build-number=#{build_number} --dart-define=VCLOUD_ODOO_API_BASE_URL=#{api_base_url}")
 
-      # 3. Optional Google Play Internal Track Upload
-      if ENV["GCLOUD_SERVICE_ACCOUNT_CREDENTIALS"]
-        UI.message("📦 Uploading AAB to Google Play Console...")
-        upload_to_play_store(
-          track: ENV["GOOGLE_PLAY_TRACK"] || "internal",
-          aab: "../build/app/outputs/bundle/release/app-release.aab",
-          json_key_data: ENV["GCLOUD_SERVICE_ACCOUNT_CREDENTIALS"],
-          package_name: "com.w360s.wcloudapp"
-        )
+      # 3. Optional Google Play Internal Track Upload (Only if credentials provided)
+      gcloud_creds = ENV["GCLOUD_SERVICE_ACCOUNT_CREDENTIALS"]
+      if gcloud_creds && !gcloud_creds.strip.empty?
+        aab_path = File.exist?("../build/app/outputs/bundle/release/app-release.aab") ? "../build/app/outputs/bundle/release/app-release.aab" : "build/app/outputs/bundle/release/app-release.aab"
+        if File.exist?(aab_path) || File.exist?(File.expand_path(aab_path, __dir__))
+          UI.message("📦 Uploading AAB to Google Play Console...")
+          upload_to_play_store(
+            track: ENV["GOOGLE_PLAY_TRACK"] || "internal",
+            aab: aab_path,
+            json_key_data: gcloud_creds,
+            package_name: "com.w360s.wcloudapp"
+          )
+        else
+          UI.important("⚠️ AAB build complete. Skipping Google Play upload (AAB path not found).")
+        end
+      else
+        UI.message("ℹ️ Android APK & AAB build completed successfully (No Google Play Console credentials provided).")
       end
 
       # 4. Dispatch Webhook Success Alert
