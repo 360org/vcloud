@@ -395,7 +395,7 @@ class ChatRepository {
       '/api/v1/mobile/chat/groups',
       body: <String, dynamic>{
         'name': name,
-        'member_ids': memberIds.map(int.tryParse).whereType<int>().toList(),
+        'partner_ids': memberIds.map(int.tryParse).whereType<int>().toList(),
       },
     );
     return _channelId(res);

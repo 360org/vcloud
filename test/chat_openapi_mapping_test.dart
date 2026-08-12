@@ -52,7 +52,7 @@ void main() {
     expect(client.lastPostPath, '/api/v1/mobile/chat/groups');
     expect(client.lastPostBody, <String, dynamic>{
       'name': 'Team VCloud',
-      'member_ids': <int>[7, 9],
+      'partner_ids': <int>[7, 9],
     });
   });
 
