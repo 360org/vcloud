@@ -1366,7 +1366,7 @@ class _NetworkPreviewImageState extends ConsumerState<NetworkPreviewImage> {
             PageRouteBuilder<void>(
               opaque: false,
               barrierDismissible: true,
-              pageBuilder: (_, __, ___) => ImageViewerScreen(
+              pageBuilder: (_, _, _) => ImageViewerScreen(
                 imageUrl: widget.url,
                 fileName: fileName ?? 'Image',
                 attachmentId: widget.attachmentId == null
@@ -1382,7 +1382,7 @@ class _NetworkPreviewImageState extends ConsumerState<NetworkPreviewImage> {
             localBytes,
             fit: widget.fit,
             gaplessPlayback: true,
-            errorBuilder: (_, __, ___) => ImageAttachmentError(onRetry: _retry),
+            errorBuilder: (_, _, _) => ImageAttachmentError(onRetry: _retry),
           ),
         ),
       );
@@ -1409,7 +1409,7 @@ class _NetworkPreviewImageState extends ConsumerState<NetworkPreviewImage> {
             fit: widget.fit,
             headers: odooApiClient.authHeaders,
             gaplessPlayback: true,
-            errorBuilder: (_, __, ___) => ImageAttachmentError(onRetry: _retry),
+            errorBuilder: (_, _, _) => ImageAttachmentError(onRetry: _retry),
           );
     } else {
       imageWidget = Image.network(

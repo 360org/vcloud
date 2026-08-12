@@ -89,7 +89,7 @@ void main() {
     });
 
     test('TimesheetFilterState preset range applies date values', () {
-      final filter = const TimesheetFilterState(
+      const filter = TimesheetFilterState(
         presetName: 'Hôm nay',
       );
 
