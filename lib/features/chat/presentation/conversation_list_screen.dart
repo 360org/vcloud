@@ -116,14 +116,12 @@ class _ConversationListScreenState
           final directCount = list.where((c) => !c.isGroup).length;
 
           final filtered = list.where((c) {
-            if (c.lastMessage == null) return false;
-
             // Apply quick filter chips
             if (_filter == 'unread' && c.unreadCount <= 0) return false;
             if (_filter == 'group' && !c.isGroup) return false;
             if (_filter == 'direct' && c.isGroup) return false;
 
-            final preview = c.lastMessage?.content ?? '';
+            final preview = _stripHtml(c.lastMessage?.content ?? '');
             final title = _conversationTitleForCurrentUser(c, currentUser);
             final searchable = '$title $preview'.toLowerCase();
             return searchable.contains(_query.toLowerCase());
@@ -487,13 +485,11 @@ class _TelegramConversationListScreenState
               final directTotal = list.where((c) => !c.isGroup).length;
 
               final filtered = list.where((conversation) {
-                if (conversation.lastMessage == null) return false;
-
                 if (_filter == 'unread' && conversation.unreadCount <= 0) return false;
                 if (_filter == 'group' && !conversation.isGroup) return false;
                 if (_filter == 'direct' && conversation.isGroup) return false;
 
-                final preview = conversation.lastMessage?.content ?? '';
+                final preview = _stripHtml(conversation.lastMessage?.content ?? '');
                 final title = _conversationTitleForCurrentUser(
                   conversation,
                   currentUser,
