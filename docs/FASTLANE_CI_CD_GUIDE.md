@@ -106,5 +106,9 @@ bundle exec fastlane android beta
 - **Nguyên nhân:** Chưa có tài khoản Google Play Console nhưng biến môi trường Google Credentials bị đọc nhầm hoặc sai đường dẫn tương đối.
 - **Giải pháp đã xử lý:** Cập nhật Fastfile kiểm tra `!gcloud_creds.strip.empty?` và kiểm tra sự tồn tại của file AAB. Khi không có Google Play Console, Fastlane tự động bỏ qua bước đẩy CH Play và xuất bản file APK/AAB lên GitHub Artifacts an toàn 100%.
 
+### Lỗi 4: `Could not find option 'app_specific_password'` trong `upload_to_testflight`
+- **Nguyên nhân:** Fastlane không nhận trực tiếp tham số `app_specific_password: ...` trong hàm `upload_to_testflight`.
+- **Giải pháp đã xử lý:** Chuyển sang đặt biến môi trường chuẩn của Fastlane `ENV["FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD"] = app_pass`. Fastlane sẽ tự động xác thực thành công với Apple TestFlight.
+
 ---
 *Tài liệu này được tạo tự động để lưu trữ và bảo trì hệ thống CI/CD Fastlane cho W360S CORP.*
