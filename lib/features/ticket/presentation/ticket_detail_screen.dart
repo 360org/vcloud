@@ -1296,7 +1296,30 @@ class _TicketActivitiesSection extends ConsumerWidget {
             padding: EdgeInsets.all(12),
             child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
           ),
-          error: (_, _) => const _SoftEmpty(text: 'Chưa có hoạt động nào'),
+          error: (e, st) => Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: _cardDecoration(),
+            child: Row(
+              children: [
+                const Icon(LucideIcons.alertCircle, color: AppColors.danger, size: 18),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Không thể tải lịch sử hoạt động',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => ref.invalidate(ticketActivitiesProvider(ticketId)),
+                  child: const Text('Thử lại'),
+                ),
+              ],
+            ),
+          ),
         ),
       ],
     );

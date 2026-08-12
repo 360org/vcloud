@@ -213,19 +213,15 @@ class TicketRepository {
     String ticketId, {
     bool includeDone = true,
   }) async {
-    try {
-      final doneFlag = includeDone ? '1' : '0';
-      final res = await _client.get(
-        '$_ticketBasePath/$ticketId/activities?done=$doneFlag',
-      );
-      if (res is! List) return const <TicketActivity>[];
-      return res
-          .whereType<Map>()
-          .map((item) => TicketActivity.fromMap(Map<String, dynamic>.from(item)))
-          .toList();
-    } catch (_) {
-      return const <TicketActivity>[];
-    }
+    final doneFlag = includeDone ? '1' : '0';
+    final res = await _client.get(
+      '$_ticketBasePath/$ticketId/activities?done=$doneFlag',
+    );
+    if (res is! List) return const <TicketActivity>[];
+    return res
+        .whereType<Map>()
+        .map((item) => TicketActivity.fromMap(Map<String, dynamic>.from(item)))
+        .toList();
   }
 
   String _ticketTitle(Map<String, dynamic> map) {
