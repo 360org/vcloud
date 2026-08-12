@@ -400,19 +400,36 @@ class TelegramConversationListScreen extends ConsumerStatefulWidget {
 class _TelegramConversationListScreenState
     extends ConsumerState<TelegramConversationListScreen> {
   String _query = '';
-  late bool _filterUnread = widget.unreadOnly;
+  String _filter = 'all'; // 'all', 'unread', 'group', 'direct'
+  bool _filterInitialized = false;
 
   @override
   void initState() {
     super.initState();
-    _filterUnread = widget.unreadOnly;
+    if (widget.unreadOnly) {
+      _filter = 'unread';
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_filterInitialized) {
+      _filterInitialized = true;
+      try {
+        final paramFilter = GoRouterState.of(context).uri.queryParameters['filter'];
+        if (paramFilter != null && paramFilter.isNotEmpty) {
+          _filter = paramFilter;
+        }
+      } catch (_) {}
+    }
   }
 
   @override
   void didUpdateWidget(covariant TelegramConversationListScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.unreadOnly != widget.unreadOnly) {
-      _filterUnread = widget.unreadOnly;
+    if (oldWidget.unreadOnly != widget.unreadOnly && widget.unreadOnly) {
+      _filter = 'unread';
     }
   }
 
@@ -463,16 +480,19 @@ class _TelegramConversationListScreenState
         color: Theme.of(context).scaffoldBackgroundColor,
         child: SafeArea(
           child: conversations.when(
-
             data: (list) {
               final currentUser = ref.watch(authControllerProvider).value;
-              final unreadTotal =
-                  list.where((c) => c.unreadCount > 0).length;
+              final unreadTotal = list.where((c) => c.unreadCount > 0).length;
+              final groupTotal = list.where((c) => c.isGroup).length;
+              final directTotal = list.where((c) => !c.isGroup).length;
+
               final filtered = list.where((conversation) {
-                if (_filterUnread && conversation.unreadCount <= 0) {
-                  return false;
-                }
                 if (conversation.lastMessage == null) return false;
+
+                if (_filter == 'unread' && conversation.unreadCount <= 0) return false;
+                if (_filter == 'group' && !conversation.isGroup) return false;
+                if (_filter == 'direct' && conversation.isGroup) return false;
+
                 final preview = conversation.lastMessage?.content ?? '';
                 final title = _conversationTitleForCurrentUser(
                   conversation,
@@ -498,21 +518,27 @@ class _TelegramConversationListScreenState
                       HapticFeedback.lightImpact();
                     },
                   ),
-                  _ChatFilterChips(
-                    filterUnread: _filterUnread,
-                    unreadCount: unreadTotal,
+                  _TelegramChatFilterBar(
+                    filter: _filter,
                     totalCount: list.length,
-                    onSelect: (unread) {
-                      setState(() => _filterUnread = unread);
+                    unreadCount: unreadTotal,
+                    groupCount: groupTotal,
+                    directCount: directTotal,
+                    onSelectFilter: (newFilter) {
+                      setState(() => _filter = newFilter);
                       HapticFeedback.selectionClick();
                     },
                   ),
                   Expanded(
                     child: filtered.isEmpty
                         ? _TelegramEmptyChats(
-                            message: _filterUnread
+                            message: _filter == 'unread'
                                 ? 'Không có tin nhắn chưa đọc'
-                                : 'Chưa có cuộc trò chuyện',
+                                : (_filter == 'group'
+                                    ? 'Chưa có nhóm chat nào'
+                                    : (_filter == 'direct'
+                                        ? 'Chưa có cuộc trò chuyện trực tiếp nào'
+                                        : 'Chưa có cuộc trò chuyện')),
                           )
                         : RefreshIndicator(
                             onRefresh: () async {
@@ -768,6 +794,154 @@ class _TelegramSearchBar extends StatelessWidget {
             border: InputBorder.none,
             contentPadding: const EdgeInsets.symmetric(vertical: 13),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TelegramChatFilterBar extends StatelessWidget {
+  const _TelegramChatFilterBar({
+    required this.filter,
+    required this.totalCount,
+    required this.unreadCount,
+    required this.groupCount,
+    required this.directCount,
+    required this.onSelectFilter,
+  });
+
+  final String filter;
+  final int totalCount;
+  final int unreadCount;
+  final int groupCount;
+  final int directCount;
+  final ValueChanged<String> onSelectFilter;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(18, 10, 18, 6),
+      child: Row(
+        children: [
+          _TelegramFilterChipPill(
+            label: 'Tất cả',
+            count: totalCount,
+            selected: filter == 'all',
+            onTap: () => onSelectFilter('all'),
+          ),
+          const SizedBox(width: 8),
+          _TelegramFilterChipPill(
+            label: 'Chưa đọc',
+            count: unreadCount,
+            selected: filter == 'unread',
+            accentColor: AppColors.danger,
+            onTap: () => onSelectFilter('unread'),
+          ),
+          const SizedBox(width: 8),
+          _TelegramFilterChipPill(
+            label: 'Nhóm',
+            count: groupCount,
+            selected: filter == 'group',
+            accentColor: AppColors.chat,
+            onTap: () => onSelectFilter('group'),
+          ),
+          const SizedBox(width: 8),
+          _TelegramFilterChipPill(
+            label: 'Trực tiếp',
+            count: directCount,
+            selected: filter == 'direct',
+            accentColor: AppColors.primary,
+            onTap: () => onSelectFilter('direct'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TelegramFilterChipPill extends StatelessWidget {
+  const _TelegramFilterChipPill({
+    required this.label,
+    required this.count,
+    required this.selected,
+    required this.onTap,
+    this.accentColor,
+  });
+
+  final String label;
+  final int count;
+  final bool selected;
+  final VoidCallback onTap;
+  final Color? accentColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final activeColor = accentColor ?? AppColors.chat;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return PressableScale(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected
+              ? AppColors.soft(activeColor)
+              : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF0F3F8)),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected
+                ? activeColor
+                : (isDark ? Colors.white.withValues(alpha: 0.12) : AppColors.border),
+            width: selected ? 1.5 : 1.0,
+          ),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: activeColor.withValues(alpha: 0.18),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (selected) ...[
+              Icon(LucideIcons.check, size: 14, color: activeColor),
+              const SizedBox(width: 4),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? activeColor : AppColors.textPrimary,
+                fontSize: 13,
+                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+              ),
+            ),
+            if (count > 0) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: selected
+                      ? activeColor
+                      : (isDark ? Colors.white12 : AppColors.border),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  count > 99 ? '99+' : count.toString(),
+                  style: TextStyle(
+                    color: selected ? Colors.white : AppColors.textSecondary,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );
@@ -1779,53 +1953,7 @@ class _TelegramEmptyChats extends StatelessWidget {
   }
 }
 
-class _ChatFilterChips extends StatelessWidget {
-  const _ChatFilterChips({
-    required this.filterUnread,
-    required this.unreadCount,
-    required this.totalCount,
-    required this.onSelect,
-  });
 
-  final bool filterUnread;
-  final int unreadCount;
-  final int totalCount;
-  final ValueChanged<bool> onSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-      child: Row(
-        children: [
-          ChoiceChip(
-            label: Text('Tất cả ($totalCount)'),
-            selected: !filterUnread,
-            selectedColor: AppColors.primary.withValues(alpha: 0.15),
-            labelStyle: TextStyle(
-              color: !filterUnread ? AppColors.primary : AppColors.textSecondary,
-              fontWeight: !filterUnread ? FontWeight.bold : FontWeight.normal,
-              fontSize: 13,
-            ),
-            onSelected: (_) => onSelect(false),
-          ),
-          const SizedBox(width: 8),
-          ChoiceChip(
-            label: Text('Chưa đọc ($unreadCount)'),
-            selected: filterUnread,
-            selectedColor: AppColors.primary.withValues(alpha: 0.15),
-            labelStyle: TextStyle(
-              color: filterUnread ? AppColors.primary : AppColors.textSecondary,
-              fontWeight: filterUnread ? FontWeight.bold : FontWeight.normal,
-              fontSize: 13,
-            ),
-            onSelected: (_) => onSelect(true),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 class _ConversationItem extends StatelessWidget {
   const _ConversationItem({
