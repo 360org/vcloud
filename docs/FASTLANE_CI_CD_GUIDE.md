@@ -110,5 +110,9 @@ bundle exec fastlane android beta
 - **Nguyên nhân:** Fastlane không nhận trực tiếp tham số `app_specific_password: ...` trong hàm `upload_to_testflight`.
 - **Giải pháp đã xử lý:** Chuyển sang đặt biến môi trường chuẩn của Fastlane `ENV["FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD"] = app_pass`. Fastlane sẽ tự động xác thực thành công với Apple TestFlight.
 
+### Lỗi 5: `No profiles for 'com.w360s.wcloudapp' were found` (Khi thiếu export_options.plist)
+- **Nguyên nhân:** Khi không có file `export_options.plist`, Flutter biên dịch iOS theo mặc định chế độ Development thay vì App Store Distribution.
+- **Giải pháp đã xử lý:** Đã khởi tạo tệp `ios/export_options.plist` chỉ định phương thức `method: app-store` & `teamID: 3J68D9JX79` và truyền cờ `--export-options-plist=ios/export_options.plist` vào lệnh `flutter build ipa`.
+
 ---
 *Tài liệu này được tạo tự động để lưu trữ và bảo trì hệ thống CI/CD Fastlane cho W360S CORP.*
