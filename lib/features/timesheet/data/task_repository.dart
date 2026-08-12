@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import '../../../core/api/odoo_api_client.dart';
 import '../../../core/error/failure.dart';
 import '../../../shared/models/task.dart';
+import '../../../shared/models/task_message.dart';
 import '../../../shared/models/timesheet.dart';
 
 class TaskRepository {
@@ -274,10 +275,22 @@ class TaskRepository {
       '/api/v1/mobile/project/task/$taskId/workflow',
       body: <String, dynamic>{'status': status},
     );
-    final task = await _client.get('/api/v1/project.task/$taskId');
-    return Task.fromMap(
-      _taskFromOdoo(Map<String, dynamic>.from(task as Map), DateTime.now()),
+    return getTaskDetail(taskId);
+  }
+
+  /// Thêm ghi chú/bình luận vào task chatter.
+  Future<TaskMessage> addMessage({
+    required String taskId,
+    required String content,
+  }) async {
+    final res = await _client.post(
+      '/api/v1/mobile/project/task/$taskId/message',
+      body: <String, dynamic>{'body': content},
     );
+    if (res is Map) {
+      return TaskMessage.fromMap(Map<String, dynamic>.from(res));
+    }
+    throw Failure('Không thể gửi bình luận');
   }
 
   Map<String, dynamic> _taskFromOdoo(

@@ -10,6 +10,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/date_format.dart';
 import '../../../core/utils/html_text.dart';
 import '../../../shared/models/task.dart';
+import '../../../shared/models/task_message.dart';
 import '../../../shared/models/timesheet.dart';
 import '../../../shared/widgets/app_scaffold.dart';
 import '../../../shared/widgets/ui_kit.dart';
@@ -478,13 +479,6 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
   Widget build(BuildContext context) {
     super.build(context);
 
-    final timesheetEntries = ref.watch(timesheetStreamProvider).valueOrNull;
-    final showTodaySummary = timesheetEntries != null;
-    final doneCount = ref.watch(todayTasksSplitProvider).done.length;
-    final todayMinutes = showTodaySummary
-        ? ref.watch(todayTotalMinutesProvider)
-        : 0;
-
     return AppScaffold(
       title: 'Timesheet',
       showAppBar: false,
@@ -508,10 +502,8 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
                 onReset: _resetTimer,
                 onSave: _saveTimer,
               ),
-              if (showTodaySummary) ...[
-                const SizedBox(height: 14),
-                _TodaySummaryCard(minutes: todayMinutes, count: doneCount),
-              ],
+              const SizedBox(height: 14),
+              const _TimesheetSummaryCard(),
               const SizedBox(height: 16),
               _buildTaskSections(),
               if (_isLoadingMore) ...[
@@ -583,11 +575,13 @@ class _TasksStatusCard extends StatelessWidget {
   }
 }
 
-class _TimesheetHeader extends StatelessWidget {
+class _TimesheetHeader extends ConsumerWidget {
   const _TimesheetHeader();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final filter = ref.watch(timesheetFilterProvider);
+
     return Row(
       children: [
         Container(
@@ -613,17 +607,47 @@ class _TimesheetHeader extends StatelessWidget {
           ),
         ),
         const Spacer(),
-        Container(
-          width: 44,
-          height: 44,
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(
-            LucideIcons.calendarDays,
-            color: AppColors.textPrimary,
-            size: 21,
+        GestureDetector(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            showModalBottomSheet<void>(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (_) => _TimesheetFilterSheet(initialFilter: filter),
+            );
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x0D0F172A),
+                  blurRadius: 14,
+                  offset: Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  LucideIcons.calendarDays,
+                  color: AppColors.primary,
+                  size: 19,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  filter.presetName,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ],
@@ -750,66 +774,98 @@ class _StopwatchCard extends StatelessWidget {
   }
 }
 
-class _TodaySummaryCard extends StatelessWidget {
-  const _TodaySummaryCard({required this.minutes, required this.count});
-
-  final int minutes;
-  final int count;
+class _TimesheetSummaryCard extends ConsumerWidget {
+  const _TimesheetSummaryCard();
 
   @override
-  Widget build(BuildContext context) {
-    return GlassCard(
-      glowColor: AppColors.timesheet,
-      radius: 18,
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              gradient: AppColors.featureGrad(
-                AppColors.timesheet,
-                AppColors.timesheetDeep,
+  Widget build(BuildContext context, WidgetRef ref) {
+    final filter = ref.watch(timesheetFilterProvider);
+    final summaryAsync = ref.watch(timesheetSummaryProvider);
+
+    return summaryAsync.when(
+      data: (summary) {
+        final hoursInt = summary.totalHours.floor();
+        final minutesInt = ((summary.totalHours - hoursInt) * 60).round();
+        final hoursText = hoursInt > 0 ? '${hoursInt}h ${minutesInt}m' : '${minutesInt}m';
+
+        return GlassCard(
+          glowColor: AppColors.timesheet,
+          radius: 18,
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  gradient: AppColors.featureGrad(
+                    AppColors.timesheet,
+                    AppColors.timesheetDeep,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(LucideIcons.clock, color: Colors.white, size: 24),
               ),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Icon(LucideIcons.clock, color: Colors.white, size: 24),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Hôm nay',
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Tổng giờ làm · ${filter.presetName}',
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      hoursText,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  _formatMinutes(minutes),
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900,
-                  ),
+              ),
+              GradientBadge(
+                label: '${summary.count} việc',
+                gradient: AppColors.featureGrad(
+                  AppColors.timesheet,
+                  AppColors.timesheetDeep,
                 ),
-              ],
-            ),
+                fontSize: 12,
+              ),
+            ],
           ),
-          GradientBadge(
-            label: '$count việc',
-            gradient: AppColors.featureGrad(
-              AppColors.timesheet,
-              AppColors.timesheetDeep,
+        );
+      },
+      loading: () => const _TasksStatusCard(
+        icon: LucideIcons.loaderCircle,
+        message: 'Đang tải thống kê giờ làm...',
+      ),
+      error: (e, _) => GlassCard(
+        radius: 18,
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            const Icon(LucideIcons.info, color: AppColors.textMuted, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Tổng giờ làm: ${_formatMinutes(ref.watch(todayTotalMinutesProvider))}',
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
-            fontSize: 12,
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1536,6 +1592,8 @@ class _TaskDetailSheetState extends ConsumerState<_TaskDetailSheet> {
                   onSave: _saving ? null : _saveComplete,
                   saveLabel: _editorSaveLabel(),
                 ),
+                const SizedBox(height: 20),
+                _TaskChatterSection(taskId: widget.task.id),
               ],
             ),
           ),
@@ -3029,4 +3087,450 @@ String _formatDuration(Duration duration) {
   final totalSeconds = duration.inSeconds;
   if (totalSeconds < 60) return '$totalSeconds giây';
   return _formatMinutes(duration.inMinutes);
+}
+
+class _TaskChatterSection extends ConsumerStatefulWidget {
+  const _TaskChatterSection({
+    required this.taskId,
+  });
+
+  final String taskId;
+
+  @override
+  ConsumerState<_TaskChatterSection> createState() => _TaskChatterSectionState();
+}
+
+class _TaskChatterSectionState extends ConsumerState<_TaskChatterSection> {
+  final _commentController = TextEditingController();
+  bool _sending = false;
+  List<TaskMessage>? _localMessages;
+
+  @override
+  void dispose() {
+    _commentController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _sendComment() async {
+    final text = _commentController.text.trim();
+    if (text.isEmpty || _sending) return;
+
+    setState(() => _sending = true);
+    try {
+      final newMsg = await ref.read(taskActionsProvider).addMessage(
+        taskId: widget.taskId,
+        content: text,
+      );
+      if (mounted) {
+        _commentController.clear();
+        setState(() {
+          _localMessages = [newMsg, ...(_localMessages ?? const [])];
+        });
+        showTopNotification(context, message: 'Đã gửi bình luận thành công!');
+      }
+    } catch (e) {
+      if (mounted) {
+        showTopNotification(context, message: 'Lỗi gửi bình luận: $e', isError: true);
+      }
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final taskAsync = ref.watch(taskDetailProvider(widget.taskId));
+    final messages = _localMessages ?? taskAsync.valueOrNull?.messages ?? const [];
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFE),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(LucideIcons.messageSquare, size: 18, color: AppColors.primary),
+              const SizedBox(width: 8),
+              Text(
+                'Trao đổi & Ghi chú (${messages.length})',
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (messages.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Center(
+                child: Text(
+                  'Chưa có ghi chú nào.',
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+                ),
+              ),
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: messages.length,
+              separatorBuilder: (_, _) => const Divider(height: 16, color: AppColors.border),
+              itemBuilder: (ctx, index) {
+                final msg = messages[index];
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          msg.authorName,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        Text(
+                          Dates.hm(msg.date),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      msg.body,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textSecondary,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _commentController,
+                  enabled: !_sending,
+                  decoration: InputDecoration(
+                    hintText: 'Nhập bình luận...',
+                    hintStyle: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: AppColors.border),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: AppColors.border),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: AppColors.primary),
+                    ),
+                  ),
+                  onSubmitted: (_) => _sendComment(),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                onPressed: _sending ? null : _sendComment,
+                style: IconButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                icon: _sending
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(LucideIcons.send, size: 18, color: Colors.white),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TimesheetFilterSheet extends ConsumerStatefulWidget {
+  const _TimesheetFilterSheet({required this.initialFilter});
+
+  final TimesheetFilterState initialFilter;
+
+  @override
+  ConsumerState<_TimesheetFilterSheet> createState() => _TimesheetFilterSheetState();
+}
+
+class _TimesheetFilterSheetState extends ConsumerState<_TimesheetFilterSheet> {
+  late String _preset;
+  late DateTime? _dateFrom;
+  late DateTime? _dateTo;
+  late String? _projectId;
+  late String? _projectName;
+  List<TimesheetProjectOption> _projects = const [];
+  bool _loadingProjects = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _preset = widget.initialFilter.presetName;
+    _dateFrom = widget.initialFilter.dateFrom;
+    _dateTo = widget.initialFilter.dateTo;
+    _projectId = widget.initialFilter.projectId;
+    _projectName = widget.initialFilter.projectName;
+    _loadProjects();
+  }
+
+  Future<void> _loadProjects() async {
+    try {
+      final list = await ref.read(taskActionsProvider).listProjects();
+      if (mounted) {
+        setState(() {
+          _projects = list;
+          _loadingProjects = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingProjects = false);
+    }
+  }
+
+  void _applyPreset(String preset) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    setState(() {
+      _preset = preset;
+      switch (preset) {
+        case 'Hôm nay':
+          _dateFrom = today;
+          _dateTo = today;
+          break;
+        case 'Hôm qua':
+          final yest = today.subtract(const Duration(days: 1));
+          _dateFrom = yest;
+          _dateTo = yest;
+          break;
+        case 'Tuần này':
+          _dateFrom = today.subtract(Duration(days: today.weekday - 1));
+          _dateTo = _dateFrom!.add(const Duration(days: 6));
+          break;
+        case 'Tuần trước':
+          final startThis = today.subtract(Duration(days: today.weekday - 1));
+          _dateFrom = startThis.subtract(const Duration(days: 7));
+          _dateTo = startThis.subtract(const Duration(days: 1));
+          break;
+        case 'Tháng này':
+          _dateFrom = DateTime(now.year, now.month, 1);
+          _dateTo = DateTime(now.year, now.month + 1, 0);
+          break;
+        case 'Tháng trước':
+          _dateFrom = DateTime(now.year, now.month - 1, 1);
+          _dateTo = DateTime(now.year, now.month, 0);
+          break;
+        case 'Tùy chọn':
+          break;
+      }
+    });
+  }
+
+  Future<void> _pickDateRange() async {
+    final picked = await showDateRangePicker(
+      context: context,
+      initialDateRange: _dateFrom != null && _dateTo != null
+          ? DateTimeRange(start: _dateFrom!, end: _dateTo!)
+          : DateTimeRange(start: DateTime.now(), end: DateTime.now()),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+    );
+    if (picked != null) {
+      setState(() {
+        _preset = 'Tùy chọn';
+        _dateFrom = picked.start;
+        _dateTo = picked.end;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final presets = ['Hôm nay', 'Hôm qua', 'Tuần này', 'Tuần trước', 'Tháng này', 'Tháng trước', 'Tùy chọn'];
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Bộ lọc Timesheet',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      final now = DateTime.now();
+                      setState(() {
+                        _preset = 'Hôm nay';
+                        _dateFrom = now;
+                        _dateTo = now;
+                        _projectId = null;
+                        _projectName = null;
+                      });
+                    },
+                    child: const Text('Đặt lại'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              const Text(
+                'Khoảng thời gian',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final p in presets)
+                    FilterChip(
+                      label: Text(p),
+                      selected: _preset == p,
+                      selectedColor: AppColors.timesheet.withOpacity(0.2),
+                      onSelected: (_) => _applyPreset(p),
+                    ),
+                ],
+              ),
+              if (_preset == 'Tùy chọn') ...[
+                const SizedBox(height: 12),
+                InkWell(
+                  onTap: _pickDateRange,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: AppColors.border),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(LucideIcons.calendar, size: 18, color: AppColors.primary),
+                        const SizedBox(width: 8),
+                        Text(
+                          _dateFrom != null && _dateTo != null
+                              ? '${Dates.dateVi(_dateFrom!)} - ${Dates.dateVi(_dateTo!)}'
+                              : 'Chọn khoảng ngày...',
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
+              const Text(
+                'Dự án',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 8),
+              if (_loadingProjects)
+                const SizedBox(height: 24, child: CircularProgressIndicator(strokeWidth: 2))
+              else
+                DropdownButtonFormField<String?>(
+                  initialValue: _projectId,
+                  decoration: InputDecoration(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('Tất cả dự án'),
+                    ),
+                    for (final proj in _projects)
+                      DropdownMenuItem<String?>(
+                        value: proj.id,
+                        child: Text(proj.name),
+                      ),
+                  ],
+                  onChanged: (val) {
+                    setState(() {
+                      _projectId = val;
+                      _projectName = _projects.firstWhere((p) => p.id == val, orElse: () => TimesheetProjectOption(id: '', name: '')).name;
+                    });
+                  },
+                ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 46,
+                child: ElevatedButton(
+                  onPressed: () {
+                    final newFilter = TimesheetFilterState(
+                      presetName: _preset,
+                      dateFrom: _dateFrom,
+                      dateTo: _dateTo,
+                      projectId: _projectId,
+                      projectName: _projectName,
+                    );
+                    ref.read(timesheetFilterProvider.notifier).state = newFilter;
+                    Navigator.pop(context);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: const Text('Áp dụng bộ lọc', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

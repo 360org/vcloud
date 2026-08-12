@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import '../../../core/api/odoo_api_client.dart';
 import '../../../core/error/failure.dart';
 import '../../../shared/models/timesheet.dart';
+import '../../../shared/models/timesheet_summary.dart';
 
 List<TimesheetEntry> _parseTimesheetList(List<dynamic> rawList) {
   final repo = TimesheetRepository();
@@ -39,13 +40,44 @@ class TimesheetRepository {
     return controller.stream;
   }
 
-  Future<List<TimesheetEntry>> fetchPage({int limit = 20, int offset = 0}) async {
+  Future<List<TimesheetEntry>> fetchPage({
+    int limit = 20,
+    int offset = 0,
+    String? dateFrom,
+    String? dateTo,
+    String? projectId,
+  }) async {
+    final query = <String, Object?>{
+      'limit': limit,
+      'offset': offset,
+      if (dateFrom != null && dateFrom.isNotEmpty) 'date_from': dateFrom,
+      if (dateTo != null && dateTo.isNotEmpty) 'date_to': dateTo,
+      if (projectId != null && projectId.isNotEmpty) 'project_id': projectId,
+    };
     final res = await _client.get(
       '/api/v1/mobile/timesheet/list',
-      query: <String, Object?>{'limit': limit, 'offset': offset},
+      query: query,
     );
     if (res is! List) return const <TimesheetEntry>[];
     return compute(_parseTimesheetList, res);
+  }
+
+  Future<TimesheetSummary> getSummary({
+    String? dateFrom,
+    String? dateTo,
+  }) async {
+    final query = <String, Object?>{
+      if (dateFrom != null && dateFrom.isNotEmpty) 'date_from': dateFrom,
+      if (dateTo != null && dateTo.isNotEmpty) 'date_to': dateTo,
+    };
+    final res = await _client.get(
+      '/api/v1/mobile/timesheet/summary',
+      query: query,
+    );
+    if (res is Map) {
+      return TimesheetSummary.fromMap(Map<String, dynamic>.from(res));
+    }
+    return const TimesheetSummary(totalHours: 0.0, count: 0);
   }
 
   Future<TimesheetEntry> add({

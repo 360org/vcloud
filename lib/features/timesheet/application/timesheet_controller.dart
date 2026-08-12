@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../shared/models/timesheet.dart';
+import '../../../shared/models/timesheet_summary.dart';
 import '../data/timesheet_repository.dart';
 import 'task_controller.dart';
 
@@ -234,3 +235,67 @@ class TimesheetActions {
 final timesheetActionsProvider = Provider(
   (ref) => TimesheetActions(ref.read(timesheetRepositoryProvider), ref),
 );
+
+class TimesheetFilterState {
+  const TimesheetFilterState({
+    this.presetName = 'Hôm nay',
+    this.dateFrom,
+    this.dateTo,
+    this.projectId,
+    this.projectName,
+  });
+
+  final String presetName;
+  final DateTime? dateFrom;
+  final DateTime? dateTo;
+  final String? projectId;
+  final String? projectName;
+
+  TimesheetFilterState copyWith({
+    String? presetName,
+    DateTime? dateFrom,
+    DateTime? dateTo,
+    String? projectId,
+    String? projectName,
+    bool clearDates = false,
+    bool clearProject = false,
+  }) {
+    return TimesheetFilterState(
+      presetName: presetName ?? this.presetName,
+      dateFrom: clearDates ? null : (dateFrom ?? this.dateFrom),
+      dateTo: clearDates ? null : (dateTo ?? this.dateTo),
+      projectId: clearProject ? null : (projectId ?? this.projectId),
+      projectName: clearProject ? null : (projectName ?? this.projectName),
+    );
+  }
+}
+
+final timesheetFilterProvider = StateProvider<TimesheetFilterState>((ref) {
+  final now = DateTime.now();
+  return TimesheetFilterState(
+    presetName: 'Hôm nay',
+    dateFrom: now,
+    dateTo: now,
+  );
+});
+
+final timesheetSummaryProvider = FutureProvider<TimesheetSummary>((ref) async {
+  final repo = ref.watch(timesheetRepositoryProvider);
+  final filter = ref.watch(timesheetFilterProvider);
+
+  String? dateFromStr;
+  if (filter.dateFrom != null) {
+    final d = filter.dateFrom!;
+    dateFromStr = '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  }
+  String? dateToStr;
+  if (filter.dateTo != null) {
+    final d = filter.dateTo!;
+    dateToStr = '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  }
+
+  return repo.getSummary(
+    dateFrom: dateFromStr,
+    dateTo: dateToStr,
+  );
+});

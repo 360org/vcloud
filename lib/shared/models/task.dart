@@ -1,4 +1,5 @@
 import '../../core/utils/html_text.dart';
+import 'task_message.dart';
 import 'timesheet.dart';
 
 class TimesheetProjectOption {
@@ -36,6 +37,7 @@ class Task {
     this.remainingHours,
     this.stageName,
     this.state,
+    this.messages = const <TaskMessage>[],
     this.completedAt,
     this.timesheetId,
   });
@@ -56,6 +58,7 @@ class Task {
   final double? remainingHours;
   final String? stageName;
   final String? state;
+  final List<TaskMessage> messages;
   final TimesheetCategory category;
   final DateTime dueDate;
   final DateTime? completedAt;
@@ -91,6 +94,10 @@ class Task {
     remainingHours: (map['remaining_hours'] as num?)?.toDouble(),
     stageName: map['stage_name'] as String?,
     state: map['state'] as String?,
+    messages: (map['messages'] as List? ?? const <Object?>[])
+        .whereType<Map>()
+        .map((m) => TaskMessage.fromMap(Map<String, dynamic>.from(m)))
+        .toList(),
     category: TimesheetCategoryDb.fromDb(map['category'] as String? ?? 'other'),
     dueDate: map['due_date'] == null
         ? DateTime.now()

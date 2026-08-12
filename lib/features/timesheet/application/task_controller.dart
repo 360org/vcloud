@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../shared/models/task.dart';
+import '../../../shared/models/task_message.dart';
 import '../../../shared/models/timesheet.dart';
 import '../data/task_repository.dart';
 
@@ -199,7 +200,20 @@ class TaskActions {
     _ref.invalidate(todayTasksProvider);
     return t;
   }
+  /// Thêm ghi chú/bình luận vào task chatter.
+  Future<TaskMessage> addMessage({
+    required String taskId,
+    required String content,
+  }) async {
+    final msg = await _repo.addMessage(taskId: taskId, content: content);
+    _ref.invalidate(taskDetailProvider(taskId));
+    return msg;
+  }
 }
+
+final taskDetailProvider = FutureProvider.family<Task, String>((ref, taskId) {
+  return ref.read(taskRepositoryProvider).getTaskDetail(taskId);
+});
 
 final taskActionsProvider = Provider(
   (ref) => TaskActions(ref.read(taskRepositoryProvider), ref),
