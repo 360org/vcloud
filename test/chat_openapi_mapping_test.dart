@@ -106,6 +106,19 @@ void main() {
     expect(client.lastPostBody, <String, dynamic>{'partner_id': 7});
   });
 
+  test('ChatRepository archives and unarchives conversations through mobile endpoints', () async {
+    final client = _FakeOdooApiClient(<String, dynamic>{'status': 'ok'});
+    final repo = ChatRepository(client: client);
+
+    await repo.archiveConversation('42');
+    await repo.unarchiveConversation('42');
+
+    expect(client.postPaths, <String>[
+      '/api/v1/mobile/chat/channels/42/archive',
+      '/api/v1/mobile/chat/channels/42/unarchive',
+    ]);
+  });
+
   test(
     'ChatRepository pins and unpins messages through mobile endpoints',
     () async {
