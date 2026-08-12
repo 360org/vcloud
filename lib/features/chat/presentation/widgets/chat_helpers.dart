@@ -134,16 +134,19 @@ bool hasAttachmentOrDocument(Message message) {
 }
 
 bool isImageAttachment(Message message, String fileName) {
+  final mime = message.attachmentMimeType?.toLowerCase() ?? '';
+  if (mime.startsWith('image/')) {
+    return true;
+  }
   final ext = fileExtension(fileName).toLowerCase();
-  if (ext == 'jpg' ||
+  return (ext == 'jpg' ||
       ext == 'jpeg' ||
       ext == 'png' ||
       ext == 'gif' ||
-      ext == 'webp') {
-    return true;
-  }
-  final mime = message.attachmentMimeType?.toLowerCase() ?? '';
-  return mime.startsWith('image/');
+      ext == 'webp' ||
+      ext == 'svg' ||
+      ext == 'heic' ||
+      ext == 'heif');
 }
 
 String? documentThumbnailUrl(Message message) {

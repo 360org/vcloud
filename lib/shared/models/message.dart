@@ -205,21 +205,38 @@ class Message {
     return null;
   }
 
+  static String? _sanitizeAttachmentUrl(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
+    final trimmed = raw.trim();
+    if (trimmed.startsWith('http://localhost') ||
+        trimmed.startsWith('https://localhost') ||
+        trimmed.startsWith('http://127.0.0.1') ||
+        trimmed.startsWith('https://127.0.0.1')) {
+      final uri = Uri.tryParse(trimmed);
+      if (uri != null && uri.path.isNotEmpty) {
+        return uri.hasQuery ? '${uri.path}?${uri.query}' : uri.path;
+      }
+    }
+    return trimmed;
+  }
+
   static String? _attachmentUrl(Map<String, dynamic> map) {
-    final direct = _stringOrNull(
-      map['attachment_url'] ??
+    final direct = _sanitizeAttachmentUrl(_stringOrNull(
+      map['attachment_download_url'] ??
+          map['download_url'] ??
+          map['attachment_url'] ??
           map['url'] ??
-          map['thumbnail_url'] ??
-          map['attachment_download_url'] ??
-          map['download_url'],
-    );
+          map['thumbnail_url'],
+    ));
     if (direct != null) return direct;
     for (final value in _attachmentValues(map)) {
-      final url = _attachmentField(value, const [
+      final rawUrl = _attachmentField(value, const [
+        'download_url',
+        'attachment_download_url',
         'url',
         'thumbnail_url',
-        'download_url',
       ]);
+      final url = _sanitizeAttachmentUrl(rawUrl);
       final accessToken = _attachmentField(value, const ['access_token']);
       if (url != null) {
         if (accessToken != null && accessToken.isNotEmpty && !url.contains('access_token=')) {

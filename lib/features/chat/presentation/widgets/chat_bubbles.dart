@@ -1263,27 +1263,90 @@ class ImageAttachmentFallback extends StatelessWidget {
   }
 }
 
+class ImageAttachmentError extends StatelessWidget {
+  const ImageAttachmentError({super.key, this.onRetry});
+
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.red.withValues(alpha: 0.08),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(LucideIcons.alertTriangle, color: Colors.orange, size: 28),
+          const SizedBox(height: 6),
+          const Text(
+            'Lỗi tải ảnh',
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          if (onRetry != null) ...[
+            const SizedBox(height: 6),
+            InkWell(
+              onTap: onRetry,
+              borderRadius: BorderRadius.circular(4),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(LucideIcons.refreshCw, size: 12, color: AppColors.primary),
+                    SizedBox(width: 4),
+                    Text(
+                      'Thử lại',
+                      style: TextStyle(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class NetworkPreviewImage extends ConsumerStatefulWidget {
   const NetworkPreviewImage({
     super.key,
     required this.url,
     required this.fallback,
-    this.fit = BoxFit.cover,
     this.attachmentId,
+    this.fit = BoxFit.cover,
   });
 
   final String url;
   final Widget fallback;
-  final BoxFit fit;
   final String? attachmentId;
+  final BoxFit fit;
 
   @override
-  ConsumerState<NetworkPreviewImage> createState() => _NetworkPreviewImageState();
+  ConsumerState<NetworkPreviewImage> createState() =>
+      _NetworkPreviewImageState();
 }
 
 class _NetworkPreviewImageState extends ConsumerState<NetworkPreviewImage> {
+  int _retryCount = 0;
+
+  void _retry() {
+    setState(() {
+      _retryCount++;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final heroTag = widget.attachmentId != null
+        ? 'hero_image_${widget.attachmentId}'
+        : 'hero_image_${widget.url.hashCode}';
+
     final fileName = widget.fallback is ImageAttachmentFallback
         ? (widget.fallback as ImageAttachmentFallback).fileName
         : null;
@@ -1293,30 +1356,23 @@ class _NetworkPreviewImageState extends ConsumerState<NetworkPreviewImage> {
       altKey: fileName ?? widget.url,
     );
 
-    final heroTag = widget.attachmentId != null
-        ? 'hero_image_${widget.attachmentId}'
-        : 'hero_image_${widget.url.hashCode}';
-
     if (localBytes != null && localBytes.isNotEmpty) {
+      final heroTag =
+          'image-preview-${widget.attachmentId ?? widget.url}-${localBytes.length}';
+
       return GestureDetector(
         onTap: () {
           Navigator.of(context).push(
             PageRouteBuilder<void>(
               opaque: false,
               barrierDismissible: true,
-              barrierColor: Colors.black.withValues(alpha: 0.9),
-              pageBuilder: (context, animation, secondaryAnimation) {
-                return FadeTransition(
-                  opacity: animation,
-                  child: ImageViewerScreen(
-                    imageUrl: widget.url,
-                    fileName: fileName ?? 'Image',
-                    attachmentId: widget.attachmentId == null
-                        ? null
-                        : int.tryParse(widget.attachmentId!),
-                  ),
-                );
-              },
+              pageBuilder: (_, __, ___) => ImageViewerScreen(
+                imageUrl: widget.url,
+                fileName: fileName ?? 'Image',
+                attachmentId: widget.attachmentId == null
+                    ? null
+                    : int.tryParse(widget.attachmentId!),
+              ),
             ),
           );
         },
@@ -1326,7 +1382,7 @@ class _NetworkPreviewImageState extends ConsumerState<NetworkPreviewImage> {
             localBytes,
             fit: widget.fit,
             gaplessPlayback: true,
-            errorBuilder: (_, _, _) => widget.fallback,
+            errorBuilder: (_, __, ___) => ImageAttachmentError(onRetry: _retry),
           ),
         ),
       );
@@ -1340,7 +1396,9 @@ class _NetworkPreviewImageState extends ConsumerState<NetworkPreviewImage> {
       return widget.fallback;
     }
 
-    final authUrl = odooApiClient.authenticatedUrl(rawUrl);
+    final authUrl = odooApiClient.authenticatedUrl(
+      _retryCount > 0 ? '$rawUrl${rawUrl.contains('?') ? '&' : '?'}retry=$_retryCount' : rawUrl,
+    );
 
     Widget imageWidget;
     if (kIsWeb) {
@@ -1351,7 +1409,7 @@ class _NetworkPreviewImageState extends ConsumerState<NetworkPreviewImage> {
             fit: widget.fit,
             headers: odooApiClient.authHeaders,
             gaplessPlayback: true,
-            errorBuilder: (_, _, _) => widget.fallback,
+            errorBuilder: (_, __, ___) => ImageAttachmentError(onRetry: _retry),
           );
     } else {
       imageWidget = Image.network(

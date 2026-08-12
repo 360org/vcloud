@@ -5,6 +5,7 @@ import '../../../core/api/mobile_attachment_repository.dart';
 import '../../../core/api/odoo_api_client.dart';
 import '../../../core/error/failure.dart';
 import '../../../core/notifications/realtime_constants.dart';
+import '../../../core/utils/local_attachment_cache.dart';
 import '../../../shared/models/conversation.dart';
 import '../../../shared/models/message.dart';
 import '../../../shared/models/profile.dart';
@@ -310,6 +311,8 @@ class ChatRepository {
         resId: int.tryParse(conversationId),
       ),
     );
+    LocalAttachmentCache.save(attachment.filename, attachment.bytes);
+    LocalAttachmentCache.save(uploaded.attachmentId.toString(), attachment.bytes);
     await _client.post(
       '/api/v1/mobile/chat/messages',
       body: <String, dynamic>{
