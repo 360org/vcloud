@@ -12,6 +12,7 @@ import '../../../core/utils/date_format.dart';
 import '../../../shared/models/task.dart';
 import '../../../shared/models/timesheet.dart';
 import '../../../shared/widgets/app_scaffold.dart';
+import '../../../shared/widgets/celebration_fireworks.dart';
 import '../../../shared/widgets/ui_kit.dart';
 import '../../../shared/widgets/location_prompt_dialog.dart';
 import '../../attendance/application/attendance_controller.dart';
@@ -159,47 +160,50 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return AppScaffold(
       title: 'Home',
       showAppBar: false,
-      body: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(homeSummaryProvider);
-          ref.invalidate(mobileDashboardSummaryProvider);
-          ref.invalidate(attendanceTodayProvider);
-          ref.invalidate(todayTasksProvider);
-          ref.invalidate(openSessionProvider);
-          ref.invalidate(conversationsProvider);
-          ref.invalidate(mobileNotificationsProvider);
-        },
-        color: AppColors.primary,
-        backgroundColor: Theme.of(context).cardColor,
+      body: CelebrationFireworksOverlay(
+        autoTrigger: todayMinutes >= 480,
+        child: RefreshIndicator(
+          onRefresh: () async {
+            ref.invalidate(homeSummaryProvider);
+            ref.invalidate(mobileDashboardSummaryProvider);
+            ref.invalidate(attendanceTodayProvider);
+            ref.invalidate(todayTasksProvider);
+            ref.invalidate(openSessionProvider);
+            ref.invalidate(conversationsProvider);
+            ref.invalidate(mobileNotificationsProvider);
+          },
+          color: AppColors.primary,
+          backgroundColor: Theme.of(context).cardColor,
 
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-          children: [
-            _GreetingHeader(
-              userId: user?.id ?? '',
-              displayName: displayName,
-              email: user?.email,
-              avatarUrl: avatarUrl,
-              isOnline: isOnline,
-              statusBusy: statusBusy,
-              onStatusTap: () => _toggleAttendance(isOnline),
-              todayMinutes: todayMinutes,
-              checkinTime: openSession?.checkinTime,
-              notificationCount: notificationCount,
-              notificationsLoading: notificationState.isLoading,
-              onNotificationsTap: () => _openNotifications(context),
-              onOpenAttendance: () => context.push('/attendance'),
-            ),
-            const SizedBox(height: 18),
-            _QuickNavGrid(
-              ticketCount: openTickets,
-              unreadCount: unreadMessages,
-              chatCount: chatCount,
-              taskCount: todayTasks.length,
-            ),
-            const SizedBox(height: 20),
-            _TodayWork(tasks: todayTasks),
-          ],
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            children: [
+              _GreetingHeader(
+                userId: user?.id ?? '',
+                displayName: displayName,
+                email: user?.email,
+                avatarUrl: avatarUrl,
+                isOnline: isOnline,
+                statusBusy: statusBusy,
+                onStatusTap: () => _toggleAttendance(isOnline),
+                todayMinutes: todayMinutes,
+                checkinTime: openSession?.checkinTime,
+                notificationCount: notificationCount,
+                notificationsLoading: notificationState.isLoading,
+                onNotificationsTap: () => _openNotifications(context),
+                onOpenAttendance: () => context.push('/attendance'),
+              ),
+              const SizedBox(height: 18),
+              _QuickNavGrid(
+                ticketCount: openTickets,
+                unreadCount: unreadMessages,
+                chatCount: chatCount,
+                taskCount: todayTasks.length,
+              ),
+              const SizedBox(height: 20),
+              _TodayWork(tasks: todayTasks),
+            ],
+          ),
         ),
       ),
     );
@@ -501,6 +505,72 @@ class _GreetingHeader extends StatelessWidget {
                       ),
                     ],
                   ),
+                  if (todayMinutes >= 480) ...[
+                    const SizedBox(height: 10),
+                    InkWell(
+                      onTap: () {
+                        HapticFeedback.heavyImpact();
+                        CelebrationFireworksOverlay.trigger(context);
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          gradient: AppColors.featureGrad(
+                            const Color(0xFFFFD700),
+                            AppColors.success,
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x33FFD700),
+                              blurRadius: 8,
+                              offset: Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            const Text('🎉', style: TextStyle(fontSize: 14)),
+                            const SizedBox(width: 6),
+                            const Expanded(
+                              child: Text(
+                                'CHÚC MỪNG! ĐÃ HOÀN THÀNH 8H LÀM VIỆC XUẤT SẮC!',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 10,
+                                  letterSpacing: 0.2,
+                                ),
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.25),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(LucideIcons.sparkles, color: Colors.white, size: 11),
+                                  SizedBox(width: 3),
+                                  Text(
+                                    'Bắn pháo',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
