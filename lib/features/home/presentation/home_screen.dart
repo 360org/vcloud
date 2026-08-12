@@ -138,7 +138,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         );
     // Attendance is the source of truth immediately after a toggle. The
     // dashboard is a separate cached snapshot and may be one request behind.
-    final isOnline = summary?.isCheckedIn ?? dashboard?.isCheckedIn ?? false;
+    final openSession = ref.watch(openSessionProvider);
+    final isOnline = openSession?.isOpen ?? summary?.isCheckedIn ?? dashboard?.isCheckedIn ?? false;
     final todayMinutes = dashboard?.todayMinutes ?? summary?.todayMinutes ?? 0;
     final openTickets = dashboard?.openTickets ?? summary?.openTickets ?? 0;
     final unreadMessages = ref.watch(totalUnreadCountProvider);
@@ -179,6 +180,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               statusBusy: statusBusy,
               onStatusTap: () => _toggleAttendance(isOnline),
               todayMinutes: todayMinutes,
+              checkinTime: openSession?.checkinTime,
               notificationCount: notificationCount,
               notificationsLoading: notificationState.isLoading,
               onNotificationsTap: () => _openNotifications(context),
@@ -219,6 +221,7 @@ class _GreetingHeader extends StatelessWidget {
     required this.statusBusy,
     required this.onStatusTap,
     required this.todayMinutes,
+    required this.checkinTime,
     required this.notificationCount,
     required this.notificationsLoading,
     required this.onNotificationsTap,
@@ -233,6 +236,7 @@ class _GreetingHeader extends StatelessWidget {
   final bool statusBusy;
   final VoidCallback onStatusTap;
   final int todayMinutes;
+  final DateTime? checkinTime;
   final int notificationCount;
   final bool notificationsLoading;
   final VoidCallback onNotificationsTap;
@@ -242,11 +246,18 @@ class _GreetingHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final today = _vietnameseDateTime(DateTime.now());
+    const targetMinutes = 480; // Standard 8h shift
+    final progress = (todayMinutes / targetMinutes).clamp(0.0, 1.0);
+    final percent = (progress * 100).round();
+    final checkinLabel = (isOnline && checkinTime != null)
+        ? 'Vào ca lúc ${Dates.hm(checkinTime!)}'
+        : (isOnline ? 'Đã vào ca' : 'Chưa vào ca làm');
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E293B) : AppColors.surface,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(
           color: isDark
               ? Colors.white.withValues(alpha: 0.12)
@@ -302,7 +313,6 @@ class _GreetingHeader extends StatelessWidget {
                   ],
                 ),
               ),
-
               const SizedBox(width: 12),
               PressableScale(
                 onTap: onOpenAttendance,
@@ -357,31 +367,76 @@ class _GreetingHeader extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              _CheckInStatusButton(
-                isOnline: isOnline,
-                busy: statusBusy,
-                onTap: onStatusTap,
+
+          // Work Shift Info Banner & Progress Bar Card
+          InkWell(
+            onTap: onOpenAttendance,
+            borderRadius: BorderRadius.circular(18),
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppColors.soft(isOnline ? AppColors.success : AppColors.primary).withValues(alpha: 0.35),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: (isOnline ? AppColors.success : AppColors.primary).withValues(alpha: 0.22),
+                ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: PressableScale(
-                    onTap: onOpenAttendance,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: AppColors.soft(isOnline ? AppColors.success : AppColors.primary),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: (isOnline ? AppColors.success : AppColors.primary)
-                              .withValues(alpha: 0.18),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      _CheckInStatusButton(
+                        isOnline: isOnline,
+                        busy: statusBusy,
+                        onTap: onStatusTap,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(
+                                  LucideIcons.mapPin,
+                                  size: 13,
+                                  color: AppColors.success,
+                                ),
+                                SizedBox(width: 4),
+                                Text(
+                                  'GPS vị trí hợp lệ',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.success,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              checkinLabel,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
+                      const Icon(LucideIcons.chevronRight, size: 16, color: AppColors.textMuted),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Work Hours Progress Bar (6h 30m / 8h)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
                         children: [
                           Icon(
                             LucideIcons.clock,
@@ -390,26 +445,61 @@ class _GreetingHeader extends StatelessWidget {
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            'Hôm nay: ${_durationVi(Duration(minutes: todayMinutes))}',
-                            style: AppTextStyles.bodyMedium.copyWith(
-                              color: isOnline ? AppColors.success : AppColors.primary,
-                              fontWeight: FontWeight.w800,
+                            'Tiến độ ca làm: ${_durationVi(Duration(minutes: todayMinutes))} / 8h',
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onSurface,
                               fontSize: 12,
+                              fontWeight: FontWeight.w800,
                             ),
-                          ),
-                          const SizedBox(width: 4),
-                          Icon(
-                            LucideIcons.chevronRight,
-                            size: 14,
-                            color: isOnline ? AppColors.success : AppColors.primary,
                           ),
                         ],
                       ),
-                    ),
+                      Text(
+                        '$percent%',
+                        style: TextStyle(
+                          color: isOnline ? AppColors.success : AppColors.primary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
+                  const SizedBox(height: 6),
+                  Stack(
+                    children: [
+                      Container(
+                        height: 7,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: AppColors.border.withValues(alpha: 0.5),
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                      ),
+                      FractionallySizedBox(
+                        widthFactor: progress,
+                        child: Container(
+                          height: 7,
+                          decoration: BoxDecoration(
+                            gradient: AppColors.featureGrad(
+                              isOnline ? AppColors.success : AppColors.primary,
+                              isOnline ? AppColors.primary : AppColors.success,
+                            ),
+                            borderRadius: BorderRadius.circular(99),
+                            boxShadow: [
+                              BoxShadow(
+                                color: (isOnline ? AppColors.success : AppColors.primary).withValues(alpha: 0.4),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ],
       ),
