@@ -1,0 +1,154 @@
+default_platform(:ios)
+
+# Helper method to post real-time notification to Webhook (Slack, Discord, Telegram, or custom server)
+def send_webhook(title, message, status = "success")
+  webhook_url = ENV["WEBHOOK_URL"]
+  if webhook_url.nil? || webhook_url.strip.empty?
+    UI.message("ℹ️ No WEBHOOK_URL environment variable provided. Skipping webhook alert.")
+    return
+  end
+
+  color_code = status == "success" ? 3066993 : 15158332
+  payload = {
+    embeds: [
+      {
+        title: title,
+        description: message,
+        color: color_code,
+        timestamp: Time.now.utc.iso8601,
+        footer: {
+          text: "VCloud Mobile CI/CD Automation • Fastlane"
+        }
+      }
+    ],
+    text: "📢 **#{title}**\n#{message}"
+  }
+
+  require 'net/http'
+  require 'uri'
+  require 'json'
+  require 'time'
+
+  uri = URI.parse(webhook_url)
+  http = Net::HTTP.new(uri.host, uri.port)
+  http.use_ssl = (uri.scheme == 'https')
+  request = Net::HTTP::Post.new(uri.path, { 'Content-Type' => 'application/json' })
+  request.body = payload.to_json
+  
+  response = http.request(request)
+  UI.success("✅ Webhook notification dispatched successfully! (HTTP #{response.code})")
+rescue => e
+  UI.error("⚠️ Failed to dispatch webhook notification: #{e.message}")
+end
+
+platform :ios do
+  desc "Build signed IPA and deploy to Apple TestFlight"
+  lane :beta do |options|
+    begin
+      UI.header("🚀 Launching iOS TestFlight Fastlane Pipeline")
+
+      # 1. Setup App Store Connect API Key if available (recommended by Apple)
+      api_key = nil
+      if ENV["APP_STORE_CONNECT_KEY_ID"] && ENV["APP_STORE_CONNECT_ISSUER_ID"]
+        UI.message("🔑 Authenticating using App Store Connect API Key (.p8)")
+        api_key = app_store_connect_api_key(
+          key_id: ENV["APP_STORE_CONNECT_KEY_ID"],
+          issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
+          key_content: ENV["APP_STORE_CONNECT_KEY_CONTENT"],
+          is_key_content_base64: ENV["APP_STORE_CONNECT_KEY_BASE64"] == "true",
+          in_house: false
+        )
+      end
+
+      # 2. Extract version and build number from pubspec.yaml
+      require 'yaml'
+      pubspec = YAML.load_file("../pubspec.yaml")
+      version_parts = pubspec["version"].to_s.split("+")
+      build_name = version_parts[0] || "2.4.0"
+      build_number = ENV["BUILD_NUMBER"] || version_parts[1] || "40"
+      api_base_url = ENV["VCLOUD_ODOO_API_BASE_URL"] || "https://vuahethong.net"
+
+      UI.message("📱 Target App Version: #{build_name}+#{build_number}")
+      UI.message("🌐 Target API Base URL: #{api_base_url}")
+
+      # 3. Build IPA using Flutter
+      sh("cd .. && flutter pub get")
+      sh("cd .. && flutter build ipa --release --build-name=#{build_name} --build-number=#{build_number} --dart-define=VCLOUD_ODOO_API_BASE_URL=#{api_base_url}")
+
+      # 4. Upload to Apple TestFlight
+      if api_key
+        upload_to_testflight(
+          api_key: api_key,
+          skip_waiting_for_build_processing: true,
+          ipa: "../build/ios/ipa/vclients.ipa"
+        )
+      elsif ENV["APPLE_APP_PASS"]
+        UI.message("🔑 Authenticating using App-Specific Password")
+        upload_to_testflight(
+          username: ENV["APPLE_ID"] || "tanmnn@360.org.vn",
+          app_specific_password: ENV["APPLE_APP_PASS"],
+          skip_waiting_for_build_processing: true,
+          ipa: "../build/ios/ipa/vclients.ipa"
+        )
+      else
+        UI.important("⚠️ IPA build completed successfully at build/ios/ipa/vclients.ipa (No TestFlight upload credentials provided).")
+      end
+
+      # 5. Dispatch Webhook Success Alert
+      send_webhook(
+        "🚀 TestFlight Release Successful!",
+        "VCloud Mobile iOS **v#{build_name}+#{build_number}** has been built and uploaded to Apple TestFlight.\n• API: #{api_base_url}\n• Bundle: com.w360s.wcloudapp",
+        "success"
+      )
+    rescue => ex
+      send_webhook("❌ TestFlight Release Failed", "Pipeline encountered an error: #{ex.message}", "error")
+      raise ex
+    end
+  end
+end
+
+platform :android do
+  desc "Build Android APK & AAB release packages"
+  lane :beta do |options|
+    begin
+      UI.header("🤖 Launching Android Fastlane Pipeline")
+
+      require 'yaml'
+      pubspec = YAML.load_file("../pubspec.yaml")
+      version_parts = pubspec["version"].to_s.split("+")
+      build_name = version_parts[0] || "2.4.0"
+      build_number = ENV["BUILD_NUMBER"] || version_parts[1] || "40"
+      api_base_url = ENV["VCLOUD_ODOO_API_BASE_URL"] || "https://vuahethong.net"
+
+      UI.message("📱 Target App Version: #{build_name}+#{build_number}")
+
+      # 1. Build Universal APK
+      sh("cd .. && flutter pub get")
+      sh("cd .. && flutter build apk --release --build-name=#{build_name} --build-number=#{build_number} --dart-define=VCLOUD_ODOO_API_BASE_URL=#{api_base_url}")
+
+      # 2. Build App Bundle (AAB) for Google Play
+      sh("cd .. && flutter build appbundle --release --build-name=#{build_name} --build-number=#{build_number} --dart-define=VCLOUD_ODOO_API_BASE_URL=#{api_base_url}")
+
+      # 3. Optional Google Play Internal Track Upload
+      if ENV["GCLOUD_SERVICE_ACCOUNT_CREDENTIALS"]
+        UI.message("📦 Uploading AAB to Google Play Console...")
+        upload_to_play_store(
+          track: ENV["GOOGLE_PLAY_TRACK"] || "internal",
+          aab: "../build/app/outputs/bundle/release/app-release.aab",
+          json_key_data: ENV["GCLOUD_SERVICE_ACCOUNT_CREDENTIALS"],
+          package_name: "com.w360s.wcloudapp"
+        )
+      end
+
+      # 4. Dispatch Webhook Success Alert
+      send_webhook(
+        "🤖 Android Release Successful!",
+        "VCloud Mobile Android **v#{build_name}+#{build_number}** APK and AAB build completed!\n• API: #{api_base_url}\n• APK Output: `build/app/outputs/flutter-apk/app-release.apk`",
+        "success"
+      )
+    rescue => ex
+      send_webhook("❌ Android Release Failed", "Pipeline encountered an error: #{ex.message}", "error")
+      raise ex
+    end
+  end
+end

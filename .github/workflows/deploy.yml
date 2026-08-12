@@ -1,0 +1,131 @@
+name: Mobile CI/CD (Fastlane + Webhooks)
+
+on:
+  push:
+    branches:
+      - main
+      - 'release/*'
+      - release/ios-appstore
+      - release/android-playstore
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Build Target Platform'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - ios
+          - android
+  repository_dispatch:
+    types: [trigger-build]
+
+jobs:
+  build-ios-testflight:
+    name: Build & Deploy iOS (TestFlight)
+    if: github.event_name != 'workflow_dispatch' || inputs.target == 'all' || inputs.target == 'ios'
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Flutter Engine
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Setup Ruby & Fastlane Toolchain
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+
+      - name: Install Project Dependencies
+        run: |
+          flutter pub get
+          bundle install
+
+      - name: Run Flutter Static Analysis & Unit Tests
+        run: |
+          flutter analyze
+          flutter test
+
+      - name: Execute Fastlane iOS TestFlight Pipeline
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_KEY_CONTENT }}
+          APP_STORE_CONNECT_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_KEY_BASE64 }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASS: ${{ secrets.APPLE_APP_PASS }}
+          WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
+          BUILD_NUMBER: ${{ github.run_number }}
+          VCLOUD_ODOO_API_BASE_URL: "https://vuahethong.net"
+        run: |
+          bundle exec fastlane ios beta
+
+      - name: Upload iOS IPA Artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vcloud-ios-ipa
+          path: build/ios/ipa/*.ipa
+
+  build-android-release:
+    name: Build & Package Android (APK + AAB)
+    if: github.event_name != 'workflow_dispatch' || inputs.target == 'all' || inputs.target == 'android'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Flutter Engine
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Setup Ruby & Fastlane Toolchain
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+
+      - name: Install Project Dependencies
+        run: |
+          flutter pub get
+          bundle install
+
+      - name: Execute Fastlane Android Release Pipeline
+        env:
+          GCLOUD_SERVICE_ACCOUNT_CREDENTIALS: ${{ secrets.GCLOUD_SERVICE_ACCOUNT_CREDENTIALS }}
+          WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
+          BUILD_NUMBER: ${{ github.run_number }}
+          VCLOUD_ODOO_API_BASE_URL: "https://vuahethong.net"
+        run: |
+          bundle exec fastlane android beta
+
+      - name: Upload Android Release Artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vcloud-android-builds
+          path: |
+            build/app/outputs/flutter-apk/*.apk
+            build/app/outputs/bundle/release/*.aab

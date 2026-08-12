@@ -26,7 +26,7 @@ android {
     defaultConfig {
         applicationId = "com.vcloud.vcloud"
         // Fine-location runtime ask requires API 23+.
-        minSdk = 23
+        minSdk = flutter.minSdkVersion
         targetSdk = 34
         versionCode = flutter.versionCode
         versionName = flutter.versionName

@@ -1,0 +1,65 @@
+stages:
+  - test
+  - deploy
+
+variables:
+  VCLOUD_ODOO_API_BASE_URL: "https://vuahethong.net"
+
+.setup_ruby_flutter:
+  before_script:
+    - flutter pub get
+    - gem install bundler
+    - bundle install
+
+flutter_test:
+  stage: test
+  image: ghcr.io/cirruslabs/flutter:stable
+  extends: .setup_ruby_flutter
+  script:
+    - flutter analyze
+    - flutter test
+  only:
+    - main
+    - release/ios-appstore
+    - release/android-playstore
+
+deploy_android:
+  stage: deploy
+  image: ghcr.io/cirruslabs/flutter:stable
+  before_script:
+    - apt-get update && apt-get install -y ruby-full build-essential
+    - flutter pub get
+    - gem install bundler
+    - bundle install
+  script:
+    - bundle exec fastlane android beta
+  artifacts:
+    name: "vcloud-android-$CI_COMMIT_REF_SLUG-$CI_PIPELINE_IID"
+    paths:
+      - build/app/outputs/flutter-apk/*.apk
+      - build/app/outputs/bundle/release/*.aab
+    expire_in: 30 days
+  only:
+    - main
+    - release/android-playstore
+    - triggers
+    - web
+
+deploy_ios:
+  stage: deploy
+  tags:
+    - macos
+  script:
+    - flutter pub get
+    - gem install bundler
+    - bundle install
+    - bundle exec fastlane ios beta
+  artifacts:
+    name: "vcloud-ios-$CI_COMMIT_REF_SLUG-$CI_PIPELINE_IID"
+    paths:
+      - build/ios/ipa/*.ipa
+    expire_in: 30 days
+  only:
+    - release/ios-appstore
+    - triggers
+    - web
