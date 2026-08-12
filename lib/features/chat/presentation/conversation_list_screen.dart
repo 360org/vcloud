@@ -604,13 +604,7 @@ class _BalancedTelegramChatHeader extends StatelessWidget {
         height: 42,
         child: Row(
           children: [
-            SizedBox(
-              width: 86,
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: _HeaderPillButton(label: 'Sửa', onTap: () {}),
-              ),
-            ),
+            const SizedBox(width: 86),
             const Expanded(
               child: Center(
                 child: Row(
@@ -692,45 +686,6 @@ class _HeaderActionPill extends StatelessWidget {
   }
 }
 
-class _HeaderPillButton extends StatelessWidget {
-  const _HeaderPillButton({required this.label, required this.onTap});
-
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return PressableScale(
-      onTap: onTap,
-      child: Container(
-        width: 72,
-        height: 42,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF5F5F5),
-          borderRadius: BorderRadius.circular(22),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x0D0F172A),
-              blurRadius: 10,
-              offset: Offset(0, 4),
-            ),
-          ],
-        ),
-
-        child: Text(
-          label,
-          style: const TextStyle(
-            color: AppColors.textPrimary,
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 class _TelegramSearchBar extends StatelessWidget {
   const _TelegramSearchBar({
