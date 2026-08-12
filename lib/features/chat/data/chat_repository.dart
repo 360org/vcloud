@@ -251,6 +251,37 @@ class ChatRepository {
     return controller.stream;
   }
 
+  Future<List<Message>> fetchOlderMessages(
+    String conversationId, {
+    required String beforeMessageId,
+    int limit = 50,
+  }) async {
+    final res = await _client.get(
+      '/api/v1/mobile/chat/channels/$conversationId/messages',
+      query: <String, Object?>{
+        'before_id': beforeMessageId,
+        'limit': limit,
+      },
+    );
+    final List<dynamic> rawList = res is List
+        ? res
+        : (res is Map && res['messages'] is List
+            ? res['messages'] as List
+            : (res is Map && res['data'] is List
+                ? res['data'] as List
+                : const <dynamic>[]));
+    return rawList
+        .whereType<Map>()
+        .map(
+          (message) => Message.fromOdooMessageInfo(
+            conversationId: conversationId,
+            map: Map<String, dynamic>.from(message),
+          ),
+        )
+        .toList()
+      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+  }
+
   Future<Message> sendMessage(String conversationId, String content) async {
     final res = await _client.post(
       '/api/v1/mobile/chat/messages',

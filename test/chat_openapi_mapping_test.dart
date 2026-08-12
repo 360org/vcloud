@@ -139,6 +139,33 @@ void main() {
     },
   );
 
+  test('ChatRepository fetches older messages with before_id cursor parameter', () async {
+    final client = _FakeOdooApiClient(<dynamic>[
+      <String, dynamic>{
+        'id': 10,
+        'body': 'Old message',
+        'create_date': '2026-08-12 10:00:00',
+        'author_id': <dynamic>[1, 'Admin'],
+      },
+    ]);
+    final repo = ChatRepository(client: client);
+
+    final msgs = await repo.fetchOlderMessages(
+      '42',
+      beforeMessageId: '500',
+      limit: 30,
+    );
+
+    expect(client.lastGetPath, '/api/v1/mobile/chat/channels/42/messages');
+    expect(client.lastGetQuery, <String, Object?>{
+      'before_id': '500',
+      'limit': 30,
+    });
+    expect(msgs.length, 1);
+    expect(msgs.first.id, '10');
+    expect(msgs.first.content, 'Old message');
+  });
+
   test('ChatRepository uploads attachments onto discuss channel', () async {
     final client = _FakeOdooApiClient(<String, dynamic>{
       'id': 9,
