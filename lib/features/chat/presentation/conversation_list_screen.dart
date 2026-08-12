@@ -810,7 +810,7 @@ class _TelegramChatFilterBar extends StatelessWidget {
     required this.onSelectFilter,
   });
 
-  final String filter;
+  final String? filter;
   final int totalCount;
   final int unreadCount;
   final int groupCount;
@@ -819,6 +819,8 @@ class _TelegramChatFilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final activeFilter = (filter == null || filter!.isEmpty) ? 'all' : filter!;
+
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.fromLTRB(18, 10, 18, 6),
@@ -827,14 +829,14 @@ class _TelegramChatFilterBar extends StatelessWidget {
           _TelegramFilterChipPill(
             label: 'Tất cả',
             count: totalCount,
-            selected: filter == 'all',
+            selected: activeFilter == 'all',
             onTap: () => onSelectFilter('all'),
           ),
           const SizedBox(width: 8),
           _TelegramFilterChipPill(
             label: 'Chưa đọc',
             count: unreadCount,
-            selected: filter == 'unread',
+            selected: activeFilter == 'unread',
             accentColor: AppColors.danger,
             onTap: () => onSelectFilter('unread'),
           ),
@@ -842,7 +844,7 @@ class _TelegramChatFilterBar extends StatelessWidget {
           _TelegramFilterChipPill(
             label: 'Nhóm',
             count: groupCount,
-            selected: filter == 'group',
+            selected: activeFilter == 'group',
             accentColor: AppColors.chat,
             onTap: () => onSelectFilter('group'),
           ),
@@ -850,7 +852,7 @@ class _TelegramChatFilterBar extends StatelessWidget {
           _TelegramFilterChipPill(
             label: 'Trực tiếp',
             count: directCount,
-            selected: filter == 'direct',
+            selected: activeFilter == 'direct',
             accentColor: AppColors.primary,
             onTap: () => onSelectFilter('direct'),
           ),
