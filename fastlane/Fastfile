@@ -68,14 +68,18 @@ platform :ios do
     begin
       UI.header("🚀 Launching iOS TestFlight Fastlane Pipeline")
 
-      # 1. Setup App Store Connect API Key if available (recommended by Apple)
+      # 1. Setup App Store Connect API Key if valid key content is provided
       api_key = nil
-      if ENV["APP_STORE_CONNECT_KEY_ID"] && ENV["APP_STORE_CONNECT_ISSUER_ID"]
+      key_content = ENV["APP_STORE_CONNECT_KEY_CONTENT"]
+      key_id = ENV["APP_STORE_CONNECT_KEY_ID"]
+      issuer_id = ENV["APP_STORE_CONNECT_ISSUER_ID"]
+
+      if key_content && !key_content.strip.empty? && key_id && !key_id.strip.empty? && issuer_id && !issuer_id.strip.empty?
         UI.message("🔑 Authenticating using App Store Connect API Key (.p8)")
         api_key = app_store_connect_api_key(
-          key_id: ENV["APP_STORE_CONNECT_KEY_ID"],
-          issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
-          key_content: ENV["APP_STORE_CONNECT_KEY_CONTENT"],
+          key_id: key_id.strip,
+          issuer_id: issuer_id.strip,
+          key_content: key_content.strip,
           is_key_content_base64: ENV["APP_STORE_CONNECT_KEY_BASE64"] == "true",
           in_house: false
         )
