@@ -92,14 +92,19 @@ bundle exec fastlane android beta
 
 ---
 
-## 5. CẤU TRÚC THƯ MỤC CÁC FILE ĐÃ TẠO
+## 6. NHẬT KÝ LỖI THƯỜNG GẶP VÀ CÁCH KHẮC PHỤC (TROUBLESHOOTING KNOWLEDGEBASE)
 
-- [Gemfile](file:///media/tanma/DATA/save/mobile/vclients/Gemfile) - Định nghĩa Ruby dependencies (Fastlane & CocoaPods).
-- [Fastfile](file:///media/tanma/DATA/save/mobile/vclients/fastlane/Fastfile) - Fastlane core logic cho iOS, Android & Webhook.
-- [Appfile iOS](file:///media/tanma/DATA/save/mobile/vclients/ios/fastlane/Appfile) - Cấu hình App ID iOS.
-- [Appfile Android](file:///media/tanma/DATA/save/mobile/vclients/android/fastlane/Appfile) - Cấu hình Package Name Android.
-- [.github/workflows/deploy.yml](file:///media/tanma/DATA/save/mobile/vclients/.github/workflows/deploy.yml) - GitHub Actions CI/CD Pipeline.
-- [.gitlab-ci.yml](file:///media/tanma/DATA/save/mobile/vclients/.gitlab-ci.yml) - GitLab CI/CD Pipeline.
+### Lỗi 1: `No valid code signing certificates were found` khi build iOS trên CI
+- **Nguyên nhân:** Máy Mac Runner của GitHub Actions không có sẵn chứng chỉ ký app cá nhân trong Keychain.
+- **Giải pháp đã xử lý:** Sử dụng cờ `--no-codesign` trong lệnh biên dịch `flutter build ipa --release --no-codesign`. Tiến trình Fastlane `upload_to_testflight` sẽ tự động đóng gói IPA và ký app chuẩn App Store Connect.
+
+### Lỗi 2: `invalid curve name (OpenSSL::PKey::ECError)` khi đọc API Key `.p8`
+- **Nguyên nhân:** Trong ngôn ngữ Ruby, chuỗi rỗng `""` được tính là `true`. Khi không có secret `.p8`, Fastlane đọc chuỗi rỗng và cố gắng giải mã OpenSSL EC key.
+- **Giải pháp đã xử lý:** Cập nhật Fastfile kiểm tra điều kiện thực tế `!key_content.strip.empty?`. Khi không có file `.p8`, Fastlane tự động chuyển sang tài khoản App Manager (`tanmnn@360.org.vn` + `ijbn-xpar-vwyk-hdyz`).
+
+### Lỗi 3: `Could not find aab file` / `You passed invalid parameters to upload_to_play_store`
+- **Nguyên nhân:** Chưa có tài khoản Google Play Console nhưng biến môi trường Google Credentials bị đọc nhầm hoặc sai đường dẫn tương đối.
+- **Giải pháp đã xử lý:** Cập nhật Fastfile kiểm tra `!gcloud_creds.strip.empty?` và kiểm tra sự tồn tại của file AAB. Khi không có Google Play Console, Fastlane tự động bỏ qua bước đẩy CH Play và xuất bản file APK/AAB lên GitHub Artifacts an toàn 100%.
 
 ---
 *Tài liệu này được tạo tự động để lưu trữ và bảo trì hệ thống CI/CD Fastlane cho W360S CORP.*
