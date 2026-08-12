@@ -45,8 +45,8 @@ Dưới đây là cấu hình chuẩn đã được kiểm chứng hoạt độn
           echo "Uploading IPA to Apple TestFlight using App Manager credentials..."
           xcrun altool --upload-app --type ios \
             -f build/ios/ipa/*.ipa \
-            -u "tanmnn@360.org.vn" \
-            -p "ijbn-xpar-vwyk-hdyz"
+            -u "$APPLE_ID" \
+            -p "$APPLE_APP_PASS"
 ```
 
 ### Quy trình thao tác phát hành bản build mới (Trong 3 bước):

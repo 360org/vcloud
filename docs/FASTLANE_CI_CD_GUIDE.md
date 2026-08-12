@@ -27,7 +27,7 @@ Vào **Settings -> Secrets and variables -> Actions** trên GitHub (hoặc **Set
 | `APP_STORE_CONNECT_KEY_ID` | Key ID tạo từ App Store Connect (Ví dụ: `3J68D9JX79`) | iOS (TestFlight) |
 | `APP_STORE_CONNECT_ISSUER_ID` | Issuer ID của tổ chức W360S (`69a6de93-48bc-47e3-e053-5b8c7c11a4d1`) | iOS (TestFlight) |
 | `APP_STORE_CONNECT_KEY_CONTENT` | Nội dung file khóa bảo mật `.p8` (Bắt đầu bằng `-----BEGIN PRIVATE KEY-----`) | iOS (TestFlight) |
-| `APPLE_APP_PASS` *(Dự phòng)* | Mật khẩu ứng dụng 16 ký tự (`ijbn-xpar-vwyk-hdyz`) nếu không dùng Key `.p8` | iOS (TestFlight) |
+| `APPLE_APP_PASS` *(Dự phòng)* | Mật khẩu ứng dụng 16 ký tự (Ví dụ: `xxxx-xxxx-xxxx-xxxx`) nếu không dùng Key `.p8` | iOS (TestFlight) |
 | `APPLE_ID` | Email quản trị Apple App Manager (`tanmnn@360.org.vn`) | iOS (TestFlight) |
 | `WEBHOOK_URL` | Đường dẫn Webhook (Slack, Discord, Telegram Bot HTTP Endpoint) | Webhook Alerts |
 | `GCLOUD_SERVICE_ACCOUNT_CREDENTIALS` | JSON Service Account của Google Play Console (dành cho Android) | Android (Play Store) |
