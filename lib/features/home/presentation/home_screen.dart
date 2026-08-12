@@ -140,7 +140,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // dashboard is a separate cached snapshot and may be one request behind.
     final openSession = ref.watch(openSessionProvider);
     final isOnline = openSession?.isOpen ?? summary?.isCheckedIn ?? dashboard?.isCheckedIn ?? false;
-    final todayMinutes = dashboard?.todayMinutes ?? summary?.todayMinutes ?? 0;
+    final closedMinutes = dashboard?.todayMinutes ?? summary?.todayMinutes ?? 0;
+    final ongoingMinutes = (isOnline && openSession?.checkinTime != null)
+        ? DateTime.now().difference(openSession!.checkinTime!).inMinutes
+        : 0;
+    final todayMinutes = closedMinutes + (ongoingMinutes > 0 ? ongoingMinutes : 0);
     final openTickets = dashboard?.openTickets ?? summary?.openTickets ?? 0;
     final unreadMessages = ref.watch(totalUnreadCountProvider);
     final conversationsState = ref.watch(conversationsProvider);
