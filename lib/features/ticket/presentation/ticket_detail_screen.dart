@@ -391,8 +391,8 @@ class _TicketActionBarState extends State<_TicketActionBar> {
       takeLabel = 'Đã nhận';
       takeIcon = LucideIcons.checkCheck;
     } else if (isOverdue) {
-      takeLabel = 'Đã hết hạn';
-      takeIcon = LucideIcons.alertTriangle;
+      takeLabel = isTaken ? 'Đã nhận' : 'Nhận (Trễ SLA)';
+      takeIcon = isTaken ? LucideIcons.checkCheck : LucideIcons.alertTriangle;
     } else if (isTaken) {
       takeLabel = 'Đã nhận';
       takeIcon = LucideIcons.checkCheck;
@@ -420,11 +420,11 @@ class _TicketActionBarState extends State<_TicketActionBar> {
       completeFgColor = Colors.white;
       enableComplete = false;
     } else if (isOverdue) {
-      completeLabel = 'Thất bại (Quá hạn)';
-      completeIcon = LucideIcons.xCircle;
-      completeBgColor = const Color(0xFFF1F5F9); // Xám nhạt tương phản thấp
-      completeFgColor = const Color(0xFF94A3B8); // Chữ xám mờ
-      enableComplete = false; // Khóa tương tác tuyệt đối
+      completeLabel = 'Hoàn thành (Trễ SLA)';
+      completeIcon = LucideIcons.check;
+      completeBgColor = const Color(0xFFEF4444); // Đỏ cảnh báo trễ SLA
+      completeFgColor = Colors.white;
+      enableComplete = true; // Cho phép hoàn thành kể cả khi quá hạn
     }
 
     return Container(
@@ -662,6 +662,34 @@ class _TicketInfoCard extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           _DetailField(
+            label: 'Trạng thái & SLA',
+            icon: LucideIcons.shieldAlert,
+            child: Wrap(
+              spacing: 10,
+              runSpacing: 8,
+              children: [
+                _InfoChip(
+                  icon: LucideIcons.activity,
+                  label: 'Trạng thái: ${_statusText(ticket.status)}',
+                  color: _statusColor(ticket.status),
+                ),
+                if (ticket.isOverdue)
+                  _InfoChip(
+                    icon: LucideIcons.alertTriangle,
+                    label: 'SLA: ${Dates.slaLabelVi(ticket.deadline ?? ticket.createdAt)} (${Dates.dateVi(ticket.deadline ?? ticket.createdAt)})',
+                    color: AppColors.danger,
+                  )
+                else
+                  _InfoChip(
+                    icon: LucideIcons.clock,
+                    label: 'SLA: ${Dates.dateVi(ticket.deadline ?? ticket.createdAt)}',
+                    color: AppColors.textSecondary,
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          _DetailField(
             label: 'Mức độ ưu tiên',
             icon: LucideIcons.star,
             child: Row(
@@ -679,7 +707,7 @@ class _TicketInfoCard extends StatelessWidget {
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    ticket.priority.displayName,
+                    '${ticket.priority.label} · ${ticket.priority.displayName}',
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.onSurface,
                       fontSize: 14,
@@ -687,7 +715,6 @@ class _TicketInfoCard extends StatelessWidget {
                     ),
                   ),
                 ),
-
               ],
             ),
           ),
@@ -1143,4 +1170,16 @@ int _priorityStars(TicketPriority priority) => switch (priority) {
   TicketPriority.p2 => 3,
   TicketPriority.p3 => 2,
   TicketPriority.p4 => 1,
+};
+
+Color _statusColor(TicketStatus status) => switch (status) {
+  TicketStatus.todo => const Color(0xFF64748B),
+  TicketStatus.doing => const Color(0xFFD97706),
+  TicketStatus.done => const Color(0xFF10B981),
+};
+
+String _statusText(TicketStatus status) => switch (status) {
+  TicketStatus.todo => 'Chờ xử lý',
+  TicketStatus.doing => 'Đang xử lý',
+  TicketStatus.done => 'Hoàn thành',
 };

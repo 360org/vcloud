@@ -23,6 +23,26 @@ class Dates {
     return '$day/$month/${local.year}';
   }
 
+  /// Format SLA status into friendly Vietnamese label (e.g. "Trễ hạn 5 ngày", "Hạn hôm nay", "Còn 2 ngày").
+  static String slaLabelVi(DateTime deadline, {DateTime? now}) {
+    final n = now ?? DateTime.now();
+    final today = DateTime(n.year, n.month, n.day);
+    final targetLocal = deadline.toLocal();
+    final targetDay = DateTime(targetLocal.year, targetLocal.month, targetLocal.day);
+
+    if (targetDay.isBefore(today)) {
+      final days = today.difference(targetDay).inDays;
+      if (days <= 0) return 'Trễ hạn hôm nay';
+      return 'Trễ hạn $days ngày';
+    } else {
+      final days = targetDay.difference(today).inDays;
+      if (days == 0) return 'Hạn hôm nay';
+      if (days == 1) return 'Hạn ngày mai';
+      if (days < 7) return 'Còn $days ngày';
+      return 'Hạn ${dateVi(deadline)}';
+    }
+  }
+
   static String isoDate(DateTime dt) => _iso.format(dt.toLocal());
 
   static String hm(DateTime dt) => _hm.format(dt.toLocal());
