@@ -1209,10 +1209,13 @@ class _AttachmentTile extends StatelessWidget {
 
     final fileSizeText = _formatFileSize(attachment.fileSize);
 
-    final displayName =
-        (attachment.name.isEmpty || attachment.name.toLowerCase() == 'undefined')
-            ? 'Tệp đính kèm #${attachment.id}'
-            : attachment.name;
+    final rawName = attachment.name.trim();
+    final isInvalidName = rawName.isEmpty ||
+        rawName.toLowerCase() == 'undefined' ||
+        rawName.toLowerCase() == 'null' ||
+        rawName.toLowerCase() == 'false' ||
+        rawName.toLowerCase() == 'none';
+    final displayName = isInvalidName ? 'Tệp đính kèm #${attachment.id}' : rawName;
 
     return PressableScale(
       onTap: () {
