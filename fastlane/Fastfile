@@ -109,7 +109,7 @@ platform :ios do
           development: false
         )
 
-        profile_name = lane_context[SharedValues::SIGH_PROFILE_NAME] || ENV["SIGH_PROFILE_NAME"]
+        profile_name = lane_context[SharedValues::SIGH_PROFILE_NAME] || ENV["SIGH_PROFILE_NAME"] || lane_context[SharedValues::SIGH_NAME] || ENV["SIGH_NAME"]
 
         if profile_name && !profile_name.strip.empty?
           UI.message("⚙️ Updating Xcode Code Signing settings for Manual Signing with profile: #{profile_name}")
