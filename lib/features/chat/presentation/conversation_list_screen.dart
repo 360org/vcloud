@@ -771,90 +771,97 @@ class _TelegramChatFilterBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final activeFilter = (filter == null || filter!.isEmpty) ? 'all' : filter!;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.fromLTRB(18, 10, 18, 6),
-      child: Row(
-        children: [
-          _TelegramFilterChipPill(
-            label: 'Tất cả',
-            count: totalCount,
-            selected: activeFilter == 'all',
-            onTap: () => onSelectFilter('all'),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _TelegramFilterSegment(
+                label: 'Tất cả',
+                count: totalCount,
+                selected: activeFilter == 'all',
+                onTap: () => onSelectFilter('all'),
+              ),
+              const SizedBox(width: 4),
+              _TelegramFilterSegment(
+                label: 'Chưa đọc',
+                count: unreadCount,
+                selected: activeFilter == 'unread',
+                badgeColor: AppColors.danger,
+                onTap: () => onSelectFilter('unread'),
+              ),
+              const SizedBox(width: 4),
+              _TelegramFilterSegment(
+                label: 'Nhóm',
+                count: groupCount,
+                selected: activeFilter == 'group',
+                badgeColor: AppColors.chat,
+                onTap: () => onSelectFilter('group'),
+              ),
+              const SizedBox(width: 4),
+              _TelegramFilterSegment(
+                label: 'Trực tiếp',
+                count: directCount,
+                selected: activeFilter == 'direct',
+                badgeColor: AppColors.primary,
+                onTap: () => onSelectFilter('direct'),
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-          _TelegramFilterChipPill(
-            label: 'Chưa đọc',
-            count: unreadCount,
-            selected: activeFilter == 'unread',
-            accentColor: AppColors.danger,
-            onTap: () => onSelectFilter('unread'),
-          ),
-          const SizedBox(width: 8),
-          _TelegramFilterChipPill(
-            label: 'Nhóm',
-            count: groupCount,
-            selected: activeFilter == 'group',
-            accentColor: AppColors.chat,
-            onTap: () => onSelectFilter('group'),
-          ),
-          const SizedBox(width: 8),
-          _TelegramFilterChipPill(
-            label: 'Trực tiếp',
-            count: directCount,
-            selected: activeFilter == 'direct',
-            accentColor: AppColors.primary,
-            onTap: () => onSelectFilter('direct'),
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
-class _TelegramFilterChipPill extends StatelessWidget {
-  const _TelegramFilterChipPill({
+class _TelegramFilterSegment extends StatelessWidget {
+  const _TelegramFilterSegment({
     required this.label,
     required this.count,
     required this.selected,
     required this.onTap,
-    this.accentColor,
+    this.badgeColor,
   });
 
   final String label;
   final int count;
   final bool selected;
   final VoidCallback onTap;
-  final Color? accentColor;
+  final Color? badgeColor;
 
   @override
   Widget build(BuildContext context) {
-    final activeColor = accentColor ?? AppColors.chat;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = badgeColor ?? AppColors.primary;
 
     return PressableScale(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeInOut,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
           color: selected
-              ? AppColors.soft(activeColor)
-              : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF0F3F8)),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selected
-                ? activeColor
-                : (isDark ? Colors.white.withValues(alpha: 0.12) : AppColors.border),
-            width: selected ? 1.5 : 1.0,
-          ),
+              ? (isDark ? const Color(0xFF334155) : Colors.white)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
           boxShadow: selected
               ? [
                   BoxShadow(
-                    color: activeColor.withValues(alpha: 0.18),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
+                    color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.06),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
                   ),
                 ]
               : null,
@@ -862,34 +869,37 @@ class _TelegramFilterChipPill extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (selected) ...[
-              Icon(LucideIcons.check, size: 14, color: activeColor),
-              const SizedBox(width: 4),
-            ],
             Text(
               label,
               style: TextStyle(
-                color: selected ? activeColor : AppColors.textPrimary,
+                color: selected
+                    ? (isDark ? Colors.white : AppColors.textPrimary)
+                    : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
                 fontSize: 13,
-                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
               ),
             ),
             if (count > 0) ...[
               const SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: selected
-                      ? activeColor
-                      : (isDark ? Colors.white12 : AppColors.border),
-                  borderRadius: BorderRadius.circular(10),
+                      ? accent
+                      : (isDark
+                          ? const Color(0xFF475569)
+                          : const Color(0xFFCBD5E1)),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   count > 99 ? '99+' : count.toString(),
                   style: TextStyle(
-                    color: selected ? Colors.white : AppColors.textSecondary,
+                    color: selected
+                        ? Colors.white
+                        : (isDark ? Colors.white70 : AppColors.textPrimary),
                     fontSize: 10,
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
