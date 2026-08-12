@@ -15,7 +15,6 @@ import '../../../shared/models/ticket_activity.dart';
 import '../../../shared/models/ticket_comment.dart';
 import '../../../shared/widgets/copyable_error_dialog.dart';
 import '../../../shared/widgets/error_view.dart';
-import '../../../shared/widgets/loading_view.dart';
 import '../../../shared/widgets/ui_kit.dart';
 import '../../auth/application/auth_controller.dart';
 import '../application/ticket_controller.dart';
@@ -147,62 +146,75 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
         body: SafeArea(child: ErrorView(error: _error!)),
       );
     }
-    if (_ticket == null) {
-      return const Scaffold(
-        backgroundColor: Color(0xFFF7F8FC),
-        body: LoadingView(),
-      );
+
+    final ticket = _ticket;
+    if (ticket != null) {
+      ref.listen(ticketCommentsProvider(widget.ticketId), (previous, next) {
+        final previousCount = previous?.valueOrNull?.length ?? 0;
+        final nextCount = next.valueOrNull?.length ?? previousCount;
+        final serverIds =
+            next.valueOrNull?.map((comment) => comment.id).toSet() ??
+            const <String>{};
+        if (serverIds.isNotEmpty && _optimisticComments.isNotEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            setState(() {
+              _optimisticComments.removeWhere(
+                (comment) => serverIds.contains(comment.id),
+              );
+            });
+          });
+        }
+        if (nextCount > previousCount) _scrollToComments();
+      });
     }
 
-    final ticket = _ticket!;
-    final comments = ref.watch(ticketCommentsProvider(widget.ticketId));
-    ref.listen(ticketCommentsProvider(widget.ticketId), (previous, next) {
-      final previousCount = previous?.valueOrNull?.length ?? 0;
-      final nextCount = next.valueOrNull?.length ?? previousCount;
-      final serverIds =
-          next.valueOrNull?.map((comment) => comment.id).toSet() ??
-          const <String>{};
-      if (serverIds.isNotEmpty && _optimisticComments.isNotEmpty) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-          setState(() {
-            _optimisticComments.removeWhere(
-              (comment) => serverIds.contains(comment.id),
-            );
-          });
-        });
-      }
-      if (nextCount > previousCount) _scrollToComments();
-    });
+    final comments = ticket != null ? ref.watch(ticketCommentsProvider(widget.ticketId)) : null;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       resizeToAvoidBottomInset: true,
-
       body: SafeArea(
         child: Column(
           children: [
             const _TicketDetailHeader(),
             Expanded(
-              child: ListView(
-                controller: _scrollController,
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                children: [
-                  _TicketInfoCard(ticket: ticket),
-                  if (ticket.attachments.isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    _TicketAttachmentsSection(attachments: ticket.attachments),
-                  ],
-                  const SizedBox(height: 16),
-                  _TicketActivitiesSection(ticketId: ticket.id),
-                  const SizedBox(height: 16),
-                  _SectionTitle(
-                    key: _commentsKey,
-                    icon: LucideIcons.messageSquare,
-                    title: 'Bình luận',
-                  ),
-                  const SizedBox(height: 10),
-                  comments.when(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                transitionBuilder: (child, animation) {
+                  return FadeTransition(
+                    opacity: animation,
+                    child: ScaleTransition(
+                      scale: Tween<double>(begin: 0.98, end: 1.0).animate(animation),
+                      child: child,
+                    ),
+                  );
+                },
+                child: ticket == null
+                    ? const _TicketDetailSkeleton(key: ValueKey('skeleton'))
+                    : ListView(
+                        key: const ValueKey('content'),
+                        controller: _scrollController,
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                        children: [
+                          _TicketInfoCard(ticket: ticket),
+                          if (ticket.attachments.isNotEmpty) ...[
+                            const SizedBox(height: 16),
+                            _TicketAttachmentsSection(attachments: ticket.attachments),
+                          ],
+                          const SizedBox(height: 16),
+                          _TicketActivitiesSection(ticketId: ticket.id),
+                          const SizedBox(height: 16),
+                          _SectionTitle(
+                            key: _commentsKey,
+                            icon: LucideIcons.messageSquare,
+                            title: 'Bình luận',
+                          ),
+                          const SizedBox(height: 10),
+                          if (comments != null)
+                            comments.when(
                     data: (list) {
                       final mergedComments = _mergeComments(list);
                       if (mergedComments.isEmpty) {
@@ -272,60 +284,63 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
                 ],
               ),
             ),
-            _TicketActionBar(
-              ticket: ticket,
-              onTake: () async {
-                final messenger = ScaffoldMessenger.of(context);
-                final router = GoRouter.of(context);
-                try {
-                  await ref.read(ticketActionsProvider).updateStatus(widget.ticketId, TicketStatus.doing);
-                  if (!mounted) return;
-                  messenger.showSnackBar(
-                    const SnackBar(
-                      content: Text('🎉 Đã nhận ticket thành công!'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                  if (router.canPop()) {
-                    router.pop();
-                  } else {
-                    _load();
+          ),
+          if (ticket != null) ...[
+              _TicketActionBar(
+                ticket: ticket,
+                onTake: () async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  final router = GoRouter.of(context);
+                  try {
+                    await ref.read(ticketActionsProvider).updateStatus(widget.ticketId, TicketStatus.doing);
+                    if (!mounted) return;
+                    messenger.showSnackBar(
+                      const SnackBar(
+                        content: Text('🎉 Đã nhận ticket thành công!'),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                    if (router.canPop()) {
+                      router.pop();
+                    } else {
+                      _load();
+                    }
+                  } catch (e, st) {
+                    if (mounted && context.mounted) {
+                      showCopyableErrorDialog(context, title: 'Lỗi Nhận Ticket', error: e, stackTrace: st);
+                    }
                   }
-                } catch (e, st) {
-                  if (mounted && context.mounted) {
-                    showCopyableErrorDialog(context, title: 'Lỗi Nhận Ticket', error: e, stackTrace: st);
+                },
+                onComplete: () async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  final router = GoRouter.of(context);
+                  try {
+                    await ref.read(ticketActionsProvider).updateStatus(widget.ticketId, TicketStatus.done);
+                    if (!mounted) return;
+                    messenger.showSnackBar(
+                      const SnackBar(
+                        content: Text('🎉 Đã hoàn thành ticket!'),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                    if (router.canPop()) {
+                      router.pop();
+                    } else {
+                      _load();
+                    }
+                  } catch (e, st) {
+                    if (mounted && context.mounted) {
+                      showCopyableErrorDialog(context, title: 'Lỗi Hoàn Thành Ticket', error: e, stackTrace: st);
+                    }
                   }
-                }
-              },
-              onComplete: () async {
-                final messenger = ScaffoldMessenger.of(context);
-                final router = GoRouter.of(context);
-                try {
-                  await ref.read(ticketActionsProvider).updateStatus(widget.ticketId, TicketStatus.done);
-                  if (!mounted) return;
-                  messenger.showSnackBar(
-                    const SnackBar(
-                      content: Text('🎉 Đã hoàn thành ticket!'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                  if (router.canPop()) {
-                    router.pop();
-                  } else {
-                    _load();
-                  }
-                } catch (e, st) {
-                  if (mounted && context.mounted) {
-                    showCopyableErrorDialog(context, title: 'Lỗi Hoàn Thành Ticket', error: e, stackTrace: st);
-                  }
-                }
-              },
-            ),
-            _CommentComposer(
-              controller: _commentController,
-              sending: _sendingComment,
-              onSubmit: _sendComment,
-            ),
+                },
+              ),
+              _CommentComposer(
+                controller: _commentController,
+                sending: _sendingComment,
+                onSubmit: _sendComment,
+              ),
+            ],
           ],
         ),
       ),
@@ -1407,6 +1422,126 @@ class _ActivityItemTile extends StatelessWidget {
                   ),
                 ),
               ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TicketDetailSkeleton extends StatelessWidget {
+  const _TicketDetailSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: _cardDecoration(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 80,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE2E8F0),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                  const Spacer(),
+                  Container(
+                    width: 60,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE2E8F0),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                height: 18,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                width: 220,
+                height: 18,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Container(
+                    width: 90,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE2E8F0),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    width: 80,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE2E8F0),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          height: 110,
+          decoration: _cardDecoration(),
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 100,
+                height: 16,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE2E8F0),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                height: 14,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                width: 180,
+                height: 14,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
             ],
           ),
         ),

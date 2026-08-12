@@ -36,21 +36,45 @@ final routerProvider = Provider<GoRouter>((ref) {
 
   return GoRouter(
     initialLocation: '/splash',
+    debugLogDiagnostics: false,
     refreshListenable: listenable,
     redirect: (context, state) {
       final loc = state.matchedLocation;
+      final fullPath = state.uri.toString();
       final sub = ref.read(authControllerProvider);
 
-      // Hold/screenshots on /splash until the controller resolves.
+      final isSplash = loc == '/splash' || loc.startsWith('/splash');
+      final isLogin = loc == '/login' || loc.startsWith('/login');
+      final isSignup = loc == '/signup' || loc.startsWith('/signup');
+      final onAuthScreen = isLogin || isSignup;
+
       if (sub.isLoading) {
-        return loc == '/splash' ? null : '/splash';
+        return isSplash ? null : '/splash';
       }
 
       final user = sub.value;
-      final onAuthScreen = loc == '/login' || loc == '/signup';
 
-      if (user == null && !onAuthScreen && loc != '/splash') return '/login';
-      if (user != null && (loc == '/splash' || onAuthScreen)) return '/home';
+      if (user == null) {
+        if (isSplash || onAuthScreen) return null;
+        final fromParam = Uri.encodeQueryComponent(fullPath);
+        return '/login?from=$fromParam';
+      }
+
+      if (isSplash || onAuthScreen) {
+        final fromParam = state.uri.queryParameters['from'];
+        if (fromParam != null && fromParam.isNotEmpty) {
+          try {
+            final decoded = Uri.decodeQueryComponent(fromParam);
+            if (decoded.isNotEmpty &&
+                !decoded.startsWith('/login') &&
+                !decoded.startsWith('/signup') &&
+                !decoded.startsWith('/splash')) {
+              return decoded;
+            }
+          } catch (_) {}
+        }
+        return '/home';
+      }
       return null;
     },
     routes: [
@@ -132,25 +156,30 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => CustomTransitionPage<void>(
           key: state.pageKey,
           child: TicketDetailScreen(ticketId: state.pathParameters['id']!),
-          transitionDuration: const Duration(milliseconds: 380),
-          reverseTransitionDuration: const Duration(milliseconds: 320),
+          transitionDuration: const Duration(milliseconds: 320),
+          reverseTransitionDuration: const Duration(milliseconds: 280),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            final curvedSlide = CurvedAnimation(
+            final curvedAnimation = CurvedAnimation(
               parent: animation,
-              curve: Curves.fastOutSlowIn,
-            );
-            final curvedFade = CurvedAnimation(
-              parent: animation,
-              curve: Curves.easeOutCubic,
+              curve: Curves.fastEaseInToSlowEaseOut,
+              reverseCurve: Curves.fastOutSlowIn,
             );
             return SlideTransition(
               position: Tween<Offset>(
-                begin: const Offset(0.0, 1.0),
+                begin: const Offset(0.2, 0.0),
                 end: Offset.zero,
-              ).animate(curvedSlide),
+              ).animate(curvedAnimation),
               child: FadeTransition(
-                opacity: curvedFade,
-                child: child,
+                opacity: Tween<double>(begin: 0.0, end: 1.0).animate(
+                  CurvedAnimation(
+                    parent: animation,
+                    curve: const Interval(0.0, 0.8, curve: Curves.easeOut),
+                  ),
+                ),
+                child: ScaleTransition(
+                  scale: Tween<double>(begin: 0.98, end: 1.0).animate(curvedAnimation),
+                  child: child,
+                ),
               ),
             );
           },
