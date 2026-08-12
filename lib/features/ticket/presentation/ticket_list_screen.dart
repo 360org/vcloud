@@ -35,6 +35,7 @@ class _TicketListScreenState extends ConsumerState<TicketListScreen>
   Widget build(BuildContext context) {
     super.build(context);
 
+    final filter = ref.watch(ticketFilterProvider);
     final source = ref.watch(ticketsProvider);
     final tickets = [...ref.watch(effectiveTicketsProvider)]
       ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
@@ -73,8 +74,17 @@ class _TicketListScreenState extends ConsumerState<TicketListScreen>
                 const SizedBox(height: 8),
                 _TicketSearchBar(
                   query: _query,
+                  isFilterActive: !filter.isEmpty,
                   onChanged: (value) => setState(() => _query = value),
                   onClear: () => setState(() => _query = ''),
+                  onOpenFilter: () {
+                    showModalBottomSheet<void>(
+                      context: context,
+                      backgroundColor: Colors.transparent,
+                      isScrollControlled: true,
+                      builder: (_) => _TicketFilterSheet(initialFilter: filter),
+                    );
+                  },
                 ),
                 const SizedBox(height: 12),
                 _TicketTabs(
@@ -123,13 +133,17 @@ class _TicketListScreenState extends ConsumerState<TicketListScreen>
 class _TicketSearchBar extends StatelessWidget {
   const _TicketSearchBar({
     required this.query,
+    required this.isFilterActive,
     required this.onChanged,
     required this.onClear,
+    required this.onOpenFilter,
   });
 
   final String query;
+  final bool isFilterActive;
   final ValueChanged<String> onChanged;
   final VoidCallback onClear;
+  final VoidCallback onOpenFilter;
 
   @override
   Widget build(BuildContext context) {
@@ -137,44 +151,69 @@ class _TicketSearchBar extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      child: Container(
-        height: 52,
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF0F3F8),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: TextField(
-          onChanged: onChanged,
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onSurface,
-            fontSize: 16,
-          ),
-          decoration: InputDecoration(
-            hintText: 'Tìm kiếm ticket',
-            hintStyle: const TextStyle(
-              color: AppColors.textMuted,
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-            ),
-            prefixIcon: const Icon(
-              LucideIcons.search,
-              color: AppColors.textMuted,
-              size: 21,
-            ),
-            suffixIcon: query.isEmpty
-                ? null
-                : IconButton(
-                    onPressed: onClear,
-                    icon: const Icon(
-                      LucideIcons.x,
-                      color: AppColors.textMuted,
-                      size: 20,
-                    ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              height: 52,
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF0F3F8),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: TextField(
+                onChanged: onChanged,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface,
+                  fontSize: 16,
+                ),
+                decoration: InputDecoration(
+                  hintText: 'Tìm kiếm ticket',
+                  hintStyle: const TextStyle(
+                    color: AppColors.textMuted,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
                   ),
-            border: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(vertical: 15),
+                  prefixIcon: const Icon(
+                    LucideIcons.search,
+                    color: AppColors.textMuted,
+                    size: 21,
+                  ),
+                  suffixIcon: query.isEmpty
+                      ? null
+                      : IconButton(
+                          onPressed: onClear,
+                          icon: const Icon(
+                            LucideIcons.x,
+                            color: AppColors.textMuted,
+                            size: 20,
+                          ),
+                        ),
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 15),
+                ),
+              ),
+            ),
           ),
-        ),
+          const SizedBox(width: 10),
+          PressableScale(
+            onTap: onOpenFilter,
+            child: Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: isFilterActive
+                    ? const Color(0xFF2563EB)
+                    : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF0F3F8)),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(
+                LucideIcons.slidersHorizontal,
+                color: isFilterActive ? Colors.white : AppColors.textMuted,
+                size: 21,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -571,3 +610,216 @@ String _statusText(TicketStatus status) => switch (status) {
   TicketStatus.doing => 'Đang xử lý',
   TicketStatus.done => 'Hoàn thành',
 };
+
+class _TicketFilterSheet extends ConsumerStatefulWidget {
+  const _TicketFilterSheet({required this.initialFilter});
+
+  final TicketFilter initialFilter;
+
+  @override
+  ConsumerState<_TicketFilterSheet> createState() => _TicketFilterSheetState();
+}
+
+class _TicketFilterSheetState extends ConsumerState<_TicketFilterSheet> {
+  late TicketPriority? _selectedPriority;
+  late int? _selectedTeamId;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedPriority = widget.initialFilter.priority;
+    _selectedTeamId = widget.initialFilter.teamId;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final teamsAsync = ref.watch(ticketTeamsProvider);
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 38,
+              height: 4,
+              decoration: BoxDecoration(
+                color: const Color(0xFFCBD5E1),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Bộ lọc Ticket',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              IconButton(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(LucideIcons.x, size: 20),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          const Text(
+            'Mức độ ưu tiên',
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _FilterChoiceChip(
+                label: 'Tất cả',
+                selected: _selectedPriority == null,
+                onSelected: (_) => setState(() => _selectedPriority = null),
+              ),
+              for (final p in TicketPriority.values)
+                _FilterChoiceChip(
+                  label: '${p.label} · ${p.displayName}',
+                  selected: _selectedPriority == p,
+                  onSelected: (_) => setState(() => _selectedPriority = p),
+                ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          const Text(
+            'Đội hỗ trợ',
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          teamsAsync.when(
+            data: (teams) => Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _FilterChoiceChip(
+                  label: 'Tất cả đội',
+                  selected: _selectedTeamId == null,
+                  onSelected: (_) => setState(() => _selectedTeamId = null),
+                ),
+                for (final team in teams)
+                  _FilterChoiceChip(
+                    label: team.name,
+                    selected: _selectedTeamId == team.id,
+                    onSelected: (_) => setState(() => _selectedTeamId = team.id),
+                  ),
+              ],
+            ),
+            loading: () => const SizedBox(
+              height: 30,
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            ),
+            error: (_, _) => const Text(
+              'Không thể tải danh sách đội',
+              style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  onPressed: () {
+                    ref.read(ticketFilterProvider.notifier).clear();
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Xoá bộ lọc'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2563EB),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  onPressed: () {
+                    ref.read(ticketFilterProvider.notifier).update(
+                          TicketFilter(
+                            priority: _selectedPriority,
+                            teamId: _selectedTeamId,
+                          ),
+                        );
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Áp dụng'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FilterChoiceChip extends StatelessWidget {
+  const _FilterChoiceChip({
+    required this.label,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final String label;
+  final bool selected;
+  final ValueChanged<bool> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return ChoiceChip(
+      label: Text(
+        label,
+        style: TextStyle(
+          color: selected ? Colors.white : AppColors.textPrimary,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      selected: selected,
+      onSelected: onSelected,
+      selectedColor: const Color(0xFF2563EB),
+      backgroundColor: const Color(0xFFF1F5F9),
+      showCheckmark: false,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(
+          color: selected ? const Color(0xFF2563EB) : const Color(0xFFE2E8F0),
+        ),
+      ),
+    );
+  }
+}

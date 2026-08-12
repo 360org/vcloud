@@ -4,10 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
+import '../../../core/api/mobile_attachment_repository.dart';
+import '../../../core/api/odoo_api_client.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/date_format.dart';
+import '../../../core/utils/file_download.dart';
 import '../../../core/utils/html_text.dart';
 import '../../../shared/models/ticket.dart';
+import '../../../shared/models/ticket_activity.dart';
 import '../../../shared/models/ticket_comment.dart';
 import '../../../shared/widgets/copyable_error_dialog.dart';
 import '../../../shared/widgets/error_view.dart';
@@ -135,37 +139,6 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
     return comments;
   }
 
-  Future<void> _delete() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Xoá ticket?'),
-        content: const Text('Hành động này không thể hoàn tác.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Huỷ'),
-          ),
-          FilledButton.tonal(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Xoá'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-    try {
-      await ref.read(ticketActionsProvider).delete(widget.ticketId);
-      if (mounted) context.go('/tickets');
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Xoá thất bại: $e')));
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     if (_error != null) {
@@ -182,7 +155,6 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
     }
 
     final ticket = _ticket!;
-    final canDelete = ticket.createdBy == _myId;
     final comments = ref.watch(ticketCommentsProvider(widget.ticketId));
     ref.listen(ticketCommentsProvider(widget.ticketId), (previous, next) {
       final previousCount = previous?.valueOrNull?.length ?? 0;
@@ -210,13 +182,19 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            _TicketDetailHeader(canDelete: canDelete, onDelete: _delete),
+            const _TicketDetailHeader(),
             Expanded(
               child: ListView(
                 controller: _scrollController,
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                 children: [
                   _TicketInfoCard(ticket: ticket),
+                  if (ticket.attachments.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    _TicketAttachmentsSection(attachments: ticket.attachments),
+                  ],
+                  const SizedBox(height: 16),
+                  _TicketActivitiesSection(ticketId: ticket.id),
                   const SizedBox(height: 16),
                   _SectionTitle(
                     key: _commentsKey,
@@ -521,10 +499,7 @@ class _TicketActionBarState extends State<_TicketActionBar> {
 }
 
 class _TicketDetailHeader extends StatelessWidget {
-  const _TicketDetailHeader({required this.canDelete, required this.onDelete});
-
-  final bool canDelete;
-  final VoidCallback onDelete;
+  const _TicketDetailHeader();
 
   @override
   Widget build(BuildContext context) {
@@ -582,25 +557,7 @@ class _TicketDetailHeader extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          if (canDelete)
-            PressableScale(
-              onTap: onDelete,
-              child: Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: AppColors.soft(AppColors.danger),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  LucideIcons.trash2,
-                  color: AppColors.danger,
-                  size: 20,
-                ),
-              ),
-            )
-          else
-            const SizedBox(width: 42),
+          const SizedBox(width: 42),
         ],
       ),
     );
@@ -1183,3 +1140,249 @@ String _statusText(TicketStatus status) => switch (status) {
   TicketStatus.doing => 'Đang xử lý',
   TicketStatus.done => 'Hoàn thành',
 };
+
+class _TicketAttachmentsSection extends StatelessWidget {
+  const _TicketAttachmentsSection({required this.attachments});
+
+  final List<MobileAttachment> attachments;
+
+  @override
+  Widget build(BuildContext context) {
+    if (attachments.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SectionTitle(
+          icon: LucideIcons.paperclip,
+          title: 'Tệp đính kèm (${attachments.length})',
+        ),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: _cardDecoration(),
+          child: Column(
+            children: [
+              for (var i = 0; i < attachments.length; i++) ...[
+                if (i > 0) const Divider(height: 16, color: AppColors.border),
+                _AttachmentTile(attachment: attachments[i]),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AttachmentTile extends StatelessWidget {
+  const _AttachmentTile({required this.attachment});
+
+  final MobileAttachment attachment;
+
+  @override
+  Widget build(BuildContext context) {
+    final ext = attachment.name.contains('.')
+        ? attachment.name.split('.').last.toLowerCase()
+        : '';
+    final IconData icon = switch (ext) {
+      'pdf' => LucideIcons.fileText,
+      'jpg' || 'jpeg' || 'png' || 'gif' || 'webp' => LucideIcons.image,
+      'xls' || 'xlsx' || 'csv' => LucideIcons.fileSpreadsheet,
+      'doc' || 'docx' || 'txt' => LucideIcons.fileCode,
+      _ => LucideIcons.paperclip,
+    };
+
+    final fileSizeText = _formatFileSize(attachment.fileSize);
+
+    return PressableScale(
+      onTap: () {
+        final downloadUrl = odooApiClient.authenticatedUrl(
+          '/api/v1/mobile/attachments/${attachment.id}/download',
+        );
+        openDownloadUrl(downloadUrl);
+      },
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: AppColors.soft(AppColors.primary),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: AppColors.primary, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  attachment.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                if (fileSizeText.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    fileSizeText,
+                    style: const TextStyle(
+                      color: AppColors.textMuted,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          const Icon(LucideIcons.download, color: AppColors.textMuted, size: 18),
+        ],
+      ),
+    );
+  }
+
+  String _formatFileSize(int? bytes) {
+    if (bytes == null || bytes <= 0) return '';
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+}
+
+class _TicketActivitiesSection extends ConsumerWidget {
+  const _TicketActivitiesSection({required this.ticketId});
+
+  final String ticketId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final activitiesAsync = ref.watch(ticketActivitiesProvider(ticketId));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionTitle(
+          icon: LucideIcons.history,
+          title: 'Hoạt động',
+        ),
+        const SizedBox(height: 10),
+        activitiesAsync.when(
+          data: (activities) {
+            if (activities.isEmpty) {
+              return const _SoftEmpty(text: 'Chưa có hoạt động nào');
+            }
+            return Container(
+              padding: const EdgeInsets.all(14),
+              decoration: _cardDecoration(),
+              child: Column(
+                children: [
+                  for (var i = 0; i < activities.length; i++) ...[
+                    if (i > 0) const Divider(height: 18, color: AppColors.border),
+                    _ActivityItemTile(activity: activities[i]),
+                  ],
+                ],
+              ),
+            );
+          },
+          loading: () => const Padding(
+            padding: EdgeInsets.all(12),
+            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          ),
+          error: (_, _) => const _SoftEmpty(text: 'Chưa có hoạt động nào'),
+        ),
+      ],
+    );
+  }
+}
+
+class _ActivityItemTile extends StatelessWidget {
+  const _ActivityItemTile({required this.activity});
+
+  final TicketActivity activity;
+
+  @override
+  Widget build(BuildContext context) {
+    final dateStr = activity.createDate != null
+        ? '${Dates.dateVi(activity.createDate!)} ${Dates.hm(activity.createDate!)}'
+        : (activity.dateDeadline != null ? Dates.dateVi(activity.dateDeadline!) : '');
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          margin: const EdgeInsets.only(top: 2),
+          width: 28,
+          height: 28,
+          decoration: BoxDecoration(
+            color: AppColors.soft(AppColors.ticket),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(LucideIcons.clock, color: AppColors.ticket, size: 14),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      activity.userName?.isNotEmpty == true
+                          ? activity.userName!
+                          : 'Hệ thống',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  if (dateStr.isNotEmpty)
+                    Text(
+                      dateStr,
+                      style: const TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 3),
+              Text(
+                activity.summary.isNotEmpty
+                    ? activity.summary
+                    : (activity.activityTypeName ?? 'Cập nhật hoạt động'),
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              if (activity.note.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(
+                  activity.note,
+                  style: const TextStyle(
+                    color: AppColors.textMuted,
+                    fontSize: 12,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}

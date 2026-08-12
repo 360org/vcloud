@@ -8,17 +8,38 @@ import '../data/activity_log_repository.dart';
 import '../data/ticket_comment_repository.dart';
 import '../data/ticket_repository.dart';
 
+import '../../../shared/models/ticket_activity.dart';
+
 final ticketRepositoryProvider = Provider<TicketRepository>(
   (_) => TicketRepository(),
 );
 
-final ticketsProvider = StreamProvider<List<Ticket>>(
-  (ref) => ref.read(ticketRepositoryProvider).watchAssigned(),
-);
+class TicketFilterNotifier extends Notifier<TicketFilter> {
+  @override
+  TicketFilter build() => const TicketFilter();
+
+  void update(TicketFilter filter) => state = filter;
+  void clear() => state = const TicketFilter();
+}
+
+final ticketFilterProvider =
+    NotifierProvider<TicketFilterNotifier, TicketFilter>(
+      TicketFilterNotifier.new,
+    );
+
+final ticketsProvider = StreamProvider<List<Ticket>>((ref) {
+  final filter = ref.watch(ticketFilterProvider);
+  return ref.read(ticketRepositoryProvider).watchAssigned(filter: filter);
+});
 
 final ticketTeamsProvider = FutureProvider<List<TicketTeamOption>>(
   (ref) => ref.read(ticketRepositoryProvider).teams(),
 );
+
+final ticketActivitiesProvider =
+    FutureProvider.family<List<TicketActivity>, String>((ref, ticketId) async {
+      return ref.read(ticketRepositoryProvider).activities(ticketId);
+    });
 
 
 /// Lightweight notifier that holds an *override* list used for

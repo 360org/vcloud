@@ -6,6 +6,8 @@ import '../../../core/error/failure.dart';
 import '../../../core/utils/html_text.dart';
 import '../../../shared/models/ticket.dart';
 
+import '../../../shared/models/ticket_activity.dart';
+
 class TicketRepository {
   TicketRepository({
     OdooApiClient? client,
@@ -21,12 +23,23 @@ class TicketRepository {
   final OdooApiClient _client;
   final MobileAttachmentRepository _attachmentRepository;
 
-  Stream<List<Ticket>> watchAssigned() {
+  Stream<List<Ticket>> watchAssigned({TicketFilter? filter}) {
     final ctl = StreamController<List<Ticket>>();
 
     Future<void> refresh() async {
       try {
-        final res = await _client.get('$_ticketBasePath/list');
+        final queryParams = <String, String>{};
+        if (filter?.priority != null) {
+          queryParams['priority'] = _priorityToOdoo(filter!.priority!);
+        }
+        if (filter?.teamId != null) {
+          queryParams['team_id'] = filter!.teamId.toString();
+        }
+        final queryString = queryParams.isNotEmpty
+            ? '?${Uri(queryParameters: queryParams).query}'
+            : '';
+
+        final res = await _client.get('$_ticketBasePath/list$queryString');
         final rawList = (res as List).cast<Map<String, dynamic>>();
 
         await Future.wait(
@@ -192,7 +205,27 @@ class TicketRepository {
       'priority': _priorityFromOdoo(map['priority'] as String?),
       'category': map['team_name'] as String?,
       'tag_labels': _tagLabels(map['tags']),
+      'attachments': map['attachments'],
     };
+  }
+
+  Future<List<TicketActivity>> activities(
+    String ticketId, {
+    bool includeDone = true,
+  }) async {
+    try {
+      final doneFlag = includeDone ? '1' : '0';
+      final res = await _client.get(
+        '$_ticketBasePath/$ticketId/activities?done=$doneFlag',
+      );
+      if (res is! List) return const <TicketActivity>[];
+      return res
+          .whereType<Map>()
+          .map((item) => TicketActivity.fromMap(Map<String, dynamic>.from(item)))
+          .toList();
+    } catch (_) {
+      return const <TicketActivity>[];
+    }
   }
 
   String _ticketTitle(Map<String, dynamic> map) {

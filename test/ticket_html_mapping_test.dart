@@ -5,6 +5,7 @@ import 'package:vcloud/core/api/mobile_attachment_repository.dart';
 import 'package:vcloud/core/api/odoo_api_client.dart';
 import 'package:vcloud/features/ticket/data/ticket_comment_repository.dart';
 import 'package:vcloud/features/ticket/data/ticket_repository.dart';
+import 'package:vcloud/shared/models/ticket.dart';
 
 void main() {
   test(
@@ -190,6 +191,57 @@ void main() {
 
     expect(client.calls.single, 'POST /api/v1/mobile/ticket/42/contact');
     expect(client.postBodies.single, <String, dynamic>{'partner_id': 7});
+  });
+
+  test('TicketRepository parses attachments and activities from API response', () async {
+    final client = _FakeOdooApiClient(<String, dynamic>{
+      'id': 42,
+      'name': 'Ticket có đính kèm',
+      'description': 'Mô tả',
+      'create_date': '2026-07-01T08:00:00Z',
+      'attachments': <Map<String, dynamic>>[
+        <String, dynamic>{
+          'id': 101,
+          'name': 'bao_cao.pdf',
+          'mimetype': 'application/pdf',
+          'file_size': 204800,
+        },
+      ],
+    });
+    final repo = TicketRepository(client: client);
+
+    final ticket = await repo.one('42');
+    expect(ticket.attachments.length, 1);
+    expect(ticket.attachments.first.name, 'bao_cao.pdf');
+    expect(ticket.attachments.first.fileSize, 204800);
+
+    final activitiesClient = _FakeOdooApiClient(<Map<String, dynamic>>[
+      <String, dynamic>{
+        'id': 1,
+        'activity_type_name': 'Email',
+        'summary': 'Gửi báo giá',
+        'note': '<p>Đã gửi</p>',
+        'user_name': 'Nguyen An',
+        'create_date': '2026-08-12T09:30:00Z',
+      },
+    ]);
+    final repoAct = TicketRepository(client: activitiesClient);
+    final activities = await repoAct.activities('42');
+    expect(activities.length, 1);
+    expect(activities.first.summary, 'Gửi báo giá');
+    expect(activities.first.userName, 'Nguyen An');
+  });
+
+  test('TicketRepository watchAssigned passes filter parameters', () async {
+    final client = _FakeOdooApiClient(<Map<String, dynamic>>[]);
+    final repo = TicketRepository(client: client);
+
+    final stream = repo.watchAssigned(
+      filter: const TicketFilter(priority: TicketPriority.p1, teamId: 5),
+    );
+    await stream.first;
+
+    expect(client.calls.first, 'GET /api/v1/mobile/ticket/list?priority=3&team_id=5');
   });
 }
 

@@ -14,6 +14,7 @@ import 'package:vcloud/features/ticket/data/ticket_comment_repository.dart';
 import 'package:vcloud/features/ticket/data/ticket_repository.dart';
 import 'package:vcloud/features/ticket/presentation/create_ticket_screen.dart';
 import 'package:vcloud/features/ticket/presentation/ticket_detail_screen.dart';
+import 'package:vcloud/shared/models/ticket_activity.dart';
 import 'package:vcloud/features/timesheet/application/task_controller.dart';
 import 'package:vcloud/features/timesheet/application/timesheet_controller.dart';
 import 'package:vcloud/features/timesheet/data/task_repository.dart';
@@ -401,6 +402,12 @@ class _FakeTicketRepository extends TicketRepository {
       updatedAt: now,
     );
   }
+
+  @override
+  Future<List<TicketActivity>> activities(
+    String ticketId, {
+    bool includeDone = true,
+  }) async => const <TicketActivity>[];
 }
 
 class _FakeTicketCommentRepository extends TicketCommentRepository {

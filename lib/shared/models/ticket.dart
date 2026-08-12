@@ -1,3 +1,5 @@
+import '../../core/api/mobile_attachment_repository.dart';
+
 /// Whitelisted values for the `ticket_status` enum.
 enum TicketStatus { todo, doing, done }
 
@@ -64,6 +66,29 @@ extension TicketPriorityDb on TicketPriority {
   }
 }
 
+/// Filter options for fetching/filtering tickets.
+class TicketFilter {
+  const TicketFilter({
+    this.priority,
+    this.teamId,
+  });
+
+  final TicketPriority? priority;
+  final int? teamId;
+
+  bool get isEmpty => priority == null && teamId == null;
+
+  TicketFilter copyWith({
+    Object? priority = _sentinel,
+    Object? teamId = _sentinel,
+  }) => TicketFilter(
+    priority: priority == _sentinel ? this.priority : priority as TicketPriority?,
+    teamId: teamId == _sentinel ? this.teamId : teamId as int?,
+  );
+
+  static const _sentinel = Object();
+}
+
 /// Row from `public.tickets`.
 class Ticket {
   const Ticket({
@@ -79,6 +104,7 @@ class Ticket {
     this.priority = TicketPriority.p3,
     this.category,
     this.tagLabels = const <String>[],
+    this.attachments = const <MobileAttachment>[],
   });
 
   final String id;
@@ -93,6 +119,7 @@ class Ticket {
   final TicketPriority priority;
   final String? category;
   final List<String> tagLabels;
+  final List<MobileAttachment> attachments;
 
   bool get isOverdue {
     if (status == TicketStatus.done) return false;
@@ -109,6 +136,7 @@ class Ticket {
     String? category,
     List<String>? tagLabels,
     DateTime? deadline,
+    List<MobileAttachment>? attachments,
   }) => Ticket(
     id: id,
     title: title,
@@ -122,6 +150,7 @@ class Ticket {
     priority: priority ?? this.priority,
     category: category ?? this.category,
     tagLabels: tagLabels ?? this.tagLabels,
+    attachments: attachments ?? this.attachments,
   );
 
   factory Ticket.fromMap(Map<String, dynamic> map) {
@@ -132,6 +161,18 @@ class Ticket {
     final rawCreatedAt = map['created_at'] ?? map['create_date'];
     final rawUpdatedAt = map['updated_at'] ?? map['write_date'] ?? rawCreatedAt;
     final rawDeadline = map['date_deadline'] ?? map['deadline'];
+
+    final rawAttachments = map['attachments'];
+    final attachmentsList = <MobileAttachment>[];
+    if (rawAttachments is List) {
+      for (final item in rawAttachments) {
+        if (item is Map) {
+          try {
+            attachmentsList.add(MobileAttachment.fromMap(Map<String, dynamic>.from(item)));
+          } catch (_) {}
+        }
+      }
+    }
 
     return Ticket(
       id: rawId.toString(),
@@ -151,6 +192,7 @@ class Ticket {
           .map((tag) => tag.toString())
           .where((tag) => tag.isNotEmpty)
           .toList(),
+      attachments: attachmentsList,
     );
   }
 
