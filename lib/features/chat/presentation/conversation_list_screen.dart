@@ -69,8 +69,24 @@ class ConversationListScreen extends ConsumerStatefulWidget {
 class _ConversationListScreenState
     extends ConsumerState<ConversationListScreen> {
   String _query = '';
+  String _filter = 'all'; // 'all', 'unread', 'group', 'direct'
+  bool _filterInitialized = false;
 
   static String _viTime(DateTime dt) => Dates.chatListLabelVi(dt);
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_filterInitialized) {
+      _filterInitialized = true;
+      try {
+        final paramFilter = GoRouterState.of(context).uri.queryParameters['filter'];
+        if (paramFilter != null && paramFilter.isNotEmpty) {
+          _filter = paramFilter;
+        }
+      } catch (_) {}
+    }
+  }
 
   void _openNewChatSheet() {
     showModalBottomSheet(
@@ -95,17 +111,28 @@ class _ConversationListScreenState
       body: convs.when(
         data: (list) {
           final currentUser = ref.watch(authControllerProvider).value;
+          final unreadCount = list.where((c) => c.unreadCount > 0).length;
+          final groupCount = list.where((c) => c.isGroup).length;
+          final directCount = list.where((c) => !c.isGroup).length;
+
           final filtered = list.where((c) {
             if (c.lastMessage == null) return false;
+
+            // Apply quick filter chips
+            if (_filter == 'unread' && c.unreadCount <= 0) return false;
+            if (_filter == 'group' && !c.isGroup) return false;
+            if (_filter == 'direct' && c.isGroup) return false;
+
             final preview = c.lastMessage?.content ?? '';
             final title = _conversationTitleForCurrentUser(c, currentUser);
             final searchable = '$title $preview'.toLowerCase();
             return searchable.contains(_query.toLowerCase());
           }).toList()..sort(_compareConversationsByLatestMessage);
+
           return Column(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
                 child: Container(
                   decoration: glassDecoration(radius: 14),
                   child: TextField(
@@ -147,6 +174,57 @@ class _ConversationListScreenState
                       ),
                     ),
                   ),
+                ),
+              ),
+
+              // Quick Filter Chips Bar [Tất cả | Chưa đọc | Nhóm | Trực tiếp]
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                child: Row(
+                  children: [
+                    _ChatFilterChip(
+                      label: 'Tất cả',
+                      count: list.length,
+                      selected: _filter == 'all',
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        setState(() => _filter = 'all');
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    _ChatFilterChip(
+                      label: 'Chưa đọc',
+                      count: unreadCount,
+                      selected: _filter == 'unread',
+                      accentColor: AppColors.danger,
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        setState(() => _filter = 'unread');
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    _ChatFilterChip(
+                      label: 'Nhóm',
+                      count: groupCount,
+                      selected: _filter == 'group',
+                      accentColor: AppColors.chat,
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        setState(() => _filter = 'group');
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    _ChatFilterChip(
+                      label: 'Trực tiếp',
+                      count: directCount,
+                      selected: _filter == 'direct',
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        setState(() => _filter = 'direct');
+                      },
+                    ),
+                  ],
                 ),
               ),
               if (filtered.isEmpty)
@@ -2267,4 +2345,89 @@ String _stripHtml(String input) {
       .replaceAll('&#39;', "'")
       .replaceAll('&nbsp;', ' ')
       .trim();
+}
+
+class _ChatFilterChip extends StatelessWidget {
+  const _ChatFilterChip({
+    required this.label,
+    required this.count,
+    required this.selected,
+    required this.onTap,
+    this.accentColor,
+  });
+
+  final String label;
+  final int count;
+  final bool selected;
+  final VoidCallback onTap;
+  final Color? accentColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final activeColor = accentColor ?? AppColors.chat;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected
+              ? AppColors.soft(activeColor)
+              : (isDark ? const Color(0xFF1E293B) : AppColors.surface),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: selected
+                ? activeColor
+                : (isDark ? Colors.white.withValues(alpha: 0.12) : AppColors.border),
+            width: selected ? 1.5 : 1.0,
+          ),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: activeColor.withValues(alpha: 0.18),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? activeColor : AppColors.textPrimary,
+                fontSize: 13,
+                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+              ),
+            ),
+            if (count > 0) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: selected
+                      ? activeColor
+                      : (isDark ? Colors.white12 : AppColors.border),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  count > 99 ? '99+' : count.toString(),
+                  style: TextStyle(
+                    color: selected ? Colors.white : AppColors.textSecondary,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 }
