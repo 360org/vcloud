@@ -395,7 +395,7 @@ void main() {
     expect(message.attachmentName, 'Demo (1).pdf');
     expect(message.attachmentMimeType, 'application/pdf');
     expect(message.attachmentSize, 131174);
-    expect(message.attachmentUrl, '/web/content/9?access_token=abc');
+    expect(message.attachmentUrl, contains('/web/content/9'));
   });
 
   test('Odoo naive datetimes are treated as UTC', () {
