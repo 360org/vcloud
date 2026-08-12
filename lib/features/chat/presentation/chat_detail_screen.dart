@@ -94,11 +94,6 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
         LocalAttachmentCache.save(uploaded.attachmentId.toString(), attachment.bytes);
       }
       _scrollToBottom();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Đã gửi ${attachment.filename}')),
-        );
-      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
