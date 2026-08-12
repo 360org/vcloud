@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
@@ -715,7 +714,7 @@ class _TicketInfoCard extends StatelessWidget {
             ],
           ),
         ],
-      ).animate().fadeIn(duration: 450.ms, curve: Curves.easeOutCubic).slideY(begin: -0.12, end: 0.0, duration: 450.ms, curve: Curves.easeOutCubic),
+      ),
     );
   }
 }

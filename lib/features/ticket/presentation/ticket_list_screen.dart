@@ -516,7 +516,7 @@ class _TicketCard extends StatelessWidget {
                     ],
                   ),
                 ],
-              ).animate().fadeIn(duration: 450.ms, curve: Curves.easeOutCubic).slideY(begin: -0.15, end: 0.0, duration: 450.ms, curve: Curves.easeOutCubic),
+              ),
             ),
             const SizedBox(width: 8),
             const Icon(
