@@ -127,24 +127,24 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => CustomTransitionPage<void>(
           key: state.pageKey,
           child: const CreateTicketScreen(),
-          transitionDuration: const Duration(milliseconds: 380),
-          reverseTransitionDuration: const Duration(milliseconds: 320),
+          transitionDuration: const Duration(milliseconds: 300),
+          reverseTransitionDuration: const Duration(milliseconds: 250),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            final curvedSlide = CurvedAnimation(
+            final curvedAnimation = CurvedAnimation(
               parent: animation,
-              curve: Curves.fastOutSlowIn,
-            );
-            final curvedFade = CurvedAnimation(
-              parent: animation,
-              curve: Curves.easeOutCubic,
+              curve: Curves.fastEaseInToSlowEaseOut,
+              reverseCurve: Curves.fastOutSlowIn,
             );
             return SlideTransition(
               position: Tween<Offset>(
-                begin: const Offset(0.0, 1.0),
+                begin: const Offset(0.15, 0.0),
                 end: Offset.zero,
-              ).animate(curvedSlide),
+              ).animate(curvedAnimation),
               child: FadeTransition(
-                opacity: curvedFade,
+                opacity: CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeOut,
+                ),
                 child: child,
               ),
             );
