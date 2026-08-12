@@ -38,10 +38,14 @@ class MobileAttachment {
     if (id == null || attachmentId == null) {
       throw Failure('Phản hồi attachment thiếu id.');
     }
+    final rawName = (map['name'] ?? map['filename'] ?? map['title'] ?? '').toString().trim();
+    final name = (rawName.isEmpty || rawName.toLowerCase() == 'undefined')
+        ? 'Tệp đính kèm #$id'
+        : rawName;
     return MobileAttachment(
       id: id,
       attachmentId: attachmentId,
-      name: (map['name'] ?? map['filename'] ?? '').toString(),
+      name: name,
       mimetype: _stringOrNull(map['mimetype']),
       fileSize: _intOrNull(map['file_size']),
       url: _stringOrNull(map['url']),

@@ -1195,6 +1195,11 @@ class _AttachmentTile extends StatelessWidget {
 
     final fileSizeText = _formatFileSize(attachment.fileSize);
 
+    final displayName =
+        (attachment.name.isEmpty || attachment.name.toLowerCase() == 'undefined')
+            ? 'Tệp đính kèm #${attachment.id}'
+            : attachment.name;
+
     return PressableScale(
       onTap: () {
         final downloadUrl = odooApiClient.authenticatedUrl(
@@ -1219,7 +1224,7 @@ class _AttachmentTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  attachment.name,
+                  displayName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
