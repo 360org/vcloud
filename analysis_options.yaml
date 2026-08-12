@@ -5,9 +5,8 @@ analyzer:
   exclude:
     - build/**
   errors:
-    # Treat the import-as / library-shim case-sensitivity nit as info
-    # rather than a hard error; avoid_print is intentional in dev mode.
     invalid_assignment: warning
+    avoid_print: warning
 
 linter:
   rules:
@@ -17,3 +16,4 @@ linter:
     prefer_final_locals: true
     always_declare_return_types: true
     require_trailing_commas: true
+    avoid_print: true

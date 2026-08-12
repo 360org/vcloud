@@ -111,16 +111,17 @@ class AuthRepository {
             localAvatar.startsWith('https://') ||
             localAvatar.startsWith('/'));
 
-    final avatar = isValidLocal
+    // Always use /users/ endpoint — /partners/ returns 405 on current server.
+    var avatar = isValidLocal
         ? localAvatar
-        : (_stringOrNull(
-            profile?['avatar_url'] ??
-                profile?['avatar_128_url'] ??
-                profile?['image_128_url'] ??
-                profile?['avatar_128'] ??
-                profile?['image_128'] ??
-                profile?['image'],
-          ) ?? '/web/image/res.users/${session.uid}/avatar_128');
+        : '/api/v1/mobile/avatar/users/${session.uid}';
+
+    if (!avatar.startsWith('data:image') &&
+        !avatar.contains('access_token=') &&
+        !avatar.contains('token=')) {
+      final sep = avatar.contains('?') ? '&' : '?';
+      avatar = '$avatar${sep}access_token=${session.accessToken}';
+    }
 
     metadata['avatar_url'] = avatar;
 

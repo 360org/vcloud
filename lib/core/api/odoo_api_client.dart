@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as dev;
 
@@ -103,8 +104,23 @@ class OdooApiClient {
   final String _baseUrl;
 
   OdooSession? _session;
+  final Map<String, String> _partnerToUserMap = {};
 
   OdooSession? get session => _session;
+
+  void registerPartnerUserMapping(Object? partnerId, Object? userId) {
+    if (partnerId != null && userId != null) {
+      final pStr = partnerId.toString().trim();
+      final uStr = userId.toString().trim();
+      if (pStr.isNotEmpty && uStr.isNotEmpty && pStr != '0' && uStr != '0') {
+        _partnerToUserMap[pStr] = uStr;
+      }
+    }
+  }
+
+  String? getUserIdForPartner(String partnerId) {
+    return _partnerToUserMap[partnerId.trim()];
+  }
 
   String absoluteUrl(String path) {
     if (path.startsWith('http://') || path.startsWith('https://')) return path;
@@ -206,12 +222,17 @@ class OdooApiClient {
   }
 
   Future<void> logout() async {
+    final refreshToken = _session?.refreshToken;
     if (_session != null) {
       try {
-        await post('/api/v1/auth/logout');
-      } catch (_) {
-        // Local sign-out must still succeed if the server session is gone.
-      }
+        await post(
+          '/api/v1/auth/logout',
+          body: <String, dynamic>{
+            if (refreshToken != null && refreshToken.isNotEmpty)
+              'refresh_token': refreshToken,
+          },
+        );
+      } catch (_) {}
     }
     _session = null;
     await _sessionStore.clear();
@@ -282,29 +303,33 @@ class OdooApiClient {
     };
     
     try {
-      final response = await _http.get(uri, headers: headers);
+      final response = await _http
+          .get(uri, headers: headers)
+          .timeout(const Duration(seconds: 15));
 
-      // --- [RAW HTTP RESPONSE DIAGNOSTICS - INJECTED] ---
-      debugPrint('==================================================');
-      debugPrint('📥 RAW HTTP RESPONSE DIAGNOSTICS');
-      debugPrint('Target Path/URL: $path');
-      debugPrint('Status Code: ${response.statusCode}');
-      debugPrint('Content-Type Header: ${response.headers['content-type'] ?? "unknown"}');
-      debugPrint('All Headers: ${response.headers}');
-      
-      try {
-        final bodyStr = response.body;
-        final bodyPreview = bodyStr.length > 500 
-            ? '${bodyStr.substring(0, 500)}...' 
-            : bodyStr;
-        debugPrint('Body Preview (Text): $bodyPreview');
-      } catch (e) {
-        debugPrint('Failed to read response body as text: $e');
+      if (kDebugMode) {
+        debugPrint('==================================================');
+        debugPrint('📥 RAW HTTP RESPONSE DIAGNOSTICS');
+        debugPrint('Target Path/URL: $path');
+        debugPrint('Status Code: ${response.statusCode}');
+        debugPrint(
+          'Content-Type Header: ${response.headers['content-type'] ?? "unknown"}',
+        );
+        debugPrint('All Headers: ${response.headers}');
+
+        try {
+          final bodyStr = response.body;
+          final bodyPreview = bodyStr.length > 500
+              ? '${bodyStr.substring(0, 500)}...'
+              : bodyStr;
+          debugPrint('Body Preview (Text): $bodyPreview');
+        } catch (e) {
+          debugPrint('Failed to read response body as text: $e');
+        }
+
+        debugPrint('Raw BodyBytes Length: ${response.bodyBytes.length}');
+        debugPrint('==================================================');
       }
-      
-      debugPrint('Raw BodyBytes Length: ${response.bodyBytes.length}');
-      debugPrint('==================================================');
-      // --------------------------------------------------
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw Failure('Request failed (${response.statusCode}).');
@@ -375,44 +400,31 @@ class OdooApiClient {
       name: 'OdooApiClient',
     );
 
-    http.Response response = switch (method) {
-      'GET' => await _http.get(uri, headers: headers),
-      'POST' => await _http.post(
-        uri,
-        headers: headers,
-        body: body == null ? null : jsonEncode(body),
-      ),
-      'PUT' => await _http.put(
-        uri,
-        headers: headers,
-        body: body == null ? null : jsonEncode(body),
-      ),
-      'DELETE' => await _http.delete(uri, headers: headers),
-      _ => throw StateError('Unsupported HTTP method $method'),
-    };
-
-    // Fallback: If server returns 405 Method Not Allowed, retry with alternate method
-    if (response.statusCode == 405) {
-      dev.log(
-        '⚠️ [HTTP 405 METHOD NOT ALLOWED] $method $uri\nResponse Body: ${response.body}',
-        name: 'OdooApiClient',
-        error: 'HTTP 405 Method Not Allowed',
-      );
-      if (method == 'GET') {
-        final postHeaders = Map<String, String>.from(headers)
-          ..['Content-Type'] = 'application/json';
-        response = await _http.post(
-          uri,
-          headers: postHeaders,
-          body: jsonEncode(<String, dynamic>{}),
-        );
-      } else if (method == 'POST') {
-        response = await _http.get(uri, headers: headers);
-      }
+    const timeout = Duration(seconds: 15);
+    final http.Response response;
+    try {
+      response = await switch (method) {
+        'GET' => _http.get(uri, headers: headers).timeout(timeout),
+        'POST' => _http
+            .post(
+              uri,
+              headers: headers,
+              body: body == null ? null : jsonEncode(body),
+            )
+            .timeout(timeout),
+        'PUT' => _http
+            .put(
+              uri,
+              headers: headers,
+              body: body == null ? null : jsonEncode(body),
+            )
+            .timeout(timeout),
+        'DELETE' => _http.delete(uri, headers: headers).timeout(timeout),
+        _ => throw StateError('Unsupported HTTP method $method'),
+      };
+    } on TimeoutException {
+      throw Failure('Hết thời gian chờ phản hồi từ máy chủ (${timeout.inSeconds}s).');
     }
-
-
-
 
     final text = response.body;
     Object? decoded;

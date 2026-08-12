@@ -1502,14 +1502,13 @@ class _NewMessageConversationRow extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(28, 8, 24, 8),
         child: Row(
           children: [
-            conversation.isGroup && conversation.avatarUrl == null
-                ? _TelegramGroupAvatar(title: title)
-                : UserAvatar(
-                    userId: conversation.id,
-                    displayName: title,
-                    avatarUrl: conversation.avatarUrl,
-                    size: 48,
-                  ),
+            UserAvatar(
+              userId: conversation.id,
+              displayName: title,
+              avatarUrl: conversation.avatarUrl,
+              isGroup: conversation.isGroup,
+              size: 48,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -1571,14 +1570,13 @@ class _TelegramConversationRow extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            conversation.isGroup && conversation.avatarUrl == null
-                ? _TelegramGroupAvatar(title: title)
-                : UserAvatar(
-                    userId: conversation.id,
-                    displayName: title,
-                    avatarUrl: conversation.avatarUrl,
-                    size: 52,
-                  ),
+            UserAvatar(
+              userId: conversation.id,
+              displayName: title,
+              avatarUrl: conversation.avatarUrl,
+              isGroup: conversation.isGroup,
+              size: 52,
+            ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
@@ -1681,38 +1679,7 @@ class _TelegramUnreadPill extends StatelessWidget {
   }
 }
 
-class _TelegramGroupAvatar extends StatelessWidget {
-  const _TelegramGroupAvatar({required this.title});
 
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    final initial = title.trim().isEmpty ? '?' : title.trim()[0].toUpperCase();
-    return Container(
-      width: 56,
-      height: 56,
-      decoration: const BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: LinearGradient(
-          colors: [Color(0xFF26E3D9), Color(0xFF14B8A6)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: Center(
-        child: Text(
-          initial,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 24,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 class _TelegramEmptyChats extends StatelessWidget {
   const _TelegramEmptyChats({this.message = 'Chưa có cuộc trò chuyện'});
@@ -1840,14 +1807,13 @@ class _ConversationItem extends StatelessWidget {
             Stack(
               clipBehavior: Clip.none,
               children: [
-                c.isGroup && c.avatarUrl == null
-                    ? _GroupAvatar(title: title)
-                    : UserAvatar(
-                        userId: c.id,
-                        displayName: title,
-                        avatarUrl: c.avatarUrl,
-                        size: 52,
-                      ),
+                UserAvatar(
+                  userId: c.id,
+                  displayName: title,
+                  avatarUrl: c.avatarUrl,
+                  isGroup: c.isGroup,
+                  size: 52,
+                ),
                 if (unreadCount > 0)
                   Positioned(
                     right: 0,
@@ -1932,23 +1898,7 @@ class _ConversationItem extends StatelessWidget {
   }
 }
 
-class _GroupAvatar extends StatelessWidget {
-  const _GroupAvatar({required this.title});
-  final String title;
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 52,
-      height: 52,
-      decoration: BoxDecoration(
-        gradient: AppColors.chatGrad,
-        shape: BoxShape.circle,
-        boxShadow: AppColors.glow(AppColors.chat, opacity: 0.2),
-      ),
-      child: const Icon(LucideIcons.users, color: Colors.white, size: 22),
-    );
-  }
-}
+
 
 /// Provider for all users (used in new chat sheet).
 final _allUsersProvider = FutureProvider.autoDispose<List<Profile>>((

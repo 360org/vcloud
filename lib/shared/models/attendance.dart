@@ -46,11 +46,17 @@ class Attendance {
     checkinLng: (map['checkin_lng'] as num?)?.toDouble(),
     checkoutLat: (map['latitude'] as num?)?.toDouble(),
     checkoutLng: (map['longitude'] as num?)?.toDouble(),
-    createdAt: DateTime.parse(map['created_at'] as String),
+    createdAt: _readDate(map['created_at']) ?? DateTime.now(),
   );
 }
 
 DateTime? _readDate(Object? v) {
   if (v == null) return null;
-  return DateTime.parse(v as String);
+  final str = (v as String).trim();
+  if (str.isEmpty) return null;
+  if (str.endsWith('Z') || str.contains('+')) {
+    return DateTime.parse(str).toLocal();
+  }
+  final isoStr = str.contains('T') ? str : str.replaceAll(' ', 'T');
+  return DateTime.parse('${isoStr}Z').toLocal();
 }

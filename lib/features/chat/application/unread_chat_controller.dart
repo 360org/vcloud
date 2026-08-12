@@ -30,8 +30,8 @@ Map<int, int> _parseChannelUnreadCounts(String rawJson) {
     return map;
   } catch (e, stackTrace) {
     if (kDebugMode) {
-      print('❌ [_parseChannelUnreadCounts] Parsing error: $e');
-      print(stackTrace);
+      debugPrint('❌ [_parseChannelUnreadCounts] Parsing error: $e');
+      debugPrint(stackTrace.toString());
     }
     rethrow;
   }

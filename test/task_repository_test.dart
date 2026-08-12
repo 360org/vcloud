@@ -133,7 +133,7 @@ void main() {
 
       expect(task22.tags, <String>['Urgent']);
       expect(task22.tagHexColors, <String, String>{'Urgent': 'F06050'});
-      expect(client.tagRequests, 1);
+      expect(client.tagRequests, 0);
     },
   );
 }
@@ -167,6 +167,7 @@ class _FakeOdooApiClient extends OdooApiClient {
           'project_id': 1,
           'user_id': 3,
           'state': '01_in_progress',
+          'allocated_hours': 2,
           'tags': <String>['Design', 'Mobile'],
         },
       ];
@@ -180,6 +181,8 @@ class _FakeOdooApiClient extends OdooApiClient {
           'project_id': 2,
           'user_id': 3,
           'state': '01_in_progress',
+          'tags': <String>['Urgent'],
+          'tag_hex_colors': <String, String>{'Urgent': 'F06050'},
         },
       ];
     }

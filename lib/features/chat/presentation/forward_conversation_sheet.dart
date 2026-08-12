@@ -144,26 +144,13 @@ class _ForwardTile extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         child: Row(
           children: [
-            conversation.isGroup
-                ? Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      gradient: AppColors.chatGrad,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: const Icon(
-                      LucideIcons.users,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  )
-                : UserAvatar(
-                    userId: conversation.id,
-                    displayName: conversation.title,
-                    avatarUrl: conversation.avatarUrl,
-                    size: 44,
-                  ),
+            UserAvatar(
+              userId: conversation.id,
+              displayName: conversation.title,
+              avatarUrl: conversation.avatarUrl,
+              isGroup: conversation.isGroup,
+              size: 44,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(

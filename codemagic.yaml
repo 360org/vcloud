@@ -3,7 +3,6 @@ workflows:
     name: iOS to TestFlight
     max_build_duration: 60
     integrations:
-      # Configure this exact key name in Codemagic Team integrations.
       app_store_connect: vcloud_app_store_connect
     triggering:
       events:
@@ -18,7 +17,6 @@ workflows:
       cancel_previous_builds: true
     environment:
       groups:
-        # Defined only in Codemagic. See docs/IOS_CI_TESTFLIGHT.md.
         - vcloud_ios_release
       ios_signing:
         distribution_type: app_store
@@ -43,19 +41,18 @@ workflows:
         script: flutter pub get
       - name: Analyze Flutter source
         script: flutter analyze
+      - name: Run Flutter unit & widget tests
+        script: flutter test
       - name: Build signed IPA
         script: |
           VCLOUD_ODOO_API_BASE_URL="${VCLOUD_ODOO_API_BASE_URL:-https://vuahethong.net}"
           BUILD_NAME=$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d+ -f1)
           PUBSPEC_BUILD=$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d+ -f2)
-          
-          # Auto-calculate build number from Codemagic build index or fallback to pubspec
           BUILD_NUMBER="${BUILD_NUMBER:-$PROJECT_BUILD_NUMBER}"
           if [ -z "$BUILD_NUMBER" ]; then
             BUILD_NUMBER="$PUBSPEC_BUILD"
           fi
           echo "Building IPA for Version: $BUILD_NAME, Build Number: $BUILD_NUMBER"
-          
           EXPORT_PLIST=$(find /Users/builder /tmp $HOME . -name "export_options.plist" 2>/dev/null | head -n 1)
           if [ -n "$EXPORT_PLIST" ]; then
             echo "Using export options plist at: $EXPORT_PLIST"
@@ -74,7 +71,81 @@ workflows:
       app_store_connect:
         auth: integration
         submit_to_testflight: true
-
     artifacts:
       - build/ios/ipa/*.ipa
       - "*.ipa"
+
+  android-release:
+    name: Android Release (AAB + APK)
+    max_build_duration: 60
+    instance_type: mac_mini_m1
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+        - pattern: release/*
+          include: true
+        - pattern: release/android-playstore
+          include: true
+      cancel_previous_builds: true
+    environment:
+      groups:
+        - vcloud_android_release
+      android_signing:
+        - vcloud_keystore
+      vars:
+        PACKAGE_NAME: com.w360s.wcloudapp
+        GOOGLE_PLAY_TRACK: internal
+      flutter: stable
+    scripts:
+      - name: Validate release configuration
+        script: |
+          VCLOUD_ODOO_API_BASE_URL="${VCLOUD_ODOO_API_BASE_URL:-https://vuahethong.net}"
+          echo "Validated PACKAGE_NAME=$PACKAGE_NAME"
+          echo "Validated VCLOUD_ODOO_API_BASE_URL=$VCLOUD_ODOO_API_BASE_URL"
+      - name: Get Flutter packages
+        script: flutter pub get
+      - name: Analyze Flutter source
+        script: flutter analyze
+      - name: Run Flutter unit & widget tests
+        script: flutter test
+      - name: Build Android App Bundle (AAB)
+        script: |
+          VCLOUD_ODOO_API_BASE_URL="${VCLOUD_ODOO_API_BASE_URL:-https://vuahethong.net}"
+          BUILD_NAME=$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d+ -f1)
+          PUBSPEC_BUILD=$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d+ -f2)
+          BUILD_NUMBER="${BUILD_NUMBER:-$PROJECT_BUILD_NUMBER}"
+          if [ -z "$BUILD_NUMBER" ]; then
+            BUILD_NUMBER="$PUBSPEC_BUILD"
+          fi
+          echo "Building AAB for Version: $BUILD_NAME, Build Number: $BUILD_NUMBER"
+          flutter build appbundle --release \
+            --build-name="$BUILD_NAME" \
+            --build-number="$BUILD_NUMBER" \
+            --dart-define=VCLOUD_ODOO_API_BASE_URL="$VCLOUD_ODOO_API_BASE_URL"
+      - name: Build Universal APK
+        script: |
+          VCLOUD_ODOO_API_BASE_URL="${VCLOUD_ODOO_API_BASE_URL:-https://vuahethong.net}"
+          BUILD_NAME=$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d+ -f1)
+          PUBSPEC_BUILD=$(grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d+ -f2)
+          BUILD_NUMBER="${BUILD_NUMBER:-$PROJECT_BUILD_NUMBER}"
+          if [ -z "$BUILD_NUMBER" ]; then
+            BUILD_NUMBER="$PUBSPEC_BUILD"
+          fi
+          echo "Building APK for Version: $BUILD_NAME, Build Number: $BUILD_NUMBER"
+          flutter build apk --release \
+            --build-name="$BUILD_NAME" \
+            --build-number="$BUILD_NUMBER" \
+            --dart-define=VCLOUD_ODOO_API_BASE_URL="$VCLOUD_ODOO_API_BASE_URL"
+    publishing:
+      google_play:
+        credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
+        track: $GOOGLE_PLAY_TRACK
+        submit_as_draft: true
+    artifacts:
+      - build/app/outputs/bundle/release/*.aab
+      - build/app/outputs/apk/release/*.apk
+      - "*.aab"
+      - "*.apk"

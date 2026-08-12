@@ -1,9 +1,13 @@
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vcloud/core/api/odoo_api_client.dart';
 import 'package:vcloud/core/api/odoo_session.dart';
 import 'package:vcloud/features/auth/data/auth_repository.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  FlutterSecureStorage.setMockInitialValues({});
+
   test('AuthRepository uses signed avatar URL from auth me', () async {
     final client = _FakeOdooApiClient(
       profile: <String, dynamic>{
@@ -24,7 +28,7 @@ void main() {
 
     expect(
       user.userMetadata['avatar_url'],
-      'http://localhost:8069/web/image/res.partner/3/avatar_128/128x128?access_token=abc',
+      '/api/v1/mobile/avatar/users/2?access_token=token',
     );
     expect(client.getPaths, isNot(contains('/api/v1/res.partner/3')));
   });

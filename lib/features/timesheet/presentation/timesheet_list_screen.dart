@@ -3377,22 +3377,30 @@ class _TimesheetFilterSheetState extends ConsumerState<_TimesheetFilterSheet> {
     final presets = ['Hôm nay', 'Hôm qua', 'Tuần này', 'Tuần trước', 'Tháng này', 'Tháng trước', 'Tùy chọn'];
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1F000000),
+            blurRadius: 24,
+            offset: Offset(0, -8),
+          ),
+        ],
       ),
       child: SafeArea(
         top: false,
         child: SingleChildScrollView(
+          physics: const ClampingScrollPhysics(),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Center(
                 child: Container(
-                  width: 40,
-                  height: 4,
+                  width: 44,
+                  height: 5,
                   decoration: BoxDecoration(
                     color: AppColors.border,
                     borderRadius: BorderRadius.circular(99),
@@ -3401,18 +3409,34 @@ class _TimesheetFilterSheetState extends ConsumerState<_TimesheetFilterSheet> {
               ),
               const SizedBox(height: 16),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Bộ lọc Timesheet',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.textPrimary,
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: AppColors.soft(AppColors.primary),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      LucideIcons.slidersHorizontal,
+                      color: AppColors.primary,
+                      size: 20,
                     ),
                   ),
-                  TextButton(
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      'Bộ lọc Timesheet',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  TextButton.icon(
                     onPressed: () {
+                      HapticFeedback.lightImpact();
                       final now = DateTime.now();
                       setState(() {
                         _preset = 'Hôm nay';
@@ -3422,94 +3446,162 @@ class _TimesheetFilterSheetState extends ConsumerState<_TimesheetFilterSheet> {
                         _projectName = null;
                       });
                     },
-                    child: const Text('Đặt lại'),
+                    icon: const Icon(LucideIcons.rotateCcw, size: 15, color: AppColors.primary),
+                    label: const Text(
+                      'Đặt lại',
+                      style: TextStyle(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 18),
               const Text(
                 'Khoảng thời gian',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textSecondary),
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textSecondary,
+                ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 children: [
                   for (final p in presets)
                     FilterChip(
-                      label: Text(p),
+                      label: Text(
+                        p,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: _preset == p ? FontWeight.w800 : FontWeight.w600,
+                          color: _preset == p ? AppColors.primary : AppColors.textPrimary,
+                        ),
+                      ),
                       selected: _preset == p,
-                      selectedColor: AppColors.timesheet.withOpacity(0.2),
-                      onSelected: (_) => _applyPreset(p),
+                      selectedColor: AppColors.soft(AppColors.primary),
+                      checkmarkColor: AppColors.primary,
+                      backgroundColor: Theme.of(context).cardColor,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        side: BorderSide(
+                          color: _preset == p ? AppColors.primary : AppColors.border,
+                          width: _preset == p ? 1.5 : 1.0,
+                        ),
+                      ),
+                      onSelected: (_) {
+                        HapticFeedback.selectionClick();
+                        _applyPreset(p);
+                      },
                     ),
                 ],
               ),
               if (_preset == 'Tùy chọn') ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
                 InkWell(
                   onTap: _pickDateRange,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(14),
                   child: Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     decoration: BoxDecoration(
-                      border: Border.all(color: AppColors.border),
-                      borderRadius: BorderRadius.circular(12),
+                      color: AppColors.soft(AppColors.primary),
+                      border: Border.all(color: AppColors.primary.withValues(alpha: 0.5)),
+                      borderRadius: BorderRadius.circular(14),
                     ),
                     child: Row(
                       children: [
                         const Icon(LucideIcons.calendar, size: 18, color: AppColors.primary),
-                        const SizedBox(width: 8),
-                        Text(
-                          _dateFrom != null && _dateTo != null
-                              ? '${Dates.dateVi(_dateFrom!)} - ${Dates.dateVi(_dateTo!)}'
-                              : 'Chọn khoảng ngày...',
-                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            _dateFrom != null && _dateTo != null
+                                ? '${Dates.dateVi(_dateFrom!)} — ${Dates.dateVi(_dateTo!)}'
+                                : 'Chọn khoảng ngày tùy chỉnh...',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
                         ),
+                        const Icon(LucideIcons.chevronRight, size: 16, color: AppColors.textMuted),
                       ],
                     ),
                   ),
                 ),
               ],
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
               const Text(
                 'Dự án',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textSecondary),
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textSecondary,
+                ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               if (_loadingProjects)
-                const SizedBox(height: 24, child: CircularProgressIndicator(strokeWidth: 2))
+                const SizedBox(
+                  height: 48,
+                  child: Center(
+                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+                  ),
+                )
               else
                 DropdownButtonFormField<String?>(
                   initialValue: _projectId,
                   decoration: InputDecoration(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    prefixIcon: const Icon(LucideIcons.folderKanban, size: 18, color: AppColors.primary),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    filled: true,
+                    fillColor: Theme.of(context).cardColor,
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(color: AppColors.border),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                    ),
                   ),
                   items: [
                     const DropdownMenuItem<String?>(
                       value: null,
-                      child: Text('Tất cả dự án'),
+                      child: Text(
+                        'Tất cả dự án',
+                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                      ),
                     ),
                     for (final proj in _projects)
                       DropdownMenuItem<String?>(
                         value: proj.id,
-                        child: Text(proj.name),
+                        child: Text(
+                          proj.name,
+                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                        ),
                       ),
                   ],
                   onChanged: (val) {
+                    HapticFeedback.selectionClick();
                     setState(() {
                       _projectId = val;
-                      _projectName = _projects.firstWhere((p) => p.id == val, orElse: () => TimesheetProjectOption(id: '', name: '')).name;
+                      _projectName = _projects
+                          .firstWhere((p) => p.id == val, orElse: () => const TimesheetProjectOption(id: '', name: ''))
+                          .name;
                     });
                   },
                 ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
-                height: 46,
+                height: 50,
                 child: ElevatedButton(
                   onPressed: () {
+                    HapticFeedback.mediumImpact();
                     final newFilter = TimesheetFilterState(
                       presetName: _preset,
                       dateFrom: _dateFrom,
@@ -3522,9 +3614,26 @@ class _TimesheetFilterSheetState extends ConsumerState<_TimesheetFilterSheet> {
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    foregroundColor: Colors.white,
+                    elevation: 4,
+                    shadowColor: AppColors.primary.withValues(alpha: 0.4),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
-                  child: const Text('Áp dụng bộ lọc', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(LucideIcons.check, color: Colors.white, size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        'Áp dụng bộ lọc',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],

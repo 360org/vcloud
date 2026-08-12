@@ -10,9 +10,12 @@ import 'package:lucide_flutter/lucide_flutter.dart';
 import '../../../core/error/failure.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/models/attendance.dart';
+import '../../../shared/models/timesheet.dart';
 import '../../../shared/widgets/app_scaffold.dart';
 import '../../../shared/widgets/ui_kit.dart';
 import '../../auth/application/auth_controller.dart';
+import '../../timesheet/application/task_controller.dart';
+import '../../timesheet/application/timesheet_controller.dart';
 import '../../../shared/widgets/location_prompt_dialog.dart';
 import '../application/attendance_controller.dart';
 import 'widgets/checkout_dialog.dart';
@@ -128,20 +131,36 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
   }
 
   Future<void> _handle(bool checkIn) async {
+    CheckoutData? checkoutData;
     if (!checkIn) {
       // Show checkout dialog
-      final result = await showDialog<CheckoutData>(
+      checkoutData = await showDialog<CheckoutData>(
         context: context,
         builder: (_) => const CheckoutDialog(),
       );
-      if (result == null) return; // User cancelled
-      // TODO: Save work description and selected task
+      if (checkoutData == null) return; // User cancelled
     }
 
     setState(() => _busy = true);
     try {
       final a = ref.read(attendanceActionsProvider);
-      checkIn ? await a.checkIn() : await a.checkOut();
+      if (checkIn) {
+        await a.checkIn();
+      } else {
+        await a.checkOut();
+        if (checkoutData != null && checkoutData.workDescription.isNotEmpty) {
+          try {
+            await ref.read(taskActionsProvider).log(
+              taskId: checkoutData.selectedTaskId ?? '',
+              summary: checkoutData.workDescription,
+              duration: TimesheetDuration.thirty,
+            );
+            ref.invalidate(timesheetStreamProvider);
+          } catch (_) {
+            // Best effort timesheet log on checkout
+          }
+        }
+      }
     } catch (e, stackTrace) {
       if (mounted) {
         if (isLocationError(e)) {
@@ -161,11 +180,20 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
     final open = ref.watch(openSessionProvider);
     final statusLoading = todayState.isLoading && open == null;
     final isCheckedIn = open != null;
-    final user = ref.watch(authControllerProvider).value;
-    final name =
-        (user?.userMetadata['display_name'] as String?) ??
-        user?.email?.split('@').first ??
-        'Bạn';
+    // DO NOT MODIFY OR REFACTOR THIS AVATAR LOADING LOGIC. IT IS THE SOURCE OF TRUTH FOR USER AVATAR DISPLAY.
+    // CẤM SỬA HOẶC XÓA LOGIC TẢI AVATAR NÀY - ĐÂY LÀ NGUỒN SỰ THẬT HIỂN THỊ AVATAR DÙNG CHUNG.
+    final user = ref.watch(authControllerProvider).valueOrNull;
+    final meta = user?.userMetadata;
+    final rawName = meta?['display_name'];
+    final name = (rawName is String ? rawName : (rawName != null && rawName != false ? rawName.toString() : null))?.trim();
+    final rawAvatar = meta?['avatar_url'] ??
+        meta?['avatar_128_url'] ??
+        meta?['image_128_url'] ??
+        (user != null ? '/web/image/res.users/${user.id}/avatar_128' : null);
+    final avatarUrl = rawAvatar is String && rawAvatar.isNotEmpty ? rawAvatar : null;
+    final displayName = (name != null && name.isNotEmpty)
+        ? name
+        : (user?.email?.split('@').first ?? 'Bạn');
     final clock = isCheckedIn
         ? _formatElapsed(open.checkinTime)
         : '${_now.hour.toString().padLeft(2, '0')}:${_now.minute.toString().padLeft(2, '0')}';
@@ -182,7 +210,9 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
           Center(
             child: UserAvatar(
               userId: user?.id ?? '',
-              displayName: name,
+              displayName: displayName,
+              email: user?.email,
+              avatarUrl: avatarUrl,
               size: 84,
             ),
           ).animate().fadeIn(duration: 400.ms),

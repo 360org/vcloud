@@ -112,6 +112,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final dashboard = ref.watch(mobileDashboardSummaryProvider).valueOrNull;
     final notificationState = ref.watch(mobileNotificationsProvider);
     final notificationCount = notificationState.valueOrNull?.total ?? 0;
+    // DO NOT MODIFY OR REFACTOR THIS AVATAR LOADING LOGIC. IT IS THE SOURCE OF TRUTH FOR USER AVATAR DISPLAY.
+    // CẤM SỬA HOẶC XÓA LOGIC TẢI AVATAR NÀY - ĐÂY LÀ NGUỒN SỰ THẬT HIỂN THỊ AVATAR DÙNG CHUNG.
     final user = ref.watch(authControllerProvider).valueOrNull;
     final meta = user?.userMetadata;
     final rawName = meta?['display_name'];
@@ -180,6 +182,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               notificationCount: notificationCount,
               notificationsLoading: notificationState.isLoading,
               onNotificationsTap: () => _openNotifications(context),
+              onOpenAttendance: () => context.push('/attendance'),
             ),
             const SizedBox(height: 18),
             _QuickNavGrid(
@@ -219,6 +222,7 @@ class _GreetingHeader extends StatelessWidget {
     required this.notificationCount,
     required this.notificationsLoading,
     required this.onNotificationsTap,
+    required this.onOpenAttendance,
   });
 
   final String userId;
@@ -232,6 +236,7 @@ class _GreetingHeader extends StatelessWidget {
   final int notificationCount;
   final bool notificationsLoading;
   final VoidCallback onNotificationsTap;
+  final VoidCallback onOpenAttendance;
 
   @override
   Widget build(BuildContext context) {
@@ -299,7 +304,10 @@ class _GreetingHeader extends StatelessWidget {
               ),
 
               const SizedBox(width: 12),
-              _PresenceIndicator(isOnline: isOnline),
+              PressableScale(
+                onTap: onOpenAttendance,
+                child: _PresenceIndicator(isOnline: isOnline),
+              ),
               const SizedBox(width: 10),
               PressableScale(
                 onTap: onNotificationsTap,
@@ -358,12 +366,46 @@ class _GreetingHeader extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  'Hôm nay: ${_durationVi(Duration(minutes: todayMinutes))}',
-                  textAlign: TextAlign.end,
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    color: AppColors.textSecondary,
-                    fontWeight: FontWeight.w700,
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: PressableScale(
+                    onTap: onOpenAttendance,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppColors.soft(isOnline ? AppColors.success : AppColors.primary),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: (isOnline ? AppColors.success : AppColors.primary)
+                              .withValues(alpha: 0.18),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            LucideIcons.clock,
+                            size: 14,
+                            color: isOnline ? AppColors.success : AppColors.primary,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Hôm nay: ${_durationVi(Duration(minutes: todayMinutes))}',
+                            style: AppTextStyles.bodyMedium.copyWith(
+                              color: isOnline ? AppColors.success : AppColors.primary,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(
+                            LucideIcons.chevronRight,
+                            size: 14,
+                            color: isOnline ? AppColors.success : AppColors.primary,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -1160,18 +1202,31 @@ class _TaskQuickEditSheetState extends ConsumerState<_TaskQuickEditSheet> {
   late final TextEditingController _noteController;
   late TimesheetDuration _duration;
   bool _saving = false;
+  bool _hasError = false;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
     _noteController = TextEditingController(text: widget.task.note ?? '');
+    _noteController.addListener(_onNoteChanged);
     _duration = widget.task.logged == null
         ? TimesheetDuration.thirty
         : durationBucketForElapsed(widget.task.logged!);
   }
 
+  void _onNoteChanged() {
+    if (_hasError && _noteController.text.trim().isNotEmpty) {
+      setState(() {
+        _hasError = false;
+        _errorMessage = null;
+      });
+    }
+  }
+
   @override
   void dispose() {
+    _noteController.removeListener(_onNoteChanged);
     _noteController.dispose();
     super.dispose();
   }
@@ -1179,12 +1234,23 @@ class _TaskQuickEditSheetState extends ConsumerState<_TaskQuickEditSheet> {
   Future<void> _save() async {
     final note = _noteController.text.trim();
     if (note.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng nhập nội dung công việc.')),
+      HapticFeedback.mediumImpact();
+      setState(() {
+        _hasError = true;
+        _errorMessage = 'Vui lòng nhập nội dung công việc đã làm trước khi lưu.';
+      });
+      showTopNotification(
+        context,
+        message: 'Vui lòng nhập nội dung công việc đã làm.',
+        isError: true,
       );
       return;
     }
-    setState(() => _saving = true);
+    setState(() {
+      _hasError = false;
+      _errorMessage = null;
+      _saving = true;
+    });
     try {
       await ref
           .read(taskActionsProvider)
@@ -1193,8 +1259,14 @@ class _TaskQuickEditSheetState extends ConsumerState<_TaskQuickEditSheet> {
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lưu log thất bại: ${describeError(e)}')),
+        setState(() {
+          _hasError = true;
+          _errorMessage = 'Lưu log thất bại: ${describeError(e)}';
+        });
+        showTopNotification(
+          context,
+          message: 'Lưu log thất bại: ${describeError(e)}',
+          isError: true,
         );
       }
     } finally {
@@ -1287,6 +1359,8 @@ class _TaskQuickEditSheetState extends ConsumerState<_TaskQuickEditSheet> {
                   noteController: _noteController,
                   duration: _duration,
                   saving: _saving,
+                  hasError: _hasError,
+                  errorMessage: _errorMessage,
                   onDurationChanged: _saving
                       ? null
                       : (dur) => setState(() => _duration = dur),

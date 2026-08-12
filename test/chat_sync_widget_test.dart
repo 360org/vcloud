@@ -10,9 +10,10 @@ void main() {
       'Verify Unread Badge displays in Sync across Footer & Home, and clears when chat opened',
       (WidgetTester tester) async {
         await tester.pumpWidget(
-          const ProviderScope(
+          ProviderScope(
             child: MaterialApp(
-              home: DummyAppScaffold(),
+              theme: ThemeData(splashFactory: NoSplash.splashFactory),
+              home: const DummyAppScaffold(),
             ),
           ),
         );
@@ -28,9 +29,6 @@ void main() {
         final homeCountFinder = find.byKey(const Key('home_unread_counter'));
         expect(homeCountFinder, findsOneWidget);
         expect(find.descendant(of: homeCountFinder, matching: find.text('3')), findsOneWidget);
-
-        // ignore: avoid_print
-        print('➔ [PASS] Bước 1: Trạng thái unread (3) hiển thị đồng bộ ở Footer và Home.');
 
         // ==========================================
         // BƯỚC 2: MỞ PHÒNG CHAT CHI TIẾT (TRIGGER MARK AS READ)
@@ -65,9 +63,6 @@ void main() {
 
         // Đảm bảo Widget đếm số tin nhắn chưa đọc ở Home đã reset về 0
         expect(find.byKey(const Key('home_unread_counter')), findsNothing);
-
-        // ignore: avoid_print
-        print('➔ [PASS] Bước 3: Đã gọi API Mark-as-read thành công, các bộ đếm unread đồng loạt biến mất.');
       },
     );
   });
