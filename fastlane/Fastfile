@@ -41,8 +41,29 @@ rescue => e
   UI.error("⚠️ Failed to dispatch webhook notification: #{e.message}")
 end
 
+# Lane to automatically increment build number in pubspec.yaml
+desc "Increment build number (+1) in pubspec.yaml"
+lane :bump do |options|
+  pubspec_path = "../pubspec.yaml"
+  content = File.read(pubspec_path)
+  
+  if content =~ /^version:\s*(\d+\.\d+\.\d+)\+(\d+)/
+    version_name = $1
+    old_build = $2.to_i
+    new_build = old_build + 1
+    new_version = "version: #{version_name}+#{new_build}"
+    
+    new_content = content.sub(/^version:.*$/, new_version)
+    File.write(pubspec_path, new_content)
+    
+    UI.success("🎉 Updated pubspec.yaml version from #{version_name}+#{old_build} to #{version_name}+#{new_build}")
+  else
+    UI.error("⚠️ Could not parse version pattern in pubspec.yaml")
+  end
+end
+
 platform :ios do
-  desc "Build signed IPA and deploy to Apple TestFlight"
+  desc "Build signed IPA and deploy to Apple TestFlight with automated Release Notes"
   lane :beta do |options|
     begin
       UI.header("🚀 Launching iOS TestFlight Fastlane Pipeline")
@@ -60,7 +81,7 @@ platform :ios do
         )
       end
 
-      # 2. Extract version and build number from pubspec.yaml
+      # 2. Extract version, build number, and git commit changelog
       require 'yaml'
       pubspec = YAML.load_file("../pubspec.yaml")
       version_parts = pubspec["version"].to_s.split("+")
@@ -68,20 +89,26 @@ platform :ios do
       build_number = ENV["BUILD_NUMBER"] || version_parts[1] || "40"
       api_base_url = ENV["VCLOUD_ODOO_API_BASE_URL"] || "https://vuahethong.net"
 
+      # Extract latest git commit message for TestFlight "What to Test"
+      latest_commit_msg = sh("git log -1 --pretty=%B").strip rescue "VCloud Mobile iOS Build v#{build_name}+#{build_number}"
+      changelog_text = latest_commit_msg.empty? ? "VCloud Mobile iOS Release v#{build_name}+#{build_number}" : latest_commit_msg[0..490]
+
       UI.message("📱 Target App Version: #{build_name}+#{build_number}")
       UI.message("🌐 Target API Base URL: #{api_base_url}")
+      UI.message("📝 TestFlight Release Notes: #{changelog_text}")
 
       # 3. Build IPA using Flutter
       sh("cd .. && flutter pub get")
       sh("cd .. && flutter build ipa --release --build-name=#{build_name} --build-number=#{build_number} --dart-define=VCLOUD_ODOO_API_BASE_URL=#{api_base_url}")
 
-      # 4. Upload to Apple TestFlight & Auto-Distribute to Testers
+      # 4. Upload to Apple TestFlight & Auto-Distribute to Testers with Release Notes
       tester_groups = ENV["TESTFLIGHT_GROUPS"] ? ENV["TESTFLIGHT_GROUPS"].split(",") : ["360 internal testing staff"]
 
       if api_key
         upload_to_testflight(
           api_key: api_key,
           groups: tester_groups,
+          changelog: changelog_text,
           skip_waiting_for_build_processing: true,
           ipa: "../build/ios/ipa/vclients.ipa"
         )
@@ -93,6 +120,7 @@ platform :ios do
           username: apple_id,
           app_specific_password: app_pass,
           groups: tester_groups,
+          changelog: changelog_text,
           skip_waiting_for_build_processing: true,
           ipa: "../build/ios/ipa/vclients.ipa"
         )
@@ -103,7 +131,7 @@ platform :ios do
       # 5. Dispatch Webhook Success Alert
       send_webhook(
         "🚀 TestFlight Release Successful!",
-        "VCloud Mobile iOS **v#{build_name}+#{build_number}** has been built and uploaded to Apple TestFlight.\n• API: #{api_base_url}\n• Bundle: com.w360s.wcloudapp",
+        "VCloud Mobile iOS **v#{build_name}+#{build_number}** has been built and uploaded to Apple TestFlight.\n• Changelog: #{changelog_text}\n• API: #{api_base_url}\n• Bundle: com.w360s.wcloudapp",
         "success"
       )
     rescue => ex
