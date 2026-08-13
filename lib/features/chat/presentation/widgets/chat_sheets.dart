@@ -1132,13 +1132,12 @@ class DocumentActionSheet extends StatelessWidget {
               ),
               icon: const Icon(LucideIcons.externalLink, size: 20),
               label: const Text(
-                'Xem trực tuyến (Google / Office)',
+                'Mở bằng liên kết xem trực tiếp',
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
               ),
               onPressed: () {
                 Navigator.pop(context);
-                final docsViewer = 'https://docs.google.com/viewer?url=${Uri.encodeComponent(previewUrl!)}';
-                openDownloadUrl(docsViewer);
+                openDownloadUrl(previewUrl!);
               },
             ),
           ],
