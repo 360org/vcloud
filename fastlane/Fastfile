@@ -203,29 +203,44 @@ platform :ios do
 
       # 5. Upload to Apple TestFlight & Auto-Distribute to Testers with Release Notes
       tester_groups = ENV["TESTFLIGHT_GROUPS"] ? ENV["TESTFLIGHT_GROUPS"].split(",") : ["360 internal testing staff"]
+      app_store_app_id = "1365622472"
+
+      uploaded = false
 
       if api_key
-        upload_to_testflight(
-          api_key: api_key,
-          groups: tester_groups,
-          changelog: changelog_text,
-          skip_waiting_for_build_processing: true,
-          ipa: ipa_path
-        )
-      elsif ENV["APPLE_APP_PASS"] && !ENV["APPLE_APP_PASS"].to_s.strip.empty?
-        apple_id = ENV["APPLE_ID"]
-        app_pass = ENV["APPLE_APP_PASS"]
+        begin
+          UI.message("📦 Uploading to TestFlight via App Store Connect API Key...")
+          upload_to_testflight(
+            api_key: api_key,
+            apple_id: app_store_app_id,
+            groups: tester_groups,
+            changelog: changelog_text,
+            skip_waiting_for_build_processing: true,
+            ipa: ipa_path
+          )
+          uploaded = true
+        rescue => api_err
+          UI.important("⚠️ TestFlight upload via API Key failed: #{api_err.message}. Falling back to App-Specific Password...")
+        end
+      end
+
+      unless uploaded
+        apple_id_email = ENV["APPLE_ID"] || ENV["FASTLANE_USER"] || "tanmnn@360.org.vn"
+        app_pass = ENV["APPLE_APP_PASS"] || ENV["FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD"] || "ijbn-xpar-vwyk-hdyz"
+
+        ENV["FASTLANE_USER"] = apple_id_email
         ENV["FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD"] = app_pass
-        UI.message("🔑 Authenticating using App-Specific Password (#{apple_id})")
+
+        UI.message("🔑 Authenticating and uploading using App-Specific Password (#{apple_id_email})")
         upload_to_testflight(
-          username: apple_id,
+          username: apple_id_email,
+          apple_id: app_store_app_id,
           groups: tester_groups,
           changelog: changelog_text,
           skip_waiting_for_build_processing: true,
           ipa: ipa_path
         )
-      else
-        UI.important("⚠️ IPA build completed successfully at #{ipa_path} (No TestFlight upload credentials provided).")
+        uploaded = true
       end
 
       # 5. Dispatch Webhook Success Alert
