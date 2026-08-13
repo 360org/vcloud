@@ -100,7 +100,7 @@ bundle exec fastlane android beta
 
 ### Lỗi 2: `invalid curve name (OpenSSL::PKey::ECError)` khi đọc API Key `.p8`
 - **Nguyên nhân:** Trong ngôn ngữ Ruby, chuỗi rỗng `""` được tính là `true`. Khi không có secret `.p8`, Fastlane đọc chuỗi rỗng và cố gắng giải mã OpenSSL EC key.
-- **Giải pháp đã xử lý:** Cập nhật Fastfile kiểm tra điều kiện thực tế `!key_content.strip.empty?`. Khi không có file `.p8`, Fastlane tự động chuyển sang tài khoản App Manager (`tanmnn@360.org.vn` + `ijbn-xpar-vwyk-hdyz`).
+- **Giải pháp đã xử lý:** Cập nhật Fastfile kiểm tra điều kiện thực tế `!key_content.strip.empty?`. Khi không có file `.p8`, Fastlane tự động chuyển sang tài khoản App Manager (`tanmnn@360.org.vn` + `yrgq-fslk-lwll-tmas`).
 
 ### Lỗi 3: `Could not find aab file` / `You passed invalid parameters to upload_to_play_store`
 - **Nguyên nhân:** Chưa có tài khoản Google Play Console nhưng biến môi trường Google Credentials bị đọc nhầm hoặc sai đường dẫn tương đối.

@@ -27,7 +27,7 @@ Trong quá trình xây dựng hệ thống CI/CD tự động phát hành lên A
 | Thông số | Giá trị chuẩn | Ghi chú |
 | :--- | :--- | :--- |
 | **Tài khoản Apple ID (App Manager)** | `tanmnn@360.org.vn` | Tài khoản có quyền quản trị và phát hành ứng dụng của W360S |
-| **Mật khẩu ứng dụng (16 ký tự)** | `ijbn-xpar-vwyk-hdyz` | Tạo từ [account.apple.com](https://account.apple.com) -> Security -> App-Specific Passwords |
+| **Mật khẩu ứng dụng (16 ký tự)** | `yrgq-fslk-lwll-tmas` | Tạo từ [account.apple.com](https://account.apple.com) -> Security -> App-Specific Passwords |
 | **Issuer ID (W360S CORP)** | `69a6de93-488c-47e3-e053-5b8c7c11a4d1` | Định danh tổ chức trên Apple Developer |
 
 > [!TIP]

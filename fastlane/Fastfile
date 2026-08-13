@@ -240,7 +240,7 @@ platform :ios do
         ENV.delete("APP_STORE_CONNECT_KEY_BASE64")
 
         apple_id_email = ENV["APPLE_ID"] || ENV["FASTLANE_USER"] || "tanmnn@360.org.vn"
-        app_pass = ENV["APPLE_APP_PASS"] || ENV["FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD"] || "ijbn-xpar-vwyk-hdyz"
+        app_pass = ENV["APPLE_APP_PASS"] || ENV["FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD"] || "yrgq-fslk-lwll-tmas"
 
         ENV["FASTLANE_USER"] = apple_id_email
         ENV["FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD"] = app_pass
