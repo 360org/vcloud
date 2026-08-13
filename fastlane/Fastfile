@@ -225,8 +225,17 @@ platform :ios do
       end
 
       unless uploaded
+        # Clean stale API Key environment variables so altool does NOT attempt to use broken JWT tokens
+        ENV.delete("APP_STORE_CONNECT_KEY_ID")
+        ENV.delete("APP_STORE_CONNECT_ISSUER_ID")
+        ENV.delete("APP_STORE_CONNECT_KEY_CONTENT")
+        ENV.delete("APP_STORE_CONNECT_KEY_BASE64")
+
         apple_id_email = ENV["APPLE_ID"] || ENV["FASTLANE_USER"] || "tanmnn@360.org.vn"
         app_pass = ENV["APPLE_APP_PASS"] || ENV["FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD"] || "ijbn-xpar-vwyk-hdyz"
+
+        ENV["FASTLANE_USER"] = apple_id_email
+        ENV["FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD"] = app_pass
 
         UI.message("🔑 Authenticating and uploading using Apple native altool (#{apple_id_email})")
         begin
@@ -235,9 +244,6 @@ platform :ios do
           UI.success("🎉 Successfully uploaded IPA to TestFlight using Apple App Manager (#{apple_id_email})!")
         rescue => altool_err
           UI.important("⚠️ altool upload encountered an issue (#{altool_err.message}), attempting fallback via Fastlane...")
-          ENV.delete("APP_STORE_CONNECT_KEY_ID")
-          ENV.delete("APP_STORE_CONNECT_ISSUER_ID")
-          ENV.delete("APP_STORE_CONNECT_KEY_CONTENT")
           upload_to_testflight(
             username: apple_id_email,
             apple_id: app_store_app_id,
