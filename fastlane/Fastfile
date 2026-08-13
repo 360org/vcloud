@@ -185,7 +185,6 @@ platform :ios do
       end
 
       # 4. Build IPA using Flutter (using App Store export options)
-      sh("cd #{vclients_dir} && flutter pub get")
       sh("cd #{vclients_dir} && flutter build ipa --release --export-options-plist=ios/export_options.plist --build-name=#{build_name} --build-number=#{build_number} --dart-define=VCLOUD_ODOO_API_BASE_URL=#{api_base_url}")
 
       # Dynamically discover newly built IPA artifact
