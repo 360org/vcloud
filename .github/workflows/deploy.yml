@@ -74,15 +74,7 @@ jobs:
             KC_PASS=$(echo "${KEYCHAIN_PASSWORD:-buildpassword123}" | tr -d '\r\n')
             P12_PASS=$(echo "${P12_PASSWORD:-123456}" | tr -d '\r\n')
 
-            python3 -c "
-import base64, os
-cert_b64 = os.environ.get('BUILD_CERTIFICATE_BASE64', '').strip()
-pp_b64 = os.environ.get('BUILD_PROVISION_PROFILE_BASE64', '').strip()
-with open('$CERTIFICATE_PATH', 'wb') as f:
-    f.write(base64.b64decode(cert_b64))
-with open('$PP_PATH', 'wb') as f:
-    f.write(base64.b64decode(pp_b64))
-"
+            python3 -c "import base64, os; open('$CERTIFICATE_PATH', 'wb').write(base64.b64decode(os.environ['BUILD_CERTIFICATE_BASE64'].strip())); open('$PP_PATH', 'wb').write(base64.b64decode(os.environ['BUILD_PROVISION_PROFILE_BASE64'].strip()))"
 
             security create-keychain -p "$KC_PASS" $KEYCHAIN_PATH
             security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
