@@ -76,8 +76,7 @@ jobs:
             KC_PASS=$(echo "${KEYCHAIN_PASSWORD:-buildpassword123}" | tr -d '\r\n')
             P12_PASS=$(echo "${P12_PASSWORD:-123456}" | tr -d '\r\n')
 
-            echo "$BUILD_CERTIFICATE_BASE64" | tr -d '\r\n ' | openssl base64 -d -A > $CERTIFICATE_PATH 2>/dev/null || python3 -c "import base64, os, re; decode = lambda s: base64.b64decode(re.sub(r'[^A-Za-z0-9+/=]', '', s.strip()) + '=' * (-len(re.sub(r'[^A-Za-z0-9+/=]', '', s.strip())) % 4)); open('$CERTIFICATE_PATH', 'wb').write(decode(os.environ['BUILD_CERTIFICATE_BASE64']))"
-            echo "$BUILD_PROVISION_PROFILE_BASE64" | tr -d '\r\n ' | openssl base64 -d -A > $PP_PATH 2>/dev/null || python3 -c "import base64, os, re; decode = lambda s: base64.b64decode(re.sub(r'[^A-Za-z0-9+/=]', '', s.strip()) + '=' * (-len(re.sub(r'[^A-Za-z0-9+/=]', '', s.strip())) % 4)); open('$PP_PATH', 'wb').write(decode(os.environ['BUILD_PROVISION_PROFILE_BASE64']))"
+            python3 -c "import base64, os, re; cert_c = re.sub(r'[^A-Za-z0-9+/=]', '', os.environ.get('BUILD_CERTIFICATE_BASE64', '')); pp_c = re.sub(r'[^A-Za-z0-9+/=]', '', os.environ.get('BUILD_PROVISION_PROFILE_BASE64', '')); cert_c += '=' * (-len(cert_c) % 4); pp_c += '=' * (-len(pp_c) % 4); open('$CERTIFICATE_PATH', 'wb').write(base64.b64decode(cert_c)); open('$PP_PATH', 'wb').write(base64.b64decode(pp_c))"
 
             security create-keychain -p "$KC_PASS" $KEYCHAIN_PATH
             security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
