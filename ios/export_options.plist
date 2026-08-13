@@ -5,12 +5,20 @@
 	<key>method</key>
 	<string>app-store</string>
 	<key>teamID</key>
-	<string>3J68D9JX79</string>
+	<string>ZC3H8887XS</string>
 	<key>uploadSymbols</key>
 	<true/>
 	<key>manageAppVersionAndBuildNumber</key>
 	<false/>
 	<key>testFlightInternalTestingOnly</key>
 	<true/>
+	<key>signingStyle</key>
+	<string>manual</string>
+	<key>provisioningProfiles</key>
+	<dict>
+		<key>com.w360s.wcloudapp</key>
+		<string>V_cloud</string>
+	</dict>
 </dict>
 </plist>
+

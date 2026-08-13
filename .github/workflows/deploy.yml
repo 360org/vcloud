@@ -59,6 +59,38 @@ jobs:
           flutter analyze
           flutter test
 
+      - name: Install Apple Certificate and Provisioning Profile
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          if [ -n "$BUILD_CERTIFICATE_BASE64" ] && [ -n "$BUILD_PROVISION_PROFILE_BASE64" ]; then
+            echo "📦 Importing Apple Distribution Certificate and Provisioning Profile..."
+            CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+            PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
+            KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+            KC_PASS="${KEYCHAIN_PASSWORD:-buildpassword123}"
+
+            echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
+            echo -n "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode -o $PP_PATH
+
+            security create-keychain -p "$KC_PASS" $KEYCHAIN_PATH
+            security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+            security unlock-keychain -p "$KC_PASS" $KEYCHAIN_PATH
+
+            security import $CERTIFICATE_PATH -k $KEYCHAIN_PATH -P "${P12_PASSWORD:-123456}" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+            security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KC_PASS" $KEYCHAIN_PATH
+            security list-keychain -d user -s $KEYCHAIN_PATH
+
+            mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+            cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/708b7563-9ec8-4d21-936a-d6edffa66671.mobileprovision
+            echo "✅ Certificate and Provisioning Profile installed successfully!"
+          else
+            echo "⚠️ BUILD_CERTIFICATE_BASE64 or BUILD_PROVISION_PROFILE_BASE64 missing from GitHub Secrets."
+          fi
+
       - name: Execute Fastlane iOS TestFlight Pipeline
         env:
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}

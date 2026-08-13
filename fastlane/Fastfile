@@ -109,39 +109,43 @@ platform :ios do
           development: false
         )
 
-        profile_name = lane_context[SharedValues::SIGH_PROFILE_NAME] || ENV["SIGH_PROFILE_NAME"] || lane_context[SharedValues::SIGH_NAME] || ENV["SIGH_NAME"]
+        profile_name = lane_context[SharedValues::SIGH_PROFILE_NAME] || ENV["SIGH_PROFILE_NAME"] || lane_context[SharedValues::SIGH_NAME] || ENV["SIGH_NAME"] || "V_cloud"
 
-        if profile_name && !profile_name.strip.empty?
-          UI.message("⚙️ Updating Xcode Code Signing settings for Manual Signing with profile: #{profile_name}")
-          update_code_signing_settings(
-            use_automatic_signing: false,
-            path: "../ios/Runner.xcodeproj",
-            targets: ["Runner"],
-            team_id: "3J68D9JX79",
-            code_sign_identity: "iPhone Distribution",
-            profile_name: profile_name
-          )
+        UI.message("⚙️ Updating Xcode Code Signing settings for Manual Signing with profile: #{profile_name}")
+        update_code_signing_settings(
+          use_automatic_signing: false,
+          path: "../ios/Runner.xcodeproj",
+          targets: ["Runner"],
+          team_id: "ZC3H8887XS",
+          code_sign_identity: "iPhone Distribution",
+          profile_name: profile_name
+        )
 
-          require 'plist'
-          export_options_hash = {
-            "method" => "app-store",
-            "teamID" => "3J68D9JX79",
-            "uploadSymbols" => true,
-            "manageAppVersionAndBuildNumber" => false,
-            "testFlightInternalTestingOnly" => true,
-            "signingStyle" => "manual",
-            "provisioningProfiles" => {
-              "com.w360s.wcloudapp" => profile_name
-            }
+        require 'plist'
+        export_options_hash = {
+          "method" => "app-store",
+          "teamID" => "ZC3H8887XS",
+          "uploadSymbols" => true,
+          "manageAppVersionAndBuildNumber" => false,
+          "testFlightInternalTestingOnly" => true,
+          "signingStyle" => "manual",
+          "provisioningProfiles" => {
+            "com.w360s.wcloudapp" => profile_name
           }
-          File.write("../ios/export_options.plist", export_options_hash.to_plist)
-          UI.success("📝 Dynamically generated ios/export_options.plist for profile '#{profile_name}'")
-        else
-          UI.important("⚠️ Could not resolve SIGH_PROFILE_NAME from Fastlane context. Manual Signing configuration skipped.")
-        end
+        }
+        File.write("../ios/export_options.plist", export_options_hash.to_plist)
+        UI.success("📝 Dynamically generated ios/export_options.plist for profile '#{profile_name}'")
       else
-        UI.important("⚠️ App Store Connect API Key secrets are missing in runner environment.")
-        UI.important("   Ensure APP_STORE_CONNECT_KEY_ID, APP_STORE_CONNECT_ISSUER_ID, and APP_STORE_CONNECT_KEY_CONTENT are set in GitHub Secrets.")
+        UI.important("⚠️ App Store Connect API Key secrets are missing or optional in runner environment.")
+        UI.message("⚙️ Using pre-installed provisioning profile 'V_cloud' and team 'ZC3H8887XS'...")
+        update_code_signing_settings(
+          use_automatic_signing: false,
+          path: "../ios/Runner.xcodeproj",
+          targets: ["Runner"],
+          team_id: "ZC3H8887XS",
+          code_sign_identity: "iPhone Distribution",
+          profile_name: "V_cloud"
+        )
       end
 
       # 2. Extract version, build number, and git commit changelog
