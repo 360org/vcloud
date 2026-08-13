@@ -76,23 +76,31 @@ jobs:
             KC_PASS=$(echo "${KEYCHAIN_PASSWORD:-buildpassword123}" | tr -d '\r\n')
             P12_PASS=$(echo "${P12_PASSWORD:-123456}" | tr -d '\r\n')
 
-            python3 -c "import base64, os, re; cert_c = re.sub(r'[^A-Za-z0-9+/=]', '', os.environ.get('BUILD_CERTIFICATE_BASE64', '')); pp_c = re.sub(r'[^A-Za-z0-9+/=]', '', os.environ.get('BUILD_PROVISION_PROFILE_BASE64', '')); cert_c += '=' * (-len(cert_c) % 4); pp_c += '=' * (-len(pp_c) % 4); open('$CERTIFICATE_PATH', 'wb').write(base64.b64decode(cert_c)); open('$PP_PATH', 'wb').write(base64.b64decode(pp_c))"
+            python3 -c "import base64, os, re; cert_c = re.sub(r'[^A-Za-z0-9+/=]', '', os.environ.get('BUILD_CERTIFICATE_BASE64', '')); pp_c = re.sub(r'[^A-Za-z0-9+/=]', '', os.environ.get('BUILD_PROVISION_PROFILE_BASE64', '')); cert_c += '=' * (-len(cert_c) % 4 if len(cert_c) % 4 else 0); pp_c += '=' * (-len(pp_c) % 4 if len(pp_c) % 4 else 0); open('$CERTIFICATE_PATH', 'wb').write(base64.b64decode(cert_c)); open('$PP_PATH', 'wb').write(base64.b64decode(pp_c))"
+
+            echo "📊 Certificate file size: $(wc -c < $CERTIFICATE_PATH) bytes"
+            echo "📊 Provisioning profile file size: $(wc -c < $PP_PATH) bytes"
 
             security create-keychain -p "$KC_PASS" $KEYCHAIN_PATH
             security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
             security unlock-keychain -p "$KC_PASS" $KEYCHAIN_PATH
 
-            if ! security import $CERTIFICATE_PATH -k $KEYCHAIN_PATH -P "$P12_PASS" -A; then
-              echo "⚠️ First attempt with P12_PASS failed, trying fallback passphrase '123456'..."
-              security import $CERTIFICATE_PATH -k $KEYCHAIN_PATH -P "123456" -A
+            if ! security import $CERTIFICATE_PATH -k $KEYCHAIN_PATH -P "$P12_PASS" -f pkcs12 -A; then
+              echo "⚠️ First attempt with -f pkcs12 failed, trying without format flag..."
+              if ! security import $CERTIFICATE_PATH -k $KEYCHAIN_PATH -P "$P12_PASS" -A; then
+                echo "⚠️ Second attempt failed, trying fallback passphrase '123456'..."
+                security import $CERTIFICATE_PATH -k $KEYCHAIN_PATH -P "123456" -A
+              fi
             fi
 
             security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KC_PASS" $KEYCHAIN_PATH
             security list-keychain -d user -s $KEYCHAIN_PATH
 
+            UUID=$(security cms -D -i $PP_PATH 2>/dev/null | grep -A1 UUID | grep string | sed 's/<string>//g' | sed 's/<\/string>//g' | tr -d ' \t\r\n' || echo "708b7563-9ec8-4d21-936a-d6edffa66671")
             mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+            cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
             cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/708b7563-9ec8-4d21-936a-d6edffa66671.mobileprovision
-            echo "✅ Certificate and Provisioning Profile installed successfully!"
+            echo "✅ Certificate and Provisioning Profile installed successfully (UUID: $UUID)!"
           else
             echo "⚠️ BUILD_CERTIFICATE_BASE64 or BUILD_PROVISION_PROFILE_BASE64 missing from GitHub Secrets."
           fi
