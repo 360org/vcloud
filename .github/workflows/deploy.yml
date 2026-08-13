@@ -4,15 +4,15 @@ on:
   push:
     branches:
       - main
-      - 'release/*'
+      - "release/*"
       - release/ios-appstore
       - release/android-playstore
   workflow_dispatch:
     inputs:
       target:
-        description: 'Build Target Platform'
+        description: "Build Target Platform"
         required: true
-        default: 'all'
+        default: "all"
         type: choice
         options:
           - all
@@ -24,7 +24,7 @@ on:
 jobs:
   build-ios-testflight:
     name: Build & Deploy iOS (TestFlight)
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/release/ios-appstore') || (github.event_name == 'workflow_dispatch' && (inputs.target == 'all' || inputs.target == 'ios')) || github.event_name == 'repository_dispatch'
+    if: github.event_name != 'workflow_dispatch' || inputs.target == 'all' || inputs.target == 'ios'
     runs-on: macos-latest
 
     steps:
@@ -34,7 +34,7 @@ jobs:
       - name: Setup Flutter Engine
         uses: subosito/flutter-action@v2
         with:
-          channel: 'stable'
+          channel: "stable"
           cache: true
 
       - name: Cache Swift Package Manager Dependencies
@@ -48,7 +48,7 @@ jobs:
       - name: Setup Ruby & Fastlane Toolchain
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.2'
+          ruby-version: "3.2"
           bundler-cache: true
 
       - name: Install Project Dependencies
@@ -106,7 +106,6 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_PASS: ${{ secrets.APPLE_APP_PASS }}
           WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
-          BUILD_NUMBER: ${{ github.run_number }}
           VCLOUD_ODOO_API_BASE_URL: "https://vuahethong.net"
         run: |
           bundle exec fastlane ios beta
@@ -120,7 +119,7 @@ jobs:
 
   build-android-release:
     name: Build & Package Android (APK + AAB)
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/release/android-playstore') || (github.event_name == 'workflow_dispatch' && (inputs.target == 'all' || inputs.target == 'android'))
+    if: github.event_name != 'workflow_dispatch' || inputs.target == 'all' || inputs.target == 'android'
     runs-on: ubuntu-latest
 
     steps:
@@ -130,19 +129,19 @@ jobs:
       - name: Setup Java JDK
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: "temurin"
+          java-version: "17"
 
       - name: Setup Flutter Engine
         uses: subosito/flutter-action@v2
         with:
-          channel: 'stable'
+          channel: "stable"
           cache: true
 
       - name: Setup Ruby & Fastlane Toolchain
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.2'
+          ruby-version: "3.2"
           bundler-cache: true
 
       - name: Install Project Dependencies
