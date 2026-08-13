@@ -24,7 +24,7 @@ on:
 jobs:
   build-ios-testflight:
     name: Build & Deploy iOS (TestFlight)
-    if: github.event_name != 'workflow_dispatch' || inputs.target == 'all' || inputs.target == 'ios'
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/release/ios-appstore') || (github.event_name == 'workflow_dispatch' && (inputs.target == 'all' || inputs.target == 'ios')) || github.event_name == 'repository_dispatch'
     runs-on: macos-latest
 
     steps:
@@ -120,7 +120,7 @@ jobs:
 
   build-android-release:
     name: Build & Package Android (APK + AAB)
-    if: github.event_name != 'workflow_dispatch' || inputs.target == 'all' || inputs.target == 'android'
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/release/android-playstore') || (github.event_name == 'workflow_dispatch' && (inputs.target == 'all' || inputs.target == 'android'))
     runs-on: ubuntu-latest
 
     steps:
