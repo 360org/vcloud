@@ -10,18 +10,51 @@ import '../../../shared/widgets/app_scaffold.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/loading_view.dart';
+import '../../../core/utils/vn_holidays.dart';
 import '../application/attendance_controller.dart';
+import '../domain/shift_calculator.dart';
 
-class AttendanceHistoryScreen extends ConsumerWidget {
+class AttendanceHistoryScreen extends ConsumerStatefulWidget {
   const AttendanceHistoryScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AttendanceHistoryScreen> createState() => _AttendanceHistoryScreenState();
+}
+
+class _AttendanceHistoryScreenState extends ConsumerState<AttendanceHistoryScreen> {
+  bool _isCalendarView = false;
+  late DateTime _selectedMonth;
+  DateTime? _selectedDate;
+
+  @override
+  void initState() {
+    super.initState();
+    final now = DateTime.now();
+    _selectedMonth = DateTime(now.year, now.month, 1);
+    _selectedDate = DateTime(now.year, now.month, now.day);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final rows = ref.watch(attendanceStreamProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return AppScaffold(
       title: 'Lịch sử chấm công',
+      actions: [
+        IconButton(
+          onPressed: () {
+            setState(() {
+              _isCalendarView = !_isCalendarView;
+            });
+          },
+          icon: Icon(
+            _isCalendarView ? LucideIcons.list : LucideIcons.calendarDays,
+            size: 20,
+          ),
+          tooltip: _isCalendarView ? 'Xem dạng danh sách' : 'Xem dạng lịch',
+        ),
+      ],
       body: rows.when(
         data: (list) {
           if (list.isEmpty) {
@@ -32,7 +65,39 @@ class AttendanceHistoryScreen extends ConsumerWidget {
             );
           }
 
-          // Group by date
+          final totalSessions = list.length;
+          final totalMins = _totalMinutes(list);
+          final openCount = list.where((a) => a.isOpen).length;
+
+          if (_isCalendarView) {
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              children: [
+                // Summary Overview Header Card
+                _SummaryBannerCard(
+                  totalSessions: totalSessions,
+                  totalMinutes: totalMins,
+                  openCount: openCount,
+                  isDark: isDark,
+                ).animate().fadeIn(duration: 350.ms).slideY(begin: -0.08, end: 0),
+                const SizedBox(height: 18),
+                _AttendanceCalendarView(
+                  attendances: list,
+                  selectedMonth: _selectedMonth,
+                  selectedDate: _selectedDate,
+                  isDark: isDark,
+                  onMonthChanged: (newMonth) {
+                    setState(() => _selectedMonth = newMonth);
+                  },
+                  onDateSelected: (newDate) {
+                    setState(() => _selectedDate = newDate);
+                  },
+                ).animate().fadeIn(duration: 350.ms),
+              ],
+            );
+          }
+
+          // Group by date for List View
           final byDate = <String, List<Attendance>>{};
           for (final a in list) {
             final targetDate = a.checkinTime ?? a.createdAt;
@@ -41,10 +106,6 @@ class AttendanceHistoryScreen extends ConsumerWidget {
           }
           final groups = byDate.entries.toList()
             ..sort((a, b) => b.key.compareTo(a.key));
-
-          final totalSessions = list.length;
-          final totalMins = _totalMinutes(list);
-          final openCount = list.where((a) => a.isOpen).length;
 
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
@@ -89,8 +150,12 @@ class AttendanceHistoryScreen extends ConsumerWidget {
   int _totalMinutes(List<Attendance> list) {
     int total = 0;
     for (final a in list) {
-      if (a.elapsed != null) {
-        total += a.elapsed!.inMinutes;
+      if (a.checkinTime != null) {
+        final calc = ShiftCalculator.calculate(
+          checkinTime: a.checkinTime,
+          now: a.checkoutTime,
+        );
+        total += calc.workedMinutes;
       }
     }
     return total;
@@ -372,7 +437,15 @@ class _AttendanceSessionCard extends StatelessWidget {
     final isOpen = a.isOpen;
     final inTimeStr = a.checkinTime != null ? Dates.time(a.checkinTime!) : 'Chưa vào';
     final outTimeStr = a.checkoutTime != null ? Dates.time(a.checkoutTime!) : (isOpen ? 'Đang làm việc' : 'Chưa ra');
-    final durationStr = a.elapsed != null ? Dates.humanDuration(a.elapsed!) : null;
+    final shiftCalc = a.checkinTime != null
+        ? ShiftCalculator.calculate(
+            checkinTime: a.checkinTime,
+            now: a.checkoutTime,
+          )
+        : null;
+    final durationStr = shiftCalc != null
+        ? Dates.humanDuration(Duration(minutes: shiftCalc.workedMinutes))
+        : null;
     final hasGps = a.checkinLat != null && a.checkinLng != null;
 
     return Container(
@@ -636,5 +709,408 @@ class _AttendanceSessionCard extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _AttendanceCalendarView extends StatelessWidget {
+  const _AttendanceCalendarView({
+    required this.attendances,
+    required this.selectedMonth,
+    required this.selectedDate,
+    required this.isDark,
+    required this.onMonthChanged,
+    required this.onDateSelected,
+  });
+
+  final List<Attendance> attendances;
+  final DateTime selectedMonth;
+  final DateTime? selectedDate;
+  final bool isDark;
+  final ValueChanged<DateTime> onMonthChanged;
+  final ValueChanged<DateTime> onDateSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final daysInMonth = DateTime(selectedMonth.year, selectedMonth.month + 1, 0).day;
+    final firstWeekday = DateTime(selectedMonth.year, selectedMonth.month, 1).weekday; // 1=Mon, 7=Sun
+    final leadingEmpty = firstWeekday - 1;
+
+    final weekLabels = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
+    final now = DateTime.now();
+
+    // Map date key "YYYY-MM-DD" to list of attendances
+    final attendanceByDay = <String, List<Attendance>>{};
+    for (final a in attendances) {
+      final t = a.checkinTime ?? a.createdAt;
+      final key = '${t.year}-${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')}';
+      attendanceByDay.putIfAbsent(key, () => []).add(a);
+    }
+
+    // Sessions for currently selected date
+    List<Attendance> selectedDaySessions = [];
+    if (selectedDate != null) {
+      final key = '${selectedDate!.year}-${selectedDate!.month.toString().padLeft(2, '0')}-${selectedDate!.day.toString().padLeft(2, '0')}';
+      selectedDaySessions = attendanceByDay[key] ?? [];
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Calendar Surface Card
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E293B) : AppColors.surface,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: isDark ? Colors.white.withValues(alpha: 0.12) : AppColors.border,
+            ),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x0A0F172A),
+                blurRadius: 20,
+                offset: Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              // Month Header Controls (Tháng X, YYYY ◄ ►)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Tháng ${selectedMonth.month}, ${selectedMonth.year}',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(LucideIcons.chevronLeft, size: 20),
+                        onPressed: () {
+                          onMonthChanged(DateTime(selectedMonth.year, selectedMonth.month - 1, 1));
+                        },
+                      ),
+                      IconButton(
+                        icon: const Icon(LucideIcons.chevronRight, size: 20),
+                        onPressed: () {
+                          onMonthChanged(DateTime(selectedMonth.year, selectedMonth.month + 1, 1));
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // Weekday Header Row
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: List.generate(7, (i) {
+                  final label = weekLabels[i];
+                  final isSun = i == 6;
+                  final isSat = i == 5;
+                  final color = isSun
+                      ? AppColors.danger
+                      : (isSat
+                          ? const Color(0xFF2563EB)
+                          : (isDark ? Colors.white60 : AppColors.textMuted));
+
+                  return Expanded(
+                    child: Center(
+                      child: Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: color,
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ),
+              const SizedBox(height: 10),
+              const Divider(height: 1, thickness: 0.5),
+              const SizedBox(height: 10),
+
+              // Calendar Days Grid
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: leadingEmpty + daysInMonth,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 7,
+                  childAspectRatio: 0.85,
+                  crossAxisSpacing: 4,
+                  mainAxisSpacing: 6,
+                ),
+                itemBuilder: (context, index) {
+                  if (index < leadingEmpty) {
+                    return const SizedBox.shrink();
+                  }
+
+                  final dayNum = index - leadingEmpty + 1;
+                  final dayDate = DateTime(selectedMonth.year, selectedMonth.month, dayNum);
+                  final dayKey = '${dayDate.year}-${dayDate.month.toString().padLeft(2, '0')}-${dayDate.day.toString().padLeft(2, '0')}';
+                  final dayAttendances = attendanceByDay[dayKey] ?? [];
+
+                  // Calculate worked minutes for this day
+                  int dayWorkedMins = 0;
+                  for (final a in dayAttendances) {
+                    if (a.checkinTime != null) {
+                      final calc = ShiftCalculator.calculate(
+                        checkinTime: a.checkinTime,
+                        now: a.checkoutTime,
+                      );
+                      dayWorkedMins += calc.workedMinutes;
+                    }
+                  }
+
+                  final isToday = now.year == dayDate.year && now.month == dayDate.month && now.day == dayDate.day;
+                  final isSelected = selectedDate != null &&
+                      selectedDate!.year == dayDate.year &&
+                      selectedDate!.month == dayDate.month &&
+                      selectedDate!.day == dayDate.day;
+
+                  final isSunday = dayDate.weekday == DateTime.sunday;
+                  final isSaturday = dayDate.weekday == DateTime.saturday;
+                  final holiday = VnHolidays.getHoliday(dayDate);
+                  final hasCheckin = dayAttendances.isNotEmpty;
+                  final workedHoursStr = dayWorkedMins > 0 ? _formatShortDuration(dayWorkedMins) : (hasCheckin ? '0m' : null);
+
+                  // Cell background color
+                  final cellBg = isSelected
+                      ? AppColors.primary.withValues(alpha: 0.15)
+                      : (holiday != null
+                          ? (isDark ? const Color(0xFF450A0A) : const Color(0xFFFEF2F2))
+                          : (isSunday
+                              ? (isDark ? const Color(0xFF450A0A).withValues(alpha: 0.3) : const Color(0xFFFEF2F2).withValues(alpha: 0.5))
+                              : (isToday ? AppColors.soft(AppColors.primary) : Colors.transparent)));
+
+                  // Cell border color
+                  final cellBorder = isSelected
+                      ? AppColors.primary
+                      : (holiday != null
+                          ? const Color(0xFFFCA5A5)
+                          : (isToday ? AppColors.primary.withValues(alpha: 0.4) : Colors.transparent));
+
+                  // Day text color
+                  final dayTextColor = isSelected
+                      ? AppColors.primary
+                      : (holiday != null
+                          ? const Color(0xFFDC2626)
+                          : (isSunday
+                              ? AppColors.danger
+                              : (isSaturday
+                                  ? const Color(0xFF2563EB)
+                                  : (isToday
+                                      ? AppColors.primary
+                                      : (isDark ? Colors.white : AppColors.textPrimary)))));
+
+                  return InkWell(
+                    onTap: () => onDateSelected(dayDate),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: cellBg,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: cellBorder,
+                          width: isSelected ? 1.5 : 1,
+                        ),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            '$dayNum',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: (isToday || isSelected || hasCheckin || holiday != null || isSunday)
+                                  ? FontWeight.w900
+                                  : FontWeight.w500,
+                              color: dayTextColor,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          if (holiday != null)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFDC2626).withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(5),
+                              ),
+                              child: Text(
+                                holiday.shortLabel,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 8,
+                                  fontWeight: FontWeight.w900,
+                                  color: Color(0xFFDC2626),
+                                ),
+                              ),
+                            )
+                          else if (workedHoursStr != null)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: (dayWorkedMins >= 480)
+                                    ? AppColors.success.withValues(alpha: 0.18)
+                                    : AppColors.primary.withValues(alpha: 0.18),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                workedHoursStr,
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w800,
+                                  color: (dayWorkedMins >= 480) ? AppColors.success : AppColors.primary,
+                                ),
+                              ),
+                            )
+                          else
+                            Container(
+                              width: 4,
+                              height: 4,
+                              decoration: const BoxDecoration(
+                                color: Colors.transparent,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+
+        // Selected Date Sessions Breakdown Header & Cards
+        if (selectedDate != null) ...[
+          // Holiday Banner if selected date is a holiday
+          if (VnHolidays.getHoliday(selectedDate!) != null) ...[
+            Builder(
+              builder: (context) {
+                final h = VnHolidays.getHoliday(selectedDate!)!;
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF450A0A) : const Color(0xFFFEF2F2),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFFCA5A5)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Text('🎉', style: TextStyle(fontSize: 18)),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              h.name,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w900,
+                                color: Color(0xFFDC2626),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              h.isOfficialOff
+                                  ? 'Ngày lễ chính thức VN (Nghỉ lễ hưởng nguyên lương)'
+                                  : 'Ngày kỷ niệm truyền thống Việt Nam',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? Colors.white70 : const Color(0xFF991B1B),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ],
+
+          Row(
+            children: [
+              const Icon(LucideIcons.calendarCheck, size: 16, color: AppColors.primary),
+              const SizedBox(width: 8),
+              Text(
+                'Chấm công ngày ${_formatDateVi(selectedDate!)}',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: isDark ? Colors.white : AppColors.textPrimary,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '${selectedDaySessions.length} ca làm',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textMuted,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (selectedDaySessions.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E293B) : AppColors.surface,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Center(
+                child: Text(
+                  'Không có dữ liệu chấm công cho ngày này',
+                  style: TextStyle(fontSize: 13, color: AppColors.textMuted),
+                ),
+              ),
+            )
+          else
+            for (final a in selectedDaySessions)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _AttendanceSessionCard(
+                  attendance: a,
+                  isDark: isDark,
+                ),
+              ),
+        ],
+      ],
+    );
+  }
+
+  static String _formatShortDuration(int minutes) {
+    final h = minutes ~/ 60;
+    final m = minutes % 60;
+    if (h > 0 && m > 0) return '${h}h${m}m';
+    if (h > 0) return '${h}h';
+    return '${m}m';
+  }
+
+  static String _formatDateVi(DateTime dt) {
+    const weekdays = ['Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy', 'Chủ Nhật'];
+    final wd = weekdays[dt.weekday - 1];
+    final d = dt.day.toString().padLeft(2, '0');
+    final m = dt.month.toString().padLeft(2, '0');
+    return '$wd, $d/$m/${dt.year}';
   }
 }
