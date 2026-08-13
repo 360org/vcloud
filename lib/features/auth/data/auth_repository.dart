@@ -40,7 +40,7 @@ class AuthRepository {
         password: password,
         tenantId: tenantId,
       );
-      return _toUser(session);
+      return await _toUser(session);
     } on Failure {
       rethrow;
     } catch (e) {
