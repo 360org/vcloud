@@ -1388,6 +1388,57 @@ class _NetworkPreviewImageState extends ConsumerState<NetworkPreviewImage> {
       );
     }
 
+    final id = widget.attachmentId;
+    if (id != null && id.trim().isNotEmpty && int.tryParse(id) != null) {
+      return FutureBuilder<Uint8List>(
+        future: ref.read(downloadAttachmentActionProvider).bytes(id),
+        builder: (context, snapshot) {
+          final bytes = snapshot.data;
+          if (bytes != null && bytes.isNotEmpty) {
+            LocalAttachmentCache.save(id, bytes);
+            if (fileName != null) LocalAttachmentCache.save(fileName, bytes);
+            return GestureDetector(
+              onTap: () {
+                Navigator.of(context).push(
+                  PageRouteBuilder<void>(
+                    opaque: false,
+                    barrierDismissible: true,
+                    pageBuilder: (_, _, _) => ImageViewerScreen(
+                      imageUrl: widget.url,
+                      fileName: fileName ?? 'Image',
+                      attachmentId: int.tryParse(id),
+                    ),
+                  ),
+                );
+              },
+              child: Image.memory(
+                bytes,
+                fit: widget.fit,
+                gaplessPlayback: true,
+                errorBuilder: (_, _, _) => ImageAttachmentError(onRetry: _retry),
+              ),
+            );
+          }
+          if (snapshot.hasError) {
+            return GestureDetector(
+              onTap: _retry,
+              child: widget.fallback,
+            );
+          }
+          return Center(
+            child: SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColors.primary.withValues(alpha: 0.6),
+              ),
+            ),
+          );
+        },
+      );
+    }
+
     final rawUrl = (widget.attachmentId != null && widget.attachmentId!.trim().isNotEmpty)
         ? '/api/v1/mobile/attachments/${widget.attachmentId}/download'
         : (widget.url.trim().isNotEmpty ? widget.url.trim() : '');
@@ -1732,7 +1783,8 @@ class MediaInfo {
       attachmentId == null ? null : int.tryParse(attachmentId!);
 
   static MediaInfo? fromContent(String content) {
-    final uri = Uri.tryParse(content.trim());
+    final clean = stripHtml(content).trim();
+    final uri = Uri.tryParse(clean);
     if (uri == null || !uri.hasAbsolutePath) return null;
     if (uri.scheme != 'http' && uri.scheme != 'https') return null;
     final path = uri.path.toLowerCase();
@@ -1748,7 +1800,7 @@ class MediaInfo {
         path.endsWith('.m4v') ||
         path.endsWith('.webm');
     if (!isImage && !isVideo) return null;
-    return MediaInfo(url: content.trim(), isImage: isImage, isVideo: isVideo);
+    return MediaInfo(url: clean, isImage: isImage, isVideo: isVideo);
   }
 }
 
