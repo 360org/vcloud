@@ -436,14 +436,10 @@ class UserAvatar extends StatelessWidget {
 
     String absoluteUrl;
     if (value.startsWith('http://') || value.startsWith('https://')) {
-      absoluteUrl = value;
+      absoluteUrl = odooApiClient.authenticatedUrl(value);
     } else if (value.startsWith('/')) {
       try {
-        if (value.contains('/api/v1/mobile/avatar/')) {
-          absoluteUrl = odooApiClient.absoluteUrl(value);
-        } else {
-          absoluteUrl = odooApiClient.authenticatedUrl(value);
-        }
+        absoluteUrl = odooApiClient.authenticatedUrl(value);
       } on FormatException {
         return null;
       }

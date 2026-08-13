@@ -113,6 +113,7 @@ class UnreadChatNotifier extends StateNotifier<UnreadChatState> {
         startRealtimeSync(const Duration(seconds: 2));
       }
 
+      if (!mounted) return;
       state = state.copyWith(
         totalUnreadCount: total,
         channelUnreadCounts: channelCounts,
@@ -130,6 +131,7 @@ class UnreadChatNotifier extends StateNotifier<UnreadChatState> {
       } else if (_consecutiveFailures >= 6) {
         startRealtimeSync(const Duration(seconds: 12));
       }
+      if (!mounted) return;
       state = state.copyWith(
         isLoading: false,
         errorMessage: e.toString(),
@@ -151,6 +153,7 @@ class UnreadChatNotifier extends StateNotifier<UnreadChatState> {
     updatedCounts[channelId] = 0;
     final newTotal = updatedCounts.values.fold(0, (sum, count) => sum + count);
 
+    if (!mounted) return;
     state = state.copyWith(
       totalUnreadCount: newTotal,
       channelUnreadCounts: updatedCounts,
@@ -164,6 +167,7 @@ class UnreadChatNotifier extends StateNotifier<UnreadChatState> {
       await loadUnreadCount();
     } catch (e) {
       // Rollback on failure
+      if (!mounted) return;
       state = state.copyWith(
         totalUnreadCount: previousTotal,
         channelUnreadCounts: previousCounts,
