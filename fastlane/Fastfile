@@ -105,8 +105,12 @@ platform :ios do
             in_house: false
           )
         rescue => key_err
-          UI.important("⚠️ Invalid API Key .p8 content or revoked key (#{key_err.message}). Falling back to App-Specific Password authentication...")
+          UI.important("⚠️ Invalid API Key .p8 content or revoked key (#{key_err.message}). Cleaning API Key env vars and falling back to App-Specific Password authentication...")
           api_key = nil
+          ENV.delete("APP_STORE_CONNECT_KEY_ID")
+          ENV.delete("APP_STORE_CONNECT_ISSUER_ID")
+          ENV.delete("APP_STORE_CONNECT_KEY_CONTENT")
+          ENV.delete("APP_STORE_CONNECT_KEY_BASE64")
         end
 
         UI.message("📦 Checking App Store Distribution Certificates & Profiles...")
@@ -243,12 +247,13 @@ platform :ios do
 
         UI.message("🔑 Authenticating and uploading using Apple native altool (#{apple_id_email})")
         begin
-          sh("xcrun altool --upload-app --type ios -f \"#{ipa_path}\" -u \"#{apple_id_email}\" -p \"#{app_pass}\"")
+          sh("xcrun altool --upload-app --type ios -f \"#{ipa_path}\" -u \"#{apple_id_email}\" -p \"#{app_pass}\" --asc-provider ZC3H8887XS")
           uploaded = true
           UI.success("🎉 Successfully uploaded IPA to TestFlight using Apple App Manager (#{apple_id_email})!")
         rescue => altool_err
           UI.important("⚠️ altool upload encountered an issue (#{altool_err.message}), attempting fallback via Fastlane...")
           upload_to_testflight(
+            api_key: nil,
             username: apple_id_email,
             apple_id: app_store_app_id,
             groups: tester_groups,
