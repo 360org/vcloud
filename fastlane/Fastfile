@@ -113,7 +113,7 @@ platform :ios do
           UI.important("ℹ️ Remote cert fetch skipped (#{cert_err.message}). Using pre-installed keychain certificate & profile 'V_cloud'.")
         end
 
-        profile_name = lane_context[SharedValues::SIGH_PROFILE_NAME] || ENV["SIGH_PROFILE_NAME"] || lane_context[SharedValues::SIGH_NAME] || ENV["SIGH_NAME"] || "V_cloud"
+        profile_name = (lane_context[SharedValues::SIGH_NAME] rescue nil) || ENV["SIGH_PROFILE_NAME"] || ENV["SIGH_NAME"] || "V_cloud"
 
         UI.message("⚙️ Updating Xcode Code Signing settings for Manual Signing with profile: #{profile_name}")
         update_code_signing_settings(
