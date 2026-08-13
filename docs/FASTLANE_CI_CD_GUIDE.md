@@ -112,7 +112,7 @@ bundle exec fastlane android beta
 
 ### Lỗi 5: `No profiles for 'com.w360s.wcloudapp' were found` (Khi thiếu export_options.plist)
 - **Nguyên nhân:** Khi không có file `export_options.plist`, Flutter biên dịch iOS theo mặc định chế độ Development thay vì App Store Distribution.
-- **Giải pháp đã xử lý:** Đã khởi tạo tệp `ios/export_options.plist` chỉ định phương thức `method: app-store` & `teamID: 3J68D9JX79` và truyền cờ `--export-options-plist=ios/export_options.plist` vào lệnh `flutter build ipa`.
+- **Giải pháp đã xử lý:** Đã khởi tạo tệp `ios/export_options.plist` chỉ định phương thức `method: app-store` & `teamID: ZC3H8887XS` và truyền cờ `--export-options-plist=ios/export_options.plist` vào lệnh `flutter build ipa`.
 
 ---
 *Tài liệu này được tạo tự động để lưu trữ và bảo trì hệ thống CI/CD Fastlane cho W360S CORP.*
