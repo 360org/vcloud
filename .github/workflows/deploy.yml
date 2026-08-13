@@ -71,16 +71,28 @@ jobs:
             CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
             PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
             KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
-            KC_PASS="${KEYCHAIN_PASSWORD:-buildpassword123}"
+            KC_PASS=$(echo "${KEYCHAIN_PASSWORD:-buildpassword123}" | tr -d '\r\n')
+            P12_PASS=$(echo "${P12_PASSWORD:-123456}" | tr -d '\r\n')
 
-            echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
-            echo -n "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode -o $PP_PATH
+            python3 -c "
+import base64, os
+cert_b64 = os.environ.get('BUILD_CERTIFICATE_BASE64', '').strip()
+pp_b64 = os.environ.get('BUILD_PROVISION_PROFILE_BASE64', '').strip()
+with open('$CERTIFICATE_PATH', 'wb') as f:
+    f.write(base64.b64decode(cert_b64))
+with open('$PP_PATH', 'wb') as f:
+    f.write(base64.b64decode(pp_b64))
+"
 
             security create-keychain -p "$KC_PASS" $KEYCHAIN_PATH
             security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
             security unlock-keychain -p "$KC_PASS" $KEYCHAIN_PATH
 
-            security import $CERTIFICATE_PATH -k $KEYCHAIN_PATH -P "${P12_PASSWORD:-123456}" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+            if ! security import $CERTIFICATE_PATH -k $KEYCHAIN_PATH -P "$P12_PASS" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH; then
+              echo "⚠️ First attempt with P12_PASS failed, trying fallback passphrase '123456'..."
+              security import $CERTIFICATE_PATH -k $KEYCHAIN_PATH -P "123456" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+            fi
+
             security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KC_PASS" $KEYCHAIN_PATH
             security list-keychain -d user -s $KEYCHAIN_PATH
 
