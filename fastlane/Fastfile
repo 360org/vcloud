@@ -96,14 +96,18 @@ platform :ios do
       UI.message("🔑 Secrets Diagnostic -> Key ID: #{has_key_id ? 'CONFIGURED' : 'MISSING'}, Issuer ID: #{has_issuer_id ? 'CONFIGURED' : 'MISSING'}, Key Content: #{has_key_content ? 'CONFIGURED' : 'MISSING'}")
 
       if has_key_content && has_key_id && has_issuer_id
-        UI.message("🔑 Authenticating using App Store Connect API Key (.p8)")
-        api_key = app_store_connect_api_key(
-          key_id: key_id.strip,
-          issuer_id: issuer_id.strip,
-          key_content: key_content.strip,
-          is_key_content_base64: ENV["APP_STORE_CONNECT_KEY_BASE64"] == "true",
-          in_house: false
-        )
+        begin
+          api_key = app_store_connect_api_key(
+            key_id: key_id.strip,
+            issuer_id: issuer_id.strip,
+            key_content: key_content.strip,
+            is_key_content_base64: ENV["APP_STORE_CONNECT_KEY_BASE64"] == "true",
+            in_house: false
+          )
+        rescue => key_err
+          UI.important("⚠️ Invalid API Key .p8 content or revoked key (#{key_err.message}). Falling back to App-Specific Password authentication...")
+          api_key = nil
+        end
 
         UI.message("📦 Checking App Store Distribution Certificates & Profiles...")
         begin
