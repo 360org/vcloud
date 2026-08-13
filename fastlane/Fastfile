@@ -76,11 +76,12 @@ platform :ios do
     begin
       UI.header("🚀 Launching iOS TestFlight Fastlane Pipeline")
 
-      # Resolve dynamic workspace paths
-      xcodeproj_path = File.exist?("ios/Runner.xcodeproj") ? "ios/Runner.xcodeproj" : "../ios/Runner.xcodeproj"
-      export_plist_path = File.exist?("ios/export_options.plist") ? "ios/export_options.plist" : "../ios/export_options.plist"
-      pubspec_path = File.exist?("pubspec.yaml") ? "pubspec.yaml" : "../pubspec.yaml"
-      project_dir = File.exist?("pubspec.yaml") ? "." : ".."
+      # Resolve absolute workspace paths relative to Fastfile location
+      xcodeproj_path = File.expand_path("../ios/Runner.xcodeproj", __dir__)
+      export_plist_path = File.expand_path("../ios/export_options.plist", __dir__)
+      pubspec_path = File.expand_path("../pubspec.yaml", __dir__)
+      vclients_dir = File.expand_path("..", __dir__)
+      ipa_path = File.expand_path("../build/ios/ipa/vclients.ipa", __dir__)
 
       # 1. Setup App Store Connect API Key if valid key content is provided
       api_key = nil
@@ -175,10 +176,8 @@ platform :ios do
       UI.message("📝 TestFlight Release Notes: #{changelog_text}")
 
       # 3. Build IPA using Flutter (using App Store export options)
-      sh("cd #{project_dir} && flutter pub get")
-      sh("cd #{project_dir} && flutter build ipa --release --export-options-plist=ios/export_options.plist --build-name=#{build_name} --build-number=#{build_number} --dart-define=VCLOUD_ODOO_API_BASE_URL=#{api_base_url}")
-
-      ipa_path = File.exist?("build/ios/ipa/vclients.ipa") ? "build/ios/ipa/vclients.ipa" : (File.exist?("../build/ios/ipa/vclients.ipa") ? "../build/ios/ipa/vclients.ipa" : "build/ios/ipa/vclients.ipa")
+      sh("cd #{vclients_dir} && flutter pub get")
+      sh("cd #{vclients_dir} && flutter build ipa --release --export-options-plist=ios/export_options.plist --build-name=#{build_name} --build-number=#{build_number} --dart-define=VCLOUD_ODOO_API_BASE_URL=#{api_base_url}")
 
       # 4. Upload to Apple TestFlight & Auto-Distribute to Testers with Release Notes
       tester_groups = ENV["TESTFLIGHT_GROUPS"] ? ENV["TESTFLIGHT_GROUPS"].split(",") : ["360 internal testing staff"]
