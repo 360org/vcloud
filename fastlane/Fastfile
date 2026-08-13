@@ -76,6 +76,12 @@ platform :ios do
     begin
       UI.header("🚀 Launching iOS TestFlight Fastlane Pipeline")
 
+      # Resolve dynamic workspace paths
+      xcodeproj_path = File.exist?("ios/Runner.xcodeproj") ? "ios/Runner.xcodeproj" : "../ios/Runner.xcodeproj"
+      export_plist_path = File.exist?("ios/export_options.plist") ? "ios/export_options.plist" : "../ios/export_options.plist"
+      pubspec_path = File.exist?("pubspec.yaml") ? "pubspec.yaml" : "../pubspec.yaml"
+      project_dir = File.exist?("pubspec.yaml") ? "." : ".."
+
       # 1. Setup App Store Connect API Key if valid key content is provided
       api_key = nil
       key_content = ENV["APP_STORE_CONNECT_KEY_CONTENT"]
@@ -118,7 +124,7 @@ platform :ios do
         UI.message("⚙️ Updating Xcode Code Signing settings for Manual Signing with profile: #{profile_name}")
         update_code_signing_settings(
           use_automatic_signing: false,
-          path: "../ios/Runner.xcodeproj",
+          path: xcodeproj_path,
           targets: ["Runner"],
           team_id: "ZC3H8887XS",
           code_sign_identity: "iPhone Distribution",
@@ -137,14 +143,14 @@ platform :ios do
             "com.w360s.wcloudapp" => profile_name
           }
         }
-        File.write("../ios/export_options.plist", export_options_hash.to_plist)
-        UI.success("📝 Dynamically generated ios/export_options.plist for profile '#{profile_name}'")
+        File.write(export_plist_path, export_options_hash.to_plist)
+        UI.success("📝 Dynamically generated #{export_plist_path} for profile '#{profile_name}'")
       else
         UI.important("⚠️ App Store Connect API Key secrets are missing or optional in runner environment.")
         UI.message("⚙️ Using pre-installed provisioning profile 'V_cloud' and team 'ZC3H8887XS'...")
         update_code_signing_settings(
           use_automatic_signing: false,
-          path: "../ios/Runner.xcodeproj",
+          path: xcodeproj_path,
           targets: ["Runner"],
           team_id: "ZC3H8887XS",
           code_sign_identity: "iPhone Distribution",
@@ -154,7 +160,7 @@ platform :ios do
 
       # 2. Extract version, build number, and git commit changelog
       require 'yaml'
-      pubspec = YAML.load_file("../pubspec.yaml")
+      pubspec = YAML.load_file(pubspec_path)
       version_parts = pubspec["version"].to_s.split("+")
       build_name = version_parts[0] || "2.4.0"
       build_number = ENV["BUILD_NUMBER"] || version_parts[1] || "40"
@@ -169,8 +175,10 @@ platform :ios do
       UI.message("📝 TestFlight Release Notes: #{changelog_text}")
 
       # 3. Build IPA using Flutter (using App Store export options)
-      sh("cd .. && flutter pub get")
-      sh("cd .. && flutter build ipa --release --export-options-plist=ios/export_options.plist --build-name=#{build_name} --build-number=#{build_number} --dart-define=VCLOUD_ODOO_API_BASE_URL=#{api_base_url}")
+      sh("cd #{project_dir} && flutter pub get")
+      sh("cd #{project_dir} && flutter build ipa --release --export-options-plist=ios/export_options.plist --build-name=#{build_name} --build-number=#{build_number} --dart-define=VCLOUD_ODOO_API_BASE_URL=#{api_base_url}")
+
+      ipa_path = File.exist?("build/ios/ipa/vclients.ipa") ? "build/ios/ipa/vclients.ipa" : (File.exist?("../build/ios/ipa/vclients.ipa") ? "../build/ios/ipa/vclients.ipa" : "build/ios/ipa/vclients.ipa")
 
       # 4. Upload to Apple TestFlight & Auto-Distribute to Testers with Release Notes
       tester_groups = ENV["TESTFLIGHT_GROUPS"] ? ENV["TESTFLIGHT_GROUPS"].split(",") : ["360 internal testing staff"]
@@ -181,7 +189,7 @@ platform :ios do
           groups: tester_groups,
           changelog: changelog_text,
           skip_waiting_for_build_processing: true,
-          ipa: "../build/ios/ipa/vclients.ipa"
+          ipa: ipa_path
         )
       elsif ENV["APPLE_APP_PASS"] && !ENV["APPLE_APP_PASS"].to_s.strip.empty?
         apple_id = ENV["APPLE_ID"]
@@ -193,10 +201,10 @@ platform :ios do
           groups: tester_groups,
           changelog: changelog_text,
           skip_waiting_for_build_processing: true,
-          ipa: "../build/ios/ipa/vclients.ipa"
+          ipa: ipa_path
         )
       else
-        UI.important("⚠️ IPA build completed successfully at build/ios/ipa/vclients.ipa (No TestFlight upload credentials provided).")
+        UI.important("⚠️ IPA build completed successfully at #{ipa_path} (No TestFlight upload credentials provided).")
       end
 
       # 5. Dispatch Webhook Success Alert
