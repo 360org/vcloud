@@ -597,10 +597,10 @@ class _TimesheetHeader extends ConsumerWidget {
               ),
             ],
           ),
-          child: const Text(
+          child: Text(
             'Timesheet',
             style: TextStyle(
-              color: AppColors.textPrimary,
+              color: context.textColor,
               fontSize: 16,
               fontWeight: FontWeight.w800,
             ),
@@ -620,7 +620,7 @@ class _TimesheetHeader extends ConsumerWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: context.cardColor,
               borderRadius: BorderRadius.circular(24),
               boxShadow: const [
                 BoxShadow(
@@ -640,8 +640,8 @@ class _TimesheetHeader extends ConsumerWidget {
                 const SizedBox(width: 6),
                 Text(
                   filter.presetName,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
+                  style: TextStyle(
+                    color: context.textColor,
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
                   ),

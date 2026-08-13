@@ -526,13 +526,13 @@ class _TicketDetailHeader extends StatelessWidget {
             child: Container(
               width: 42,
               height: 42,
-              decoration: const BoxDecoration(
-                color: Colors.white,
+              decoration: BoxDecoration(
+                color: _softHeaderColor(context),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
+              child: Icon(
                 LucideIcons.chevronLeft,
-                color: AppColors.textPrimary,
+                color: context.textColor,
                 size: 24,
               ),
             ),
@@ -543,7 +543,7 @@ class _TicketDetailHeader extends StatelessWidget {
               height: 42,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: _softHeaderColor(context),
                 borderRadius: BorderRadius.circular(22),
                 boxShadow: const [
                   BoxShadow(
@@ -553,15 +553,15 @@ class _TicketDetailHeader extends StatelessWidget {
                   ),
                 ],
               ),
-              child: const Row(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(LucideIcons.ticket, color: AppColors.ticket, size: 18),
-                  SizedBox(width: 8),
+                  const Icon(LucideIcons.ticket, color: AppColors.ticket, size: 18),
+                  const SizedBox(width: 8),
                   Text(
                     'Ticket',
                     style: TextStyle(
-                      color: AppColors.textPrimary,
+                      color: context.textColor,
                       fontSize: 16,
                       fontWeight: FontWeight.w900,
                     ),
@@ -576,6 +576,10 @@ class _TicketDetailHeader extends StatelessWidget {
       ),
     );
   }
+}
+
+Color _softHeaderColor(BuildContext context) {
+  return context.isDarkMode ? AppColors.darkSurface : Colors.white;
 }
 
 class _TicketInfoCard extends StatelessWidget {
@@ -776,9 +780,9 @@ class _DetailField extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFE),
+        color: context.isDarkMode ? AppColors.darkSurface : const Color(0xFFF8FAFE),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: context.borderColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -789,8 +793,8 @@ class _DetailField extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 label,
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
+                style: TextStyle(
+                  color: context.textSecondary,
                   fontSize: 12,
                   fontWeight: FontWeight.w900,
                 ),
@@ -821,7 +825,7 @@ class _InfoChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.soft(color),
+        color: context.softColor(color),
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: color.withValues(alpha: 0.14)),
       ),

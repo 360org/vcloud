@@ -554,7 +554,7 @@ class _WeeklySummary extends ConsumerWidget {
                   Text(
                     'Tuần này',
                     style: AppTextStyles.title.copyWith(
-                      color: AppColors.textPrimary,
+                      color: context.textColor,
                     ),
                   ),
                   const Spacer(),
@@ -652,10 +652,10 @@ class _WeeklySummary extends ConsumerWidget {
                 children: [
                   Text(
                     '$totalCheckins/7 ngày đã check-in',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
+                      color: context.textColor,
                     ),
                   ),
                   GradientBadge(

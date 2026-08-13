@@ -908,8 +908,8 @@ class _NotificationTile extends StatelessWidget {
                     title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
+                    style: TextStyle(
+                      color: context.textColor,
                       fontSize: 14,
                       fontWeight: FontWeight.w900,
                     ),
@@ -920,7 +920,7 @@ class _NotificationTile extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: AppTextStyles.caption.copyWith(
-                      color: AppColors.textSecondary,
+                      color: context.textSecondary,
                       height: 1.25,
                     ),
                   ),
@@ -934,7 +934,7 @@ class _NotificationTile extends StatelessWidget {
                 Text(
                   time,
                   style: AppTextStyles.caption.copyWith(
-                    color: AppColors.textMuted,
+                    color: context.textMuted,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -960,7 +960,7 @@ class _NotificationEmptyState extends StatelessWidget {
             width: 54,
             height: 54,
             decoration: BoxDecoration(
-              color: AppColors.soft(AppColors.success),
+              color: context.softColor(AppColors.success),
               borderRadius: BorderRadius.circular(18),
             ),
             child: const Icon(
@@ -970,10 +970,10 @@ class _NotificationEmptyState extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          const Text(
+          Text(
             'Bạn đã xử lý hết thông báo.',
             style: TextStyle(
-              color: AppColors.textPrimary,
+              color: context.textColor,
               fontSize: 15,
               fontWeight: FontWeight.w900,
             ),
@@ -983,7 +983,7 @@ class _NotificationEmptyState extends StatelessWidget {
             'Khi có thông báo mới, chúng sẽ xuất hiện tại đây.',
             textAlign: TextAlign.center,
             style: AppTextStyles.caption.copyWith(
-              color: AppColors.textSecondary,
+              color: context.textSecondary,
               height: 1.35,
             ),
           ),

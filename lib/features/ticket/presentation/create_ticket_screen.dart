@@ -173,7 +173,7 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
     final teams = ref.watch(ticketTeamsProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.bg,
+      backgroundColor: context.bgColor,
       body: SafeArea(
         child: Form(
           key: _form,
@@ -334,9 +334,9 @@ class _CreateTicketHeader extends StatelessWidget {
                       context: context,
                       radius: 24,
                     ),
-                    child: const Icon(
+                    child: Icon(
                       LucideIcons.chevronLeft,
-                      color: AppColors.textPrimary,
+                      color: context.textColor,
                       size: 24,
                     ),
                   ),
@@ -353,22 +353,22 @@ class _CreateTicketHeader extends StatelessWidget {
                       context: context,
                       radius: 24,
                     ),
-                    child: const Row(
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
+                        const Icon(
                           LucideIcons.ticketPlus,
                           color: AppColors.ticket,
                           size: 18,
                         ),
-                        SizedBox(width: 8),
+                        const SizedBox(width: 8),
                         Flexible(
                           child: Text(
                             'Tạo ticket',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              color: AppColors.textPrimary,
+                              color: context.textColor,
                               fontSize: 17,
                               fontWeight: FontWeight.w900,
                             ),
@@ -521,7 +521,7 @@ class _DescriptionComposer extends StatelessWidget {
         const _FieldLabel('Mô tả vấn đề'),
         const SizedBox(height: 8),
         Container(
-          decoration: _composerDecoration(),
+          decoration: _composerDecoration(context),
           child: Column(
             children: [
               TextFormField(
@@ -530,36 +530,36 @@ class _DescriptionComposer extends StatelessWidget {
                 minLines: 5,
                 maxLines: 8,
                 textInputAction: TextInputAction.newline,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
+                style: TextStyle(
+                  color: context.textColor,
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
                   height: 1.4,
                 ),
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   hintText: 'Mô tả lỗi, bước tái hiện, ảnh hưởng hiện tại...',
                   hintStyle: TextStyle(
-                    color: AppColors.textMuted,
+                    color: context.textMuted,
                     fontSize: 15,
                     fontWeight: FontWeight.w500,
                     height: 1.4,
                   ),
                   prefixIcon: Padding(
-                    padding: EdgeInsets.only(top: 17),
+                    padding: const EdgeInsets.only(top: 17),
                     child: Icon(
                       LucideIcons.messageSquareText,
-                      color: AppColors.textMuted,
+                      color: context.textMuted,
                       size: 21,
                     ),
                   ),
-                  prefixIconConstraints: BoxConstraints(
+                  prefixIconConstraints: const BoxConstraints(
                     minWidth: 48,
                     maxWidth: 48,
                   ),
                   counterText: '',
                   filled: true,
                   fillColor: Colors.transparent,
-                  contentPadding: EdgeInsets.fromLTRB(0, 17, 16, 14),
+                  contentPadding: const EdgeInsets.fromLTRB(0, 17, 16, 14),
                   border: InputBorder.none,
                   enabledBorder: InputBorder.none,
                   focusedBorder: InputBorder.none,
@@ -567,7 +567,7 @@ class _DescriptionComposer extends StatelessWidget {
                   focusedErrorBorder: InputBorder.none,
                 ),
               ),
-              const Divider(height: 1, color: AppColors.border),
+              Divider(height: 1, color: context.borderColor),
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
                 child: Column(
@@ -582,7 +582,7 @@ class _DescriptionComposer extends StatelessWidget {
                               ? 'Chưa có tài liệu'
                               : '${attachments.length} tài liệu',
                           style: AppTextStyles.caption.copyWith(
-                            color: AppColors.textMuted,
+                            color: context.textMuted,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
@@ -626,7 +626,7 @@ class _ComposerActionButton extends StatelessWidget {
         height: 38,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
-          color: AppColors.soft(AppColors.ticket),
+          color: context.softColor(AppColors.ticket),
           borderRadius: BorderRadius.circular(999),
           border: Border.all(color: AppColors.ticket.withValues(alpha: 0.18)),
         ),
@@ -658,13 +658,14 @@ class _DocumentChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = context.isDarkMode;
     return Container(
       padding: const EdgeInsets.fromLTRB(9, 7, 6, 7),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
+        color: context.cardColor,
         borderRadius: BorderRadius.circular(999),
         border: Border.all(
-          color: Theme.of(context).brightness == Brightness.dark
+          color: isDark
               ? Colors.white.withValues(alpha: 0.1)
               : AppColors.border,
         ),
@@ -680,8 +681,8 @@ class _DocumentChip extends StatelessWidget {
               attachment.name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
+              style: TextStyle(
+                color: context.textColor,
                 fontSize: 12,
                 fontWeight: FontWeight.w800,
               ),
@@ -690,9 +691,9 @@ class _DocumentChip extends StatelessWidget {
           const SizedBox(width: 4),
           GestureDetector(
             onTap: onRemove,
-            child: const Icon(
+            child: Icon(
               LucideIcons.x,
-              color: AppColors.textMuted,
+              color: context.textMuted,
               size: 15,
             ),
           ),
@@ -722,7 +723,7 @@ class _AttachmentSourceSheet extends StatelessWidget {
               width: 42,
               height: 4,
               decoration: BoxDecoration(
-                color: AppColors.border,
+                color: context.borderColor,
                 borderRadius: BorderRadius.circular(999),
               ),
             ),
@@ -764,7 +765,7 @@ class _AttachmentSourceTile extends StatelessWidget {
         height: 92,
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: AppColors.soft(item.color),
+          color: context.softColor(item.color),
           borderRadius: BorderRadius.circular(18),
           border: Border.all(color: item.color.withValues(alpha: 0.18)),
         ),
@@ -822,13 +823,13 @@ class _TicketTextField extends StatelessWidget {
           keyboardType: keyboardType,
           maxLength: maxLength,
           textInputAction: TextInputAction.next,
-          style: const TextStyle(
-            color: AppColors.textPrimary,
+          style: TextStyle(
+            color: context.textColor,
             fontSize: 15,
             fontWeight: FontWeight.w600,
             height: 1.35,
           ),
-          decoration: _inputDecoration(hintText: hintText, icon: icon),
+          decoration: _inputDecoration(context: context, hintText: hintText, icon: icon),
         ),
       ],
     );
@@ -862,12 +863,12 @@ class _TicketDropdown<T> extends StatelessWidget {
         DropdownButtonFormField<T>(
           initialValue: value,
           isExpanded: true,
-          icon: const Icon(LucideIcons.chevronDown, color: AppColors.textMuted),
-          decoration: _inputDecoration(hintText: label, icon: icon),
-          dropdownColor: AppColors.surface,
+          icon: Icon(LucideIcons.chevronDown, color: context.textMuted),
+          decoration: _inputDecoration(context: context, hintText: label, icon: icon),
+          dropdownColor: context.cardColor,
           borderRadius: BorderRadius.circular(18),
-          style: const TextStyle(
-            color: AppColors.textPrimary,
+          style: TextStyle(
+            color: context.textColor,
             fontSize: 15,
             fontWeight: FontWeight.w600,
           ),
@@ -903,7 +904,7 @@ class _PriorityStars extends StatelessWidget {
         Container(
           height: 58,
           padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: _fieldDecoration(),
+          decoration: _fieldDecoration(context),
           child: Row(
             children: [
               for (var i = 1; i <= 4; i++) ...[
@@ -913,21 +914,21 @@ class _PriorityStars extends StatelessWidget {
                     LucideIcons.star,
                     color: i <= selectedStars
                         ? AppColors.ticket
-                        : AppColors.textMuted,
+                        : context.textMuted,
                     size: 28,
                   ),
                 ),
                 const SizedBox(width: 8),
               ],
-              Container(width: 1, height: 24, color: AppColors.border),
+              Container(width: 1, height: 24, color: context.borderColor),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   _priorityLabel(priority),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
+                  style: TextStyle(
+                    color: context.textColor,
                     fontSize: 14,
                     fontWeight: FontWeight.w900,
                   ),
@@ -954,19 +955,19 @@ class _LoadingTeamField extends StatelessWidget {
         Container(
           height: 58,
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: _fieldDecoration(),
-          child: const Row(
+          decoration: _fieldDecoration(context),
+          child: Row(
             children: [
-              SizedBox(
+              const SizedBox(
                 width: 18,
                 height: 18,
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
-              SizedBox(width: 12),
+              const SizedBox(width: 12),
               Text(
                 'Đang tải team...',
                 style: TextStyle(
-                  color: AppColors.textSecondary,
+                  color: context.textSecondary,
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
                 ),
@@ -989,7 +990,7 @@ class _FieldLabel extends StatelessWidget {
     return Text(
       text,
       style: AppTextStyles.label.copyWith(
-        color: AppColors.textPrimary,
+        color: context.textColor,
         fontSize: 13,
         fontWeight: FontWeight.w900,
       ),
@@ -998,6 +999,7 @@ class _FieldLabel extends StatelessWidget {
 }
 
 InputDecoration _inputDecoration({
+  required BuildContext context,
   required String hintText,
   required IconData icon,
   bool multiline = false,
@@ -1011,18 +1013,18 @@ InputDecoration _inputDecoration({
       alignment: multiline ? Alignment.topCenter : Alignment.center,
       child: Padding(
         padding: EdgeInsets.only(top: multiline ? 17 : 0),
-        child: Icon(icon, color: AppColors.textMuted, size: 21),
+        child: Icon(icon, color: context.textMuted, size: 21),
       ),
     ),
     prefixIconConstraints: const BoxConstraints(minWidth: 48, maxWidth: 48),
-    hintStyle: const TextStyle(
-      color: AppColors.textMuted,
+    hintStyle: TextStyle(
+      color: context.textMuted,
       fontSize: 15,
       fontWeight: FontWeight.w500,
       height: 1.35,
     ),
     filled: true,
-    fillColor: const Color(0xFFFAFBFE),
+    fillColor: context.isDarkMode ? const Color(0xFF1E293B) : const Color(0xFFFAFBFE),
     contentPadding: EdgeInsets.fromLTRB(
       0,
       multiline ? 17 : 0,
@@ -1036,7 +1038,7 @@ InputDecoration _inputDecoration({
     ),
     enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(17),
-      borderSide: const BorderSide(color: AppColors.border),
+      borderSide: BorderSide(color: context.borderColor),
     ),
     errorBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(17),
@@ -1053,19 +1055,19 @@ InputDecoration _inputDecoration({
   );
 }
 
-BoxDecoration _fieldDecoration() {
+BoxDecoration _fieldDecoration(BuildContext context) {
   return BoxDecoration(
-    color: const Color(0xFFFAFBFE),
+    color: context.isDarkMode ? const Color(0xFF1E293B) : const Color(0xFFFAFBFE),
     borderRadius: BorderRadius.circular(17),
-    border: Border.all(color: AppColors.border),
+    border: Border.all(color: context.borderColor),
   );
 }
 
-BoxDecoration _composerDecoration() {
+BoxDecoration _composerDecoration(BuildContext context) {
   return BoxDecoration(
-    color: const Color(0xFFFAFBFE),
+    color: context.isDarkMode ? const Color(0xFF1E293B) : const Color(0xFFFAFBFE),
     borderRadius: BorderRadius.circular(18),
-    border: Border.all(color: AppColors.border),
+    border: Border.all(color: context.borderColor),
     boxShadow: const [
       BoxShadow(color: Color(0x030F172A), blurRadius: 10, offset: Offset(0, 4)),
     ],

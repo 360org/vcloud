@@ -659,25 +659,25 @@ class _TicketFilterSheetState extends ConsumerState<_TicketFilterSheet> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
+              Text(
                 'Bộ lọc Ticket',
                 style: TextStyle(
-                  color: AppColors.textPrimary,
+                  color: context.textColor,
                   fontSize: 18,
                   fontWeight: FontWeight.w900,
                 ),
               ),
               IconButton(
                 onPressed: () => Navigator.pop(context),
-                icon: const Icon(LucideIcons.x, size: 20),
+                icon: Icon(LucideIcons.x, size: 20, color: context.textColor),
               ),
             ],
           ),
           const SizedBox(height: 14),
-          const Text(
+          Text(
             'Mức độ ưu tiên',
             style: TextStyle(
-              color: AppColors.textSecondary,
+              color: context.textSecondary,
               fontSize: 13,
               fontWeight: FontWeight.w800,
             ),
@@ -701,10 +701,10 @@ class _TicketFilterSheetState extends ConsumerState<_TicketFilterSheet> {
             ],
           ),
           const SizedBox(height: 18),
-          const Text(
+          Text(
             'Đội hỗ trợ',
             style: TextStyle(
-              color: AppColors.textSecondary,
+              color: context.textSecondary,
               fontSize: 13,
               fontWeight: FontWeight.w800,
             ),
@@ -716,7 +716,7 @@ class _TicketFilterSheetState extends ConsumerState<_TicketFilterSheet> {
               runSpacing: 8,
               children: [
                 _FilterChoiceChip(
-                  label: 'Tất cả đội',
+                  label: 'Tất cả',
                   selected: _selectedTeamId == null,
                   onSelected: (_) => setState(() => _selectedTeamId = null),
                 ),
@@ -729,43 +729,41 @@ class _TicketFilterSheetState extends ConsumerState<_TicketFilterSheet> {
               ],
             ),
             loading: () => const SizedBox(
-              height: 30,
+              height: 32,
               child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
             ),
-            error: (_, _) => const Text(
-              'Không thể tải danh sách đội',
-              style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+            error: (_, _) => Text(
+              'Không thể tải danh sách team',
+              style: TextStyle(color: context.textMuted, fontSize: 12),
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
           Row(
             children: [
               Expanded(
                 child: OutlinedButton(
+                  onPressed: () {
+                    setState(() {
+                      _selectedPriority = null;
+                      _selectedTeamId = null;
+                    });
+                  },
                   style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    side: BorderSide(color: context.borderColor),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                     ),
                   ),
-                  onPressed: () {
-                    ref.read(ticketFilterProvider.notifier).clear();
-                    Navigator.pop(context);
-                  },
-                  child: const Text('Xoá bộ lọc'),
+                  child: Text(
+                    'Xóa bộ lọc',
+                    style: TextStyle(color: context.textSecondary),
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2563EB),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
+                child: FilledButton(
                   onPressed: () {
                     ref.read(ticketFilterProvider.notifier).update(
                           TicketFilter(
@@ -775,6 +773,13 @@ class _TicketFilterSheetState extends ConsumerState<_TicketFilterSheet> {
                         );
                     Navigator.pop(context);
                   },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
                   child: const Text('Áp dụng'),
                 ),
               ),
@@ -799,11 +804,14 @@ class _FilterChoiceChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = context.isDarkMode;
     return ChoiceChip(
       label: Text(
         label,
         style: TextStyle(
-          color: selected ? Colors.white : AppColors.textPrimary,
+          color: selected
+              ? Colors.white
+              : (isDark ? AppColors.darkTextPrimary : AppColors.textPrimary),
           fontSize: 12,
           fontWeight: FontWeight.w700,
         ),
@@ -811,13 +819,15 @@ class _FilterChoiceChip extends StatelessWidget {
       selected: selected,
       onSelected: onSelected,
       selectedColor: const Color(0xFF2563EB),
-      backgroundColor: const Color(0xFFF1F5F9),
+      backgroundColor: isDark ? AppColors.darkSurface : const Color(0xFFF1F5F9),
       showCheckmark: false,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
         side: BorderSide(
-          color: selected ? const Color(0xFF2563EB) : const Color(0xFFE2E8F0),
+          color: selected
+              ? const Color(0xFF2563EB)
+              : (isDark ? AppColors.darkBorder : const Color(0xFFE2E8F0)),
         ),
       ),
     );
