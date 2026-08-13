@@ -28,8 +28,10 @@ import 'package:vcloud/shared/widgets/ui_kit.dart';
 import 'chat_helpers.dart';
 import 'chat_sheets.dart';
 
-const incomingBubbleColor = Color(0xFFE7F8E7);
-const incomingBubbleBorder = Color(0xFFC8EFD0);
+Color getIncomingBubbleColor(BuildContext context) =>
+    context.isDarkMode ? AppColors.darkSurface : const Color(0xFFE7F8E7);
+Color getIncomingBubbleBorder(BuildContext context) =>
+    context.isDarkMode ? AppColors.darkBorder : const Color(0xFFC8EFD0);
 
 class EmptyConversation extends StatelessWidget {
   const EmptyConversation({super.key});
@@ -40,9 +42,9 @@ class EmptyConversation extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(22),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.68),
+          color: context.cardColor.withValues(alpha: 0.88),
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
+          border: Border.all(color: context.borderColor),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -51,7 +53,7 @@ class EmptyConversation extends StatelessWidget {
               width: 72,
               height: 72,
               decoration: BoxDecoration(
-                color: AppColors.soft(AppColors.chat),
+                color: context.softColor(AppColors.chat),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
@@ -61,18 +63,18 @@ class EmptyConversation extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'Chưa có tin nhắn nào',
               style: TextStyle(
-                color: AppColors.textPrimary,
+                color: context.textColor,
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
               ),
             ),
             const SizedBox(height: 4),
-            const Text(
+            Text(
               'Gửi lời chào để bắt đầu trao đổi.',
-              style: TextStyle(color: AppColors.textSecondary),
+              style: TextStyle(color: context.textSecondary),
             ),
           ],
         ),
@@ -499,8 +501,8 @@ class _PollCardBubbleState extends State<PollCardBubble> {
   Widget build(BuildContext context) {
     final poll = PollData.fromContent(widget.message.content);
     final mine = widget.mine;
-    final bubbleColor = mine ? AppColors.primary : incomingBubbleColor;
-    final textColor = mine ? Colors.white : AppColors.textPrimary;
+    final bubbleColor = mine ? AppColors.primary : getIncomingBubbleColor(context);
+    final textColor = mine ? Colors.white : context.textColor;
     final mutedColor = textColor.withValues(alpha: mine ? 0.76 : 0.62);
     final totalVotes = _votedIndices.length;
 
@@ -511,7 +513,7 @@ class _PollCardBubbleState extends State<PollCardBubble> {
         color: bubbleColor,
         border: mine
             ? null
-            : Border.all(color: incomingBubbleBorder.withValues(alpha: 0.7)),
+            : Border.all(color: getIncomingBubbleBorder(context).withValues(alpha: 0.7)),
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(mine ? 20 : 7),
           topRight: Radius.circular(mine ? 7 : 20),
@@ -696,8 +698,8 @@ class TextBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bubbleColor = mine ? AppColors.primary : incomingBubbleColor;
-    final textColor = mine ? Colors.white : AppColors.textPrimary;
+    final bubbleColor = mine ? AppColors.primary : getIncomingBubbleColor(context);
+    final textColor = mine ? Colors.white : context.textColor;
     final hasSenderName =
         !mine && senderName != null && senderName!.trim().isNotEmpty;
 
@@ -708,7 +710,7 @@ class TextBubble extends StatelessWidget {
         color: bubbleColor,
         border: mine
             ? null
-            : Border.all(color: incomingBubbleBorder.withValues(alpha: 0.7)),
+            : Border.all(color: getIncomingBubbleBorder(context).withValues(alpha: 0.7)),
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(mine ? 18 : 6),
           topRight: Radius.circular(mine ? 6 : 18),
@@ -1006,8 +1008,8 @@ class _AttachmentBubbleState extends ConsumerState<AttachmentBubble> {
   Widget build(BuildContext context) {
     final mine = widget.mine;
     final message = widget.message;
-    final bubbleColor = mine ? AppColors.primary : incomingBubbleColor;
-    final textColor = mine ? Colors.white : AppColors.textPrimary;
+    final bubbleColor = mine ? AppColors.primary : getIncomingBubbleColor(context);
+    final textColor = mine ? Colors.white : context.textColor;
     final mutedColor = textColor.withValues(alpha: mine ? 0.76 : 0.62);
     final fileName = attachmentFileName(message);
     final extension = fileExtension(fileName).toUpperCase();
@@ -1042,7 +1044,7 @@ class _AttachmentBubbleState extends ConsumerState<AttachmentBubble> {
         color: bubbleColor,
         border: mine
             ? null
-            : Border.all(color: incomingBubbleBorder.withValues(alpha: 0.7)),
+            : Border.all(color: getIncomingBubbleBorder(context).withValues(alpha: 0.7)),
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(mine ? 20 : 7),
           topRight: Radius.circular(mine ? 7 : 20),
@@ -1178,10 +1180,10 @@ class ImageAttachmentBubble extends StatelessWidget {
       ),
       child: Container(
         decoration: BoxDecoration(
-          color: mine ? AppColors.primary : incomingBubbleColor,
+          color: mine ? AppColors.primary : getIncomingBubbleColor(context),
           border: mine
               ? null
-              : Border.all(color: incomingBubbleBorder.withValues(alpha: 0.7)),
+              : Border.all(color: getIncomingBubbleBorder(context).withValues(alpha: 0.7)),
           borderRadius: BorderRadius.only(
             topLeft: Radius.circular(mine ? 20 : 7),
             topRight: Radius.circular(mine ? 7 : 20),
@@ -1633,10 +1635,10 @@ class MediaBubble extends StatelessWidget {
     return Container(
       constraints: BoxConstraints(maxWidth: maxWidth),
       decoration: BoxDecoration(
-        color: mine ? AppColors.primary : incomingBubbleColor,
+        color: mine ? AppColors.primary : getIncomingBubbleColor(context),
         border: mine
             ? null
-            : Border.all(color: incomingBubbleBorder.withValues(alpha: 0.7)),
+            : Border.all(color: getIncomingBubbleBorder(context).withValues(alpha: 0.7)),
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(mine ? 18 : 6),
           topRight: Radius.circular(mine ? 6 : 18),
