@@ -34,9 +34,9 @@ class _ForwardConversationSheet extends ConsumerWidget {
       maxChildSize: 0.95,
       builder: (context, scrollController) {
         return Container(
-          decoration: const BoxDecoration(
-            color: Color(0xFFF6F6FA),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(34)),
+          decoration: BoxDecoration(
+            color: context.isDarkMode ? AppColors.darkSurface : const Color(0xFFF6F6FA),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(34)),
           ),
           clipBehavior: Clip.antiAlias,
           child: Column(
@@ -49,23 +49,23 @@ class _ForwardConversationSheet extends ConsumerWidget {
                       width: 46,
                       height: 5,
                       decoration: BoxDecoration(
-                        color: AppColors.border,
+                        color: context.borderColor,
                         borderRadius: BorderRadius.circular(99),
                       ),
                     ),
                     const SizedBox(height: 16),
-                    const Row(
+                    Row(
                       children: [
-                        Icon(
+                        const Icon(
                           LucideIcons.forward,
                           color: AppColors.primary,
                           size: 22,
                         ),
-                        SizedBox(width: 10),
+                        const SizedBox(width: 10),
                         Text(
                           'Chuyển tiếp đến',
                           style: TextStyle(
-                            color: AppColors.textPrimary,
+                            color: context.textColor,
                             fontSize: 20,
                             fontWeight: FontWeight.w800,
                           ),
@@ -79,10 +79,10 @@ class _ForwardConversationSheet extends ConsumerWidget {
                 child: conversations.when(
                   data: (list) {
                     if (list.isEmpty) {
-                      return const Center(
+                      return Center(
                         child: Text(
                           'Chưa có cuộc trò chuyện nào.',
-                          style: TextStyle(color: AppColors.textSecondary),
+                          style: TextStyle(color: context.textSecondary),
                         ),
                       );
                     }
@@ -90,9 +90,10 @@ class _ForwardConversationSheet extends ConsumerWidget {
                       controller: scrollController,
                       padding: const EdgeInsets.only(bottom: 24),
                       itemCount: list.length,
-                      separatorBuilder: (_, _) => const Divider(
+                      separatorBuilder: (_, _) => Divider(
                         height: 1,
                         indent: 64,
+                        color: context.borderColor,
                       ),
                       itemBuilder: (context, index) {
                         final conversation = list[index];
@@ -112,8 +113,8 @@ class _ForwardConversationSheet extends ConsumerWidget {
                       child: Text(
                         'Không tải được danh sách chat: $e',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
+                        style: TextStyle(
+                          color: context.textSecondary,
                         ),
                       ),
                     ),
@@ -140,7 +141,7 @@ class _ForwardTile extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Container(
-        color: Colors.white,
+        color: context.cardColor,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         child: Row(
           children: [
@@ -161,8 +162,8 @@ class _ForwardTile extends StatelessWidget {
                     conversation.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
+                    style: TextStyle(
+                      color: context.textColor,
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
                     ),
@@ -173,8 +174,8 @@ class _ForwardTile extends StatelessWidget {
                       subtitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
+                      style: TextStyle(
+                        color: context.textSecondary,
                         fontSize: 13,
                       ),
                     ),
@@ -184,8 +185,8 @@ class _ForwardTile extends StatelessWidget {
             ),
             Text(
               Dates.time(conversation.updatedAt),
-              style: const TextStyle(
-                color: AppColors.textMuted,
+              style: TextStyle(
+                color: context.textSecondary,
                 fontSize: 12,
               ),
             ),

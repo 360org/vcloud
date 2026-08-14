@@ -24,10 +24,13 @@ class ChatWallpaper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = context.isDarkMode;
     return DecoratedBox(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFFE8F5B8), Color(0xFFBFE9C9), Color(0xFF8ED8BE)],
+          colors: isDark
+              ? const [Color(0xFF0B101E), Color(0xFF111827), Color(0xFF0B101E)]
+              : const [Color(0xFFE8F5B8), Color(0xFFBFE9C9), Color(0xFF8ED8BE)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -48,7 +51,9 @@ class ChatWallpaper extends StatelessWidget {
                       child: Icon(
                         _icons[(row * columns + col) % _icons.length],
                         size: 30 + ((row + col) % 3) * 5,
-                        color: AppColors.midnight.withValues(alpha: 0.08),
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.035)
+                            : AppColors.midnight.withValues(alpha: 0.08),
                       ),
                     ),
                   ),
@@ -89,6 +94,7 @@ class FrostedSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = context.isDarkMode;
     return ClipRRect(
       borderRadius: BorderRadius.circular(radius),
       child: BackdropFilter(
@@ -99,14 +105,22 @@ class FrostedSurface extends StatelessWidget {
           height: height,
           padding: padding,
           decoration: BoxDecoration(
-            color: isFocused
-                ? Colors.white.withValues(alpha: 0.76)
-                : Colors.white.withValues(alpha: 0.58),
+            color: isDark
+                ? (isFocused
+                    ? AppColors.darkSurfaceElevated.withValues(alpha: 0.92)
+                    : AppColors.darkSurface.withValues(alpha: 0.78))
+                : (isFocused
+                    ? Colors.white.withValues(alpha: 0.76)
+                    : Colors.white.withValues(alpha: 0.58)),
             borderRadius: BorderRadius.circular(radius),
             border: Border.all(
-              color: isFocused
-                  ? AppColors.primary.withValues(alpha: 0.85)
-                  : Colors.white.withValues(alpha: 0.72),
+              color: isDark
+                  ? (isFocused
+                      ? AppColors.primary.withValues(alpha: 0.9)
+                      : context.borderColor)
+                  : (isFocused
+                      ? AppColors.primary.withValues(alpha: 0.85)
+                      : Colors.white.withValues(alpha: 0.72)),
               width: isFocused ? 1.6 : 1.1,
             ),
             boxShadow: isFocused

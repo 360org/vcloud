@@ -60,6 +60,7 @@ class AppColors {
   // ── Dark mode tokens ───────────────────────────────────────────────────
   static const darkBg = Color(0xFF0F1729);
   static const darkSurface = Color(0xFF1A2340);
+  static const darkSurfaceElevated = Color(0xFF222E52);
   static const darkBorder = Color(0xFF2A3A5C);
   static const darkTextPrimary = Color(0xFFF1F5F9);
   static const darkTextSecondary = Color(0xFF94A3B8);
