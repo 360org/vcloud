@@ -1804,6 +1804,29 @@ class MediaInfo {
     if (!isImage && !isVideo) return null;
     return MediaInfo(url: clean, isImage: isImage, isVideo: isVideo);
   }
+
+  static List<MediaInfo> extractAllFromContent(String content) {
+    final results = <MediaInfo>[];
+    final single = fromContent(content);
+    if (single != null) {
+      results.add(single);
+      return results;
+    }
+    final rawText = stripHtml(content);
+    final pattern = RegExp(r'https?:\/\/[^\s<>"{}|\^~\[\]`\\]+');
+    final matches = pattern.allMatches(rawText);
+    for (final match in matches) {
+      var url = match.group(0)!;
+      while (url.endsWith('.') || url.endsWith(',') || url.endsWith(')') || url.endsWith(';') || url.endsWith('>')) {
+        url = url.substring(0, url.length - 1);
+      }
+      final media = fromContent(url);
+      if (media != null) {
+        results.add(media);
+      }
+    }
+    return results;
+  }
 }
 
 class FileInfo {
