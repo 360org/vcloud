@@ -150,37 +150,75 @@ class ChatV2MessagesNotifier
     final userId = user?.id;
     final userName = meta?['name']?.toString() ?? 'Tôi';
 
-    // 1. Upload attachment lên Odoo
-    final att = await repo.uploadAttachment(
-      filename: filename,
-      bytes: bytes,
-      mimetype: mimetype,
-    );
-
-    final attIdInt = int.tryParse(att.id);
-    if (attIdInt == null) {
-      throw Exception('ID đính kèm ảnh không hợp lệ.');
-    }
-
-    // 2. Gửi tin nhắn với attachment ID
-    await repo.sendMessage(
-      channelId,
-      caption ?? '',
-      attachmentIds: [attIdInt],
-      currentPartnerId: partnerId,
-      currentUserId: userId,
+    // 1. Optimistic message cập nhật ngay lập tức lên UI
+    final tempId = 'temp_img_${DateTime.now().millisecondsSinceEpoch}';
+    final tempMsg = ChatV2Message(
+      id: tempId,
+      channelId: channelId,
+      content: (caption != null && caption.isNotEmpty) ? caption : filename,
+      authorId: partnerId ?? userId,
       authorName: userName,
+      createdAt: DateTime.now(),
+      isMine: true,
+      status: 'pending',
+      attachments: [
+        ChatV2Attachment(
+          id: '',
+          name: filename,
+          mimetype: mimetype ?? 'image/jpeg',
+        ),
+      ],
     );
 
-    // 3. Re-fetch messages từ backend để render dữ liệu thật
-    final latest = await repo.getMessages(
-      channelId,
-      currentPartnerId: partnerId,
-      currentUserId: userId,
-    );
-    state = AsyncData(latest);
+    final previousState = state.valueOrNull ?? const [];
+    state = AsyncData([...previousState, tempMsg]);
 
-    // 4. Invalidate channels để cập nhật preview
-    ref.invalidate(chatV2ChannelsProvider);
+    try {
+      // 2. Upload attachment lên Odoo backend
+      final att = await repo.uploadAttachment(
+        filename: filename,
+        bytes: bytes,
+        mimetype: mimetype,
+      );
+
+      final attIdInt = int.tryParse(att.id);
+      if (attIdInt == null) {
+        throw Exception('ID đính kèm ảnh không hợp lệ.');
+      }
+
+      // 3. Gửi tin nhắn với attachment ID vào Odoo Chatter
+      final bodyText = (caption != null && caption.isNotEmpty) ? caption : filename;
+      await repo.sendMessage(
+        channelId,
+        bodyText,
+        attachmentIds: [attIdInt],
+        currentPartnerId: partnerId,
+        currentUserId: userId,
+        authorName: userName,
+      );
+
+      // 4. Re-fetch messages từ Odoo database để đảm bảo đồng bộ 100%
+      final latest = await repo.getMessages(
+        channelId,
+        currentPartnerId: partnerId,
+        currentUserId: userId,
+      );
+      state = AsyncData(latest);
+
+      // 5. Invalidate channels để cập nhật preview
+      ref.invalidate(chatV2ChannelsProvider);
+    } catch (e, st) {
+      // Đánh dấu tin nhắn tạm bị lỗi
+      final currentList = state.valueOrNull ?? const [];
+      state = AsyncData(
+        currentList.map((m) {
+          if (m.id == tempId) {
+            return m.copyWith(status: 'error');
+          }
+          return m;
+        }).toList(),
+      );
+      state = AsyncError(e, st);
+    }
   }
 }
