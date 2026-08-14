@@ -97,7 +97,32 @@ class ChatV2Message {
     this.attachments = const [],
   });
 
-  bool get hasImageAttachment => attachments.any((att) => att.isImage);
+  bool get hasImageAttachment =>
+      attachments.any((att) => att.isImage) || isImageFilename;
+
+  bool get isImageFilename {
+    final trimmed = content.trim().toLowerCase();
+    if (trimmed.isEmpty || trimmed.contains('\n') || trimmed.length > 250) return false;
+    return trimmed.endsWith('.png') ||
+        trimmed.endsWith('.jpg') ||
+        trimmed.endsWith('.jpeg') ||
+        trimmed.endsWith('.gif') ||
+        trimmed.endsWith('.webp') ||
+        trimmed.startsWith('image_picker_') ||
+        trimmed.startsWith('scaled_');
+  }
+
+  bool get isDocumentFilename {
+    final trimmed = content.trim().toLowerCase();
+    if (trimmed.isEmpty || trimmed.contains('\n') || trimmed.length > 250) return false;
+    return trimmed.endsWith('.pdf') ||
+        trimmed.endsWith('.docx') ||
+        trimmed.endsWith('.doc') ||
+        trimmed.endsWith('.xlsx') ||
+        trimmed.endsWith('.xls') ||
+        trimmed.endsWith('.pptx') ||
+        trimmed.endsWith('.zip');
+  }
 
   factory ChatV2Message.fromMap(
     Map<String, dynamic> map, {
@@ -144,25 +169,57 @@ class ChatV2Message {
     final rawAttIds = map['attachment_ids'];
     if (rawAttIds is List) {
       for (final item in rawAttIds) {
-        final idStr = _stringOrNull(item);
-        if (idStr != null) attIds.add(idStr);
+        if (item is int || (item is String && int.tryParse(item) != null)) {
+          final idStr = item.toString();
+          if (!attIds.contains(idStr)) attIds.add(idStr);
+        }
       }
     }
 
     final rawAtts = map['attachments'];
     if (rawAtts is List) {
       for (final item in rawAtts) {
-        if (item is Map<String, dynamic>) {
-          final att = ChatV2Attachment.fromMap(item);
-          attList.add(att);
-          if (att.id.isNotEmpty && !attIds.contains(att.id)) {
-            attIds.add(att.id);
-          }
-          final urlStr = att.downloadUrl ?? att.url;
-          if (urlStr != null && urlStr.isNotEmpty) {
-            attUrls.add(urlStr);
+        if (item is Map) {
+          final attMap = item.map((k, v) => MapEntry(k.toString(), v));
+          final att = ChatV2Attachment.fromMap(attMap);
+          if (att.id.isNotEmpty) {
+            attList.add(att);
+            if (!attIds.contains(att.id)) {
+              attIds.add(att.id);
+            }
+            final urlStr = att.downloadUrl ?? att.url;
+            if (urlStr != null && urlStr.isNotEmpty) {
+              attUrls.add(urlStr);
+            }
           }
         }
+      }
+    }
+
+    // Fallback: nếu có attachment_ids nhưng attachments rỗng
+    for (final idStr in attIds) {
+      if (!attList.any((a) => a.id == idStr)) {
+        attList.add(ChatV2Attachment(
+          id: idStr,
+          name: cleanContent.isNotEmpty ? cleanContent : 'image_$idStr.jpg',
+          mimetype: 'image/jpeg',
+          url: '/web/image/$idStr',
+        ));
+      }
+    }
+
+    // Extract image URLs từ HTML rawBody nếu có
+    final imgMatch = RegExp(r'/web/image/(?:ir\.attachment/)?(\d+)', caseSensitive: false);
+    for (final match in imgMatch.allMatches(rawBody)) {
+      final idStr = match.group(1);
+      if (idStr != null && !attList.any((a) => a.id == idStr)) {
+        attList.add(ChatV2Attachment(
+          id: idStr,
+          name: 'image_$idStr.png',
+          mimetype: 'image/png',
+          url: '/web/image/$idStr',
+        ));
+        if (!attIds.contains(idStr)) attIds.add(idStr);
       }
     }
 

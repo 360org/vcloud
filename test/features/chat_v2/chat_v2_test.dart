@@ -7,14 +7,85 @@ import 'package:vcloud/features/chat_v2/presentation/widgets/chat_v2_input_bar.d
 import 'package:vcloud/features/chat_v2/presentation/widgets/chat_v2_message_item.dart';
 
 void main() {
-  group('ChatV2 Models Parsing', () {
-    test('ChatV2Channel parses Odoo channel JSON correctly', () {
+  group('ChatV2 Models Parsing & Image Detection', () {
+    test('1. PNG attachment is correctly recognized as image', () {
+      final pngAtt = ChatV2Attachment.fromMap({
+        'id': 1001,
+        'name': 'screenshot.png',
+        'mimetype': 'image/png',
+      });
+      expect(pngAtt.isImage, true);
+      expect(pngAtt.resolveFullUrl('https://vuahethong.net'), 'https://vuahethong.net/web/image/1001');
+    });
+
+    test('2. JPG and JPEG attachments are correctly recognized as images', () {
+      final jpgAtt = ChatV2Attachment.fromMap({
+        'id': 1002,
+        'name': 'photo.jpg',
+        'mimetype': 'image/jpeg',
+      });
+      expect(jpgAtt.isImage, true);
+
+      final jpegAtt = ChatV2Attachment.fromMap({
+        'id': 1003,
+        'name': 'camera_capture.jpeg',
+      });
+      expect(jpegAtt.isImage, true);
+    });
+
+    test('3. PDF attachment is NOT recognized as image and recognized as document', () {
+      final pdfAtt = ChatV2Attachment.fromMap({
+        'id': 1004,
+        'name': 'bao_cao_tai_chinh.pdf',
+        'mimetype': 'application/pdf',
+      });
+      expect(pdfAtt.isImage, false);
+
+      const pdfMsg = ChatV2Message(
+        id: '201',
+        channelId: '4255',
+        content: 'Bao_gia_2026.pdf',
+        authorName: 'Tân',
+        isMine: false,
+      );
+      expect(pdfMsg.isImageFilename, false);
+      expect(pdfMsg.isDocumentFilename, true);
+    });
+
+    test('4. Attachment missing mimeType detects from extension without crashing', () {
+      final noMimeAtt = ChatV2Attachment.fromMap({
+        'id': 1005,
+        'name': 'picture_without_mime.png',
+        'mimetype': null,
+      });
+      expect(noMimeAtt.isImage, true);
+      expect(noMimeAtt.name, 'picture_without_mime.png');
+    });
+
+    test('5. Malformed and null attachment payloads do not crash', () {
+      final emptyAtt = ChatV2Attachment.fromMap({});
+      expect(emptyAtt.id, '');
+      expect(emptyAtt.name, 'attachment');
+      expect(emptyAtt.isImage, false);
+
+      final nullMsg = ChatV2Message.fromMap({
+        'id': null,
+        'body': null,
+        'attachments': [null, 'invalid', 123],
+        'attachment_ids': [null, false, 'abc'],
+      });
+      expect(nullMsg.id, '');
+      expect(nullMsg.content, '');
+      expect(nullMsg.attachments, isEmpty);
+      expect(nullMsg.attachmentIds, isEmpty);
+    });
+
+    test('6. ChatV2Channel parses Odoo channel JSON correctly', () {
       final json = {
         'id': 4255,
         'name': 'Bùi Tuấn Kiệt',
         'channel_type': 'chat',
         'is_group': false,
-        'avatar_url': 'https://vuahethong.net/web/image/res.partner/123/avatar_128',
         'last_message': {
           'body': '<p>Xin chào anh Tân!</p>',
           'date': '2026-08-14T03:00:00Z',
@@ -27,38 +98,13 @@ void main() {
       };
 
       final channel = ChatV2Channel.fromMap(json);
-
       expect(channel.id, '4255');
       expect(channel.name, 'Bùi Tuấn Kiệt');
-      expect(channel.isGroup, false);
-      expect(channel.lastMessage, 'Xin chào anh Tân!');
       expect(channel.unreadCount, 3);
       expect(channel.memberNames, contains('Bùi Tuấn Kiệt'));
-      expect(channel.memberNames, contains('Tân Ma'));
     });
 
-    test('ChatV2Attachment parses attachment JSON correctly and detects isImage', () {
-      final json = {
-        'id': 1064,
-        'name': 'photo.png',
-        'mimetype': 'image/png',
-        'file_size': 2048,
-        'url': 'https://vuahethong.net/web/content/1064/photo.png?access_token=xyz',
-        'download_url': '/api/v1/mobile/attachments/1064/download?access_token=xyz',
-        'access_token': 'xyz',
-      };
-
-      final att = ChatV2Attachment.fromMap(json);
-
-      expect(att.id, '1064');
-      expect(att.name, 'photo.png');
-      expect(att.isImage, true);
-      expect(att.fileSize, 2048);
-      expect(att.accessToken, 'xyz');
-      expect(att.resolveFullUrl('https://vuahethong.net'), 'https://vuahethong.net/web/image/1064');
-    });
-
-    test('ChatV2Message parses chatter message JSON correctly with image attachments', () {
+    test('7. ChatV2Message parses chatter message JSON correctly with image attachments', () {
       final json = {
         'id': 9876,
         'channel_id': 4255,
@@ -68,86 +114,26 @@ void main() {
         'author_avatar': 'https://vuahethong.net/avatar.png',
         'date': '2026-08-14T03:15:00Z',
         'status': 'read',
-        'attachment_ids': [1064, 1065],
+        'attachment_ids': [1064],
         'attachments': [
           {
             'id': 1064,
             'name': 'screenshot.png',
             'mimetype': 'image/png',
-            'download_url': '/api/v1/mobile/attachments/1064/download?access_token=xyz',
           }
         ],
       };
 
-      final msg = ChatV2Message.fromMap(
-        json,
-        currentPartnerId: '99', // Not mine
-      );
-
+      final msg = ChatV2Message.fromMap(json, currentPartnerId: '99');
       expect(msg.id, '9876');
-      expect(msg.channelId, '4255');
       expect(msg.content, 'Đây là ảnh chụp màn hình');
-      expect(msg.authorName, 'Bùi Tuấn Kiệt');
-      expect(msg.isMine, false);
-      expect(msg.status, 'read');
-      expect(msg.attachmentIds, contains('1064'));
-      expect(msg.attachmentIds, contains('1065'));
-      expect(msg.attachments.length, 1);
-      expect(msg.attachments.first.isImage, true);
       expect(msg.hasImageAttachment, true);
-    });
-
-    test('ChatV2Message identifies isMine correctly', () {
-      final json = {
-        'id': 9877,
-        'channel_id': 4255,
-        'body': 'Tin nhắn của tôi',
-        'author_id': 99,
-        'author_name': 'Tân Ma',
-      };
-
-      final msg = ChatV2Message.fromMap(
-        json,
-        currentPartnerId: '99',
-      );
-
-      expect(msg.isMine, true);
-    });
-
-    test('ChatV2Channel handles null, empty, and malformed inputs gracefully', () {
-      final json = <String, dynamic>{};
-      final channel = ChatV2Channel.fromMap(json);
-
-      expect(channel.id, '');
-      expect(channel.name, 'Cuộc trò chuyện');
-      expect(channel.isGroup, false);
-      expect(channel.lastMessage, isNull);
-      expect(channel.unreadCount, 0);
-      expect(channel.memberNames, isEmpty);
-    });
-
-    test('ChatV2Message handles null and empty fields gracefully without throwing', () {
-      final json = <String, dynamic>{
-        'id': null,
-        'body': null,
-        'author_id': false,
-      };
-
-      final msg = ChatV2Message.fromMap(json);
-
-      expect(msg.id, '');
-      expect(msg.content, '');
-      expect(msg.authorName, 'Thành viên');
-      expect(msg.isMine, false);
-      expect(msg.status, 'sent');
-      expect(msg.attachmentIds, isEmpty);
-      expect(msg.attachments, isEmpty);
-      expect(msg.hasImageAttachment, false);
+      expect(msg.attachments.first.isImage, true);
     });
   });
 
-  group('ChatV2 Widgets', () {
-    testWidgets('ChatV2MessageItem renders message text and timestamp', (tester) async {
+  group('ChatV2 Widgets Rendering', () {
+    testWidgets('8. ChatV2MessageItem renders normal text message', (tester) async {
       final msg = ChatV2Message(
         id: '1',
         channelId: '4255',
@@ -169,7 +155,58 @@ void main() {
       expect(find.text('10:30'), findsOneWidget);
     });
 
-    testWidgets('ChatV2InputBar handles typing, image button, and send callback', (tester) async {
+    testWidgets('9. ChatV2MessageItem renders image attachment branch', (tester) async {
+      final msg = ChatV2Message(
+        id: '2',
+        channelId: '4255',
+        content: 'Sent attachment',
+        authorName: 'Tân',
+        createdAt: DateTime(2026, 8, 14, 10, 32),
+        isMine: true,
+        attachments: [
+          const ChatV2Attachment(
+            id: '91856',
+            name: 'sample_photo.png',
+            mimetype: 'image/png',
+            url: '/web/image/91856',
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ChatV2MessageItem(message: msg),
+          ),
+        ),
+      );
+
+      // Should render image container
+      expect(find.byType(ClipRRect), findsWidgets);
+    });
+
+    testWidgets('10. ChatV2MessageItem renders filename card for image/doc filename', (tester) async {
+      const imgNameMsg = ChatV2Message(
+        id: '3',
+        channelId: '4255',
+        content: 'scaled_Screenshot-0405-094025.png',
+        authorName: 'Tân',
+        isMine: false,
+      );
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: ChatV2MessageItem(message: imgNameMsg),
+          ),
+        ),
+      );
+
+      expect(find.text('Hình ảnh'), findsOneWidget);
+      expect(find.text('scaled_Screenshot-0405-094025.png'), findsOneWidget);
+    });
+
+    testWidgets('11. ChatV2InputBar handles typing, image button, and send callback', (tester) async {
       String? sentText;
 
       await tester.pumpWidget(

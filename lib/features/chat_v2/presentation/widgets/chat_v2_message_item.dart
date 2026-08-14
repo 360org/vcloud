@@ -1,9 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
 import '../../../../core/api/odoo_api_client.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../shared/widgets/html_network_image.dart';
 import '../../data/models/chat_v2_message.dart';
 import '../screens/chat_v2_image_viewer_screen.dart';
 
@@ -102,13 +104,23 @@ class ChatV2MessageItem extends StatelessWidget {
                         ),
                       ),
                     ),
+                  // 1. Render actual image attachments
                   if (hasImages) ...[
                     for (final att in imageAttachments) ...[
                       _buildImageAttachment(context, att),
                       const SizedBox(height: 4),
                     ],
+                  ] else if (message.isImageFilename) ...[
+                    // 2. Render image filename placeholder card
+                    _buildImageFilenameCard(context, isMine),
+                  ] else if (message.isDocumentFilename) ...[
+                    // 3. Render document filename card
+                    _buildDocumentFilenameCard(context, isMine),
                   ],
+                  // 4. Render message text/caption if applicable
                   if (message.content.isNotEmpty &&
+                      !message.isImageFilename &&
+                      !message.isDocumentFilename &&
                       (!hasImages || message.content != 'Sent attachment')) ...[
                     SelectableText(
                       message.content,
@@ -154,6 +166,7 @@ class ChatV2MessageItem extends StatelessWidget {
 
   Widget _buildImageAttachment(BuildContext context, ChatV2Attachment att) {
     final fullUrl = att.resolveFullUrl(odooApiClient.absoluteUrl(''));
+    final htmlWidget = kIsWeb ? buildHtmlNetworkImage(url: fullUrl, fit: BoxFit.cover) : null;
 
     return GestureDetector(
       onTap: () {
@@ -174,7 +187,7 @@ class ChatV2MessageItem extends StatelessWidget {
             maxWidth: 280,
           ),
           color: Colors.black12,
-          child: Image.network(
+          child: htmlWidget ?? Image.network(
             fullUrl,
             fit: BoxFit.cover,
             loadingBuilder: (context, child, progress) {
@@ -196,6 +209,7 @@ class ChatV2MessageItem extends StatelessWidget {
                 width: 200,
                 color: Colors.black26,
                 alignment: Alignment.center,
+                padding: const EdgeInsets.all(8),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -213,6 +227,128 @@ class ChatV2MessageItem extends StatelessWidget {
             },
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildImageFilenameCard(BuildContext context, bool isMine) {
+    final textColor = isMine
+        ? Colors.white
+        : Theme.of(context).brightness == Brightness.dark
+            ? Colors.white
+            : const Color(0xFF1C1C1E);
+
+    return Container(
+      padding: const EdgeInsets.all(8),
+      margin: const EdgeInsets.only(bottom: 2),
+      decoration: BoxDecoration(
+        color: isMine ? Colors.white.withValues(alpha: 0.15) : Colors.black.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: isMine ? Colors.white.withValues(alpha: 0.2) : AppColors.primary.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              LucideIcons.image,
+              size: 18,
+              color: isMine ? Colors.white : AppColors.primary,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Hình ảnh',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: textColor.withValues(alpha: 0.7),
+                  ),
+                ),
+                Text(
+                  message.content,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: textColor,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDocumentFilenameCard(BuildContext context, bool isMine) {
+    final textColor = isMine
+        ? Colors.white
+        : Theme.of(context).brightness == Brightness.dark
+            ? Colors.white
+            : const Color(0xFF1C1C1E);
+
+    return Container(
+      padding: const EdgeInsets.all(8),
+      margin: const EdgeInsets.only(bottom: 2),
+      decoration: BoxDecoration(
+        color: isMine ? Colors.white.withValues(alpha: 0.15) : Colors.black.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: isMine ? Colors.white.withValues(alpha: 0.2) : Colors.orange.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              LucideIcons.fileText,
+              size: 18,
+              color: isMine ? Colors.white : Colors.orange.shade800,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Tài liệu đính kèm',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: textColor.withValues(alpha: 0.7),
+                  ),
+                ),
+                Text(
+                  message.content,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: textColor,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
