@@ -1,34 +1,103 @@
 import 'package:flutter/foundation.dart';
 
 @immutable
+class ChatV2Attachment {
+  final String id;
+  final String name;
+  final String? mimetype;
+  final int? fileSize;
+  final String? url;
+  final String? downloadUrl;
+  final String? accessToken;
+
+  const ChatV2Attachment({
+    required this.id,
+    required this.name,
+    this.mimetype,
+    this.fileSize,
+    this.url,
+    this.downloadUrl,
+    this.accessToken,
+  });
+
+  bool get isImage {
+    final mime = mimetype?.toLowerCase() ?? '';
+    if (mime.startsWith('image/')) return true;
+    final lowerName = name.toLowerCase();
+    return lowerName.endsWith('.png') ||
+        lowerName.endsWith('.jpg') ||
+        lowerName.endsWith('.jpeg') ||
+        lowerName.endsWith('.gif') ||
+        lowerName.endsWith('.webp');
+  }
+
+  String resolveFullUrl(String baseUrl) {
+    final cleanBase = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+    if (id.isNotEmpty && isImage) {
+      return '$cleanBase/web/image/$id';
+    }
+    final target = (url != null && url!.isNotEmpty) ? url! : (downloadUrl ?? '');
+    if (target.startsWith('http://') || target.startsWith('https://')) {
+      return target;
+    }
+    final cleanTarget = target.startsWith('/') ? target : '/$target';
+    return '$cleanBase$cleanTarget';
+  }
+
+  factory ChatV2Attachment.fromMap(Map<String, dynamic> map) {
+    final id = _stringOr(map['id'] ?? map['attachment_id'], '');
+    final rawName = _stringOr(map['name'] ?? map['filename'], 'attachment');
+    final mimetype = _stringOrNull(map['mimetype']);
+    final fileSize = map['file_size'] is int ? map['file_size'] as int : null;
+    final url = _stringOrNull(map['url']);
+    final downloadUrl = _stringOrNull(map['download_url']);
+    final accessToken = _stringOrNull(map['access_token']);
+
+    return ChatV2Attachment(
+      id: id,
+      name: rawName,
+      mimetype: mimetype,
+      fileSize: fileSize,
+      url: url,
+      downloadUrl: downloadUrl,
+      accessToken: accessToken,
+    );
+  }
+}
+
+@immutable
 class ChatV2Message {
+  final String id;
+  final String channelId;
+  final String content;
+  final String? authorId;
+  final String authorName;
+  final String? authorAvatar;
+  final DateTime? createdAt;
+  final bool isMine;
+  final String status;
+  final bool isRead;
+  final List<String> attachmentIds;
+  final List<String> attachmentUrls;
+  final List<ChatV2Attachment> attachments;
+
   const ChatV2Message({
     required this.id,
     required this.channelId,
     required this.content,
-    this.bodyHtml,
     this.authorId,
     required this.authorName,
     this.authorAvatar,
-    this.date,
-    this.isMine = false,
+    this.createdAt,
+    required this.isMine,
     this.status = 'sent',
+    this.isRead = false,
     this.attachmentIds = const [],
     this.attachmentUrls = const [],
+    this.attachments = const [],
   });
 
-  final String id;
-  final String channelId;
-  final String content;
-  final String? bodyHtml;
-  final String? authorId;
-  final String authorName;
-  final String? authorAvatar;
-  final DateTime? date;
-  final bool isMine;
-  final String status;
-  final List<String> attachmentIds;
-  final List<String> attachmentUrls;
+  bool get hasImageAttachment => attachments.any((att) => att.isImage);
 
   factory ChatV2Message.fromMap(
     Map<String, dynamic> map, {
@@ -68,7 +137,10 @@ class ChatV2Message {
     }
 
     // Parse attachments
+    final attList = <ChatV2Attachment>[];
     final attIds = <String>[];
+    final attUrls = <String>[];
+
     final rawAttIds = map['attachment_ids'];
     if (rawAttIds is List) {
       for (final item in rawAttIds) {
@@ -76,22 +148,20 @@ class ChatV2Message {
         if (idStr != null) attIds.add(idStr);
       }
     }
+
     final rawAtts = map['attachments'];
     if (rawAtts is List) {
       for (final item in rawAtts) {
         if (item is Map<String, dynamic>) {
-          final idStr = _stringOrNull(item['id'] ?? item['attachment_id']);
-          if (idStr != null && !attIds.contains(idStr)) attIds.add(idStr);
-        }
-      }
-    }
-
-    final attUrls = <String>[];
-    if (rawAtts is List) {
-      for (final item in rawAtts) {
-        if (item is Map<String, dynamic>) {
-          final urlStr = _stringOrNull(item['download_url'] ?? item['url']);
-          if (urlStr != null) attUrls.add(urlStr);
+          final att = ChatV2Attachment.fromMap(item);
+          attList.add(att);
+          if (att.id.isNotEmpty && !attIds.contains(att.id)) {
+            attIds.add(att.id);
+          }
+          final urlStr = att.downloadUrl ?? att.url;
+          if (urlStr != null && urlStr.isNotEmpty) {
+            attUrls.add(urlStr);
+          }
         }
       }
     }
@@ -99,16 +169,17 @@ class ChatV2Message {
     return ChatV2Message(
       id: id,
       channelId: channelId,
-      content: cleanContent.isEmpty ? (attIds.isNotEmpty ? '[Tệp đính kèm]' : '') : cleanContent,
-      bodyHtml: rawBody,
+      content: cleanContent,
       authorId: authorId,
       authorName: authorName,
       authorAvatar: authorAvatar,
-      date: date,
+      createdAt: date,
       isMine: isMine,
       status: status,
+      isRead: isRead,
       attachmentIds: attIds,
       attachmentUrls: attUrls,
+      attachments: attList,
     );
   }
 
@@ -116,61 +187,77 @@ class ChatV2Message {
     String? id,
     String? channelId,
     String? content,
-    String? bodyHtml,
     String? authorId,
     String? authorName,
     String? authorAvatar,
-    DateTime? date,
+    DateTime? createdAt,
     bool? isMine,
     String? status,
+    bool? isRead,
     List<String>? attachmentIds,
     List<String>? attachmentUrls,
+    List<ChatV2Attachment>? attachments,
   }) {
     return ChatV2Message(
       id: id ?? this.id,
       channelId: channelId ?? this.channelId,
       content: content ?? this.content,
-      bodyHtml: bodyHtml ?? this.bodyHtml,
       authorId: authorId ?? this.authorId,
       authorName: authorName ?? this.authorName,
       authorAvatar: authorAvatar ?? this.authorAvatar,
-      date: date ?? this.date,
+      createdAt: createdAt ?? this.createdAt,
       isMine: isMine ?? this.isMine,
       status: status ?? this.status,
+      isRead: isRead ?? this.isRead,
       attachmentIds: attachmentIds ?? this.attachmentIds,
       attachmentUrls: attachmentUrls ?? this.attachmentUrls,
+      attachments: attachments ?? this.attachments,
     );
   }
+}
 
-  static String _stringOr(dynamic val, String fallback) {
-    if (val == null || val == false) return fallback;
-    return val.toString();
+String _stringOr(dynamic value, String fallback) {
+  if (value == null) return fallback;
+  if (value is String) {
+    final trimmed = value.trim();
+    return trimmed.isNotEmpty ? trimmed : fallback;
   }
+  return value.toString().trim();
+}
 
-  static String? _stringOrNull(dynamic val) {
-    if (val == null || val == false) return null;
-    final str = val.toString().trim();
-    return str.isEmpty ? null : str;
+String? _stringOrNull(dynamic value) {
+  if (value == null) return null;
+  if (value is String) {
+    final trimmed = value.trim();
+    return trimmed.isNotEmpty ? trimmed : null;
   }
+  final str = value.toString().trim();
+  return str.isNotEmpty ? str : null;
+}
 
-  static bool _boolOr(dynamic val, bool fallback) {
-    if (val == null) return fallback;
-    if (val is bool) return val;
-    final s = val.toString().toLowerCase();
-    if (s == 'true' || s == '1') return true;
-    if (s == 'false' || s == '0') return false;
-    return fallback;
+bool _boolOr(dynamic value, bool fallback) {
+  if (value is bool) return value;
+  if (value is num) return value != 0;
+  if (value is String) {
+    final lower = value.toLowerCase().trim();
+    if (lower == 'true' || lower == '1') return true;
+    if (lower == 'false' || lower == '0') return false;
   }
+  return fallback;
+}
 
-  static String _stripHtml(String html) {
-    final text = html
-        .replaceAll('&lt;', '<')
-        .replaceAll('&gt;', '>')
-        .replaceAll('&quot;', '"')
-        .replaceAll('&apos;', "'")
-        .replaceAll('&#39;', "'")
-        .replaceAll('&amp;', '&');
-    final exp = RegExp(r'<[^>]*>', multiLine: true);
-    return text.replaceAll(exp, '').replaceAll('&nbsp;', ' ').trim();
-  }
+String _stripHtml(String html) {
+  if (html.isEmpty) return '';
+  final noTags = html.replaceAll(RegExp(r'<[^>]*>', multiLine: true), '');
+  return _unescapeHtml(noTags).trim();
+}
+
+String _unescapeHtml(String text) {
+  return text
+      .replaceAll('&lt;', '<')
+      .replaceAll('&gt;', '>')
+      .replaceAll('&quot;', '"')
+      .replaceAll('&apos;', "'")
+      .replaceAll('&#39;', "'")
+      .replaceAll('&amp;', '&');
 }

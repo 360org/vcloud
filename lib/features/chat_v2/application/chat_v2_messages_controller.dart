@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../auth/application/auth_controller.dart';
@@ -81,7 +82,7 @@ class ChatV2MessagesNotifier
       content: trimmed,
       authorId: partnerId ?? userId,
       authorName: userName,
-      date: DateTime.now(),
+      createdAt: DateTime.now(),
       isMine: true,
       status: 'pending',
     );
@@ -131,5 +132,55 @@ class ChatV2MessagesNotifier
       );
       state = AsyncError(e, st);
     }
+  }
+
+  Future<void> sendImage({
+    required String filename,
+    required Uint8List bytes,
+    String? mimetype,
+    String? caption,
+  }) async {
+    final channelId = arg;
+    final repo = ref.read(chatV2RepositoryProvider);
+    final user = ref.read(authControllerProvider).valueOrNull;
+
+    final meta = user?.userMetadata;
+    final partnerId = meta?['partner_id']?.toString() ??
+        meta?['partner']?['id']?.toString();
+    final userId = user?.id;
+    final userName = meta?['name']?.toString() ?? 'Tôi';
+
+    // 1. Upload attachment lên Odoo
+    final att = await repo.uploadAttachment(
+      filename: filename,
+      bytes: bytes,
+      mimetype: mimetype,
+    );
+
+    final attIdInt = int.tryParse(att.id);
+    if (attIdInt == null) {
+      throw Exception('ID đính kèm ảnh không hợp lệ.');
+    }
+
+    // 2. Gửi tin nhắn với attachment ID
+    await repo.sendMessage(
+      channelId,
+      caption ?? '',
+      attachmentIds: [attIdInt],
+      currentPartnerId: partnerId,
+      currentUserId: userId,
+      authorName: userName,
+    );
+
+    // 3. Re-fetch messages từ backend để render dữ liệu thật
+    final latest = await repo.getMessages(
+      channelId,
+      currentPartnerId: partnerId,
+      currentUserId: userId,
+    );
+    state = AsyncData(latest);
+
+    // 4. Invalidate channels để cập nhật preview
+    ref.invalidate(chatV2ChannelsProvider);
   }
 }

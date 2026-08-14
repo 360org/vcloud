@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/odoo_api_client.dart';
@@ -12,6 +15,9 @@ class ChatV2Repository {
   const ChatV2Repository(this._client);
 
   final OdooApiClient _client;
+
+  String resolveUrl(String path, {String? accessToken}) =>
+      _client.authenticatedUrl(path, accessToken: accessToken);
 
   Future<List<ChatV2Channel>> getChannels() async {
     final dynamic data = await _client.get('/api/v1/mobile/chat/channels');
@@ -57,6 +63,29 @@ class ChatV2Repository {
         .toList();
   }
 
+  Future<ChatV2Attachment> uploadAttachment({
+    required String filename,
+    required Uint8List bytes,
+    String? mimetype,
+  }) async {
+    final base64Str = base64Encode(bytes);
+    final payload = <String, dynamic>{
+      'filename': filename,
+      'base64': base64Str,
+      if (mimetype != null && mimetype.isNotEmpty) 'mimetype': mimetype,
+    };
+
+    final dynamic data = await _client.post(
+      '/api/v1/mobile/attachments/upload',
+      body: payload,
+    );
+
+    if (data is Map) {
+      return ChatV2Attachment.fromMap(Map<String, dynamic>.from(data));
+    }
+    throw Exception('Phản hồi upload ảnh không hợp lệ từ máy chủ Odoo.');
+  }
+
   Future<ChatV2Message> sendMessage(
     String channelId,
     String body, {
@@ -92,7 +121,7 @@ class ChatV2Repository {
       content: body,
       authorId: currentPartnerId,
       authorName: authorName,
-      date: DateTime.now(),
+      createdAt: DateTime.now(),
       isMine: true,
       status: 'sent',
     );

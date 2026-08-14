@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -63,6 +65,40 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Lỗi gửi tin nhắn: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSending = false);
+      }
+    }
+  }
+
+  Future<void> _handleSendImage({
+    required Uint8List bytes,
+    required String filename,
+    String? mimetype,
+    String? caption,
+  }) async {
+    setState(() => _isSending = true);
+    try {
+      await ref
+          .read(chatV2MessagesProvider(widget.channelId).notifier)
+          .sendImage(
+            filename: filename,
+            bytes: bytes,
+            mimetype: mimetype,
+            caption: caption,
+          );
+
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi gửi hình ảnh: $e'),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -232,6 +268,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
             ),
             ChatV2InputBar(
               onSend: _handleSendMessage,
+              onSendImage: _handleSendImage,
               isSending: _isSending,
             ),
           ],

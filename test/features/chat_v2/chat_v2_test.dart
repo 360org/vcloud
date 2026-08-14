@@ -37,7 +37,28 @@ void main() {
       expect(channel.memberNames, contains('Tân Ma'));
     });
 
-    test('ChatV2Message parses chatter message JSON correctly', () {
+    test('ChatV2Attachment parses attachment JSON correctly and detects isImage', () {
+      final json = {
+        'id': 1064,
+        'name': 'photo.png',
+        'mimetype': 'image/png',
+        'file_size': 2048,
+        'url': 'https://vuahethong.net/web/content/1064/photo.png?access_token=xyz',
+        'download_url': '/api/v1/mobile/attachments/1064/download?access_token=xyz',
+        'access_token': 'xyz',
+      };
+
+      final att = ChatV2Attachment.fromMap(json);
+
+      expect(att.id, '1064');
+      expect(att.name, 'photo.png');
+      expect(att.isImage, true);
+      expect(att.fileSize, 2048);
+      expect(att.accessToken, 'xyz');
+      expect(att.resolveFullUrl('https://vuahethong.net'), 'https://vuahethong.net/web/image/1064');
+    });
+
+    test('ChatV2Message parses chatter message JSON correctly with image attachments', () {
       final json = {
         'id': 9876,
         'channel_id': 4255,
@@ -52,6 +73,7 @@ void main() {
           {
             'id': 1064,
             'name': 'screenshot.png',
+            'mimetype': 'image/png',
             'download_url': '/api/v1/mobile/attachments/1064/download?access_token=xyz',
           }
         ],
@@ -70,7 +92,9 @@ void main() {
       expect(msg.status, 'read');
       expect(msg.attachmentIds, contains('1064'));
       expect(msg.attachmentIds, contains('1065'));
-      expect(msg.attachmentUrls, contains('/api/v1/mobile/attachments/1064/download?access_token=xyz'));
+      expect(msg.attachments.length, 1);
+      expect(msg.attachments.first.isImage, true);
+      expect(msg.hasImageAttachment, true);
     });
 
     test('ChatV2Message identifies isMine correctly', () {
@@ -117,6 +141,8 @@ void main() {
       expect(msg.isMine, false);
       expect(msg.status, 'sent');
       expect(msg.attachmentIds, isEmpty);
+      expect(msg.attachments, isEmpty);
+      expect(msg.hasImageAttachment, false);
     });
   });
 
@@ -127,7 +153,7 @@ void main() {
         channelId: '4255',
         content: 'Chào buổi sáng!',
         authorName: 'Tân',
-        date: DateTime(2026, 8, 14, 10, 30),
+        createdAt: DateTime(2026, 8, 14, 10, 30),
         isMine: true,
       );
 
@@ -143,7 +169,7 @@ void main() {
       expect(find.text('10:30'), findsOneWidget);
     });
 
-    testWidgets('ChatV2InputBar handles typing and send button callback', (tester) async {
+    testWidgets('ChatV2InputBar handles typing, image button, and send callback', (tester) async {
       String? sentText;
 
       await tester.pumpWidget(
@@ -153,10 +179,14 @@ void main() {
               onSend: (text) async {
                 sentText = text;
               },
+              onSendImage: ({required bytes, required filename, mimetype, caption}) async {},
             ),
           ),
         ),
       );
+
+      final imageBtn = find.byIcon(LucideIcons.image);
+      expect(imageBtn, findsOneWidget);
 
       final textField = find.byType(TextField);
       expect(textField, findsOneWidget);

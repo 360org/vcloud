@@ -1,4 +1,7 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
 import '../../../../core/theme/app_theme.dart';
@@ -7,10 +10,17 @@ class ChatV2InputBar extends StatefulWidget {
   const ChatV2InputBar({
     super.key,
     required this.onSend,
+    this.onSendImage,
     this.isSending = false,
   });
 
   final Future<void> Function(String text) onSend;
+  final Future<void> Function({
+    required Uint8List bytes,
+    required String filename,
+    String? mimetype,
+    String? caption,
+  })? onSendImage;
   final bool isSending;
 
   @override
@@ -20,7 +30,9 @@ class ChatV2InputBar extends StatefulWidget {
 class _ChatV2InputBarState extends State<ChatV2InputBar> {
   late final TextEditingController _controller;
   late final FocusNode _focusNode;
+  final ImagePicker _picker = ImagePicker();
   bool _hasText = false;
+  bool _isUploadingImage = false;
 
   @override
   void initState() {
@@ -47,20 +59,103 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
 
   Future<void> _handleSend() async {
     final text = _controller.text.trim();
-    if (text.isEmpty || widget.isSending) return;
+    if (text.isEmpty || widget.isSending || _isUploadingImage) return;
 
     _controller.clear();
     setState(() => _hasText = false);
     await widget.onSend(text);
   }
 
+  Future<void> _handlePickImage(ImageSource source) async {
+    if (widget.onSendImage == null || widget.isSending || _isUploadingImage) return;
+
+    try {
+      final XFile? file = await _picker.pickImage(
+        source: source,
+        maxWidth: 1920,
+        maxHeight: 1920,
+        imageQuality: 85,
+      );
+
+      if (file == null) return;
+
+      setState(() => _isUploadingImage = true);
+
+      final bytes = await file.readAsBytes();
+      final filename = file.name.isNotEmpty ? file.name : 'image_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final mime = file.mimeType ?? 'image/jpeg';
+      final caption = _controller.text.trim().isNotEmpty ? _controller.text.trim() : null;
+
+      if (caption != null) {
+        _controller.clear();
+        setState(() => _hasText = false);
+      }
+
+      await widget.onSendImage!(
+        bytes: bytes,
+        filename: filename,
+        mimetype: mime,
+        caption: caption,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi tải ảnh: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isUploadingImage = false);
+      }
+    }
+  }
+
+  void _showImageSourceMenu() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(LucideIcons.image, color: AppColors.primary),
+                title: const Text('Thư viện ảnh'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _handlePickImage(ImageSource.gallery);
+                },
+              ),
+              ListTile(
+                leading: const Icon(LucideIcons.camera, color: AppColors.primary),
+                title: const Text('Chụp ảnh'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _handlePickImage(ImageSource.camera);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isBusy = widget.isSending || _isUploadingImage;
 
     return Container(
       padding: EdgeInsets.only(
-        left: 12,
+        left: 8,
         right: 12,
         top: 8,
         bottom: 8 + MediaQuery.of(context).padding.bottom,
@@ -77,6 +172,22 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
+          // Nút chọn ảnh
+          IconButton(
+            icon: _isUploadingImage
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Icon(
+                    LucideIcons.image,
+                    size: 22,
+                    color: isDark ? Colors.white70 : Colors.grey.shade700,
+                  ),
+            onPressed: isBusy ? null : _showImageSourceMenu,
+            tooltip: 'Gửi hình ảnh',
+          ),
           Expanded(
             child: Container(
               constraints: const BoxConstraints(maxHeight: 120),
@@ -108,7 +219,7 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
           ),
           const SizedBox(width: 8),
           GestureDetector(
-            onTap: (_hasText && !widget.isSending) ? _handleSend : null,
+            onTap: (_hasText && !isBusy) ? _handleSend : null,
             child: Container(
               width: 38,
               height: 38,
@@ -121,7 +232,7 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
                 shape: BoxShape.circle,
               ),
               alignment: Alignment.center,
-              child: widget.isSending
+              child: isBusy
                   ? const SizedBox(
                       width: 18,
                       height: 18,
