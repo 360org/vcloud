@@ -521,29 +521,30 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                               padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
                               itemCount: messages.length,
                               itemBuilder: (context, index) {
-                                final message = messages[index];
-                                final isMine = message.isMine;
-                                final isActualGroup = currentChannel?.isGroup == true ||
-                                    (currentChannel != null &&
-                                        currentChannel.getActualIsGroup(currentUserName));
-                                final showSenderName = isActualGroup &&
-                                    !isMine &&
-                                    (index == messages.length - 1 ||
-                                        messages[index + 1].authorId != message.authorId);
+                                try {
+                                  final message = messages[index];
+                                  final isMine = message.isMine;
+                                  final isActualGroup = currentChannel?.isGroup == true ||
+                                      (currentChannel != null &&
+                                          currentChannel.getActualIsGroup(currentUserName));
+                                  final showSenderName = isActualGroup &&
+                                      !isMine &&
+                                      (index == messages.length - 1 ||
+                                          messages[index + 1].authorId != message.authorId);
 
-                                // Kiểm tra xem có cần chèn Date Separator không
-                                final nextMessage = index < messages.length - 1
-                                    ? messages[index + 1]
-                                    : null;
-                                final isFirstOfGroup = nextMessage == null ||
-                                    !_isSameDay(message.createdAt, nextMessage.createdAt);
+                                  // Kiểm tra xem có cần chèn Date Separator không
+                                  final nextMessage = index < messages.length - 1
+                                      ? messages[index + 1]
+                                      : null;
+                                  final isFirstOfGroup = nextMessage == null ||
+                                      !_isSameDay(message.createdAt, nextMessage.createdAt);
 
-                                final itemWidget = ChatV2MessageItem(
-                                  key: ValueKey('msg_${message.id}'),
-                                  message: message,
-                                  showSenderName: showSenderName,
-                                  onLongPress: () {
-                                    if (message.content.isEmpty) return;
+                                  final itemWidget = ChatV2MessageItem(
+                                    key: ValueKey('msg_${message.id}'),
+                                    message: message,
+                                    showSenderName: showSenderName,
+                                    onLongPress: () {
+                                      if (message.content.isEmpty) return;
                                     showModalBottomSheet(
                                       context: context,
                                       backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
@@ -618,17 +619,50 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                   },
                                 );
 
-                                if (isFirstOfGroup && message.createdAt != null) {
-                                  return Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      _buildDateSeparator(message.createdAt!, isDark),
-                                      itemWidget,
-                                    ],
+                                  if (isFirstOfGroup && message.createdAt != null) {
+                                    return Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        _buildDateSeparator(message.createdAt!, isDark),
+                                        itemWidget,
+                                      ],
+                                    );
+                                  }
+
+                                  return itemWidget;
+                                } catch (e, stack) {
+                                  return Container(
+                                    padding: const EdgeInsets.all(16),
+                                    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red.shade50,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: Colors.red.shade200),
+                                    ),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(Icons.error_outline, color: Colors.red, size: 32),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          'Lỗi hiển thị tin nhắn:\n$e',
+                                          style: const TextStyle(color: Colors.red, fontSize: 12),
+                                          maxLines: 4,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const SizedBox(height: 8),
+                                        ElevatedButton.icon(
+                                          style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                                          icon: const Icon(Icons.copy, size: 16, color: Colors.white),
+                                          label: const Text('Copy Lỗi', style: TextStyle(color: Colors.white)),
+                                          onPressed: () {
+                                            Clipboard.setData(ClipboardData(text: 'ItemBuilder Error:\n$e\n$stack'));
+                                          },
+                                        )
+                                      ],
+                                    ),
                                   );
                                 }
-
-                                return itemWidget;
                               },
                             );
                           },
@@ -663,19 +697,39 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                     textAlign: TextAlign.center,
                                   ),
                                   const SizedBox(height: 16),
-                                  ElevatedButton.icon(
-                                    onPressed: () {
-                                      ref.invalidate(chatV2MessagesProvider(widget.channelId));
-                                    },
-                                    icon: const Icon(LucideIcons.rotateCw, size: 16),
-                                    label: const Text('Thử lại'),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF00C83A),
-                                      foregroundColor: Colors.white,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(10),
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      ElevatedButton.icon(
+                                        onPressed: () {
+                                          ref.invalidate(chatV2MessagesProvider(widget.channelId));
+                                        },
+                                        icon: const Icon(LucideIcons.rotateCw, size: 16),
+                                        label: const Text('Thử lại'),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(0xFF00C83A),
+                                          foregroundColor: Colors.white,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(10),
+                                          ),
+                                        ),
                                       ),
-                                    ),
+                                      const SizedBox(width: 8),
+                                      ElevatedButton.icon(
+                                        onPressed: () {
+                                          Clipboard.setData(ClipboardData(text: 'Lỗi tải tin nhắn: $error\n$stack'));
+                                        },
+                                        icon: const Icon(Icons.copy, size: 16),
+                                        label: const Text('Copy Lỗi'),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.red,
+                                          foregroundColor: Colors.white,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(10),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),
