@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -23,7 +25,7 @@ class AuthController extends AsyncNotifier<AuthUser?> {
     _pushNotifications = ref.watch(pushNotificationServiceProvider);
     final user = await _repo.currentUser();
     if (user != null) {
-      await _registerPushDevice();
+      unawaited(_registerPushDevice());
     }
     return user;
   }
@@ -36,7 +38,7 @@ class AuthController extends AsyncNotifier<AuthUser?> {
         password: password,
         tenantId: tenantId,
       );
-      await _registerPushDevice();
+      unawaited(_registerPushDevice());
       state = AsyncData(user);
     } catch (e, st) {
       state = AsyncError(e, st);
