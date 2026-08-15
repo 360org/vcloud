@@ -4,7 +4,6 @@ import '../../attendance/application/attendance_controller.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../ticket/application/ticket_controller.dart';
 import '../../timesheet/application/timesheet_controller.dart';
-import '../../timesheet/application/timesheet_controller.dart';
 import '../data/dashboard_repository.dart';
 
 class HomeSummary {
