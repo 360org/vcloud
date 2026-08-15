@@ -419,12 +419,15 @@ class _TicketActionBarState extends State<_TicketActionBar> {
       enableComplete = true; // Cho phép hoàn thành kể cả khi quá hạn
     }
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
         border: Border(
-          top: BorderSide(color: Color(0xFFE2E8F0)),
+          top: BorderSide(
+            color: isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFE2E8F0),
+          ),
         ),
       ),
       child: Row(
@@ -432,10 +435,14 @@ class _TicketActionBarState extends State<_TicketActionBar> {
           Expanded(
             child: ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
-                backgroundColor: isTakeDisabled ? const Color(0xFF94A3B8) : const Color(0xFF2563EB),
+                backgroundColor: isTakeDisabled
+                    ? (isDark ? const Color(0xFF334155) : const Color(0xFF94A3B8))
+                    : const Color(0xFF2563EB),
                 foregroundColor: Colors.white,
-                disabledBackgroundColor: isTakeDisabled ? const Color(0xFF94A3B8) : null,
-                disabledForegroundColor: isTakeDisabled ? Colors.white : null,
+                disabledBackgroundColor: isTakeDisabled
+                    ? (isDark ? const Color(0xFF334155) : const Color(0xFF94A3B8))
+                    : null,
+                disabledForegroundColor: isTakeDisabled ? Colors.white70 : null,
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -526,13 +533,13 @@ class _TicketDetailHeader extends StatelessWidget {
             child: Container(
               width: 42,
               height: 42,
-              decoration: const BoxDecoration(
-                color: Colors.white,
+              decoration: BoxDecoration(
+                color: _softHeaderColor(context),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
+              child: Icon(
                 LucideIcons.chevronLeft,
-                color: AppColors.textPrimary,
+                color: context.textColor,
                 size: 24,
               ),
             ),
@@ -543,7 +550,7 @@ class _TicketDetailHeader extends StatelessWidget {
               height: 42,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: _softHeaderColor(context),
                 borderRadius: BorderRadius.circular(22),
                 boxShadow: const [
                   BoxShadow(
@@ -553,15 +560,15 @@ class _TicketDetailHeader extends StatelessWidget {
                   ),
                 ],
               ),
-              child: const Row(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(LucideIcons.ticket, color: AppColors.ticket, size: 18),
-                  SizedBox(width: 8),
+                  const Icon(LucideIcons.ticket, color: AppColors.ticket, size: 18),
+                  const SizedBox(width: 8),
                   Text(
                     'Ticket',
                     style: TextStyle(
-                      color: AppColors.textPrimary,
+                      color: context.textColor,
                       fontSize: 16,
                       fontWeight: FontWeight.w900,
                     ),
@@ -578,6 +585,10 @@ class _TicketDetailHeader extends StatelessWidget {
   }
 }
 
+Color _softHeaderColor(BuildContext context) {
+  return context.isDarkMode ? AppColors.darkSurface : Colors.white;
+}
+
 class _TicketInfoCard extends StatelessWidget {
   const _TicketInfoCard({required this.ticket});
 
@@ -588,7 +599,7 @@ class _TicketInfoCard extends StatelessWidget {
     final detail = _TicketDetailViewData.fromTicket(ticket);
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: _cardDecoration(),
+      decoration: _cardDecoration(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -772,13 +783,16 @@ class _DetailField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFE),
+        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFE),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(
+          color: isDark ? Colors.white.withValues(alpha: 0.06) : context.borderColor,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -789,8 +803,8 @@ class _DetailField extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 label,
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
+                style: TextStyle(
+                  color: isDark ? Colors.white70 : context.textSecondary,
                   fontSize: 12,
                   fontWeight: FontWeight.w900,
                 ),
@@ -818,17 +832,20 @@ class _InfoChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.soft(color),
+        color: isDark ? color.withValues(alpha: 0.15) : context.softColor(color),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withValues(alpha: 0.14)),
+        border: Border.all(
+          color: color.withValues(alpha: isDark ? 0.3 : 0.14),
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: color, size: 15),
+          Icon(icon, color: isDark ? color.withValues(alpha: 0.9) : color, size: 15),
           const SizedBox(width: 6),
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 230),
@@ -837,7 +854,7 @@ class _InfoChip extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: color,
+                color: isDark ? Colors.white.withValues(alpha: 0.9) : color,
                 fontSize: 12,
                 fontWeight: FontWeight.w900,
               ),
@@ -860,29 +877,34 @@ class _LoadMoreCommentsButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return PressableScale(
       onTap: onTap,
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
         decoration: BoxDecoration(
-          color: AppColors.soft(AppColors.primary),
+          color: isDark
+              ? const Color(0xFF2563EB).withValues(alpha: 0.15)
+              : AppColors.soft(AppColors.primary),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.primary.withValues(alpha: 0.12)),
+          border: Border.all(
+            color: const Color(0xFF2563EB).withValues(alpha: isDark ? 0.3 : 0.12),
+          ),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Icon(
               LucideIcons.chevronsDown,
-              color: AppColors.primary,
+              color: Color(0xFF2563EB),
               size: 17,
             ),
             const SizedBox(width: 7),
             Text(
               'Xem thêm $hiddenCount bình luận cũ',
-              style: const TextStyle(
-                color: AppColors.primary,
+              style: TextStyle(
+                color: isDark ? const Color(0xFF60A5FA) : AppColors.primary,
                 fontSize: 13,
                 fontWeight: FontWeight.w900,
               ),
@@ -907,6 +929,7 @@ class _CommentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isMe = comment.authorId == myId;
     final name = comment.authorName ?? (isMe ? 'Bạn' : 'Người dùng');
     final initials = name.isNotEmpty ? name[0].toUpperCase() : '?';
@@ -915,7 +938,7 @@ class _CommentCard extends StatelessWidget {
       opacity: pending ? 0.72 : 1,
       child: Container(
         padding: const EdgeInsets.all(12),
-        decoration: _cardDecoration(radius: 18),
+        decoration: _cardDecoration(context, radius: 18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -951,16 +974,16 @@ class _CommentCard extends StatelessWidget {
                     children: [
                       Text(
                         name,
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
+                        style: TextStyle(
+                          color: isDark ? Colors.white : AppColors.textPrimary,
                           fontWeight: FontWeight.w800,
                           fontSize: 13,
                         ),
                       ),
                       Text(
                         pending ? 'Đang gửi...' : Dates.time(comment.createdAt),
-                        style: const TextStyle(
-                          color: AppColors.textMuted,
+                        style: TextStyle(
+                          color: isDark ? Colors.white54 : AppColors.textMuted,
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
                         ),
@@ -980,7 +1003,9 @@ class _CommentCard extends StatelessWidget {
                 return Text(
                   displayContent,
                   style: TextStyle(
-                    color: rawContent.isNotEmpty ? AppColors.textPrimary : AppColors.primary,
+                    color: isDark
+                        ? const Color(0xFFE2E8F0)
+                        : (rawContent.isNotEmpty ? AppColors.textPrimary : AppColors.primary),
                     fontSize: 14,
                     height: 1.35,
                     fontWeight: rawContent.isNotEmpty ? FontWeight.normal : FontWeight.w600,
@@ -1008,11 +1033,16 @@ class _CommentComposer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.94),
-        border: const Border(top: BorderSide(color: AppColors.border)),
+        color: isDark ? const Color(0xFF1E293B) : Colors.white.withValues(alpha: 0.94),
+        border: Border(
+          top: BorderSide(
+            color: isDark ? Colors.white.withValues(alpha: 0.08) : AppColors.border,
+          ),
+        ),
       ),
       child: SafeArea(
         top: false,
@@ -1021,20 +1051,27 @@ class _CommentComposer extends StatelessWidget {
             Expanded(
               child: Container(
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF0F3F8),
+                  color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF0F3F8),
                   borderRadius: BorderRadius.circular(18),
+                  border: isDark
+                      ? Border.all(color: Colors.white.withValues(alpha: 0.08))
+                      : null,
                 ),
                 child: TextField(
                   controller: controller,
                   textInputAction: TextInputAction.send,
                   onSubmitted: (_) => onSubmit(),
                   enabled: !sending,
-                  style: const TextStyle(color: AppColors.textPrimary),
-                  decoration: const InputDecoration(
+                  style: TextStyle(
+                    color: isDark ? Colors.white : AppColors.textPrimary,
+                  ),
+                  decoration: InputDecoration(
                     hintText: 'Nhập bình luận...',
-                    hintStyle: TextStyle(color: AppColors.textMuted),
+                    hintStyle: TextStyle(
+                      color: isDark ? Colors.white38 : AppColors.textMuted,
+                    ),
                     border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(
+                    contentPadding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 13,
                     ),
@@ -1085,14 +1122,15 @@ class _SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Row(
       children: [
-        Icon(icon, size: 18, color: AppColors.primary),
+        Icon(icon, size: 18, color: isDark ? const Color(0xFF60A5FA) : AppColors.primary),
         const SizedBox(width: 8),
         Text(
           title,
-          style: const TextStyle(
-            color: AppColors.textPrimary,
+          style: TextStyle(
+            color: isDark ? Colors.white : AppColors.textPrimary,
             fontSize: 15,
             fontWeight: FontWeight.w900,
           ),
@@ -1125,13 +1163,20 @@ class _SoftEmpty extends StatelessWidget {
   }
 }
 
-BoxDecoration _cardDecoration({double radius = 22}) {
+BoxDecoration _cardDecoration(BuildContext context, {double radius = 22}) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
   return BoxDecoration(
-    color: Colors.white,
+    color: isDark ? const Color(0xFF1E293B) : Colors.white,
     borderRadius: BorderRadius.circular(radius),
-    border: Border.all(color: AppColors.border.withValues(alpha: 0.7)),
-    boxShadow: const [
-      BoxShadow(color: Color(0x0A0F172A), blurRadius: 16, offset: Offset(0, 8)),
+    border: Border.all(
+      color: isDark ? Colors.white.withValues(alpha: 0.08) : AppColors.border.withValues(alpha: 0.7),
+    ),
+    boxShadow: [
+      BoxShadow(
+        color: isDark ? Colors.black.withValues(alpha: 0.25) : const Color(0x0A0F172A),
+        blurRadius: 16,
+        offset: const Offset(0, 8),
+      ),
     ],
   );
 }
@@ -1162,6 +1207,7 @@ class _TicketAttachmentsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     if (attachments.isEmpty) return const SizedBox.shrink();
 
     return Column(
@@ -1174,11 +1220,15 @@ class _TicketAttachmentsSection extends StatelessWidget {
         const SizedBox(height: 10),
         Container(
           padding: const EdgeInsets.all(12),
-          decoration: _cardDecoration(),
+          decoration: _cardDecoration(context),
           child: Column(
             children: [
               for (var i = 0; i < attachments.length; i++) ...[
-                if (i > 0) const Divider(height: 16, color: AppColors.border),
+                if (i > 0)
+                  Divider(
+                    height: 16,
+                    color: isDark ? Colors.white12 : AppColors.border,
+                  ),
                 _AttachmentTile(attachment: attachments[i]),
               ],
             ],
@@ -1196,6 +1246,7 @@ class _AttachmentTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final ext = attachment.name.contains('.')
         ? attachment.name.split('.').last.toLowerCase()
         : '';
@@ -1230,10 +1281,16 @@ class _AttachmentTile extends StatelessWidget {
             width: 38,
             height: 38,
             decoration: BoxDecoration(
-              color: AppColors.soft(AppColors.primary),
+              color: isDark
+                  ? const Color(0xFF00C83A).withValues(alpha: 0.15)
+                  : AppColors.soft(AppColors.primary),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: AppColors.primary, size: 20),
+            child: Icon(
+              icon,
+              color: isDark ? const Color(0xFF00C83A) : AppColors.primary,
+              size: 20,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1245,7 +1302,7 @@ class _AttachmentTile extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurface,
+                    color: isDark ? Colors.white : Theme.of(context).colorScheme.onSurface,
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
                   ),
@@ -1254,8 +1311,8 @@ class _AttachmentTile extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     fileSizeText,
-                    style: const TextStyle(
-                      color: AppColors.textMuted,
+                    style: TextStyle(
+                      color: isDark ? Colors.white60 : AppColors.textMuted,
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
                     ),
@@ -1265,7 +1322,11 @@ class _AttachmentTile extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          const Icon(LucideIcons.download, color: AppColors.textMuted, size: 18),
+          Icon(
+            LucideIcons.download,
+            color: isDark ? Colors.white70 : AppColors.textMuted,
+            size: 18,
+          ),
         ],
       ),
     );
@@ -1286,6 +1347,7 @@ class _TicketActivitiesSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final activitiesAsync = ref.watch(ticketActivitiesProvider(ticketId));
 
     return Column(
@@ -1303,11 +1365,15 @@ class _TicketActivitiesSection extends ConsumerWidget {
             }
             return Container(
               padding: const EdgeInsets.all(14),
-              decoration: _cardDecoration(),
+              decoration: _cardDecoration(context),
               child: Column(
                 children: [
                   for (var i = 0; i < activities.length; i++) ...[
-                    if (i > 0) const Divider(height: 18, color: AppColors.border),
+                    if (i > 0)
+                      Divider(
+                        height: 18,
+                        color: isDark ? Colors.white12 : AppColors.border,
+                      ),
                     _ActivityItemTile(activity: activities[i]),
                   ],
                 ],
@@ -1320,7 +1386,7 @@ class _TicketActivitiesSection extends ConsumerWidget {
           ),
           error: (e, st) => Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: _cardDecoration(),
+            decoration: _cardDecoration(context),
             child: Row(
               children: [
                 const Icon(LucideIcons.alertCircle, color: AppColors.danger, size: 18),
@@ -1355,6 +1421,7 @@ class _ActivityItemTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final dateStr = activity.createDate != null
         ? '${Dates.dateVi(activity.createDate!)} ${Dates.hm(activity.createDate!)}'
         : (activity.dateDeadline != null ? Dates.dateVi(activity.dateDeadline!) : '');
@@ -1367,7 +1434,9 @@ class _ActivityItemTile extends StatelessWidget {
           width: 28,
           height: 28,
           decoration: BoxDecoration(
-            color: AppColors.soft(AppColors.ticket),
+            color: isDark
+                ? AppColors.ticket.withValues(alpha: 0.15)
+                : AppColors.soft(AppColors.ticket),
             shape: BoxShape.circle,
           ),
           child: const Icon(LucideIcons.clock, color: AppColors.ticket, size: 14),
@@ -1385,7 +1454,7 @@ class _ActivityItemTile extends StatelessWidget {
                           ? activity.userName!
                           : 'Hệ thống',
                       style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurface,
+                        color: isDark ? Colors.white : Theme.of(context).colorScheme.onSurface,
                         fontSize: 13,
                         fontWeight: FontWeight.w800,
                       ),
@@ -1394,8 +1463,8 @@ class _ActivityItemTile extends StatelessWidget {
                   if (dateStr.isNotEmpty)
                     Text(
                       dateStr,
-                      style: const TextStyle(
-                        color: AppColors.textMuted,
+                      style: TextStyle(
+                        color: isDark ? Colors.white54 : AppColors.textMuted,
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                       ),
@@ -1407,8 +1476,8 @@ class _ActivityItemTile extends StatelessWidget {
                 activity.summary.isNotEmpty
                     ? activity.summary
                     : (activity.activityTypeName ?? 'Cập nhật hoạt động'),
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
+                style: TextStyle(
+                  color: isDark ? const Color(0xFFCBD5E1) : AppColors.textSecondary,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                 ),
@@ -1417,8 +1486,8 @@ class _ActivityItemTile extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   activity.note,
-                  style: const TextStyle(
-                    color: AppColors.textMuted,
+                  style: TextStyle(
+                    color: isDark ? Colors.white54 : AppColors.textMuted,
                     fontSize: 12,
                     fontStyle: FontStyle.italic,
                   ),
@@ -1437,12 +1506,16 @@ class _TicketDetailSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final skeletonBase = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+    final skeletonSub = isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9);
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       children: [
         Container(
           padding: const EdgeInsets.all(16),
-          decoration: _cardDecoration(),
+          decoration: _cardDecoration(context),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1452,7 +1525,7 @@ class _TicketDetailSkeleton extends StatelessWidget {
                     width: 80,
                     height: 20,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFE2E8F0),
+                      color: skeletonBase,
                       borderRadius: BorderRadius.circular(6),
                     ),
                   ),
@@ -1461,7 +1534,7 @@ class _TicketDetailSkeleton extends StatelessWidget {
                     width: 60,
                     height: 20,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFE2E8F0),
+                      color: skeletonBase,
                       borderRadius: BorderRadius.circular(6),
                     ),
                   ),
@@ -1472,7 +1545,7 @@ class _TicketDetailSkeleton extends StatelessWidget {
                 width: double.infinity,
                 height: 18,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
+                  color: skeletonSub,
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
@@ -1481,7 +1554,7 @@ class _TicketDetailSkeleton extends StatelessWidget {
                 width: 220,
                 height: 18,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
+                  color: skeletonSub,
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
@@ -1492,7 +1565,7 @@ class _TicketDetailSkeleton extends StatelessWidget {
                     width: 90,
                     height: 28,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFE2E8F0),
+                      color: skeletonBase,
                       borderRadius: BorderRadius.circular(20),
                     ),
                   ),
@@ -1501,7 +1574,7 @@ class _TicketDetailSkeleton extends StatelessWidget {
                     width: 80,
                     height: 28,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFE2E8F0),
+                      color: skeletonBase,
                       borderRadius: BorderRadius.circular(20),
                     ),
                   ),
@@ -1513,7 +1586,7 @@ class _TicketDetailSkeleton extends StatelessWidget {
         const SizedBox(height: 16),
         Container(
           height: 110,
-          decoration: _cardDecoration(),
+          decoration: _cardDecoration(context),
           padding: const EdgeInsets.all(14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1522,7 +1595,7 @@ class _TicketDetailSkeleton extends StatelessWidget {
                 width: 100,
                 height: 16,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE2E8F0),
+                  color: skeletonBase,
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
@@ -1531,7 +1604,7 @@ class _TicketDetailSkeleton extends StatelessWidget {
                 width: double.infinity,
                 height: 14,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
+                  color: skeletonSub,
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
@@ -1540,7 +1613,7 @@ class _TicketDetailSkeleton extends StatelessWidget {
                 width: 180,
                 height: 14,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
+                  color: skeletonSub,
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),

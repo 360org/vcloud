@@ -28,8 +28,10 @@ import 'package:vcloud/shared/widgets/ui_kit.dart';
 import 'chat_helpers.dart';
 import 'chat_sheets.dart';
 
-const incomingBubbleColor = Color(0xFFE7F8E7);
-const incomingBubbleBorder = Color(0xFFC8EFD0);
+Color getIncomingBubbleColor(BuildContext context) =>
+    context.isDarkMode ? AppColors.darkSurface : const Color(0xFFE7F8E7);
+Color getIncomingBubbleBorder(BuildContext context) =>
+    context.isDarkMode ? AppColors.darkBorder : const Color(0xFFC8EFD0);
 
 class EmptyConversation extends StatelessWidget {
   const EmptyConversation({super.key});
@@ -40,9 +42,9 @@ class EmptyConversation extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(22),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.68),
+          color: context.cardColor.withValues(alpha: 0.88),
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
+          border: Border.all(color: context.borderColor),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -51,7 +53,7 @@ class EmptyConversation extends StatelessWidget {
               width: 72,
               height: 72,
               decoration: BoxDecoration(
-                color: AppColors.soft(AppColors.chat),
+                color: context.softColor(AppColors.chat),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
@@ -61,18 +63,18 @@ class EmptyConversation extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'Chưa có tin nhắn nào',
               style: TextStyle(
-                color: AppColors.textPrimary,
+                color: context.textColor,
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
               ),
             ),
             const SizedBox(height: 4),
-            const Text(
+            Text(
               'Gửi lời chào để bắt đầu trao đổi.',
-              style: TextStyle(color: AppColors.textSecondary),
+              style: TextStyle(color: context.textSecondary),
             ),
           ],
         ),
@@ -499,8 +501,8 @@ class _PollCardBubbleState extends State<PollCardBubble> {
   Widget build(BuildContext context) {
     final poll = PollData.fromContent(widget.message.content);
     final mine = widget.mine;
-    final bubbleColor = mine ? AppColors.primary : incomingBubbleColor;
-    final textColor = mine ? Colors.white : AppColors.textPrimary;
+    final bubbleColor = mine ? AppColors.primary : getIncomingBubbleColor(context);
+    final textColor = mine ? Colors.white : context.textColor;
     final mutedColor = textColor.withValues(alpha: mine ? 0.76 : 0.62);
     final totalVotes = _votedIndices.length;
 
@@ -511,7 +513,7 @@ class _PollCardBubbleState extends State<PollCardBubble> {
         color: bubbleColor,
         border: mine
             ? null
-            : Border.all(color: incomingBubbleBorder.withValues(alpha: 0.7)),
+            : Border.all(color: getIncomingBubbleBorder(context).withValues(alpha: 0.7)),
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(mine ? 20 : 7),
           topRight: Radius.circular(mine ? 7 : 20),
@@ -696,8 +698,8 @@ class TextBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bubbleColor = mine ? AppColors.primary : incomingBubbleColor;
-    final textColor = mine ? Colors.white : AppColors.textPrimary;
+    final bubbleColor = mine ? AppColors.primary : getIncomingBubbleColor(context);
+    final textColor = mine ? Colors.white : context.textColor;
     final hasSenderName =
         !mine && senderName != null && senderName!.trim().isNotEmpty;
 
@@ -708,7 +710,7 @@ class TextBubble extends StatelessWidget {
         color: bubbleColor,
         border: mine
             ? null
-            : Border.all(color: incomingBubbleBorder.withValues(alpha: 0.7)),
+            : Border.all(color: getIncomingBubbleBorder(context).withValues(alpha: 0.7)),
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(mine ? 18 : 6),
           topRight: Radius.circular(mine ? 6 : 18),
@@ -1006,8 +1008,8 @@ class _AttachmentBubbleState extends ConsumerState<AttachmentBubble> {
   Widget build(BuildContext context) {
     final mine = widget.mine;
     final message = widget.message;
-    final bubbleColor = mine ? AppColors.primary : incomingBubbleColor;
-    final textColor = mine ? Colors.white : AppColors.textPrimary;
+    final bubbleColor = mine ? AppColors.primary : getIncomingBubbleColor(context);
+    final textColor = mine ? Colors.white : context.textColor;
     final mutedColor = textColor.withValues(alpha: mine ? 0.76 : 0.62);
     final fileName = attachmentFileName(message);
     final extension = fileExtension(fileName).toUpperCase();
@@ -1042,7 +1044,7 @@ class _AttachmentBubbleState extends ConsumerState<AttachmentBubble> {
         color: bubbleColor,
         border: mine
             ? null
-            : Border.all(color: incomingBubbleBorder.withValues(alpha: 0.7)),
+            : Border.all(color: getIncomingBubbleBorder(context).withValues(alpha: 0.7)),
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(mine ? 20 : 7),
           topRight: Radius.circular(mine ? 7 : 20),
@@ -1178,10 +1180,10 @@ class ImageAttachmentBubble extends StatelessWidget {
       ),
       child: Container(
         decoration: BoxDecoration(
-          color: mine ? AppColors.primary : incomingBubbleColor,
+          color: mine ? AppColors.primary : getIncomingBubbleColor(context),
           border: mine
               ? null
-              : Border.all(color: incomingBubbleBorder.withValues(alpha: 0.7)),
+              : Border.all(color: getIncomingBubbleBorder(context).withValues(alpha: 0.7)),
           borderRadius: BorderRadius.only(
             topLeft: Radius.circular(mine ? 20 : 7),
             topRight: Radius.circular(mine ? 7 : 20),
@@ -1351,14 +1353,23 @@ class _NetworkPreviewImageState extends ConsumerState<NetworkPreviewImage> {
         ? (widget.fallback as ImageAttachmentFallback).fileName
         : null;
 
+    // 1. Tự động tìm attachmentId nếu có trong widget hoặc URL
+    String? resolvedId = widget.attachmentId;
+    if (resolvedId == null || resolvedId.isEmpty || int.tryParse(resolvedId) == null) {
+      final match = RegExp(r'/(?:attachments|image|content)/(\d+)').firstMatch(widget.url);
+      if (match != null) {
+        resolvedId = match.group(1);
+      }
+    }
+
     final localBytes = LocalAttachmentCache.get(
-      widget.attachmentId,
+      resolvedId,
       altKey: fileName ?? widget.url,
     );
 
     if (localBytes != null && localBytes.isNotEmpty) {
       final heroTag =
-          'image-preview-${widget.attachmentId ?? widget.url}-${localBytes.length}';
+          'image-preview-${resolvedId ?? widget.url}-${localBytes.length}';
 
       return GestureDetector(
         onTap: () {
@@ -1369,9 +1380,7 @@ class _NetworkPreviewImageState extends ConsumerState<NetworkPreviewImage> {
               pageBuilder: (_, _, _) => ImageViewerScreen(
                 imageUrl: widget.url,
                 fileName: fileName ?? 'Image',
-                attachmentId: widget.attachmentId == null
-                    ? null
-                    : int.tryParse(widget.attachmentId!),
+                attachmentId: resolvedId == null ? null : int.tryParse(resolvedId),
               ),
             ),
           );
@@ -1382,17 +1391,66 @@ class _NetworkPreviewImageState extends ConsumerState<NetworkPreviewImage> {
             localBytes,
             fit: widget.fit,
             gaplessPlayback: true,
-            errorBuilder: (_, _, _) => ImageAttachmentError(onRetry: _retry),
+            errorBuilder: (_, _, _) => widget.fallback,
           ),
         ),
       );
     }
 
-    final rawUrl = (widget.attachmentId != null && widget.attachmentId!.trim().isNotEmpty)
-        ? '/api/v1/mobile/attachments/${widget.attachmentId}/download'
-        : (widget.url.trim().isNotEmpty ? widget.url.trim() : '');
+    // 2. Tải qua Authenticated Byte Stream nếu có attachment ID
+    if (resolvedId != null && resolvedId.trim().isNotEmpty && int.tryParse(resolvedId) != null) {
+      return FutureBuilder<Uint8List>(
+        future: ref.read(downloadAttachmentActionProvider).bytes(resolvedId),
+        builder: (context, snapshot) {
+          final bytes = snapshot.data;
+          if (bytes != null && bytes.isNotEmpty) {
+            LocalAttachmentCache.save(resolvedId!, bytes);
+            if (fileName != null) LocalAttachmentCache.save(fileName, bytes);
+            return GestureDetector(
+              onTap: () {
+                Navigator.of(context).push(
+                  PageRouteBuilder<void>(
+                    opaque: false,
+                    barrierDismissible: true,
+                    pageBuilder: (_, _, _) => ImageViewerScreen(
+                      imageUrl: widget.url,
+                      fileName: fileName ?? 'Image',
+                      attachmentId: int.tryParse(resolvedId!),
+                    ),
+                  ),
+                );
+              },
+              child: Image.memory(
+                bytes,
+                fit: widget.fit,
+                gaplessPlayback: true,
+                errorBuilder: (_, _, _) => widget.fallback,
+              ),
+            );
+          }
+          if (snapshot.hasError) {
+            return GestureDetector(
+              onTap: _retry,
+              child: widget.fallback,
+            );
+          }
+          return Center(
+            child: SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColors.primary.withValues(alpha: 0.6),
+              ),
+            ),
+          );
+        },
+      );
+    }
 
-    if (rawUrl.isEmpty) {
+    // 3. Fallback cho URL trực tiếp
+    final rawUrl = widget.url.trim();
+    if (rawUrl.isEmpty || (!rawUrl.startsWith('http://') && !rawUrl.startsWith('https://') && !rawUrl.startsWith('/'))) {
       return widget.fallback;
     }
 
@@ -1409,7 +1467,7 @@ class _NetworkPreviewImageState extends ConsumerState<NetworkPreviewImage> {
             fit: widget.fit,
             headers: odooApiClient.authHeaders,
             gaplessPlayback: true,
-            errorBuilder: (_, _, _) => ImageAttachmentError(onRetry: _retry),
+            errorBuilder: (_, _, _) => widget.fallback,
           );
     } else {
       imageWidget = Image.network(
@@ -1582,10 +1640,10 @@ class MediaBubble extends StatelessWidget {
     return Container(
       constraints: BoxConstraints(maxWidth: maxWidth),
       decoration: BoxDecoration(
-        color: mine ? AppColors.primary : incomingBubbleColor,
+        color: mine ? AppColors.primary : getIncomingBubbleColor(context),
         border: mine
             ? null
-            : Border.all(color: incomingBubbleBorder.withValues(alpha: 0.7)),
+            : Border.all(color: getIncomingBubbleBorder(context).withValues(alpha: 0.7)),
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(mine ? 18 : 6),
           topRight: Radius.circular(mine ? 6 : 18),
@@ -1732,36 +1790,103 @@ class MediaInfo {
       attachmentId == null ? null : int.tryParse(attachmentId!);
 
   static MediaInfo? fromContent(String content) {
-    final uri = Uri.tryParse(content.trim());
-    if (uri == null || !uri.hasAbsolutePath) return null;
-    if (uri.scheme != 'http' && uri.scheme != 'https') return null;
+    final clean = stripHtml(content).trim();
+    if (!clean.startsWith('http://') &&
+        !clean.startsWith('https://') &&
+        !clean.startsWith('/web/image') &&
+        !clean.startsWith('/web/content') &&
+        !clean.startsWith('/api/')) {
+      return null;
+    }
+    final uri = Uri.tryParse(clean);
+    if (uri == null) return null;
     final path = uri.path.toLowerCase();
     final isImage =
         path.endsWith('.jpg') ||
         path.endsWith('.jpeg') ||
         path.endsWith('.png') ||
         path.endsWith('.gif') ||
-        path.endsWith('.webp');
+        path.endsWith('.webp') ||
+        path.endsWith('.svg') ||
+        path.endsWith('.heic') ||
+        path.endsWith('.heif') ||
+        path.contains('/web/image') ||
+        path.contains('/web/content') ||
+        path.contains('/api/v1/mobile/attachments');
     final isVideo =
         path.endsWith('.mp4') ||
         path.endsWith('.mov') ||
         path.endsWith('.m4v') ||
         path.endsWith('.webm');
     if (!isImage && !isVideo) return null;
-    return MediaInfo(url: content.trim(), isImage: isImage, isVideo: isVideo);
+
+    String? attachmentId;
+    final attMatch = RegExp(r'/(?:attachments|image|content)/(\d+)').firstMatch(clean);
+    if (attMatch != null) {
+      attachmentId = attMatch.group(1);
+    }
+
+    return MediaInfo(
+      url: clean,
+      isImage: isImage,
+      isVideo: isVideo,
+      attachmentId: attachmentId,
+    );
+  }
+
+  static List<MediaInfo> extractAllFromContent(String content) {
+    final results = <MediaInfo>[];
+    final seen = <String>{};
+
+    // 1. Trích xuất từ thẻ <img src="..."> trong nội dung HTML của Odoo
+    final imgTagRegex = RegExp(r'''<img[^>]+src=["']([^"']+)["']''', caseSensitive: false);
+    for (final match in imgTagRegex.allMatches(content)) {
+      final src = match.group(1)?.trim();
+      if (src != null && src.isNotEmpty && seen.add(src)) {
+        String? attachmentId;
+        final attMatch = RegExp(r'/(?:attachments|image|content)/(\d+)').firstMatch(src);
+        if (attMatch != null) {
+          attachmentId = attMatch.group(1);
+        }
+        results.add(MediaInfo(url: src, isImage: true, isVideo: false, attachmentId: attachmentId));
+      }
+    }
+
+    // 2. Trích xuất direct content
+    final single = fromContent(content);
+    if (single != null && seen.add(single.url)) {
+      results.add(single);
+    }
+
+    // 3. Trích xuất link URLs http/https
+    final pattern = RegExp(r'https?:\/\/[^\s<>"{}|\^~\[\]`\\]+');
+    final matches = pattern.allMatches(content);
+    for (final match in matches) {
+      var url = match.group(0)!;
+      while (url.endsWith('.') || url.endsWith(',') || url.endsWith(')') || url.endsWith(';') || url.endsWith('>')) {
+        url = url.substring(0, url.length - 1);
+      }
+      final media = fromContent(url);
+      if (media != null && seen.add(media.url)) {
+        results.add(media);
+      }
+    }
+    return results;
   }
 }
 
 class FileInfo {
   const FileInfo({
-    required this.attachmentId,
+    this.attachmentId = '',
     required this.name,
     required this.sizeLabel,
+    this.url,
   });
 
   final String attachmentId;
   final String name;
   final String sizeLabel;
+  final String? url;
 }
 
 class ReadAvatars extends StatelessWidget {

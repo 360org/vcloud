@@ -546,6 +546,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
         conversation: conversation,
         currentIdentityIds: currentIdentityIds,
         messages: messages,
+        conversationId: widget.conversationId,
       ),
     );
   }

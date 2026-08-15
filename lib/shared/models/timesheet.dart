@@ -15,9 +15,9 @@ extension TimesheetCategoryDb on TimesheetCategory {
   String get label => switch (this) {
     TimesheetCategory.erp => 'ERP',
     TimesheetCategory.crm => 'CRM',
-    TimesheetCategory.meeting => 'Meeting',
-    TimesheetCategory.support => 'Support',
-    TimesheetCategory.other => 'Other',
+    TimesheetCategory.meeting => 'Họp',
+    TimesheetCategory.support => 'Hỗ trợ',
+    TimesheetCategory.other => 'Công việc',
   };
 
   static TimesheetCategory fromDb(String v) {

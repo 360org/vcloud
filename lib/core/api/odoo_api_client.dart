@@ -400,7 +400,7 @@ class OdooApiClient {
       name: 'OdooApiClient',
     );
 
-    const timeout = Duration(seconds: 15);
+    const timeout = Duration(seconds: 30);
     final http.Response response;
     try {
       response = await switch (method) {

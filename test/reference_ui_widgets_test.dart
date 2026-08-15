@@ -239,6 +239,8 @@ void main() {
       260,
       scrollable: find.byType(Scrollable).first,
     );
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -100));
+    await tester.pumpAndSettle();
 
     // Row renders the task title verbatim from the fake API.
     expect(find.text('Today task A'), findsOneWidget);

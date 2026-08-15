@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 
 import '../../../core/api/odoo_api_client.dart';
 import '../../../core/error/failure.dart';
@@ -23,7 +22,7 @@ class TimesheetRepository {
   final OdooApiClient _client;
 
   Stream<List<TimesheetEntry>> watchRecent({int limit = 100}) {
-    final controller = StreamController<List<TimesheetEntry>>();
+    final controller = StreamController<List<TimesheetEntry>>.broadcast();
 
     Future<void> refresh() async {
       try {
@@ -59,7 +58,7 @@ class TimesheetRepository {
       query: query,
     );
     if (res is! List) return const <TimesheetEntry>[];
-    return compute(_parseTimesheetList, res);
+    return _parseTimesheetList(res);
   }
 
   Future<TimesheetSummary> getSummary({

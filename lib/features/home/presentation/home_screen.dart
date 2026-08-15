@@ -16,8 +16,10 @@ import '../../../shared/widgets/celebration_fireworks.dart';
 import '../../../shared/widgets/ui_kit.dart';
 import '../../../shared/widgets/location_prompt_dialog.dart';
 import '../../attendance/application/attendance_controller.dart';
+import '../../attendance/domain/shift_calculator.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../chat/application/conversations_controller.dart';
+import '../../chat_v2/application/chat_v2_channels_controller.dart';
 import '../../timesheet/application/task_controller.dart';
 
 
@@ -142,26 +144,35 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final openSession = ref.watch(openSessionProvider);
     final isOnline = openSession?.isOpen ?? summary?.isCheckedIn ?? dashboard?.isCheckedIn ?? false;
     final closedMinutes = dashboard?.todayMinutes ?? summary?.todayMinutes ?? 0;
-    final ongoingMinutes = (isOnline && openSession?.checkinTime != null)
-        ? DateTime.now().difference(openSession!.checkinTime!).inMinutes
-        : 0;
-    final todayMinutes = closedMinutes + (ongoingMinutes > 0 ? ongoingMinutes : 0);
+    
+    final shiftProgress = (isOnline && openSession?.checkinTime != null)
+        ? ShiftCalculator.calculate(checkinTime: openSession!.checkinTime)
+        : null;
+
+    final todayMinutes = shiftProgress != null
+        ? shiftProgress.workedMinutes
+        : (closedMinutes + ((isOnline && openSession?.checkinTime != null)
+            ? DateTime.now().difference(openSession!.checkinTime!).inMinutes
+            : 0));
+
     final openTickets = dashboard?.openTickets ?? summary?.openTickets ?? 0;
-    final unreadMessages = ref.watch(totalUnreadCountProvider);
-    final conversationsState = ref.watch(conversationsProvider);
-    final conversationsList = conversationsState.value ?? const [];
-    final chatCount = (dashboard?.recentConversationCount != null && dashboard!.recentConversationCount! > 0)
-        ? dashboard.recentConversationCount!
-        : (summary?.recentConversationCount != null && summary!.recentConversationCount > 0
-            ? summary.recentConversationCount
-            : (conversationsList.length >= 100 ? conversationsList.length : conversationsList.length));
+    final unreadMessages = ref.watch(chatV2TotalUnreadProvider);
+    final channelsAsync = ref.watch(chatV2ChannelsProvider);
+    final channelsList = channelsAsync.valueOrNull ?? const [];
+    final chatCount = channelsList.isNotEmpty
+        ? channelsList.length
+        : ((dashboard?.recentConversationCount != null && dashboard!.recentConversationCount! > 0)
+            ? dashboard.recentConversationCount!
+            : (summary?.recentConversationCount != null && summary!.recentConversationCount > 0
+                ? summary.recentConversationCount
+                : 0));
     final statusBusy = _statusBusy || todayState.isLoading;
 
     return AppScaffold(
       title: 'Home',
       showAppBar: false,
       body: CelebrationFireworksOverlay(
-        autoTrigger: todayMinutes >= 480,
+        autoTrigger: shiftProgress?.isCompleted ?? (todayMinutes >= ShiftConfig.forDate(DateTime.now()).targetWorkMinutes),
         child: RefreshIndicator(
           onRefresh: () async {
             ref.invalidate(homeSummaryProvider);
@@ -170,6 +181,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ref.invalidate(todayTasksProvider);
             ref.invalidate(openSessionProvider);
             ref.invalidate(conversationsProvider);
+            ref.invalidate(chatV2ChannelsProvider);
             ref.invalidate(mobileNotificationsProvider);
           },
           color: AppColors.primary,
@@ -254,12 +266,14 @@ class _GreetingHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final today = _vietnameseDateTime(DateTime.now());
-    const targetMinutes = 480; // Standard 8h shift
-    final progress = (todayMinutes / targetMinutes).clamp(0.0, 1.0);
+    final shiftConfig = ShiftConfig.forDate(DateTime.now());
+    final targetMinutes = shiftConfig.targetWorkMinutes;
+    final shiftProgress = (isOnline && checkinTime != null)
+        ? ShiftCalculator.calculate(checkinTime: checkinTime!)
+        : null;
+    final displayMinutes = shiftProgress != null ? shiftProgress.workedMinutes : todayMinutes;
+    final progress = (displayMinutes / targetMinutes).clamp(0.0, 1.0);
     final percent = (progress * 100).round();
-    final checkinLabel = (isOnline && checkinTime != null)
-        ? 'Vào ca lúc ${Dates.hm(checkinTime!)}'
-        : (isOnline ? 'Đã vào ca' : 'Chưa vào ca làm');
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -376,88 +390,111 @@ class _GreetingHeader extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
-          // Work Shift Info Banner & Progress Bar Card
+          // Work Shift Info Card - Ultra Clean & Spacious Apple HIG Design
           InkWell(
             onTap: onOpenAttendance,
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(20),
             child: Container(
-              padding: const EdgeInsets.all(14),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: AppColors.soft(isOnline ? AppColors.success : AppColors.primary).withValues(alpha: 0.35),
-                borderRadius: BorderRadius.circular(18),
+                color: isDark
+                    ? const Color(0xFF0F172A).withValues(alpha: 0.6)
+                    : (isOnline ? AppColors.soft(AppColors.success) : AppColors.soft(AppColors.primary)).withValues(alpha: 0.45),
+                borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: (isOnline ? AppColors.success : AppColors.primary).withValues(alpha: 0.22),
+                  color: (isOnline ? AppColors.success : AppColors.primary).withValues(alpha: 0.2),
                 ),
               ),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Top Row: Status badge on left, Check in/out button on right
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: isOnline ? AppColors.success : AppColors.primary,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: (isOnline ? AppColors.success : AppColors.primary).withValues(alpha: 0.5),
+                                    blurRadius: 6,
+                                    spreadRadius: 1,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                shiftProgress != null
+                                    ? shiftProgress.badgeLabel
+                                    : (isOnline ? 'Đã vào ca' : 'Chưa vào ca làm'),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  color: isOnline ? AppColors.success : AppColors.primary,
+                                ),
+                              ),
+                            ),
+                            if (checkinTime != null) ...[
+                              const SizedBox(width: 6),
+                              Text(
+                                '• ${Dates.hm(checkinTime!)}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textMuted,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
                       _CheckInStatusButton(
                         isOnline: isOnline,
                         busy: statusBusy,
                         onTap: onStatusTap,
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Row(
-                              children: [
-                                Icon(
-                                  LucideIcons.mapPin,
-                                  size: 13,
-                                  color: AppColors.success,
-                                ),
-                                SizedBox(width: 4),
-                                Text(
-                                  'GPS vị trí hợp lệ',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.success,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              checkinLabel,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w800,
-                                color: Theme.of(context).colorScheme.onSurface,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Icon(LucideIcons.chevronRight, size: 16, color: AppColors.textMuted),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
 
-                  // Work Hours Progress Bar (6h 30m / 8h)
+                  // Main Metric Headline Row: 7h 23m / 8h  |  92%
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
                     children: [
                       Row(
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
                         children: [
-                          Icon(
-                            LucideIcons.clock,
-                            size: 14,
-                            color: isOnline ? AppColors.success : AppColors.primary,
-                          ),
-                          const SizedBox(width: 6),
                           Text(
-                            'Tiến độ ca làm: ${_durationVi(Duration(minutes: todayMinutes))} / 8h',
+                            _durationVi(Duration(minutes: displayMinutes)),
                             style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w900,
                               color: Theme.of(context).colorScheme.onSurface,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            '/ ${shiftConfig.targetHoursFormatted} ca làm',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textMuted,
                             ),
                           ),
                         ],
@@ -465,21 +502,24 @@ class _GreetingHeader extends StatelessWidget {
                       Text(
                         '$percent%',
                         style: TextStyle(
-                          color: isOnline ? AppColors.success : AppColors.primary,
-                          fontSize: 12,
+                          fontSize: 18,
                           fontWeight: FontWeight.w900,
+                          color: isOnline ? AppColors.success : AppColors.primary,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 8),
+
+                  // Sleek Progress Bar with 50% Lunch Break Divider
                   Stack(
+                    alignment: Alignment.centerLeft,
                     children: [
                       Container(
                         height: 7,
                         width: double.infinity,
                         decoration: BoxDecoration(
-                          color: AppColors.border.withValues(alpha: 0.5),
+                          color: AppColors.border.withValues(alpha: 0.6),
                           borderRadius: BorderRadius.circular(99),
                         ),
                       ),
@@ -495,7 +535,7 @@ class _GreetingHeader extends StatelessWidget {
                             borderRadius: BorderRadius.circular(99),
                             boxShadow: [
                               BoxShadow(
-                                color: (isOnline ? AppColors.success : AppColors.primary).withValues(alpha: 0.4),
+                                color: (isOnline ? AppColors.success : AppColors.primary).withValues(alpha: 0.35),
                                 blurRadius: 6,
                                 offset: const Offset(0, 2),
                               ),
@@ -503,9 +543,64 @@ class _GreetingHeader extends StatelessWidget {
                           ),
                         ),
                       ),
+                      // 50% Lunch Break Divider Tick Mark
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        child: Center(
+                          child: Container(
+                            width: 2,
+                            height: 9,
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                              borderRadius: BorderRadius.circular(1),
+                            ),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
-                  if (todayMinutes >= 480) ...[
+                  const SizedBox(height: 10),
+
+                  // Single Clear Footer Line (Zero text redundancy!)
+                  Row(
+                    children: [
+                      const Icon(LucideIcons.mapPin, size: 12, color: AppColors.success),
+                      const SizedBox(width: 4),
+                      const Text(
+                        'GPS hợp lệ',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.success,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Text(
+                        '•',
+                        style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          shiftProgress != null
+                              ? (shiftProgress.remainingMinutes > 0
+                                  ? 'Còn ${_durationVi(Duration(minutes: shiftProgress.remainingMinutes))} đến mốc ${shiftConfig.shiftEndHour.toString().padLeft(2, '0')}:${shiftConfig.shiftEndMinute.toString().padLeft(2, '0')}'
+                                  : '🎉 Đã hoàn thành xuất sắc ${shiftConfig.targetHoursFormatted} làm việc!')
+                              : 'Chưa bắt đầu ca làm việc',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.65),
+                          ),
+                        ),
+                      ),
+                      const Icon(LucideIcons.chevronRight, size: 14, color: AppColors.textMuted),
+                    ],
+                  ),
+                  if (shiftProgress?.isCompleted ?? (displayMinutes >= 480)) ...[
                     const SizedBox(height: 10),
                     InkWell(
                       onTap: () {
@@ -818,8 +913,8 @@ class _NotificationTile extends StatelessWidget {
                     title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
+                    style: TextStyle(
+                      color: context.textColor,
                       fontSize: 14,
                       fontWeight: FontWeight.w900,
                     ),
@@ -830,7 +925,7 @@ class _NotificationTile extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: AppTextStyles.caption.copyWith(
-                      color: AppColors.textSecondary,
+                      color: context.textSecondary,
                       height: 1.25,
                     ),
                   ),
@@ -844,7 +939,7 @@ class _NotificationTile extends StatelessWidget {
                 Text(
                   time,
                   style: AppTextStyles.caption.copyWith(
-                    color: AppColors.textMuted,
+                    color: context.textMuted,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -870,7 +965,7 @@ class _NotificationEmptyState extends StatelessWidget {
             width: 54,
             height: 54,
             decoration: BoxDecoration(
-              color: AppColors.soft(AppColors.success),
+              color: context.softColor(AppColors.success),
               borderRadius: BorderRadius.circular(18),
             ),
             child: const Icon(
@@ -880,10 +975,10 @@ class _NotificationEmptyState extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          const Text(
+          Text(
             'Bạn đã xử lý hết thông báo.',
             style: TextStyle(
-              color: AppColors.textPrimary,
+              color: context.textColor,
               fontSize: 15,
               fontWeight: FontWeight.w900,
             ),
@@ -893,7 +988,7 @@ class _NotificationEmptyState extends StatelessWidget {
             'Khi có thông báo mới, chúng sẽ xuất hiện tại đây.',
             textAlign: TextAlign.center,
             style: AppTextStyles.caption.copyWith(
-              color: AppColors.textSecondary,
+              color: context.textSecondary,
               height: 1.35,
             ),
           ),
@@ -918,12 +1013,12 @@ class _QuickNavGrid extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final liveUnreadCount = ref.watch(totalUnreadCountProvider);
-    final conversationsState = ref.watch(conversationsProvider);
-    final conversationsList = conversationsState.value ?? const [];
-    final liveChatCount = chatCount > 0
-        ? chatCount
-        : conversationsList.length;
+    final liveUnreadCount = ref.watch(chatV2TotalUnreadProvider);
+    final channelsAsync = ref.watch(chatV2ChannelsProvider);
+    final channelsList = channelsAsync.valueOrNull ?? const [];
+    final liveChatCount = channelsList.isNotEmpty
+        ? channelsList.length
+        : (chatCount > 0 ? chatCount : 0);
 
     return Column(
       children: [
@@ -1180,20 +1275,36 @@ class _PresenceIndicator extends StatelessWidget {
 }
 
 _TodayTaskPreview _todayTaskPreviewFromTask(Task task) {
-  final accent = _taskCategoryColor(task.category);
+  final statusInfo = _taskStatusInfo(task);
   return _TodayTaskPreview(
     id: task.id,
     title: task.title,
-    tag: task.category.label,
-    accent: accent,
+    tag: statusInfo.label,
+    accent: statusInfo.color,
     icon: _taskCategoryIcon(task.category),
-    // Carried but not yet populated: the home dashboard only sees the
-    // list view of open tasks, where the per-entry summary / duration
-    // would have to come from the timesheet stream. We leave the
-    // optional fields null so the popup opens empty.
     note: null,
     logged: null,
   );
+}
+
+({String label, Color color}) _taskStatusInfo(Task task) {
+  if (task.isCompleted) {
+    return (label: 'Hoàn thành', color: AppColors.success);
+  }
+  final raw = '${task.state ?? ''} ${task.stageName ?? ''}'.toLowerCase();
+  if (raw.contains('change') || raw.contains('thay đổi')) {
+    return (label: task.stageName ?? 'Thay đổi yêu cầu', color: const Color(0xFFF59E0B));
+  }
+  if (raw.contains('cancel') || raw.contains('hủy') || raw.contains('huỷ')) {
+    return (label: task.stageName ?? 'Hủy', color: AppColors.danger);
+  }
+  if (raw.contains('approved') || raw.contains('chấp thuận') || raw.contains('duyệt')) {
+    return (label: task.stageName ?? 'Được chấp thuận', color: AppColors.primary);
+  }
+  if (task.stageName != null && task.stageName!.trim().isNotEmpty) {
+    return (label: task.stageName!, color: const Color(0xFF8B5CF6));
+  }
+  return (label: 'Đang làm', color: const Color(0xFF8B5CF6));
 }
 
 IconData _taskCategoryIcon(TimesheetCategory category) {
@@ -1206,15 +1317,7 @@ IconData _taskCategoryIcon(TimesheetCategory category) {
   };
 }
 
-Color _taskCategoryColor(TimesheetCategory category) {
-  return switch (category) {
-    TimesheetCategory.erp => AppColors.primary,
-    TimesheetCategory.crm => AppColors.chat,
-    TimesheetCategory.meeting => AppColors.timesheet,
-    TimesheetCategory.support => AppColors.ticket,
-    TimesheetCategory.other => AppColors.textMuted,
-  };
-}
+
 
 class _TodayTaskPreview {
   const _TodayTaskPreview({
@@ -1560,9 +1663,9 @@ String _vietnameseDateTime(DateTime dt) {
 
 String _durationVi(Duration duration) {
   final minutes = duration.inMinutes;
-  if (minutes < 60) return '$minutes phút';
-  final hours = minutes ~/ 60;
-  final rest = minutes % 60;
-  if (rest == 0) return '$hours giờ';
-  return '$hours giờ $rest phút';
+  final h = minutes ~/ 60;
+  final m = minutes % 60;
+  if (h == 0) return '$m phút';
+  if (m == 0) return '$h giờ';
+  return '$h giờ $m phút';
 }

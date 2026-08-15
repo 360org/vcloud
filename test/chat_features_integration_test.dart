@@ -12,6 +12,7 @@ import 'package:vcloud/features/auth/application/auth_controller.dart';
 import 'package:vcloud/features/chat/application/conversations_controller.dart';
 import 'package:vcloud/features/chat/application/messages_controller.dart';
 import 'package:vcloud/features/chat/presentation/chat_detail_screen.dart';
+import 'package:vcloud/features/chat/presentation/widgets/chat_bubbles.dart';
 import 'package:vcloud/shared/models/conversation.dart';
 import 'package:vcloud/shared/models/message.dart';
 
@@ -223,7 +224,7 @@ void main() {
 
       expect(find.text('Nhom du an VCloud'), findsOneWidget);
       expect(find.text('Chào cả đội, dự án chạy tốt chứ?'), findsOneWidget);
-      expect(find.text('anh.png'), findsOneWidget);
+      expect(find.byType(NetworkPreviewImage).first, findsOneWidget);
       expect(find.text('baocao.pdf'), findsOneWidget);
     });
 
@@ -232,12 +233,12 @@ void main() {
     ) async {
       configureViewport(tester);
       await tester.pumpWidget(buildChatDetailWidget());
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 300));
 
       final attachmentBtn = find.byTooltip('Thêm nội dung').last;
       expect(attachmentBtn, findsOneWidget);
       await tester.tap(attachmentBtn);
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 300));
 
       expect(find.text('Thư viện ảnh'), findsOneWidget);
       expect(find.text('Máy ảnh'), findsOneWidget);
@@ -250,15 +251,15 @@ void main() {
     ) async {
       configureViewport(tester);
       await tester.pumpWidget(buildChatDetailWidget());
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 300));
 
       await tester.tap(find.byTooltip('Thêm nội dung').last);
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 300));
 
       final actionTile = find.text('Anh');
       if (actionTile.evaluate().isNotEmpty) {
         await tester.tap(actionTile);
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 300));
       }
     });
   });

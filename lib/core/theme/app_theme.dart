@@ -28,8 +28,8 @@ class AppColors {
   // ── Per-feature accents ────────────────────────────────────────────────
   static const chat = Color(0xFF3B82F6);
   static const chatDeep = Color(0xFF06B6D4);
-  static const timesheet = Color(0xFF8B5CF6);
-  static const timesheetDeep = Color(0xFFA855F7);
+  static const timesheet = Color(0xFF00C83A);
+  static const timesheetDeep = Color(0xFF009D2E);
   static const ticket = Color(0xFFFB923C);
   static const ticketDeep = Color(0xFFF59E0B);
   static const calendar = Color(0xFF06B6D4);
@@ -39,7 +39,7 @@ class AppColors {
 
   // ── Soft tint backgrounds ────────────────────────────────────────────────────
   static const chatSoft = Color(0xFFEFF6FF);
-  static const timesheetSoft = Color(0xFFF2EBFE);
+  static const timesheetSoft = Color(0xFFE7FBEA);
   static const ticketSoft = Color(0xFFFFF0F2);
   static const calendarSoft = Color(0xFFF0FDFF);
   static const attendanceSoft = Color(0xFFEFFCF3);
@@ -60,6 +60,7 @@ class AppColors {
   // ── Dark mode tokens ───────────────────────────────────────────────────
   static const darkBg = Color(0xFF0F1729);
   static const darkSurface = Color(0xFF1A2340);
+  static const darkSurfaceElevated = Color(0xFF222E52);
   static const darkBorder = Color(0xFF2A3A5C);
   static const darkTextPrimary = Color(0xFFF1F5F9);
   static const darkTextSecondary = Color(0xFF94A3B8);
@@ -131,8 +132,8 @@ class AppColors {
   );
 
   /// Soft tinted background for an accent (badges, chips).
-  static Color soft(Color c) =>
-      Color.alphaBlend(c.withValues(alpha: 0.12), surface);
+  static Color soft(Color c, {bool isDark = false}) =>
+      Color.alphaBlend(c.withValues(alpha: isDark ? 0.18 : 0.12), isDark ? darkSurface : surface);
 
   /// Colored glow shadow for elevated/branded elements.
   static List<BoxShadow> glow(Color c, {double opacity = 0.35}) => [
@@ -172,16 +173,16 @@ class AppColors {
   ];
 
   /// Soft background for feature highlighting
-  static Color featureBackground(Color c) =>
-      Color.alphaBlend(c.withValues(alpha: 0.04), surface);
+  static Color featureBackground(Color c, {bool isDark = false}) =>
+      Color.alphaBlend(c.withValues(alpha: isDark ? 0.08 : 0.04), isDark ? darkSurface : surface);
 
   /// Stronger soft background for emphasis
-  static Color featureBackgroundStrong(Color c) =>
-      Color.alphaBlend(c.withValues(alpha: 0.08), surface);
+  static Color featureBackgroundStrong(Color c, {bool isDark = false}) =>
+      Color.alphaBlend(c.withValues(alpha: isDark ? 0.14 : 0.08), isDark ? darkSurface : surface);
 
   /// Medium soft background for subtle emphasis
-  static Color featureBackgroundMedium(Color c) =>
-      Color.alphaBlend(c.withValues(alpha: 0.06), surface);
+  static Color featureBackgroundMedium(Color c, {bool isDark = false}) =>
+      Color.alphaBlend(c.withValues(alpha: isDark ? 0.10 : 0.06), isDark ? darkSurface : surface);
 
   /// Odoo's `color_index` palette (0–11) as used by `helpdesk.tag.color`.
   /// Index `0` is white/no-color and intentionally omitted — see [odooTagColor].
@@ -229,38 +230,78 @@ class AppColors {
   }
 }
 
+/// Extension on [BuildContext] for clean, adaptive theme color resolution.
+extension AppThemeContextExtension on BuildContext {
+  /// Whether the current theme mode is dark.
+  bool get isDarkMode => Theme.of(this).brightness == Brightness.dark;
+
+  /// Primary text color based on active theme mode.
+  Color get textColor => isDarkMode ? AppColors.darkTextPrimary : AppColors.textPrimary;
+
+  /// Secondary text color based on active theme mode.
+  Color get textSecondary => isDarkMode ? AppColors.darkTextSecondary : AppColors.textSecondary;
+
+  /// Muted text color based on active theme mode.
+  Color get textMuted => isDarkMode ? AppColors.darkTextMuted : AppColors.textMuted;
+
+  /// Card/surface color based on active theme mode.
+  Color get cardColor => isDarkMode ? AppColors.darkSurface : AppColors.surface;
+
+  /// Scaffold background color based on active theme mode.
+  Color get bgColor => isDarkMode ? AppColors.darkBg : AppColors.bg;
+
+  /// Border color based on active theme mode.
+  Color get borderColor => isDarkMode ? AppColors.darkBorder : AppColors.border;
+
+  /// Soft tinted background color adaptive to active theme.
+  Color softColor(Color color) => AppColors.soft(color, isDark: isDarkMode);
+}
+
 /// Glass card decoration — frosted glass effect with subtle border.
 BoxDecoration glassDecoration({
   Color? color,
   double radius = 20,
   double opacity = 0.06,
+  bool isDark = false,
 }) => BoxDecoration(
-  color: (color ?? AppColors.surface).withValues(alpha: opacity + 0.88),
+  color: (color ?? (isDark ? AppColors.darkSurface : AppColors.surface)).withValues(alpha: opacity + 0.88),
   borderRadius: BorderRadius.circular(radius),
   border: Border.all(
-    color: AppColors.border.withValues(alpha: 0.6),
+    color: (isDark ? AppColors.darkBorder : AppColors.border).withValues(alpha: 0.6),
     width: 0.5,
   ),
-  boxShadow: const [
-    BoxShadow(color: Color(0x060F172A), blurRadius: 8, offset: Offset(0, 2)),
-    BoxShadow(color: Color(0x10101828), blurRadius: 24, offset: Offset(0, 12)),
+  boxShadow: [
+    BoxShadow(
+      color: isDark ? const Color(0x20000000) : const Color(0x060F172A),
+      blurRadius: 8,
+      offset: const Offset(0, 2),
+    ),
+    BoxShadow(
+      color: isDark ? const Color(0x30000000) : const Color(0x10101828),
+      blurRadius: 24,
+      offset: const Offset(0, 12),
+    ),
   ],
 );
 
 /// Legacy card decoration — kept for backward compatibility.
-BoxDecoration cardDecoration({Color? color, double radius = 18}) =>
-    glassDecoration(color: color, radius: radius);
+BoxDecoration cardDecoration({Color? color, double radius = 18, bool isDark = false}) =>
+    glassDecoration(color: color, radius: radius, isDark: isDark);
 
 /// Enhanced glass card decoration for premium visual depth
 BoxDecoration premiumGlassDecoration({
   Color? color,
   double radius = 28,
   double opacity = 0.12,
+  bool isDark = false,
 }) => BoxDecoration(
-  color: (color ?? AppColors.surface).withValues(alpha: opacity + 0.9),
+  color: (color ?? (isDark ? AppColors.darkSurface : AppColors.surface)).withValues(alpha: opacity + 0.9),
 
   borderRadius: BorderRadius.circular(radius),
-  border: Border.all(color: AppColors.border.withValues(alpha: 0.8), width: 1),
+  border: Border.all(
+    color: (isDark ? AppColors.darkBorder : AppColors.border).withValues(alpha: 0.8),
+    width: 1,
+  ),
   boxShadow: [
     BoxShadow(
       color: AppColors.primary.withValues(alpha: 0.15),
@@ -268,7 +309,7 @@ BoxDecoration premiumGlassDecoration({
       offset: const Offset(0, 6),
     ),
     BoxShadow(
-      color: AppColors.midnight.withValues(alpha: 0.2),
+      color: (isDark ? Colors.black : AppColors.midnight).withValues(alpha: 0.25),
       blurRadius: 40,
       offset: const Offset(0, 20),
     ),
@@ -439,7 +480,12 @@ ThemeData buildDarkTheme() {
     primary: AppColors.primary,
     surface: AppColors.darkSurface,
     brightness: Brightness.dark,
-  ).copyWith(error: AppColors.danger, onSurface: AppColors.darkTextPrimary);
+  ).copyWith(
+    error: AppColors.danger,
+    onSurface: AppColors.darkTextPrimary,
+    surfaceContainerHigh: AppColors.darkSurface,
+    surfaceContainer: AppColors.darkSurface,
+  );
 
   final base = ThemeData(
     useMaterial3: true,
@@ -472,18 +518,67 @@ ThemeData buildDarkTheme() {
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
     ),
+    dialogTheme: DialogThemeData(
+      backgroundColor: AppColors.darkSurface,
+      elevation: 8,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: const BorderSide(color: AppColors.darkBorder, width: 0.8),
+      ),
+      titleTextStyle: const TextStyle(
+        color: AppColors.darkTextPrimary,
+        fontSize: 18,
+        fontWeight: FontWeight.w700,
+      ),
+      contentTextStyle: const TextStyle(
+        color: AppColors.darkTextSecondary,
+        fontSize: 14,
+      ),
+    ),
+    bottomSheetTheme: const BottomSheetThemeData(
+      backgroundColor: AppColors.darkSurface,
+      modalBackgroundColor: AppColors.darkSurface,
+      elevation: 12,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+    ),
+    popupMenuTheme: PopupMenuThemeData(
+      color: AppColors.darkSurface,
+      elevation: 8,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: AppColors.darkBorder, width: 0.8),
+      ),
+      textStyle: const TextStyle(
+        color: AppColors.darkTextPrimary,
+        fontSize: 14,
+        fontWeight: FontWeight.w500,
+      ),
+    ),
+    chipTheme: ChipThemeData(
+      backgroundColor: AppColors.darkSurface,
+      disabledColor: AppColors.darkBg,
+      selectedColor: AppColors.primary.withValues(alpha: 0.2),
+      secondarySelectedColor: AppColors.primary,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      labelStyle: const TextStyle(color: AppColors.darkTextPrimary, fontSize: 12),
+      secondaryLabelStyle: const TextStyle(color: Colors.white, fontSize: 12),
+      brightness: Brightness.dark,
+      side: const BorderSide(color: AppColors.darkBorder, width: 0.6),
+    ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: AppColors.darkBg,
+      fillColor: AppColors.darkSurface,
       hintStyle: const TextStyle(color: AppColors.darkTextMuted),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide.none,
+        borderSide: const BorderSide(color: AppColors.darkBorder),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide.none,
+        borderSide: const BorderSide(color: AppColors.darkBorder),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),

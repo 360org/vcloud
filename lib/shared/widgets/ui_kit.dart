@@ -291,7 +291,7 @@ class StatusPill extends StatelessWidget {
     final content = Container(
       padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
       decoration: BoxDecoration(
-        color: AppColors.soft(color),
+        color: context.softColor(color),
         borderRadius: BorderRadius.circular(999),
         border: Border.all(color: color.withValues(alpha: 0.18)),
       ),
@@ -346,7 +346,7 @@ class SectionHeader extends StatelessWidget {
         Expanded(
           child: Text(
             title,
-            style: AppTextStyles.title.copyWith(color: AppColors.textPrimary),
+            style: AppTextStyles.title.copyWith(color: context.textColor),
           ),
         ),
         if (trailing != null)
@@ -421,7 +421,7 @@ class CompactActionTile extends StatelessWidget {
                       width: iconSize,
                       height: iconSize,
                       decoration: BoxDecoration(
-                        color: AppColors.soft(color),
+                        color: context.softColor(color),
                         borderRadius: BorderRadius.circular(iconRadius),
                       ),
                       child: Icon(icon, color: color, size: compact ? 17 : 19),
@@ -439,7 +439,7 @@ class CompactActionTile extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: AppColors.textPrimary,
+                        color: context.textColor,
                         fontSize: labelFontSize,
                         fontWeight: FontWeight.w700,
                       ),
@@ -470,10 +470,11 @@ class SegmentedTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = context.isDarkMode;
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: const Color(0xFFEFF2F7),
+        color: isDark ? AppColors.darkSurface : const Color(0xFFEFF2F7),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
@@ -490,7 +491,7 @@ class SegmentedTabs extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(vertical: 9),
                   decoration: BoxDecoration(
                     color: selectedIndex == i
-                        ? AppColors.midnight
+                        ? (isDark ? AppColors.primary : AppColors.midnight)
                         : Colors.transparent,
                     borderRadius: BorderRadius.circular(13),
                     boxShadow: selectedIndex == i
@@ -508,7 +509,7 @@ class SegmentedTabs extends StatelessWidget {
                     style: TextStyle(
                       color: selectedIndex == i
                           ? Colors.white
-                          : AppColors.textSecondary,
+                          : context.textSecondary,
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
                     ),
@@ -596,7 +597,7 @@ class QuickAttachmentSheet extends StatelessWidget {
               width: 42,
               height: 4,
               decoration: BoxDecoration(
-                color: AppColors.border,
+                color: context.borderColor,
                 borderRadius: BorderRadius.circular(999),
               ),
             ),
@@ -616,7 +617,7 @@ class QuickAttachmentSheet extends StatelessWidget {
                     onTap: () => onSelected(action),
                     child: Container(
                       decoration: BoxDecoration(
-                        color: AppColors.soft(action.color),
+                        color: context.softColor(action.color),
                         borderRadius: BorderRadius.circular(18),
                         border: Border.all(
                           color: action.color.withValues(alpha: 0.14),
@@ -698,7 +699,7 @@ class StatTile extends StatelessWidget {
               Text(
                 label,
                 style: AppTextStyles.caption.copyWith(
-                  color: AppColors.textSecondary,
+                  color: context.textSecondary,
                   letterSpacing: 0.5,
                 ),
               ),
@@ -706,7 +707,8 @@ class StatTile extends StatelessWidget {
               AnimatedCount(
                 value: value,
                 decimals: decimals,
-                style: const TextStyle(
+                style: TextStyle(
+                  color: context.textColor,
                   fontSize: 26,
                   fontWeight: FontWeight.w800,
                   height: 1.1,
@@ -716,7 +718,7 @@ class StatTile extends StatelessWidget {
               Text(
                 sub,
                 style: AppTextStyles.caption.copyWith(
-                  color: AppColors.textSecondary,
+                  color: context.textSecondary,
                 ),
               ),
             ],

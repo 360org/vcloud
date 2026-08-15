@@ -55,7 +55,7 @@ BUILD_NUMBER: ${{ github.run_number }}
 
 1. **Thông số xác thực chính chủ Apple:**
    * **Tài khoản App Manager:** `tanmnn@360.org.vn`
-   * **Mật khẩu ứng dụng 16 ký tự:** `ijbn-xpar-vwyk-hdyz`
+   * **Mật khẩu ứng dụng 16 ký tự:** `yrgq-fslk-lwll-tmas`
    * **Secret GitHub:** `APPLE_ID` và `APPLE_APP_PASS`
 
 2. **Cơ chế dọn rác biến môi trường trong Fastfile:**

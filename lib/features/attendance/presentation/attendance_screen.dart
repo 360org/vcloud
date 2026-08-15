@@ -18,6 +18,7 @@ import '../../timesheet/application/task_controller.dart';
 import '../../timesheet/application/timesheet_controller.dart';
 import '../../../shared/widgets/location_prompt_dialog.dart';
 import '../application/attendance_controller.dart';
+import '../domain/shift_calculator.dart';
 import 'widgets/checkout_dialog.dart';
 
 /// Check-in screen — live clock, big check-in/out circle, location, history.
@@ -121,10 +122,11 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
 
   String _formatElapsed(DateTime? checkInAt) {
     if (checkInAt == null) return '00:00:00';
-    final diff = DateTime.now().difference(checkInAt);
-    final hours = diff.inHours;
-    final minutes = diff.inMinutes.remainder(60);
-    final seconds = diff.inSeconds.remainder(60);
+    final result = ShiftCalculator.calculate(checkinTime: checkInAt);
+    final workedMins = result.workedMinutes;
+    final hours = workedMins ~/ 60;
+    final minutes = workedMins % 60;
+    final seconds = DateTime.now().second;
     return '${hours.toString().padLeft(2, '0')}:'
         '${minutes.toString().padLeft(2, '0')}:'
         '${seconds.toString().padLeft(2, '0')}';
@@ -203,8 +205,15 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
 
     return AppScaffold(
       title: 'Check-in',
+      actions: [
+        IconButton(
+          onPressed: () => context.push('/attendance/history'),
+          icon: const Icon(LucideIcons.history, size: 20),
+          tooltip: 'Lịch sử chấm công',
+        ),
+      ],
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
         children: [
           // Avatar with gradient ring
           Center(
@@ -328,7 +337,12 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
               ),
             ),
           ).animate().fadeIn(duration: 380.ms, delay: 120.ms),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
+
+          // 3-Segment Shift Progress & Time Breakdown Card
+          _DetailedShiftBreakdownCard(open: open)
+              .animate().fadeIn(duration: 380.ms, delay: 150.ms),
+          const SizedBox(height: 16),
 
           // Location card
           _LocationRow(
@@ -340,18 +354,9 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
           _WeeklySummary().animate().fadeIn(duration: 380.ms, delay: 240.ms),
           const SizedBox(height: 16),
 
-          // History link
-          Center(
-            child: TextButton(
-              onPressed: () => context.push('/attendance/history'),
-              child: Text(
-                'Xem lịch sử check-in',
-                style: AppTextStyles.bodyMedium.copyWith(
-                  color: AppColors.primary,
-                ),
-              ),
-            ),
-          ),
+          // Company Shift Policy (Quy định khung giờ làm việc công ty)
+          const _CompanyShiftPolicyCard()
+              .animate().fadeIn(duration: 380.ms, delay: 280.ms),
         ],
       ),
     );
@@ -523,7 +528,9 @@ class _WeeklySummary extends ConsumerWidget {
           }
         }
 
-        final totalCheckins = checkinsPerDay.where((c) => c > 0).length;
+        // Standard working days: 6 days (Monday to Saturday, T2 - T7). Sunday (CN) is a rest day.
+        final workDaysCheckins = checkinsPerDay.sublist(0, 6).where((c) => c > 0).length;
+        final hasSundayCheckin = checkinsPerDay[6] > 0;
 
         return GlassCard(
           glowColor: AppColors.attendance,
@@ -554,7 +561,29 @@ class _WeeklySummary extends ConsumerWidget {
                   Text(
                     'Tuần này',
                     style: AppTextStyles.title.copyWith(
-                      color: AppColors.textPrimary,
+                      color: context.textColor,
+                    ),
+                  ),
+                  const Spacer(),
+                  InkWell(
+                    onTap: () => context.push('/attendance/history'),
+                    borderRadius: BorderRadius.circular(8),
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                      child: Row(
+                        children: [
+                          Text(
+                            'Lịch sử',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                          SizedBox(width: 3),
+                          Icon(LucideIcons.chevronRight, size: 14, color: AppColors.primary),
+                        ],
+                      ),
                     ),
                   ),
                 ],
@@ -565,6 +594,8 @@ class _WeeklySummary extends ConsumerWidget {
                 children: List.generate(7, (i) {
                   final isToday = i == now.weekday - 1;
                   final hasCheckin = checkinsPerDay[i] > 0;
+                  final isSunday = i == 6;
+
                   return Column(
                     children: [
                       Container(
@@ -577,7 +608,13 @@ class _WeeklySummary extends ConsumerWidget {
                                   AppColors.attendanceDeep,
                                 )
                               : null,
-                          color: hasCheckin ? null : AppColors.bg,
+                          color: hasCheckin
+                              ? null
+                              : (isSunday
+                                  ? (Theme.of(context).brightness == Brightness.dark
+                                      ? const Color(0xFF334155).withValues(alpha: 0.4)
+                                      : const Color(0xFFF1F5F9))
+                                  : AppColors.bg),
                           shape: BoxShape.circle,
                           border: isToday
                               ? Border.all(
@@ -594,15 +631,15 @@ class _WeeklySummary extends ConsumerWidget {
                               )
                             : Center(
                                 child: Text(
-                                  weekDays[i],
+                                  isSunday ? 'Nghỉ' : weekDays[i],
                                   style: TextStyle(
-                                    fontSize: 10,
+                                    fontSize: isSunday ? 9 : 10,
                                     fontWeight: isToday
                                         ? FontWeight.w700
                                         : FontWeight.w500,
                                     color: isToday
                                         ? AppColors.attendance
-                                        : AppColors.textMuted,
+                                        : (isSunday ? AppColors.textMuted : AppColors.textMuted),
                                   ),
                                 ),
                               ),
@@ -614,7 +651,7 @@ class _WeeklySummary extends ConsumerWidget {
                           fontSize: 10,
                           color: isToday
                               ? AppColors.attendance
-                              : AppColors.textMuted,
+                              : (isSunday ? AppColors.textMuted : AppColors.textMuted),
                           fontWeight: isToday
                               ? FontWeight.w700
                               : FontWeight.normal,
@@ -629,16 +666,18 @@ class _WeeklySummary extends ConsumerWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    '$totalCheckins/7 ngày đã check-in',
-                    style: const TextStyle(
+                    hasSundayCheckin
+                        ? '$workDaysCheckins/6 ngày (+1 CN)'
+                        : '$workDaysCheckins/6 ngày đã check-in',
+                    style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
+                      color: context.textColor,
                     ),
                   ),
                   GradientBadge(
-                    label: totalCheckins >= 5 ? 'Đạt' : 'Cần cố gắng',
-                    gradient: totalCheckins >= 5
+                    label: workDaysCheckins >= 5 ? 'Đạt' : 'Cần cố gắng',
+                    gradient: workDaysCheckins >= 5
                         ? AppColors.successGrad
                         : AppColors.featureGrad(
                             AppColors.warning,
@@ -654,6 +693,621 @@ class _WeeklySummary extends ConsumerWidget {
       },
       loading: () => const SizedBox.shrink(),
       error: (_, _) => const SizedBox.shrink(),
+    );
+  }
+}
+
+class _DetailedShiftBreakdownCard extends StatelessWidget {
+  const _DetailedShiftBreakdownCard({required this.open});
+  final Attendance? open;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final checkin = open?.checkinTime;
+    final shiftProgress = ShiftCalculator.calculate(checkinTime: checkin);
+    final config = shiftProgress.config;
+
+    final now = DateTime.now();
+    final date = (checkin ?? now).toLocal();
+    final lunchStart = DateTime(date.year, date.month, date.day, config.lunchStartHour, config.lunchStartMinute);
+    final lunchEnd = DateTime(date.year, date.month, date.day, config.lunchEndHour, config.lunchEndMinute);
+
+    final morningWorked = shiftProgress.morningWorkedMinutes;
+    final afternoonWorked = shiftProgress.afternoonWorkedMinutes;
+    final morningProgress = shiftProgress.morningProgress;
+    final afternoonProgress = shiftProgress.afternoonProgress;
+
+    final dayStr = date.day.toString().padLeft(2, '0');
+    final monthStr = date.month.toString().padLeft(2, '0');
+    final formattedDateVi = '${config.dayName}, $dayStr/$monthStr/${date.year}';
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : AppColors.surface,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.12)
+              : AppColors.border,
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A0F172A),
+            blurRadius: 20,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Title & Badge Row (Hiển thị rõ Thứ, Ngày và Mục tiêu giờ làm)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Row(
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: AppColors.soft(AppColors.primary),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(LucideIcons.clock, size: 18, color: AppColors.primary),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Chi tiết ca ${config.dayName} (${config.targetHoursFormatted})',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: Theme.of(context).colorScheme.onSurface,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '$formattedDateVi • Tiêu chuẩn ${config.targetHoursFormatted}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: (shiftProgress.stage == ShiftStage.lunchBreak)
+                      ? const Color(0xFFF59E0B).withValues(alpha: 0.15)
+                      : AppColors.soft(AppColors.success),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  shiftProgress.badgeLabel,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: (shiftProgress.stage == ShiftStage.lunchBreak)
+                        ? const Color(0xFFD97706)
+                        : AppColors.success,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // 3-Segment Shift Progress Bar (Ca sáng - Nghỉ trưa - Ca chiều)
+          Row(
+            children: [
+              // Ca sáng segment
+              Expanded(
+                flex: config.morningTargetMinutes,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Ca sáng',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                        ),
+                        Text(
+                          '${morningWorked ~/ 60}h${morningWorked % 60 > 0 ? ' ${morningWorked % 60}m' : ''}/${config.morningHoursFormatted}',
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textMuted),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Stack(
+                      children: [
+                        Container(
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: AppColors.border,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                        FractionallySizedBox(
+                          widthFactor: morningProgress,
+                          child: Container(
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: AppColors.success,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+
+              // Nghỉ trưa segment (1h = 60m)
+              Expanded(
+                flex: 60,
+                child: Column(
+                  children: [
+                    const Text(
+                      '🍱 Nghỉ trưa',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFFD97706)),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.5)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+
+              // Ca chiều segment
+              Expanded(
+                flex: config.afternoonTargetMinutes,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Ca chiều',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                        ),
+                        Text(
+                          '${afternoonWorked ~/ 60}h${afternoonWorked % 60 > 0 ? ' ${afternoonWorked % 60}m' : ''}/${config.afternoonHoursFormatted}',
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textMuted),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Stack(
+                      children: [
+                        Container(
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: AppColors.border,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                        FractionallySizedBox(
+                          widthFactor: afternoonProgress,
+                          child: Container(
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: AppColors.primary,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // 3 Detailed Stage Rows
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF0F172A) : AppColors.bg,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              children: [
+                _ShiftStageRow(
+                  icon: LucideIcons.sun,
+                  iconColor: const Color(0xFFF59E0B),
+                  title: 'Ca sáng (${config.morningTimeRange})',
+                  subtitle: morningWorked >= config.morningTargetMinutes
+                      ? 'Hoàn thành ${config.morningHoursFormatted} ca sáng 🟢'
+                      : (now.isBefore(lunchStart) ? 'Đang thực hiện ($morningWorked / ${config.morningTargetMinutes} phút)' : 'Chưa đủ giờ ca sáng'),
+                  isCompleted: morningWorked >= config.morningTargetMinutes,
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: Divider(height: 1, thickness: 0.5),
+                ),
+                _ShiftStageRow(
+                  icon: LucideIcons.utensils,
+                  iconColor: const Color(0xFFD97706),
+                  title: 'Giờ nghỉ trưa (${config.lunchTimeRange})',
+                  subtitle: '1 tiếng nghỉ ngơi • Tự động đóng băng công',
+                  isCompleted: now.isAfter(lunchEnd),
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: Divider(height: 1, thickness: 0.5),
+                ),
+                _ShiftStageRow(
+                  icon: LucideIcons.sunset,
+                  iconColor: AppColors.primary,
+                  title: 'Ca chiều (${config.afternoonTimeRange})',
+                  subtitle: afternoonWorked >= config.afternoonTargetMinutes
+                      ? 'Hoàn thành ${config.afternoonHoursFormatted} ca chiều 🟢'
+                      : (now.isAfter(lunchEnd)
+                          ? 'Đang thực hiện (${shiftProgress.remainingMinutes}m nữa đến ${config.shiftEndHour.toString().padLeft(2, '0')}:${config.shiftEndMinute.toString().padLeft(2, '0')})'
+                          : 'Chờ đến ca chiều (${config.lunchEndHour.toString().padLeft(2, '0')}:${config.lunchEndMinute.toString().padLeft(2, '0')})'),
+                  isCompleted: afternoonWorked >= config.afternoonTargetMinutes,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ShiftStageRow extends StatelessWidget {
+  const _ShiftStageRow({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    required this.isCompleted,
+  });
+
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final bool isCompleted;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: iconColor.withValues(alpha: 0.15),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, size: 16, color: iconColor),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: isCompleted ? AppColors.success : AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (isCompleted)
+          const Icon(LucideIcons.checkCircle2, size: 16, color: AppColors.success),
+      ],
+    );
+  }
+}
+
+class _CompanyShiftPolicyCard extends StatelessWidget {
+  const _CompanyShiftPolicyCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final now = DateTime.now();
+    final todayWeekday = now.weekday;
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : AppColors.surface,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: isDark ? Colors.white.withValues(alpha: 0.12) : AppColors.border,
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A0F172A),
+            blurRadius: 20,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: AppColors.soft(AppColors.attendance),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(LucideIcons.calendarClock, size: 18, color: AppColors.attendanceDeep),
+                  ),
+                  const SizedBox(width: 10),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Quy định khung giờ làm việc',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      const Text(
+                        'Chính sách thời gian chuẩn công ty',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.soft(AppColors.primary),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text(
+                  'Quy chuẩn',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // 4 Rule Cards
+          _PolicyItemRow(
+            dayLabel: 'Thứ Hai (T2)',
+            timeRange: '07:30 – 17:00',
+            lunchBreak: 'Nghỉ trưa 12:00 – 13:00',
+            breakdown: 'Ca sáng: 07:30 - 12:00 (4h30) • Ca chiều: 13:00 - 17:00 (4h)',
+            totalHoursBadge: '8h30 (510p)',
+            isToday: todayWeekday == DateTime.monday,
+            badgeColor: const Color(0xFF10B981),
+            isDark: isDark,
+          ),
+          const SizedBox(height: 10),
+          _PolicyItemRow(
+            dayLabel: 'Thứ Ba – Thứ Sáu (T3 - T6)',
+            timeRange: '08:00 – 17:00',
+            lunchBreak: 'Nghỉ trưa 12:00 – 13:00',
+            breakdown: 'Ca sáng: 08:00 - 12:00 (4h) • Ca chiều: 13:00 - 17:00 (4h)',
+            totalHoursBadge: '8h00 (480p)',
+            isToday: todayWeekday >= 2 && todayWeekday <= 5,
+            badgeColor: const Color(0xFF2563EB),
+            isDark: isDark,
+          ),
+          const SizedBox(height: 10),
+          _PolicyItemRow(
+            dayLabel: 'Thứ Bảy (T7)',
+            timeRange: '08:00 – 16:30',
+            lunchBreak: 'Nghỉ trưa 12:00 – 13:00',
+            breakdown: 'Ca sáng: 08:00 - 12:00 (4h) • Ca chiều: 13:00 - 16:30 (3h30)',
+            totalHoursBadge: '7h30 (450p)',
+            isToday: todayWeekday == DateTime.saturday,
+            badgeColor: const Color(0xFFF59E0B),
+            isDark: isDark,
+          ),
+          const SizedBox(height: 10),
+          _PolicyItemRow(
+            dayLabel: 'Chủ Nhật (CN)',
+            timeRange: 'Ngày nghỉ cuối tuần',
+            lunchBreak: 'Nghỉ ngơi theo chế độ công ty',
+            breakdown: 'Không tính định mức ca làm việc',
+            totalHoursBadge: 'Nghỉ lễ/tuần',
+            isToday: todayWeekday == DateTime.sunday,
+            badgeColor: const Color(0xFF94A3B8),
+            isDark: isDark,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PolicyItemRow extends StatelessWidget {
+  const _PolicyItemRow({
+    required this.dayLabel,
+    required this.timeRange,
+    required this.lunchBreak,
+    required this.breakdown,
+    required this.totalHoursBadge,
+    required this.isToday,
+    required this.badgeColor,
+    required this.isDark,
+  });
+
+  final String dayLabel;
+  final String timeRange;
+  final String lunchBreak;
+  final String breakdown;
+  final String totalHoursBadge;
+  final bool isToday;
+  final Color badgeColor;
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isToday
+            ? badgeColor.withValues(alpha: isDark ? 0.15 : 0.08)
+            : (isDark ? const Color(0xFF0F172A) : AppColors.bg),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isToday
+              ? badgeColor.withValues(alpha: 0.5)
+              : (isDark ? Colors.white.withValues(alpha: 0.06) : AppColors.border.withValues(alpha: 0.5)),
+          width: isToday ? 1.5 : 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: badgeColor,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    dayLabel,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: isToday ? badgeColor : (isDark ? Colors.white : AppColors.textPrimary),
+                    ),
+                  ),
+                  if (isToday) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: badgeColor.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        'Hôm nay',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: badgeColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                decoration: BoxDecoration(
+                  color: badgeColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  totalHoursBadge,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: badgeColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              const Icon(LucideIcons.clock, size: 12, color: AppColors.textSecondary),
+              const SizedBox(width: 5),
+              Text(
+                '$timeRange ($lunchBreak)',
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 3),
+          Text(
+            breakdown,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
+              color: isDark ? Colors.white54 : AppColors.textMuted,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

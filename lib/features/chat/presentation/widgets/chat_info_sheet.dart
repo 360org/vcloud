@@ -24,13 +24,15 @@ class ChatInfoSheet extends ConsumerStatefulWidget {
     required this.title,
     required this.conversation,
     required this.currentIdentityIds,
-    required this.messages,
+    this.messages = const [],
+    this.conversationId,
   });
 
   final String title;
   final Conversation? conversation;
   final Set<String> currentIdentityIds;
   final List<Message> messages;
+  final String? conversationId;
 
   @override
   ConsumerState<ChatInfoSheet> createState() => _ChatInfoSheetState();
@@ -50,60 +52,136 @@ class _ChatInfoSheetState extends ConsumerState<ChatInfoSheet> {
     return null;
   }
 
+  List<Message> get _effectiveMessages {
+    final convId = widget.conversationId ?? widget.conversation?.id;
+    if (convId != null && convId.isNotEmpty) {
+      final liveMessages = ref.watch(messagesProvider(convId)).valueOrNull;
+      if (liveMessages != null && liveMessages.isNotEmpty) {
+        return liveMessages;
+      }
+    }
+    return widget.messages;
+  }
+
   List<MediaInfo> get _mediaItems {
     final items = <MediaInfo>[];
-    for (final message in widget.messages) {
+    final seen = <String>{};
+    for (final message in _effectiveMessages) {
       if (message.attachmentIds.isNotEmpty) {
         final fileName = attachmentFileName(message);
         if (isImageAttachment(message, fileName)) {
-          final attachmentId = message.attachmentIds.first;
-          items.add(
-            MediaInfo(
-              url: ref
-                  .read(downloadAttachmentActionProvider)
-                  .contentUrl(attachmentId, url: message.attachmentUrl),
-              isImage: true,
-              isVideo: false,
-              label: fileName,
-              attachmentId: attachmentId,
-            ),
-          );
+          for (final attachmentId in message.attachmentIds) {
+            if (seen.add('att_$attachmentId')) {
+              items.add(
+                MediaInfo(
+                  url: ref
+                      .read(downloadAttachmentActionProvider)
+                      .contentUrl(attachmentId, url: message.attachmentUrl),
+                  isImage: true,
+                  isVideo: false,
+                  label: fileName,
+                  attachmentId: attachmentId,
+                ),
+              );
+            }
+          }
+          continue;
+        }
+      } else if (message.attachmentUrl != null && message.attachmentUrl!.isNotEmpty) {
+        final fileName = attachmentFileName(message);
+        if (isImageAttachment(message, fileName)) {
+          if (seen.add('url_${message.attachmentUrl}')) {
+            String? extractedId;
+            final match = RegExp(r'/attachments/(\d+)').firstMatch(message.attachmentUrl!);
+            if (match != null) extractedId = match.group(1);
+
+            items.add(
+              MediaInfo(
+                url: message.attachmentUrl!,
+                isImage: true,
+                isVideo: false,
+                label: fileName,
+                attachmentId: extractedId,
+              ),
+            );
+          }
           continue;
         }
       }
 
-      final media = MediaInfo.fromContent(message.content);
-      if (media != null) items.add(media);
+      final rawContent = message.bodyHtml ?? message.content;
+      final mediaList = MediaInfo.extractAllFromContent(rawContent);
+      for (final media in mediaList) {
+        if (seen.add('content_${media.url}')) {
+          items.add(media);
+        }
+      }
     }
     return items.reversed.toList();
   }
 
   List<String> get _links {
-    final pattern = RegExp(r'https?:\/\/[^\s]+');
-    return widget.messages
-        .expand((message) => pattern.allMatches(message.content))
-        .map((match) => match.group(0)!)
-        .toSet()
-        .toList();
+    final links = <String>[];
+    final seen = <String>{};
+
+    // 1. Trích xuất từ thẻ <a> trong nội dung tin nhắn HTML
+    final aHrefRegex = RegExp(r'''<a[^>]+href=["']([^"']+)["']''', caseSensitive: false);
+    for (final message in _effectiveMessages) {
+      final rawContent = message.bodyHtml ?? message.content;
+      for (final match in aHrefRegex.allMatches(rawContent)) {
+        final href = match.group(1)?.trim();
+        if (href != null && href.startsWith('http') && !href.contains('/api/v1/mobile/attachments')) {
+          if (seen.add(href)) links.add(href);
+        }
+      }
+    }
+
+    // 2. Trích xuất link văn bản http/https
+    final pattern = RegExp(r'https?:\/\/[^\s<>"{}|\^~\[\]`\\]+');
+    for (final message in _effectiveMessages) {
+      final matches = pattern.allMatches(message.content);
+      for (final match in matches) {
+        var url = match.group(0)!;
+        while (url.endsWith('.') || url.endsWith(',') || url.endsWith(')') || url.endsWith(';') || url.endsWith('>')) {
+          url = url.substring(0, url.length - 1);
+        }
+        if (url.length > 8 && !url.contains('/api/v1/mobile/attachments')) {
+          if (seen.add(url)) links.add(url);
+        }
+      }
+    }
+    return links.reversed.toList();
   }
 
   List<FileInfo> get _files {
     final files = <FileInfo>[];
     final seen = <String>{};
-    for (final message in widget.messages) {
-      if (message.attachmentIds.isEmpty) continue;
+    for (final message in _effectiveMessages) {
       final fileName = attachmentFileName(message);
       if (isImageAttachment(message, fileName)) continue;
 
-      final attachmentId = message.attachmentIds.first;
-      if (!seen.add(attachmentId)) continue;
-      files.add(
-        FileInfo(
-          attachmentId: attachmentId,
-          name: fileName,
-          sizeLabel: formatFileSize(message.attachmentSize),
-        ),
-      );
+      if (message.attachmentIds.isNotEmpty) {
+        for (final attachmentId in message.attachmentIds) {
+          if (!seen.add('id_$attachmentId')) continue;
+          files.add(
+            FileInfo(
+              attachmentId: attachmentId,
+              name: fileName,
+              sizeLabel: formatFileSize(message.attachmentSize),
+            ),
+          );
+        }
+      } else if (message.attachmentUrl != null && message.attachmentUrl!.isNotEmpty) {
+        if (seen.add('url_${message.attachmentUrl}')) {
+          files.add(
+            FileInfo(
+              name: fileName,
+              sizeLabel: formatFileSize(message.attachmentSize),
+              url: message.attachmentUrl,
+            ),
+          );
+        }
+      }
     }
     return files.reversed.toList();
   }
@@ -119,9 +197,9 @@ class _ChatInfoSheetState extends ConsumerState<ChatInfoSheet> {
       maxChildSize: 0.96,
       builder: (context, scrollController) {
         return Container(
-          decoration: const BoxDecoration(
-            color: Color(0xFFF6F6FA),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(34)),
+          decoration: BoxDecoration(
+            color: context.isDarkMode ? AppColors.darkSurface : const Color(0xFFF6F6FA),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(34)),
           ),
           clipBehavior: Clip.antiAlias,
           child: CustomScrollView(
@@ -136,7 +214,7 @@ class _ChatInfoSheetState extends ConsumerState<ChatInfoSheet> {
                         width: 46,
                         height: 5,
                         decoration: BoxDecoration(
-                          color: AppColors.border,
+                          color: context.borderColor,
                           borderRadius: BorderRadius.circular(99),
                         ),
                       ),
@@ -152,8 +230,8 @@ class _ChatInfoSheetState extends ConsumerState<ChatInfoSheet> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
+                        style: TextStyle(
+                          color: context.textColor,
                           fontSize: 30,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 0,
@@ -256,13 +334,15 @@ class InfoActionTile extends StatelessWidget {
     return Container(
       height: 78,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.cardColor,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: const [
+        boxShadow: [
           BoxShadow(
-            color: Color(0x0F0F172A),
+            color: context.isDarkMode
+                ? const Color(0x33000000)
+                : const Color(0x0F0F172A),
             blurRadius: 18,
-            offset: Offset(0, 8),
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -321,13 +401,15 @@ class ShareLinkCard extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.fromLTRB(18, 14, 12, 14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.cardColor,
           borderRadius: BorderRadius.circular(24),
-          boxShadow: const [
+          boxShadow: [
             BoxShadow(
-              color: Color(0x0F0F172A),
+              color: context.isDarkMode
+                  ? const Color(0x33000000)
+                  : const Color(0x0F0F172A),
               blurRadius: 10,
-              offset: Offset(0, 4),
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -337,20 +419,20 @@ class ShareLinkCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(
+                  Row(
                     children: [
                       Text(
                         'Liên kết chia sẻ',
                         style: TextStyle(
-                          color: AppColors.textPrimary,
+                          color: context.textColor,
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                      SizedBox(width: 6),
+                      const SizedBox(width: 6),
                       Icon(
                         LucideIcons.copy,
-                        color: AppColors.textMuted,
+                        color: context.textSecondary,
                         size: 14,
                       ),
                     ],
@@ -430,13 +512,15 @@ class ShareLinkSheet extends ConsumerWidget {
         margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: context.cardColor,
           borderRadius: BorderRadius.circular(26),
-          boxShadow: const [
+          boxShadow: [
             BoxShadow(
-              color: Color(0x260F172A),
+              color: context.isDarkMode
+                  ? const Color(0x4D000000)
+                  : const Color(0x260F172A),
               blurRadius: 20,
-              offset: Offset(0, -6),
+              offset: const Offset(0, -6),
             ),
           ],
         ),
@@ -447,36 +531,46 @@ class ShareLinkSheet extends ConsumerWidget {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: AppColors.border,
+                color: context.borderColor,
                 borderRadius: BorderRadius.circular(99),
               ),
             ),
             const SizedBox(height: 14),
-            const Text(
-              'Liên kết chia sẻ cuộc trò chuyện',
+            Text(
+              'Tùy chọn chia sẻ',
               style: TextStyle(
-                color: AppColors.textPrimary,
+                color: context.textColor,
                 fontSize: 17,
                 fontWeight: FontWeight.w800,
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 14),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(12),
+                color: AppColors.primary.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
               ),
-              child: SelectableText(
-                link,
-                style: const TextStyle(
-                  color: AppColors.primary,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                ),
+              child: Row(
+                children: [
+                  const Icon(LucideIcons.link, color: AppColors.primary, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: SelectableText(
+                      link,
+                      style: const TextStyle(
+                        color: AppColors.primary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             ListTile(
               leading: Container(
                 width: 40,
@@ -487,8 +581,8 @@ class ShareLinkSheet extends ConsumerWidget {
                 ),
                 child: const Icon(LucideIcons.copy, color: AppColors.primary, size: 20),
               ),
-              title: const Text('Sao chép liên kết', style: TextStyle(fontWeight: FontWeight.w700)),
-              subtitle: const Text('Lưu liên kết vào bộ nhớ tạm'),
+              title: Text('Sao chép liên kết', style: TextStyle(color: context.textColor, fontWeight: FontWeight.w700)),
+              subtitle: Text('Lưu liên kết vào bộ nhớ tạm', style: TextStyle(color: context.textSecondary)),
               onTap: () => _copy(context),
             ),
             ListTile(
@@ -501,8 +595,8 @@ class ShareLinkSheet extends ConsumerWidget {
                 ),
                 child: const Icon(LucideIcons.send, color: Color(0xFF10B981), size: 20),
               ),
-              title: const Text('Gửi đến cuộc trò chuyện khác', style: TextStyle(fontWeight: FontWeight.w700)),
-              subtitle: const Text('Chuyển tiếp liên kết cho người dùng khác'),
+              title: Text('Gửi đến cuộc trò chuyện khác', style: TextStyle(color: context.textColor, fontWeight: FontWeight.w700)),
+              subtitle: Text('Chuyển tiếp liên kết cho người dùng khác', style: TextStyle(color: context.textSecondary)),
               onTap: () => _forward(context, ref),
             ),
           ],
@@ -530,13 +624,17 @@ class InfoSegmentedTabs extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.8),
+          color: context.isDarkMode
+              ? context.cardColor
+              : Colors.white.withValues(alpha: 0.8),
           borderRadius: BorderRadius.circular(999),
-          boxShadow: const [
+          boxShadow: [
             BoxShadow(
-              color: Color(0x120F172A),
+              color: context.isDarkMode
+                  ? const Color(0x33000000)
+                  : const Color(0x120F172A),
               blurRadius: 18,
-              offset: Offset(0, 8),
+              offset: const Offset(0, 8),
             ),
           ],
         ),
@@ -554,14 +652,18 @@ class InfoSegmentedTabs extends StatelessWidget {
                   ),
                   decoration: BoxDecoration(
                     color: selected == index
-                        ? const Color(0xFFE6E7EB)
+                        ? (context.isDarkMode
+                            ? AppColors.darkSurface
+                            : const Color(0xFFE6E7EB))
                         : Colors.transparent,
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
                     _labels[index],
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
+                    style: TextStyle(
+                      color: selected == index
+                          ? (context.isDarkMode ? Colors.white : AppColors.textPrimary)
+                          : context.textSecondary,
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
                     ),
@@ -590,8 +692,8 @@ class MediaGrid extends StatelessWidget {
     return SliverGrid.builder(
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
-        mainAxisSpacing: 1,
-        crossAxisSpacing: 1,
+        mainAxisSpacing: 2,
+        crossAxisSpacing: 2,
       ),
       itemCount: items.length,
       itemBuilder: (context, index) {
@@ -680,12 +782,12 @@ class FileInfoList extends ConsumerWidget {
     }
     return SliverList.separated(
       itemCount: items.length,
-      separatorBuilder: (_, _) => const Divider(height: 1),
+      separatorBuilder: (_, _) => Divider(height: 1, color: context.borderColor),
       itemBuilder: (context, index) {
         final item = items[index];
         final accent = fileAccentColor(item.name);
         return Material(
-          color: Colors.white,
+          color: context.cardColor,
           child: InkWell(
             onTap: () => _download(context, ref, item),
             child: Padding(
@@ -711,8 +813,8 @@ class FileInfoList extends ConsumerWidget {
                           item.name,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: AppColors.textPrimary,
+                          style: TextStyle(
+                            color: context.textColor,
                             fontSize: 14,
                             fontWeight: FontWeight.w800,
                           ),
@@ -720,8 +822,8 @@ class FileInfoList extends ConsumerWidget {
                         const SizedBox(height: 3),
                         Text(
                           item.sizeLabel,
-                          style: const TextStyle(
-                            color: AppColors.textSecondary,
+                          style: TextStyle(
+                            color: context.textSecondary,
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
                           ),
@@ -730,9 +832,9 @@ class FileInfoList extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  const Icon(
+                  Icon(
                     LucideIcons.download,
-                    color: AppColors.textMuted,
+                    color: context.textSecondary,
                     size: 19,
                   ),
                 ],
@@ -766,11 +868,11 @@ class SimpleInfoList extends StatelessWidget {
     }
     return SliverList.separated(
       itemCount: items.length,
-      separatorBuilder: (_, _) => const Divider(height: 1),
+      separatorBuilder: (_, _) => Divider(height: 1, color: context.borderColor),
       itemBuilder: (context, index) {
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-          color: Colors.white,
+          color: context.cardColor,
           child: Row(
             children: [
               Icon(icon, color: AppColors.primary, size: 22),
@@ -780,8 +882,8 @@ class SimpleInfoList extends StatelessWidget {
                   items[index],
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
+                  style: TextStyle(
+                    color: context.textColor,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),
@@ -807,12 +909,12 @@ class InfoEmptyState extends StatelessWidget {
       padding: const EdgeInsets.only(top: 26),
       child: Column(
         children: [
-          Icon(icon, color: AppColors.textMuted, size: 34),
+          Icon(icon, color: context.textSecondary, size: 34),
           const SizedBox(height: 10),
           Text(
             text,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
+            style: TextStyle(
+              color: context.textSecondary,
               fontSize: 14,
               fontWeight: FontWeight.w600,
             ),

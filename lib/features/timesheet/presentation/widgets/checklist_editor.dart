@@ -108,24 +108,28 @@ class _TaskChecklistEditorState extends State<TaskChecklistEditor> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.soft(AppColors.success),
+        color: isDark ? const Color(0xFF0F172A) : AppColors.soft(AppColors.success),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.success.withValues(alpha: 0.16)),
+        border: Border.all(
+          color: const Color(0xFF00C83A).withValues(alpha: isDark ? 0.35 : 0.16),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(LucideIcons.listChecks, color: AppColors.success, size: 18),
-              SizedBox(width: 8),
+              const Icon(LucideIcons.listChecks, color: Color(0xFF00C83A), size: 18),
+              const SizedBox(width: 8),
               Text(
                 'Nội dung & thời gian',
                 style: TextStyle(
-                  color: AppColors.textPrimary,
+                  color: isDark ? Colors.white : AppColors.textPrimary,
                   fontSize: 14,
                   fontWeight: FontWeight.w900,
                 ),
@@ -139,7 +143,7 @@ class _TaskChecklistEditorState extends State<TaskChecklistEditor> {
               margin: const EdgeInsets.only(bottom: 12),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: const Color(0xFFFFF0F2),
+                color: isDark ? const Color(0xFF450A0A) : const Color(0xFFFFF0F2),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
                   color: AppColors.danger.withValues(alpha: 0.4),
@@ -170,28 +174,43 @@ class _TaskChecklistEditorState extends State<TaskChecklistEditor> {
           AnimatedContainer(
             duration: const Duration(milliseconds: 180),
             decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E293B) : null,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: widget.hasError ? AppColors.danger : Colors.transparent,
-                width: widget.hasError ? 1.5 : 0,
+                color: widget.hasError
+                    ? AppColors.danger
+                    : (isDark ? Colors.white.withValues(alpha: 0.08) : Colors.transparent),
+                width: widget.hasError ? 1.5 : (isDark ? 1.0 : 0),
               ),
             ),
             child: TextField(
               controller: widget.noteController,
               minLines: 3,
               maxLines: 5,
+              style: TextStyle(
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
+                fontSize: 14,
+              ),
               decoration: InputDecoration(
                 labelText: widget.noteLabelText,
+                labelStyle: TextStyle(
+                  color: isDark ? Colors.white60 : null,
+                ),
                 hintText: widget.noteHintText,
-                fillColor: widget.hasError ? const Color(0xFFFFF5F5) : null,
+                hintStyle: TextStyle(
+                  color: isDark ? Colors.white38 : null,
+                ),
+                fillColor: widget.hasError
+                    ? (isDark ? const Color(0xFF450A0A) : const Color(0xFFFFF5F5))
+                    : null,
               ),
             ),
           ),
           const SizedBox(height: 12),
-          const Text(
+          Text(
             'Thời gian',
             style: TextStyle(
-              color: AppColors.textSecondary,
+              color: isDark ? Colors.white70 : AppColors.textSecondary,
               fontSize: 12,
               fontWeight: FontWeight.w900,
             ),
@@ -213,9 +232,11 @@ class _TaskChecklistEditorState extends State<TaskChecklistEditor> {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: isDark ? const Color(0xFF1E293B) : Colors.white,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.border),
+                    border: Border.all(
+                      color: isDark ? Colors.white.withValues(alpha: 0.08) : AppColors.border,
+                    ),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withValues(alpha: 0.04),
@@ -224,10 +245,10 @@ class _TaskChecklistEditorState extends State<TaskChecklistEditor> {
                       ),
                     ],
                   ),
-                  child: const Icon(
+                  child: Icon(
                     LucideIcons.minus,
                     size: 20,
-                    color: AppColors.textPrimary,
+                    color: isDark ? Colors.white : AppColors.textPrimary,
                   ),
                 ),
               ),
@@ -238,27 +259,28 @@ class _TaskChecklistEditorState extends State<TaskChecklistEditor> {
                   height: 44,
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: isDark ? const Color(0xFF1E293B) : Colors.white,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: AppColors.success,
+                      color: const Color(0xFF00C83A),
                       width: 1.5,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: AppColors.success.withValues(alpha: 0.12),
+                        color: const Color(0xFF00C83A).withValues(alpha: 0.15),
                         blurRadius: 6,
                         offset: const Offset(0, 2),
                       ),
                     ],
                   ),
                   child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       const Icon(
                         LucideIcons.clock,
                         size: 16,
-                        color: AppColors.success,
+                        color: Color(0xFF00C83A),
                       ),
                       const SizedBox(width: 8),
                       SizedBox(
@@ -269,8 +291,8 @@ class _TaskChecklistEditorState extends State<TaskChecklistEditor> {
                           textAlign: TextAlign.center,
                           enabled: widget.onDurationChanged != null &&
                               !widget.saving,
-                          style: const TextStyle(
-                            color: AppColors.textPrimary,
+                          style: TextStyle(
+                            color: isDark ? Colors.white : AppColors.textPrimary,
                             fontSize: 16,
                             fontWeight: FontWeight.w900,
                           ),
@@ -289,10 +311,10 @@ class _TaskChecklistEditorState extends State<TaskChecklistEditor> {
                         ),
                       ),
                       const SizedBox(width: 4),
-                      const Text(
+                      Text(
                         'phút',
                         style: TextStyle(
-                          color: AppColors.textSecondary,
+                          color: isDark ? Colors.white70 : AppColors.textSecondary,
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
                         ),
@@ -314,9 +336,11 @@ class _TaskChecklistEditorState extends State<TaskChecklistEditor> {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: isDark ? const Color(0xFF1E293B) : Colors.white,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.border),
+                    border: Border.all(
+                      color: isDark ? Colors.white.withValues(alpha: 0.08) : AppColors.border,
+                    ),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withValues(alpha: 0.04),
@@ -325,10 +349,10 @@ class _TaskChecklistEditorState extends State<TaskChecklistEditor> {
                       ),
                     ],
                   ),
-                  child: const Icon(
+                  child: Icon(
                     LucideIcons.plus,
                     size: 20,
-                    color: AppColors.textPrimary,
+                    color: isDark ? Colors.white : AppColors.textPrimary,
                   ),
                 ),
               ),
@@ -360,20 +384,20 @@ class _TaskChecklistEditorState extends State<TaskChecklistEditor> {
                       ),
                       decoration: BoxDecoration(
                         color: isSelected
-                            ? AppColors.soft(AppColors.success)
-                            : Colors.white,
+                            ? const Color(0xFF00C83A)
+                            : (isDark ? const Color(0xFF1E293B) : Colors.white),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: isSelected
-                              ? AppColors.success
-                              : AppColors.border,
+                              ? const Color(0xFF00C83A)
+                              : (isDark ? Colors.white.withValues(alpha: 0.08) : AppColors.border),
                           width: isSelected ? 1.5 : 1,
                         ),
                         boxShadow: isSelected
                             ? [
                                 BoxShadow(
-                                  color: AppColors.success.withValues(
-                                    alpha: 0.15,
+                                  color: const Color(0xFF00C83A).withValues(
+                                    alpha: 0.25,
                                   ),
                                   blurRadius: 6,
                                   offset: const Offset(0, 2),
@@ -388,7 +412,7 @@ class _TaskChecklistEditorState extends State<TaskChecklistEditor> {
                             const Icon(
                               LucideIcons.check,
                               size: 14,
-                              color: AppColors.success,
+                              color: Colors.white,
                             ),
                             const SizedBox(width: 5),
                           ],
@@ -396,8 +420,8 @@ class _TaskChecklistEditorState extends State<TaskChecklistEditor> {
                             item.label,
                             style: TextStyle(
                               color: isSelected
-                                  ? AppColors.success
-                                  : AppColors.textSecondary,
+                                  ? Colors.white
+                                  : (isDark ? Colors.white70 : AppColors.textSecondary),
                               fontSize: 13,
                               fontWeight: isSelected
                                   ? FontWeight.w900
