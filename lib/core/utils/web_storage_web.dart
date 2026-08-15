@@ -4,13 +4,16 @@ import 'package:web/web.dart' as web;
 
 /// Web implementation for LocalStorage persistent attachment cache.
 void saveToWebLocalStorage(String key, Uint8List bytes) {
+  // Chỉ lưu thumbnail hoặc file cực nhỏ (< 64KB) vào localStorage để tránh QuotaExceededError (5MB limit)
+  if (bytes.length > 64 * 1024) return;
+
   try {
-    if (bytes.length < 4 * 1024 * 1024) {
-      final b64 = base64Encode(bytes);
-      web.window.localStorage.setItem('vcloud_att_$key', b64);
-    }
+    final b64 = base64Encode(bytes);
+    web.window.localStorage.setItem('vcloud_att_$key', b64);
   } catch (e) {
-    debugPrint('LocalStorage save skipped: $e');
+    // Nếu gặp QuotaExceededError, tự động dọn sạch rác cache attachment cũ trong localStorage
+    clearWebLocalStorage();
+    debugPrint('LocalStorage save skipped & cleared cache: $e');
   }
 }
 

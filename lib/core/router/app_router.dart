@@ -144,7 +144,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Chat (V2 - Độc lập, tin cậy)
       GoRoute(
         path: '/chat',
-        builder: (_, s) => const ChatV2ListScreen(),
+        builder: (_, s) => ChatV2ListScreen(
+          initialFilter: s.uri.queryParameters['filter'],
+        ),
       ),
       GoRoute(path: '/chat/new', builder: (_, _) => const NewChatScreen()),
       GoRoute(

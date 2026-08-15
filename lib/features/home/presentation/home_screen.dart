@@ -19,6 +19,7 @@ import '../../attendance/application/attendance_controller.dart';
 import '../../attendance/domain/shift_calculator.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../chat/application/conversations_controller.dart';
+import '../../chat_v2/application/chat_v2_channels_controller.dart';
 import '../../timesheet/application/task_controller.dart';
 
 
@@ -155,21 +156,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             : 0));
 
     final openTickets = dashboard?.openTickets ?? summary?.openTickets ?? 0;
-    final unreadMessages = ref.watch(totalUnreadCountProvider);
-    final conversationsState = ref.watch(conversationsProvider);
-    final conversationsList = conversationsState.value ?? const [];
-    final chatCount = (dashboard?.recentConversationCount != null && dashboard!.recentConversationCount! > 0)
-        ? dashboard.recentConversationCount!
-        : (summary?.recentConversationCount != null && summary!.recentConversationCount > 0
-            ? summary.recentConversationCount
-            : (conversationsList.length >= 100 ? conversationsList.length : conversationsList.length));
+    final unreadMessages = ref.watch(chatV2TotalUnreadProvider);
+    final channelsAsync = ref.watch(chatV2ChannelsProvider);
+    final channelsList = channelsAsync.valueOrNull ?? const [];
+    final chatCount = channelsList.isNotEmpty
+        ? channelsList.length
+        : ((dashboard?.recentConversationCount != null && dashboard!.recentConversationCount! > 0)
+            ? dashboard.recentConversationCount!
+            : (summary?.recentConversationCount != null && summary!.recentConversationCount > 0
+                ? summary.recentConversationCount
+                : 0));
     final statusBusy = _statusBusy || todayState.isLoading;
 
     return AppScaffold(
       title: 'Home',
       showAppBar: false,
       body: CelebrationFireworksOverlay(
-        autoTrigger: shiftProgress?.isCompleted ?? (todayMinutes >= 480),
+        autoTrigger: shiftProgress?.isCompleted ?? (todayMinutes >= ShiftConfig.forDate(DateTime.now()).targetWorkMinutes),
         child: RefreshIndicator(
           onRefresh: () async {
             ref.invalidate(homeSummaryProvider);
@@ -178,6 +181,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ref.invalidate(todayTasksProvider);
             ref.invalidate(openSessionProvider);
             ref.invalidate(conversationsProvider);
+            ref.invalidate(chatV2ChannelsProvider);
             ref.invalidate(mobileNotificationsProvider);
           },
           color: AppColors.primary,
@@ -262,7 +266,8 @@ class _GreetingHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final today = _vietnameseDateTime(DateTime.now());
-    const targetMinutes = 480; // Standard 8h shift
+    final shiftConfig = ShiftConfig.forDate(DateTime.now());
+    final targetMinutes = shiftConfig.targetWorkMinutes;
     final shiftProgress = (isOnline && checkinTime != null)
         ? ShiftCalculator.calculate(checkinTime: checkinTime!)
         : null;
@@ -484,9 +489,9 @@ class _GreetingHeader extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 5),
-                          const Text(
-                            '/ 8h ca làm',
-                            style: TextStyle(
+                          Text(
+                            '/ ${shiftConfig.targetHoursFormatted} ca làm',
+                            style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w700,
                               color: AppColors.textMuted,
@@ -580,8 +585,8 @@ class _GreetingHeader extends StatelessWidget {
                         child: Text(
                           shiftProgress != null
                               ? (shiftProgress.remainingMinutes > 0
-                                  ? 'Còn ${_durationVi(Duration(minutes: shiftProgress.remainingMinutes))} đến mốc 17:00'
-                                  : '🎉 Đã hoàn thành xuất sắc 8h làm việc!')
+                                  ? 'Còn ${_durationVi(Duration(minutes: shiftProgress.remainingMinutes))} đến mốc ${shiftConfig.shiftEndHour.toString().padLeft(2, '0')}:${shiftConfig.shiftEndMinute.toString().padLeft(2, '0')}'
+                                  : '🎉 Đã hoàn thành xuất sắc ${shiftConfig.targetHoursFormatted} làm việc!')
                               : 'Chưa bắt đầu ca làm việc',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -1008,12 +1013,12 @@ class _QuickNavGrid extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final liveUnreadCount = ref.watch(totalUnreadCountProvider);
-    final conversationsState = ref.watch(conversationsProvider);
-    final conversationsList = conversationsState.value ?? const [];
-    final liveChatCount = chatCount > 0
-        ? chatCount
-        : conversationsList.length;
+    final liveUnreadCount = ref.watch(chatV2TotalUnreadProvider);
+    final channelsAsync = ref.watch(chatV2ChannelsProvider);
+    final channelsList = channelsAsync.valueOrNull ?? const [];
+    final liveChatCount = channelsList.isNotEmpty
+        ? channelsList.length
+        : (chatCount > 0 ? chatCount : 0);
 
     return Column(
       children: [

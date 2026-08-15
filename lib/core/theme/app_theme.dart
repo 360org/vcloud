@@ -28,8 +28,8 @@ class AppColors {
   // ── Per-feature accents ────────────────────────────────────────────────
   static const chat = Color(0xFF3B82F6);
   static const chatDeep = Color(0xFF06B6D4);
-  static const timesheet = Color(0xFF8B5CF6);
-  static const timesheetDeep = Color(0xFFA855F7);
+  static const timesheet = Color(0xFF00C83A);
+  static const timesheetDeep = Color(0xFF009D2E);
   static const ticket = Color(0xFFFB923C);
   static const ticketDeep = Color(0xFFF59E0B);
   static const calendar = Color(0xFF06B6D4);
@@ -39,7 +39,7 @@ class AppColors {
 
   // ── Soft tint backgrounds ────────────────────────────────────────────────────
   static const chatSoft = Color(0xFFEFF6FF);
-  static const timesheetSoft = Color(0xFFF2EBFE);
+  static const timesheetSoft = Color(0xFFE7FBEA);
   static const ticketSoft = Color(0xFFFFF0F2);
   static const calendarSoft = Color(0xFFF0FDFF);
   static const attendanceSoft = Color(0xFFEFFCF3);

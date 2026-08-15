@@ -50,24 +50,46 @@ class TaskRepository {
             .map((m) => Task.fromMap(_taskFromOdoo(m, DateTime.now())))
             .toList();
       }
-    } catch (_) {
-      // Fallback silently if endpoint not deployed on target server yet.
-    }
-    try {
-      final projectListOptions = await listProjects();
-      final tasksById = <String, Task>{};
-      final results = await Future.wait(
-        projectListOptions.map((project) => listProjectTasks(project.id, projectName: project.name)),
-      );
-      for (final list in results) {
-        for (final task in list) {
-          tasksById[task.id] = task;
-        }
-      }
-      return tasksById.values.toList();
-    } catch (_) {
       return const <Task>[];
+    } catch (e) {
+      debugPrint('listAllTasks error: $e');
+      try {
+        final projectListOptions = await listProjects();
+        if (projectListOptions.isEmpty) return const <Task>[];
+        // Giới hạn tối đa 3 projects đầu tiên để tuyệt đối không gây bão request lên Odoo
+        final topProjects = projectListOptions.take(3).toList();
+        final tasksById = <String, Task>{};
+        for (final project in topProjects) {
+          final list = await listProjectTasks(project.id, projectName: project.name);
+          for (final task in list) {
+            tasksById[task.id] = task;
+          }
+        }
+        return tasksById.values.toList();
+      } catch (_) {
+        return const <Task>[];
+      }
     }
+  }
+
+  Stream<List<Task>> watchToday({DateTime? day}) {
+    final ctl = StreamController<List<Task>>.broadcast();
+
+    Future<void> refresh() async {
+      try {
+        final tasks = await listAllTasks().timeout(
+          const Duration(seconds: 15),
+          onTimeout: () => const <Task>[],
+        );
+        if (!ctl.isClosed) ctl.add(tasks);
+      } catch (e) {
+        debugPrint('watchToday error: $e');
+        if (!ctl.isClosed) ctl.add(const <Task>[]);
+      }
+    }
+
+    ctl.onListen = refresh;
+    return ctl.stream;
   }
 
   Future<List<Task>> listProjectTasks(String projectId, {String? projectName}) async {
@@ -97,25 +119,6 @@ class TaskRepository {
     }
   }
 
-  Stream<List<Task>> watchToday({DateTime? day}) {
-    final ctl = StreamController<List<Task>>();
-
-    Future<void> refresh() async {
-      try {
-        final tasks = await listAllTasks().timeout(
-          const Duration(seconds: 8),
-          onTimeout: () => const <Task>[],
-        );
-        if (!ctl.isClosed) ctl.add(tasks);
-      } catch (e) {
-        debugPrint('watchToday error: $e');
-        if (!ctl.isClosed) ctl.add(const <Task>[]);
-      }
-    }
-
-    ctl.onListen = refresh;
-    return ctl.stream;
-  }
 
 
   Future<Task> create({

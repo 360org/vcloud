@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -586,12 +585,13 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                                   leading: const Icon(LucideIcons.trash2, color: Colors.red),
                                                   title: const Text('Thu hồi', style: TextStyle(color: Colors.red)),
                                                   onTap: () async {
+                                                    final messenger = ScaffoldMessenger.of(context);
                                                     Navigator.pop(sheetContext);
                                                     try {
                                                       await ref.read(chatV2MessagesProvider(widget.channelId).notifier).deleteMessage(message.id);
                                                     } catch (e) {
                                                       if (mounted) {
-                                                        ScaffoldMessenger.of(context).showSnackBar(
+                                                        messenger.showSnackBar(
                                                           SnackBar(content: Text('Lỗi thu hồi: $e')),
                                                         );
                                                       }
