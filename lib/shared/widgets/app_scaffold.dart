@@ -18,7 +18,7 @@ import '../../features/chat_v2/application/chat_v2_channels_controller.dart';
 ///
 /// Set [showAppBar] to false for screens that paint their own header
 /// (e.g. Home's light greeting header).
-class AppScaffold extends ConsumerWidget {
+class AppScaffold extends StatelessWidget {
   const AppScaffold({
     super.key,
     required this.title,
@@ -55,7 +55,7 @@ class AppScaffold extends ConsumerWidget {
   ];
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final loc = GoRouterState.of(context).matchedLocation;
     final activeIndex = () {
       for (var i = 0; i < _tabs.length; i++) {
@@ -65,9 +65,6 @@ class AppScaffold extends ConsumerWidget {
       return null;
     }();
 
-    // Get badge counts
-    final chatUnread = ref.watch(chatV2TotalUnreadProvider);
-
     final Widget? bottom =
         bottomNavigationBarOverride ??
         (activeIndex == null
@@ -75,7 +72,6 @@ class AppScaffold extends ConsumerWidget {
             : _FloatingTabBar(
                 tabs: _tabs,
                 activeIndex: activeIndex,
-                chatUnread: chatUnread,
               ));
 
     final effectiveShowBack = showBackButton ?? (activeIndex == null);
@@ -125,20 +121,19 @@ class AppScaffold extends ConsumerWidget {
   }
 }
 
-class _FloatingTabBar extends StatelessWidget {
+class _FloatingTabBar extends ConsumerWidget {
   const _FloatingTabBar({
     required this.tabs,
     required this.activeIndex,
-    required this.chatUnread,
   });
 
   final List<_TabSpec> tabs;
   final int activeIndex;
-  final int chatUnread;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final chatUnread = ref.watch(chatV2TotalUnreadProvider);
     return SafeArea(
       top: false,
       minimum: const EdgeInsets.fromLTRB(34, 0, 34, 10),

@@ -24,8 +24,11 @@ class ChatV2ChannelLocalCache {
 
 class ChatV2ChannelsNotifier
     extends AutoDisposeAsyncNotifier<List<ChatV2Channel>> {
-  StreamSubscription? _wsSub;
+  StreamSubscription? _wsUpdateSub;
+  StreamSubscription? _wsMessageSub;
   Timer? _pollingTimer;
+  Timer? _debounceTimer;
+  bool _isFetching = false;
 
   @override
   FutureOr<List<ChatV2Channel>> build() async {
@@ -37,45 +40,6 @@ class ChatV2ChannelsNotifier
     final partnerId = meta?['partner_id']?.toString() ??
         meta?['partner']?['id']?.toString();
     final userId = user?.id;
-
-    _wsSub?.cancel();
-    _wsSub = realtime.onChannelUpdated.listen((chId) async {
-      try {
-        final updated = await repo.getChannels();
-        ChatV2ChannelLocalCache.set(updated);
-
-        // Kiểm tra xem kênh vừa cập nhật có phải do chính mình vừa gửi tin không
-        if (chId.isNotEmpty) {
-          final target = updated.cast<ChatV2Channel?>().firstWhere(
-                (c) => c?.id == chId,
-                orElse: () => null,
-              );
-          final lastSentText = ref.read(chatV2LastSentTrackerProvider)[chId];
-          final isMineFromTracker = lastSentText != null &&
-              target != null &&
-              target.lastMessage?.trim() == lastSentText.trim();
-
-          final isMine = isMineFromTracker ||
-              (target != null &&
-                  target.isLastMessageFromMe(
-                    currentUserName: null,
-                    currentPartnerId: partnerId,
-                    currentUserId: userId,
-                  ));
-
-          if (isMine) {
-            // Nếu là tin nhắn của chính mình vừa gửi -> Luôn đánh dấu đã xem
-            ref.read(chatV2ReadStateProvider.notifier).markChannelAsRead(chId);
-          } else {
-            // Nếu là tin nhắn từ người khác gửi đến -> Đánh dấu chưa đọc
-            ref.read(chatV2LastSentTrackerProvider.notifier).clear(chId);
-            ref.read(chatV2ReadStateProvider.notifier).markChannelAsUnread(chId);
-          }
-        }
-
-        state = AsyncData(updated);
-      } catch (_) {}
-    });
 
     bool isDisposed = false;
 
@@ -94,50 +58,83 @@ class ChatV2ChannelsNotifier
       return false;
     }
 
+    // Fetch channels từ server với In-Flight Lock
+    Future<void> fetchFreshChannels() async {
+      if (_isFetching || isDisposed) return;
+      _isFetching = true;
+      try {
+        final fresh = await repo.getChannels();
+        if (isDisposed) return;
+        final current = state.valueOrNull ?? ChatV2ChannelLocalCache.cached;
+        if (hasChannelsChanged(current, fresh)) {
+          ChatV2ChannelLocalCache.set(fresh);
+          state = AsyncData(fresh);
+        }
+      } catch (_) {
+      } finally {
+        _isFetching = false;
+      }
+    }
+
+    // 1. DELTA LOCAL UPDATE: Nhận tin nhắn mới từ WebSocket -> Cập nhật trực tiếp Local State (0 HTTP GET)
+    _wsMessageSub?.cancel();
+    _wsMessageSub = realtime.onMessageReceived.listen((msg) {
+      if (isDisposed || msg.channelId.isEmpty) return;
+
+      final current = state.valueOrNull ?? ChatV2ChannelLocalCache.cached;
+      final chIndex = current.indexWhere((c) => c.id == msg.channelId);
+
+      final isMine = (partnerId != null && msg.authorId == partnerId) ||
+          (userId != null && msg.authorId == userId);
+
+      if (isMine) {
+        ref.read(chatV2ReadStateProvider.notifier).markChannelAsRead(msg.channelId);
+      } else {
+        ref.read(chatV2LastSentTrackerProvider.notifier).clear(msg.channelId);
+        ref.read(chatV2ReadStateProvider.notifier).markChannelAsUnread(msg.channelId);
+      }
+
+      if (chIndex != -1) {
+        // Kênh đã tồn tại -> Cập nhật delta tin nhắn cuối và đẩy lên đầu danh sách
+        final target = current[chIndex];
+        final updatedChannel = target.copyWith(
+          lastMessage: msg.content.isNotEmpty ? msg.content : (msg.attachments.isNotEmpty ? '[Đính kèm]' : null),
+          lastMessageDate: msg.createdAt,
+          lastMessageAuthorId: msg.authorId,
+          lastMessageAuthorName: msg.authorName,
+          unreadCount: isMine ? target.unreadCount : (target.unreadCount + 1),
+        );
+
+        final reordered = <ChatV2Channel>[
+          updatedChannel,
+          for (int i = 0; i < current.length; i++)
+            if (i != chIndex) current[i],
+        ];
+
+        ChatV2ChannelLocalCache.set(reordered);
+        state = AsyncData(reordered);
+      } else {
+        // Kênh mới chưa có trong danh sách -> Debounce fetch sau 900ms
+        _debounceTimer?.cancel();
+        _debounceTimer = Timer(const Duration(milliseconds: 900), fetchFreshChannels);
+      }
+    });
+
+    // 2. IN-FLIGHT LOCK & DEBOUNCE FALLBACK: Gom bão event từ onChannelUpdated (800ms - 1000ms)
+    _wsUpdateSub?.cancel();
+    _wsUpdateSub = realtime.onChannelUpdated.listen((chId) {
+      if (isDisposed) return;
+      _debounceTimer?.cancel();
+      _debounceTimer = Timer(const Duration(milliseconds: 900), fetchFreshChannels);
+    });
+
+    // 3. BACKGROUND POLLING NHẸ NHÀNG (10s/lần)
     void scheduleNextPoll() {
       if (isDisposed) return;
       _pollingTimer?.cancel();
       _pollingTimer = Timer(const Duration(seconds: 10), () async {
         if (!state.isLoading && state.hasValue) {
-          try {
-            final updated = await repo.getChannels();
-            if (updated.isNotEmpty) {
-              final oldChannels = ChatV2ChannelLocalCache.cached;
-              final changed = hasChannelsChanged(oldChannels, updated);
-
-              if (changed) {
-                final oldMap = {for (final c in oldChannels) c.id: c};
-
-                for (final ch in updated) {
-                  final old = oldMap[ch.id];
-                  if (old != null &&
-                      (old.lastMessage != ch.lastMessage ||
-                          old.lastMessageDate != ch.lastMessageDate)) {
-                    // Có tin nhắn mới trong kênh
-                    final lastSentText = ref.read(chatV2LastSentTrackerProvider)[ch.id];
-                    final isMineFromTracker = lastSentText != null &&
-                        ch.lastMessage?.trim() == lastSentText.trim();
-
-                    final isMine = isMineFromTracker ||
-                        ch.isLastMessageFromMe(
-                          currentUserName: null,
-                          currentPartnerId: partnerId,
-                          currentUserId: userId,
-                        );
-
-                    if (!isMine) {
-                      // Tin nhắn từ đối phương -> Chuyển thành chưa đọc ngay
-                      ref.read(chatV2LastSentTrackerProvider.notifier).clear(ch.id);
-                      ref.read(chatV2ReadStateProvider.notifier).markChannelAsUnread(ch.id);
-                    }
-                  }
-                }
-
-                ChatV2ChannelLocalCache.set(updated);
-                state = AsyncData(updated);
-              }
-            }
-          } catch (_) {}
+          await fetchFreshChannels();
         }
         scheduleNextPoll();
       });
@@ -147,23 +144,15 @@ class ChatV2ChannelsNotifier
 
     ref.onDispose(() {
       isDisposed = true;
-      _wsSub?.cancel();
+      _wsUpdateSub?.cancel();
+      _wsMessageSub?.cancel();
       _pollingTimer?.cancel();
+      _debounceTimer?.cancel();
     });
 
     final cached = ChatV2ChannelLocalCache.cached;
     if (cached.isNotEmpty) {
-      unawaited(() async {
-        try {
-          final fresh = await repo.getChannels();
-          final changed = hasChannelsChanged(cached, fresh);
-          if (changed) {
-            ChatV2ChannelLocalCache.set(fresh);
-            state = AsyncData(fresh);
-          }
-        } catch (_) {}
-      }());
-
+      unawaited(fetchFreshChannels());
       return cached;
     }
 

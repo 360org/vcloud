@@ -155,16 +155,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             : 0));
 
     final openTickets = dashboard?.openTickets ?? summary?.openTickets ?? 0;
-    final unreadMessages = ref.watch(chatV2TotalUnreadProvider);
-    final channelsAsync = ref.watch(chatV2ChannelsProvider);
-    final channelsList = channelsAsync.valueOrNull ?? const [];
-    final chatCount = channelsList.isNotEmpty
-        ? channelsList.length
-        : ((dashboard?.recentConversationCount != null && dashboard!.recentConversationCount! > 0)
-            ? dashboard.recentConversationCount!
-            : (summary?.recentConversationCount != null && summary!.recentConversationCount > 0
-                ? summary.recentConversationCount
-                : 0));
+    final fallbackChatCount = (dashboard?.recentConversationCount != null && dashboard!.recentConversationCount! > 0)
+        ? dashboard.recentConversationCount!
+        : (summary?.recentConversationCount != null && summary!.recentConversationCount > 0
+            ? summary.recentConversationCount
+            : 0);
     final statusBusy = _statusBusy || todayState.isLoading;
 
     return AppScaffold(
@@ -206,8 +201,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               const SizedBox(height: 18),
               _QuickNavGrid(
                 ticketCount: openTickets,
-                unreadCount: unreadMessages,
-                chatCount: chatCount,
+                chatCount: fallbackChatCount,
                 taskCount: todayTasks.length,
               ),
               const SizedBox(height: 20),
@@ -999,24 +993,19 @@ class _NotificationEmptyState extends StatelessWidget {
 class _QuickNavGrid extends ConsumerWidget {
   const _QuickNavGrid({
     required this.ticketCount,
-    required this.unreadCount,
     required this.chatCount,
     required this.taskCount,
   });
 
   final int ticketCount;
-  final int unreadCount;
   final int chatCount;
   final int taskCount;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final liveUnreadCount = ref.watch(chatV2TotalUnreadProvider);
-    final channelsAsync = ref.watch(chatV2ChannelsProvider);
-    final channelsList = channelsAsync.valueOrNull ?? const [];
-    final liveChatCount = channelsList.isNotEmpty
-        ? channelsList.length
-        : (chatCount > 0 ? chatCount : 0);
+    final channelCount = ref.watch(chatV2ChannelsProvider.select((c) => c.valueOrNull?.length ?? 0));
+    final liveChatCount = channelCount > 0 ? channelCount : (chatCount > 0 ? chatCount : 0);
 
     return Column(
       children: [

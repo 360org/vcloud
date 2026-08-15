@@ -9,6 +9,7 @@ import 'package:lucide_flutter/lucide_flutter.dart';
 
 import '../../application/chat_v2_channels_controller.dart';
 import '../../application/chat_v2_messages_controller.dart';
+import '../../data/models/chat_v2_channel.dart';
 import '../../data/models/chat_v2_message.dart';
 import '../../application/chat_v2_typing_controller.dart';
 import '../../application/chat_v2_presence_controller.dart';
@@ -278,167 +279,174 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
           tooltip: 'Quay lại',
         ),
         titleSpacing: 0,
-        title: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF00C83A), Color(0xFF009D2E)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+        title: InkWell(
+          onTap: () => _handleHeaderTap(context, currentChannel, isDark),
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF00C83A), Color(0xFF009D2E)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF00C83A).withValues(alpha: 0.2),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  alignment: Alignment.center,
+                  child: (avatarUrl != null && avatarUrl.isNotEmpty)
+                      ? ClipOval(
+                          child: SizedBox(
+                            width: 40,
+                            height: 40,
+                            child: buildHtmlAvatarImage(
+                                  url: avatarUrl,
+                                  fallback: Text(
+                                    displayTitle.isNotEmpty
+                                        ? displayTitle[0].toUpperCase()
+                                        : 'C',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ) ??
+                                Image.network(
+                                  avatarUrl,
+                                  width: 40,
+                                  height: 40,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) => Text(
+                                    displayTitle.isNotEmpty
+                                        ? displayTitle[0].toUpperCase()
+                                        : 'C',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                          ),
+                        )
+                      : Text(
+                          displayTitle.isNotEmpty
+                              ? displayTitle[0].toUpperCase()
+                              : 'C',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
                 ),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF00C83A).withValues(alpha: 0.2),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              alignment: Alignment.center,
-              child: (avatarUrl != null && avatarUrl.isNotEmpty)
-                  ? ClipOval(
-                      child: SizedBox(
-                        width: 40,
-                        height: 40,
-                        child: buildHtmlAvatarImage(
-                              url: avatarUrl,
-                              fallback: Text(
-                                displayTitle.isNotEmpty
-                                    ? displayTitle[0].toUpperCase()
-                                    : 'C',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        displayTitle,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Builder(
+                        builder: (sheetContext) {
+                          final isActualGroup = currentChannel?.isGroup == true ||
+                              (currentChannel != null &&
+                                  currentChannel.getActualIsGroup(currentUserName));
+
+                          if (isActualGroup) {
+                            final count = (currentChannel?.memberCount ?? 0) > 0
+                                ? currentChannel!.memberCount
+                                : 2;
+                            return Row(
+                              children: [
+                                Icon(
+                                  LucideIcons.users,
+                                  size: 13,
+                                  color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '$count thành viên',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                  ),
+                                ),
+                              ],
+                            );
+                          }
+
+                          final presenceMap = ref.watch(chatV2PresenceProvider);
+                          final partnerId = currentChannel?.partnerId;
+                          final imStatus = (partnerId != null && presenceMap.containsKey(partnerId)) 
+                              ? presenceMap[partnerId]! 
+                              : (currentChannel?.imStatus ?? 'offline');
+                          final Color statusColor;
+                          final String statusLabel;
+
+                          if (imStatus == 'online') {
+                            statusColor = const Color(0xFF10B981);
+                            statusLabel = 'Trực tuyến';
+                          } else if (imStatus == 'away' || imStatus == 'idle') {
+                            statusColor = const Color(0xFFF59E0B);
+                            statusLabel = 'Tạm vắng';
+                          } else {
+                            statusColor = isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8);
+                            statusLabel = 'Ngoại tuyến';
+                          }
+
+                          return Row(
+                            children: [
+                              Container(
+                                width: 7,
+                                height: 7,
+                                decoration: BoxDecoration(
+                                  color: statusColor,
+                                  shape: BoxShape.circle,
                                 ),
                               ),
-                            ) ??
-                            Image.network(
-                              avatarUrl,
-                              width: 40,
-                              height: 40,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) => Text(
-                                displayTitle.isNotEmpty
-                                    ? displayTitle[0].toUpperCase()
-                                    : 'C',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
+                              const SizedBox(width: 5),
+                              Text(
+                                statusLabel,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: isDark ? Colors.white60 : const Color(0xFF64748B),
                                 ),
                               ),
-                            ),
+                            ],
+                          );
+                        },
                       ),
-                    )
-                  : Text(
-                      displayTitle.isNotEmpty
-                          ? displayTitle[0].toUpperCase()
-                          : 'C',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    displayTitle,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: isDark ? Colors.white : const Color(0xFF0F172A),
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    ],
                   ),
-                  const SizedBox(height: 2),
-                  Builder(
-                    builder: (sheetContext) {
-                      final isActualGroup = currentChannel?.isGroup == true ||
-                          (currentChannel != null &&
-                              currentChannel.getActualIsGroup(currentUserName));
-
-                      if (isActualGroup) {
-                        final count = (currentChannel?.memberCount ?? 0) > 0
-                            ? currentChannel!.memberCount
-                            : 2;
-                        return Row(
-                          children: [
-                            Icon(
-                              LucideIcons.users,
-                              size: 13,
-                              color: isDark ? Colors.white60 : const Color(0xFF64748B),
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              '$count thành viên',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                                color: isDark ? Colors.white60 : const Color(0xFF64748B),
-                              ),
-                            ),
-                          ],
-                        );
-                      }
-
-                      final presenceMap = ref.watch(chatV2PresenceProvider);
-                      final partnerId = currentChannel?.partnerId;
-                      final imStatus = (partnerId != null && presenceMap.containsKey(partnerId)) 
-                          ? presenceMap[partnerId]! 
-                          : (currentChannel?.imStatus ?? 'offline');
-                      final Color statusColor;
-                      final String statusLabel;
-
-                      if (imStatus == 'online') {
-                        statusColor = const Color(0xFF10B981);
-                        statusLabel = 'Trực tuyến';
-                      } else if (imStatus == 'away' || imStatus == 'idle') {
-                        statusColor = const Color(0xFFF59E0B);
-                        statusLabel = 'Tạm vắng';
-                      } else {
-                        statusColor = isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8);
-                        statusLabel = 'Ngoại tuyến';
-                      }
-
-                      return Row(
-                        children: [
-                          Container(
-                            width: 7,
-                            height: 7,
-                            decoration: BoxDecoration(
-                              color: statusColor,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            statusLabel,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              color: isDark ? Colors.white60 : const Color(0xFF64748B),
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
       body: Container(
@@ -515,7 +523,11 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                               itemBuilder: (context, index) {
                                 final message = messages[index];
                                 final isMine = message.isMine;
-                                final showSenderName = !isMine &&
+                                final isActualGroup = currentChannel?.isGroup == true ||
+                                    (currentChannel != null &&
+                                        currentChannel.getActualIsGroup(currentUserName));
+                                final showSenderName = isActualGroup &&
+                                    !isMine &&
                                     (index == messages.length - 1 ||
                                         messages[index + 1].authorId != message.authorId);
 
@@ -824,6 +836,110 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  void _handleHeaderTap(BuildContext context, ChatV2Channel? channel, bool isDark) {
+    if (channel == null) return;
+    final currentUser = ref.read(authControllerProvider).valueOrNull;
+    final currentUserName = currentUser?.userMetadata['display_name'] as String?;
+    final isGroup = channel.isGroup || channel.getActualIsGroup(currentUserName);
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white24 : const Color(0xFFCBD5E1),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Color(0xFF00C83A), Color(0xFF009D2E)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    channel.name.isNotEmpty ? channel.name[0].toUpperCase() : 'C',
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  channel.name,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  isGroup
+                      ? 'Nhóm trò chuyện • ${channel.memberCount} thành viên'
+                      : 'Trò chuyện trực tiếp (1-1)',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                if (isGroup && channel.memberNames.isNotEmpty) ...[
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Thành viên nhóm:',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.white70 : const Color(0xFF334155),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: channel.memberNames.map((name) {
+                      return Chip(
+                        label: Text(name, style: const TextStyle(fontSize: 12)),
+                        backgroundColor: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

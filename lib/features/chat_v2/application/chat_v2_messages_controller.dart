@@ -77,13 +77,13 @@ class ChatV2MessagesNotifier
     void scheduleNextPoll() {
       if (isDisposed) return;
       _pollingTimer?.cancel();
-      _pollingTimer = Timer(const Duration(milliseconds: 1500), () async {
+      _pollingTimer = Timer(const Duration(milliseconds: 3500), () async {
         if (!state.isLoading && state.hasValue) {
           // Nếu WebSocket đang kết nối ổn định, chỉ fetch ngẫu nhiên hoặc sau chu kỳ dài
           final isWsActive = realtime.isConnected;
           final now = DateTime.now().millisecondsSinceEpoch;
-          // Bỏ qua lượt poll nếu WS đang active và chưa tới 12s
-          if (isWsActive && (now % 12000 > 1600)) {
+          // Bỏ qua lượt poll nếu WS đang active và chưa tới 15s
+          if (isWsActive && (now % 15000 > 3600)) {
             scheduleNextPoll();
             return;
           }

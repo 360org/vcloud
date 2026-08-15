@@ -430,7 +430,7 @@ class OdooApiClient {
     Object? decoded;
     if (text.isNotEmpty) {
       try {
-        if (text.length > 4000) {
+        if (text.length > 102400) {
           decoded = await compute(_parseJsonPayload, text);
         } else {
           decoded = jsonDecode(text);

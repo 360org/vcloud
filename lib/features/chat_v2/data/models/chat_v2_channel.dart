@@ -19,6 +19,9 @@ class ChatV2Channel {
   final String? lastMessageAuthorName;
   final String? lastMessageAuthorId;
   final String? partnerId;
+  final String? directPartnerId;
+  final String? directPartnerName;
+  final String? directPartnerStatus;
 
   const ChatV2Channel({
     required this.id,
@@ -35,7 +38,50 @@ class ChatV2Channel {
     this.lastMessageAuthorName,
     this.lastMessageAuthorId,
     this.partnerId,
+    this.directPartnerId,
+    this.directPartnerName,
+    this.directPartnerStatus,
   });
+
+  ChatV2Channel copyWith({
+    String? id,
+    String? name,
+    String? channelType,
+    bool? isGroup,
+    String? avatarUrl,
+    String? lastMessage,
+    DateTime? lastMessageDate,
+    int? unreadCount,
+    int? memberCount,
+    List<String>? memberNames,
+    String? imStatus,
+    String? lastMessageAuthorName,
+    String? lastMessageAuthorId,
+    String? partnerId,
+    String? directPartnerId,
+    String? directPartnerName,
+    String? directPartnerStatus,
+  }) {
+    return ChatV2Channel(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      channelType: channelType ?? this.channelType,
+      isGroup: isGroup ?? this.isGroup,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+      lastMessage: lastMessage ?? this.lastMessage,
+      lastMessageDate: lastMessageDate ?? this.lastMessageDate,
+      unreadCount: unreadCount ?? this.unreadCount,
+      memberCount: memberCount ?? this.memberCount,
+      memberNames: memberNames ?? this.memberNames,
+      imStatus: imStatus ?? this.imStatus,
+      lastMessageAuthorName: lastMessageAuthorName ?? this.lastMessageAuthorName,
+      lastMessageAuthorId: lastMessageAuthorId ?? this.lastMessageAuthorId,
+      partnerId: partnerId ?? this.partnerId,
+      directPartnerId: directPartnerId ?? this.directPartnerId,
+      directPartnerName: directPartnerName ?? this.directPartnerName,
+      directPartnerStatus: directPartnerStatus ?? this.directPartnerStatus,
+    );
+  }
 
   bool isLastMessageFromMe({
     String? currentUserId,
@@ -210,6 +256,18 @@ class ChatV2Channel {
       members.isNotEmpty ? members.length : (isGroup ? 2 : 1),
     );
 
+    final rawDirectPartner = map['direct_partner'];
+    String? directPartnerId;
+    String? directPartnerName;
+    String? directPartnerStatus;
+    if (rawDirectPartner is Map) {
+      directPartnerId = _stringOrNull(rawDirectPartner['id']);
+      directPartnerName = _stringOrNull(rawDirectPartner['name']);
+      directPartnerStatus = _stringOrNull(rawDirectPartner['im_status']);
+    }
+    directPartnerId ??= _stringOrNull(map['partner_id'] ?? map['other_partner_id']);
+    directPartnerStatus ??= imStatus;
+
     return ChatV2Channel(
       id: id,
       name: name,
@@ -224,7 +282,10 @@ class ChatV2Channel {
       imStatus: imStatus,
       lastMessageAuthorName: authorName,
       lastMessageAuthorId: authorId,
-      partnerId: _stringOrNull(map['partner_id'] ?? map['other_partner_id']),
+      partnerId: directPartnerId,
+      directPartnerId: directPartnerId,
+      directPartnerName: directPartnerName,
+      directPartnerStatus: directPartnerStatus,
     );
   }
 
