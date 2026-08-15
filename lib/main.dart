@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'app.dart';
+import 'core/utils/local_attachment_cache.dart';
 
 void _logDetailedError(Object error, StackTrace? stack, {String context = 'FLUTTER'}) {
   debugPrint('=== LỖI FLUTTER NGHIÊM TRỌNG [$context] ===');
@@ -22,6 +23,7 @@ Future<void> main() async {
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
     await initializeDateFormatting();
+    await LocalAttachmentCache.ensureInitialized();
 
     // Override default Grey Screen in Release builds with a clear error UI & Copy Log feature
     ErrorWidget.builder = (FlutterErrorDetails details) {

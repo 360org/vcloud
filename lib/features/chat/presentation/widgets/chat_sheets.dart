@@ -78,7 +78,7 @@ class _PollSheetState extends State<PollSheet> {
         child: Container(
           padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
           decoration: BoxDecoration(
-            color: AppColors.surface,
+            color: context.cardColor,
             borderRadius: BorderRadius.circular(28),
             boxShadow: const [
               BoxShadow(
@@ -98,7 +98,7 @@ class _PollSheetState extends State<PollSheet> {
                     width: 44,
                     height: 5,
                     decoration: BoxDecoration(
-                      color: AppColors.border,
+                      color: context.borderColor,
                       borderRadius: BorderRadius.circular(99),
                     ),
                   ),
@@ -120,23 +120,23 @@ class _PollSheetState extends State<PollSheet> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    const Expanded(
+                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             'Tạo bình chọn',
                             style: TextStyle(
-                              color: AppColors.textPrimary,
+                              color: context.textColor,
                               fontSize: 20,
                               fontWeight: FontWeight.w800,
                             ),
                           ),
-                          SizedBox(height: 2),
+                          const SizedBox(height: 2),
                           Text(
                             'Gửi câu hỏi để mọi người cùng bỏ phiếu',
                             style: TextStyle(
-                              color: AppColors.textSecondary,
+                              color: context.textSecondary,
                               fontSize: 13,
                               fontWeight: FontWeight.w500,
                             ),
@@ -279,20 +279,20 @@ class PollTextField extends StatelessWidget {
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
-      style: const TextStyle(
-        color: AppColors.textPrimary,
+      style: TextStyle(
+        color: context.textColor,
         fontSize: 15,
         fontWeight: FontWeight.w600,
       ),
       decoration: InputDecoration(
-        prefixIcon: Icon(icon, color: AppColors.textSecondary, size: 20),
+        prefixIcon: Icon(icon, color: context.textSecondary, size: 20),
         hintText: hintText,
-        hintStyle: const TextStyle(
-          color: AppColors.textMuted,
+        hintStyle: TextStyle(
+          color: context.textSecondary,
           fontWeight: FontWeight.w500,
         ),
         filled: true,
-        fillColor: const Color(0xFFF3F6FC),
+        fillColor: context.isDarkMode ? AppColors.darkSurfaceElevated : const Color(0xFFF3F6FC),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 14,
           vertical: 14,
@@ -324,8 +324,8 @@ class PollOptionField extends StatelessWidget {
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
-      style: const TextStyle(
-        color: AppColors.textPrimary,
+      style: TextStyle(
+        color: context.textColor,
         fontSize: 15,
         fontWeight: FontWeight.w600,
       ),
@@ -355,16 +355,16 @@ class PollOptionField extends StatelessWidget {
                 tooltip: 'Xóa lựa chọn',
                 onPressed: onRemove,
                 icon: const Icon(LucideIcons.x, size: 18),
-                color: AppColors.textMuted,
+                color: context.textSecondary,
               )
             : null,
         hintText: 'Lựa chọn ${index + 1}',
-        hintStyle: const TextStyle(
-          color: AppColors.textMuted,
+        hintStyle: TextStyle(
+          color: context.textSecondary,
           fontWeight: FontWeight.w500,
         ),
         filled: true,
-        fillColor: const Color(0xFFF3F6FC),
+        fillColor: context.isDarkMode ? AppColors.darkSurfaceElevated : const Color(0xFFF3F6FC),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 14,
           vertical: 14,
@@ -387,8 +387,8 @@ class PollLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: const TextStyle(
-        color: AppColors.textPrimary,
+      style: TextStyle(
+        color: context.textColor,
         fontSize: 13,
         fontWeight: FontWeight.w800,
       ),
@@ -415,18 +415,18 @@ class PollSwitchTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
       decoration: BoxDecoration(
-        color: const Color(0xFFF3F6FC),
+        color: context.isDarkMode ? AppColors.darkSurfaceElevated : const Color(0xFFF3F6FC),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         children: [
-          Icon(icon, color: AppColors.textSecondary, size: 20),
+          Icon(icon, color: context.textSecondary, size: 20),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               title,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
+              style: TextStyle(
+                color: context.textColor,
                 fontSize: 14,
                 fontWeight: FontWeight.w700,
               ),
@@ -499,9 +499,9 @@ class _AttachmentPickerSheetState extends State<AttachmentPickerSheet> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      decoration: BoxDecoration(
+        color: context.cardColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: SafeArea(
         top: false,
@@ -554,15 +554,15 @@ class AttachmentSheetHeader extends StatelessWidget {
             width: 36,
             height: 4,
             decoration: BoxDecoration(
-              color: AppColors.border,
+              color: context.borderColor,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
           const SizedBox(height: 10),
-          const Text(
+          Text(
             'Thêm tệp đính kèm',
             style: TextStyle(
-              color: AppColors.textPrimary,
+              color: context.textColor,
               fontSize: 16,
               fontWeight: FontWeight.w700,
             ),
@@ -609,8 +609,8 @@ class AttachmentGridItem extends StatelessWidget {
             textAlign: TextAlign.center,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
+            style: TextStyle(
+              color: context.textColor,
               fontSize: 12.5,
               fontWeight: FontWeight.w600,
             ),
@@ -749,9 +749,9 @@ class _ImagePreviewSheetState extends State<ImagePreviewSheet> {
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: context.cardColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       padding: EdgeInsets.only(bottom: bottomInset),
       child: SafeArea(
@@ -765,7 +765,7 @@ class _ImagePreviewSheetState extends State<ImagePreviewSheet> {
                 width: 36,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppColors.border,
+                  color: context.borderColor,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -775,17 +775,17 @@ class _ImagePreviewSheetState extends State<ImagePreviewSheet> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
+                    Text(
                       'Gửi hình ảnh',
                       style: TextStyle(
-                        color: AppColors.textPrimary,
+                        color: context.textColor,
                         fontSize: 17,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                     IconButton(
                       icon: const Icon(LucideIcons.x, size: 20),
-                      color: AppColors.textSecondary,
+                      color: context.textSecondary,
                       onPressed: () => Navigator.pop(context),
                     ),
                   ],
@@ -796,10 +796,10 @@ class _ImagePreviewSheetState extends State<ImagePreviewSheet> {
                 margin: const EdgeInsets.symmetric(horizontal: 16),
                 constraints: const BoxConstraints(maxHeight: 280),
                 decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.04),
+                  color: context.isDarkMode ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.04),
                   borderRadius: BorderRadius.circular(18),
                   border: Border.all(
-                    color: AppColors.border.withValues(alpha: 0.6),
+                    color: context.borderColor,
                   ),
                 ),
                 child: ClipRRect(
@@ -819,7 +819,7 @@ class _ImagePreviewSheetState extends State<ImagePreviewSheet> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF1F5F9),
+                          color: context.isDarkMode ? AppColors.darkSurfaceElevated : const Color(0xFFF1F5F9),
                           borderRadius: BorderRadius.circular(22),
                         ),
                         child: TextField(
@@ -828,14 +828,14 @@ class _ImagePreviewSheetState extends State<ImagePreviewSheet> {
                           maxLines: 3,
                           textInputAction: TextInputAction.send,
                           onSubmitted: (_) => _handleSend(),
-                          style: const TextStyle(
-                            color: AppColors.textPrimary,
+                          style: TextStyle(
+                            color: context.textColor,
                             fontSize: 15,
                           ),
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             hintText: 'Thêm chú thích...',
                             hintStyle: TextStyle(
-                              color: AppColors.textMuted,
+                              color: context.textSecondary,
                               fontSize: 15,
                             ),
                             border: InputBorder.none,
@@ -845,7 +845,7 @@ class _ImagePreviewSheetState extends State<ImagePreviewSheet> {
                             errorBorder: InputBorder.none,
                             focusedErrorBorder: InputBorder.none,
                             isDense: true,
-                            contentPadding: EdgeInsets.symmetric(vertical: 10),
+                            contentPadding: const EdgeInsets.symmetric(vertical: 10),
                           ),
                         ),
                       ),
@@ -913,9 +913,9 @@ class TxtReaderSheet extends StatelessWidget {
       minChildSize: 0.5,
       maxChildSize: 0.95,
       builder: (context, scrollController) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        decoration: BoxDecoration(
+          color: context.cardColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: Column(
           children: [
@@ -924,7 +924,7 @@ class TxtReaderSheet extends StatelessWidget {
               width: 40,
               height: 5,
               decoration: BoxDecoration(
-                color: Colors.black12,
+                color: context.borderColor,
                 borderRadius: BorderRadius.circular(10),
               ),
             ),
@@ -942,15 +942,15 @@ class TxtReaderSheet extends StatelessWidget {
                           fileName,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary,
+                            color: context.textColor,
                           ),
                         ),
                         Text(
                           '${lines.length} dòng • ${formatFileSize(bytes.length)}',
-                          style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+                          style: TextStyle(fontSize: 12, color: context.textSecondary),
                         ),
                       ],
                     ),
@@ -958,6 +958,7 @@ class TxtReaderSheet extends StatelessWidget {
                   IconButton(
                     icon: const Icon(LucideIcons.copy, size: 20),
                     tooltip: 'Sao chép',
+                    color: context.textSecondary,
                     onPressed: () {
                       Clipboard.setData(ClipboardData(text: content));
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -968,18 +969,20 @@ class TxtReaderSheet extends StatelessWidget {
                   IconButton(
                     icon: const Icon(LucideIcons.download, size: 20),
                     tooltip: 'Tải về',
+                    color: context.textSecondary,
                     onPressed: () async {
                       await saveBytesToFile(bytes, fileName);
                     },
                   ),
                   IconButton(
                     icon: const Icon(LucideIcons.x, size: 20),
+                    color: context.textSecondary,
                     onPressed: () => Navigator.pop(context),
                   ),
                 ],
               ),
             ),
-            const Divider(height: 1),
+            Divider(height: 1, color: context.borderColor),
             Expanded(
               child: ListView.builder(
                 controller: scrollController,
@@ -995,9 +998,9 @@ class TxtReaderSheet extends StatelessWidget {
                           width: 38,
                           child: Text(
                             '${index + 1}',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12,
-                              color: AppColors.textMuted,
+                              color: context.textSecondary,
                               fontFamily: 'monospace',
                             ),
                           ),
@@ -1005,9 +1008,9 @@ class TxtReaderSheet extends StatelessWidget {
                         Expanded(
                           child: Text(
                             lines[index],
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 14,
-                              color: AppColors.textPrimary,
+                              color: context.textColor,
                               fontFamily: 'monospace',
                               height: 1.3,
                             ),
@@ -1047,9 +1050,9 @@ class DocumentActionSheet extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: context.cardColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1058,7 +1061,7 @@ class DocumentActionSheet extends StatelessWidget {
             width: 40,
             height: 5,
             decoration: BoxDecoration(
-              color: Colors.black12,
+              color: context.borderColor,
               borderRadius: BorderRadius.circular(10),
             ),
           ),
@@ -1083,16 +1086,16 @@ class DocumentActionSheet extends StatelessWidget {
                       fileName,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
+                        color: context.textColor,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       'Định dạng ${ext.toUpperCase()} • ${formatFileSize(bytes.length)}',
-                      style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+                      style: TextStyle(fontSize: 12, color: context.textSecondary),
                     ),
                   ],
                 ),
@@ -1123,9 +1126,9 @@ class DocumentActionSheet extends StatelessWidget {
             const SizedBox(height: 10),
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.textPrimary,
+                foregroundColor: context.textColor,
                 minimumSize: const Size.fromHeight(48),
-                side: const BorderSide(color: AppColors.border),
+                side: BorderSide(color: context.borderColor),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),

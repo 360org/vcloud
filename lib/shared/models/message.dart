@@ -8,6 +8,7 @@ class Message {
     required this.senderId,
     required this.content,
     required this.createdAt,
+    this.bodyHtml,
     this.status = 'sent',
     this.readAt,
     this.readBy = const [],
@@ -32,6 +33,7 @@ class Message {
   final String conversationId;
   final String senderId;
   final String content;
+  final String? bodyHtml;
   final DateTime createdAt;
   final String status;
   final DateTime? readAt;
@@ -57,6 +59,7 @@ class Message {
     conversationId: map['conversation_id'] as String,
     senderId: map['sender_id'] as String,
     content: map['content'] as String,
+    bodyHtml: _stringOrNull(map['body_html'] ?? map['body']),
     createdAt: _dateTimeOrNull(map['created_at']) ?? DateTime.now(),
     status: (map['status'] as String?) ?? 'sent',
     readAt: _dateTimeOrNull(map['read_at']),
@@ -82,7 +85,8 @@ class Message {
     required String conversationId,
     required Map<String, dynamic> map,
   }) {
-    final body = cleanHtmlText(map['body']);
+    final rawBody = _stringOrNull(map['body']);
+    final body = cleanHtmlText(rawBody);
     final preview = cleanHtmlText(map['preview']);
     return Message(
       id: map['id'].toString(),
@@ -93,6 +97,7 @@ class Message {
           ) ??
           '',
       content: body.isNotEmpty ? body : preview,
+      bodyHtml: rawBody,
       createdAt: _dateTimeOrNull(map['date']) ?? DateTime.now(),
       status: (map['status'] as String?) ??
           ((map['is_read'] == true) ? 'read' : 'sent'),
@@ -168,12 +173,29 @@ class Message {
   }
 
   static List<String> _attachmentIds(Map<String, dynamic> map) {
-    final values = _attachmentValues(map);
-    return values
-        .map(_attachmentId)
-        .whereType<String>()
-        .where((id) => id.isNotEmpty && id != 'false')
-        .toList();
+    final ids = <String>{};
+    
+    final rawIds = map['attachment_ids'];
+    if (rawIds is List) {
+      for (final item in rawIds) {
+        final idStr = _attachmentId(item);
+        if (idStr != null && idStr.isNotEmpty && idStr != 'false') {
+          ids.add(idStr);
+        }
+      }
+    }
+    
+    final rawAtts = map['attachments'];
+    if (rawAtts is List) {
+      for (final item in rawAtts) {
+        final idStr = _attachmentId(item);
+        if (idStr != null && idStr.isNotEmpty && idStr != 'false') {
+          ids.add(idStr);
+        }
+      }
+    }
+    
+    return ids.toList();
   }
 
   static String? _attachmentName(Map<String, dynamic> map) {
@@ -255,7 +277,9 @@ class Message {
     if (direct != null) return direct;
     for (final value in _attachmentValues(map)) {
       final size = _intOrNull(
-        value is Map ? value['file_size'] ?? value['size'] : null,
+        (value is Map)
+            ? (value['file_size'] ?? value['size'] ?? value['file_size_bytes'])
+            : null,
       );
       if (size != null) return size;
     }
@@ -263,8 +287,10 @@ class Message {
   }
 
   static List<dynamic> _attachmentValues(Map<String, dynamic> map) {
-    final raw = map['attachments'] ?? map['attachment_ids'];
-    if (raw is List) return raw;
+    final atts = map['attachments'];
+    if (atts is List && atts.isNotEmpty) return atts;
+    final ids = map['attachment_ids'];
+    if (ids is List && ids.isNotEmpty) return ids;
     return const [];
   }
 

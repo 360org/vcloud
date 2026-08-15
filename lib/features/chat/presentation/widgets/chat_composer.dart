@@ -29,6 +29,7 @@ class ComposerCircleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = context.isDarkMode;
     return Tooltip(
       message: tooltip,
       child: PressableScale(
@@ -40,9 +41,15 @@ class ComposerCircleButton extends StatelessWidget {
               width: 52,
               height: 52,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.62),
+                color: isDark
+                    ? AppColors.darkSurfaceElevated.withValues(alpha: 0.8)
+                    : Colors.white.withValues(alpha: 0.62),
                 shape: BoxShape.circle,
-                border: Border.all(color: Colors.white.withValues(alpha: 0.72)),
+                border: Border.all(
+                  color: isDark
+                      ? context.borderColor
+                      : Colors.white.withValues(alpha: 0.72),
+                ),
               ),
               child: loading
                   ? const Padding(
@@ -52,7 +59,7 @@ class ComposerCircleButton extends StatelessWidget {
                         color: AppColors.primary,
                       ),
                     )
-                  : Icon(icon, color: AppColors.textPrimary, size: 27),
+                  : Icon(icon, color: context.textColor, size: 27),
             ),
           ),
         ),
@@ -112,6 +119,12 @@ class _ComposerWithAttachmentsState extends State<ComposerWithAttachments> {
       if (!context.mounted || image == null) return;
       final bytes = await image.readAsBytes();
       if (!context.mounted) return;
+      
+      var filename = image.name;
+      if (!filename.contains('.')) {
+        filename = '$filename.jpg';
+      }
+      LocalAttachmentCache.save(filename, bytes);
       LocalAttachmentCache.save(image.name, bytes);
 
       showModalBottomSheet(
@@ -119,9 +132,9 @@ class _ComposerWithAttachmentsState extends State<ComposerWithAttachments> {
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
         builder: (sheetContext) => ImagePreviewSheet(
-          filename: image.name,
+          filename: filename,
           bytes: bytes,
-          mimetype: mimetypeForName(image.name) ?? 'image/jpeg',
+          mimetype: mimetypeForName(filename) ?? 'image/jpeg',
           onSend: (upload, caption) async {
             Navigator.pop(sheetContext);
             if (caption != null && caption.trim().isNotEmpty) {
@@ -266,8 +279,8 @@ class _ComposerWithAttachmentsState extends State<ComposerWithAttachments> {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            Colors.white.withValues(alpha: 0),
-            Colors.white.withValues(alpha: 0.34),
+            (context.isDarkMode ? AppColors.darkBg : Colors.white).withValues(alpha: 0),
+            (context.isDarkMode ? AppColors.darkBg : Colors.white).withValues(alpha: 0.34),
           ],
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
@@ -296,22 +309,22 @@ class _ComposerWithAttachmentsState extends State<ComposerWithAttachments> {
                   maxLines: 5,
                   textInputAction: TextInputAction.send,
                   onSubmitted: (_) => widget.onSubmit(),
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
+                  style: TextStyle(
+                    color: context.textColor,
                     fontSize: 16,
                   ),
                   decoration: InputDecoration(
                     hintText: 'Nhập tin nhắn...',
                     hintStyle: TextStyle(
-                      color: AppColors.textMuted.withValues(alpha: 0.9),
-                      fontSize: 20,
+                      color: context.textSecondary.withValues(alpha: 0.9),
+                      fontSize: 16,
                       fontWeight: FontWeight.w400,
                     ),
                     suffixIcon: IconButton(
                       tooltip: 'Biểu tượng',
                       onPressed: () {},
                       icon: const Icon(LucideIcons.smile, size: 23),
-                      color: AppColors.textSecondary,
+                      color: context.textSecondary,
                     ),
                     filled: false,
                     contentPadding: const EdgeInsets.fromLTRB(18, 12, 6, 12),

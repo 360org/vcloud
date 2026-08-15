@@ -299,3 +299,10 @@ final timesheetSummaryProvider = FutureProvider<TimesheetSummary>((ref) async {
     dateTo: dateToStr,
   );
 });
+
+/// Làm mới toàn bộ dữ liệu timesheet (tasks, logs, summary)
+void refreshTimesheetData(WidgetRef ref) {
+  ref.invalidate(todayTasksProvider);
+  ref.invalidate(timesheetStreamProvider);
+  ref.invalidate(timesheetSummaryProvider);
+}

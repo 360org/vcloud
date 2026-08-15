@@ -8,9 +8,9 @@ import '../../features/auth/application/auth_controller.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/signup_screen.dart';
 import '../../features/auth/presentation/splash_screen.dart';
-import '../../features/chat/presentation/chat_detail_screen.dart';
-import '../../features/chat/presentation/conversation_list_screen.dart';
 import '../../features/chat/presentation/new_chat_screen.dart';
+import '../../features/chat_v2/presentation/screens/chat_v2_detail_screen.dart';
+import '../../features/chat_v2/presentation/screens/chat_v2_list_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
 import '../../features/profile/presentation/about_screen.dart';
 import '../../features/profile/presentation/edit_profile_screen.dart';
@@ -78,10 +78,62 @@ final routerProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
-      GoRoute(path: '/splash', builder: (_, _) => const SplashScreen()),
-      GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
-      GoRoute(path: '/signup', builder: (_, _) => const SignupScreen()),
-      GoRoute(path: '/home', builder: (_, _) => const HomeScreen()),
+      GoRoute(
+        path: '/splash',
+        pageBuilder: (context, state) => CustomTransitionPage<void>(
+          key: state.pageKey,
+          child: const SplashScreen(),
+          transitionDuration: const Duration(milliseconds: 350),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(
+              opacity: CurvedAnimation(parent: animation, curve: Curves.easeInOut),
+              child: child,
+            );
+          },
+        ),
+      ),
+      GoRoute(
+        path: '/login',
+        pageBuilder: (context, state) => CustomTransitionPage<void>(
+          key: state.pageKey,
+          child: const LoginScreen(),
+          transitionDuration: const Duration(milliseconds: 350),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(
+              opacity: CurvedAnimation(parent: animation, curve: Curves.easeInOut),
+              child: child,
+            );
+          },
+        ),
+      ),
+      GoRoute(
+        path: '/signup',
+        pageBuilder: (context, state) => CustomTransitionPage<void>(
+          key: state.pageKey,
+          child: const SignupScreen(),
+          transitionDuration: const Duration(milliseconds: 300),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(
+              opacity: CurvedAnimation(parent: animation, curve: Curves.easeInOut),
+              child: child,
+            );
+          },
+        ),
+      ),
+      GoRoute(
+        path: '/home',
+        pageBuilder: (context, state) => CustomTransitionPage<void>(
+          key: state.pageKey,
+          child: const HomeScreen(),
+          transitionDuration: const Duration(milliseconds: 400),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(
+              opacity: CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+              child: child,
+            );
+          },
+        ),
+      ),
       GoRoute(path: '/profile', builder: (_, _) => const ProfileScreen()),
       GoRoute(
         path: '/profile/edit',
@@ -89,18 +141,18 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/profile/about', builder: (_, _) => const AboutScreen()),
 
-      // Chat
+      // Chat (V2 - Độc lập, tin cậy)
       GoRoute(
         path: '/chat',
-        builder: (_, s) => TelegramConversationListScreen(
-          unreadOnly: s.uri.queryParameters['filter'] == 'unread',
+        builder: (_, s) => ChatV2ListScreen(
+          initialFilter: s.uri.queryParameters['filter'],
         ),
       ),
       GoRoute(path: '/chat/new', builder: (_, _) => const NewChatScreen()),
       GoRoute(
         path: '/chat/:id',
         builder: (_, s) =>
-            ChatDetailScreen(conversationId: s.pathParameters['id']!),
+            ChatV2DetailScreen(channelId: s.pathParameters['id']!),
       ),
 
       // Attendance

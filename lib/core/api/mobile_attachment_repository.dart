@@ -104,8 +104,11 @@ class MobileAttachmentRepository {
     try {
       return await _client.fetchBytes('/api/v1/mobile/attachments/$attachmentId/download$query');
     } catch (_) {
-      // Fallback: try Odoo standard /web/content/<id> endpoint
-      return _client.fetchBytes('/web/content/$attachmentId$query');
+      try {
+        return await _client.fetchBytes('/web/image/$attachmentId$query');
+      } catch (_) {
+        return _client.fetchBytes('/web/content/$attachmentId$query');
+      }
     }
   }
 

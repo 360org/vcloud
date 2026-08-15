@@ -23,6 +23,7 @@ class AttendanceHistoryScreen extends ConsumerStatefulWidget {
 
 class _AttendanceHistoryScreenState extends ConsumerState<AttendanceHistoryScreen> {
   bool _isCalendarView = false;
+  bool _showAllHistory = false;
   late DateTime _selectedMonth;
   DateTime? _selectedDate;
 
@@ -38,6 +39,7 @@ class _AttendanceHistoryScreenState extends ConsumerState<AttendanceHistoryScree
   Widget build(BuildContext context) {
     final rows = ref.watch(attendanceStreamProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final now = DateTime.now();
 
     return AppScaffold(
       title: 'Lịch sử chấm công',
@@ -50,6 +52,7 @@ class _AttendanceHistoryScreenState extends ConsumerState<AttendanceHistoryScree
           },
           icon: Icon(
             _isCalendarView ? LucideIcons.list : LucideIcons.calendarDays,
+            color: Colors.white,
             size: 20,
           ),
           tooltip: _isCalendarView ? 'Xem dạng danh sách' : 'Xem dạng lịch',
@@ -65,18 +68,24 @@ class _AttendanceHistoryScreenState extends ConsumerState<AttendanceHistoryScree
             );
           }
 
-          final totalSessions = list.length;
-          final totalMins = _totalMinutes(list);
           final openCount = list.where((a) => a.isOpen).length;
 
           if (_isCalendarView) {
+            final monthList = list.where((a) {
+              final t = a.checkinTime ?? a.createdAt;
+              return t.year == _selectedMonth.year && t.month == _selectedMonth.month;
+            }).toList();
+            final calTotalSessions = monthList.length;
+            final calTotalMins = _totalMinutes(monthList);
+
             return ListView(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
               children: [
-                // Summary Overview Header Card
+                // Summary Overview Header Card for Selected Month in Calendar View
                 _SummaryBannerCard(
-                  totalSessions: totalSessions,
-                  totalMinutes: totalMins,
+                  title: 'Tổng quan Tháng ${_selectedMonth.month}/${_selectedMonth.year}',
+                  totalSessions: calTotalSessions,
+                  totalMinutes: calTotalMins,
                   openCount: openCount,
                   isDark: isDark,
                 ).animate().fadeIn(duration: 350.ms).slideY(begin: -0.08, end: 0),
@@ -97,9 +106,23 @@ class _AttendanceHistoryScreenState extends ConsumerState<AttendanceHistoryScree
             );
           }
 
+          // List View Scope: current month vs all-time
+          final currentMonthList = list.where((a) {
+            final t = a.checkinTime ?? a.createdAt;
+            return t.year == now.year && t.month == now.month;
+          }).toList();
+
+          final isAllTime = _showAllHistory || currentMonthList.isEmpty;
+          final activeList = isAllTime ? list : currentMonthList;
+          final totalSessions = activeList.length;
+          final totalMins = _totalMinutes(activeList);
+          final bannerTitle = isAllTime
+              ? 'Tổng quan toàn bộ'
+              : 'Tổng quan Tháng ${now.month}/${now.year}';
+
           // Group by date for List View
           final byDate = <String, List<Attendance>>{};
-          for (final a in list) {
+          for (final a in activeList) {
             final targetDate = a.checkinTime ?? a.createdAt;
             final key = Dates.isoDate(targetDate);
             byDate.putIfAbsent(key, () => <Attendance>[]).add(a);
@@ -112,10 +135,16 @@ class _AttendanceHistoryScreenState extends ConsumerState<AttendanceHistoryScree
             children: [
               // Summary Overview Header Card
               _SummaryBannerCard(
+                title: bannerTitle,
                 totalSessions: totalSessions,
                 totalMinutes: totalMins,
                 openCount: openCount,
                 isDark: isDark,
+                showFilterToggle: currentMonthList.isNotEmpty && list.length > currentMonthList.length,
+                isAllHistory: _showAllHistory,
+                onToggleFilter: () {
+                  setState(() => _showAllHistory = !_showAllHistory);
+                },
               ).animate().fadeIn(duration: 350.ms).slideY(begin: -0.08, end: 0),
 
               const SizedBox(height: 18),
@@ -164,16 +193,24 @@ class _AttendanceHistoryScreenState extends ConsumerState<AttendanceHistoryScree
 
 class _SummaryBannerCard extends StatelessWidget {
   const _SummaryBannerCard({
+    required this.title,
     required this.totalSessions,
     required this.totalMinutes,
     required this.openCount,
     required this.isDark,
+    this.showFilterToggle = false,
+    this.isAllHistory = false,
+    this.onToggleFilter,
   });
 
+  final String title;
   final int totalSessions;
   final int totalMinutes;
   final int openCount;
   final bool isDark;
+  final bool showFilterToggle;
+  final bool isAllHistory;
+  final VoidCallback? onToggleFilter;
 
   @override
   Widget build(BuildContext context) {
@@ -184,18 +221,17 @@ class _SummaryBannerCard extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: isDark
-              ? [const Color(0xFF064E3B), const Color(0xFF065F46)]
-              : [const Color(0xFF10B981), const Color(0xFF047857)],
+              ? [const Color(0xFF064E3B), const Color(0xFF047857)]
+              : [const Color(0xFF00C83A), const Color(0xFF009D2E)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(24),
-        boxShadow: [
+        boxShadow: const [
           BoxShadow(
-            color: (isDark ? const Color(0xFF064E3B) : const Color(0xFF10B981))
-                .withValues(alpha: 0.28),
+            color: Color(0x3300C83A),
             blurRadius: 20,
-            offset: const Offset(0, 8),
+            offset: Offset(0, 8),
           ),
         ],
       ),
@@ -207,7 +243,7 @@ class _SummaryBannerCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
+                  color: Colors.white.withValues(alpha: 0.22),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(
@@ -217,15 +253,38 @@ class _SummaryBannerCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 10),
-              const Text(
-                'Tổng quan chấm công',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
-              const Spacer(),
+              if (showFilterToggle && onToggleFilter != null) ...[
+                InkWell(
+                  onTap: onToggleFilter,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.25),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      isAllHistory ? 'Xem Tháng này' : 'Xem Tất cả',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+              ],
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
@@ -273,7 +332,7 @@ class _SummaryBannerCard extends StatelessWidget {
               Container(
                 width: 1,
                 height: 36,
-                color: Colors.white.withValues(alpha: 0.15),
+                color: Colors.white.withValues(alpha: 0.2),
               ),
               Expanded(
                 child: _StatColumn(
@@ -356,13 +415,13 @@ class _DateGroupHeader extends StatelessWidget {
           const Icon(
             LucideIcons.calendarDays,
             size: 16,
-            color: AppColors.attendance,
+            color: AppColors.primary,
           ),
           const SizedBox(width: 8),
           Text(
             formattedDate,
             style: TextStyle(
-              color: isDark ? Colors.white : AppColors.textPrimary,
+              color: isDark ? Colors.white : const Color(0xFF0F172A),
               fontSize: 14,
               fontWeight: FontWeight.w800,
             ),
@@ -371,13 +430,13 @@ class _DateGroupHeader extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
-              color: AppColors.soft(AppColors.attendance),
+              color: const Color(0xFFE7FBEA),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
               '$sessionCount ca',
               style: const TextStyle(
-                color: AppColors.attendanceDeep,
+                color: Color(0xFF009D2E),
                 fontSize: 11,
                 fontWeight: FontWeight.w800,
               ),
@@ -450,21 +509,19 @@ class _AttendanceSessionCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E293B) : AppColors.surface,
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: isOpen
-              ? AppColors.attendance.withValues(alpha: 0.5)
-              : (isDark ? Colors.white.withValues(alpha: 0.08) : AppColors.border),
+              ? const Color(0xFF00C83A).withValues(alpha: 0.6)
+              : (isDark ? Colors.white.withValues(alpha: 0.1) : const Color(0xFFE2E8F0)),
           width: isOpen ? 1.5 : 1,
         ),
-        boxShadow: [
+        boxShadow: const [
           BoxShadow(
-            color: isOpen
-                ? AppColors.attendance.withValues(alpha: 0.08)
-                : const Color(0x050F172A),
+            color: Color(0x080F172A),
             blurRadius: 16,
-            offset: const Offset(0, 6),
+            offset: Offset(0, 4),
           ),
         ],
       ),
@@ -481,8 +538,8 @@ class _AttendanceSessionCard extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: isOpen
-                        ? AppColors.soft(AppColors.attendance)
-                        : (isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFF1F5F9)),
+                        ? (isDark ? const Color(0xFF064E3B) : const Color(0xFFE7FBEA))
+                        : (isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9)),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
@@ -491,13 +548,17 @@ class _AttendanceSessionCard extends StatelessWidget {
                       Icon(
                         isOpen ? LucideIcons.circleDot : LucideIcons.checkCircle2,
                         size: 13,
-                        color: isOpen ? AppColors.attendanceDeep : AppColors.textSecondary,
+                        color: isOpen
+                            ? (isDark ? const Color(0xFF34D399) : const Color(0xFF009D2E))
+                            : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
                       ),
                       const SizedBox(width: 5),
                       Text(
                         isOpen ? 'Đang trong ca' : 'Hoàn thành ca',
                         style: TextStyle(
-                          color: isOpen ? AppColors.attendanceDeep : AppColors.textSecondary,
+                          color: isOpen
+                              ? (isDark ? const Color(0xFF34D399) : const Color(0xFF009D2E))
+                              : (isDark ? const Color(0xFFE2E8F0) : const Color(0xFF475569)),
                           fontSize: 12,
                           fontWeight: FontWeight.w800,
                         ),
@@ -511,22 +572,22 @@ class _AttendanceSessionCard extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: AppColors.soft(AppColors.primary),
+                      color: isDark ? const Color(0xFF064E3B) : const Color(0xFFE7FBEA),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
+                        Icon(
                           LucideIcons.timer,
                           size: 13,
-                          color: AppColors.primary,
+                          color: isDark ? const Color(0xFF34D399) : const Color(0xFF009D2E),
                         ),
                         const SizedBox(width: 5),
                         Text(
                           durationStr,
-                          style: const TextStyle(
-                            color: AppColors.primary,
+                          style: TextStyle(
+                            color: isDark ? const Color(0xFF34D399) : const Color(0xFF009D2E),
                             fontSize: 12,
                             fontWeight: FontWeight.w900,
                           ),
@@ -547,10 +608,10 @@ class _AttendanceSessionCard extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: AppColors.soft(AppColors.attendance).withValues(alpha: 0.5),
+                      color: isDark ? const Color(0xFF132A20) : const Color(0xFFF0FDF4),
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
-                        color: AppColors.attendance.withValues(alpha: 0.15),
+                        color: isDark ? const Color(0xFF1E5B3E) : const Color(0xFFBBF7D0),
                       ),
                     ),
                     child: Row(
@@ -558,13 +619,13 @@ class _AttendanceSessionCard extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.all(6),
                           decoration: BoxDecoration(
-                            color: AppColors.attendance.withValues(alpha: 0.2),
+                            color: const Color(0xFF16A34A).withValues(alpha: isDark ? 0.25 : 0.15),
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          child: const Icon(
+                          child: Icon(
                             LucideIcons.logIn,
                             size: 16,
-                            color: AppColors.attendanceDeep,
+                            color: isDark ? const Color(0xFF4ADE80) : const Color(0xFF16A34A),
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -572,19 +633,19 @@ class _AttendanceSessionCard extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
+                              Text(
                                 'Vào ca',
                                 style: TextStyle(
-                                  color: AppColors.textSecondary,
+                                  color: isDark ? const Color(0xFF86EFAC) : const Color(0xFF166534),
                                   fontSize: 11,
-                                  fontWeight: FontWeight.w600,
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
                               const SizedBox(height: 2),
                               Text(
                                 inTimeStr,
                                 style: TextStyle(
-                                  color: isDark ? Colors.white : AppColors.textPrimary,
+                                  color: isDark ? Colors.white : const Color(0xFF0F172A),
                                   fontSize: 14,
                                   fontWeight: FontWeight.w900,
                                 ),
@@ -597,12 +658,12 @@ class _AttendanceSessionCard extends StatelessWidget {
                   ),
                 ),
 
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 8),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
                   child: Icon(
                     LucideIcons.arrowRight,
                     size: 18,
-                    color: AppColors.textMuted,
+                    color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
                   ),
                 ),
 
@@ -612,13 +673,13 @@ class _AttendanceSessionCard extends StatelessWidget {
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: isOpen
-                          ? AppColors.soft(AppColors.warning).withValues(alpha: 0.4)
-                          : AppColors.soft(AppColors.primary).withValues(alpha: 0.4),
+                          ? (isDark ? const Color(0xFF2B2012) : const Color(0xFFFFFBEB))
+                          : (isDark ? const Color(0xFF132A20) : const Color(0xFFF0FDF4)),
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
                         color: isOpen
-                            ? AppColors.warning.withValues(alpha: 0.2)
-                            : AppColors.primary.withValues(alpha: 0.15),
+                            ? (isDark ? const Color(0xFF78450F) : const Color(0xFFFDE68A))
+                            : (isDark ? const Color(0xFF1E5B3E) : const Color(0xFFBBF7D0)),
                       ),
                     ),
                     child: Row(
@@ -627,14 +688,16 @@ class _AttendanceSessionCard extends StatelessWidget {
                           padding: const EdgeInsets.all(6),
                           decoration: BoxDecoration(
                             color: isOpen
-                                ? AppColors.warning.withValues(alpha: 0.2)
-                                : AppColors.primary.withValues(alpha: 0.2),
+                                ? const Color(0xFFF59E0B).withValues(alpha: isDark ? 0.25 : 0.15)
+                                : const Color(0xFF16A34A).withValues(alpha: isDark ? 0.25 : 0.15),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Icon(
                             isOpen ? LucideIcons.clock : LucideIcons.logOut,
                             size: 16,
-                            color: isOpen ? AppColors.warning : AppColors.primary,
+                            color: isOpen
+                                ? (isDark ? const Color(0xFFFBBF24) : const Color(0xFFD97706))
+                                : (isDark ? const Color(0xFF4ADE80) : const Color(0xFF16A34A)),
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -644,10 +707,12 @@ class _AttendanceSessionCard extends StatelessWidget {
                             children: [
                               Text(
                                 isOpen ? 'Trạng thái' : 'Ra ca',
-                                style: const TextStyle(
-                                  color: AppColors.textSecondary,
+                                style: TextStyle(
+                                  color: isOpen
+                                      ? (isDark ? const Color(0xFFFCD34D) : const Color(0xFF92400E))
+                                      : (isDark ? const Color(0xFF86EFAC) : const Color(0xFF166534)),
                                   fontSize: 11,
-                                  fontWeight: FontWeight.w600,
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
                               const SizedBox(height: 2),
@@ -656,8 +721,8 @@ class _AttendanceSessionCard extends StatelessWidget {
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   color: isOpen
-                                      ? AppColors.warning
-                                      : (isDark ? Colors.white : AppColors.textPrimary),
+                                      ? (isDark ? const Color(0xFFFBBF24) : const Color(0xFFD97706))
+                                      : (isDark ? Colors.white : const Color(0xFF0F172A)),
                                   fontSize: 14,
                                   fontWeight: FontWeight.w900,
                                 ),
@@ -682,20 +747,23 @@ class _AttendanceSessionCard extends StatelessWidget {
                       ? Colors.white.withValues(alpha: 0.04)
                       : const Color(0xFFF8FAFC),
                   borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: isDark ? Colors.white.withValues(alpha: 0.06) : const Color(0xFFE2E8F0),
+                  ),
                 ),
                 child: Row(
                   children: [
                     const Icon(
                       LucideIcons.mapPin,
                       size: 13,
-                      color: AppColors.textSecondary,
+                      color: Color(0xFF00C83A),
                     ),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         'Tọa độ GPS: (${a.checkinLat!.toStringAsFixed(4)}, ${a.checkinLng!.toStringAsFixed(4)})',
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
+                        style: TextStyle(
+                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
                         ),
@@ -760,10 +828,10 @@ class _AttendanceCalendarView extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1E293B) : AppColors.surface,
+            color: isDark ? const Color(0xFF1E293B) : Colors.white,
             borderRadius: BorderRadius.circular(24),
             border: Border.all(
-              color: isDark ? Colors.white.withValues(alpha: 0.12) : AppColors.border,
+              color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
             ),
             boxShadow: const [
               BoxShadow(
@@ -784,19 +852,27 @@ class _AttendanceCalendarView extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
-                      color: Theme.of(context).colorScheme.onSurface,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
                     ),
                   ),
                   Row(
                     children: [
                       IconButton(
-                        icon: const Icon(LucideIcons.chevronLeft, size: 20),
+                        icon: Icon(
+                          LucideIcons.chevronLeft,
+                          size: 20,
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                        ),
                         onPressed: () {
                           onMonthChanged(DateTime(selectedMonth.year, selectedMonth.month - 1, 1));
                         },
                       ),
                       IconButton(
-                        icon: const Icon(LucideIcons.chevronRight, size: 20),
+                        icon: Icon(
+                          LucideIcons.chevronRight,
+                          size: 20,
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                        ),
                         onPressed: () {
                           onMonthChanged(DateTime(selectedMonth.year, selectedMonth.month + 1, 1));
                         },
@@ -815,10 +891,10 @@ class _AttendanceCalendarView extends StatelessWidget {
                   final isSun = i == 6;
                   final isSat = i == 5;
                   final color = isSun
-                      ? AppColors.danger
+                      ? (isDark ? const Color(0xFFF87171) : const Color(0xFFDC2626))
                       : (isSat
-                          ? const Color(0xFF2563EB)
-                          : (isDark ? Colors.white60 : AppColors.textMuted));
+                          ? (isDark ? const Color(0xFF60A5FA) : const Color(0xFF2563EB))
+                          : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)));
 
                   return Expanded(
                     child: Center(
@@ -835,7 +911,7 @@ class _AttendanceCalendarView extends StatelessWidget {
                 }),
               ),
               const SizedBox(height: 10),
-              const Divider(height: 1, thickness: 0.5),
+              Divider(height: 1, thickness: 0.5, color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
               const SizedBox(height: 10),
 
               // Calendar Days Grid
@@ -885,32 +961,32 @@ class _AttendanceCalendarView extends StatelessWidget {
 
                   // Cell background color
                   final cellBg = isSelected
-                      ? AppColors.primary.withValues(alpha: 0.15)
+                      ? (isDark ? const Color(0xFF064E3B) : const Color(0xFFE7FBEA))
                       : (holiday != null
-                          ? (isDark ? const Color(0xFF450A0A) : const Color(0xFFFEF2F2))
+                          ? (isDark ? const Color(0xFF3B1D1D) : const Color(0xFFFEF2F2))
                           : (isSunday
-                              ? (isDark ? const Color(0xFF450A0A).withValues(alpha: 0.3) : const Color(0xFFFEF2F2).withValues(alpha: 0.5))
-                              : (isToday ? AppColors.soft(AppColors.primary) : Colors.transparent)));
+                              ? (isDark ? const Color(0xFF2A1515) : const Color(0xFFFEF2F2))
+                              : (isToday ? (isDark ? const Color(0xFF064E3B).withValues(alpha: 0.5) : const Color(0xFFE7FBEA)) : Colors.transparent)));
 
                   // Cell border color
                   final cellBorder = isSelected
-                      ? AppColors.primary
+                      ? const Color(0xFF00C83A)
                       : (holiday != null
-                          ? const Color(0xFFFCA5A5)
-                          : (isToday ? AppColors.primary.withValues(alpha: 0.4) : Colors.transparent));
+                          ? (isDark ? const Color(0xFF991B1B) : const Color(0xFFFCA5A5))
+                          : (isToday ? const Color(0xFF00C83A).withValues(alpha: 0.6) : Colors.transparent));
 
                   // Day text color
                   final dayTextColor = isSelected
-                      ? AppColors.primary
+                      ? (isDark ? const Color(0xFF34D399) : const Color(0xFF009D2E))
                       : (holiday != null
-                          ? const Color(0xFFDC2626)
+                          ? (isDark ? const Color(0xFFF87171) : const Color(0xFFDC2626))
                           : (isSunday
-                              ? AppColors.danger
+                              ? (isDark ? const Color(0xFFF87171) : const Color(0xFFDC2626))
                               : (isSaturday
-                                  ? const Color(0xFF2563EB)
+                                  ? (isDark ? const Color(0xFF60A5FA) : const Color(0xFF2563EB))
                                   : (isToday
-                                      ? AppColors.primary
-                                      : (isDark ? Colors.white : AppColors.textPrimary)))));
+                                      ? (isDark ? const Color(0xFF34D399) : const Color(0xFF009D2E))
+                                      : (isDark ? Colors.white : const Color(0xFF1E293B))))));
 
                   return InkWell(
                     onTap: () => onDateSelected(dayDate),
@@ -921,7 +997,7 @@ class _AttendanceCalendarView extends StatelessWidget {
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: cellBorder,
-                          width: isSelected ? 1.5 : 1,
+                          width: isSelected ? 2 : 1,
                         ),
                       ),
                       child: Column(
@@ -942,37 +1018,45 @@ class _AttendanceCalendarView extends StatelessWidget {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFDC2626).withValues(alpha: 0.15),
+                                color: (isDark ? const Color(0xFFDC2626) : const Color(0xFFDC2626)).withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(5),
                               ),
                               child: Text(
                                 holiday.shortLabel,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 8,
                                   fontWeight: FontWeight.w900,
-                                  color: Color(0xFFDC2626),
+                                  color: isDark ? const Color(0xFFFCA5A5) : const Color(0xFFDC2626),
                                 ),
                               ),
                             )
                           else if (workedHoursStr != null)
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                              decoration: BoxDecoration(
-                                color: (dayWorkedMins >= 480)
-                                    ? AppColors.success.withValues(alpha: 0.18)
-                                    : AppColors.primary.withValues(alpha: 0.18),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                workedHoursStr,
-                                style: TextStyle(
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w800,
-                                  color: (dayWorkedMins >= 480) ? AppColors.success : AppColors.primary,
-                                ),
-                              ),
+                            Builder(
+                              builder: (context) {
+                                final dayTarget = ShiftConfig.forDate(dayDate).targetWorkMinutes;
+                                final isComplete = dayWorkedMins >= dayTarget;
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: isComplete
+                                        ? (isDark ? const Color(0xFF064E3B) : const Color(0xFFDCFCE7))
+                                        : (isDark ? const Color(0xFF451A03) : const Color(0xFFFEF3C7)),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    workedHoursStr,
+                                    style: TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w800,
+                                      color: isComplete
+                                          ? (isDark ? const Color(0xFF86EFAC) : const Color(0xFF15803D))
+                                          : (isDark ? const Color(0xFFFCD34D) : const Color(0xFFB45309)),
+                                    ),
+                                  ),
+                                );
+                              },
                             )
                           else
                             Container(
@@ -1005,9 +1089,9 @@ class _AttendanceCalendarView extends StatelessWidget {
                   margin: const EdgeInsets.only(bottom: 12),
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF450A0A) : const Color(0xFFFEF2F2),
+                    color: isDark ? const Color(0xFF3B1D1D) : const Color(0xFFFEF2F2),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFFCA5A5)),
+                    border: Border.all(color: isDark ? const Color(0xFF991B1B) : const Color(0xFFFCA5A5)),
                   ),
                   child: Row(
                     children: [
@@ -1019,10 +1103,10 @@ class _AttendanceCalendarView extends StatelessWidget {
                           children: [
                             Text(
                               h.name,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w900,
-                                color: Color(0xFFDC2626),
+                                color: isDark ? const Color(0xFFFCA5A5) : const Color(0xFFDC2626),
                               ),
                             ),
                             const SizedBox(height: 2),
@@ -1048,23 +1132,23 @@ class _AttendanceCalendarView extends StatelessWidget {
 
           Row(
             children: [
-              const Icon(LucideIcons.calendarCheck, size: 16, color: AppColors.primary),
+              const Icon(LucideIcons.calendarCheck, size: 16, color: Color(0xFF00C83A)),
               const SizedBox(width: 8),
               Text(
                 'Chấm công ngày ${_formatDateVi(selectedDate!)}',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
-                  color: isDark ? Colors.white : AppColors.textPrimary,
+                  color: isDark ? Colors.white : const Color(0xFF0F172A),
                 ),
               ),
               const Spacer(),
               Text(
                 '${selectedDaySessions.length} ca làm',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.textMuted,
+                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                 ),
               ),
             ],
@@ -1074,13 +1158,16 @@ class _AttendanceCalendarView extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1E293B) : AppColors.surface,
+                color: isDark ? const Color(0xFF1E293B) : Colors.white,
                 borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFE2E8F0),
+                ),
               ),
               child: const Center(
                 child: Text(
                   'Không có dữ liệu chấm công cho ngày này',
-                  style: TextStyle(fontSize: 13, color: AppColors.textMuted),
+                  style: TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
                 ),
               ),
             )

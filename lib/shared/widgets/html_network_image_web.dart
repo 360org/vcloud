@@ -9,6 +9,15 @@ Widget? buildHtmlNetworkImage({
   required String url,
   BoxFit fit = BoxFit.cover,
 }) {
+  final clean = url.trim();
+  // Ensure we only attempt HTML <img> rendering on valid web or data URLs
+  if (clean.isEmpty ||
+      (!clean.startsWith('http://') &&
+          !clean.startsWith('https://') &&
+          !clean.startsWith('data:image/'))) {
+    return null;
+  }
+
   final fitName = switch (fit) {
     BoxFit.contain => 'contain',
     BoxFit.fill => 'fill',
@@ -19,14 +28,14 @@ Widget? buildHtmlNetworkImage({
     BoxFit.cover => 'cover',
   };
   final viewType =
-      'vcloud-network-image-${Object.hash(url, fitName) & 0x7fffffff}';
+      'vcloud-network-image-${Object.hash(clean, fitName) & 0x7fffffff}';
   if (_registeredNetworkImages.add(viewType)) {
     ui_web.platformViewRegistry.registerViewFactory(viewType, (
       int viewId, {
       Object? params,
     }) {
       final image = web.document.createElement('img') as web.HTMLImageElement;
-      image.src = url;
+      image.src = clean;
       image.style
         ..width = '100%'
         ..height = '100%'

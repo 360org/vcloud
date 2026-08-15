@@ -38,6 +38,8 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
   Duration _elapsedBeforePause = Duration.zero;
   bool _running = false;
   bool _showCompletedTasks = false;
+  bool _isSearching = false;
+  String _searchQuery = '';
   final _taskStatusOverrides = <String, _TaskWorkflowStatus>{};
   final _scrollController = ScrollController();
   bool _isLoadingMore = false;
@@ -48,6 +50,19 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final tasksState = ref.read(todayTasksProvider);
+      final timesheetState = ref.read(timesheetStreamProvider);
+      if (tasksState.hasError || timesheetState.hasError) {
+        _onRefresh();
+      }
+    });
+  }
+
+  Future<void> _onRefresh() async {
+    refreshTimesheetData(ref);
+    await Future.delayed(const Duration(milliseconds: 300));
   }
 
   void _onScroll() {
@@ -420,6 +435,15 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
     };
   }
 
+  bool _matchesQuery(_TodayTask t) {
+    if (_searchQuery.trim().isEmpty) return true;
+    final q = _searchQuery.trim().toLowerCase();
+    return t.title.toLowerCase().contains(q) ||
+        (t.projectName?.toLowerCase().contains(q) ?? false) ||
+        (t.description?.toLowerCase().contains(q) ?? false) ||
+        t.tags.any((tag) => tag.toLowerCase().contains(q));
+  }
+
   Widget _buildTaskSections() {
     final tasks = ref.watch(todayTasksProvider);
     return tasks.when(
@@ -429,17 +453,23 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
         final completedLogs = ref.watch(completedTaskLogsProvider);
         final openTasks = split.open
             .map((t) => _taskFromApi(t, entryByTaskMap: entryByTask, completedLogsMap: completedLogs))
+            .where(_matchesQuery)
             .toList();
         final doneTasks = split.done
             .map((t) => _taskFromApi(t, entryByTaskMap: entryByTask, completedLogsMap: completedLogs))
+            .where(_matchesQuery)
             .toList();
 
         return Column(
           children: [
             _TaskSection(
-              title: 'Task cần làm hôm nay',
+              title: _searchQuery.trim().isNotEmpty
+                  ? 'Kết quả tìm kiếm (${openTasks.length})'
+                  : 'Task cần làm hôm nay',
               count: openTasks.length,
-              emptyText: 'Bạn đã hoàn thành hết task hôm nay.',
+              emptyText: _searchQuery.trim().isNotEmpty
+                  ? 'Không tìm thấy task nào phù hợp.'
+                  : 'Bạn đã hoàn thành hết task hôm nay.',
               tasks: openTasks,
               done: false,
               onTap: _showTaskDetail,
@@ -471,6 +501,7 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
         icon: LucideIcons.triangleAlert,
         message: describeError(error),
         isError: true,
+        onRetry: _onRefresh,
       ),
     );
   }
@@ -486,40 +517,63 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
       body: ColoredBox(
         color: Theme.of(context).scaffoldBackgroundColor,
         child: SafeArea(
-
-
-          child: ListView(
-            controller: _scrollController,
-            padding: const EdgeInsets.fromLTRB(14, 10, 14, 112),
-            children: [
-              const _TimesheetHeader(),
-              const SizedBox(height: 12),
-              _StopwatchCard(
-                elapsed: _elapsed,
-                running: _running,
-                onStart: _startTimer,
-                onPause: _pauseTimer,
-                onReset: _resetTimer,
-                onSave: _saveTimer,
+          child: RefreshIndicator(
+            color: AppColors.timesheet,
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+            onRefresh: _onRefresh,
+            child: ListView(
+              controller: _scrollController,
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: BouncingScrollPhysics(),
               ),
-              const SizedBox(height: 14),
-              const _TimesheetSummaryCard(),
-              const SizedBox(height: 16),
-              _buildTaskSections(),
-              if (_isLoadingMore) ...[
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 112),
+              children: [
+                _TimesheetHeader(
+                  isSearching: _isSearching,
+                  onToggleSearch: () {
+                    HapticFeedback.lightImpact();
+                    setState(() {
+                      _isSearching = !_isSearching;
+                      if (!_isSearching) _searchQuery = '';
+                    });
+                  },
+                ),
+                if (_isSearching) ...[
+                  const SizedBox(height: 10),
+                  _TimesheetSearchBar(
+                    query: _searchQuery,
+                    onChanged: (val) => setState(() => _searchQuery = val),
+                    onClear: () => setState(() => _searchQuery = ''),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                _StopwatchCard(
+                  elapsed: _elapsed,
+                  running: _running,
+                  onStart: _startTimer,
+                  onPause: _pauseTimer,
+                  onReset: _resetTimer,
+                  onSave: _saveTimer,
+                ),
+                const SizedBox(height: 14),
+                const _TimesheetSummaryCard(),
                 const SizedBox(height: 16),
-                const Center(
-                  child: SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.5,
-                      color: AppColors.timesheet,
+                _buildTaskSections(),
+                if (_isLoadingMore) ...[
+                  const SizedBox(height: 16),
+                  const Center(
+                    child: SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: AppColors.timesheet,
+                      ),
                     ),
                   ),
-                ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -532,11 +586,13 @@ class _TasksStatusCard extends StatelessWidget {
     required this.icon,
     required this.message,
     this.isError = false,
+    this.onRetry,
   });
 
   final IconData icon;
   final String message;
   final bool isError;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -568,89 +624,275 @@ class _TasksStatusCard extends StatelessWidget {
               ),
             ),
           ),
+          if (isError && onRetry != null) ...[
+            const SizedBox(width: 8),
+            PressableScale(
+              onTap: onRetry,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.danger.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(LucideIcons.refreshCw, size: 14, color: AppColors.danger),
+                    SizedBox(width: 4),
+                    Text(
+                      'Thử lại',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.danger,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ],
       ),
-
     );
   }
 }
 
-class _TimesheetHeader extends ConsumerWidget {
-  const _TimesheetHeader();
+class _TimesheetHeader extends StatelessWidget {
+  const _TimesheetHeader({
+    required this.isSearching,
+    required this.onToggleSearch,
+  });
+
+  final bool isSearching;
+  final VoidCallback onToggleSearch;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final filter = ref.watch(timesheetFilterProvider);
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x0D0F172A),
-                blurRadius: 14,
-                offset: Offset(0, 6),
+    return Consumer(
+      builder: (context, ref, _) {
+        final filter = ref.watch(timesheetFilterProvider);
+        return Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                border: isDark
+                    ? Border.all(color: Colors.white.withValues(alpha: 0.08))
+                    : null,
+                boxShadow: isDark
+                    ? [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.25),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ]
+                    : const [
+                        BoxShadow(
+                          color: Color(0x0D0F172A),
+                          blurRadius: 14,
+                          offset: Offset(0, 6),
+                        ),
+                      ],
               ),
-            ],
-          ),
-          child: Text(
-            'Timesheet',
-            style: TextStyle(
-              color: context.textColor,
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    LucideIcons.clock,
+                    color: Color(0xFF00C83A),
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Timesheet',
+                    style: TextStyle(
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ),
-        const Spacer(),
-        GestureDetector(
-          onTap: () {
-            HapticFeedback.lightImpact();
-            showModalBottomSheet<void>(
-              context: context,
-              isScrollControlled: true,
-              backgroundColor: Colors.transparent,
-              builder: (_) => _TimesheetFilterSheet(initialFilter: filter),
-            );
-          },
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: context.cardColor,
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: const [
+            const Spacer(),
+            PressableScale(
+              onTap: onToggleSearch,
+              child: Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: isSearching
+                      ? const Color(0xFF00C83A)
+                      : (isDark ? const Color(0xFF1E293B) : Colors.white),
+                  shape: BoxShape.circle,
+                  border: isDark && !isSearching
+                      ? Border.all(color: Colors.white.withValues(alpha: 0.08))
+                      : null,
+                  boxShadow: isDark
+                      ? [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.25),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ]
+                      : const [
+                          BoxShadow(
+                            color: Color(0x0D0F172A),
+                            blurRadius: 14,
+                            offset: Offset(0, 6),
+                          ),
+                        ],
+                ),
+                child: Icon(
+                  isSearching ? LucideIcons.x : LucideIcons.search,
+                  color: isSearching
+                      ? Colors.white
+                      : const Color(0xFF00C83A),
+                  size: 18,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                showModalBottomSheet<void>(
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  builder: (_) => _TimesheetFilterSheet(initialFilter: filter),
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  border: isDark
+                      ? Border.all(color: Colors.white.withValues(alpha: 0.08))
+                      : null,
+                  boxShadow: isDark
+                      ? [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.25),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ]
+                      : const [
+                          BoxShadow(
+                            color: Color(0x0D0F172A),
+                            blurRadius: 14,
+                            offset: Offset(0, 6),
+                          ),
+                        ],
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      LucideIcons.calendarDays,
+                      color: Color(0xFF00C83A),
+                      size: 18,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      filter.presetName,
+                      style: TextStyle(
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _TimesheetSearchBar extends StatelessWidget {
+  const _TimesheetSearchBar({
+    required this.query,
+    required this.onChanged,
+    required this.onClear,
+  });
+
+  final String query;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      height: 48,
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF0F3F8),
+        borderRadius: BorderRadius.circular(16),
+        border: isDark
+            ? Border.all(color: Colors.white.withValues(alpha: 0.08))
+            : null,
+        boxShadow: isDark
+            ? [
                 BoxShadow(
-                  color: Color(0x0D0F172A),
-                  blurRadius: 14,
+                  color: Colors.black.withValues(alpha: 0.2),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : const [
+                BoxShadow(
+                  color: Color(0x0A0F172A),
+                  blurRadius: 12,
                   offset: Offset(0, 6),
                 ),
               ],
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  LucideIcons.calendarDays,
-                  color: AppColors.primary,
-                  size: 19,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  filter.presetName,
-                  style: TextStyle(
-                    color: context.textColor,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
+      ),
+      child: TextField(
+        autofocus: true,
+        onChanged: onChanged,
+        style: TextStyle(
+          color: isDark ? Colors.white : const Color(0xFF0F172A),
+          fontSize: 15,
+        ),
+        decoration: InputDecoration(
+          hintText: 'Tìm kiếm task, dự án hôm nay...',
+          hintStyle: TextStyle(
+            color: isDark ? Colors.white38 : AppColors.textMuted,
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+          prefixIcon: Icon(
+            LucideIcons.search,
+            color: isDark ? const Color(0xFF00C83A) : AppColors.primary,
+            size: 19,
+          ),
+          suffixIcon: query.isEmpty
+              ? null
+              : IconButton(
+                  onPressed: onClear,
+                  icon: Icon(
+                    LucideIcons.x,
+                    color: isDark ? Colors.white70 : AppColors.textMuted,
+                    size: 18,
                   ),
                 ),
-              ],
-            ),
-          ),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(vertical: 13),
         ),
-      ],
+      ),
     );
   }
 }
@@ -674,10 +916,11 @@ class _StopwatchCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final canSave = elapsed.inSeconds > 0;
     return GlassCard(
       radius: 22,
-      glowColor: running ? AppColors.timesheet : null,
+      glowColor: running ? const Color(0xFF00C83A) : null,
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -688,12 +931,14 @@ class _StopwatchCard extends StatelessWidget {
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  color: AppColors.soft(AppColors.timesheet),
+                  color: isDark
+                      ? const Color(0xFF00C83A).withValues(alpha: 0.15)
+                      : AppColors.soft(const Color(0xFF00C83A)),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: const Icon(
                   LucideIcons.timer,
-                  color: AppColors.timesheet,
+                  color: Color(0xFF00C83A),
                   size: 22,
                 ),
               ),
@@ -702,7 +947,7 @@ class _StopwatchCard extends StatelessWidget {
                 child: Text(
                   'Bộ đếm công việc',
                   style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurface,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
                     fontSize: 17,
                     fontWeight: FontWeight.w800,
                   ),
@@ -710,7 +955,7 @@ class _StopwatchCard extends StatelessWidget {
               ),
               StatusPill(
                 label: running ? 'Đang chạy' : 'Sẵn sàng',
-                color: running ? AppColors.success : AppColors.textMuted,
+                color: running ? AppColors.success : (isDark ? Colors.white60 : AppColors.textMuted),
               ),
             ],
           ),
@@ -719,14 +964,13 @@ class _StopwatchCard extends StatelessWidget {
             child: Text(
               Dates.hms(elapsed),
               style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurface,
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
                 fontSize: 36,
                 fontWeight: FontWeight.w900,
                 height: 1,
               ),
             ),
           ),
-
           const SizedBox(height: 16),
           Row(
             children: [
@@ -734,11 +978,12 @@ class _StopwatchCard extends StatelessWidget {
                 child: GradientButton(
                   label: running ? 'Tạm dừng' : 'Bắt đầu',
                   icon: running ? LucideIcons.pause : LucideIcons.play,
-                  gradient: AppColors.featureGrad(
-                    AppColors.timesheet,
-                    AppColors.timesheetDeep,
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF00C83A), Color(0xFF009D2E)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
-                  glowColor: AppColors.timesheet,
+                  glowColor: const Color(0xFF00C83A),
                   onPressed: running ? onPause : onStart,
                 ),
               ),
@@ -748,11 +993,18 @@ class _StopwatchCard extends StatelessWidget {
                   label: 'Lưu',
                   icon: LucideIcons.save,
                   loading: false,
-                  gradient: AppColors.featureGrad(
-                    AppColors.success,
-                    AppColors.successLight,
-                  ),
-                  glowColor: AppColors.success,
+                  gradient: canSave
+                      ? const LinearGradient(
+                          colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        )
+                      : const LinearGradient(
+                          colors: [Color(0xFF64748B), Color(0xFF475569)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                  glowColor: canSave ? const Color(0xFF2563EB) : Colors.transparent,
                   onPressed: canSave ? onSave : null,
                 ),
               ),
@@ -779,6 +1031,7 @@ class _TimesheetSummaryCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final filter = ref.watch(timesheetFilterProvider);
     final summaryAsync = ref.watch(timesheetSummaryProvider);
 
@@ -789,7 +1042,7 @@ class _TimesheetSummaryCard extends ConsumerWidget {
         final hoursText = hoursInt > 0 ? '${hoursInt}h ${minutesInt}m' : '${minutesInt}m';
 
         return GlassCard(
-          glowColor: AppColors.timesheet,
+          glowColor: const Color(0xFF00C83A),
           radius: 18,
           padding: const EdgeInsets.all(16),
           child: Row(
@@ -798,9 +1051,10 @@ class _TimesheetSummaryCard extends ConsumerWidget {
                 width: 50,
                 height: 50,
                 decoration: BoxDecoration(
-                  gradient: AppColors.featureGrad(
-                    AppColors.timesheet,
-                    AppColors.timesheetDeep,
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF00C83A), Color(0xFF009D2E)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(16),
                 ),
@@ -813,8 +1067,8 @@ class _TimesheetSummaryCard extends ConsumerWidget {
                   children: [
                     Text(
                       'Tổng giờ làm · ${filter.presetName}',
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
+                      style: TextStyle(
+                        color: isDark ? Colors.white70 : AppColors.textSecondary,
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
@@ -822,8 +1076,8 @@ class _TimesheetSummaryCard extends ConsumerWidget {
                     const SizedBox(height: 6),
                     Text(
                       hoursText,
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
+                      style: TextStyle(
+                        color: isDark ? Colors.white : AppColors.textPrimary,
                         fontSize: 22,
                         fontWeight: FontWeight.w900,
                       ),
@@ -833,9 +1087,10 @@ class _TimesheetSummaryCard extends ConsumerWidget {
               ),
               GradientBadge(
                 label: '${summary.count} việc',
-                gradient: AppColors.featureGrad(
-                  AppColors.timesheet,
-                  AppColors.timesheetDeep,
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF00C83A), Color(0xFF009D2E)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
                 fontSize: 12,
               ),
@@ -857,8 +1112,8 @@ class _TimesheetSummaryCard extends ConsumerWidget {
             Expanded(
               child: Text(
                 'Tổng giờ làm: ${_formatMinutes(ref.watch(todayTotalMinutesProvider))}',
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
+                style: TextStyle(
+                  color: isDark ? Colors.white70 : AppColors.textSecondary,
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                 ),
@@ -998,7 +1253,13 @@ class _TaskSectionState extends State<_TaskSection> {
                 onChecklist: () => widget.onChecklist(tasks[i]),
               ),
               if (i != visibleCount - 1)
-                const Divider(height: 1, indent: 58, color: AppColors.border),
+                Divider(
+                  height: 1,
+                  indent: 50,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.white.withValues(alpha: 0.06)
+                      : AppColors.border,
+                ),
             ],
             if (hasMore) ...[
               const SizedBox(height: 10),
@@ -1048,13 +1309,24 @@ class _TaskTile extends StatelessWidget {
         child: Row(
           children: [
             Container(
-              width: 44,
-              height: 44,
+              width: 38,
+              height: 38,
               decoration: BoxDecoration(
-                color: AppColors.soft(task.accent),
-                borderRadius: BorderRadius.circular(14),
+                color: isDark ? const Color(0xFF0F172A) : AppColors.soft(task.accent),
+                borderRadius: BorderRadius.circular(12),
+                border: isDark
+                    ? Border.all(color: Colors.white.withValues(alpha: 0.08))
+                    : null,
               ),
-              child: Icon(task.icon, color: task.accent, size: 21),
+              child: Icon(
+                done
+                    ? LucideIcons.checkCircle2
+                    : LucideIcons.listTodo,
+                color: done
+                    ? const Color(0xFF00C83A)
+                    : (isDark ? const Color(0xFF00C83A) : task.accent),
+                size: 19,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -1340,6 +1612,8 @@ class _TaskDetailSheetState extends ConsumerState<_TaskDetailSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return SafeArea(
       top: false,
       child: Padding(
@@ -1354,8 +1628,18 @@ class _TaskDetailSheetState extends ConsumerState<_TaskDetailSheet> {
           ),
           padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
           decoration: BoxDecoration(
-            color: Theme.of(context).cardColor,
+            color: isDark ? const Color(0xFF1E293B) : Colors.white,
             borderRadius: BorderRadius.circular(28),
+            border: isDark
+                ? Border.all(color: Colors.white.withValues(alpha: 0.08))
+                : null,
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x3F000000),
+                blurRadius: 24,
+                offset: Offset(0, -8),
+              ),
+            ],
           ),
           child: SingleChildScrollView(
             physics: const ClampingScrollPhysics(),
@@ -1368,7 +1652,7 @@ class _TaskDetailSheetState extends ConsumerState<_TaskDetailSheet> {
                     width: 44,
                     height: 5,
                     decoration: BoxDecoration(
-                      color: AppColors.border,
+                      color: isDark ? Colors.white24 : AppColors.border,
                       borderRadius: BorderRadius.circular(99),
                     ),
                   ),
@@ -1378,15 +1662,18 @@ class _TaskDetailSheetState extends ConsumerState<_TaskDetailSheet> {
                   children: [
                     IconButton(
                       onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(LucideIcons.x, color: AppColors.textSecondary),
+                      icon: Icon(
+                        LucideIcons.x,
+                        color: isDark ? Colors.white70 : AppColors.textSecondary,
+                      ),
                       tooltip: 'Hủy',
                       visualDensity: VisualDensity.compact,
                     ),
                     const SizedBox(width: 4),
-                    const Text(
+                    Text(
                       'Chi tiết task',
                       style: TextStyle(
-                        color: AppColors.textPrimary,
+                        color: isDark ? Colors.white : AppColors.textPrimary,
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
                       ),
@@ -1397,13 +1684,22 @@ class _TaskDetailSheetState extends ConsumerState<_TaskDetailSheet> {
                 Row(
                   children: [
                     Container(
-                      width: 48,
-                      height: 48,
+                      width: 40,
+                      height: 40,
                       decoration: BoxDecoration(
-                        color: AppColors.soft(task.accent),
-                        borderRadius: BorderRadius.circular(16),
+                        color: isDark
+                            ? const Color(0xFF0F172A)
+                            : AppColors.soft(task.accent),
+                        borderRadius: BorderRadius.circular(12),
+                        border: isDark
+                            ? Border.all(color: Colors.white.withValues(alpha: 0.08))
+                            : null,
                       ),
-                      child: Icon(task.icon, color: task.accent, size: 24),
+                      child: Icon(
+                        task.done ? LucideIcons.checkCircle2 : LucideIcons.listTodo,
+                        color: const Color(0xFF00C83A),
+                        size: 20,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -1414,9 +1710,9 @@ class _TaskDetailSheetState extends ConsumerState<_TaskDetailSheet> {
                             task.title,
                             maxLines: 3,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: AppColors.textPrimary,
-                              fontSize: 18,
+                            style: TextStyle(
+                              color: isDark ? Colors.white : AppColors.textPrimary,
+                              fontSize: 17,
                               fontWeight: FontWeight.w900,
                             ),
                           ),
@@ -1560,10 +1856,10 @@ class _TaskDetailSheetState extends ConsumerState<_TaskDetailSheet> {
                   ],
                 ),
                 const SizedBox(height: 18),
-                const Text(
+                Text(
                   'Trạng thái task',
                   style: TextStyle(
-                    color: AppColors.textPrimary,
+                    color: isDark ? Colors.white : AppColors.textPrimary,
                     fontSize: 14,
                     fontWeight: FontWeight.w900,
                   ),
@@ -1616,14 +1912,15 @@ class _TaskInfoBlock extends StatelessWidget {
   final String value;
   final bool multiline;
 
-  Widget _buildValueWidget(String cleanValue) {
+  Widget _buildValueWidget(BuildContext context, String cleanValue) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     if (!multiline) {
       return Text(
         cleanValue,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
-          color: AppColors.textPrimary,
+        style: TextStyle(
+          color: isDark ? Colors.white : AppColors.textPrimary,
           fontSize: 14,
           fontWeight: FontWeight.w800,
           height: 1.35,
@@ -1631,15 +1928,15 @@ class _TaskInfoBlock extends StatelessWidget {
       );
     }
 
-    const defaultStyle = TextStyle(
-      color: AppColors.textPrimary,
+    final defaultStyle = TextStyle(
+      color: isDark ? Colors.white : AppColors.textPrimary,
       fontSize: 14,
       fontWeight: FontWeight.w700,
       height: 1.45,
     );
 
     final linkStyle = defaultStyle.copyWith(
-      color: const Color(0xFF2563EB),
+      color: const Color(0xFF38BDF8),
       fontWeight: FontWeight.w800,
       decoration: TextDecoration.underline,
     );
@@ -1677,6 +1974,7 @@ class _TaskInfoBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final cleanValue = cleanHtmlText(value);
     final displayValue = cleanValue.isEmpty ? value : cleanValue;
 
@@ -1684,15 +1982,18 @@ class _TaskInfoBlock extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFF3F6FC),
+        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF3F6FC),
         borderRadius: BorderRadius.circular(16),
+        border: isDark
+            ? Border.all(color: Colors.white.withValues(alpha: 0.06))
+            : null,
       ),
       child: Row(
         crossAxisAlignment: multiline
             ? CrossAxisAlignment.start
             : CrossAxisAlignment.center,
         children: [
-          Icon(icon, color: AppColors.timesheet, size: 18),
+          Icon(icon, color: const Color(0xFF00C83A), size: 18),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -1700,14 +2001,14 @@ class _TaskInfoBlock extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: const TextStyle(
-                    color: AppColors.textMuted,
+                  style: TextStyle(
+                    color: isDark ? Colors.white60 : AppColors.textMuted,
                     fontSize: 11,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
                 const SizedBox(height: 4),
-                _buildValueWidget(displayValue),
+                _buildValueWidget(context, displayValue),
               ],
             ),
           ),
@@ -1730,16 +2031,22 @@ class _TaskStatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return PressableScale(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
         padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
         decoration: BoxDecoration(
-          color: selected ? AppColors.soft(status.color) : AppColors.surface,
+          color: selected
+              ? (isDark ? status.color.withValues(alpha: 0.2) : AppColors.soft(status.color))
+              : (isDark ? const Color(0xFF0F172A) : AppColors.surface),
           borderRadius: BorderRadius.circular(999),
           border: Border.all(
-            color: selected ? status.color : AppColors.border,
+            color: selected
+                ? status.color
+                : (isDark ? Colors.white.withValues(alpha: 0.08) : AppColors.border),
             width: selected ? 1.4 : 1,
           ),
         ),
@@ -1751,7 +2058,9 @@ class _TaskStatusChip extends StatelessWidget {
             Text(
               status.label,
               style: TextStyle(
-                color: selected ? status.color : AppColors.textSecondary,
+                color: selected
+                    ? status.color
+                    : (isDark ? Colors.white70 : AppColors.textSecondary),
                 fontSize: 14,
                 fontWeight: FontWeight.w900,
               ),
@@ -1776,15 +2085,21 @@ class _TaskChecklistButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return PressableScale(
       onTap: onTap,
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: AppColors.soft(status.color),
+          color: isDark
+              ? const Color(0xFF0F172A)
+              : AppColors.soft(status.color),
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: status.color.withValues(alpha: 0.18)),
+          border: Border.all(
+            color: status.color.withValues(alpha: isDark ? 0.35 : 0.18),
+          ),
         ),
         child: Row(
           children: [
@@ -1827,6 +2142,8 @@ class _TaskStatusPickerSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return SafeArea(
       top: false,
       child: Padding(
@@ -1834,11 +2151,14 @@ class _TaskStatusPickerSheet extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
           decoration: BoxDecoration(
-            color: Theme.of(context).cardColor,
+            color: isDark ? const Color(0xFF1E293B) : Colors.white,
             borderRadius: BorderRadius.circular(26),
+            border: isDark
+                ? Border.all(color: Colors.white.withValues(alpha: 0.08))
+                : null,
             boxShadow: const [
               BoxShadow(
-                color: Color(0x220F172A),
+                color: Color(0x3F000000),
                 blurRadius: 22,
                 offset: Offset(0, -8),
               ),
@@ -1853,25 +2173,25 @@ class _TaskStatusPickerSheet extends StatelessWidget {
                   width: 44,
                   height: 5,
                   decoration: BoxDecoration(
-                    color: AppColors.border,
+                    color: isDark ? Colors.white24 : AppColors.border,
                     borderRadius: BorderRadius.circular(99),
                   ),
                 ),
               ),
               const SizedBox(height: 16),
-              const Text(
+              Text(
                 'Chọn trạng thái task',
                 style: TextStyle(
-                  color: AppColors.textPrimary,
+                  color: isDark ? Colors.white : AppColors.textPrimary,
                   fontSize: 18,
                   fontWeight: FontWeight.w900,
                 ),
               ),
               const SizedBox(height: 6),
-              const Text(
+              Text(
                 'Chỉ trạng thái Hoàn thành mới mở checklist nhập nội dung và thời gian.',
                 style: TextStyle(
-                  color: AppColors.textSecondary,
+                  color: isDark ? Colors.white70 : AppColors.textSecondary,
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                   height: 1.35,
@@ -1951,9 +2271,9 @@ enum _TaskWorkflowStatus {
   };
 
   Color get color => switch (this) {
-    inProgress => AppColors.timesheet,
+    inProgress => const Color(0xFF3B82F6),
     changeRequest => AppColors.warning,
-    approved => AppColors.primary,
+    approved => const Color(0xFF10B981),
     canceled => AppColors.danger,
     done => AppColors.success,
   };
@@ -1972,21 +2292,26 @@ class _TaskDetailMetric extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFF3F6FC),
+        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF3F6FC),
         borderRadius: BorderRadius.circular(16),
+        border: isDark
+            ? Border.all(color: Colors.white.withValues(alpha: 0.06))
+            : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: AppColors.timesheet, size: 18),
+          Icon(icon, color: const Color(0xFF00C83A), size: 18),
           const SizedBox(height: 10),
           Text(
             label,
-            style: const TextStyle(
-              color: AppColors.textMuted,
+            style: TextStyle(
+              color: isDark ? Colors.white60 : AppColors.textMuted,
               fontSize: 11,
               fontWeight: FontWeight.w700,
             ),
@@ -1996,8 +2321,8 @@ class _TaskDetailMetric extends StatelessWidget {
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
+            style: TextStyle(
+              color: isDark ? Colors.white : AppColors.textPrimary,
               fontSize: 14,
               fontWeight: FontWeight.w900,
             ),
@@ -2116,6 +2441,8 @@ class _TimerSaveSheetState extends ConsumerState<_TimerSaveSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return SafeArea(
       top: false,
       child: Padding(
@@ -2130,8 +2457,18 @@ class _TimerSaveSheetState extends ConsumerState<_TimerSaveSheet> {
           ),
           padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
           decoration: BoxDecoration(
-            color: Theme.of(context).cardColor,
+            color: isDark ? const Color(0xFF1E293B) : Colors.white,
             borderRadius: BorderRadius.circular(28),
+            border: isDark
+                ? Border.all(color: Colors.white.withValues(alpha: 0.08))
+                : null,
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x3F000000),
+                blurRadius: 24,
+                offset: Offset(0, -8),
+              ),
+            ],
           ),
           child: SingleChildScrollView(
             physics: const ClampingScrollPhysics(),
@@ -2144,7 +2481,7 @@ class _TimerSaveSheetState extends ConsumerState<_TimerSaveSheet> {
                     width: 44,
                     height: 5,
                     decoration: BoxDecoration(
-                      color: AppColors.border,
+                      color: isDark ? Colors.white24 : AppColors.border,
                       borderRadius: BorderRadius.circular(99),
                     ),
                   ),
@@ -2154,15 +2491,18 @@ class _TimerSaveSheetState extends ConsumerState<_TimerSaveSheet> {
                   children: [
                     IconButton(
                       onPressed: () => Navigator.pop(context),
-                      icon: const Icon(LucideIcons.x, color: AppColors.textSecondary),
+                      icon: Icon(
+                        LucideIcons.x,
+                        color: isDark ? Colors.white70 : AppColors.textSecondary,
+                      ),
                       tooltip: 'Hủy',
                       visualDensity: VisualDensity.compact,
                     ),
                     const SizedBox(width: 4),
-                    const Text(
+                    Text(
                       'Hủy',
                       style: TextStyle(
-                        color: AppColors.textSecondary,
+                        color: isDark ? Colors.white70 : AppColors.textSecondary,
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                       ),
@@ -2176,12 +2516,14 @@ class _TimerSaveSheetState extends ConsumerState<_TimerSaveSheet> {
                       width: 44,
                       height: 44,
                       decoration: BoxDecoration(
-                        color: AppColors.soft(AppColors.timesheet),
+                        color: isDark
+                            ? const Color(0xFF00C83A).withValues(alpha: 0.15)
+                            : AppColors.soft(const Color(0xFF00C83A)),
                         borderRadius: BorderRadius.circular(15),
                       ),
                       child: const Icon(
                         LucideIcons.timer,
-                        color: AppColors.timesheet,
+                        color: Color(0xFF00C83A),
                         size: 22,
                       ),
                     ),
@@ -2190,10 +2532,10 @@ class _TimerSaveSheetState extends ConsumerState<_TimerSaveSheet> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'Lưu thời gian',
                             style: TextStyle(
-                              color: AppColors.textPrimary,
+                              color: isDark ? Colors.white : AppColors.textPrimary,
                               fontSize: 19,
                               fontWeight: FontWeight.w900,
                             ),
@@ -2201,8 +2543,8 @@ class _TimerSaveSheetState extends ConsumerState<_TimerSaveSheet> {
                           const SizedBox(height: 2),
                           Text(
                             'Đã đếm ${_formatDuration(widget.duration)}',
-                            style: const TextStyle(
-                              color: AppColors.textSecondary,
+                            style: TextStyle(
+                              color: isDark ? Colors.white70 : AppColors.textSecondary,
                               fontSize: 13,
                               fontWeight: FontWeight.w700,
                             ),
@@ -2218,7 +2560,7 @@ class _TimerSaveSheetState extends ConsumerState<_TimerSaveSheet> {
                     margin: const EdgeInsets.only(bottom: 12),
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFF0F2),
+                      color: isDark ? const Color(0xFF450A0A) : const Color(0xFFFFF0F2),
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(color: AppColors.danger.withValues(alpha: 0.4)),
                     ),
@@ -2252,38 +2594,42 @@ class _TimerSaveSheetState extends ConsumerState<_TimerSaveSheet> {
                       });
                     }
                   },
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
+                  style: TextStyle(
+                    color: isDark ? Colors.white : AppColors.textPrimary,
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                   ),
                   decoration: InputDecoration(
                     hintText: 'Bạn đã làm những gì?',
-                    hintStyle: const TextStyle(
-                      color: AppColors.textMuted,
+                    hintStyle: TextStyle(
+                      color: isDark ? Colors.white38 : AppColors.textMuted,
                       fontWeight: FontWeight.w500,
                     ),
                     filled: true,
-                    fillColor: _noteError ? const Color(0xFFFFF0F2) : const Color(0xFFF3F6FC),
+                    fillColor: _noteError
+                        ? (isDark ? const Color(0xFF450A0A) : const Color(0xFFFFF0F2))
+                        : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF3F6FC)),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
                       borderSide: _noteError
                           ? const BorderSide(color: AppColors.danger, width: 1.5)
-                          : BorderSide.none,
+                          : (isDark
+                              ? BorderSide(color: Colors.white.withValues(alpha: 0.08))
+                              : BorderSide.none),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
                       borderSide: _noteError
                           ? const BorderSide(color: AppColors.danger, width: 2.0)
-                          : const BorderSide(color: AppColors.timesheet, width: 1.5),
+                          : const BorderSide(color: Color(0xFF00C83A), width: 1.5),
                     ),
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text(
+                Text(
                   'Chọn project và task được giao',
                   style: TextStyle(
-                    color: AppColors.textPrimary,
+                    color: isDark ? Colors.white : AppColors.textPrimary,
                     fontSize: 14,
                     fontWeight: FontWeight.w900,
                   ),
@@ -2341,11 +2687,12 @@ class _TimerSaveSheetState extends ConsumerState<_TimerSaveSheet> {
                   child: GradientButton(
                     label: 'Lưu vào task',
                     icon: LucideIcons.check,
-                    gradient: AppColors.featureGrad(
-                      AppColors.timesheet,
-                      AppColors.timesheetDeep,
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF00C83A), Color(0xFF009D2E)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
-                    glowColor: AppColors.timesheet,
+                    glowColor: const Color(0xFF00C83A),
                     onPressed: _submit,
                   ),
                 ),
@@ -2371,14 +2718,16 @@ class _TimerSheetStatus extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isError ? AppColors.danger : AppColors.textMuted;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final color = isError ? AppColors.danger : (isDark ? Colors.white60 : AppColors.textMuted);
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF3F6FC),
+        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF3F6FC),
         borderRadius: BorderRadius.circular(16),
+        border: isDark ? Border.all(color: Colors.white.withValues(alpha: 0.06)) : null,
       ),
       child: Row(
         children: [
@@ -2426,6 +2775,7 @@ class _ProjectTaskDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final selectedInProject = group.tasks.any(
       (task) => task.id == selectedTaskId,
     );
@@ -2436,15 +2786,15 @@ class _ProjectTaskDropdown extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
         color: hasError
-            ? const Color(0xFFFFF0F2)
+            ? (isDark ? const Color(0xFF450A0A) : const Color(0xFFFFF0F2))
             : (highlighted
-                ? AppColors.timesheet.withValues(alpha: 0.08)
+                ? const Color(0xFF00C83A).withValues(alpha: isDark ? 0.15 : 0.08)
                 : Colors.transparent),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: hasError
               ? AppColors.danger
-              : (highlighted ? AppColors.timesheet : Colors.transparent),
+              : (highlighted ? const Color(0xFF00C83A) : Colors.transparent),
           width: hasError ? 1.5 : 1.0,
         ),
       ),
@@ -2456,15 +2806,18 @@ class _ProjectTaskDropdown extends StatelessWidget {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: highlighted
-                    ? AppColors.timesheet.withValues(alpha: 0.08)
-                    : const Color(0xFFF3F6FC),
+                    ? const Color(0xFF00C83A).withValues(alpha: isDark ? 0.15 : 0.08)
+                    : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF3F6FC)),
                 borderRadius: BorderRadius.circular(16),
+                border: isDark && !highlighted
+                    ? Border.all(color: Colors.white.withValues(alpha: 0.06))
+                    : null,
               ),
               child: Row(
                 children: [
                   const Icon(
                     LucideIcons.folderKanban,
-                    color: AppColors.timesheet,
+                    color: Color(0xFF00C83A),
                     size: 20,
                   ),
                   const SizedBox(width: 10),
@@ -2473,8 +2826,8 @@ class _ProjectTaskDropdown extends StatelessWidget {
                       group.project.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
+                      style: TextStyle(
+                        color: isDark ? Colors.white : AppColors.textPrimary,
                         fontSize: 14,
                         fontWeight: FontWeight.w800,
                       ),
@@ -2483,8 +2836,8 @@ class _ProjectTaskDropdown extends StatelessWidget {
                   const SizedBox(width: 8),
                   Text(
                     '${group.tasks.length}',
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
+                    style: TextStyle(
+                      color: isDark ? Colors.white70 : AppColors.textSecondary,
                       fontSize: 12,
                       fontWeight: FontWeight.w900,
                     ),
@@ -2493,9 +2846,9 @@ class _ProjectTaskDropdown extends StatelessWidget {
                   AnimatedRotation(
                     turns: expanded ? 0.5 : 0,
                     duration: const Duration(milliseconds: 180),
-                    child: const Icon(
+                    child: Icon(
                       LucideIcons.chevronDown,
-                      color: AppColors.textMuted,
+                      color: isDark ? Colors.white60 : AppColors.textMuted,
                       size: 20,
                     ),
                   ),
@@ -2543,6 +2896,8 @@ class _ProjectTaskChoice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return PressableScale(
       onTap: onTap,
       child: AnimatedContainer(
@@ -2551,18 +2906,20 @@ class _ProjectTaskChoice extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: selected
-              ? AppColors.success.withValues(alpha: 0.12)
-              : const Color(0xFFF3F6FC),
+              ? const Color(0xFF00C83A).withValues(alpha: isDark ? 0.2 : 0.12)
+              : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF3F6FC)),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: selected ? AppColors.success : Colors.transparent,
+            color: selected
+                ? const Color(0xFF00C83A)
+                : (isDark ? Colors.white.withValues(alpha: 0.06) : Colors.transparent),
           ),
         ),
         child: Row(
           children: [
             const Icon(
               LucideIcons.listChecks,
-              color: AppColors.success,
+              color: Color(0xFF00C83A),
               size: 20,
             ),
             const SizedBox(width: 10),
@@ -2574,8 +2931,8 @@ class _ProjectTaskChoice extends StatelessWidget {
                     task.title,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
+                    style: TextStyle(
+                      color: isDark ? Colors.white : AppColors.textPrimary,
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
                     ),
@@ -2587,10 +2944,10 @@ class _ProjectTaskChoice extends StatelessWidget {
                       task.projectName!,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
+                      style: TextStyle(
+                        color: isDark ? Colors.white60 : AppColors.textSecondary,
                         fontSize: 12,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
@@ -2598,10 +2955,10 @@ class _ProjectTaskChoice extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       'Allocated: ${_formatHours(task.allocatedHours)}',
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
+                      style: TextStyle(
+                        color: isDark ? Colors.white60 : AppColors.textSecondary,
                         fontSize: 12,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
@@ -2616,7 +2973,7 @@ class _ProjectTaskChoice extends StatelessWidget {
                             label: tag,
                             color:
                                 AppColors.fromHex(task.tagHexColors[tag]) ??
-                                AppColors.textMuted,
+                                (isDark ? Colors.white38 : AppColors.textMuted),
                           ),
                       ],
                     ),
@@ -2626,7 +2983,7 @@ class _ProjectTaskChoice extends StatelessWidget {
             ),
             Icon(
               selected ? LucideIcons.checkCircle2 : LucideIcons.circle,
-              color: selected ? AppColors.success : AppColors.textMuted,
+              color: selected ? const Color(0xFF00C83A) : (isDark ? Colors.white38 : AppColors.textMuted),
               size: 20,
             ),
           ],
@@ -3139,41 +3496,47 @@ class _TaskChatterSectionState extends ConsumerState<_TaskChatterSection> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final taskAsync = ref.watch(taskDetailProvider(widget.taskId));
     final messages = _localMessages ?? taskAsync.valueOrNull?.messages ?? const [];
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFE),
+        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFE),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(
+          color: isDark ? Colors.white.withValues(alpha: 0.08) : AppColors.border,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(LucideIcons.messageSquare, size: 18, color: AppColors.primary),
+              const Icon(LucideIcons.messageSquare, size: 18, color: Color(0xFF00C83A)),
               const SizedBox(width: 8),
               Text(
                 'Trao đổi & Ghi chú (${messages.length})',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w800,
-                  color: AppColors.textPrimary,
+                  color: isDark ? Colors.white : AppColors.textPrimary,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
           if (messages.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
               child: Center(
                 child: Text(
                   'Chưa có ghi chú nào.',
-                  style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+                  style: TextStyle(
+                    color: isDark ? Colors.white60 : AppColors.textMuted,
+                    fontSize: 13,
+                  ),
                 ),
               ),
             )
@@ -3182,7 +3545,10 @@ class _TaskChatterSectionState extends ConsumerState<_TaskChatterSection> {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: messages.length,
-              separatorBuilder: (_, _) => const Divider(height: 16, color: AppColors.border),
+              separatorBuilder: (_, _) => Divider(
+                height: 16,
+                color: isDark ? Colors.white.withValues(alpha: 0.06) : AppColors.border,
+              ),
               itemBuilder: (ctx, index) {
                 final msg = messages[index];
                 return Column(
@@ -3193,17 +3559,17 @@ class _TaskChatterSectionState extends ConsumerState<_TaskChatterSection> {
                       children: [
                         Text(
                           msg.authorName,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontWeight: FontWeight.w700,
                             fontSize: 13,
-                            color: AppColors.textPrimary,
+                            color: isDark ? Colors.white : AppColors.textPrimary,
                           ),
                         ),
                         Text(
                           Dates.hm(msg.date),
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 11,
-                            color: AppColors.textMuted,
+                            color: isDark ? Colors.white60 : AppColors.textMuted,
                           ),
                         ),
                       ],
@@ -3211,9 +3577,9 @@ class _TaskChatterSectionState extends ConsumerState<_TaskChatterSection> {
                     const SizedBox(height: 4),
                     Text(
                       msg.body,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
-                        color: AppColors.textSecondary,
+                        color: isDark ? Colors.white70 : AppColors.textSecondary,
                         height: 1.3,
                       ),
                     ),
@@ -3228,23 +3594,34 @@ class _TaskChatterSectionState extends ConsumerState<_TaskChatterSection> {
                 child: TextField(
                   controller: _commentController,
                   enabled: !_sending,
+                  style: TextStyle(
+                    color: isDark ? Colors.white : AppColors.textPrimary,
+                    fontSize: 13,
+                  ),
                   decoration: InputDecoration(
                     hintText: 'Nhập bình luận...',
-                    hintStyle: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+                    hintStyle: TextStyle(
+                      fontSize: 13,
+                      color: isDark ? Colors.white38 : AppColors.textMuted,
+                    ),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     filled: true,
-                    fillColor: Colors.white,
+                    fillColor: isDark ? const Color(0xFF1E293B) : Colors.white,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppColors.border),
+                      borderSide: BorderSide(
+                        color: isDark ? Colors.white.withValues(alpha: 0.08) : AppColors.border,
+                      ),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppColors.border),
+                      borderSide: BorderSide(
+                        color: isDark ? Colors.white.withValues(alpha: 0.08) : AppColors.border,
+                      ),
                     ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppColors.primary),
+                    focusedBorder: const OutlineInputBorder(
+                      borderRadius: BorderRadius.all(Radius.circular(12)),
+                      borderSide: BorderSide(color: Color(0xFF00C83A), width: 1.5),
                     ),
                   ),
                   onSubmitted: (_) => _sendComment(),
@@ -3254,7 +3631,7 @@ class _TaskChatterSectionState extends ConsumerState<_TaskChatterSection> {
               IconButton(
                 onPressed: _sending ? null : _sendComment,
                 style: IconButton.styleFrom(
-                  backgroundColor: AppColors.primary,
+                  backgroundColor: const Color(0xFF00C83A),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 icon: _sending
@@ -3374,16 +3751,20 @@ class _TimesheetFilterSheetState extends ConsumerState<_TimesheetFilterSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final presets = ['Hôm nay', 'Hôm qua', 'Tuần này', 'Tuần trước', 'Tháng này', 'Tháng trước', 'Tùy chọn'];
 
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        border: isDark
+            ? Border.all(color: Colors.white.withValues(alpha: 0.08))
+            : null,
         boxShadow: const [
           BoxShadow(
-            color: Color(0x1F000000),
+            color: Color(0x3F000000),
             blurRadius: 24,
             offset: Offset(0, -8),
           ),
@@ -3402,7 +3783,7 @@ class _TimesheetFilterSheetState extends ConsumerState<_TimesheetFilterSheet> {
                   width: 44,
                   height: 5,
                   decoration: BoxDecoration(
-                    color: AppColors.border,
+                    color: isDark ? Colors.white24 : AppColors.border,
                     borderRadius: BorderRadius.circular(99),
                   ),
                 ),
@@ -3414,23 +3795,25 @@ class _TimesheetFilterSheetState extends ConsumerState<_TimesheetFilterSheet> {
                     width: 38,
                     height: 38,
                     decoration: BoxDecoration(
-                      color: AppColors.soft(AppColors.primary),
+                      color: isDark
+                          ? const Color(0xFF00C83A).withValues(alpha: 0.15)
+                          : AppColors.soft(const Color(0xFF00C83A)),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Icon(
                       LucideIcons.slidersHorizontal,
-                      color: AppColors.primary,
+                      color: Color(0xFF00C83A),
                       size: 20,
                     ),
                   ),
                   const SizedBox(width: 12),
-                  const Expanded(
+                  Expanded(
                     child: Text(
                       'Bộ lọc Timesheet',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
-                        color: AppColors.textPrimary,
+                        color: isDark ? Colors.white : AppColors.textPrimary,
                       ),
                     ),
                   ),
@@ -3446,11 +3829,11 @@ class _TimesheetFilterSheetState extends ConsumerState<_TimesheetFilterSheet> {
                         _projectName = null;
                       });
                     },
-                    icon: const Icon(LucideIcons.rotateCcw, size: 15, color: AppColors.primary),
+                    icon: const Icon(LucideIcons.rotateCcw, size: 15, color: Color(0xFF00C83A)),
                     label: const Text(
                       'Đặt lại',
                       style: TextStyle(
-                        color: AppColors.primary,
+                        color: Color(0xFF00C83A),
                         fontWeight: FontWeight.w700,
                         fontSize: 13,
                       ),
@@ -3459,12 +3842,12 @@ class _TimesheetFilterSheetState extends ConsumerState<_TimesheetFilterSheet> {
                 ],
               ),
               const SizedBox(height: 18),
-              const Text(
+              Text(
                 'Khoảng thời gian',
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.textSecondary,
+                  color: isDark ? Colors.white70 : AppColors.textSecondary,
                 ),
               ),
               const SizedBox(height: 10),
@@ -3479,18 +3862,22 @@ class _TimesheetFilterSheetState extends ConsumerState<_TimesheetFilterSheet> {
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: _preset == p ? FontWeight.w800 : FontWeight.w600,
-                          color: _preset == p ? AppColors.primary : AppColors.textPrimary,
+                          color: _preset == p
+                              ? Colors.white
+                              : (isDark ? Colors.white70 : AppColors.textPrimary),
                         ),
                       ),
                       selected: _preset == p,
-                      selectedColor: AppColors.soft(AppColors.primary),
-                      checkmarkColor: AppColors.primary,
-                      backgroundColor: Theme.of(context).cardColor,
+                      selectedColor: const Color(0xFF00C83A),
+                      checkmarkColor: Colors.white,
+                      backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                         side: BorderSide(
-                          color: _preset == p ? AppColors.primary : AppColors.border,
-                          width: _preset == p ? 1.5 : 1.0,
+                          color: _preset == p
+                              ? const Color(0xFF00C83A)
+                              : (isDark ? Colors.white.withValues(alpha: 0.08) : AppColors.border),
+                          width: 1.0,
                         ),
                       ),
                       onSelected: (_) {
@@ -3508,39 +3895,45 @@ class _TimesheetFilterSheetState extends ConsumerState<_TimesheetFilterSheet> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     decoration: BoxDecoration(
-                      color: AppColors.soft(AppColors.primary),
-                      border: Border.all(color: AppColors.primary.withValues(alpha: 0.5)),
+                      color: isDark ? const Color(0xFF0F172A) : AppColors.soft(const Color(0xFF00C83A)),
+                      border: Border.all(
+                        color: const Color(0xFF00C83A).withValues(alpha: 0.5),
+                      ),
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: Row(
                       children: [
-                        const Icon(LucideIcons.calendar, size: 18, color: AppColors.primary),
+                        const Icon(LucideIcons.calendar, size: 18, color: Color(0xFF00C83A)),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
                             _dateFrom != null && _dateTo != null
                                 ? '${Dates.dateVi(_dateFrom!)} — ${Dates.dateVi(_dateTo!)}'
                                 : 'Chọn khoảng ngày tùy chỉnh...',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w700,
-                              color: AppColors.textPrimary,
+                              color: isDark ? Colors.white : AppColors.textPrimary,
                             ),
                           ),
                         ),
-                        const Icon(LucideIcons.chevronRight, size: 16, color: AppColors.textMuted),
+                        Icon(
+                          LucideIcons.chevronRight,
+                          size: 16,
+                          color: isDark ? Colors.white38 : AppColors.textMuted,
+                        ),
                       ],
                     ),
                   ),
                 ),
               ],
               const SizedBox(height: 20),
-              const Text(
+              Text(
                 'Dự án',
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.textSecondary,
+                  color: isDark ? Colors.white70 : AppColors.textSecondary,
                 ),
               ),
               const SizedBox(height: 10),
@@ -3548,32 +3941,44 @@ class _TimesheetFilterSheetState extends ConsumerState<_TimesheetFilterSheet> {
                 const SizedBox(
                   height: 48,
                   child: Center(
-                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF00C83A)),
                   ),
                 )
               else
                 DropdownButtonFormField<String?>(
                   initialValue: _projectId,
+                  dropdownColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+                  style: TextStyle(
+                    color: isDark ? Colors.white : AppColors.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
                   decoration: InputDecoration(
-                    prefixIcon: const Icon(LucideIcons.folderKanban, size: 18, color: AppColors.primary),
+                    prefixIcon: const Icon(LucideIcons.folderKanban, size: 18, color: Color(0xFF00C83A)),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     filled: true,
-                    fillColor: Theme.of(context).cardColor,
+                    fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(color: AppColors.border),
+                      borderSide: BorderSide(
+                        color: isDark ? Colors.white.withValues(alpha: 0.1) : AppColors.border,
+                      ),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                      borderSide: const BorderSide(color: Color(0xFF00C83A), width: 1.5),
                     ),
                   ),
                   items: [
-                    const DropdownMenuItem<String?>(
+                    DropdownMenuItem<String?>(
                       value: null,
                       child: Text(
                         'Tất cả dự án',
-                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                          color: isDark ? Colors.white : AppColors.textPrimary,
+                        ),
                       ),
                     ),
                     for (final proj in _projects)
@@ -3581,7 +3986,11 @@ class _TimesheetFilterSheetState extends ConsumerState<_TimesheetFilterSheet> {
                         value: proj.id,
                         child: Text(
                           proj.name,
-                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                            color: isDark ? Colors.white : AppColors.textPrimary,
+                          ),
                         ),
                       ),
                   ],
@@ -3599,40 +4008,57 @@ class _TimesheetFilterSheetState extends ConsumerState<_TimesheetFilterSheet> {
               SizedBox(
                 width: double.infinity,
                 height: 50,
-                child: ElevatedButton(
-                  onPressed: () {
-                    HapticFeedback.mediumImpact();
-                    final newFilter = TimesheetFilterState(
-                      presetName: _preset,
-                      dateFrom: _dateFrom,
-                      dateTo: _dateTo,
-                      projectId: _projectId,
-                      projectName: _projectName,
-                    );
-                    ref.read(timesheetFilterProvider.notifier).state = newFilter;
-                    Navigator.pop(context);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    elevation: 4,
-                    shadowColor: AppColors.primary.withValues(alpha: 0.4),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  ),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(LucideIcons.check, color: Colors.white, size: 20),
-                      SizedBox(width: 8),
-                      Text(
-                        'Áp dụng bộ lọc',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 15,
-                        ),
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF00C83A), Color(0xFF009D2E)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF00C83A).withValues(alpha: 0.35),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
                       ),
                     ],
+                  ),
+                  child: ElevatedButton(
+                    onPressed: () {
+                      HapticFeedback.mediumImpact();
+                      final newFilter = TimesheetFilterState(
+                        presetName: _preset,
+                        dateFrom: _dateFrom,
+                        dateTo: _dateTo,
+                        projectId: _projectId,
+                        projectName: _projectName,
+                      );
+                      ref.read(timesheetFilterProvider.notifier).state = newFilter;
+                      Navigator.pop(context);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      foregroundColor: Colors.white,
+                      shadowColor: Colors.transparent,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(LucideIcons.check, color: Colors.white, size: 20),
+                        SizedBox(width: 8),
+                        Text(
+                          'Áp dụng bộ lọc',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),

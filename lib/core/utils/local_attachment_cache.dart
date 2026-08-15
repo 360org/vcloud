@@ -12,11 +12,25 @@ class LocalAttachmentCache {
   static final Map<String, Uint8List> _memCache = <String, Uint8List>{};
   static String? _mobileDirPath;
 
-  /// Clean key name for storage lookup.
+  /// Clean key name for safe storage lookup and file naming on iOS/Android.
   static String _cleanKey(String key) {
     final trimmed = key.trim();
-    final basename = trimmed.split('/').last.split('\\').last;
-    return basename.isEmpty ? trimmed : basename;
+    if (trimmed.isEmpty) return 'empty_key';
+    // If it is a pure numeric ID like "1051"
+    if (int.tryParse(trimmed) != null) {
+      return 'att_$trimmed';
+    }
+    // Remove protocol and domain if full URL
+    var name = trimmed;
+    if (name.contains('://')) {
+      final uri = Uri.tryParse(name);
+      if (uri != null && uri.path.isNotEmpty) {
+        name = uri.path;
+      }
+    }
+    final basename = name.split('/').last.split('\\').last.split('?').first;
+    final sanitized = basename.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
+    return sanitized.isEmpty ? 'key_${trimmed.hashCode.abs()}' : sanitized;
   }
 
   /// Initialize and return the physical local directory for mobile attachment cache.
@@ -34,6 +48,13 @@ class LocalAttachmentCache {
     } catch (e) {
       debugPrint('Mobile attachment directory error: $e');
       return null;
+    }
+  }
+
+  /// Ensure mobile directory is initialized eagerly at app startup.
+  static Future<void> ensureInitialized() async {
+    if (!kIsWeb) {
+      await _getMobileDirPath();
     }
   }
 
@@ -57,7 +78,7 @@ class LocalAttachmentCache {
       final dirPath = await _getMobileDirPath();
       if (dirPath == null) return;
       final file = File('$dirPath/$clean.bin');
-      await file.writeAsBytes(bytes);
+      await file.writeAsBytes(bytes, flush: true);
     } catch (e) {
       debugPrint('Mobile file save error: $e');
     }
