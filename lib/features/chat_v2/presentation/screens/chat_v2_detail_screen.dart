@@ -11,6 +11,9 @@ import 'package:lucide_flutter/lucide_flutter.dart';
 import '../../application/chat_v2_channels_controller.dart';
 import '../../application/chat_v2_messages_controller.dart';
 import '../../data/models/chat_v2_message.dart';
+import '../../application/chat_v2_typing_controller.dart';
+import '../../application/chat_v2_presence_controller.dart';
+import '../../data/chat_v2_realtime_service.dart';
 import '../../../auth/application/auth_controller.dart';
 import '../../../../shared/widgets/html_avatar_image.dart';
 import '../widgets/chat_v2_input_bar.dart';
@@ -391,7 +394,11 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                         );
                       }
 
-                      final imStatus = currentChannel?.imStatus ?? 'offline';
+                      final presenceMap = ref.watch(chatV2PresenceProvider);
+                      final partnerId = currentChannel?.partnerId;
+                      final imStatus = (partnerId != null && presenceMap.containsKey(partnerId)) 
+                          ? presenceMap[partnerId]! 
+                          : (currentChannel?.imStatus ?? 'offline');
                       final Color statusColor;
                       final String statusLabel;
 
@@ -666,6 +673,34 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                       ),
                     ),
                   ),
+                  Consumer(
+                    builder: (context, ref, _) {
+                      final typingUsers = ref.watch(chatV2TypingProvider(widget.channelId));
+                      if (typingUsers.isEmpty) return const SizedBox.shrink();
+                      
+                      final text = typingUsers.length == 1
+                          ? '${typingUsers.first} đang gõ...'
+                          : '${typingUsers.join(', ')} đang gõ...';
+                          
+                      return Padding(
+                        padding: const EdgeInsets.only(left: 16, bottom: 4, top: 4),
+                        child: Row(
+                          children: [
+                            const SizedBox(
+                              width: 12,
+                              height: 12,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              text,
+                              style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
                   if (_replyingTo != null || _editingMsg != null)
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -722,6 +757,9 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                     onSendImage: _handleSendImage,
                     onSendFile: _handleSendFile,
                     isSending: _isSending,
+                    onTyping: (isTyping) {
+                      ref.read(chatV2RealtimeServiceProvider).sendTypingStatus(widget.channelId, isTyping);
+                    },
                   ),
                 ],
               ),

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,6 +12,7 @@ class ChatV2InputBar extends StatefulWidget {
     required this.onSend,
     this.onSendImage,
     this.onSendFile,
+    this.onTyping,
     this.isSending = false,
     this.controller,
     this.focusNode,
@@ -29,6 +31,7 @@ class ChatV2InputBar extends StatefulWidget {
     String? mimetype,
     String? caption,
   })? onSendFile;
+  final void Function(bool isTyping)? onTyping;
   final bool isSending;
   final TextEditingController? controller;
   final FocusNode? focusNode;
@@ -49,6 +52,8 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
   String? _selectedFilename;
   String? _selectedMimetype;
   bool _isSelectedImage = false;
+  Timer? _typingDebounce;
+  bool _isTyping = false;
 
   @override
   void initState() {
@@ -70,14 +75,26 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
     if (_hasText != hasContent) {
       setState(() => _hasText = hasContent);
     }
+    if (widget.onTyping != null) {
+      if (!_isTyping) {
+        _isTyping = true;
+        widget.onTyping!(true);
+      }
+      _typingDebounce?.cancel();
+      _typingDebounce = Timer(const Duration(seconds: 2), () {
+        _isTyping = false;
+        widget.onTyping!(false);
+      });
+    }
   }
 
   @override
   void dispose() {
+    _typingDebounce?.cancel();
     _controller.removeListener(_onTextChanged);
     _focusNode.removeListener(_onFocusChanged);
-    _controller.dispose();
-    _focusNode.dispose();
+    if (widget.controller == null) _controller.dispose();
+    if (widget.focusNode == null) _focusNode.dispose();
     super.dispose();
   }
 
