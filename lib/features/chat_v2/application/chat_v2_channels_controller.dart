@@ -78,48 +78,57 @@ class ChatV2ChannelsNotifier
       } catch (_) {}
     });
 
-    _pollingTimer?.cancel();
-    _pollingTimer = Timer.periodic(const Duration(milliseconds: 1500), (_) async {
-      if (!state.isLoading && state.hasValue) {
-        try {
-          final updated = await repo.getChannels();
-          if (updated.isNotEmpty) {
-            final oldChannels = ChatV2ChannelLocalCache.cached;
-            final oldMap = {for (final c in oldChannels) c.id: c};
+    bool isDisposed = false;
 
-            for (final ch in updated) {
-              final old = oldMap[ch.id];
-              if (old != null &&
-                  (old.lastMessage != ch.lastMessage ||
-                      old.lastMessageDate != ch.lastMessageDate)) {
-                // Có tin nhắn mới trong kênh
-                final lastSentText = ref.read(chatV2LastSentTrackerProvider)[ch.id];
-                final isMineFromTracker = lastSentText != null &&
-                    ch.lastMessage?.trim() == lastSentText.trim();
+    void scheduleNextPoll() {
+      if (isDisposed) return;
+      _pollingTimer?.cancel();
+      _pollingTimer = Timer(const Duration(milliseconds: 1500), () async {
+        if (!state.isLoading && state.hasValue) {
+          try {
+            final updated = await repo.getChannels();
+            if (updated.isNotEmpty) {
+              final oldChannels = ChatV2ChannelLocalCache.cached;
+              final oldMap = {for (final c in oldChannels) c.id: c};
 
-                final isMine = isMineFromTracker ||
-                    ch.isLastMessageFromMe(
-                      currentUserName: null,
-                      currentPartnerId: partnerId,
-                      currentUserId: userId,
-                    );
+              for (final ch in updated) {
+                final old = oldMap[ch.id];
+                if (old != null &&
+                    (old.lastMessage != ch.lastMessage ||
+                        old.lastMessageDate != ch.lastMessageDate)) {
+                  // Có tin nhắn mới trong kênh
+                  final lastSentText = ref.read(chatV2LastSentTrackerProvider)[ch.id];
+                  final isMineFromTracker = lastSentText != null &&
+                      ch.lastMessage?.trim() == lastSentText.trim();
 
-                if (!isMine) {
-                  // Tin nhắn từ đối phương -> Chuyển thành chưa đọc ngay
-                  ref.read(chatV2LastSentTrackerProvider.notifier).clear(ch.id);
-                  ref.read(chatV2ReadStateProvider.notifier).markChannelAsUnread(ch.id);
+                  final isMine = isMineFromTracker ||
+                      ch.isLastMessageFromMe(
+                        currentUserName: null,
+                        currentPartnerId: partnerId,
+                        currentUserId: userId,
+                      );
+
+                  if (!isMine) {
+                    // Tin nhắn từ đối phương -> Chuyển thành chưa đọc ngay
+                    ref.read(chatV2LastSentTrackerProvider.notifier).clear(ch.id);
+                    ref.read(chatV2ReadStateProvider.notifier).markChannelAsUnread(ch.id);
+                  }
                 }
               }
-            }
 
-            ChatV2ChannelLocalCache.set(updated);
-            state = AsyncData(updated);
-          }
-        } catch (_) {}
-      }
-    });
+              ChatV2ChannelLocalCache.set(updated);
+              state = AsyncData(updated);
+            }
+          } catch (_) {}
+        }
+        scheduleNextPoll();
+      });
+    }
+
+    scheduleNextPoll();
 
     ref.onDispose(() {
+      isDisposed = true;
       _wsSub?.cancel();
       _pollingTimer?.cancel();
     });
