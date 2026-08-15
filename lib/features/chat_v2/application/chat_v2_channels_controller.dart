@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../auth/application/auth_controller.dart';
-import 'chat_v2_messages_controller.dart';
 import 'chat_v2_read_state_controller.dart';
 import '../data/chat_v2_realtime_service.dart';
 import '../data/chat_v2_repository.dart';
@@ -80,44 +79,63 @@ class ChatV2ChannelsNotifier
 
     bool isDisposed = false;
 
+    bool hasChannelsChanged(List<ChatV2Channel> oldList, List<ChatV2Channel> newList) {
+      if (oldList.length != newList.length) return true;
+      for (int i = 0; i < oldList.length; i++) {
+        final a = oldList[i];
+        final b = newList[i];
+        if (a.id != b.id ||
+            a.lastMessage != b.lastMessage ||
+            a.lastMessageDate != b.lastMessageDate ||
+            a.unreadCount != b.unreadCount) {
+          return true;
+        }
+      }
+      return false;
+    }
+
     void scheduleNextPoll() {
       if (isDisposed) return;
       _pollingTimer?.cancel();
-      _pollingTimer = Timer(const Duration(milliseconds: 1500), () async {
+      _pollingTimer = Timer(const Duration(seconds: 10), () async {
         if (!state.isLoading && state.hasValue) {
           try {
             final updated = await repo.getChannels();
             if (updated.isNotEmpty) {
               final oldChannels = ChatV2ChannelLocalCache.cached;
-              final oldMap = {for (final c in oldChannels) c.id: c};
+              final changed = hasChannelsChanged(oldChannels, updated);
 
-              for (final ch in updated) {
-                final old = oldMap[ch.id];
-                if (old != null &&
-                    (old.lastMessage != ch.lastMessage ||
-                        old.lastMessageDate != ch.lastMessageDate)) {
-                  // Có tin nhắn mới trong kênh
-                  final lastSentText = ref.read(chatV2LastSentTrackerProvider)[ch.id];
-                  final isMineFromTracker = lastSentText != null &&
-                      ch.lastMessage?.trim() == lastSentText.trim();
+              if (changed) {
+                final oldMap = {for (final c in oldChannels) c.id: c};
 
-                  final isMine = isMineFromTracker ||
-                      ch.isLastMessageFromMe(
-                        currentUserName: null,
-                        currentPartnerId: partnerId,
-                        currentUserId: userId,
-                      );
+                for (final ch in updated) {
+                  final old = oldMap[ch.id];
+                  if (old != null &&
+                      (old.lastMessage != ch.lastMessage ||
+                          old.lastMessageDate != ch.lastMessageDate)) {
+                    // Có tin nhắn mới trong kênh
+                    final lastSentText = ref.read(chatV2LastSentTrackerProvider)[ch.id];
+                    final isMineFromTracker = lastSentText != null &&
+                        ch.lastMessage?.trim() == lastSentText.trim();
 
-                  if (!isMine) {
-                    // Tin nhắn từ đối phương -> Chuyển thành chưa đọc ngay
-                    ref.read(chatV2LastSentTrackerProvider.notifier).clear(ch.id);
-                    ref.read(chatV2ReadStateProvider.notifier).markChannelAsUnread(ch.id);
+                    final isMine = isMineFromTracker ||
+                        ch.isLastMessageFromMe(
+                          currentUserName: null,
+                          currentPartnerId: partnerId,
+                          currentUserId: userId,
+                        );
+
+                    if (!isMine) {
+                      // Tin nhắn từ đối phương -> Chuyển thành chưa đọc ngay
+                      ref.read(chatV2LastSentTrackerProvider.notifier).clear(ch.id);
+                      ref.read(chatV2ReadStateProvider.notifier).markChannelAsUnread(ch.id);
+                    }
                   }
                 }
-              }
 
-              ChatV2ChannelLocalCache.set(updated);
-              state = AsyncData(updated);
+                ChatV2ChannelLocalCache.set(updated);
+                state = AsyncData(updated);
+              }
             }
           } catch (_) {}
         }
@@ -138,37 +156,19 @@ class ChatV2ChannelsNotifier
       unawaited(() async {
         try {
           final fresh = await repo.getChannels();
-          ChatV2ChannelLocalCache.set(fresh);
-          state = AsyncData(fresh);
-          unawaited(ChatV2MessageLocalCache.preloadChannels(
-            fresh.map((c) => c.id).toList(),
-            repo,
-            partnerId: partnerId,
-            userId: userId,
-          ));
+          final changed = hasChannelsChanged(cached, fresh);
+          if (changed) {
+            ChatV2ChannelLocalCache.set(fresh);
+            state = AsyncData(fresh);
+          }
         } catch (_) {}
       }());
-
-      unawaited(ChatV2MessageLocalCache.preloadChannels(
-        cached.map((c) => c.id).toList(),
-        repo,
-        partnerId: partnerId,
-        userId: userId,
-      ));
 
       return cached;
     }
 
     final fresh = await repo.getChannels();
     ChatV2ChannelLocalCache.set(fresh);
-
-    unawaited(ChatV2MessageLocalCache.preloadChannels(
-      fresh.map((c) => c.id).toList(),
-      repo,
-      partnerId: partnerId,
-      userId: userId,
-    ));
-
     return fresh;
   }
 

@@ -1,8 +1,6 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../../auth/application/auth_controller.dart';
 import '../../../core/utils/local_attachment_cache.dart';
@@ -19,10 +17,7 @@ final chatV2MessagesProvider = AutoDisposeAsyncNotifierProviderFamily<
 );
 
 class ChatV2MessageLocalCache {
-  static const _storagePrefix = 'vcloud_chat_msgs_v2_';
-  static const _storage = FlutterSecureStorage();
   static final Map<String, Map<String, ChatV2Message>> _cache = {};
-  static final Set<String> _preloaded = {};
 
   static List<ChatV2Message>? get(String channelId) {
     final map = _cache[channelId];
@@ -36,89 +31,11 @@ class ChatV2MessageLocalCache {
       map[m.id] = m;
     }
     _cache[channelId] = map;
-
-    if (persist) {
-      // Lưu async vào Persistent Storage (tối đa 25 tin nhắn gần nhất)
-      unawaited(() async {
-        try {
-          final toSave = messages.take(25).map((m) => m.toMap()).toList();
-          await _storage.write(
-            key: '$_storagePrefix$channelId',
-            value: jsonEncode(toSave),
-          );
-        } catch (_) {}
-      }());
-    }
   }
 
   static void append(String channelId, ChatV2Message msg) {
     final map = _cache.putIfAbsent(channelId, () => <String, ChatV2Message>{});
     map[msg.id] = msg;
-  }
-
-  /// Khởi tạo và nạp tin nhắn từ Offline Storage vào RAM
-  static Future<List<ChatV2Message>?> loadFromStorage(
-    String channelId, {
-    String? currentPartnerId,
-    String? currentUserId,
-  }) async {
-    try {
-      final raw = await _storage.read(key: '$_storagePrefix$channelId');
-      if (raw != null && raw.isNotEmpty) {
-        final List<dynamic> decoded = jsonDecode(raw);
-        final messages = decoded
-            .whereType<Map>()
-            .map((m) => ChatV2Message.fromMap(
-                  Map<String, dynamic>.from(m),
-                  currentPartnerId: currentPartnerId,
-                  currentUserId: currentUserId,
-                ))
-            .toList();
-        if (messages.isNotEmpty) {
-          final map = <String, ChatV2Message>{};
-          for (final m in messages) {
-            map[m.id] = m;
-          }
-          _cache[channelId] = map;
-          return messages;
-        }
-      }
-    } catch (_) {}
-    return null;
-  }
-
-  /// Pre-fetch ngầm các kênh hàng đầu ngay khi mở app
-  static Future<void> preloadChannels(
-    List<String> channelIds,
-    ChatV2Repository repo, {
-    String? partnerId,
-    String? userId,
-  }) async {
-    for (final chId in channelIds.take(8)) {
-      if (!_preloaded.contains(chId)) {
-        _preloaded.add(chId);
-        // Ưu tiên nạp từ Storage trước
-        if (_cache[chId] == null || _cache[chId]!.isEmpty) {
-          await loadFromStorage(
-            chId,
-            currentPartnerId: partnerId,
-            currentUserId: userId,
-          );
-        }
-        // Fetch ngầm từ server Odoo (limit 20)
-        try {
-          final fresh = await repo.getMessages(
-            chId,
-            currentPartnerId: partnerId,
-            currentUserId: userId,
-            limit: 20,
-          );
-          if (fresh.isNotEmpty) {
-            set(chId, fresh);
-          }
-        } catch (_) {}
-      }
-    }
   }
 }
 
@@ -202,16 +119,8 @@ class ChatV2MessagesNotifier
       _pollingTimer?.cancel();
     });
 
-    // SWR Cache: Nếu đã có tin nhắn trong Cache (RAM hoặc Offline Storage) -> Trả về tức thì 0.001s
-    var cached = ChatV2MessageLocalCache.get(channelId);
-    if (cached == null || cached.isEmpty) {
-      cached = await ChatV2MessageLocalCache.loadFromStorage(
-        channelId,
-        currentPartnerId: partnerId,
-        currentUserId: userId,
-      );
-    }
-
+    // SWR Cache: Nếu đã có tin nhắn trong Memory Cache -> Trả về tức thì 0.001s
+    final cached = ChatV2MessageLocalCache.get(channelId);
     if (cached != null && cached.isNotEmpty) {
       unawaited(() async {
         try {

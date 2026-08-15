@@ -1,7 +1,5 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../data/chat_v2_repository.dart';
 
@@ -12,35 +10,10 @@ final chatV2ReadStateProvider =
 );
 
 class ChatV2ReadStateNotifier extends Notifier<Map<String, DateTime>> {
-  static const _storageKey = 'vcloud_chat_seen_channels_v2';
-  static Map<String, DateTime> _memoryCache = {};
-  static const _storage = FlutterSecureStorage();
+  static final Map<String, DateTime> _memoryCache = {};
 
   @override
   Map<String, DateTime> build() {
-    if (_memoryCache.isNotEmpty) {
-      return _memoryCache;
-    }
-
-    // Load async từ Storage để giữ trạng thái sau khi F5 / Reload
-    unawaited(() async {
-      try {
-        final raw = await _storage.read(key: _storageKey);
-        if (raw != null && raw.isNotEmpty) {
-          final Map<String, dynamic> decoded = jsonDecode(raw);
-          final loaded = <String, DateTime>{};
-          decoded.forEach((k, v) {
-            final dt = DateTime.tryParse(v.toString());
-            if (dt != null) loaded[k] = dt;
-          });
-          if (loaded.isNotEmpty) {
-            _memoryCache = {..._memoryCache, ...loaded};
-            state = {...state, ...loaded};
-          }
-        }
-      } catch (_) {}
-    }());
-
     return _memoryCache;
   }
 
@@ -51,15 +24,12 @@ class ChatV2ReadStateNotifier extends Notifier<Map<String, DateTime>> {
       ...state,
       channelId: now,
     };
-    _memoryCache = updated;
+    _memoryCache[channelId] = now;
     state = updated;
 
-    // Lưu vào Storage và gọi Odoo Backend
+    // Đồng bộ lên Odoo Backend (background)
     unawaited(() async {
       try {
-        final mapToSave = <String, String>{};
-        updated.forEach((k, v) => mapToSave[k] = v.toIso8601String());
-        await _storage.write(key: _storageKey, value: jsonEncode(mapToSave));
         await ref.read(chatV2RepositoryProvider).markAsRead(channelId);
       } catch (_) {}
     }());
@@ -69,16 +39,8 @@ class ChatV2ReadStateNotifier extends Notifier<Map<String, DateTime>> {
   void markChannelAsUnread(String channelId) {
     if (state.containsKey(channelId)) {
       final updated = Map<String, DateTime>.from(state)..remove(channelId);
-      _memoryCache = updated;
+      _memoryCache.remove(channelId);
       state = updated;
-
-      unawaited(() async {
-        try {
-          final mapToSave = <String, String>{};
-          updated.forEach((k, v) => mapToSave[k] = v.toIso8601String());
-          await _storage.write(key: _storageKey, value: jsonEncode(mapToSave));
-        } catch (_) {}
-      }());
     }
   }
 
@@ -93,8 +55,7 @@ class ChatV2ReadStateNotifier extends Notifier<Map<String, DateTime>> {
 
     final lastSeen = state[channelId] ?? _memoryCache[channelId];
     if (lastSeen == null) {
-      // Chưa từng bấm vào xem trong phiên làm việc này
-      return true;
+      return false;
     }
 
     // So sánh thời gian UTC epoch để tránh lệch timezone

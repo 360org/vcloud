@@ -1092,22 +1092,28 @@ class _MetricPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PressableScale(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          gradient: gradient,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x1A0F172A),
-              blurRadius: 22,
-              offset: Offset(0, 12),
-            ),
-          ],
-        ),
-        child: Stack(
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          onTap();
+        },
+        borderRadius: BorderRadius.circular(20),
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            gradient: gradient,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x1A0F172A),
+                blurRadius: 22,
+                offset: Offset(0, 12),
+              ),
+            ],
+          ),
+          child: Stack(
           children: [
             Positioned(
               right: -18,
@@ -1184,8 +1190,9 @@ class _MetricPill extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }
 
 class _CheckInStatusButton extends StatelessWidget {
