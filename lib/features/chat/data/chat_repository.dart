@@ -67,7 +67,17 @@ class ChatRepository {
 
     controller.onListen = () {
       refresh();
-      timer = Timer.periodic(RealtimeIntervals.chatList, (_) => refresh());
+      void scheduleNextPoll() {
+        if (controller.isClosed) return;
+        timer?.cancel();
+        timer = Timer(RealtimeIntervals.chatList, () async {
+          if (!controller.isClosed) {
+            await refresh();
+            scheduleNextPoll();
+          }
+        });
+      }
+      scheduleNextPoll();
     };
     controller.onCancel = () {
       timer?.cancel();
@@ -243,7 +253,17 @@ class ChatRepository {
 
     controller.onListen = () {
       refresh();
-      timer = Timer.periodic(RealtimeIntervals.chatDetail, (_) => refresh());
+      void scheduleNextPoll() {
+        if (controller.isClosed) return;
+        timer?.cancel();
+        timer = Timer(RealtimeIntervals.chatDetail, () async {
+          if (!controller.isClosed) {
+            await refresh();
+            scheduleNextPoll();
+          }
+        });
+      }
+      scheduleNextPoll();
     };
     controller.onCancel = () {
       timer?.cancel();

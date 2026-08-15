@@ -94,7 +94,17 @@ class AttendanceRepository {
 
     controller.onListen = () {
       refresh();
-      timer = Timer.periodic(pollInterval, (_) => refresh());
+      void scheduleNextPoll() {
+        if (controller.isClosed) return;
+        timer?.cancel();
+        timer = Timer(pollInterval, () async {
+          if (!controller.isClosed) {
+            await refresh();
+            scheduleNextPoll();
+          }
+        });
+      }
+      scheduleNextPoll();
     };
     controller.onCancel = () {
       timer?.cancel();

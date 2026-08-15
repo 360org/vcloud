@@ -18,7 +18,6 @@ import '../../../shared/widgets/location_prompt_dialog.dart';
 import '../../attendance/application/attendance_controller.dart';
 import '../../attendance/domain/shift_calculator.dart';
 import '../../auth/application/auth_controller.dart';
-import '../../chat/application/conversations_controller.dart';
 import '../../chat_v2/application/chat_v2_channels_controller.dart';
 import '../../timesheet/application/task_controller.dart';
 
@@ -180,7 +179,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ref.invalidate(attendanceTodayProvider);
             ref.invalidate(todayTasksProvider);
             ref.invalidate(openSessionProvider);
-            ref.invalidate(conversationsProvider);
             ref.invalidate(chatV2ChannelsProvider);
             ref.invalidate(mobileNotificationsProvider);
           },
