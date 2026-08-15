@@ -9,7 +9,7 @@ import 'package:lucide_flutter/lucide_flutter.dart';
 
 import '../../core/api/odoo_api_client.dart';
 import '../../core/theme/app_theme.dart';
-import '../../features/chat/application/conversations_controller.dart';
+import '../../features/chat_v2/application/chat_v2_channels_controller.dart';
 import 'ui_kit.dart';
 
 /// Standard scaffold for top-level tabs (Home/Chat/...). Draws the
@@ -61,7 +61,7 @@ class AppScaffold extends ConsumerWidget {
     }();
 
     // Get badge counts
-    final chatUnread = ref.watch(totalUnreadCountProvider);
+    final chatUnread = ref.watch(chatV2TotalUnreadProvider);
 
     final Widget? bottom =
         bottomNavigationBarOverride ??
