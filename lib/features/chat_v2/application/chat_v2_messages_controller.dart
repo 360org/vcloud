@@ -155,39 +155,49 @@ class ChatV2MessagesNotifier
     });
 
     // Polling thích ứng (Adaptive Polling): Chạy nhẹ (12s) khi WebSocket active, chạy nhanh (1.5s) khi WebSocket offline
-    _pollingTimer?.cancel();
-    _pollingTimer = Timer.periodic(const Duration(milliseconds: 1500), (_) async {
-      if (!state.isLoading && state.hasValue) {
-        // Nếu WebSocket đang kết nối ổn định, chỉ fetch ngẫu nhiên hoặc sau chu kỳ dài
-        final isWsActive = realtime.isConnected;
-        final now = DateTime.now().millisecondsSinceEpoch;
-        // Bỏ qua lượt poll nếu WS đang active và chưa tới 12s
-        if (isWsActive && (now % 12000 > 1600)) {
-          return;
-        }
+    bool isDisposed = false;
 
-        try {
-          final latest = await repo.getMessages(
-            channelId,
-            currentPartnerId: partnerId,
-            currentUserId: userId,
-          );
-          if (latest.isNotEmpty) {
-            final currentList = state.valueOrNull ?? const [];
-            final currentIds = currentList.map((m) => m.id).toSet();
-            final hasNew = latest.any((m) => !currentIds.contains(m.id));
-            final hasPending = currentList.any((m) => m.status == 'pending');
-
-            if (hasNew || hasPending || currentList.length != latest.length) {
-              ChatV2MessageLocalCache.set(channelId, latest);
-              state = AsyncData(latest);
-            }
+    void scheduleNextPoll() {
+      if (isDisposed) return;
+      _pollingTimer?.cancel();
+      _pollingTimer = Timer(const Duration(milliseconds: 1500), () async {
+        if (!state.isLoading && state.hasValue) {
+          // Nếu WebSocket đang kết nối ổn định, chỉ fetch ngẫu nhiên hoặc sau chu kỳ dài
+          final isWsActive = realtime.isConnected;
+          final now = DateTime.now().millisecondsSinceEpoch;
+          // Bỏ qua lượt poll nếu WS đang active và chưa tới 12s
+          if (isWsActive && (now % 12000 > 1600)) {
+            scheduleNextPoll();
+            return;
           }
-        } catch (_) {}
-      }
-    });
+
+          try {
+            final latest = await repo.getMessages(
+              channelId,
+              currentPartnerId: partnerId,
+              currentUserId: userId,
+            );
+            if (latest.isNotEmpty) {
+              final currentList = state.valueOrNull ?? const [];
+              final currentIds = currentList.map((m) => m.id).toSet();
+              final hasNew = latest.any((m) => !currentIds.contains(m.id));
+              final hasPending = currentList.any((m) => m.status == 'pending');
+
+              if (hasNew || hasPending || currentList.length != latest.length) {
+                ChatV2MessageLocalCache.set(channelId, latest);
+                state = AsyncData(latest);
+              }
+            }
+          } catch (_) {}
+        }
+        scheduleNextPoll();
+      });
+    }
+
+    scheduleNextPoll();
 
     ref.onDispose(() {
+      isDisposed = true;
       _wsSub?.cancel();
       _pollingTimer?.cancel();
     });
