@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../../core/utils/date_format.dart';
+
 @immutable
 class ChatV2Attachment {
   final String id;
@@ -9,6 +11,7 @@ class ChatV2Attachment {
   final String? url;
   final String? downloadUrl;
   final String? accessToken;
+  final Uint8List? bytes;
 
   const ChatV2Attachment({
     required this.id,
@@ -18,6 +21,7 @@ class ChatV2Attachment {
     this.url,
     this.downloadUrl,
     this.accessToken,
+    this.bytes,
   });
 
   bool get isImage {
@@ -28,13 +32,22 @@ class ChatV2Attachment {
         lowerName.endsWith('.jpg') ||
         lowerName.endsWith('.jpeg') ||
         lowerName.endsWith('.gif') ||
-        lowerName.endsWith('.webp');
+        lowerName.endsWith('.webp') ||
+        lowerName.endsWith('.svg');
+  }
+
+  String get extension {
+    final idx = name.lastIndexOf('.');
+    if (idx != -1 && idx < name.length - 1) {
+      return name.substring(idx + 1).toLowerCase();
+    }
+    return '';
   }
 
   String resolveFullUrl(String baseUrl) {
     final cleanBase = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
     if (id.isNotEmpty && isImage) {
-      return '$cleanBase/web/image/$id';
+      return '$cleanBase/api/v1/mobile/attachments/$id/image';
     }
     final target = (url != null && url!.isNotEmpty) ? url! : (downloadUrl ?? '');
     if (target.startsWith('http://') || target.startsWith('https://')) {
@@ -63,181 +76,83 @@ class ChatV2Attachment {
       accessToken: accessToken,
     );
   }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+      if (mimetype != null) 'mimetype': mimetype,
+      if (fileSize != null) 'file_size': fileSize,
+      if (url != null) 'url': url,
+      if (downloadUrl != null) 'download_url': downloadUrl,
+      if (accessToken != null) 'access_token': accessToken,
+    };
+  }
 }
 
 @immutable
 class ChatV2Message {
-  final String id;
-  final String channelId;
-  final String content;
-  final String? authorId;
-  final String authorName;
-  final String? authorAvatar;
-  final DateTime? createdAt;
-  final bool isMine;
-  final String status;
-  final bool isRead;
-  final List<String> attachmentIds;
-  final List<String> attachmentUrls;
-  final List<ChatV2Attachment> attachments;
-
   const ChatV2Message({
     required this.id,
     required this.channelId,
     required this.content,
     this.authorId,
     required this.authorName,
-    this.authorAvatar,
     this.createdAt,
-    required this.isMine,
+    this.isMine = false,
     this.status = 'sent',
-    this.isRead = false,
-    this.attachmentIds = const [],
-    this.attachmentUrls = const [],
     this.attachments = const [],
+    this.parentId,
+    this.parentBody,
+    this.parentAuthorName,
   });
 
-  bool get hasImageAttachment =>
-      attachments.any((att) => att.isImage) || isImageFilename;
+  final String id;
+  final String channelId;
+  final String content;
+  final String? authorId;
+  final String authorName;
+  final DateTime? createdAt;
+  final bool isMine;
+  final String status;
+  final List<ChatV2Attachment> attachments;
+  final String? parentId;
+  final String? parentBody;
+  final String? parentAuthorName;
+
+  bool get hasImageAttachment => attachments.any((a) => a.isImage);
 
   bool get isImageFilename {
-    final trimmed = content.trim().toLowerCase();
-    if (trimmed.isEmpty || trimmed.contains('\n') || trimmed.length > 250) return false;
-    return trimmed.endsWith('.png') ||
-        trimmed.endsWith('.jpg') ||
-        trimmed.endsWith('.jpeg') ||
-        trimmed.endsWith('.gif') ||
-        trimmed.endsWith('.webp') ||
-        trimmed.startsWith('image_picker_') ||
-        trimmed.startsWith('scaled_');
+    final clean = content.trim().toLowerCase();
+    return clean.endsWith('.png') ||
+        clean.endsWith('.jpg') ||
+        clean.endsWith('.jpeg') ||
+        clean.endsWith('.gif') ||
+        clean.endsWith('.webp') ||
+        clean.endsWith('.svg') ||
+        clean.startsWith('scaled_screenshot') ||
+        clean.startsWith('scaled_img') ||
+        clean.startsWith('scaled_chatgpt') ||
+        clean.startsWith('scaled_antigravity') ||
+        clean.startsWith('scaled_badge') ||
+        clean.startsWith('scaled_logo') ||
+        clean.startsWith('image_picker_');
   }
 
   bool get isDocumentFilename {
-    final trimmed = content.trim().toLowerCase();
-    if (trimmed.isEmpty || trimmed.contains('\n') || trimmed.length > 250) return false;
-    return trimmed.endsWith('.pdf') ||
-        trimmed.endsWith('.docx') ||
-        trimmed.endsWith('.doc') ||
-        trimmed.endsWith('.xlsx') ||
-        trimmed.endsWith('.xls') ||
-        trimmed.endsWith('.pptx') ||
-        trimmed.endsWith('.zip');
-  }
-
-  factory ChatV2Message.fromMap(
-    Map<String, dynamic> map, {
-    String? currentPartnerId,
-    String? currentUserId,
-  }) {
-    final id = _stringOr(map['id'], '');
-    final channelId = _stringOr(map['channel_id'], '');
-    final rawBody = _stringOr(map['body'] ?? map['content'], '');
-    final cleanContent = _stripHtml(rawBody);
-    final authorId = _stringOrNull(map['author_id'] ?? (map['author'] is Map ? map['author']['id'] : null));
-    final authorName = _stringOr(
-      map['author_name'] ?? (map['author'] is Map ? map['author']['name'] : null),
-      'Thành viên',
-    );
-    final authorAvatar = _stringOrNull(
-      map['author_avatar'] ?? (map['author'] is Map ? map['author']['avatar_url'] : null),
-    );
-
-    DateTime? date;
-    final dateStr = _stringOrNull(map['date'] ?? map['create_date']);
-    if (dateStr != null) {
-      date = DateTime.tryParse(dateStr)?.toLocal();
-    }
-
-    final isRead = _boolOr(map['is_read'], false);
-    final status = _stringOr(map['status'], isRead ? 'read' : 'sent');
-
-    // Kiểm tra isMine
-    bool isMine = false;
-    if (currentPartnerId != null && authorId == currentPartnerId) {
-      isMine = true;
-    } else if (currentUserId != null && authorId == currentUserId) {
-      isMine = true;
-    } else if (map['is_mine'] == true) {
-      isMine = true;
-    }
-
-    // Parse attachments
-    final attList = <ChatV2Attachment>[];
-    final attIds = <String>[];
-    final attUrls = <String>[];
-
-    final rawAttIds = map['attachment_ids'];
-    if (rawAttIds is List) {
-      for (final item in rawAttIds) {
-        if (item is int || (item is String && int.tryParse(item) != null)) {
-          final idStr = item.toString();
-          if (!attIds.contains(idStr)) attIds.add(idStr);
-        }
-      }
-    }
-
-    final rawAtts = map['attachments'];
-    if (rawAtts is List) {
-      for (final item in rawAtts) {
-        if (item is Map) {
-          final attMap = item.map((k, v) => MapEntry(k.toString(), v));
-          final att = ChatV2Attachment.fromMap(attMap);
-          if (att.id.isNotEmpty) {
-            attList.add(att);
-            if (!attIds.contains(att.id)) {
-              attIds.add(att.id);
-            }
-            final urlStr = att.downloadUrl ?? att.url;
-            if (urlStr != null && urlStr.isNotEmpty) {
-              attUrls.add(urlStr);
-            }
-          }
-        }
-      }
-    }
-
-    // Fallback: nếu có attachment_ids nhưng attachments rỗng
-    for (final idStr in attIds) {
-      if (!attList.any((a) => a.id == idStr)) {
-        attList.add(ChatV2Attachment(
-          id: idStr,
-          name: cleanContent.isNotEmpty ? cleanContent : 'image_$idStr.jpg',
-          mimetype: 'image/jpeg',
-          url: '/web/image/$idStr',
-        ));
-      }
-    }
-
-    // Extract image URLs từ HTML rawBody nếu có
-    final imgMatch = RegExp(r'/web/image/(?:ir\.attachment/)?(\d+)', caseSensitive: false);
-    for (final match in imgMatch.allMatches(rawBody)) {
-      final idStr = match.group(1);
-      if (idStr != null && !attList.any((a) => a.id == idStr)) {
-        attList.add(ChatV2Attachment(
-          id: idStr,
-          name: 'image_$idStr.png',
-          mimetype: 'image/png',
-          url: '/web/image/$idStr',
-        ));
-        if (!attIds.contains(idStr)) attIds.add(idStr);
-      }
-    }
-
-    return ChatV2Message(
-      id: id,
-      channelId: channelId,
-      content: cleanContent,
-      authorId: authorId,
-      authorName: authorName,
-      authorAvatar: authorAvatar,
-      createdAt: date,
-      isMine: isMine,
-      status: status,
-      isRead: isRead,
-      attachmentIds: attIds,
-      attachmentUrls: attUrls,
-      attachments: attList,
-    );
+    final clean = content.trim().toLowerCase();
+    return clean.endsWith('.pdf') ||
+        clean.endsWith('.doc') ||
+        clean.endsWith('.docx') ||
+        clean.endsWith('.xls') ||
+        clean.endsWith('.xlsx') ||
+        clean.endsWith('.ppt') ||
+        clean.endsWith('.pptx') ||
+        clean.endsWith('.txt') ||
+        clean.endsWith('.zip') ||
+        clean.startsWith('báo giá') ||
+        clean.startsWith('baocao_') ||
+        clean.startsWith('hopdong_');
   }
 
   ChatV2Message copyWith({
@@ -246,14 +161,13 @@ class ChatV2Message {
     String? content,
     String? authorId,
     String? authorName,
-    String? authorAvatar,
     DateTime? createdAt,
     bool? isMine,
     String? status,
-    bool? isRead,
-    List<String>? attachmentIds,
-    List<String>? attachmentUrls,
     List<ChatV2Attachment>? attachments,
+    String? parentId,
+    String? parentBody,
+    String? parentAuthorName,
   }) {
     return ChatV2Message(
       id: id ?? this.id,
@@ -261,60 +175,161 @@ class ChatV2Message {
       content: content ?? this.content,
       authorId: authorId ?? this.authorId,
       authorName: authorName ?? this.authorName,
-      authorAvatar: authorAvatar ?? this.authorAvatar,
       createdAt: createdAt ?? this.createdAt,
       isMine: isMine ?? this.isMine,
       status: status ?? this.status,
-      isRead: isRead ?? this.isRead,
-      attachmentIds: attachmentIds ?? this.attachmentIds,
-      attachmentUrls: attachmentUrls ?? this.attachmentUrls,
       attachments: attachments ?? this.attachments,
+      parentId: parentId ?? this.parentId,
+      parentBody: parentBody ?? this.parentBody,
+      parentAuthorName: parentAuthorName ?? this.parentAuthorName,
     );
   }
-}
 
-String _stringOr(dynamic value, String fallback) {
-  if (value == null) return fallback;
-  if (value is String) {
-    final trimmed = value.trim();
-    return trimmed.isNotEmpty ? trimmed : fallback;
+  Map<String, dynamic> toMap() => {
+    'id': id,
+    'channel_id': channelId,
+    'body': content,
+    'author_id': authorId,
+    'author_name': authorName,
+    'date': createdAt?.toIso8601String(),
+    'is_mine': isMine,
+    'status': status,
+    'attachments': attachments.map((a) => a.toMap()).toList(),
+    'parent_id': parentId,
+    'parent_body': parentBody,
+    'parent_author_name': parentAuthorName,
+  };
+
+  factory ChatV2Message.fromMap(
+    Map<String, dynamic> map, {
+    String? currentPartnerId,
+    String? currentUserId,
+  }) {
+    final id = _stringOr(map['id'], '');
+    final channelId = _stringOr(map['channel_id'] ?? map['record_id'], '');
+
+    // Parse content / body (clean HTML)
+    final String rawBody = _stringOr(map['body'] ?? map['content'] ?? map['text'], '');
+
+    // Parse author
+    String? authorId;
+    String authorName = 'Người dùng';
+    final rawAuthor = map['author_id'];
+    if (rawAuthor is Map<String, dynamic>) {
+      authorId = _stringOrNull(rawAuthor['id']);
+      authorName = _stringOr(rawAuthor['name'], 'Người dùng');
+    } else if (rawAuthor != null && rawAuthor != false) {
+      authorId = rawAuthor.toString();
+      authorName = _stringOr(map['author_name'] ?? map['author'], 'Người dùng');
+    } else {
+      authorName = _stringOr(map['author_name'] ?? map['author'], 'Người dùng');
+    }
+
+    // Parse date
+    final createdAt = Dates.parseOdooUtc(map['date'] ?? map['created_at'] ?? map['create_date']);
+
+    // Determine isMine
+    bool isMine = false;
+    if (map['is_mine'] == true) {
+      isMine = true;
+    } else if (authorId != null) {
+      if (currentPartnerId != null && authorId == currentPartnerId) {
+        isMine = true;
+      } else if (currentUserId != null && authorId == currentUserId) {
+        isMine = true;
+      }
+    }
+
+    // Parse attachments
+    final parsedAttachments = <ChatV2Attachment>[];
+    final rawAtts = map['attachments'];
+    if (rawAtts is List) {
+      for (final a in rawAtts) {
+        if (a is Map<String, dynamic>) {
+          parsedAttachments.add(ChatV2Attachment.fromMap(a));
+        }
+      }
+    }
+
+    // Fallback: nếu attachments rỗng nhưng có attachment_ids
+    if (parsedAttachments.isEmpty && map['attachment_ids'] is List) {
+      final attIds = map['attachment_ids'] as List;
+      for (final aid in attIds) {
+        if (aid != null) {
+          final sId = aid.toString();
+          parsedAttachments.add(
+            ChatV2Attachment(
+              id: sId,
+              name: 'Đính kèm $sId',
+              url: '/web/image/$sId',
+            ),
+          );
+        }
+      }
+    }
+
+    // Extract embedded image URLs from HTML body if any
+    final imgRegex = RegExp(r'<img[^>]+src=["' "'" r']([^"' "'" r']+)["' "'" r']', caseSensitive: false);
+    final imgMatches = imgRegex.allMatches(rawBody);
+    for (final match in imgMatches) {
+      final src = match.group(1);
+      if (src != null && src.isNotEmpty && !parsedAttachments.any((a) => a.url == src)) {
+        parsedAttachments.add(
+          ChatV2Attachment(
+            id: '',
+            name: 'Hình ảnh',
+            url: src,
+            mimetype: 'image/png',
+          ),
+        );
+      }
+    }
+
+    final cleanContent = _cleanHtml(rawBody);
+
+    return ChatV2Message(
+      id: id,
+      channelId: channelId,
+      content: cleanContent,
+      authorId: authorId,
+      authorName: authorName,
+      createdAt: createdAt,
+      isMine: isMine,
+      status: _stringOr(map['status'], 'sent'),
+      attachments: parsedAttachments,
+      parentId: _stringOrNull(map['parent_id']),
+      parentBody: _stringOrNull(map['parent_body']),
+      parentAuthorName: _stringOrNull(map['parent_author_name']),
+    );
   }
-  return value.toString().trim();
-}
 
-String? _stringOrNull(dynamic value) {
-  if (value == null) return null;
-  if (value is String) {
-    final trimmed = value.trim();
-    return trimmed.isNotEmpty ? trimmed : null;
+  static String _cleanHtml(String html) {
+    if (html.isEmpty) return '';
+    var text = html;
+    for (var i = 0; i < 3; i++) {
+      text = text
+          .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
+          .replaceAll(RegExp(r'</p>', caseSensitive: false), '\n')
+          .replaceAll(RegExp(r'<[^>]*>'), '')
+          .replaceAll('&nbsp;', ' ')
+          .replaceAll('&lt;', '<')
+          .replaceAll('&gt;', '>')
+          .replaceAll('&amp;', '&')
+          .replaceAll('&quot;', '"')
+          .replaceAll('&#39;', "'")
+          .trim();
+    }
+    return text;
   }
-  final str = value.toString().trim();
-  return str.isNotEmpty ? str : null;
 }
 
-bool _boolOr(dynamic value, bool fallback) {
-  if (value is bool) return value;
-  if (value is num) return value != 0;
-  if (value is String) {
-    final lower = value.toLowerCase().trim();
-    if (lower == 'true' || lower == '1') return true;
-    if (lower == 'false' || lower == '0') return false;
-  }
-  return fallback;
+String _stringOr(dynamic val, String fallback) {
+  if (val == null || val == false) return fallback;
+  return val.toString();
 }
 
-String _stripHtml(String html) {
-  if (html.isEmpty) return '';
-  final noTags = html.replaceAll(RegExp(r'<[^>]*>', multiLine: true), '');
-  return _unescapeHtml(noTags).trim();
-}
-
-String _unescapeHtml(String text) {
-  return text
-      .replaceAll('&lt;', '<')
-      .replaceAll('&gt;', '>')
-      .replaceAll('&quot;', '"')
-      .replaceAll('&apos;', "'")
-      .replaceAll('&#39;', "'")
-      .replaceAll('&amp;', '&');
+String? _stringOrNull(dynamic val) {
+  if (val == null || val == false) return null;
+  final str = val.toString().trim();
+  return str.isEmpty ? null : str;
 }

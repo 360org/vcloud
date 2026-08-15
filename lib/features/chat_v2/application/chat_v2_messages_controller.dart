@@ -270,7 +270,7 @@ class ChatV2MessagesNotifier
     }
   }
 
-  Future<void> sendMessage(String text, {List<int>? attachmentIds}) async {
+  Future<void> sendMessage(String text, {List<int>? attachmentIds, String? parentId}) async {
     final trimmed = text.trim();
     if (trimmed.isEmpty && (attachmentIds == null || attachmentIds.isEmpty)) {
       return;
@@ -482,6 +482,41 @@ class ChatV2MessagesNotifier
           return m;
         }).toList(),
       );
+    }
+  }
+
+  Future<void> editMessage(String messageId, String newBody) async {
+    final repo = ref.read(chatV2RepositoryProvider);
+    try {
+      await repo.editMessage(messageId, newBody);
+      // Update locally
+      final current = state.valueOrNull ?? [];
+      final idx = current.indexWhere((m) => m.id == messageId);
+      if (idx != -1) {
+        final newMsg = current[idx].copyWith(content: newBody);
+        final nextList = List<ChatV2Message>.from(current);
+        nextList[idx] = newMsg;
+        state = AsyncData(nextList);
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<void> deleteMessage(String messageId) async {
+    final repo = ref.read(chatV2RepositoryProvider);
+    try {
+      await repo.deleteMessage(messageId);
+      // Update locally
+      final current = state.valueOrNull ?? [];
+      final idx = current.indexWhere((m) => m.id == messageId);
+      if (idx != -1) {
+        final nextList = List<ChatV2Message>.from(current);
+        nextList.removeAt(idx);
+        state = AsyncData(nextList);
+      }
+    } catch (e) {
+      rethrow;
     }
   }
 }

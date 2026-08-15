@@ -270,4 +270,18 @@ class ChatV2Repository {
       } catch (_) {}
     }
   }
+
+  Future<void> editMessage(String messageId, String newBody) async {
+    await _client.post(
+      '/api/v1/mobile/chat/messages/$messageId/edit',
+      body: {'body': newBody},
+    );
+  }
+
+  Future<void> deleteMessage(String messageId) async {
+    await _client.post(
+      '/api/v1/mobile/chat/messages/$messageId/delete',
+      body: {},
+    );
+  }
 }

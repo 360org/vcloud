@@ -10,6 +10,7 @@ import 'package:lucide_flutter/lucide_flutter.dart';
 
 import '../../application/chat_v2_channels_controller.dart';
 import '../../application/chat_v2_messages_controller.dart';
+import '../../data/models/chat_v2_message.dart';
 import '../../../auth/application/auth_controller.dart';
 import '../../../../shared/widgets/html_avatar_image.dart';
 import '../widgets/chat_v2_input_bar.dart';
@@ -32,6 +33,10 @@ class ChatV2DetailScreen extends ConsumerStatefulWidget {
 class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
   late final ScrollController _scrollController;
   bool _isSending = false;
+  ChatV2Message? _replyingTo;
+  ChatV2Message? _editingMsg;
+  final TextEditingController _inputController = TextEditingController();
+  final FocusNode _inputFocusNode = FocusNode();
 
   @override
   void initState() {
@@ -71,9 +76,17 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
 
     setState(() => _isSending = true);
     try {
-      await ref
-          .read(chatV2MessagesProvider(widget.channelId).notifier)
-          .sendMessage(text);
+      if (_editingMsg != null) {
+        await ref
+            .read(chatV2MessagesProvider(widget.channelId).notifier)
+            .editMessage(_editingMsg!.id, text);
+        setState(() => _editingMsg = null);
+      } else {
+        await ref
+            .read(chatV2MessagesProvider(widget.channelId).notifier)
+            .sendMessage(text, parentId: _replyingTo?.id);
+        setState(() => _replyingTo = null);
+      }
 
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
     } catch (e) {
@@ -349,7 +362,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                   ),
                   const SizedBox(height: 2),
                   Builder(
-                    builder: (context) {
+                    builder: (sheetContext) {
                       final isActualGroup = currentChannel?.isGroup == true ||
                           (currentChannel != null &&
                               currentChannel.getActualIsGroup(currentUserName));
@@ -519,22 +532,65 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                       shape: const RoundedRectangleBorder(
                                         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
                                       ),
-                                      builder: (context) {
+                                      builder: (sheetContext) {
                                         return SafeArea(
                                           child: Column(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
                                               ListTile(
+                                                leading: Icon(LucideIcons.reply, color: isDark ? Colors.white : Colors.black),
+                                                title: Text('Trả lời', style: TextStyle(color: isDark ? Colors.white : Colors.black)),
+                                                onTap: () {
+                                                  Navigator.pop(sheetContext);
+                                                  setState(() {
+                                                    _editingMsg = null;
+                                                    _replyingTo = message;
+                                                    _inputFocusNode.requestFocus();
+                                                  });
+                                                },
+                                              ),
+                                              ListTile(
                                                 leading: Icon(LucideIcons.copy, color: isDark ? Colors.white : Colors.black),
                                                 title: Text('Sao chép văn bản', style: TextStyle(color: isDark ? Colors.white : Colors.black)),
                                                 onTap: () {
-                                                  Navigator.pop(context);
+                                                  Navigator.pop(sheetContext);
                                                   Clipboard.setData(ClipboardData(text: message.content));
                                                   ScaffoldMessenger.of(context).showSnackBar(
                                                     const SnackBar(content: Text('Đã sao chép văn bản')),
                                                   );
                                                 },
                                               ),
+                                              if (message.isMine)
+                                                ListTile(
+                                                  leading: Icon(LucideIcons.edit2, color: isDark ? Colors.white : Colors.black),
+                                                  title: Text('Chỉnh sửa', style: TextStyle(color: isDark ? Colors.white : Colors.black)),
+                                                  onTap: () {
+                                                    Navigator.pop(sheetContext);
+                                                    setState(() {
+                                                      _replyingTo = null;
+                                                      _editingMsg = message;
+                                                      _inputController.text = message.content;
+                                                      _inputFocusNode.requestFocus();
+                                                    });
+                                                  },
+                                                ),
+                                              if (message.isMine)
+                                                ListTile(
+                                                  leading: const Icon(LucideIcons.trash2, color: Colors.red),
+                                                  title: const Text('Thu hồi', style: TextStyle(color: Colors.red)),
+                                                  onTap: () async {
+                                                    Navigator.pop(sheetContext);
+                                                    try {
+                                                      await ref.read(chatV2MessagesProvider(widget.channelId).notifier).deleteMessage(message.id);
+                                                    } catch (e) {
+                                                      if (mounted) {
+                                                        ScaffoldMessenger.of(context).showSnackBar(
+                                                          SnackBar(content: Text('Lỗi thu hồi: $e')),
+                                                        );
+                                                      }
+                                                    }
+                                                  },
+                                                ),
                                             ],
                                           ),
                                         );
@@ -610,7 +666,58 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                       ),
                     ),
                   ),
+                  if (_replyingTo != null || _editingMsg != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      color: isDark ? const Color(0xFF1E293B) : Colors.grey[100],
+                      child: Row(
+                        children: [
+                          Icon(
+                            _editingMsg != null ? LucideIcons.edit2 : LucideIcons.reply,
+                            size: 16,
+                            color: const Color(0xFF00C83A),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _editingMsg != null ? 'Đang sửa tin nhắn' : 'Đang trả lời ${_replyingTo!.authorName}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                    color: Color(0xFF00C83A),
+                                  ),
+                                ),
+                                Text(
+                                  _editingMsg != null ? _editingMsg!.content : _replyingTo!.content,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: isDark ? Colors.white70 : Colors.black54,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(LucideIcons.x, size: 18),
+                            onPressed: () {
+                              setState(() {
+                                _replyingTo = null;
+                                _editingMsg = null;
+                                _inputController.clear();
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
                   ChatV2InputBar(
+                    controller: _inputController,
+                    focusNode: _inputFocusNode,
                     onSend: _handleSendMessage,
                     onSendImage: _handleSendImage,
                     onSendFile: _handleSendFile,

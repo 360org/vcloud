@@ -12,6 +12,8 @@ class ChatV2InputBar extends StatefulWidget {
     this.onSendImage,
     this.onSendFile,
     this.isSending = false,
+    this.controller,
+    this.focusNode,
   });
 
   final Future<void> Function(String text) onSend;
@@ -28,6 +30,8 @@ class ChatV2InputBar extends StatefulWidget {
     String? caption,
   })? onSendFile;
   final bool isSending;
+  final TextEditingController? controller;
+  final FocusNode? focusNode;
 
   @override
   State<ChatV2InputBar> createState() => _ChatV2InputBarState();
@@ -49,8 +53,8 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController();
-    _focusNode = FocusNode();
+    _controller = widget.controller ?? TextEditingController();
+    _focusNode = widget.focusNode ?? FocusNode();
     _controller.addListener(_onTextChanged);
     _focusNode.addListener(_onFocusChanged);
   }
