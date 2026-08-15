@@ -21,6 +21,7 @@ dependencies:
   # Backend
   http: ^1.2.2
   web: ^1.1.1
+  web_socket_channel: ^3.0.1
 
   # Device / native
   geolocator: ^11.0.0
@@ -42,6 +43,7 @@ dependencies:
   firebase_crashlytics: ^5.2.6
   path_provider: ^2.1.6
   url_launcher: ^6.3.2
+  flutter_image_compress: ^2.5.1
 
 dev_dependencies:
   flutter_test:
