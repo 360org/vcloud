@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../../../core/utils/date_format.dart';
@@ -87,6 +88,32 @@ class ChatV2Attachment {
       if (downloadUrl != null) 'download_url': downloadUrl,
       if (accessToken != null) 'access_token': accessToken,
     };
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is ChatV2Attachment &&
+        other.id == id &&
+        other.name == name &&
+        other.mimetype == mimetype &&
+        other.fileSize == fileSize &&
+        other.url == url &&
+        other.downloadUrl == downloadUrl &&
+        other.accessToken == accessToken;
+  }
+
+  @override
+  int get hashCode {
+    return Object.hash(
+      id,
+      name,
+      mimetype,
+      fileSize,
+      url,
+      downloadUrl,
+      accessToken,
+    );
   }
 }
 
@@ -320,6 +347,42 @@ class ChatV2Message {
           .trim();
     }
     return text;
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is ChatV2Message &&
+        other.id == id &&
+        other.channelId == channelId &&
+        other.content == content &&
+        other.authorId == authorId &&
+        other.authorName == authorName &&
+        other.createdAt == createdAt &&
+        other.isMine == isMine &&
+        other.status == status &&
+        const ListEquality().equals(other.attachments, attachments) &&
+        other.parentId == parentId &&
+        other.parentBody == parentBody &&
+        other.parentAuthorName == parentAuthorName;
+  }
+
+  @override
+  int get hashCode {
+    return Object.hash(
+      id,
+      channelId,
+      content,
+      authorId,
+      authorName,
+      createdAt,
+      isMine,
+      status,
+      const ListEquality().hash(attachments),
+      parentId,
+      parentBody,
+      parentAuthorName,
+    );
   }
 }
 

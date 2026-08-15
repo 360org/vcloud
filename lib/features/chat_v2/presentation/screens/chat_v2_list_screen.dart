@@ -534,9 +534,9 @@ class _ChannelListItem extends ConsumerWidget {
         : '';
     final avatarGrad = _getAvatarGradient(cleanName);
 
-    // Kiểm tra trạng thái chưa đọc từ ReadState Tracker
+    // Kiểm tra trạng thái chưa đọc từ ReadState Tracker với provider.select
     final readNotifier = ref.watch(chatV2ReadStateProvider.notifier);
-    final lastSentText = ref.watch(chatV2LastSentTrackerProvider)[channel.id];
+    final lastSentText = ref.watch(chatV2LastSentTrackerProvider.select((m) => m[channel.id]));
     final isMineFromTracker = lastSentText != null &&
         channel.lastMessage?.trim() == lastSentText.trim();
 
@@ -547,6 +547,8 @@ class _ChannelListItem extends ConsumerWidget {
           currentUserId: currentUserId,
         );
 
+    // Watch riêng trạng thái seen của channel này để tự động cập nhật khi có trạng thái đọc mới
+    ref.watch(chatV2ReadStateProvider.select((m) => m[channel.id]));
     final hasUnread = !isMine &&
         readNotifier.isChannelUnread(
           channelId: channel.id,
@@ -812,8 +814,8 @@ class _ChannelListItem extends ConsumerWidget {
       );
     }
 
-    // Kiểm tra xem tin nhắn có phải do mình vừa gửi không
-    final lastSentText = ref.watch(chatV2LastSentTrackerProvider)[channel.id];
+    // Kiểm tra xem tin nhắn có phải do mình vừa gửi không với provider.select
+    final lastSentText = ref.watch(chatV2LastSentTrackerProvider.select((m) => m[channel.id]));
     final isMineFromTracker =
         lastSentText != null && msg.trim() == lastSentText.trim();
 

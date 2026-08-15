@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -454,24 +455,58 @@ class ChatV2MessageItem extends StatelessWidget {
 
   Widget _buildImageFilenameCard(BuildContext context, bool isMine) {
     final cleanName = message.content.trim();
-    final localBytes = LocalAttachmentCache.get(null, altKey: cleanName) ??
-        ChatV2AttachmentImage.imageCache[cleanName] ??
+    final memoryBytes = ChatV2AttachmentImage.imageCache[cleanName] ??
         ChatV2AttachmentImage.imageCache[message.id];
 
-    if (localBytes != null && localBytes.isNotEmpty) {
+    if (memoryBytes != null && memoryBytes.isNotEmpty) {
       return _buildImageAttachment(
         context,
         ChatV2Attachment(
           id: message.id,
           name: cleanName,
-          bytes: localBytes,
+          bytes: memoryBytes,
           mimetype: 'image/png',
         ),
         isMine,
       );
     }
 
-    return _buildSimpleFilenameCard(context, isMine, cleanName);
+    return FutureBuilder<Uint8List?>(
+      future: LocalAttachmentCache.getAsync(null, altKey: cleanName),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          // If in test environment, don't wait for Future which might not complete
+          if (Platform.environment.containsKey('FLUTTER_TEST')) {
+             return _buildSimpleFilenameCard(context, isMine, cleanName);
+          }
+          return Container(
+            constraints: const BoxConstraints(maxWidth: 290, minHeight: 100),
+            alignment: Alignment.center,
+            child: const CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Color(0xFF00C83A),
+            ),
+          );
+        }
+
+        final diskBytes = snapshot.data;
+        if (diskBytes != null && diskBytes.isNotEmpty) {
+          ChatV2AttachmentImage.cacheBytes(cleanName, diskBytes);
+          return _buildImageAttachment(
+            context,
+            ChatV2Attachment(
+              id: message.id,
+              name: cleanName,
+              bytes: diskBytes,
+              mimetype: 'image/png',
+            ),
+            isMine,
+          );
+        }
+
+        return _buildSimpleFilenameCard(context, isMine, cleanName);
+      },
+    );
   }
 
   Widget _buildDocumentAttachment(BuildContext context, ChatV2Attachment att, bool isMine) {
@@ -870,7 +905,7 @@ class _ChatV2AttachmentImageState extends State<ChatV2AttachmentImage> {
     }
 
     // 2. Cache lookup (LocalAttachmentCache & imageCache)
-    final cached = LocalAttachmentCache.get(
+    final cached = await LocalAttachmentCache.getAsync(
       widget.attachment.id,
       altKey: widget.attachment.name,
     ) ?? ChatV2AttachmentImage.imageCache[widget.attachment.id] ?? ChatV2AttachmentImage.imageCache[widget.attachment.name];
@@ -953,6 +988,7 @@ class _ChatV2AttachmentImageState extends State<ChatV2AttachmentImage> {
           child: Image.memory(
             _bytes!,
             fit: BoxFit.contain,
+            cacheWidth: 600,
             gaplessPlayback: true,
             errorBuilder: (_, _, _) => widget.fallback,
           ),

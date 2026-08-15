@@ -107,17 +107,9 @@ class LocalAttachmentCache {
           return bytes;
         }
       } else {
-        // Mobile Environment: Check physical disk file
-        try {
-          if (_mobileDirPath != null) {
-            final file = File('$_mobileDirPath/$k.bin');
-            if (file.existsSync()) {
-              final bytes = file.readAsBytesSync();
-              _memCache[k] = bytes; // Populate RAM cache
-              return bytes;
-            }
-          }
-        } catch (_) {}
+        // Mobile Environment: DO NOT check physical disk file synchronously here!
+        // Synchronous file read (File.readAsBytesSync) on UI thread causes freezes.
+        // Disk lookups must go through getAsync().
       }
     }
 
@@ -134,9 +126,30 @@ class LocalAttachmentCache {
     final syncResult = get(key, altKey: altKey);
     if (syncResult != null) return syncResult;
 
-    if (!kIsWeb && _mobileDirPath == null) {
+    if (kIsWeb) return null;
+
+    if (_mobileDirPath == null) {
       await _getMobileDirPath();
-      return get(key, altKey: altKey);
+    }
+
+    if (_mobileDirPath == null) return null;
+
+    final keysToTry = <String>[
+      if (key != null && key.trim().isNotEmpty) key.trim(),
+      if (key != null && key.trim().isNotEmpty) _cleanKey(key),
+      if (altKey != null && altKey.trim().isNotEmpty) altKey.trim(),
+      if (altKey != null && altKey.trim().isNotEmpty) _cleanKey(altKey),
+    ];
+
+    for (final k in keysToTry) {
+      try {
+        final file = File('$_mobileDirPath/$k.bin');
+        if (await file.exists()) {
+          final bytes = await file.readAsBytes();
+          _memCache[k] = bytes; // Populate RAM cache
+          return bytes;
+        }
+      } catch (_) {}
     }
 
     return null;

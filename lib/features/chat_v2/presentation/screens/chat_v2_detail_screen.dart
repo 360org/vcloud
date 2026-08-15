@@ -219,10 +219,10 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
     final currentUser = ref.watch(authControllerProvider).valueOrNull;
     final currentUserName = currentUser?.userMetadata['display_name'] as String?;
 
-    // Lấy thông tin kênh từ cache nếu có
-    final channels = ref.watch(chatV2ChannelsProvider).valueOrNull ?? const [];
-    final currentChannel =
-        channels.where((c) => c.id == widget.channelId).firstOrNull;
+    // Lấy thông tin kênh từ cache nếu có (chỉ watch duy nhất kênh hiện tại)
+    final currentChannel = ref.watch(chatV2ChannelsProvider.select(
+      (async) => async.valueOrNull?.where((c) => c.id == widget.channelId).firstOrNull,
+    ));
     final rawTitle = widget.title ?? currentChannel?.name ?? 'Trò chuyện';
     final displayTitle = currentChannel != null
         ? currentChannel.getCleanName(currentUserName)
@@ -369,8 +369,8 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 2),
-                      Builder(
-                        builder: (sheetContext) {
+                      Consumer(
+                        builder: (context, ref, _) {
                           final isActualGroup = currentChannel?.isGroup == true ||
                               (currentChannel != null &&
                                   currentChannel.getActualIsGroup(currentUserName));
@@ -399,11 +399,11 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                             );
                           }
 
-                          final presenceMap = ref.watch(chatV2PresenceProvider);
                           final partnerId = currentChannel?.partnerId;
-                          final imStatus = (partnerId != null && presenceMap.containsKey(partnerId)) 
-                              ? presenceMap[partnerId]! 
-                              : (currentChannel?.imStatus ?? 'offline');
+                          final liveImStatus = partnerId != null
+                              ? ref.watch(chatV2PresenceProvider.select((m) => m[partnerId]))
+                              : null;
+                          final imStatus = liveImStatus ?? (currentChannel?.imStatus ?? 'offline');
                           final Color statusColor;
                           final String statusLabel;
 

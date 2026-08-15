@@ -2,7 +2,7 @@ name: vcloud
 description: "VCloud employee productivity MVP — chat, attendance, timesheet, tickets."
 publish_to: 'none'
 
-version: 2.4.0+68
+version: 2.4.0+69
 
 environment:
   sdk: ^3.12.0
@@ -44,6 +44,7 @@ dependencies:
   path_provider: ^2.1.6
   url_launcher: ^6.3.2
   flutter_image_compress: ^2.5.1
+  collection: ^1.19.1
 
 dev_dependencies:
   flutter_test:

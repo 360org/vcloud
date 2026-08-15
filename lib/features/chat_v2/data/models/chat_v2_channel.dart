@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../../../core/config/env.dart';
@@ -326,5 +327,51 @@ class ChatV2Channel {
         .replaceAll('&amp;', '&');
     final exp = RegExp(r'<[^>]*>', multiLine: true);
     return text.replaceAll(exp, '').replaceAll('&nbsp;', ' ').trim();
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is ChatV2Channel &&
+        other.id == id &&
+        other.name == name &&
+        other.channelType == channelType &&
+        other.isGroup == isGroup &&
+        other.avatarUrl == avatarUrl &&
+        other.lastMessage == lastMessage &&
+        other.lastMessageDate == lastMessageDate &&
+        other.unreadCount == unreadCount &&
+        other.memberCount == memberCount &&
+        const ListEquality().equals(other.memberNames, memberNames) &&
+        other.imStatus == imStatus &&
+        other.lastMessageAuthorName == lastMessageAuthorName &&
+        other.lastMessageAuthorId == lastMessageAuthorId &&
+        other.partnerId == partnerId &&
+        other.directPartnerId == directPartnerId &&
+        other.directPartnerName == directPartnerName &&
+        other.directPartnerStatus == directPartnerStatus;
+  }
+
+  @override
+  int get hashCode {
+    return Object.hash(
+      id,
+      name,
+      channelType,
+      isGroup,
+      avatarUrl,
+      lastMessage,
+      lastMessageDate,
+      unreadCount,
+      memberCount,
+      const ListEquality().hash(memberNames),
+      imStatus,
+      lastMessageAuthorName,
+      lastMessageAuthorId,
+      partnerId,
+      directPartnerId,
+      directPartnerName,
+      directPartnerStatus,
+    );
   }
 }
