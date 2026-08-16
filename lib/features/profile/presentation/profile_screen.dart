@@ -310,7 +310,7 @@ class _ThemeRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final themeAsync = ref.watch(themeControllerProvider);
-    final currentTheme = themeAsync.value ?? AppThemeMode.light;
+    final currentTheme = themeAsync.valueOrNull ?? AppThemeMode.light;
 
     return PressableScale(
       onTap: () => _showThemePicker(context, ref, currentTheme),

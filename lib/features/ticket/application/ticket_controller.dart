@@ -60,7 +60,7 @@ final ticketOverrideProvider = NotifierProvider<TicketOverride, List<Ticket>?>(
 final effectiveTicketsProvider = Provider<List<Ticket>>((ref) {
   final override = ref.watch(ticketOverrideProvider);
   if (override != null) return override;
-  return ref.watch(ticketsProvider).value ?? const <Ticket>[];
+  return ref.watch(ticketsProvider).valueOrNull ?? const <Ticket>[];
 });
 
 class TicketActions {
@@ -92,7 +92,7 @@ class TicketActions {
   /// and roll the override back to null on success/failure — letting
   /// the source stream re-emit authoritative data on the next tick.
   Future<void> updateStatus(String id, TicketStatus status) async {
-    final cur = _ref.read(ticketsProvider).value ?? const <Ticket>[];
+    final cur = _ref.read(ticketsProvider).valueOrNull ?? const <Ticket>[];
     final patched = [
       for (final t in cur) t.id == id ? t.copyWith(status: status) : t,
     ];

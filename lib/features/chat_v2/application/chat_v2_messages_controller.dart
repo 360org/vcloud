@@ -33,9 +33,17 @@ class ChatV2MessageLocalCache {
     _cache[channelId] = map;
   }
 
+  static void prepend(String channelId, ChatV2Message msg) {
+    final map = _cache[channelId];
+    if (map == null) {
+      _cache[channelId] = {msg.id: msg};
+    } else {
+      _cache[channelId] = {msg.id: msg, ...map};
+    }
+  }
+
   static void append(String channelId, ChatV2Message msg) {
-    final map = _cache.putIfAbsent(channelId, () => <String, ChatV2Message>{});
-    map[msg.id] = msg;
+    prepend(channelId, msg);
   }
 }
 
@@ -64,10 +72,10 @@ class ChatV2MessagesNotifier
     _wsSub?.cancel();
     _wsSub = realtime.onMessageReceived.listen((newMsg) {
       if (newMsg.channelId == channelId) {
-        ChatV2MessageLocalCache.append(channelId, newMsg);
+        ChatV2MessageLocalCache.prepend(channelId, newMsg);
         final currentList = state.valueOrNull ?? const [];
         if (!currentList.any((m) => m.id == newMsg.id)) {
-          state = AsyncData([...currentList, newMsg]);
+          state = AsyncData([newMsg, ...currentList]);
         }
       }
     });
@@ -222,7 +230,8 @@ class ChatV2MessagesNotifier
     );
 
     final previousState = state.valueOrNull ?? const [];
-    state = AsyncData([...previousState, tempMsg]);
+    state = AsyncData([tempMsg, ...previousState]);
+    ChatV2MessageLocalCache.prepend(channelId, tempMsg);
 
     try {
       final sentMsg = await repo.sendMessage(
@@ -243,10 +252,10 @@ class ChatV2MessagesNotifier
         return m;
       }).toList();
 
-      // Nếu không tìm thấy tempId để thay thế, thêm vào cuối
+      // Nếu không tìm thấy tempId để thay thế, đưa lên đầu
       if (!updatedList.any((m) => m.id == sentMsg.id)) {
         updatedList.removeWhere((m) => m.id == tempId);
-        updatedList.add(sentMsg.copyWith(isMine: true, status: 'sent'));
+        updatedList.insert(0, sentMsg.copyWith(isMine: true, status: 'sent'));
       }
 
       ChatV2MessageLocalCache.set(channelId, updatedList);
@@ -343,7 +352,8 @@ class ChatV2MessagesNotifier
     );
 
     final previousState = state.valueOrNull ?? const [];
-    state = AsyncData([...previousState, tempMsg]);
+    state = AsyncData([tempMsg, ...previousState]);
+    ChatV2MessageLocalCache.prepend(channelId, tempMsg);
 
     try {
       // 2. Upload attachment lên Odoo backend
@@ -384,6 +394,11 @@ class ChatV2MessagesNotifier
         }
         return m;
       }).toList();
+
+      if (!updatedList.any((m) => m.id == sentMsg.id)) {
+        updatedList.removeWhere((m) => m.id == tempId);
+        updatedList.insert(0, sentMsg.copyWith(isMine: true, status: 'sent', attachments: [att]));
+      }
 
       ChatV2MessageLocalCache.set(channelId, updatedList);
       state = AsyncData(updatedList);
