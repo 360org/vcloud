@@ -1,6 +1,6 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/odoo_api_client.dart';
@@ -58,6 +58,7 @@ class ChatV2Repository {
     int limit = 35,
     String? beforeId,
   }) async {
+    debugPrint('🟢 [TRACE] ChatV2Repository.getMessages() START - channel: $channelId');
     dynamic data;
     final queryParams = <String, dynamic>{'limit': limit.toString()};
     if (beforeId != null && beforeId.isNotEmpty) {
@@ -86,6 +87,8 @@ class ChatV2Repository {
       list = const [];
     }
 
+    debugPrint('🟢 [TRACE] ChatV2Repository.getMessages() - Mapping ${list.length} messages START');
+
     final List<ChatV2Message> messages = list
         .whereType<Map>()
         .map((m) => ChatV2Message.fromMap(
@@ -101,6 +104,8 @@ class ChatV2Repository {
         .map((m) => int.tryParse(m.id))
         .whereType<int>()
         .toList();
+
+    debugPrint('🔴 [TRACE] ChatV2Repository.getMessages() - Mapping END, fetching ${emptyMsgIds.length} attachments');
 
     if (emptyMsgIds.isNotEmpty) {
       try {
@@ -194,6 +199,7 @@ class ChatV2Repository {
       } catch (_) {}
     }
 
+    debugPrint('🔴 [TRACE] ChatV2Repository.getMessages() END - Return ${messages.length} messages');
     return messages;
   }
 

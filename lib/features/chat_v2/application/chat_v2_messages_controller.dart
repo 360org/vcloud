@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../auth/application/auth_controller.dart';
@@ -46,6 +46,7 @@ class ChatV2MessagesNotifier
 
   @override
   FutureOr<List<ChatV2Message>> build(String arg) async {
+    debugPrint('🟢 [TRACE] ChatV2MessagesNotifier.build() START - channel: $arg');
     final channelId = arg;
     final repo = ref.watch(chatV2RepositoryProvider);
     final user = ref.watch(authControllerProvider).valueOrNull;
@@ -89,11 +90,13 @@ class ChatV2MessagesNotifier
           }
 
           try {
+            debugPrint('🟢 [TRACE] ChatV2MessagesNotifier.polling getMessages() START');
             final latest = await repo.getMessages(
               channelId,
               currentPartnerId: partnerId,
               currentUserId: userId,
             );
+            debugPrint('🔴 [TRACE] ChatV2MessagesNotifier.polling getMessages() END - length: ${latest.length}');
             if (latest.isNotEmpty) {
               final currentList = state.valueOrNull ?? const [];
               final currentIds = currentList.map((m) => m.id).toSet();
@@ -105,7 +108,9 @@ class ChatV2MessagesNotifier
                 state = AsyncData(latest);
               }
             }
-          } catch (_) {}
+          } catch (e, st) {
+            debugPrint('❌ [ERROR] ChatV2MessagesNotifier.polling: $e\n$st');
+          }
         }
         scheduleNextPoll();
       });
@@ -124,24 +129,32 @@ class ChatV2MessagesNotifier
     if (cached != null && cached.isNotEmpty) {
       unawaited(() async {
         try {
+          debugPrint('🟢 [TRACE] ChatV2MessagesNotifier.build SWR getMessages() START');
           final fresh = await repo.getMessages(
             channelId,
             currentPartnerId: partnerId,
             currentUserId: userId,
           );
+          debugPrint('🔴 [TRACE] ChatV2MessagesNotifier.build SWR getMessages() END');
           ChatV2MessageLocalCache.set(channelId, fresh);
           state = AsyncData(fresh);
-        } catch (_) {}
+        } catch (e, st) {
+          debugPrint('❌ [ERROR] ChatV2MessagesNotifier.build SWR: $e\n$st');
+        }
       }());
+      debugPrint('🔴 [TRACE] ChatV2MessagesNotifier.build() END (Returned Cached)');
       return cached;
     }
 
+    debugPrint('🟢 [TRACE] ChatV2MessagesNotifier.build Initial getMessages() START');
     final fresh = await repo.getMessages(
       channelId,
       currentPartnerId: partnerId,
       currentUserId: userId,
     );
+    debugPrint('🔴 [TRACE] ChatV2MessagesNotifier.build Initial getMessages() END');
     ChatV2MessageLocalCache.set(channelId, fresh);
+    debugPrint('🔴 [TRACE] ChatV2MessagesNotifier.build() END (Returned Fresh)');
     return fresh;
   }
 

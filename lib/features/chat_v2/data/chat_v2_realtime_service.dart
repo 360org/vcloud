@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
@@ -30,12 +30,13 @@ final chatV2RealtimeServiceProvider = Provider<ChatV2RealtimeService>((ref) {
 });
 
 /// Service kết nối WebSocket thời gian thực (Real-time duplex communication)
-class ChatV2RealtimeService {
+class ChatV2RealtimeService with WidgetsBindingObserver {
   ChatV2RealtimeService({
     required this.baseUrl,
     this.partnerId,
     this.sessionToken,
   }) {
+    WidgetsBinding.instance.addObserver(this);
     _initWebSocket();
   }
 
@@ -49,6 +50,7 @@ class ChatV2RealtimeService {
   Timer? _heartbeatTimer;
   bool _isDisposed = false;
   bool _isConnected = false;
+  bool _isAppInBackground = false;
 
   final _messageStreamController = StreamController<ChatV2Message>.broadcast();
   final _channelUpdateController = StreamController<String>.broadcast(); // Channel ID đã update
@@ -61,8 +63,43 @@ class ChatV2RealtimeService {
   Stream<Map<String, dynamic>> get onPresenceChanged => _presenceStreamController.stream;
   bool get isConnected => _isConnected;
 
-  void _initWebSocket() {
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
     if (_isDisposed) return;
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
+      _onAppBackground();
+    } else if (state == AppLifecycleState.resumed) {
+      _onAppForeground();
+    }
+  }
+
+  void _onAppBackground() {
+    _isAppInBackground = true;
+    _reconnectTimer?.cancel();
+    _heartbeatTimer?.cancel();
+    if (_channel != null) {
+      try {
+        _sub?.cancel();
+        _channel?.sink.close();
+      } catch (_) {}
+      _channel = null;
+      _isConnected = false;
+    }
+  }
+
+  void _onAppForeground() {
+    if (!_isAppInBackground) return;
+    _isAppInBackground = false;
+    _reconnectAttempts = 0;
+    _reconnectTimer?.cancel();
+    _initWebSocket();
+  }
+
+  void _initWebSocket() {
+    if (_isDisposed || _isAppInBackground) return;
 
     try {
       final wsUri = _buildWsUri();
@@ -238,14 +275,14 @@ class ChatV2RealtimeService {
     _sub?.cancel();
     _channel = null;
 
-    if (!_isDisposed) {
+    if (!_isDisposed && !_isAppInBackground) {
       _reconnectTimer?.cancel();
       // Exponential Backoff: 3s -> 6s -> 12s -> 24s (tối đa 30s)
       final delaySeconds = (3 * (1 << _reconnectAttempts.clamp(0, 3))).clamp(3, 30);
       _reconnectAttempts++;
 
       _reconnectTimer = Timer(Duration(seconds: delaySeconds), () {
-        if (!_isDisposed) {
+        if (!_isDisposed && !_isAppInBackground) {
           _initWebSocket();
         }
       });
@@ -271,10 +308,13 @@ class ChatV2RealtimeService {
   void dispose() {
     _isDisposed = true;
     _isConnected = false;
+    WidgetsBinding.instance.removeObserver(this);
     _heartbeatTimer?.cancel();
     _reconnectTimer?.cancel();
     _sub?.cancel();
-    _channel?.sink.close();
+    try {
+      _channel?.sink.close();
+    } catch (_) {}
     _messageStreamController.close();
     _channelUpdateController.close();
     _typingStreamController.close();
