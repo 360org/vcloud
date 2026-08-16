@@ -72,32 +72,22 @@ class ChatV2MessagesNotifier
       }
     });
 
-    // Polling thích ứng (Adaptive Polling): Chạy nhẹ (12s) khi WebSocket active, chạy nhanh (1.5s) khi WebSocket offline
+    // Smart Sequential Polling (2.5s): Chạy tuần tự, chỉ poll khi người dùng đang ở trong phòng chat
     bool isDisposed = false;
 
     void scheduleNextPoll() {
       if (isDisposed) return;
       _pollingTimer?.cancel();
-      _pollingTimer = Timer(const Duration(milliseconds: 3500), () async {
+      _pollingTimer = Timer(const Duration(milliseconds: 2500), () async {
+        if (isDisposed) return;
         if (!state.isLoading && state.hasValue) {
-          // Nếu WebSocket đang kết nối ổn định, chỉ fetch ngẫu nhiên hoặc sau chu kỳ dài
-          final isWsActive = realtime.isConnected;
-          final now = DateTime.now().millisecondsSinceEpoch;
-          // Bỏ qua lượt poll nếu WS đang active và chưa tới 15s
-          if (isWsActive && (now % 15000 > 3600)) {
-            scheduleNextPoll();
-            return;
-          }
-
           try {
-            debugPrint('🟢 [TRACE] ChatV2MessagesNotifier.polling getMessages() START');
             final latest = await repo.getMessages(
               channelId,
               currentPartnerId: partnerId,
               currentUserId: userId,
             );
-            debugPrint('🔴 [TRACE] ChatV2MessagesNotifier.polling getMessages() END - length: ${latest.length}');
-            if (latest.isNotEmpty) {
+            if (!isDisposed && latest.isNotEmpty) {
               final currentList = state.valueOrNull ?? const [];
               final currentIds = currentList.map((m) => m.id).toSet();
               final hasNew = latest.any((m) => !currentIds.contains(m.id));
@@ -108,11 +98,11 @@ class ChatV2MessagesNotifier
                 state = AsyncData(latest);
               }
             }
-          } catch (e, st) {
-            debugPrint('❌ [ERROR] ChatV2MessagesNotifier.polling: $e\n$st');
-          }
+          } catch (_) {}
         }
-        scheduleNextPoll();
+        if (!isDisposed) {
+          scheduleNextPoll();
+        }
       });
     }
 

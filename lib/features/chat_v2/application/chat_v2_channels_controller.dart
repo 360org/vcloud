@@ -128,15 +128,18 @@ class ChatV2ChannelsNotifier
       _debounceTimer = Timer(const Duration(milliseconds: 900), fetchFreshChannels);
     });
 
-    // 3. BACKGROUND POLLING NHẸ NHÀNG (10s/lần)
+    // 3. BACKGROUND POLLING NHẸ NHÀNG CHO DANH SÁCH KÊNH (8s/lần)
     void scheduleNextPoll() {
       if (isDisposed) return;
       _pollingTimer?.cancel();
-      _pollingTimer = Timer(const Duration(seconds: 10), () async {
+      _pollingTimer = Timer(const Duration(seconds: 8), () async {
+        if (isDisposed) return;
         if (!state.isLoading && state.hasValue) {
           await fetchFreshChannels();
         }
-        scheduleNextPoll();
+        if (!isDisposed) {
+          scheduleNextPoll();
+        }
       });
     }
 
