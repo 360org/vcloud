@@ -51,8 +51,8 @@ class TaskRepository {
             .toList();
       }
       return const <Task>[];
-    } catch (e) {
-      debugPrint('listAllTasks error: $e');
+    } catch (_) {
+      // Fallback: Khi endpoint /all_tasks chưa có trên Odoo, nạp an toàn qua danh sách từng dự án
       try {
         final projectListOptions = await listProjects();
         if (projectListOptions.isEmpty) return const <Task>[];

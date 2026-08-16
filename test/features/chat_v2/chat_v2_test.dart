@@ -7,6 +7,7 @@ import 'package:vcloud/features/chat_v2/data/models/chat_v2_channel.dart';
 import 'package:vcloud/features/chat_v2/data/models/chat_v2_message.dart';
 import 'package:vcloud/features/chat_v2/presentation/screens/chat_v2_list_screen.dart';
 import 'package:vcloud/features/chat_v2/presentation/widgets/chat_v2_input_bar.dart';
+import 'package:vcloud/features/chat_v2/application/chat_v2_messages_controller.dart';
 import 'package:vcloud/features/chat_v2/presentation/widgets/chat_v2_message_item.dart';
 
 void main() {
@@ -488,6 +489,50 @@ void main() {
 
       const widgetDirect = ChatV2ListScreen(initialFilter: 'direct');
       expect(widgetDirect.initialFilter, equals('direct'));
+    });
+
+    test('21. ChatV2MessageLocalCache prepends new message at index 0 for reverse ListView', () {
+      final msg1 = ChatV2Message(
+        id: 'msg_1',
+        channelId: 'test_chan_1',
+        content: 'Tin nhắn cũ',
+        authorName: 'Tôi',
+        createdAt: DateTime.now().subtract(const Duration(minutes: 1)),
+      );
+      final msg2 = ChatV2Message(
+        id: 'msg_temp_2',
+        channelId: 'test_chan_1',
+        content: 'Tin nhắn mới tức thì 0.00s',
+        authorName: 'Tôi',
+        createdAt: DateTime.now(),
+        status: 'pending',
+      );
+
+      ChatV2MessageLocalCache.set('test_chan_1', [msg1]);
+      expect(ChatV2MessageLocalCache.get('test_chan_1')?.first.id, equals('msg_1'));
+
+      ChatV2MessageLocalCache.prepend('test_chan_1', msg2);
+      final cached = ChatV2MessageLocalCache.get('test_chan_1');
+      expect(cached, isNotNull);
+      expect(cached!.length, equals(2));
+      expect(cached.first.id, equals('msg_temp_2'));
+      expect(cached.first.status, equals('pending'));
+    });
+
+    test('22. ChatV2Message copyWith transitions pending to sent smoothly', () {
+      final pendingMsg = ChatV2Message(
+        id: 'temp_123',
+        channelId: '1',
+        content: 'Xin chào',
+        authorName: 'Tôi',
+        createdAt: DateTime.now(),
+        isMine: true,
+        status: 'pending',
+      );
+      final sentMsg = pendingMsg.copyWith(id: '9999', status: 'sent');
+      expect(sentMsg.id, equals('9999'));
+      expect(sentMsg.status, equals('sent'));
+      expect(sentMsg.isMine, isTrue);
     });
   });
 }

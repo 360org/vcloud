@@ -43,7 +43,8 @@ class ChatV2MessageLocalCache {
   }
 
   static void append(String channelId, ChatV2Message msg) {
-    prepend(channelId, msg);
+    final map = _cache.putIfAbsent(channelId, () => <String, ChatV2Message>{});
+    map[msg.id] = msg;
   }
 }
 
