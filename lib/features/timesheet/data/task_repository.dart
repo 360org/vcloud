@@ -51,8 +51,8 @@ class TaskRepository {
             .toList();
       }
       return const <Task>[];
-    } catch (e) {
-      debugPrint('listAllTasks error: $e');
+    } catch (_) {
+      // Fallback: Khi server chưa kích hoạt endpoint /all_tasks, tải an toàn qua danh sách từng dự án
       try {
         final projectListOptions = await listProjects();
         if (projectListOptions.isEmpty) return const <Task>[];
