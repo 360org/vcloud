@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -71,7 +70,7 @@ class ChatV2MessageItem extends StatelessWidget {
         imageAttachments.any((a) => a.name.trim() == cleanContent || cleanContent.contains(a.name.trim()));
 
     final hasRealCaption = hasAnyImage && !isFileNameContent;
-    final isPureImage = hasAnyImage && !hasRealCaption && !hasDocs;
+    final isPureImage = hasImages && !hasRealCaption && !hasDocs;
 
     return GestureDetector(
       onLongPress: onLongPress,
@@ -198,24 +197,18 @@ class ChatV2MessageItem extends StatelessWidget {
                           ],
                           // 3. Render actual document attachments
                           if (hasDocs) ...[
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  for (final att in docAttachments) ...[
-                                    _buildDocumentAttachment(context, att, isMine),
-                                    const SizedBox(height: 4),
-                                  ],
+                            Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                for (final att in docAttachments) ...[
+                                  _buildDocumentAttachment(context, att, isMine),
+                                  const SizedBox(height: 4),
                                 ],
-                              ),
+                              ],
                             ),
                           ] else if (message.isDocumentFilename) ...[
                             // 4. Render document filename card
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              child: _buildDocumentFilenameCard(context, isMine),
-                            ),
+                            _buildDocumentFilenameCard(context, isMine),
                           ],
                           // 5. Render message text/caption if applicable
                           if (message.content.isNotEmpty &&
@@ -420,70 +413,14 @@ class ChatV2MessageItem extends StatelessWidget {
   }
 
   Widget _buildSimpleFilenameCard(BuildContext context, bool isMine, String fileName) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isMine
-        ? Colors.white
-        : isDark
-            ? Colors.white
-            : const Color(0xFF0F172A);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      margin: const EdgeInsets.only(bottom: 2),
-      decoration: BoxDecoration(
-        color: isMine
-            ? Colors.white.withValues(alpha: 0.16)
-            : isDark
-                ? Colors.white.withValues(alpha: 0.08)
-                : const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: isMine
-                  ? Colors.white.withValues(alpha: 0.25)
-                  : const Color(0xFF00C83A).withValues(alpha: 0.12),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              LucideIcons.image,
-              size: 16,
-              color: isMine ? Colors.white : const Color(0xFF00C83A),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Hình ảnh',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: textColor.withValues(alpha: 0.75),
-                  ),
-                ),
-                Text(
-                  fileName,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: textColor,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+    return _buildFileAttachmentCard(
+      context: context,
+      isMine: isMine,
+      filename: fileName,
+      fileSize: null,
+      downloadUrl: null,
+      directBytes: null,
+      isImage: true,
     );
   }
 
@@ -508,23 +445,8 @@ class ChatV2MessageItem extends StatelessWidget {
     return FutureBuilder<Uint8List?>(
       future: LocalAttachmentCache.getAsync(null, altKey: cleanName),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          // If in test environment, don't wait for Future which might not complete
-          if (Platform.environment.containsKey('FLUTTER_TEST')) {
-             return _buildSimpleFilenameCard(context, isMine, cleanName);
-          }
-          return Container(
-            constraints: const BoxConstraints(maxWidth: 290, minHeight: 100),
-            alignment: Alignment.center,
-            child: const CircularProgressIndicator(
-              strokeWidth: 2,
-              color: Color(0xFF00C83A),
-            ),
-          );
-        }
-
-        final diskBytes = snapshot.data;
-        if (diskBytes != null && diskBytes.isNotEmpty) {
+        if (snapshot.hasData && snapshot.data != null && snapshot.data!.isNotEmpty) {
+          final diskBytes = snapshot.data!;
           ChatV2AttachmentImage.cacheBytes(cleanName, diskBytes);
           return _buildImageAttachment(
             context,
@@ -544,99 +466,156 @@ class ChatV2MessageItem extends StatelessWidget {
   }
 
   Widget _buildDocumentAttachment(BuildContext context, ChatV2Attachment att, bool isMine) {
-    final fullUrl = att.resolveFullUrl(odooApiClient.absoluteUrl(''));
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isMine
-        ? Colors.white
-        : isDark
-            ? Colors.white
-            : const Color(0xFF0F172A);
+    return _buildFileAttachmentCard(
+      context: context,
+      isMine: isMine,
+      filename: att.name,
+      fileSize: att.fileSize,
+      downloadUrl: att.downloadUrl ?? att.url,
+      directBytes: att.bytes,
+      isImage: false,
+    );
+  }
 
-    final ext = att.name.contains('.') ? att.name.split('.').last.toUpperCase() : 'DOC';
-    final badgeColor = _getFileBadgeColor(ext);
+  Widget _buildDocumentFilenameCard(BuildContext context, bool isMine) {
+    final cleanName = message.content.trim();
+    final fileSize = message.attachments.isNotEmpty ? message.attachments.first.fileSize : null;
+    final downloadUrl = message.attachments.isNotEmpty ? message.attachments.first.downloadUrl : null;
+    final directBytes = message.attachments.isNotEmpty ? message.attachments.first.bytes : null;
+
+    return _buildFileAttachmentCard(
+      context: context,
+      isMine: isMine,
+      filename: cleanName,
+      fileSize: fileSize,
+      downloadUrl: downloadUrl,
+      directBytes: directBytes,
+      isImage: false,
+    );
+  }
+
+  /// Thẻ tệp tin chuẩn Zalo (Flat, Borderless, Folded Corner Page Icon)
+  Widget _buildFileAttachmentCard({
+    required BuildContext context,
+    required bool isMine,
+    required String filename,
+    int? fileSize,
+    String? downloadUrl,
+    Uint8List? directBytes,
+    required bool isImage,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cleanName = filename.trim();
+    final ext = cleanName.contains('.')
+        ? cleanName.split('.').last.toUpperCase()
+        : (isImage ? 'PNG' : 'FILE');
+
+    final fileColor = _getFileAccentColor(ext);
+
+    final cachedBytes = directBytes ??
+        (isImage ? ChatV2AttachmentImage.imageCache[cleanName] : null) ??
+        LocalAttachmentCache.get(null, altKey: cleanName);
+
+    final resolvedSize = fileSize ?? cachedBytes?.lengthInBytes;
+    final sizeStr = resolvedSize != null ? _formatFileSize(resolvedSize) : null;
+    final metaText = sizeStr != null
+        ? '$sizeStr • Nhấn để xem trước'
+        : (isImage ? 'Hình ảnh • $ext' : 'Tài liệu • $ext');
+
+    final titleColor = isDark ? const Color(0xFFE9EDEF) : const Color(0xFF111B21);
+    final subtitleColor = isDark ? const Color(0xFF8696A0) : const Color(0xFF667781);
 
     return InkWell(
-      onTap: () {
-        if (fullUrl.isNotEmpty) {
-          openDownloadUrl(fullUrl);
+      onTap: () async {
+        if (cachedBytes != null && cachedBytes.isNotEmpty) {
+          await saveBytesToFile(cachedBytes, cleanName);
+          return;
+        }
+        if (downloadUrl != null && downloadUrl.isNotEmpty) {
+          final full = downloadUrl.startsWith('http')
+              ? downloadUrl
+              : odooApiClient.absoluteUrl(downloadUrl);
+          openDownloadUrl(full);
         }
       },
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        margin: const EdgeInsets.only(bottom: 2),
-        decoration: BoxDecoration(
-          color: isMine
-              ? Colors.white.withValues(alpha: 0.16)
-              : isDark
-                  ? Colors.white.withValues(alpha: 0.08)
-                  : const Color(0xFFF1F5F9),
-          borderRadius: BorderRadius.circular(12),
-        ),
+      borderRadius: BorderRadius.circular(8),
+      child: SizedBox(
+        width: 255,
         child: Row(
-          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-              decoration: BoxDecoration(
-                color: isMine ? Colors.white.withValues(alpha: 0.25) : badgeColor.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                ext.length > 4 ? ext.substring(0, 4) : ext,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: isMine ? Colors.white : badgeColor,
-                ),
-              ),
+            // Icon tài liệu gấp góc Zalo sắc nét
+            FoldedPageIcon(
+              ext: ext,
+              color: fileColor,
+              width: 36,
+              height: 44,
             ),
-            const SizedBox(width: 8),
-            Flexible(
+            const SizedBox(width: 10),
+
+            // Tiêu đề tệp và Phụ đề dung lượng
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    'Tài liệu đính kèm',
+                    cleanName,
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 13.5,
                       fontWeight: FontWeight.w600,
-                      color: textColor.withValues(alpha: 0.75),
-                    ),
-                  ),
-                  Text(
-                    att.name,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: textColor,
+                      color: titleColor,
+                      height: 1.25,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  if (att.fileSize != null)
-                    Text(
-                      _formatFileSize(att.fileSize!),
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: textColor.withValues(alpha: 0.75),
+                  const SizedBox(height: 3),
+                  Row(
+                    children: [
+                      const Icon(
+                        LucideIcons.clock,
+                        size: 12,
+                        color: Color(0xFF2563EB),
                       ),
-                    ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          metaText,
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w400,
+                            color: subtitleColor,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 10),
+
+            // Nút tải về hình vuông bo góc tối giản chuẩn Zalo
             Container(
-              padding: const EdgeInsets.all(6),
+              width: 30,
+              height: 30,
               decoration: BoxDecoration(
-                color: isMine ? Colors.white.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.05),
-                shape: BoxShape.circle,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: isDark
+                      ? Colors.white24
+                      : const Color(0xFF64748B).withValues(alpha: 0.35),
+                  width: 1.0,
+                ),
               ),
+              alignment: Alignment.center,
               child: Icon(
                 LucideIcons.download,
-                size: 14,
-                color: isMine ? Colors.white : const Color(0xFF475569),
+                size: 15,
+                color: isDark ? Colors.white70 : const Color(0xFF475569),
               ),
             ),
           ],
@@ -645,85 +624,39 @@ class ChatV2MessageItem extends StatelessWidget {
     );
   }
 
-  Widget _buildDocumentFilenameCard(BuildContext context, bool isMine) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isMine
-        ? Colors.white
-        : isDark
-            ? Colors.white
-            : const Color(0xFF0F172A);
-
-    final ext = message.content.contains('.') ? message.content.split('.').last.toUpperCase() : 'DOC';
-    final badgeColor = _getFileBadgeColor(ext);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      margin: const EdgeInsets.only(bottom: 2),
-      decoration: BoxDecoration(
-        color: isMine
-            ? Colors.white.withValues(alpha: 0.16)
-            : isDark
-                ? Colors.white.withValues(alpha: 0.08)
-                : const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-            decoration: BoxDecoration(
-              color: isMine ? Colors.white.withValues(alpha: 0.25) : badgeColor.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              ext.length > 4 ? ext.substring(0, 4) : ext,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-                color: isMine ? Colors.white : badgeColor,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  message.content,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: textColor,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Color _getFileBadgeColor(String ext) {
-    switch (ext) {
+  Color _getFileAccentColor(String ext) {
+    switch (ext.toUpperCase()) {
       case 'PDF':
-        return Colors.redAccent;
+        return const Color(0xFFEF4444); // Đỏ Zalo
       case 'DOC':
       case 'DOCX':
-        return Colors.blueAccent;
+        return const Color(0xFF2563EB); // Xanh Zalo
       case 'XLS':
       case 'XLSX':
-        return const Color(0xFF10B981);
+      case 'CSV':
+        return const Color(0xFF10B981); // Xanh lá Zalo
+      case 'PPT':
+      case 'PPTX':
+        return const Color(0xFFF97316); // Cam Zalo
       case 'ZIP':
       case 'RAR':
-        return Colors.purpleAccent;
+      case '7Z':
+      case 'TAR':
+      case 'GZ':
+        return const Color(0xFF8B5CF6); // Tím Zalo
+      case 'PNG':
+      case 'JPG':
+      case 'JPEG':
+      case 'WEBP':
+      case 'GIF':
+      case 'SVG':
+        return const Color(0xFF059669); // Xanh mint
+      case 'TXT':
+      case 'LOG':
+      case 'JSON':
+      case 'XML':
       default:
-        return Colors.orangeAccent;
+        return const Color(0xFFF59E0B); // Vàng Zalo
     }
   }
 
@@ -981,24 +914,45 @@ class _ChatV2AttachmentImageState extends State<ChatV2AttachmentImage> {
   @override
   void initState() {
     super.initState();
-    _loadImage();
+    _initBytesSync();
   }
 
-  Future<void> _loadImage() async {
-    // 1. Direct in-memory bytes if provided on attachment
+  void _initBytesSync() {
+    // 1. Synchronously grab bytes if present on attachment
     if (widget.attachment.bytes != null && widget.attachment.bytes!.isNotEmpty) {
+      _bytes = widget.attachment.bytes;
+      _loading = false;
       ChatV2AttachmentImage.cacheBytes(widget.attachment.id, widget.attachment.bytes!);
       LocalAttachmentCache.save(widget.attachment.name, widget.attachment.bytes!);
-      if (mounted) {
-        setState(() {
-          _bytes = widget.attachment.bytes;
-          _loading = false;
-        });
-      }
       return;
     }
 
-    // 2. Cache lookup (LocalAttachmentCache & imageCache)
+    // 2. Synchronously check in-memory RAM cache
+    final inMemory = ChatV2AttachmentImage.imageCache[widget.attachment.id] ??
+        ChatV2AttachmentImage.imageCache[widget.attachment.name];
+    if (inMemory != null && inMemory.isNotEmpty) {
+      _bytes = inMemory;
+      _loading = false;
+      return;
+    }
+
+    // 3. Otherwise start async fetch
+    _loadImage();
+  }
+
+  @override
+  void didUpdateWidget(ChatV2AttachmentImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.attachment.bytes != null && widget.attachment.bytes!.isNotEmpty) {
+      if (_bytes != widget.attachment.bytes) {
+        _bytes = widget.attachment.bytes;
+        _loading = false;
+      }
+    }
+  }
+
+  Future<void> _loadImage() async {
+    // 1. Cache lookup from disk/storage
     final cached = await LocalAttachmentCache.getAsync(
       widget.attachment.id,
       altKey: widget.attachment.name,
@@ -1014,7 +968,7 @@ class _ChatV2AttachmentImageState extends State<ChatV2AttachmentImage> {
       return;
     }
 
-    // 3. Network fetch via MobileAttachmentRepository
+    // 2. Network fetch binary via MobileAttachmentRepository (Bearer Token)
     final attId = int.tryParse(widget.attachment.id);
     if (attId != null) {
       try {
@@ -1024,6 +978,7 @@ class _ChatV2AttachmentImageState extends State<ChatV2AttachmentImage> {
         );
         if (bytes.isNotEmpty) {
           ChatV2AttachmentImage.cacheBytes(widget.attachment.id, bytes);
+          ChatV2AttachmentImage.cacheBytes(widget.attachment.name, bytes);
           LocalAttachmentCache.save(widget.attachment.id, bytes);
           LocalAttachmentCache.save(widget.attachment.name, bytes);
           if (mounted) {
@@ -1046,27 +1001,7 @@ class _ChatV2AttachmentImageState extends State<ChatV2AttachmentImage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
-      return Container(
-        height: 160,
-        width: 220,
-        decoration: BoxDecoration(
-          color: const Color(0xFFF1F5F9),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        alignment: Alignment.center,
-        child: const SizedBox(
-          width: 22,
-          height: 22,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            color: Color(0xFF00C83A),
-          ),
-        ),
-      );
-    }
-
-    if (_bytes != null) {
+    if (_bytes != null && _bytes!.isNotEmpty) {
       return GestureDetector(
         onTap: widget.onTap,
         child: Container(
@@ -1090,7 +1025,115 @@ class _ChatV2AttachmentImageState extends State<ChatV2AttachmentImage> {
       );
     }
 
+    if (_loading) {
+      return Container(
+        height: 160,
+        width: 220,
+        decoration: BoxDecoration(
+          color: const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        alignment: Alignment.center,
+        child: const SizedBox(
+          width: 22,
+          height: 22,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: Color(0xFF00C83A),
+          ),
+        ),
+      );
+    }
+
     return widget.fallback;
   }
 }
+
+/// Icon tài liệu góc gấp phong cách Zalo
+class FoldedPageIcon extends StatelessWidget {
+  final String ext;
+  final Color color;
+  final double width;
+  final double height;
+
+  const FoldedPageIcon({
+    super.key,
+    required this.ext,
+    required this.color,
+    this.width = 36,
+    this.height = 44,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: Size(width, height),
+      painter: _FoldedPagePainter(color: color),
+      child: SizedBox(
+        width: width,
+        height: height,
+        child: Align(
+          alignment: const Alignment(0, 0.35),
+          child: Text(
+            ext.length > 4 ? ext.substring(0, 4) : ext,
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FoldedPagePainter extends CustomPainter {
+  final Color color;
+  const _FoldedPagePainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final fold = size.width * 0.30;
+    const r = 4.0;
+
+    // Body with folded top-right corner
+    final path = Path()
+      ..moveTo(r, 0)
+      ..lineTo(size.width - fold, 0)
+      ..lineTo(size.width, fold)
+      ..lineTo(size.width, size.height - r)
+      ..quadraticBezierTo(size.width, size.height, size.width - r, size.height)
+      ..lineTo(r, size.height)
+      ..quadraticBezierTo(0, size.height, 0, size.height - r)
+      ..lineTo(0, r)
+      ..quadraticBezierTo(0, 0, r, 0)
+      ..close();
+
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+    canvas.drawPath(path, paint);
+
+    // Fold flap (triangle on top-right)
+    final foldPath = Path()
+      ..moveTo(size.width - fold, 0)
+      ..lineTo(size.width - fold, fold - 1.5)
+      ..quadraticBezierTo(
+          size.width - fold, fold, size.width - fold + 1.5, fold)
+      ..lineTo(size.width, fold)
+      ..close();
+
+    final foldPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.40)
+      ..style = PaintingStyle.fill;
+    canvas.drawPath(foldPath, foldPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _FoldedPagePainter oldDelegate) =>
+      oldDelegate.color != color;
+}
+
 

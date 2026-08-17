@@ -368,7 +368,9 @@ class ChatV2MessagesNotifier
       if (attIdInt == null) {
         throw Exception('ID đính kèm tệp không hợp lệ.');
       }
+      final attachedWithBytes = att.copyWith(bytes: bytes);
       ChatV2AttachmentImage.cacheBytes(att.id.toString(), bytes);
+      ChatV2AttachmentImage.cacheBytes(filename, bytes);
       LocalAttachmentCache.save(att.id, bytes);
       LocalAttachmentCache.save(filename, bytes);
 
@@ -383,14 +385,17 @@ class ChatV2MessagesNotifier
         authorName: userName,
       );
 
-      // Cập nhật trạng thái sent ngay lập tức cho tin nhắn tạm
+      ChatV2AttachmentImage.cacheBytes(sentMsg.id.toString(), bytes);
+      LocalAttachmentCache.save(sentMsg.id, bytes);
+
+      // Cập nhật trạng thái sent ngay lập tức cho tin nhắn tạm, bảo tồn nguyên vẹn byte nhị phân
       final currentList = state.valueOrNull ?? const [];
       final updatedList = currentList.map((m) {
         if (m.id == tempId) {
           return sentMsg.copyWith(
             isMine: true,
             status: 'sent',
-            attachments: [att],
+            attachments: [attachedWithBytes],
           );
         }
         return m;
@@ -398,7 +403,7 @@ class ChatV2MessagesNotifier
 
       if (!updatedList.any((m) => m.id == sentMsg.id)) {
         updatedList.removeWhere((m) => m.id == tempId);
-        updatedList.insert(0, sentMsg.copyWith(isMine: true, status: 'sent', attachments: [att]));
+        updatedList.insert(0, sentMsg.copyWith(isMine: true, status: 'sent', attachments: [attachedWithBytes]));
       }
 
       ChatV2MessageLocalCache.set(channelId, updatedList);

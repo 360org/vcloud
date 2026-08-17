@@ -78,6 +78,28 @@ class ChatV2Attachment {
     );
   }
 
+  ChatV2Attachment copyWith({
+    String? id,
+    String? name,
+    String? mimetype,
+    int? fileSize,
+    String? url,
+    String? downloadUrl,
+    String? accessToken,
+    Uint8List? bytes,
+  }) {
+    return ChatV2Attachment(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      mimetype: mimetype ?? this.mimetype,
+      fileSize: fileSize ?? this.fileSize,
+      url: url ?? this.url,
+      downloadUrl: downloadUrl ?? this.downloadUrl,
+      accessToken: accessToken ?? this.accessToken,
+      bytes: bytes ?? this.bytes,
+    );
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'id': id,

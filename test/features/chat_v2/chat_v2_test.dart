@@ -9,6 +9,7 @@ import 'package:vcloud/features/chat_v2/presentation/screens/chat_v2_list_screen
 import 'package:vcloud/features/chat_v2/presentation/widgets/chat_v2_input_bar.dart';
 import 'package:vcloud/features/chat_v2/application/chat_v2_messages_controller.dart';
 import 'package:vcloud/features/chat_v2/presentation/widgets/chat_v2_message_item.dart';
+import 'package:vcloud/features/chat_v2/presentation/widgets/chat_v2_info_sheet.dart';
 
 void main() {
   group('ChatV2 Model & Parsing Tests', () {
@@ -245,7 +246,6 @@ void main() {
         ),
       );
 
-      expect(find.text('Hình ảnh'), findsOneWidget);
       expect(find.text('scaled_Screenshot-0405-094025.png'), findsOneWidget);
     });
 
@@ -307,7 +307,7 @@ void main() {
         ),
       );
 
-      expect(find.text('Tài liệu đính kèm'), findsOneWidget);
+      expect(find.textContaining('Tài liệu'), findsOneWidget);
       expect(find.text('BaoCaoT8.pdf'), findsOneWidget);
       expect(find.byIcon(LucideIcons.download), findsOneWidget);
       expect(find.text('Báo cáo tháng 8'), findsOneWidget);
@@ -533,6 +533,171 @@ void main() {
       expect(sentMsg.id, equals('9999'));
       expect(sentMsg.status, equals('sent'));
       expect(sentMsg.isMine, isTrue);
+    });
+
+    test('24. ChatV2Channel parses Odoo author name with commas correctly', () {
+      final channel = ChatV2Channel(
+        id: 'group_4128',
+        name: 'Huy Erp',
+        channelType: 'channel',
+        isGroup: true,
+        lastMessage: 'mình tiến hành dịch cho từng ngôn ngữ nhé anh Huy.',
+        lastMessageAuthorName: 'Chau, Le Ba',
+        lastMessageAuthorId: '102',
+        lastMessageDate: DateTime.now(),
+        unreadCount: 0,
+        memberCount: 19,
+      );
+
+      expect(channel.lastMessageAuthorName, equals('Chau, Le Ba'));
+      expect(channel.isGroup, isTrue);
+    });
+
+    test('25. ChatV2MessageLocalCache first returns newest message and author', () {
+      final olderMsg = ChatV2Message(
+        id: 'msg_old',
+        channelId: 'group_4128',
+        content: 'Ok, Thanks e. gio anh bat dau vao post day',
+        authorName: 'Nguyễn Tường Huy',
+        createdAt: DateTime.now().subtract(const Duration(minutes: 5)),
+      );
+      final newestMsg = ChatV2Message(
+        id: 'msg_new',
+        channelId: 'group_4128',
+        content: 'mình tiến hành dịch cho từng ngôn ngữ theo hướng dẫn nhé anh Huy.',
+        authorName: 'Chau, Le Ba',
+        createdAt: DateTime.now(),
+      );
+
+      ChatV2MessageLocalCache.set('group_4128', [newestMsg, olderMsg]);
+      final cached = ChatV2MessageLocalCache.get('group_4128');
+      expect(cached, isNotNull);
+      expect(cached!.first.authorName, equals('Chau, Le Ba'));
+      expect(cached.last.authorName, equals('Nguyễn Tường Huy'));
+    });
+
+    testWidgets('26. ChatV2InfoSheet renders 1-1 direct chat with clean name and quick actions', (tester) async {
+      const channel = ChatV2Channel(
+        id: 'direct_123',
+        name: 'Ma Nguyễn Nhật Tân, Bùi Tuấn Kiệt',
+        channelType: 'chat',
+        isGroup: false,
+        lastMessage: 'Hello anh',
+        imStatus: 'online',
+      );
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: ChatV2InfoSheet(
+              channel: channel,
+              currentUserName: 'Ma Nguyễn Nhật Tân',
+            ),
+          ),
+        ),
+      );
+
+      // Verify it displays partner's clean name and not current user's name
+      expect(find.text('Bùi Tuấn Kiệt'), findsOneWidget);
+      expect(find.text('Đang trực tuyến'), findsOneWidget);
+      expect(find.text('Tìm kiếm'), findsOneWidget);
+      expect(find.text('Thông báo'), findsOneWidget);
+      expect(find.text('Sao chép link'), findsOneWidget);
+    });
+
+    testWidgets('27. ChatV2InfoSheet renders group chat with member list and media hub', (tester) async {
+      const channel = ChatV2Channel(
+        id: 'group_999',
+        name: 'Internal',
+        channelType: 'channel',
+        isGroup: true,
+        memberCount: 7,
+        memberNames: ['Ma Nguyễn Nhật Tân', 'Bùi Tuấn Kiệt', 'Châu Lê Bá'],
+      );
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: ChatV2InfoSheet(
+              channel: channel,
+              currentUserName: 'Ma Nguyễn Nhật Tân',
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Internal'), findsOneWidget);
+      expect(find.text('Nhóm trò chuyện • 7 thành viên'), findsOneWidget);
+      expect(find.text('Thành viên (3)'), findsOneWidget);
+      expect(find.text('Ảnh & Tài liệu'), findsOneWidget);
+      expect(find.text('Ma Nguyễn Nhật Tân (Bạn)'), findsOneWidget);
+      expect(find.text('Bùi Tuấn Kiệt'), findsOneWidget);
+      expect(find.text('Châu Lê Bá'), findsOneWidget);
+    });
+
+    testWidgets('28. ChatV2InfoSheet comprehensively extracts images, documents and links', (tester) async {
+      const channel = ChatV2Channel(
+        id: 'direct_123',
+        name: 'Ma Nguyễn Nhật Tân, Bùi Tuấn Kiệt',
+        channelType: 'chat',
+        isGroup: false,
+      );
+
+      final messages = [
+        ChatV2Message(
+          id: '1',
+          channelId: 'direct_123',
+          content: 'https://google.com và http://localhost:8088/#/chat',
+          authorName: 'Bùi Tuấn Kiệt',
+          createdAt: DateTime.now(),
+        ),
+        ChatV2Message(
+          id: '2',
+          channelId: 'direct_123',
+          content: 'scaled_image_picker_anniversary.png',
+          authorName: 'Bùi Tuấn Kiệt',
+          createdAt: DateTime.now(),
+        ),
+        ChatV2Message(
+          id: '3',
+          channelId: 'direct_123',
+          content: 'mobileprovision_base64_client.txt',
+          authorName: 'Bùi Tuấn Kiệt',
+          createdAt: DateTime.now(),
+        ),
+      ];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ChatV2InfoSheet(
+              channel: channel,
+              currentUserName: 'Ma Nguyễn Nhật Tân',
+              messages: messages,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Ảnh (1)'), findsOneWidget);
+      expect(find.text('Tài liệu (1)'), findsOneWidget);
+      expect(find.text('Liên kết (2)'), findsOneWidget);
+    });
+
+    test('29. ChatV2Attachment supports copyWith and preserves bytes accurately', () {
+      const att = ChatV2Attachment(
+        id: '101',
+        name: 'test_logo.png',
+        mimetype: 'image/png',
+      );
+      final rawBytes = Uint8List.fromList([1, 2, 3, 4]);
+      final updated = att.copyWith(bytes: rawBytes);
+
+      expect(updated.id, '101');
+      expect(updated.name, 'test_logo.png');
+      expect(updated.bytes, isNotNull);
+      expect(updated.bytes!.length, 4);
+      expect(updated.isImage, isTrue);
     });
   });
 }

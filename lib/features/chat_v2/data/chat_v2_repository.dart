@@ -12,9 +12,12 @@ final chatV2RepositoryProvider = Provider<ChatV2Repository>((ref) {
 });
 
 class ChatV2Repository {
-  const ChatV2Repository(this._client);
+  ChatV2Repository(this._client);
 
   final OdooApiClient _client;
+
+  static final Set<String> _resolvedAttachmentMsgIds = <String>{};
+  static final Map<String, List<ChatV2Attachment>> _cachedAttachmentsByMsgId = <String, List<ChatV2Attachment>>{};
 
   String resolveUrl(String path, {String? accessToken}) =>
       _client.authenticatedUrl(path, accessToken: accessToken);
@@ -38,14 +41,9 @@ class ChatV2Repository {
 
     // Sắp xếp kênh có tin nhắn mới nhất / hoạt động gần nhất lên đầu
     channels.sort((a, b) {
-      if (a.lastMessageDate == null && b.lastMessageDate == null) {
-        final aId = int.tryParse(a.id) ?? 0;
-        final bId = int.tryParse(b.id) ?? 0;
-        return bId.compareTo(aId);
-      }
-      if (a.lastMessageDate == null) return 1;
-      if (b.lastMessageDate == null) return -1;
-      return b.lastMessageDate!.compareTo(a.lastMessageDate!);
+      final da = a.lastMessageDate ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final db = b.lastMessageDate ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return db.compareTo(da);
     });
 
     return channels;
@@ -58,7 +56,6 @@ class ChatV2Repository {
     int limit = 35,
     String? beforeId,
   }) async {
-    debugPrint('🟢 [TRACE] ChatV2Repository.getMessages() START - channel: $channelId');
     dynamic data;
     final queryParams = <String, dynamic>{'limit': limit.toString()};
     if (beforeId != null && beforeId.isNotEmpty) {
@@ -87,25 +84,31 @@ class ChatV2Repository {
       list = const [];
     }
 
-    debugPrint('🟢 [TRACE] ChatV2Repository.getMessages() - Mapping ${list.length} messages START');
-
     final List<ChatV2Message> messages = list
         .whereType<Map>()
-        .map((m) => ChatV2Message.fromMap(
-              Map<String, dynamic>.from(m),
-              currentPartnerId: currentPartnerId,
-              currentUserId: currentUserId,
-            ))
+        .map((m) {
+          final msg = ChatV2Message.fromMap(
+            Map<String, dynamic>.from(m),
+            currentPartnerId: currentPartnerId,
+            currentUserId: currentUserId,
+          );
+          if (msg.attachments.isEmpty && _cachedAttachmentsByMsgId.containsKey(msg.id)) {
+            return msg.copyWith(attachments: _cachedAttachmentsByMsgId[msg.id]!);
+          }
+          return msg;
+        })
         .toList();
 
-    // Tự động quét và nạp attachments cho các tin nhắn gửi ảnh từ Web Odoo (body rỗng)
+    // Tự động quét và nạp attachments cho các tin nhắn gửi ảnh/tệp từ Web Odoo hoặc app
+    // Bỏ qua các tin nhắn đã được phân giải attachment trước đó để tránh vòng lặp RPC
     final emptyMsgIds = messages
-        .where((m) => m.content.isEmpty && m.attachments.isEmpty)
+        .where((m) =>
+            (m.content.isEmpty || m.isImageFilename || m.isDocumentFilename) &&
+            m.attachments.isEmpty &&
+            !_resolvedAttachmentMsgIds.contains(m.id))
         .map((m) => int.tryParse(m.id))
         .whereType<int>()
         .toList();
-
-    debugPrint('🔴 [TRACE] ChatV2Repository.getMessages() - Mapping END, fetching ${emptyMsgIds.length} attachments');
 
     if (emptyMsgIds.isNotEmpty) {
       try {
@@ -164,15 +167,21 @@ class ChatV2Repository {
               for (final attItem in attDetailsList) {
                 if (attItem is Map && attItem['id'] != null) {
                   final aid = attItem['id'] as int;
-                  final aName = (attItem['name'] ?? 'image.png').toString();
+                  final aName = (attItem['name'] ?? 'file').toString();
                   final aMime = attItem['mimetype']?.toString();
                   final aSize = attItem['file_size'] is int ? attItem['file_size'] as int : null;
+                  final isImg = aMime?.startsWith('image/') == true ||
+                      aName.endsWith('.png') ||
+                      aName.endsWith('.jpg') ||
+                      aName.endsWith('.jpeg') ||
+                      aName.endsWith('.webp') ||
+                      aName.endsWith('.gif');
                   attachmentObjects[aid] = ChatV2Attachment(
                     id: aid.toString(),
                     name: aName,
                     mimetype: aMime,
                     fileSize: aSize,
-                    url: '/web/image/$aid',
+                    url: isImg ? '/web/image/$aid' : '/web/content/$aid/$aName',
                     downloadUrl: '/web/content/$aid/$aName',
                   );
                 }
@@ -186,20 +195,22 @@ class ChatV2Repository {
                 final attachedList = targetAttIds
                     .map((aid) => attachmentObjects[aid] ?? ChatV2Attachment(
                           id: aid.toString(),
-                          name: 'image.png',
-                          url: '/web/image/$aid',
-                          mimetype: 'image/png',
+                          name: msg.isDocumentFilename ? msg.content : 'file',
+                          url: '/web/content/$aid',
+                          downloadUrl: '/web/content/$aid',
+                          mimetype: 'application/octet-stream',
                         ))
                     .toList();
                 messages[i] = msg.copyWith(attachments: attachedList);
+                _cachedAttachmentsByMsgId[msg.id] = attachedList;
               }
             }
           }
         }
+        _resolvedAttachmentMsgIds.addAll(emptyMsgIds.map((e) => e.toString()));
       } catch (_) {}
     }
 
-    debugPrint('🔴 [TRACE] ChatV2Repository.getMessages() END - Return ${messages.length} messages');
     return messages;
   }
 

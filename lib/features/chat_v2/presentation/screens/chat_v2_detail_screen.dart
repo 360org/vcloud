@@ -18,6 +18,7 @@ import '../../../auth/application/auth_controller.dart';
 import '../../../../shared/widgets/html_avatar_image.dart';
 import '../widgets/chat_v2_input_bar.dart';
 import '../widgets/chat_v2_message_item.dart';
+import '../widgets/chat_v2_info_sheet.dart';
 
 class ChatV2DetailScreen extends ConsumerStatefulWidget {
   const ChatV2DetailScreen({
@@ -919,101 +920,29 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
     if (channel == null) return;
     final currentUser = ref.read(authControllerProvider).valueOrNull;
     final currentUserName = currentUser?.userMetadata['display_name'] as String?;
-    final isGroup = channel.isGroup || channel.getActualIsGroup(currentUserName);
+    final messagesAsync = ref.read(chatV2MessagesProvider(widget.channelId));
+    final currentMessages = messagesAsync.valueOrNull ??
+        ChatV2MessageLocalCache.get(widget.channelId) ??
+        [];
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: isDark ? Colors.white24 : const Color(0xFFCBD5E1),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  width: 64,
-                  height: 64,
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Color(0xFF00C83A), Color(0xFF009D2E)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    shape: BoxShape.circle,
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    channel.name.isNotEmpty ? channel.name[0].toUpperCase() : 'C',
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  channel.name,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white : const Color(0xFF0F172A),
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  isGroup
-                      ? 'Nhóm trò chuyện • ${channel.memberCount} thành viên'
-                      : 'Trò chuyện trực tiếp (1-1)',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: isDark ? Colors.white60 : const Color(0xFF64748B),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                if (isGroup && channel.memberNames.isNotEmpty) ...[
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Thành viên nhóm:',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? Colors.white70 : const Color(0xFF334155),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 6,
-                    children: channel.memberNames.map((name) {
-                      return Chip(
-                        label: Text(name, style: const TextStyle(fontSize: 12)),
-                        backgroundColor: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-              ],
-            ),
-          ),
+        return ChatV2InfoSheet(
+          channel: channel,
+          currentUserName: currentUserName,
+          messages: currentMessages,
+          onSearchTap: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Tính năng tìm kiếm trong hội thoại đang sẵn sàng'),
+                duration: Duration(seconds: 2),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          },
         );
       },
     );

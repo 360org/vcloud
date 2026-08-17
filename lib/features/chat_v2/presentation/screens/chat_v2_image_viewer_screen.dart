@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
 import '../../../../core/api/mobile_attachment_repository.dart';
+import '../../../../core/api/odoo_api_client.dart';
 import '../../../../core/utils/local_attachment_cache.dart';
+import '../../../../shared/widgets/html_network_image.dart';
 import '../widgets/chat_v2_message_item.dart';
 
 class ChatV2ImageViewerScreen extends StatefulWidget {
@@ -127,10 +129,28 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen> {
         _bytes!,
         fit: BoxFit.contain,
         gaplessPlayback: true,
-        errorBuilder: (context, error, stackTrace) => _buildError(),
+        errorBuilder: (context, error, stackTrace) => _buildNetworkOrError(),
       );
     }
 
+    return _buildNetworkOrError();
+  }
+
+  Widget _buildNetworkOrError() {
+    final cleanUrl = widget.imageUrl.trim();
+    if (cleanUrl.isNotEmpty && (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://'))) {
+      if (kIsWeb) {
+        final htmlImg = buildHtmlNetworkImage(url: cleanUrl, fit: BoxFit.contain);
+        if (htmlImg != null) return htmlImg;
+      }
+      return Image.network(
+        cleanUrl,
+        fit: BoxFit.contain,
+        headers: odooApiClient.authHeaders,
+        gaplessPlayback: true,
+        errorBuilder: (context, error, stackTrace) => _buildError(),
+      );
+    }
     return _buildError();
   }
 

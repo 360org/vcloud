@@ -524,6 +524,16 @@ class _ChannelListItem extends ConsumerWidget {
     return _avatarGradients[hash % _avatarGradients.length];
   }
 
+  static String _getShortAuthorName(String fullName) {
+    final clean = fullName.trim();
+    if (clean.isEmpty) return '';
+    if (clean.contains(',')) {
+      final parts = clean.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+      if (parts.isNotEmpty) return parts.first;
+    }
+    return clean.split(' ').last;
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -836,14 +846,14 @@ class _ChannelListItem extends ConsumerWidget {
       String author = '';
       if (channel.lastMessageAuthorName != null &&
           channel.lastMessageAuthorName!.isNotEmpty) {
-        author = channel.lastMessageAuthorName!.split(' ').last;
+        author = _getShortAuthorName(channel.lastMessageAuthorName!);
       } else {
-        // Kiểm tra từ Local Cache của tin nhắn kênh nếu đã nạp
+        // Kiểm tra từ Local Cache của tin nhắn kênh nếu đã nạp (phần tử .first là tin mới nhất)
         final cachedMsgs = ChatV2MessageLocalCache.get(channel.id);
         if (cachedMsgs != null && cachedMsgs.isNotEmpty) {
-          final lastMsgObj = cachedMsgs.last;
+          final lastMsgObj = cachedMsgs.first;
           if (!lastMsgObj.isMine && lastMsgObj.authorName.isNotEmpty) {
-            author = lastMsgObj.authorName.split(' ').last;
+            author = _getShortAuthorName(lastMsgObj.authorName);
           }
         }
       }
@@ -869,11 +879,11 @@ class _ChannelListItem extends ConsumerWidget {
         lower.contains('hình ảnh') ||
         lower.contains('ảnh chụp');
 
-    // Lấy trạng thái tin nhắn cuối từ Local Cache (nếu có)
+    // Lấy trạng thái tin nhắn cuối từ Local Cache (phần tử .first là tin mới nhất)
     String lastMsgStatus = 'sent';
     final cachedMsgs = ChatV2MessageLocalCache.get(channel.id);
     if (cachedMsgs != null && cachedMsgs.isNotEmpty) {
-      lastMsgStatus = cachedMsgs.last.status;
+      lastMsgStatus = cachedMsgs.first.status;
     }
 
     return Row(
