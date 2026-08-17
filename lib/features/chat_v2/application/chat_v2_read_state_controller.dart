@@ -50,17 +50,24 @@ class ChatV2ReadStateNotifier extends Notifier<Map<String, DateTime>> {
     required int serverUnreadCount,
     required DateTime? lastMessageDate,
   }) {
-    if (serverUnreadCount > 0) return true;
-    if (lastMessageDate == null) return false;
-
     final lastSeen = state[channelId] ?? _memoryCache[channelId];
-    if (lastSeen == null) {
+
+    // 1. Ưu tiên Local State: Nếu đã click xem trong phiên làm việc này
+    if (lastSeen != null && lastMessageDate != null) {
+      // Chỉ tính là chưa đọc nếu có tin nhắn gửi ĐẾN SAU thời điểm mình vừa xem
+      if (lastMessageDate.toUtc().millisecondsSinceEpoch >
+          lastSeen.toUtc().millisecondsSinceEpoch) {
+        return true;
+      }
+      // Nếu tin nhắn cuối đã cũ hơn hoặc bằng thời điểm mình xem -> Chắc chắn ĐÃ ĐỌC
+      // (Bỏ qua serverUnreadCount vì server có thể gửi về số cũ do polling chậm)
       return false;
     }
 
-    // So sánh thời gian UTC epoch để tránh lệch timezone
-    return lastMessageDate.toUtc().millisecondsSinceEpoch >
-        lastSeen.toUtc().millisecondsSinceEpoch;
+    // 2. Nếu chưa từng click xem trong phiên này, tin cậy hoàn toàn vào Server
+    if (serverUnreadCount > 0) return true;
+
+    return false;
   }
 }
 

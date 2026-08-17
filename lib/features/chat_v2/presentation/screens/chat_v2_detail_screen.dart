@@ -534,22 +534,37 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                   final isActualGroup = currentChannel?.isGroup == true ||
                                       (currentChannel != null &&
                                           currentChannel.getActualIsGroup(currentUserName));
-                                  final showSenderName = isActualGroup &&
-                                      !isMine &&
-                                      (index == messages.length - 1 ||
-                                          messages[index + 1].authorId != message.authorId);
 
-                                  // Kiểm tra xem có cần chèn Date Separator không
-                                  final nextMessage = index < messages.length - 1
+                                  // Tin nhắn cũ hơn (ở trên trong ListView reverse: true)
+                                  final olderMsg = index < messages.length - 1
                                       ? messages[index + 1]
                                       : null;
-                                  final isFirstOfGroup = nextMessage == null ||
-                                      !_isSameDay(message.createdAt, nextMessage.createdAt);
+                                  final showSenderName = isActualGroup &&
+                                      !isMine &&
+                                      (olderMsg == null ||
+                                          olderMsg.authorId != message.authorId ||
+                                          olderMsg.authorName != message.authorName);
+
+                                  // Tin nhắn mới hơn (ở dưới trong ListView reverse: true)
+                                  final newerMsg = index > 0
+                                      ? messages[index - 1]
+                                      : null;
+                                  final showAvatar = isActualGroup &&
+                                      !isMine &&
+                                      (newerMsg == null ||
+                                          newerMsg.authorId != message.authorId ||
+                                          newerMsg.authorName != message.authorName);
+
+                                  // Kiểm tra xem có cần chèn Date Separator không
+                                  final isFirstOfGroup = olderMsg == null ||
+                                      !_isSameDay(message.createdAt, olderMsg.createdAt);
 
                                   final itemWidget = ChatV2MessageItem(
                                     key: ValueKey('msg_${message.id}'),
                                     message: message,
                                     showSenderName: showSenderName,
+                                    showAvatar: showAvatar,
+                                    isGroup: isActualGroup,
                                     onLongPress: () {
                                       if (message.content.isEmpty) return;
                                     showModalBottomSheet(

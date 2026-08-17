@@ -392,6 +392,7 @@ ThemeData buildLightTheme() {
 
   final base = ThemeData(
     useMaterial3: true,
+    splashFactory: InkRipple.splashFactory,
     colorScheme: scheme,
     scaffoldBackgroundColor: AppColors.bg,
   );
@@ -489,6 +490,7 @@ ThemeData buildDarkTheme() {
 
   final base = ThemeData(
     useMaterial3: true,
+    splashFactory: InkRipple.splashFactory,
     colorScheme: scheme,
     scaffoldBackgroundColor: AppColors.darkBg,
   );

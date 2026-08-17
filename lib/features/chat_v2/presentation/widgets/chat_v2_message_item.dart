@@ -18,17 +18,41 @@ class ChatV2MessageItem extends StatelessWidget {
     super.key,
     required this.message,
     this.showSenderName = false,
+    this.showAvatar = false,
+    this.isGroup = false,
     this.onLongPress,
   });
 
   final ChatV2Message message;
   final bool showSenderName;
+  final bool showAvatar;
+  final bool isGroup;
   final VoidCallback? onLongPress;
+
+  static const _authorColors = [
+    Color(0xFF0284C7), // Sky blue
+    Color(0xFF7C3AED), // Violet
+    Color(0xFF059669), // Emerald
+    Color(0xFFD97706), // Amber
+    Color(0xFFDC2626), // Rose
+    Color(0xFF0891B2), // Cyan
+    Color(0xFFEA580C), // Orange
+    Color(0xFF4F46E5), // Indigo
+    Color(0xFFDB2777), // Pink
+    Color(0xFF0D9488), // Teal
+  ];
+
+  static Color getAuthorColor(String name) {
+    if (name.isEmpty) return _authorColors[0];
+    final hash = name.codeUnits.fold(0, (acc, c) => acc + c);
+    return _authorColors[hash % _authorColors.length];
+  }
 
   @override
   Widget build(BuildContext context) {
     final isMine = message.isMine;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final authorColor = getAuthorColor(message.authorName);
     final timeStr = message.createdAt != null
         ? DateFormat('HH:mm').format(message.createdAt!)
         : '';
@@ -52,111 +76,120 @@ class ChatV2MessageItem extends StatelessWidget {
     return GestureDetector(
       onLongPress: onLongPress,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 3),
+        padding: EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: showSenderName ? 4 : 2,
+        ),
         child: Row(
           mainAxisAlignment:
               isMine ? MainAxisAlignment.end : MainAxisAlignment.start,
           crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          if (!isMine) ...[
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFE2E8F0), Color(0xFFCBD5E1)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 4,
-                    offset: const Offset(0, 1),
-                  ),
-                ],
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                message.authorName.isNotEmpty
-                    ? message.authorName[0].toUpperCase()
-                    : 'U',
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF334155),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-          ],
-          Flexible(
-            child: isPureImage
-                ? _buildPureImageBubble(context, imageAttachments, isMine, timeStr)
-                : Container(
-                    constraints: BoxConstraints(
-                      maxWidth: MediaQuery.of(context).size.width * 0.76,
-                    ),
-                    padding: hasAnyImage
-                        ? EdgeInsets.zero
-                        : const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-                    decoration: BoxDecoration(
-                      color: isMine
-                          ? (isDark
-                              ? const Color(0xFF005C4B)
-                              : const Color(0xFFD9FDD3))
-                          : (isDark
-                              ? const Color(0xFF202C33)
-                              : Colors.white),
-                      border: isMine || isDark || hasAnyImage
-                          ? null
-                          : Border.all(
-                              color: const Color(0xFFE2E8F0),
-                              width: 0.8,
-                            ),
-                      borderRadius: BorderRadius.only(
-                        topLeft: const Radius.circular(16),
-                        topRight: const Radius.circular(16),
-                        bottomLeft: Radius.circular(isMine ? 16 : 4),
-                        bottomRight: Radius.circular(isMine ? 4 : 16),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
-                          blurRadius: 4,
-                          offset: const Offset(0, 1),
-                        ),
+          children: [
+            if (!isMine && isGroup) ...[
+              if (showAvatar)
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        authorColor.withValues(alpha: 0.85),
+                        authorColor,
                       ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.only(
-                        topLeft: const Radius.circular(16),
-                        topRight: const Radius.circular(16),
-                        bottomLeft: Radius.circular(isMine ? 16 : 4),
-                        bottomRight: Radius.circular(isMine ? 4 : 16),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: authorColor.withValues(alpha: 0.25),
+                        blurRadius: 3,
+                        offset: const Offset(0, 1),
                       ),
-                      child: Column(
-                        crossAxisAlignment:
-                            isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (!isMine && showSenderName)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8, left: 12, right: 12, bottom: 4),
-                              child: Text(
-                                message.authorName,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF00C83A),
-                                ),
+                    ],
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    message.authorName.isNotEmpty
+                        ? message.authorName[0].toUpperCase()
+                        : 'U',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                )
+              else
+                const SizedBox(width: 28),
+              const SizedBox(width: 6),
+            ],
+            Flexible(
+              child: isPureImage
+                  ? _buildPureImageBubble(context, imageAttachments, isMine, timeStr)
+                  : Container(
+                      constraints: BoxConstraints(
+                        maxWidth: MediaQuery.of(context).size.width * 0.72,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isMine
+                            ? (isDark
+                                ? const Color(0xFF005C4B)
+                                : const Color(0xFFD9FDD3))
+                            : (isDark
+                                ? const Color(0xFF202C33)
+                                : Colors.white),
+                        border: isMine || isDark || hasAnyImage
+                            ? null
+                            : Border.all(
+                                color: const Color(0xFFE2E8F0),
+                                width: 0.8,
                               ),
-                            ),
-                          // 1. Render actual image attachments with caption
-                          if (hasImages) ...[
-                            for (final att in imageAttachments) ...[
-                              _buildImageAttachment(context, att, isMine),
+                        borderRadius: BorderRadius.only(
+                          topLeft: const Radius.circular(16),
+                          topRight: const Radius.circular(16),
+                          bottomLeft: Radius.circular(isMine ? 16 : 4),
+                          bottomRight: Radius.circular(isMine ? 4 : 16),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
+                            blurRadius: 3,
+                            offset: const Offset(0, 1),
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.only(
+                          topLeft: const Radius.circular(16),
+                          topRight: const Radius.circular(16),
+                          bottomLeft: Radius.circular(isMine ? 16 : 4),
+                          bottomRight: Radius.circular(isMine ? 4 : 16),
+                        ),
+                        child: Padding(
+                          padding: hasAnyImage
+                              ? EdgeInsets.zero
+                              : const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          child: Column(
+                            crossAxisAlignment:
+                                isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (!isMine && showSenderName) ...[
+                                Text(
+                                  message.authorName,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: authorColor,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                              ],
+                              // 1. Render actual image attachments with caption
+                              if (hasImages) ...[
+                                for (final att in imageAttachments) ...[
+                                  _buildImageAttachment(context, att, isMine),
                               if (imageAttachments.length > 1) const SizedBox(height: 2),
                             ],
                           ] else if (message.isImageFilename) ...[
@@ -231,6 +264,7 @@ class ChatV2MessageItem extends StatelessWidget {
                       ),
                     ),
                   ),
+                ),
           ),
         ],
       ),
@@ -732,6 +766,7 @@ class ChatV2MessageItem extends StatelessWidget {
     }
   }
 
+  // Parse and build message text
   Widget _buildParsedMessageText({
     required BuildContext context,
     required String rawText,
@@ -748,13 +783,14 @@ class ChatV2MessageItem extends StatelessWidget {
 
     final matches = urlRegex.allMatches(rawText);
     if (matches.isEmpty) {
-      return SelectableText(
+      return Text(
         rawText,
         style: TextStyle(
           fontSize: 15,
           height: 1.38,
           color: textColor,
         ),
+        overflow: TextOverflow.visible,
       );
     }
 
@@ -817,8 +853,9 @@ class ChatV2MessageItem extends StatelessWidget {
       ));
     }
 
-    return SelectableText.rich(
+    return Text.rich(
       TextSpan(children: spans),
+      overflow: TextOverflow.visible,
     );
   }
 

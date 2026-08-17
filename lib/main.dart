@@ -11,6 +11,8 @@ import 'app.dart';
 import 'core/utils/local_attachment_cache.dart';
 
 void _logDetailedError(Object error, StackTrace? stack, {String context = 'FLUTTER'}) {
+  final errStr = error.toString();
+  if (errStr.contains('ink_sparkle.frag')) return;
   debugPrint('=== LỖI FLUTTER NGHIÊM TRỌNG [$context] ===');
   debugPrint('Nội dung lỗi: $error');
   if (stack != null) {

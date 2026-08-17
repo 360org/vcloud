@@ -869,15 +869,26 @@ class _ChannelListItem extends ConsumerWidget {
         lower.contains('hình ảnh') ||
         lower.contains('ảnh chụp');
 
+    // Lấy trạng thái tin nhắn cuối từ Local Cache (nếu có)
+    String lastMsgStatus = 'sent';
+    final cachedMsgs = ChatV2MessageLocalCache.get(channel.id);
+    if (cachedMsgs != null && cachedMsgs.isNotEmpty) {
+      lastMsgStatus = cachedMsgs.last.status;
+    }
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Hiển thị 2 dấu tích xanh đã xem nếu tin nhắn đã được đọc
-        if (!hasUnread) ...[
-          const Icon(
-            LucideIcons.checkCheck,
-            size: 15,
-            color: Color(0xFF10B981), // Xanh ngọc thể hiện Đã xem
+        // Hiển thị trạng thái tin nhắn gửi đi đồng bộ với chi tiết (1 tích = đã gửi, 2 tích = đối phương đã xem)
+        if (isMine) ...[
+          Icon(
+            lastMsgStatus == 'read'
+                ? LucideIcons.checkCheck
+                : LucideIcons.check,
+            size: 14,
+            color: lastMsgStatus == 'read'
+                ? const Color(0xFF53BDEB)
+                : (isDark ? const Color(0xFF8696A0) : const Color(0xFF667781)),
           ),
           const SizedBox(width: 4.5),
         ],

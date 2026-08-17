@@ -169,6 +169,7 @@ class OdooApiClient {
     int? tenantId,
   }) async {
     final body = <String, dynamic>{'login': login, 'password': password};
+    if (Env.odooDb.isNotEmpty) body['db'] = Env.odooDb;
     if (tenantId != null) body['tenant_id'] = tenantId;
     Object? json;
     try {
@@ -177,6 +178,8 @@ class OdooApiClient {
         body: body,
         auth: false,
       );
+    } on MultipleTenantsFailure {
+      rethrow;
     } on TenantNotFoundFailure catch (e) {
       if (tenantId != null) rethrow;
       try {
@@ -184,12 +187,132 @@ class OdooApiClient {
       } catch (_) {
         throw e;
       }
+    } catch (e) {
+      try {
+        final dbName = Env.odooDb.isNotEmpty ? Env.odooDb : 'vuahethong';
+        return await _loginWithOdooSessionAndJwt(
+          login: login,
+          password: password,
+          dbName: dbName,
+          tenantId: tenantId,
+        );
+      } catch (_) {
+        rethrow;
+      }
     }
     final session = _sessionFromJson(
       Map<String, dynamic>.from(json as Map),
       fallbackLogin: login,
       fallbackDb: Env.odooDb,
       fallbackBaseUrl: _baseUrl,
+    );
+    _session = session;
+    await _sessionStore.write(session);
+    return session;
+  }
+
+  Future<OdooSession> _loginWithOdooSessionAndJwt({
+    required String login,
+    required String password,
+    required String dbName,
+    int? tenantId,
+  }) async {
+    final authUri = Uri.parse('${_requestBaseUrl(auth: false)}/web/session/authenticate');
+    final authPayload = {
+      'jsonrpc': '2.0',
+      'params': {
+        'db': dbName,
+        'login': login,
+        'password': password,
+      },
+    };
+    final authResponse = await _http.post(
+      authUri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: jsonEncode(authPayload),
+    );
+    if (authResponse.statusCode != 200) {
+      throw Failure('Không thể kết nối đến máy chủ Odoo (${authResponse.statusCode})');
+    }
+    final authDecoded = jsonDecode(authResponse.body);
+    if (authDecoded is! Map || authDecoded['error'] != null) {
+      final err = authDecoded is Map ? authDecoded['error'] : null;
+      final errMsg = err is Map ? (err['data']?['message'] ?? err['message']) : null;
+      throw Failure(errMsg?.toString() ?? 'Tài khoản hoặc mật khẩu không chính xác.');
+    }
+    final authResult = authDecoded['result'];
+    if (authResult is! Map) {
+      throw Failure('Tài khoản hoặc mật khẩu không chính xác.');
+    }
+    final uid = _intOrNull(authResult['uid']);
+    if (uid == null || uid == 0) {
+      throw Failure('Tài khoản hoặc mật khẩu không chính xác.');
+    }
+    final partnerId = _intOrNull(authResult['partner_id']);
+
+    String? sessionId;
+    final rawCookies = authResponse.headers['set-cookie'];
+    if (rawCookies != null) {
+      final match = RegExp(r'session_id=([^;]+)').firstMatch(rawCookies);
+      if (match != null) {
+        sessionId = match.group(1);
+      }
+    }
+
+    // Step 2: Gửi request lấy JWT access_token có kèm session_id cookie
+    final jwtUri = Uri.parse('${_requestBaseUrl(auth: false)}/api/v1/mobile/auth/login');
+    final jwtHeaders = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      if (sessionId != null) 'Cookie': 'session_id=$sessionId',
+    };
+    final jwtBody = <String, dynamic>{
+      'login': login,
+      'password': password,
+      'db': dbName,
+    };
+    if (tenantId != null) {
+      jwtBody['tenant_id'] = tenantId;
+    }
+
+    try {
+      final jwtResponse = await _http.post(
+        jwtUri,
+        headers: jwtHeaders,
+        body: jsonEncode(jwtBody),
+      );
+      if (jwtResponse.statusCode == 200) {
+        final jwtDecoded = jsonDecode(jwtResponse.body);
+        if (jwtDecoded is Map && jwtDecoded['access_token'] != null) {
+          final session = _sessionFromJson(
+            Map<String, dynamic>.from(jwtDecoded),
+            fallbackLogin: login,
+            fallbackDb: dbName,
+            fallbackBaseUrl: _baseUrl,
+            fallbackUid: uid,
+            fallbackPartnerId: partnerId,
+          );
+          _session = session;
+          await _sessionStore.write(session);
+          return session;
+        }
+      }
+    } catch (_) {}
+
+    final session = OdooSession(
+      accessToken: sessionId ?? 'session_$uid',
+      refreshToken: null,
+      uid: uid,
+      db: dbName,
+      login: login,
+      expiresAt: DateTime.now().toUtc().add(const Duration(days: 30)),
+      baseUrl: _baseUrl,
+      tenantId: null,
+      scope: 'odoo_web_session',
+      partnerId: partnerId,
     );
     _session = session;
     await _sessionStore.write(session);
@@ -393,6 +516,8 @@ class OdooApiClient {
       'Accept': 'application/json',
       if (body != null) 'Content-Type': 'application/json',
       if (auth) 'Authorization': 'Bearer ${_session!.accessToken}',
+      if (auth && _session?.scope == 'odoo_web_session')
+        'Cookie': 'session_id=${_session!.accessToken}',
     };
 
     dev.log(

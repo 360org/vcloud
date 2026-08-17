@@ -40,8 +40,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final savedEmail = await ref.read(authRepositoryProvider).getLastLoginEmail();
       if (!mounted) return;
       if (savedEmail != null && savedEmail.trim().isNotEmpty) {
+        final emailText = savedEmail.trim();
         setState(() {
-          _email.text = savedEmail.trim();
+          _email.value = TextEditingValue(
+            text: emailText,
+            selection: TextSelection.collapsed(offset: emailText.length),
+          );
         });
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) _passwordFocus.requestFocus();
