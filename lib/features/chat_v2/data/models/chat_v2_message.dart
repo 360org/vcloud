@@ -312,10 +312,30 @@ class ChatV2Message {
         .replaceAll('&#39;', "'")
         .replaceAll('&amp;', '&');
 
-    String bodyWithoutQuote = rawBody;
-    if (unescapedBody.contains('<blockquote') || unescapedBody.contains('data-reply-')) {
+    String bodyWithoutQuote = unescapedBody;
+    if (unescapedBody.contains('data-reply-') || unescapedBody.contains('<blockquote') || unescapedBody.contains('o_quote')) {
+      // 1. Nhận diện <div data-reply-...>...</div>
+      final divRegex = RegExp(r'<div([^>]*data-reply-[^>]*)>(.*?)<\/div>', caseSensitive: false, dotAll: true);
+      final divMatch = divRegex.firstMatch(unescapedBody);
+      if (divMatch != null) {
+        final attrs = divMatch.group(1) ?? '';
+        final idMatch = RegExp('data-reply-id="([^"]+)"').firstMatch(attrs) ??
+            RegExp("data-reply-id='([^']+)'").firstMatch(attrs);
+        final authorMatch = RegExp('data-reply-author="([^"]+)"').firstMatch(attrs) ??
+            RegExp("data-reply-author='([^']+)'").firstMatch(attrs);
+        final bodyMatch = RegExp('data-reply-body="([^"]+)"').firstMatch(attrs) ??
+            RegExp("data-reply-body='([^']+)'").firstMatch(attrs);
+
+        extractedParentId ??= idMatch?.group(1);
+        extractedParentAuthor ??= authorMatch?.group(1);
+        extractedParentBody ??= bodyMatch?.group(1);
+
+        bodyWithoutQuote = unescapedBody.replaceFirst(divMatch.group(0)!, '').trim();
+      }
+
+      // 2. Nhận diện <blockquote...>...</blockquote>
       final bqRegex = RegExp(r'<blockquote([^>]*)>(.*?)<\/blockquote>', caseSensitive: false, dotAll: true);
-      final bqMatch = bqRegex.firstMatch(unescapedBody);
+      final bqMatch = bqRegex.firstMatch(bodyWithoutQuote);
       if (bqMatch != null) {
         final bqAttrs = bqMatch.group(1) ?? '';
         final bqInner = bqMatch.group(2) ?? '';
@@ -339,8 +359,7 @@ class ChatV2Message {
           }
         }
 
-        // Tách phần nội dung tin nhắn thật ra khỏi quote
-        bodyWithoutQuote = unescapedBody.replaceFirst(bqMatch.group(0)!, '').trim();
+        bodyWithoutQuote = bodyWithoutQuote.replaceFirst(bqMatch.group(0)!, '').trim();
       }
     }
 

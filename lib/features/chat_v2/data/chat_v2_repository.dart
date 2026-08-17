@@ -326,9 +326,26 @@ class ChatV2Repository {
     String? parentBody,
     String? parentAuthorName,
   }) async {
+    String payloadBody = body;
+    if (parentId != null && parentId.isNotEmpty) {
+      final safeAuthor = (parentAuthorName != null && parentAuthorName.isNotEmpty)
+          ? parentAuthorName
+          : 'Tin nhắn';
+      final safeBody = (parentBody != null && parentBody.isNotEmpty)
+          ? parentBody
+          : '...';
+
+      // Tạo thẻ Quote HTML chuẩn Odoo Discuss để hiển thị đẹp mắt trên cả Web Odoo và Mobile
+      final quoteHtml = '<div data-reply-id="$parentId" data-reply-author="$safeAuthor" data-reply-body="$safeBody" style="border-left: 3px solid #00a82d; padding: 2px 8px; margin-bottom: 6px; background-color: rgba(0,0,0,0.05); border-radius: 4px; font-size: 12px; color: #555;">'
+          '<strong style="color: #00a82d;">$safeAuthor</strong><br/>'
+          '<span>$safeBody</span>'
+          '</div>';
+      payloadBody = '$quoteHtml<p>$body</p>';
+    }
+
     final payload = <String, dynamic>{
       'channel_id': int.tryParse(channelId) ?? channelId,
-      'body': body,
+      'body': payloadBody,
     };
     if (attachmentIds != null && attachmentIds.isNotEmpty) {
       payload['attachment_ids'] = attachmentIds;
