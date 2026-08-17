@@ -275,8 +275,10 @@ class _GreetingHeader extends StatelessWidget {
         ? ShiftCalculator.calculate(checkinTime: checkinTime!)
         : null;
     final displayMinutes = shiftProgress != null ? shiftProgress.workedMinutes : todayMinutes;
-    final progress = (displayMinutes / targetMinutes).clamp(0.0, 1.0);
-    final percent = (progress * 100).round();
+    final isCompleted = displayMinutes >= targetMinutes;
+    final rawProgress = targetMinutes > 0 ? (displayMinutes / targetMinutes) : 0.0;
+    final progress = isCompleted ? 1.0 : rawProgress.clamp(0.0, 0.985);
+    final percent = isCompleted ? 100 : (rawProgress * 100).floor().clamp(0, 99);
 
     return Container(
       padding: const EdgeInsets.all(18),
