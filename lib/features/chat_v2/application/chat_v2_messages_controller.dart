@@ -103,8 +103,23 @@ class ChatV2MessagesNotifier
               final hasPending = currentList.any((m) => m.status == 'pending');
 
               if (hasNew || hasPending || currentList.length != latest.length) {
-                ChatV2MessageLocalCache.set(channelId, latest);
-                state = AsyncData(latest);
+                // Bảo tồn thông tin trích dẫn reply (parentBody/parentAuthorName) từ state hiện tại
+                // vì backend cũ có thể không trả về các trường này khi poll
+                final currentById = {for (final m in currentList) m.id: m};
+                final merged = latest.map((m) {
+                  final existing = currentById[m.id];
+                  if (existing != null &&
+                      m.parentId != null &&
+                      (m.parentBody == null || m.parentAuthorName == null)) {
+                    return m.copyWith(
+                      parentBody: m.parentBody ?? existing.parentBody,
+                      parentAuthorName: m.parentAuthorName ?? existing.parentAuthorName,
+                    );
+                  }
+                  return m;
+                }).toList();
+                ChatV2MessageLocalCache.set(channelId, merged);
+                state = AsyncData(merged);
               }
             }
           } catch (_) {}
