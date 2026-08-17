@@ -299,15 +299,23 @@ class ChatV2Message {
       }
     }
 
-    // Parse Reply Quote từ rawBody nếu có (format <blockquote data-reply-id="..." data-reply-author="..." data-reply-body="...">...</blockquote>)
+    // Parse Reply Quote từ rawBody nếu có (format <blockquote... hoặc &lt;blockquote...)
     String? extractedParentId = _stringOrNull(map['parent_id']);
     String? extractedParentAuthor = _stringOrNull(map['parent_author_name']);
     String? extractedParentBody = _stringOrNull(map['parent_body']);
 
+    // Tự động unescape rawBody để nhận diện blockquote dù bị Odoo backend escape HTML
+    final unescapedBody = rawBody
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#39;', "'")
+        .replaceAll('&amp;', '&');
+
     String bodyWithoutQuote = rawBody;
-    if (rawBody.contains('<blockquote') || rawBody.contains('data-reply-')) {
+    if (unescapedBody.contains('<blockquote') || unescapedBody.contains('data-reply-')) {
       final bqRegex = RegExp(r'<blockquote([^>]*)>(.*?)<\/blockquote>', caseSensitive: false, dotAll: true);
-      final bqMatch = bqRegex.firstMatch(rawBody);
+      final bqMatch = bqRegex.firstMatch(unescapedBody);
       if (bqMatch != null) {
         final bqAttrs = bqMatch.group(1) ?? '';
         final bqInner = bqMatch.group(2) ?? '';
@@ -332,11 +340,11 @@ class ChatV2Message {
         }
 
         // Tách phần nội dung tin nhắn thật ra khỏi quote
-        bodyWithoutQuote = rawBody.replaceFirst(bqMatch.group(0)!, '').trim();
+        bodyWithoutQuote = unescapedBody.replaceFirst(bqMatch.group(0)!, '').trim();
       }
     }
 
-    final cleanContent = _cleanHtml(bodyWithoutQuote.isNotEmpty ? bodyWithoutQuote : rawBody);
+    final cleanContent = _cleanHtml(bodyWithoutQuote);
 
     // Parse attachments
     final parsedAttachments = <ChatV2Attachment>[];
@@ -477,6 +485,9 @@ String _stringOr(dynamic val, String fallback) {
 
 String? _stringOrNull(dynamic val) {
   if (val == null || val == false) return null;
+  if (val is List && val.isNotEmpty) {
+    return val[0]?.toString();
+  }
   final str = val.toString().trim();
   return str.isEmpty ? null : str;
 }
