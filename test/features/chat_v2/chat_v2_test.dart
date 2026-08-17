@@ -732,5 +732,52 @@ void main() {
       const docAtt = ChatV2Attachment(id: '2', name: 'report.pdf', mimetype: 'application/pdf');
       expect(docAtt.isImage, isFalse);
     });
+
+    testWidgets('32. ChatV2InfoSheet comprehensively extracts 3 mixed links including domain and protocols', (tester) async {
+      const channel = ChatV2Channel(
+        id: 'direct_123',
+        name: 'Ma Nguyễn Nhật Tân, Bùi Tuấn Kiệt',
+        channelType: 'chat',
+        isGroup: false,
+      );
+
+      final messages = [
+        ChatV2Message(
+          id: '1',
+          channelId: 'direct_123',
+          content: 'http://localhost:8088/#/chat',
+          authorName: 'Bùi Tuấn Kiệt',
+          createdAt: DateTime.now(),
+        ),
+        ChatV2Message(
+          id: '2',
+          channelId: 'direct_123',
+          content: 'https://www.facebook.com/login/?next=test',
+          authorName: 'Bùi Tuấn Kiệt',
+          createdAt: DateTime.now(),
+        ),
+        ChatV2Message(
+          id: '3',
+          channelId: 'direct_123',
+          content: 'Vào trang vuahethong.net để xem chi tiết',
+          authorName: 'Bùi Tuấn Kiệt',
+          createdAt: DateTime.now(),
+        ),
+      ];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ChatV2InfoSheet(
+              channel: channel,
+              currentUserName: 'Ma Nguyễn Nhật Tân',
+              messages: messages,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Liên kết (3)'), findsOneWidget);
+    });
   });
 }

@@ -71,7 +71,7 @@ class _ChatV2InfoSheetState extends State<ChatV2InfoSheet>
 
   void _extractMedia() {
     final linkRegex = RegExp(
-      r'(https?:\/\/[^\s]+)',
+      r'((?:https?:\/\/|www\.)[^\s<]+|(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(?:\/[^\s<]*)?)',
       caseSensitive: false,
     );
     final imgTagRegex = RegExp(
@@ -100,7 +100,7 @@ class _ChatV2InfoSheetState extends State<ChatV2InfoSheet>
             id: '',
             name: msg.content.trim(),
             url: '',
-            mimetype: 'image/png',
+            mimetype: 'image/jpeg',
           );
           if (!_images.any((x) => x.name == att.name)) {
             _images.add(att);
@@ -128,38 +128,64 @@ class _ChatV2InfoSheetState extends State<ChatV2InfoSheet>
               id: '',
               name: 'Hình ảnh',
               url: src,
-              mimetype: 'image/png',
+              mimetype: 'image/jpeg',
             ),
           );
         }
       }
 
-      // 4. Links in text
-      final matches = linkRegex.allMatches(msg.content);
-      for (final m in matches) {
-        final url = m.group(0);
-        if (url != null) {
-          final cleanUrl = url.trim();
-          final lower = cleanUrl.toLowerCase();
-          final isDirectImgUrl = lower.endsWith('.png') ||
-              lower.endsWith('.jpg') ||
-              lower.endsWith('.jpeg') ||
-              lower.endsWith('.webp') ||
-              lower.endsWith('.gif');
-
-          if (isDirectImgUrl) {
-            if (!_images.any((x) => x.url == cleanUrl)) {
-              _images.add(
-                ChatV2Attachment(
-                  id: '',
-                  name: cleanUrl.split('/').last,
-                  url: cleanUrl,
-                  mimetype: 'image/png',
-                ),
-              );
+      // 4. Links in text (only if message is not just a raw image/document filename)
+      if (!msg.isImageFilename && !msg.isDocumentFilename) {
+        final matches = linkRegex.allMatches(msg.content);
+        for (final m in matches) {
+          var url = m.group(0);
+          if (url != null) {
+            // Remove trailing punctuation
+            final punctRegex = RegExp(r'[.,!?:;)"\x27\]]+$');
+            final punctMatch = punctRegex.firstMatch(url);
+            if (punctMatch != null) {
+              url = url.substring(0, url.length - punctMatch.group(0)!.length);
             }
-          } else if (!_links.contains(cleanUrl)) {
-            _links.add(cleanUrl);
+
+            final cleanUrl = url.trim();
+            final lower = cleanUrl.toLowerCase();
+
+            // Exclude document / data files that look like domain names (e.g. Passwords.csv, report.pdf)
+            final isFileExt = lower.endsWith('.csv') ||
+                lower.endsWith('.pdf') ||
+                lower.endsWith('.doc') ||
+                lower.endsWith('.docx') ||
+                lower.endsWith('.xls') ||
+                lower.endsWith('.xlsx') ||
+                lower.endsWith('.ppt') ||
+                lower.endsWith('.pptx') ||
+                lower.endsWith('.zip') ||
+                lower.endsWith('.txt');
+
+            final isDirectImgUrl = lower.endsWith('.png') ||
+                lower.endsWith('.jpg') ||
+                lower.endsWith('.jpeg') ||
+                lower.endsWith('.webp') ||
+                lower.endsWith('.gif') ||
+                lower.endsWith('.svg');
+
+            if (isDirectImgUrl) {
+              final fileName = cleanUrl.split('/').last;
+              if (!_images.any((x) => x.url == cleanUrl || x.name == fileName)) {
+                _images.add(
+                  ChatV2Attachment(
+                    id: '',
+                    name: fileName,
+                    url: cleanUrl,
+                    mimetype: 'image/jpeg',
+                  ),
+                );
+              }
+            } else if (!isFileExt && cleanUrl.isNotEmpty) {
+              if (!_links.contains(cleanUrl)) {
+                _links.add(cleanUrl);
+              }
+            }
           }
         }
       }
@@ -770,9 +796,10 @@ class _ChatV2InfoSheetState extends State<ChatV2InfoSheet>
                         final url = _links[idx];
                         return InkWell(
                           onTap: () async {
-                            final uri = Uri.tryParse(url);
+                            final targetUrl = url.contains('://') ? url : 'https://$url';
+                            final uri = Uri.tryParse(targetUrl);
                             if (uri != null) {
-                              await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
+                              await launchUrl(uri, mode: LaunchMode.externalApplication);
                             }
                           },
                           borderRadius: BorderRadius.circular(10),
