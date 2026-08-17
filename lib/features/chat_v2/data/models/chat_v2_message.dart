@@ -299,7 +299,44 @@ class ChatV2Message {
       }
     }
 
-    final cleanContent = _cleanHtml(rawBody);
+    // Parse Reply Quote từ rawBody nếu có (format <blockquote data-reply-id="..." data-reply-author="..." data-reply-body="...">...</blockquote>)
+    String? extractedParentId = _stringOrNull(map['parent_id']);
+    String? extractedParentAuthor = _stringOrNull(map['parent_author_name']);
+    String? extractedParentBody = _stringOrNull(map['parent_body']);
+
+    String bodyWithoutQuote = rawBody;
+    if (rawBody.contains('<blockquote') || rawBody.contains('data-reply-')) {
+      final bqRegex = RegExp(r'<blockquote([^>]*)>(.*?)<\/blockquote>', caseSensitive: false, dotAll: true);
+      final bqMatch = bqRegex.firstMatch(rawBody);
+      if (bqMatch != null) {
+        final bqAttrs = bqMatch.group(1) ?? '';
+        final bqInner = bqMatch.group(2) ?? '';
+
+        final idMatch = RegExp('data-reply-id="([^"]+)"').firstMatch(bqAttrs) ??
+            RegExp("data-reply-id='([^']+)'").firstMatch(bqAttrs);
+        final authorMatch = RegExp('data-reply-author="([^"]+)"').firstMatch(bqAttrs) ??
+            RegExp("data-reply-author='([^']+)'").firstMatch(bqAttrs);
+        final bodyMatch = RegExp('data-reply-body="([^"]+)"').firstMatch(bqAttrs) ??
+            RegExp("data-reply-body='([^']+)'").firstMatch(bqAttrs);
+
+        extractedParentId ??= idMatch?.group(1);
+        extractedParentAuthor ??= authorMatch?.group(1);
+        extractedParentBody ??= bodyMatch?.group(1);
+
+        if (extractedParentBody == null || extractedParentBody.isEmpty) {
+          final cleanInner = _cleanHtml(bqInner);
+          if (cleanInner.isNotEmpty) {
+            extractedParentBody = cleanInner;
+            extractedParentId ??= 'quote';
+          }
+        }
+
+        // Tách phần nội dung tin nhắn thật ra khỏi quote
+        bodyWithoutQuote = rawBody.replaceFirst(bqMatch.group(0)!, '').trim();
+      }
+    }
+
+    final cleanContent = _cleanHtml(bodyWithoutQuote.isNotEmpty ? bodyWithoutQuote : rawBody);
 
     // Parse attachments
     final parsedAttachments = <ChatV2Attachment>[];
@@ -357,9 +394,8 @@ class ChatV2Message {
       }
     }
 
-    final rawParentBody = _stringOrNull(map['parent_body']);
-    final cleanParentBody = (rawParentBody != null && rawParentBody.isNotEmpty)
-        ? _cleanHtml(rawParentBody)
+    final cleanParentBody = (extractedParentBody != null && extractedParentBody.isNotEmpty)
+        ? _cleanHtml(extractedParentBody)
         : null;
 
     return ChatV2Message(
@@ -372,9 +408,9 @@ class ChatV2Message {
       isMine: isMine,
       status: _stringOr(map['status'], 'sent'),
       attachments: parsedAttachments,
-      parentId: _stringOrNull(map['parent_id']),
+      parentId: extractedParentId,
       parentBody: cleanParentBody,
-      parentAuthorName: _stringOrNull(map['parent_author_name']),
+      parentAuthorName: extractedParentAuthor,
     );
   }
 

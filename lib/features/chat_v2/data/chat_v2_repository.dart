@@ -277,9 +277,25 @@ class ChatV2Repository {
     String? parentBody,
     String? parentAuthorName,
   }) async {
+    String payloadBody = body;
+    if (parentId != null && parentId.isNotEmpty) {
+      final safeAuthor = (parentAuthorName != null && parentAuthorName.isNotEmpty)
+          ? parentAuthorName
+          : 'Tin nhắn';
+      final safeBody = (parentBody != null && parentBody.isNotEmpty)
+          ? parentBody
+          : '...';
+      // Đóng gói blockquote chuẩn Odoo discuss để lưu trực tiếp vào database Odoo
+      // Cả máy gửi, máy nhận và Odoo web đều xem được 100% vĩnh viễn
+      final quoteHtml = '<blockquote data-reply-id="$parentId" data-reply-author="$safeAuthor" data-reply-body="$safeBody">'
+          '<small><strong>$safeAuthor:</strong> $safeBody</small>'
+          '</blockquote>';
+      payloadBody = '$quoteHtml$body';
+    }
+
     final payload = <String, dynamic>{
       'channel_id': int.tryParse(channelId) ?? channelId,
-      'body': body,
+      'body': payloadBody,
     };
     if (attachmentIds != null && attachmentIds.isNotEmpty) {
       payload['attachment_ids'] = attachmentIds;
