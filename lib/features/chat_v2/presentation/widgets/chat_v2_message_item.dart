@@ -1,7 +1,7 @@
 import 'dart:io';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -820,19 +820,24 @@ class ChatV2MessageItem extends StatelessWidget {
       }
 
       spans.add(
-        TextSpan(
-          text: rawLink,
-          style: TextStyle(
-            color: linkColor,
-            fontSize: 15,
-            height: 1.38,
-            fontWeight: FontWeight.w600,
-            decoration: TextDecoration.underline,
-            decorationColor: linkColor,
-            decorationThickness: 1.2,
+        WidgetSpan(
+          alignment: PlaceholderAlignment.baseline,
+          baseline: TextBaseline.alphabetic,
+          child: GestureDetector(
+            onTap: () => _handleLinkClick(context, targetUrl),
+            child: Text(
+              rawLink,
+              style: TextStyle(
+                color: linkColor,
+                fontSize: 15,
+                height: 1.38,
+                fontWeight: FontWeight.w600,
+                decoration: TextDecoration.underline,
+                decorationColor: linkColor,
+                decorationThickness: 1.2,
+              ),
+            ),
           ),
-          recognizer: TapGestureRecognizer()
-            ..onTap = () => _handleLinkClick(context, targetUrl),
         ),
       );
 
@@ -861,34 +866,86 @@ class ChatV2MessageItem extends StatelessWidget {
 
   void _handleLinkClick(BuildContext context, String targetUrl) async {
     HapticFeedback.lightImpact();
-    final uri = Uri.tryParse(targetUrl);
+    final cleanUrl = targetUrl.trim();
+    final uri = Uri.tryParse(cleanUrl.contains('://') ? cleanUrl : 'https://$cleanUrl');
+    if (uri == null) return;
+
+    // 1. Phân tích điều hướng liên kết nội bộ hệ thống (Smart In-App Navigation)
+    final pathSegments = uri.pathSegments;
+
+    // Kênh chat nội bộ: e.g. vuahethong.net/chat/4128, /chat/4128, vcloud://chat/4128
+    if ((uri.scheme == 'vcloud' && uri.host == 'chat') || uri.path.contains('/chat/')) {
+      String? targetChannelId;
+      if (uri.scheme == 'vcloud' && uri.host == 'chat') {
+        targetChannelId = pathSegments.isNotEmpty ? pathSegments.first : null;
+      } else {
+        final chatIdx = pathSegments.indexOf('chat');
+        if (chatIdx >= 0 && chatIdx + 1 < pathSegments.length) {
+          targetChannelId = pathSegments[chatIdx + 1];
+        }
+      }
+
+      if (targetChannelId != null && targetChannelId.isNotEmpty) {
+        if (targetChannelId == message.channelId) {
+          // Đang ở chính kênh hiện tại -> Không push đè để chống lặp và đơ màn hình
+          return;
+        }
+        if (context.mounted) {
+          context.push('/chat/$targetChannelId');
+        }
+        return;
+      }
+    }
+
+    // Phiếu hỗ trợ / Ticket nội bộ: e.g. vuahethong.net/tickets/123, /tickets/123
+    if (uri.path.contains('/tickets/')) {
+      final ticketIdx = pathSegments.indexOf('tickets');
+      if (ticketIdx >= 0 && ticketIdx + 1 < pathSegments.length) {
+        final ticketId = pathSegments[ticketIdx + 1];
+        if (ticketId.isNotEmpty && context.mounted) {
+          context.push('/tickets/$ticketId');
+          return;
+        }
+      }
+    }
+
+    // Timesheets nội bộ: e.g. vuahethong.net/timesheet
+    if (uri.path == '/timesheet' || uri.path.startsWith('/timesheet')) {
+      if (context.mounted) {
+        context.push('/timesheet');
+        return;
+      }
+    }
+
+    // 2. Mở liên kết Web bên ngoài an toàn với In-App Browser (có sẵn nút Xong/Done để đóng)
     final messenger = ScaffoldMessenger.of(context);
-    if (uri != null) {
-      try {
-        final launched = await launchUrl(
-          uri,
-          mode: LaunchMode.externalApplication,
-        );
-        if (!launched) {
-          await Clipboard.setData(ClipboardData(text: targetUrl));
+    try {
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.inAppBrowserView,
+      );
+      if (!launched) {
+        final fallbackLaunched = await launchUrl(uri, mode: LaunchMode.platformDefault);
+        if (!fallbackLaunched) {
+          await Clipboard.setData(ClipboardData(text: cleanUrl));
           messenger.showSnackBar(
             SnackBar(
-              content: Text('Đã sao chép liên kết: $targetUrl'),
+              content: Text('Đã sao chép liên kết: $cleanUrl'),
               behavior: SnackBarBehavior.floating,
               duration: const Duration(seconds: 2),
             ),
           );
         }
-      } catch (_) {
-        await Clipboard.setData(ClipboardData(text: targetUrl));
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text('Đã sao chép liên kết: $targetUrl'),
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 2),
-          ),
-        );
       }
+    } catch (_) {
+      await Clipboard.setData(ClipboardData(text: cleanUrl));
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Đã sao chép liên kết: $cleanUrl'),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
     }
   }
 }

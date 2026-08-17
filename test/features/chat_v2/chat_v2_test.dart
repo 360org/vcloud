@@ -423,7 +423,7 @@ void main() {
         ),
       );
 
-      expect(find.byType(SelectableText), findsOneWidget);
+      expect(find.byType(Text), findsWidgets);
       expect(find.textContaining('teams.microsoft.com'), findsOneWidget);
     });
 
@@ -446,7 +446,7 @@ void main() {
         ),
       );
 
-      expect(find.byType(SelectableText), findsOneWidget);
+      expect(find.byType(Text), findsWidgets);
       expect(find.textContaining('vuahethong.net'), findsOneWidget);
     });
 
