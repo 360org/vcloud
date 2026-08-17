@@ -8,6 +8,7 @@ import '../../../core/utils/local_attachment_cache.dart';
 import '../../../shared/widgets/app_scaffold.dart';
 import '../../../shared/widgets/brand_logo.dart';
 import '../../../shared/widgets/ui_kit.dart';
+import '../../../shared/widgets/whats_new_sheet.dart';
 import '../../auth/application/auth_controller.dart';
 import '../application/theme_controller.dart';
 
@@ -63,6 +64,12 @@ class ProfileScreen extends ConsumerWidget {
                   ),
                   _ThemeRow(),
                   const _CacheRow(),
+                  _SettingsRow(
+                    icon: LucideIcons.sparkles,
+                    label: 'Có gì mới trong v2.4.0 (Build 75)',
+                    color: const Color(0xFF00C83A),
+                    onTap: () => WhatsNewSheet.show(context),
+                  ),
                   _SettingsRow(
                     icon: LucideIcons.info,
                     label: 'Thông tin ứng dụng',

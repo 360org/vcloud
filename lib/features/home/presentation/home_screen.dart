@@ -25,6 +25,7 @@ import '../../timesheet/application/task_controller.dart';
 import '../../timesheet/application/timesheet_controller.dart';
 import '../../timesheet/presentation/widgets/checklist_editor.dart';
 import '../application/home_summary_controller.dart';
+import '../../../../shared/widgets/whats_new_sheet.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -35,6 +36,16 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   bool _statusBusy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        WhatsNewSheet.showIfNeeded(context, targetBuild: 75);
+      }
+    });
+  }
 
   Future<void> _showErrorDialog(dynamic error, StackTrace stackTrace) async {
     final errorMessage = error.toString();
