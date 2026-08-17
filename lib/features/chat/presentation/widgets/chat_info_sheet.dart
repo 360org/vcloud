@@ -24,13 +24,15 @@ class ChatInfoSheet extends ConsumerStatefulWidget {
     required this.title,
     required this.conversation,
     required this.currentIdentityIds,
-    required this.messages,
+    this.messages = const [],
+    this.conversationId,
   });
 
   final String title;
   final Conversation? conversation;
   final Set<String> currentIdentityIds;
   final List<Message> messages;
+  final String? conversationId;
 
   @override
   ConsumerState<ChatInfoSheet> createState() => _ChatInfoSheetState();
@@ -50,10 +52,21 @@ class _ChatInfoSheetState extends ConsumerState<ChatInfoSheet> {
     return null;
   }
 
+  List<Message> get _effectiveMessages {
+    final convId = widget.conversationId ?? widget.conversation?.id;
+    if (convId != null && convId.isNotEmpty) {
+      final liveMessages = ref.watch(messagesProvider(convId)).valueOrNull;
+      if (liveMessages != null && liveMessages.isNotEmpty) {
+        return liveMessages;
+      }
+    }
+    return widget.messages;
+  }
+
   List<MediaInfo> get _mediaItems {
     final items = <MediaInfo>[];
     final seen = <String>{};
-    for (final message in widget.messages) {
+    for (final message in _effectiveMessages) {
       if (message.attachmentIds.isNotEmpty) {
         final fileName = attachmentFileName(message);
         if (isImageAttachment(message, fileName)) {
@@ -78,12 +91,17 @@ class _ChatInfoSheetState extends ConsumerState<ChatInfoSheet> {
         final fileName = attachmentFileName(message);
         if (isImageAttachment(message, fileName)) {
           if (seen.add('url_${message.attachmentUrl}')) {
+            String? extractedId;
+            final match = RegExp(r'/attachments/(\d+)').firstMatch(message.attachmentUrl!);
+            if (match != null) extractedId = match.group(1);
+
             items.add(
               MediaInfo(
                 url: message.attachmentUrl!,
                 isImage: true,
                 isVideo: false,
                 label: fileName,
+                attachmentId: extractedId,
               ),
             );
           }
@@ -91,7 +109,8 @@ class _ChatInfoSheetState extends ConsumerState<ChatInfoSheet> {
         }
       }
 
-      final mediaList = MediaInfo.extractAllFromContent(message.content);
+      final rawContent = message.bodyHtml ?? message.content;
+      final mediaList = MediaInfo.extractAllFromContent(rawContent);
       for (final media in mediaList) {
         if (seen.add('content_${media.url}')) {
           items.add(media);
@@ -102,41 +121,66 @@ class _ChatInfoSheetState extends ConsumerState<ChatInfoSheet> {
   }
 
   List<String> get _links {
-    final links = <String>{};
+    final links = <String>[];
+    final seen = <String>{};
+
+    // 1. Trích xuất từ thẻ <a> trong nội dung tin nhắn HTML
+    final aHrefRegex = RegExp(r'''<a[^>]+href=["']([^"']+)["']''', caseSensitive: false);
+    for (final message in _effectiveMessages) {
+      final rawContent = message.bodyHtml ?? message.content;
+      for (final match in aHrefRegex.allMatches(rawContent)) {
+        final href = match.group(1)?.trim();
+        if (href != null && href.startsWith('http') && !href.contains('/api/v1/mobile/attachments')) {
+          if (seen.add(href)) links.add(href);
+        }
+      }
+    }
+
+    // 2. Trích xuất link văn bản http/https
     final pattern = RegExp(r'https?:\/\/[^\s<>"{}|\^~\[\]`\\]+');
-    for (final message in widget.messages) {
-      final rawText = stripHtml(message.content);
-      final matches = pattern.allMatches(rawText);
+    for (final message in _effectiveMessages) {
+      final matches = pattern.allMatches(message.content);
       for (final match in matches) {
         var url = match.group(0)!;
         while (url.endsWith('.') || url.endsWith(',') || url.endsWith(')') || url.endsWith(';') || url.endsWith('>')) {
           url = url.substring(0, url.length - 1);
         }
         if (url.length > 8 && !url.contains('/api/v1/mobile/attachments')) {
-          links.add(url);
+          if (seen.add(url)) links.add(url);
         }
       }
     }
-    return links.toList().reversed.toList();
+    return links.reversed.toList();
   }
 
   List<FileInfo> get _files {
     final files = <FileInfo>[];
     final seen = <String>{};
-    for (final message in widget.messages) {
-      if (message.attachmentIds.isEmpty) continue;
+    for (final message in _effectiveMessages) {
       final fileName = attachmentFileName(message);
       if (isImageAttachment(message, fileName)) continue;
 
-      for (final attachmentId in message.attachmentIds) {
-        if (!seen.add(attachmentId)) continue;
-        files.add(
-          FileInfo(
-            attachmentId: attachmentId,
-            name: fileName,
-            sizeLabel: formatFileSize(message.attachmentSize),
-          ),
-        );
+      if (message.attachmentIds.isNotEmpty) {
+        for (final attachmentId in message.attachmentIds) {
+          if (!seen.add('id_$attachmentId')) continue;
+          files.add(
+            FileInfo(
+              attachmentId: attachmentId,
+              name: fileName,
+              sizeLabel: formatFileSize(message.attachmentSize),
+            ),
+          );
+        }
+      } else if (message.attachmentUrl != null && message.attachmentUrl!.isNotEmpty) {
+        if (seen.add('url_${message.attachmentUrl}')) {
+          files.add(
+            FileInfo(
+              name: fileName,
+              sizeLabel: formatFileSize(message.attachmentSize),
+              url: message.attachmentUrl,
+            ),
+          );
+        }
       }
     }
     return files.reversed.toList();

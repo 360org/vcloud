@@ -1,6 +1,6 @@
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -17,17 +17,45 @@ class ChatV2MessageItem extends StatelessWidget {
     super.key,
     required this.message,
     this.showSenderName = false,
+    this.showAvatar = false,
+    this.isGroup = false,
     this.onLongPress,
+    this.onReplyTap,
+    this.isHighlighted = false,
   });
 
   final ChatV2Message message;
   final bool showSenderName;
+  final bool showAvatar;
+  final bool isGroup;
   final VoidCallback? onLongPress;
+  final ValueChanged<String?>? onReplyTap;
+  final bool isHighlighted;
+
+  static const _authorColors = [
+    Color(0xFF0284C7), // Sky blue
+    Color(0xFF7C3AED), // Violet
+    Color(0xFF059669), // Emerald
+    Color(0xFFD97706), // Amber
+    Color(0xFFDC2626), // Rose
+    Color(0xFF0891B2), // Cyan
+    Color(0xFFEA580C), // Orange
+    Color(0xFF4F46E5), // Indigo
+    Color(0xFFDB2777), // Pink
+    Color(0xFF0D9488), // Teal
+  ];
+
+  static Color getAuthorColor(String name) {
+    if (name.isEmpty) return _authorColors[0];
+    final hash = name.codeUnits.fold(0, (acc, c) => acc + c);
+    return _authorColors[hash % _authorColors.length];
+  }
 
   @override
   Widget build(BuildContext context) {
     final isMine = message.isMine;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final authorColor = getAuthorColor(message.authorName);
     final timeStr = message.createdAt != null
         ? DateFormat('HH:mm').format(message.createdAt!)
         : '';
@@ -50,138 +78,151 @@ class ChatV2MessageItem extends StatelessWidget {
 
     return GestureDetector(
       onLongPress: onLongPress,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 3),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeInOut,
+        color: isHighlighted
+            ? (isDark
+                ? const Color(0xFF00C83A).withValues(alpha: 0.18)
+                : const Color(0xFF00C83A).withValues(alpha: 0.15))
+            : Colors.transparent,
+        padding: EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: showSenderName ? 4 : 2,
+        ),
         child: Row(
           mainAxisAlignment:
               isMine ? MainAxisAlignment.end : MainAxisAlignment.start,
           crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          if (!isMine) ...[
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFE2E8F0), Color(0xFFCBD5E1)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 4,
-                    offset: const Offset(0, 1),
-                  ),
-                ],
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                message.authorName.isNotEmpty
-                    ? message.authorName[0].toUpperCase()
-                    : 'U',
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF334155),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-          ],
-          Flexible(
-            child: isPureImage
-                ? _buildPureImageBubble(context, imageAttachments, isMine, timeStr)
-                : Container(
-                    constraints: BoxConstraints(
-                      maxWidth: MediaQuery.of(context).size.width * 0.76,
-                    ),
-                    padding: hasAnyImage
-                        ? EdgeInsets.zero
-                        : const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-                    decoration: BoxDecoration(
-                      color: isMine
-                          ? (isDark
-                              ? const Color(0xFF005C4B)
-                              : const Color(0xFFD9FDD3))
-                          : (isDark
-                              ? const Color(0xFF202C33)
-                              : Colors.white),
-                      border: isMine || isDark || hasAnyImage
-                          ? null
-                          : Border.all(
-                              color: const Color(0xFFE2E8F0),
-                              width: 0.8,
-                            ),
-                      borderRadius: BorderRadius.only(
-                        topLeft: const Radius.circular(16),
-                        topRight: const Radius.circular(16),
-                        bottomLeft: Radius.circular(isMine ? 16 : 4),
-                        bottomRight: Radius.circular(isMine ? 4 : 16),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
-                          blurRadius: 4,
-                          offset: const Offset(0, 1),
-                        ),
+          children: [
+            if (!isMine && isGroup) ...[
+              if (showAvatar)
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        authorColor.withValues(alpha: 0.85),
+                        authorColor,
                       ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.only(
-                        topLeft: const Radius.circular(16),
-                        topRight: const Radius.circular(16),
-                        bottomLeft: Radius.circular(isMine ? 16 : 4),
-                        bottomRight: Radius.circular(isMine ? 4 : 16),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: authorColor.withValues(alpha: 0.25),
+                        blurRadius: 3,
+                        offset: const Offset(0, 1),
                       ),
-                      child: Column(
-                        crossAxisAlignment:
-                            isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (!isMine && showSenderName)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8, left: 12, right: 12, bottom: 4),
-                              child: Text(
-                                message.authorName,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF00C83A),
-                                ),
+                    ],
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    message.authorName.isNotEmpty
+                        ? message.authorName[0].toUpperCase()
+                        : 'U',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                )
+              else
+                const SizedBox(width: 28),
+              const SizedBox(width: 6),
+            ],
+            Flexible(
+              child: isPureImage
+                  ? _buildPureImageBubble(context, imageAttachments, isMine, timeStr)
+                  : Container(
+                      constraints: BoxConstraints(
+                        maxWidth: MediaQuery.of(context).size.width * 0.72,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isMine
+                            ? (isDark
+                                ? const Color(0xFF005C4B)
+                                : const Color(0xFFD9FDD3))
+                            : (isDark
+                                ? const Color(0xFF202C33)
+                                : Colors.white),
+                        border: isMine || isDark || hasAnyImage
+                            ? null
+                            : Border.all(
+                                color: const Color(0xFFE2E8F0),
+                                width: 0.8,
                               ),
-                            ),
-                          // 1. Render actual image attachments with caption
-                          if (hasImages) ...[
-                            for (final att in imageAttachments) ...[
-                              _buildImageAttachment(context, att, isMine),
-                              if (imageAttachments.length > 1) const SizedBox(height: 2),
-                            ],
-                          ] else if (message.isImageFilename) ...[
+                        borderRadius: BorderRadius.only(
+                          topLeft: const Radius.circular(16),
+                          topRight: const Radius.circular(16),
+                          bottomLeft: Radius.circular(isMine ? 16 : 4),
+                          bottomRight: Radius.circular(isMine ? 4 : 16),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
+                            blurRadius: 3,
+                            offset: const Offset(0, 1),
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.only(
+                          topLeft: const Radius.circular(16),
+                          topRight: const Radius.circular(16),
+                          bottomLeft: Radius.circular(isMine ? 16 : 4),
+                          bottomRight: Radius.circular(isMine ? 4 : 16),
+                        ),
+                        child: Padding(
+                          padding: hasAnyImage
+                              ? EdgeInsets.zero
+                              : const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          child: Column(
+                            crossAxisAlignment:
+                                isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (!isMine && showSenderName) ...[
+                                Text(
+                                  message.authorName,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: authorColor,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                              ],
+                              // 0. Render Reply Quote Card if this message is a reply
+                              if (message.parentId != null || message.parentBody != null)
+                                _buildReplyQuoteCard(context, isMine, isDark),
+                              // 1. Render actual image attachments with caption
+                              if (hasImages) ...[
+                                for (final att in imageAttachments) ...[
+                                  _buildImageAttachment(context, att, isMine),
+                                  if (imageAttachments.length > 1) const SizedBox(height: 2),
+                                ],
+                              ] else if (message.isImageFilename) ...[
                             // 2. Render image filename card for historical messages
                             _buildImageFilenameCard(context, isMine),
                           ],
                           // 3. Render actual document attachments
                           if (hasDocs) ...[
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  for (final att in docAttachments) ...[
-                                    _buildDocumentAttachment(context, att, isMine),
-                                    const SizedBox(height: 4),
-                                  ],
+                            Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                for (final att in docAttachments) ...[
+                                  _buildDocumentAttachment(context, att, isMine),
+                                  const SizedBox(height: 4),
                                 ],
-                              ),
+                              ],
                             ),
                           ] else if (message.isDocumentFilename) ...[
                             // 4. Render document filename card
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              child: _buildDocumentFilenameCard(context, isMine),
-                            ),
+                            _buildDocumentFilenameCard(context, isMine),
                           ],
                           // 5. Render message text/caption if applicable
                           if (message.content.isNotEmpty &&
@@ -230,6 +271,7 @@ class ChatV2MessageItem extends StatelessWidget {
                       ),
                     ),
                   ),
+                ),
           ),
         ],
       ),
@@ -385,189 +427,288 @@ class ChatV2MessageItem extends StatelessWidget {
   }
 
   Widget _buildSimpleFilenameCard(BuildContext context, bool isMine, String fileName) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isMine
-        ? Colors.white
-        : isDark
-            ? Colors.white
-            : const Color(0xFF0F172A);
+    return _buildFileAttachmentCard(
+      context: context,
+      isMine: isMine,
+      filename: fileName,
+      fileSize: null,
+      downloadUrl: null,
+      directBytes: null,
+      isImage: true,
+    );
+  }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      margin: const EdgeInsets.only(bottom: 2),
-      decoration: BoxDecoration(
-        color: isMine
-            ? Colors.white.withValues(alpha: 0.16)
-            : isDark
-                ? Colors.white.withValues(alpha: 0.08)
-                : const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: isMine
-                  ? Colors.white.withValues(alpha: 0.25)
-                  : const Color(0xFF00C83A).withValues(alpha: 0.12),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              LucideIcons.image,
-              size: 16,
-              color: isMine ? Colors.white : const Color(0xFF00C83A),
+  Widget _buildReplyQuoteCard(BuildContext context, bool isMine, bool isDark) {
+    final author = (message.parentAuthorName != null && message.parentAuthorName!.isNotEmpty)
+        ? message.parentAuthorName!
+        : 'Tin nhắn';
+    final body = (message.parentBody != null && message.parentBody!.isNotEmpty)
+        ? message.parentBody!
+        : '...';
+
+    final barColor = isMine
+        ? (isDark ? const Color(0xFF00C83A) : const Color(0xFF00A82D))
+        : (isDark ? const Color(0xFF60A5FA) : const Color(0xFF2563EB));
+
+    final bgColor = isDark
+        ? Colors.black.withValues(alpha: 0.25)
+        : Colors.black.withValues(alpha: 0.05);
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        if (message.parentId != null && onReplyTap != null) {
+          onReplyTap!(message.parentId);
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(8),
+          border: Border(
+            left: BorderSide(
+              color: barColor,
+              width: 3.5,
             ),
           ),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  'Hình ảnh',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: textColor.withValues(alpha: 0.75),
-                  ),
+                Icon(
+                  LucideIcons.reply,
+                  size: 11,
+                  color: barColor,
                 ),
-                Text(
-                  fileName,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: textColor,
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    author,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: barColor,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
-          ),
-        ],
+            const SizedBox(height: 2),
+            Text(
+              body,
+              style: TextStyle(
+                fontSize: 13,
+                color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildImageFilenameCard(BuildContext context, bool isMine) {
     final cleanName = message.content.trim();
-    final localBytes = LocalAttachmentCache.get(null, altKey: cleanName) ??
-        ChatV2AttachmentImage.imageCache[cleanName] ??
+    final memoryBytes = ChatV2AttachmentImage.imageCache[cleanName] ??
         ChatV2AttachmentImage.imageCache[message.id];
 
-    if (localBytes != null && localBytes.isNotEmpty) {
+    if (memoryBytes != null && memoryBytes.isNotEmpty) {
       return _buildImageAttachment(
         context,
         ChatV2Attachment(
           id: message.id,
           name: cleanName,
-          bytes: localBytes,
-          mimetype: 'image/png',
+          bytes: memoryBytes,
+          mimetype: 'image/jpeg',
         ),
         isMine,
       );
     }
 
-    return _buildSimpleFilenameCard(context, isMine, cleanName);
+    return FutureBuilder<Uint8List?>(
+      future: LocalAttachmentCache.getAsync(null, altKey: cleanName),
+      builder: (context, snapshot) {
+        if (snapshot.hasData && snapshot.data != null && snapshot.data!.isNotEmpty) {
+          final diskBytes = snapshot.data!;
+          ChatV2AttachmentImage.cacheBytes(cleanName, diskBytes);
+          return _buildImageAttachment(
+            context,
+            ChatV2Attachment(
+              id: message.id,
+              name: cleanName,
+              bytes: diskBytes,
+              mimetype: 'image/jpeg',
+            ),
+            isMine,
+          );
+        }
+
+        return _buildSimpleFilenameCard(context, isMine, cleanName);
+      },
+    );
   }
 
   Widget _buildDocumentAttachment(BuildContext context, ChatV2Attachment att, bool isMine) {
-    final fullUrl = att.resolveFullUrl(odooApiClient.absoluteUrl(''));
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isMine
-        ? Colors.white
-        : isDark
-            ? Colors.white
-            : const Color(0xFF0F172A);
+    return _buildFileAttachmentCard(
+      context: context,
+      isMine: isMine,
+      filename: att.name,
+      fileSize: att.fileSize,
+      downloadUrl: att.downloadUrl ?? att.url,
+      directBytes: att.bytes,
+      isImage: false,
+    );
+  }
 
-    final ext = att.name.contains('.') ? att.name.split('.').last.toUpperCase() : 'DOC';
-    final badgeColor = _getFileBadgeColor(ext);
+  Widget _buildDocumentFilenameCard(BuildContext context, bool isMine) {
+    final cleanName = message.content.trim();
+    final fileSize = message.attachments.isNotEmpty ? message.attachments.first.fileSize : null;
+    final downloadUrl = message.attachments.isNotEmpty ? message.attachments.first.downloadUrl : null;
+    final directBytes = message.attachments.isNotEmpty ? message.attachments.first.bytes : null;
+
+    return _buildFileAttachmentCard(
+      context: context,
+      isMine: isMine,
+      filename: cleanName,
+      fileSize: fileSize,
+      downloadUrl: downloadUrl,
+      directBytes: directBytes,
+      isImage: false,
+    );
+  }
+
+  /// Thẻ tệp tin chuẩn Zalo (Flat, Borderless, Folded Corner Page Icon)
+  Widget _buildFileAttachmentCard({
+    required BuildContext context,
+    required bool isMine,
+    required String filename,
+    int? fileSize,
+    String? downloadUrl,
+    Uint8List? directBytes,
+    required bool isImage,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cleanName = filename.trim();
+    final ext = cleanName.contains('.')
+        ? cleanName.split('.').last.toUpperCase()
+        : (isImage ? 'PNG' : 'FILE');
+
+    final fileColor = _getFileAccentColor(ext);
+
+    final cachedBytes = directBytes ??
+        (isImage ? ChatV2AttachmentImage.imageCache[cleanName] : null) ??
+        LocalAttachmentCache.get(null, altKey: cleanName);
+
+    final resolvedSize = fileSize ?? cachedBytes?.lengthInBytes;
+    final sizeStr = resolvedSize != null ? _formatFileSize(resolvedSize) : null;
+    final metaText = sizeStr != null
+        ? '$sizeStr • Nhấn để xem trước'
+        : (isImage ? 'Hình ảnh • $ext' : 'Tài liệu • $ext');
+
+    final titleColor = isDark ? const Color(0xFFE9EDEF) : const Color(0xFF111B21);
+    final subtitleColor = isDark ? const Color(0xFF8696A0) : const Color(0xFF667781);
 
     return InkWell(
-      onTap: () {
-        if (fullUrl.isNotEmpty) {
-          openDownloadUrl(fullUrl);
+      onTap: () async {
+        if (cachedBytes != null && cachedBytes.isNotEmpty) {
+          await saveBytesToFile(cachedBytes, cleanName);
+          return;
+        }
+        if (downloadUrl != null && downloadUrl.isNotEmpty) {
+          final full = downloadUrl.startsWith('http')
+              ? downloadUrl
+              : odooApiClient.absoluteUrl(downloadUrl);
+          openDownloadUrl(full);
         }
       },
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        margin: const EdgeInsets.only(bottom: 2),
-        decoration: BoxDecoration(
-          color: isMine
-              ? Colors.white.withValues(alpha: 0.16)
-              : isDark
-                  ? Colors.white.withValues(alpha: 0.08)
-                  : const Color(0xFFF1F5F9),
-          borderRadius: BorderRadius.circular(12),
-        ),
+      borderRadius: BorderRadius.circular(8),
+      child: SizedBox(
+        width: 255,
         child: Row(
-          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-              decoration: BoxDecoration(
-                color: isMine ? Colors.white.withValues(alpha: 0.25) : badgeColor.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                ext.length > 4 ? ext.substring(0, 4) : ext,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: isMine ? Colors.white : badgeColor,
-                ),
-              ),
+            // Icon tài liệu gấp góc Zalo sắc nét
+            FoldedPageIcon(
+              ext: ext,
+              color: fileColor,
+              width: 36,
+              height: 44,
             ),
-            const SizedBox(width: 8),
-            Flexible(
+            const SizedBox(width: 10),
+
+            // Tiêu đề tệp và Phụ đề dung lượng
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    'Tài liệu đính kèm',
+                    cleanName,
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 13.5,
                       fontWeight: FontWeight.w600,
-                      color: textColor.withValues(alpha: 0.75),
-                    ),
-                  ),
-                  Text(
-                    att.name,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: textColor,
+                      color: titleColor,
+                      height: 1.25,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  if (att.fileSize != null)
-                    Text(
-                      _formatFileSize(att.fileSize!),
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: textColor.withValues(alpha: 0.75),
+                  const SizedBox(height: 3),
+                  Row(
+                    children: [
+                      const Icon(
+                        LucideIcons.clock,
+                        size: 12,
+                        color: Color(0xFF2563EB),
                       ),
-                    ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          metaText,
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w400,
+                            color: subtitleColor,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 10),
+
+            // Nút tải về hình vuông bo góc tối giản chuẩn Zalo
             Container(
-              padding: const EdgeInsets.all(6),
+              width: 30,
+              height: 30,
               decoration: BoxDecoration(
-                color: isMine ? Colors.white.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.05),
-                shape: BoxShape.circle,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: isDark
+                      ? Colors.white24
+                      : const Color(0xFF64748B).withValues(alpha: 0.35),
+                  width: 1.0,
+                ),
               ),
+              alignment: Alignment.center,
               child: Icon(
                 LucideIcons.download,
-                size: 14,
-                color: isMine ? Colors.white : const Color(0xFF475569),
+                size: 15,
+                color: isDark ? Colors.white70 : const Color(0xFF475569),
               ),
             ),
           ],
@@ -576,85 +717,39 @@ class ChatV2MessageItem extends StatelessWidget {
     );
   }
 
-  Widget _buildDocumentFilenameCard(BuildContext context, bool isMine) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isMine
-        ? Colors.white
-        : isDark
-            ? Colors.white
-            : const Color(0xFF0F172A);
-
-    final ext = message.content.contains('.') ? message.content.split('.').last.toUpperCase() : 'DOC';
-    final badgeColor = _getFileBadgeColor(ext);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      margin: const EdgeInsets.only(bottom: 2),
-      decoration: BoxDecoration(
-        color: isMine
-            ? Colors.white.withValues(alpha: 0.16)
-            : isDark
-                ? Colors.white.withValues(alpha: 0.08)
-                : const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-            decoration: BoxDecoration(
-              color: isMine ? Colors.white.withValues(alpha: 0.25) : badgeColor.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              ext.length > 4 ? ext.substring(0, 4) : ext,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-                color: isMine ? Colors.white : badgeColor,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  message.content,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: textColor,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Color _getFileBadgeColor(String ext) {
-    switch (ext) {
+  Color _getFileAccentColor(String ext) {
+    switch (ext.toUpperCase()) {
       case 'PDF':
-        return Colors.redAccent;
+        return const Color(0xFFEF4444); // Đỏ Zalo
       case 'DOC':
       case 'DOCX':
-        return Colors.blueAccent;
+        return const Color(0xFF2563EB); // Xanh Zalo
       case 'XLS':
       case 'XLSX':
-        return const Color(0xFF10B981);
+      case 'CSV':
+        return const Color(0xFF10B981); // Xanh lá Zalo
+      case 'PPT':
+      case 'PPTX':
+        return const Color(0xFFF97316); // Cam Zalo
       case 'ZIP':
       case 'RAR':
-        return Colors.purpleAccent;
+      case '7Z':
+      case 'TAR':
+      case 'GZ':
+        return const Color(0xFF8B5CF6); // Tím Zalo
+      case 'PNG':
+      case 'JPG':
+      case 'JPEG':
+      case 'WEBP':
+      case 'GIF':
+      case 'SVG':
+        return const Color(0xFF059669); // Xanh mint
+      case 'TXT':
+      case 'LOG':
+      case 'JSON':
+      case 'XML':
       default:
-        return Colors.orangeAccent;
+        return const Color(0xFFF59E0B); // Vàng Zalo
     }
   }
 
@@ -697,6 +792,7 @@ class ChatV2MessageItem extends StatelessWidget {
     }
   }
 
+  // Parse and build message text
   Widget _buildParsedMessageText({
     required BuildContext context,
     required String rawText,
@@ -713,13 +809,14 @@ class ChatV2MessageItem extends StatelessWidget {
 
     final matches = urlRegex.allMatches(rawText);
     if (matches.isEmpty) {
-      return SelectableText(
+      return Text(
         rawText,
         style: TextStyle(
           fontSize: 15,
           height: 1.38,
           color: textColor,
         ),
+        overflow: TextOverflow.visible,
       );
     }
 
@@ -749,19 +846,24 @@ class ChatV2MessageItem extends StatelessWidget {
       }
 
       spans.add(
-        TextSpan(
-          text: rawLink,
-          style: TextStyle(
-            color: linkColor,
-            fontSize: 15,
-            height: 1.38,
-            fontWeight: FontWeight.w600,
-            decoration: TextDecoration.underline,
-            decorationColor: linkColor,
-            decorationThickness: 1.2,
+        WidgetSpan(
+          alignment: PlaceholderAlignment.baseline,
+          baseline: TextBaseline.alphabetic,
+          child: GestureDetector(
+            onTap: () => _handleLinkClick(context, targetUrl),
+            child: Text(
+              rawLink,
+              style: TextStyle(
+                color: linkColor,
+                fontSize: 15,
+                height: 1.38,
+                fontWeight: FontWeight.w600,
+                decoration: TextDecoration.underline,
+                decorationColor: linkColor,
+                decorationThickness: 1.2,
+              ),
+            ),
           ),
-          recognizer: TapGestureRecognizer()
-            ..onTap = () => _handleLinkClick(context, targetUrl),
         ),
       );
 
@@ -782,41 +884,94 @@ class ChatV2MessageItem extends StatelessWidget {
       ));
     }
 
-    return SelectableText.rich(
+    return Text.rich(
       TextSpan(children: spans),
+      overflow: TextOverflow.visible,
     );
   }
 
   void _handleLinkClick(BuildContext context, String targetUrl) async {
     HapticFeedback.lightImpact();
-    final uri = Uri.tryParse(targetUrl);
+    final cleanUrl = targetUrl.trim();
+    final uri = Uri.tryParse(cleanUrl.contains('://') ? cleanUrl : 'https://$cleanUrl');
+    if (uri == null) return;
+
+    // 1. Phân tích điều hướng liên kết nội bộ hệ thống (Smart In-App Navigation)
+    final pathSegments = uri.pathSegments;
+
+    // Kênh chat nội bộ: e.g. vuahethong.net/chat/4128, /chat/4128, vcloud://chat/4128
+    if ((uri.scheme == 'vcloud' && uri.host == 'chat') || uri.path.contains('/chat/')) {
+      String? targetChannelId;
+      if (uri.scheme == 'vcloud' && uri.host == 'chat') {
+        targetChannelId = pathSegments.isNotEmpty ? pathSegments.first : null;
+      } else {
+        final chatIdx = pathSegments.indexOf('chat');
+        if (chatIdx >= 0 && chatIdx + 1 < pathSegments.length) {
+          targetChannelId = pathSegments[chatIdx + 1];
+        }
+      }
+
+      if (targetChannelId != null && targetChannelId.isNotEmpty) {
+        if (targetChannelId == message.channelId) {
+          // Đang ở chính kênh hiện tại -> Không push đè để chống lặp và đơ màn hình
+          return;
+        }
+        if (context.mounted) {
+          context.push('/chat/$targetChannelId');
+        }
+        return;
+      }
+    }
+
+    // Phiếu hỗ trợ / Ticket nội bộ: e.g. vuahethong.net/tickets/123, /tickets/123
+    if (uri.path.contains('/tickets/')) {
+      final ticketIdx = pathSegments.indexOf('tickets');
+      if (ticketIdx >= 0 && ticketIdx + 1 < pathSegments.length) {
+        final ticketId = pathSegments[ticketIdx + 1];
+        if (ticketId.isNotEmpty && context.mounted) {
+          context.push('/tickets/$ticketId');
+          return;
+        }
+      }
+    }
+
+    // Timesheets nội bộ: e.g. vuahethong.net/timesheet
+    if (uri.path == '/timesheet' || uri.path.startsWith('/timesheet')) {
+      if (context.mounted) {
+        context.push('/timesheet');
+        return;
+      }
+    }
+
+    // 2. Mở liên kết Web bên ngoài an toàn với In-App Browser (có sẵn nút Xong/Done để đóng)
     final messenger = ScaffoldMessenger.of(context);
-    if (uri != null) {
-      try {
-        final launched = await launchUrl(
-          uri,
-          mode: LaunchMode.externalApplication,
-        );
-        if (!launched) {
-          await Clipboard.setData(ClipboardData(text: targetUrl));
+    try {
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.inAppBrowserView,
+      );
+      if (!launched) {
+        final fallbackLaunched = await launchUrl(uri, mode: LaunchMode.platformDefault);
+        if (!fallbackLaunched) {
+          await Clipboard.setData(ClipboardData(text: cleanUrl));
           messenger.showSnackBar(
             SnackBar(
-              content: Text('Đã sao chép liên kết: $targetUrl'),
+              content: Text('Đã sao chép liên kết: $cleanUrl'),
               behavior: SnackBarBehavior.floating,
               duration: const Duration(seconds: 2),
             ),
           );
         }
-      } catch (_) {
-        await Clipboard.setData(ClipboardData(text: targetUrl));
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text('Đã sao chép liên kết: $targetUrl'),
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 2),
-          ),
-        );
       }
+    } catch (_) {
+      await Clipboard.setData(ClipboardData(text: cleanUrl));
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Đã sao chép liên kết: $cleanUrl'),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
     }
   }
 }
@@ -852,25 +1007,46 @@ class _ChatV2AttachmentImageState extends State<ChatV2AttachmentImage> {
   @override
   void initState() {
     super.initState();
-    _loadImage();
+    _initBytesSync();
   }
 
-  Future<void> _loadImage() async {
-    // 1. Direct in-memory bytes if provided on attachment
+  void _initBytesSync() {
+    // 1. Synchronously grab bytes if present on attachment
     if (widget.attachment.bytes != null && widget.attachment.bytes!.isNotEmpty) {
+      _bytes = widget.attachment.bytes;
+      _loading = false;
       ChatV2AttachmentImage.cacheBytes(widget.attachment.id, widget.attachment.bytes!);
       LocalAttachmentCache.save(widget.attachment.name, widget.attachment.bytes!);
-      if (mounted) {
-        setState(() {
-          _bytes = widget.attachment.bytes;
-          _loading = false;
-        });
-      }
       return;
     }
 
-    // 2. Cache lookup (LocalAttachmentCache & imageCache)
-    final cached = LocalAttachmentCache.get(
+    // 2. Synchronously check in-memory RAM cache
+    final inMemory = ChatV2AttachmentImage.imageCache[widget.attachment.id] ??
+        ChatV2AttachmentImage.imageCache[widget.attachment.name];
+    if (inMemory != null && inMemory.isNotEmpty) {
+      _bytes = inMemory;
+      _loading = false;
+      return;
+    }
+
+    // 3. Otherwise start async fetch
+    _loadImage();
+  }
+
+  @override
+  void didUpdateWidget(ChatV2AttachmentImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.attachment.bytes != null && widget.attachment.bytes!.isNotEmpty) {
+      if (_bytes != widget.attachment.bytes) {
+        _bytes = widget.attachment.bytes;
+        _loading = false;
+      }
+    }
+  }
+
+  Future<void> _loadImage() async {
+    // 1. Cache lookup from disk/storage
+    final cached = await LocalAttachmentCache.getAsync(
       widget.attachment.id,
       altKey: widget.attachment.name,
     ) ?? ChatV2AttachmentImage.imageCache[widget.attachment.id] ?? ChatV2AttachmentImage.imageCache[widget.attachment.name];
@@ -885,8 +1061,15 @@ class _ChatV2AttachmentImageState extends State<ChatV2AttachmentImage> {
       return;
     }
 
-    // 3. Network fetch via MobileAttachmentRepository
-    final attId = int.tryParse(widget.attachment.id);
+    // 2. Resolve attachment ID (either directly or extracted from URL)
+    int? attId = int.tryParse(widget.attachment.id);
+    if (attId == null && widget.attachment.url != null) {
+      final match = RegExp(r'/(?:attachments|image|content)/(\d+)').firstMatch(widget.attachment.url!);
+      if (match != null) {
+        attId = int.tryParse(match.group(1)!);
+      }
+    }
+
     if (attId != null) {
       try {
         final bytes = await MobileAttachmentRepository().fetchBytes(
@@ -895,8 +1078,26 @@ class _ChatV2AttachmentImageState extends State<ChatV2AttachmentImage> {
         );
         if (bytes.isNotEmpty) {
           ChatV2AttachmentImage.cacheBytes(widget.attachment.id, bytes);
+          ChatV2AttachmentImage.cacheBytes(widget.attachment.name, bytes);
+          ChatV2AttachmentImage.cacheBytes(attId.toString(), bytes);
           LocalAttachmentCache.save(widget.attachment.id, bytes);
           LocalAttachmentCache.save(widget.attachment.name, bytes);
+          LocalAttachmentCache.save(attId.toString(), bytes);
+          if (mounted) {
+            setState(() {
+              _bytes = bytes;
+              _loading = false;
+            });
+          }
+          return;
+        }
+      } catch (_) {}
+    } else if (widget.attachment.url != null && widget.attachment.url!.isNotEmpty) {
+      try {
+        final bytes = await odooApiClient.fetchBytes(widget.attachment.url!);
+        if (bytes.isNotEmpty) {
+          ChatV2AttachmentImage.cacheBytes(widget.attachment.id, bytes);
+          ChatV2AttachmentImage.cacheBytes(widget.attachment.name, bytes);
           if (mounted) {
             setState(() {
               _bytes = bytes;
@@ -917,6 +1118,30 @@ class _ChatV2AttachmentImageState extends State<ChatV2AttachmentImage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_bytes != null && _bytes!.isNotEmpty) {
+      return GestureDetector(
+        onTap: widget.onTap,
+        child: Container(
+          constraints: const BoxConstraints(
+            maxWidth: 290,
+            maxHeight: 340,
+          ),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.04),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Image.memory(
+            _bytes!,
+            fit: BoxFit.contain,
+            cacheWidth: 600,
+            gaplessPlayback: true,
+            errorBuilder: (_, _, _) => widget.fallback,
+          ),
+        ),
+      );
+    }
+
     if (_loading) {
       return Container(
         height: 160,
@@ -937,30 +1162,95 @@ class _ChatV2AttachmentImageState extends State<ChatV2AttachmentImage> {
       );
     }
 
-    if (_bytes != null) {
-      return GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
-          constraints: const BoxConstraints(
-            maxWidth: 290,
-            maxHeight: 340,
-          ),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.04),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Image.memory(
-            _bytes!,
-            fit: BoxFit.contain,
-            gaplessPlayback: true,
-            errorBuilder: (_, _, _) => widget.fallback,
-          ),
-        ),
-      );
-    }
-
     return widget.fallback;
   }
 }
+
+/// Icon tài liệu góc gấp phong cách Zalo
+class FoldedPageIcon extends StatelessWidget {
+  final String ext;
+  final Color color;
+  final double width;
+  final double height;
+
+  const FoldedPageIcon({
+    super.key,
+    required this.ext,
+    required this.color,
+    this.width = 36,
+    this.height = 44,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: Size(width, height),
+      painter: _FoldedPagePainter(color: color),
+      child: SizedBox(
+        width: width,
+        height: height,
+        child: Align(
+          alignment: const Alignment(0, 0.35),
+          child: Text(
+            ext.length > 4 ? ext.substring(0, 4) : ext,
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FoldedPagePainter extends CustomPainter {
+  final Color color;
+  const _FoldedPagePainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final fold = size.width * 0.30;
+    const r = 4.0;
+
+    // Body with folded top-right corner
+    final path = Path()
+      ..moveTo(r, 0)
+      ..lineTo(size.width - fold, 0)
+      ..lineTo(size.width, fold)
+      ..lineTo(size.width, size.height - r)
+      ..quadraticBezierTo(size.width, size.height, size.width - r, size.height)
+      ..lineTo(r, size.height)
+      ..quadraticBezierTo(0, size.height, 0, size.height - r)
+      ..lineTo(0, r)
+      ..quadraticBezierTo(0, 0, r, 0)
+      ..close();
+
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+    canvas.drawPath(path, paint);
+
+    // Fold flap (triangle on top-right)
+    final foldPath = Path()
+      ..moveTo(size.width - fold, 0)
+      ..lineTo(size.width - fold, fold - 1.5)
+      ..quadraticBezierTo(
+          size.width - fold, fold, size.width - fold + 1.5, fold)
+      ..lineTo(size.width, fold)
+      ..close();
+
+    final foldPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.40)
+      ..style = PaintingStyle.fill;
+    canvas.drawPath(foldPath, foldPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _FoldedPagePainter oldDelegate) =>
+      oldDelegate.color != color;
+}
+
 

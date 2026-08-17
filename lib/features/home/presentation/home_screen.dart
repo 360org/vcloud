@@ -18,13 +18,14 @@ import '../../../shared/widgets/location_prompt_dialog.dart';
 import '../../attendance/application/attendance_controller.dart';
 import '../../attendance/domain/shift_calculator.dart';
 import '../../auth/application/auth_controller.dart';
-import '../../chat/application/conversations_controller.dart';
+import '../../chat_v2/application/chat_v2_channels_controller.dart';
 import '../../timesheet/application/task_controller.dart';
 
 
 import '../../timesheet/application/timesheet_controller.dart';
 import '../../timesheet/presentation/widgets/checklist_editor.dart';
 import '../application/home_summary_controller.dart';
+import '../../../../shared/widgets/whats_new_sheet.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -35,6 +36,16 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   bool _statusBusy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        WhatsNewSheet.showIfNeeded(context, targetBuild: 75);
+      }
+    });
+  }
 
   Future<void> _showErrorDialog(dynamic error, StackTrace stackTrace) async {
     final errorMessage = error.toString();
@@ -155,21 +166,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             : 0));
 
     final openTickets = dashboard?.openTickets ?? summary?.openTickets ?? 0;
-    final unreadMessages = ref.watch(totalUnreadCountProvider);
-    final conversationsState = ref.watch(conversationsProvider);
-    final conversationsList = conversationsState.value ?? const [];
-    final chatCount = (dashboard?.recentConversationCount != null && dashboard!.recentConversationCount! > 0)
+    final fallbackChatCount = (dashboard?.recentConversationCount != null && dashboard!.recentConversationCount! > 0)
         ? dashboard.recentConversationCount!
         : (summary?.recentConversationCount != null && summary!.recentConversationCount > 0
             ? summary.recentConversationCount
-            : (conversationsList.length >= 100 ? conversationsList.length : conversationsList.length));
+            : 0);
     final statusBusy = _statusBusy || todayState.isLoading;
 
     return AppScaffold(
       title: 'Home',
       showAppBar: false,
       body: CelebrationFireworksOverlay(
-        autoTrigger: shiftProgress?.isCompleted ?? (todayMinutes >= 480),
+        autoTrigger: shiftProgress?.isCompleted ?? (todayMinutes >= ShiftConfig.forDate(DateTime.now()).targetWorkMinutes),
         child: RefreshIndicator(
           onRefresh: () async {
             ref.invalidate(homeSummaryProvider);
@@ -177,7 +185,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ref.invalidate(attendanceTodayProvider);
             ref.invalidate(todayTasksProvider);
             ref.invalidate(openSessionProvider);
-            ref.invalidate(conversationsProvider);
+            ref.invalidate(chatV2ChannelsProvider);
             ref.invalidate(mobileNotificationsProvider);
           },
           color: AppColors.primary,
@@ -204,8 +212,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               const SizedBox(height: 18),
               _QuickNavGrid(
                 ticketCount: openTickets,
-                unreadCount: unreadMessages,
-                chatCount: chatCount,
+                chatCount: fallbackChatCount,
                 taskCount: todayTasks.length,
               ),
               const SizedBox(height: 20),
@@ -262,7 +269,8 @@ class _GreetingHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final today = _vietnameseDateTime(DateTime.now());
-    const targetMinutes = 480; // Standard 8h shift
+    final shiftConfig = ShiftConfig.forDate(DateTime.now());
+    final targetMinutes = shiftConfig.targetWorkMinutes;
     final shiftProgress = (isOnline && checkinTime != null)
         ? ShiftCalculator.calculate(checkinTime: checkinTime!)
         : null;
@@ -484,9 +492,9 @@ class _GreetingHeader extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 5),
-                          const Text(
-                            '/ 8h ca làm',
-                            style: TextStyle(
+                          Text(
+                            '/ ${shiftConfig.targetHoursFormatted} ca làm',
+                            style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w700,
                               color: AppColors.textMuted,
@@ -580,8 +588,8 @@ class _GreetingHeader extends StatelessWidget {
                         child: Text(
                           shiftProgress != null
                               ? (shiftProgress.remainingMinutes > 0
-                                  ? 'Còn ${_durationVi(Duration(minutes: shiftProgress.remainingMinutes))} đến mốc 17:00'
-                                  : '🎉 Đã hoàn thành xuất sắc 8h làm việc!')
+                                  ? 'Còn ${_durationVi(Duration(minutes: shiftProgress.remainingMinutes))} đến mốc ${shiftConfig.shiftEndHour.toString().padLeft(2, '0')}:${shiftConfig.shiftEndMinute.toString().padLeft(2, '0')}'
+                                  : '🎉 Đã hoàn thành xuất sắc ${shiftConfig.targetHoursFormatted} làm việc!')
                               : 'Chưa bắt đầu ca làm việc',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -996,24 +1004,19 @@ class _NotificationEmptyState extends StatelessWidget {
 class _QuickNavGrid extends ConsumerWidget {
   const _QuickNavGrid({
     required this.ticketCount,
-    required this.unreadCount,
     required this.chatCount,
     required this.taskCount,
   });
 
   final int ticketCount;
-  final int unreadCount;
   final int chatCount;
   final int taskCount;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final liveUnreadCount = ref.watch(totalUnreadCountProvider);
-    final conversationsState = ref.watch(conversationsProvider);
-    final conversationsList = conversationsState.value ?? const [];
-    final liveChatCount = chatCount > 0
-        ? chatCount
-        : conversationsList.length;
+    final liveUnreadCount = ref.watch(chatV2TotalUnreadProvider);
+    final channelCount = ref.watch(chatV2ChannelsProvider.select((c) => c.valueOrNull?.length ?? 0));
+    final liveChatCount = channelCount > 0 ? channelCount : (chatCount > 0 ? chatCount : 0);
 
     return Column(
       children: [
@@ -1089,22 +1092,28 @@ class _MetricPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PressableScale(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          gradient: gradient,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x1A0F172A),
-              blurRadius: 22,
-              offset: Offset(0, 12),
-            ),
-          ],
-        ),
-        child: Stack(
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          onTap();
+        },
+        borderRadius: BorderRadius.circular(20),
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            gradient: gradient,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x1A0F172A),
+                blurRadius: 22,
+                offset: Offset(0, 12),
+              ),
+            ],
+          ),
+          child: Stack(
           children: [
             Positioned(
               right: -18,
@@ -1181,8 +1190,9 @@ class _MetricPill extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }
 
 class _CheckInStatusButton extends StatelessWidget {

@@ -45,7 +45,17 @@ class TicketCommentRepository {
 
     ctl.onListen = () {
       refresh();
-      timer = Timer.periodic(const Duration(seconds: 5), (_) => refresh());
+      void scheduleNextPoll() {
+        if (ctl.isClosed) return;
+        timer?.cancel();
+        timer = Timer(const Duration(seconds: 5), () async {
+          if (!ctl.isClosed) {
+            await refresh();
+            scheduleNextPoll();
+          }
+        });
+      }
+      scheduleNextPoll();
     };
     ctl.onCancel = () {
       timer?.cancel();

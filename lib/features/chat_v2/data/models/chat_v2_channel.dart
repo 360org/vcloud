@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../../../core/config/env.dart';
@@ -19,6 +20,9 @@ class ChatV2Channel {
   final String? lastMessageAuthorName;
   final String? lastMessageAuthorId;
   final String? partnerId;
+  final String? directPartnerId;
+  final String? directPartnerName;
+  final String? directPartnerStatus;
 
   const ChatV2Channel({
     required this.id,
@@ -35,7 +39,50 @@ class ChatV2Channel {
     this.lastMessageAuthorName,
     this.lastMessageAuthorId,
     this.partnerId,
+    this.directPartnerId,
+    this.directPartnerName,
+    this.directPartnerStatus,
   });
+
+  ChatV2Channel copyWith({
+    String? id,
+    String? name,
+    String? channelType,
+    bool? isGroup,
+    String? avatarUrl,
+    String? lastMessage,
+    DateTime? lastMessageDate,
+    int? unreadCount,
+    int? memberCount,
+    List<String>? memberNames,
+    String? imStatus,
+    String? lastMessageAuthorName,
+    String? lastMessageAuthorId,
+    String? partnerId,
+    String? directPartnerId,
+    String? directPartnerName,
+    String? directPartnerStatus,
+  }) {
+    return ChatV2Channel(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      channelType: channelType ?? this.channelType,
+      isGroup: isGroup ?? this.isGroup,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+      lastMessage: lastMessage ?? this.lastMessage,
+      lastMessageDate: lastMessageDate ?? this.lastMessageDate,
+      unreadCount: unreadCount ?? this.unreadCount,
+      memberCount: memberCount ?? this.memberCount,
+      memberNames: memberNames ?? this.memberNames,
+      imStatus: imStatus ?? this.imStatus,
+      lastMessageAuthorName: lastMessageAuthorName ?? this.lastMessageAuthorName,
+      lastMessageAuthorId: lastMessageAuthorId ?? this.lastMessageAuthorId,
+      partnerId: partnerId ?? this.partnerId,
+      directPartnerId: directPartnerId ?? this.directPartnerId,
+      directPartnerName: directPartnerName ?? this.directPartnerName,
+      directPartnerStatus: directPartnerStatus ?? this.directPartnerStatus,
+    );
+  }
 
   bool isLastMessageFromMe({
     String? currentUserId,
@@ -210,6 +257,18 @@ class ChatV2Channel {
       members.isNotEmpty ? members.length : (isGroup ? 2 : 1),
     );
 
+    final rawDirectPartner = map['direct_partner'];
+    String? directPartnerId;
+    String? directPartnerName;
+    String? directPartnerStatus;
+    if (rawDirectPartner is Map) {
+      directPartnerId = _stringOrNull(rawDirectPartner['id']);
+      directPartnerName = _stringOrNull(rawDirectPartner['name']);
+      directPartnerStatus = _stringOrNull(rawDirectPartner['im_status']);
+    }
+    directPartnerId ??= _stringOrNull(map['partner_id'] ?? map['other_partner_id']);
+    directPartnerStatus ??= imStatus;
+
     return ChatV2Channel(
       id: id,
       name: name,
@@ -224,7 +283,10 @@ class ChatV2Channel {
       imStatus: imStatus,
       lastMessageAuthorName: authorName,
       lastMessageAuthorId: authorId,
-      partnerId: _stringOrNull(map['partner_id'] ?? map['other_partner_id']),
+      partnerId: directPartnerId,
+      directPartnerId: directPartnerId,
+      directPartnerName: directPartnerName,
+      directPartnerStatus: directPartnerStatus,
     );
   }
 
@@ -265,5 +327,51 @@ class ChatV2Channel {
         .replaceAll('&amp;', '&');
     final exp = RegExp(r'<[^>]*>', multiLine: true);
     return text.replaceAll(exp, '').replaceAll('&nbsp;', ' ').trim();
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is ChatV2Channel &&
+        other.id == id &&
+        other.name == name &&
+        other.channelType == channelType &&
+        other.isGroup == isGroup &&
+        other.avatarUrl == avatarUrl &&
+        other.lastMessage == lastMessage &&
+        other.lastMessageDate == lastMessageDate &&
+        other.unreadCount == unreadCount &&
+        other.memberCount == memberCount &&
+        const ListEquality().equals(other.memberNames, memberNames) &&
+        other.imStatus == imStatus &&
+        other.lastMessageAuthorName == lastMessageAuthorName &&
+        other.lastMessageAuthorId == lastMessageAuthorId &&
+        other.partnerId == partnerId &&
+        other.directPartnerId == directPartnerId &&
+        other.directPartnerName == directPartnerName &&
+        other.directPartnerStatus == directPartnerStatus;
+  }
+
+  @override
+  int get hashCode {
+    return Object.hash(
+      id,
+      name,
+      channelType,
+      isGroup,
+      avatarUrl,
+      lastMessage,
+      lastMessageDate,
+      unreadCount,
+      memberCount,
+      const ListEquality().hash(memberNames),
+      imStatus,
+      lastMessageAuthorName,
+      lastMessageAuthorId,
+      partnerId,
+      directPartnerId,
+      directPartnerName,
+      directPartnerStatus,
+    );
   }
 }

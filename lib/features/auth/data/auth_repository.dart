@@ -29,12 +29,26 @@ class AuthRepository {
     return signIn(email: email, password: password, tenantId: tenantId);
   }
 
+  static const _savedEmailKey = 'saved_login_email';
+
+  Future<void> saveLastLoginEmail(String email) async {
+    final trimmed = email.trim();
+    if (trimmed.isNotEmpty) {
+      await _storage.write(key: _savedEmailKey, value: trimmed);
+    }
+  }
+
+  Future<String?> getLastLoginEmail() async {
+    return await _storage.read(key: _savedEmailKey);
+  }
+
   Future<AuthUser> signIn({
     required String email,
     required String password,
     int? tenantId,
   }) async {
     try {
+      await saveLastLoginEmail(email);
       final session = await _client.login(
         login: email,
         password: password,

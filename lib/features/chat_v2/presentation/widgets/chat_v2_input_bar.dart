@@ -230,28 +230,44 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
       final isImg = ext == 'png' ||
           ext == 'jpg' ||
           ext == 'jpeg' ||
-          ext == 'webp'; // Không nén gif vì compress_plus có thể làm hỏng gif animation
+          ext == 'webp' ||
+          ext == 'bmp' ||
+          ext == 'ico' ||
+          ext == 'heic' ||
+          ext == 'heif';
 
       Uint8List finalBytes = bytes;
+      String finalFilename = file.name;
+      String finalMime = _guessMimeType(ext);
+
       if (isImg) {
         try {
           final compressed = await FlutterImageCompress.compressWithList(
             bytes,
             minWidth: 1600,
             minHeight: 1600,
-            quality: 80,
+            quality: 85,
+            format: CompressFormat.jpeg,
           );
-          finalBytes = compressed;
+          if (compressed.isNotEmpty) {
+            finalBytes = compressed;
+          }
         } catch (_) {
           // Fallback to original bytes if compression fails
         }
+
+        // Chuẩn hóa tên file sang đuôi .jpg và MIME image/jpeg
+        final dotIndex = finalFilename.lastIndexOf('.');
+        final baseName = dotIndex != -1 ? finalFilename.substring(0, dotIndex) : finalFilename;
+        finalFilename = '$baseName.jpg';
+        finalMime = 'image/jpeg';
       }
 
       setState(() {
         _selectedBytes = finalBytes;
-        _selectedFilename = file.name;
-        _selectedMimetype = _guessMimeType(ext);
-        _isSelectedImage = isImg || ext == 'gif';
+        _selectedFilename = finalFilename;
+        _selectedMimetype = finalMime;
+        _isSelectedImage = isImg;
       });
     } catch (e) {
       if (mounted) {
@@ -273,6 +289,16 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
         return 'image/gif';
       case 'webp':
         return 'image/webp';
+      case 'svg':
+        return 'image/svg+xml';
+      case 'bmp':
+        return 'image/bmp';
+      case 'ico':
+        return 'image/x-icon';
+      case 'heic':
+        return 'image/heic';
+      case 'heif':
+        return 'image/heif';
       case 'pdf':
         return 'application/pdf';
       case 'doc':

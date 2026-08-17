@@ -1,6 +1,6 @@
 {
-    "name": "vcloud",
-    "short_name": "vcloud",
+    "name": "Vcloud",
+    "short_name": "Vcloud",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

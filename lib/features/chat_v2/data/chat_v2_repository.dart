@@ -1,6 +1,6 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/odoo_api_client.dart';
@@ -12,9 +12,13 @@ final chatV2RepositoryProvider = Provider<ChatV2Repository>((ref) {
 });
 
 class ChatV2Repository {
-  const ChatV2Repository(this._client);
+  ChatV2Repository(this._client);
 
   final OdooApiClient _client;
+
+  static final Set<String> _resolvedAttachmentMsgIds = <String>{};
+  static final Set<String> _resolvedParentMsgIds = <String>{};
+  static final Map<String, List<ChatV2Attachment>> _cachedAttachmentsByMsgId = <String, List<ChatV2Attachment>>{};
 
   String resolveUrl(String path, {String? accessToken}) =>
       _client.authenticatedUrl(path, accessToken: accessToken);
@@ -38,14 +42,9 @@ class ChatV2Repository {
 
     // Sắp xếp kênh có tin nhắn mới nhất / hoạt động gần nhất lên đầu
     channels.sort((a, b) {
-      if (a.lastMessageDate == null && b.lastMessageDate == null) {
-        final aId = int.tryParse(a.id) ?? 0;
-        final bId = int.tryParse(b.id) ?? 0;
-        return bId.compareTo(aId);
-      }
-      if (a.lastMessageDate == null) return 1;
-      if (b.lastMessageDate == null) return -1;
-      return b.lastMessageDate!.compareTo(a.lastMessageDate!);
+      final da = a.lastMessageDate ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final db = b.lastMessageDate ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return db.compareTo(da);
     });
 
     return channels;
@@ -88,21 +87,60 @@ class ChatV2Repository {
 
     final List<ChatV2Message> messages = list
         .whereType<Map>()
-        .map((m) => ChatV2Message.fromMap(
-              Map<String, dynamic>.from(m),
-              currentPartnerId: currentPartnerId,
-              currentUserId: currentUserId,
-            ))
+        .map((m) {
+          var msg = ChatV2Message.fromMap(
+            Map<String, dynamic>.from(m),
+            currentPartnerId: currentPartnerId,
+            currentUserId: currentUserId,
+          );
+
+          // Nạp thông tin trích dẫn Reply từ bộ đệm Reply Cache nếu backend chưa có
+          final replyInfo = ChatV2ReplyCache.get(msg.id);
+          if (replyInfo != null) {
+            msg = msg.copyWith(
+              parentId: msg.parentId ?? replyInfo['parent_id'],
+              parentBody: msg.parentBody ?? replyInfo['parent_body'],
+              parentAuthorName: msg.parentAuthorName ?? replyInfo['parent_author_name'],
+            );
+          }
+
+          if (msg.attachments.isEmpty && _cachedAttachmentsByMsgId.containsKey(msg.id)) {
+            return msg.copyWith(attachments: _cachedAttachmentsByMsgId[msg.id]!);
+          }
+          return msg;
+        })
         .toList();
 
-    // Tự động quét và nạp attachments cho các tin nhắn gửi ảnh từ Web Odoo (body rỗng)
-    final emptyMsgIds = messages
-        .where((m) => m.content.isEmpty && m.attachments.isEmpty)
+    // Tự động phân giải thông tin tin nhắn trả lời (Reply Parent) nếu thiếu metadata từ backend
+    final msgMap = {for (final m in messages) m.id: m};
+    for (int i = 0; i < messages.length; i++) {
+      final msg = messages[i];
+      if (msg.parentId != null && (msg.parentBody == null || msg.parentAuthorName == null)) {
+        final parent = msgMap[msg.parentId];
+        if (parent != null) {
+          final parentContent = parent.content.isNotEmpty
+              ? parent.content
+              : (parent.attachments.isNotEmpty ? parent.attachments.first.name : 'Đính kèm');
+          messages[i] = msg.copyWith(
+            parentBody: msg.parentBody ?? parentContent,
+            parentAuthorName: msg.parentAuthorName ?? parent.authorName,
+          );
+        }
+      }
+    }
+
+    // Tự động quét và nạp attachments / parent_id cho các tin nhắn gửi từ Web Odoo hoặc app
+    final targetRpcMsgIds = messages
+        .where((m) =>
+            ((m.content.isEmpty || m.isImageFilename || m.isDocumentFilename) &&
+                m.attachments.isEmpty &&
+                !_resolvedAttachmentMsgIds.contains(m.id)) ||
+            (m.parentId == null && !_resolvedParentMsgIds.contains(m.id)))
         .map((m) => int.tryParse(m.id))
         .whereType<int>()
         .toList();
 
-    if (emptyMsgIds.isNotEmpty) {
+    if (targetRpcMsgIds.isNotEmpty) {
       try {
         final dynamic readRes = await _client.post(
           '/web/dataset/call_kw/mail.message/read',
@@ -112,7 +150,7 @@ class ChatV2Repository {
             'params': {
               'model': 'mail.message',
               'method': 'read',
-              'args': [emptyMsgIds, ['id', 'attachment_ids']],
+              'args': [targetRpcMsgIds, ['id', 'attachment_ids', 'parent_id']],
               'kwargs': {},
             },
           },
@@ -124,15 +162,44 @@ class ChatV2Repository {
           final attMap = <String, List<int>>{};
           final allAttIds = <int>[];
           for (final item in rawResult) {
-            if (item is Map && item['attachment_ids'] is List) {
+            if (item is Map) {
               final mId = item['id'].toString();
-              final aIds = (item['attachment_ids'] as List)
-                  .map((a) => a is int ? a : int.tryParse(a.toString()))
-                  .whereType<int>()
-                  .toList();
-              if (aIds.isNotEmpty) {
-                attMap[mId] = aIds;
-                allAttIds.addAll(aIds);
+
+              // Xử lý Many2one parent_id từ Odoo native ORM: [id, name]
+              final pIdRaw = item['parent_id'];
+              if (pIdRaw is List && pIdRaw.isNotEmpty) {
+                final pId = pIdRaw[0].toString();
+                final pName = pIdRaw.length > 1 ? pIdRaw[1].toString() : '';
+                String? author;
+                String? body;
+                if (pName.contains(': ')) {
+                  final parts = pName.split(': ');
+                  author = parts[0];
+                  body = parts.sublist(1).join(': ');
+                } else if (pName.isNotEmpty) {
+                  body = pName;
+                }
+
+                ChatV2ReplyCache.set(mId, parentId: pId, parentAuthorName: author, parentBody: body);
+                final idx = messages.indexWhere((m) => m.id == mId);
+                if (idx != -1) {
+                  messages[idx] = messages[idx].copyWith(
+                    parentId: messages[idx].parentId ?? pId,
+                    parentAuthorName: messages[idx].parentAuthorName ?? author,
+                    parentBody: messages[idx].parentBody ?? body,
+                  );
+                }
+              }
+
+              if (item['attachment_ids'] is List) {
+                final aIds = (item['attachment_ids'] as List)
+                    .map((a) => a is int ? a : int.tryParse(a.toString()))
+                    .whereType<int>()
+                    .toList();
+                if (aIds.isNotEmpty) {
+                  attMap[mId] = aIds;
+                  allAttIds.addAll(aIds);
+                }
               }
             }
           }
@@ -159,15 +226,21 @@ class ChatV2Repository {
               for (final attItem in attDetailsList) {
                 if (attItem is Map && attItem['id'] != null) {
                   final aid = attItem['id'] as int;
-                  final aName = (attItem['name'] ?? 'image.png').toString();
+                  final aName = (attItem['name'] ?? 'file').toString();
                   final aMime = attItem['mimetype']?.toString();
                   final aSize = attItem['file_size'] is int ? attItem['file_size'] as int : null;
+                  final isImg = aMime?.startsWith('image/') == true ||
+                      aName.endsWith('.png') ||
+                      aName.endsWith('.jpg') ||
+                      aName.endsWith('.jpeg') ||
+                      aName.endsWith('.webp') ||
+                      aName.endsWith('.gif');
                   attachmentObjects[aid] = ChatV2Attachment(
                     id: aid.toString(),
                     name: aName,
                     mimetype: aMime,
                     fileSize: aSize,
-                    url: '/web/image/$aid',
+                    url: isImg ? '/web/image/$aid' : '/web/content/$aid/$aName',
                     downloadUrl: '/web/content/$aid/$aName',
                   );
                 }
@@ -181,17 +254,39 @@ class ChatV2Repository {
                 final attachedList = targetAttIds
                     .map((aid) => attachmentObjects[aid] ?? ChatV2Attachment(
                           id: aid.toString(),
-                          name: 'image.png',
-                          url: '/web/image/$aid',
-                          mimetype: 'image/png',
+                          name: msg.isDocumentFilename ? msg.content : 'file',
+                          url: '/web/content/$aid',
+                          downloadUrl: '/web/content/$aid',
+                          mimetype: 'application/octet-stream',
                         ))
                     .toList();
                 messages[i] = msg.copyWith(attachments: attachedList);
+                _cachedAttachmentsByMsgId[msg.id] = attachedList;
               }
             }
           }
         }
+        _resolvedAttachmentMsgIds.addAll(targetRpcMsgIds.map((e) => e.toString()));
+        _resolvedParentMsgIds.addAll(targetRpcMsgIds.map((e) => e.toString()));
       } catch (_) {}
+    }
+
+    // Tự động phân giải thông tin tin nhắn trả lời (Reply Parent) nếu thiếu metadata từ backend
+    final updatedMsgMap = {for (final m in messages) m.id: m};
+    for (int i = 0; i < messages.length; i++) {
+      final msg = messages[i];
+      if (msg.parentId != null && (msg.parentBody == null || msg.parentAuthorName == null)) {
+        final parent = updatedMsgMap[msg.parentId];
+        if (parent != null) {
+          final parentContent = parent.content.isNotEmpty
+              ? parent.content
+              : (parent.attachments.isNotEmpty ? parent.attachments.first.name : 'Đính kèm');
+          messages[i] = msg.copyWith(
+            parentBody: msg.parentBody ?? parentContent,
+            parentAuthorName: msg.parentAuthorName ?? parent.authorName,
+          );
+        }
+      }
     }
 
     return messages;
@@ -227,13 +322,36 @@ class ChatV2Repository {
     String? currentPartnerId,
     String? currentUserId,
     String authorName = 'Tôi',
+    String? parentId,
+    String? parentBody,
+    String? parentAuthorName,
   }) async {
+    String payloadBody = body;
+    if (parentId != null && parentId.isNotEmpty) {
+      final safeAuthor = (parentAuthorName != null && parentAuthorName.isNotEmpty)
+          ? parentAuthorName
+          : 'Tin nhắn';
+      final safeBody = (parentBody != null && parentBody.isNotEmpty)
+          ? parentBody
+          : '...';
+
+      // Tạo thẻ Quote HTML chuẩn Odoo Discuss để hiển thị đẹp mắt trên cả Web Odoo và Mobile
+      final quoteHtml = '<div data-reply-id="$parentId" data-reply-author="$safeAuthor" data-reply-body="$safeBody" style="border-left: 3px solid #00a82d; padding: 2px 8px; margin-bottom: 6px; background-color: rgba(0,0,0,0.05); border-radius: 4px; font-size: 12px; color: #555;">'
+          '<strong style="color: #00a82d;">$safeAuthor</strong><br/>'
+          '<span>$safeBody</span>'
+          '</div>';
+      payloadBody = '$quoteHtml<p>$body</p>';
+    }
+
     final payload = <String, dynamic>{
       'channel_id': int.tryParse(channelId) ?? channelId,
-      'body': body,
+      'body': payloadBody,
     };
     if (attachmentIds != null && attachmentIds.isNotEmpty) {
       payload['attachment_ids'] = attachmentIds;
+    }
+    if (parentId != null && parentId.isNotEmpty) {
+      payload['parent_id'] = int.tryParse(parentId) ?? parentId;
     }
 
     final dynamic data = await _client.post(
@@ -242,11 +360,19 @@ class ChatV2Repository {
     );
 
     if (data is Map) {
-      return ChatV2Message.fromMap(
+      final parsed = ChatV2Message.fromMap(
         Map<String, dynamic>.from(data),
         currentPartnerId: currentPartnerId,
         currentUserId: currentUserId,
       );
+      if (parentId != null) {
+        return parsed.copyWith(
+          parentId: parentId,
+          parentBody: parsed.parentBody ?? parentBody,
+          parentAuthorName: parsed.parentAuthorName ?? parentAuthorName,
+        );
+      }
+      return parsed;
     }
 
     return ChatV2Message(
@@ -258,6 +384,9 @@ class ChatV2Repository {
       createdAt: DateTime.now(),
       isMine: true,
       status: 'sent',
+      parentId: parentId,
+      parentBody: parentBody,
+      parentAuthorName: parentAuthorName,
     );
   }
 
@@ -272,16 +401,85 @@ class ChatV2Repository {
   }
 
   Future<void> editMessage(String messageId, String newBody) async {
-    await _client.post(
-      '/api/v1/mobile/chat/messages/$messageId/edit',
-      body: {'body': newBody},
-    );
+    final msgIdInt = int.tryParse(messageId);
+    try {
+      await _client.post(
+        '/api/v1/mobile/chat/messages/$messageId/edit',
+        body: {'body': newBody},
+      );
+    } catch (e) {
+      // Fallback 1: Odoo ORM JSON-RPC call_kw mail.message/write
+      if (msgIdInt != null) {
+        try {
+          await _client.post(
+            '/web/dataset/call_kw/mail.message/write',
+            body: {
+              'jsonrpc': '2.0',
+              'method': 'call',
+              'params': {
+                'model': 'mail.message',
+                'method': 'write',
+                'args': [[msgIdInt], {'body': newBody}],
+                'kwargs': {},
+              },
+            },
+            auth: true,
+          );
+          return;
+        } catch (_) {}
+      }
+      rethrow;
+    }
   }
 
   Future<void> deleteMessage(String messageId) async {
-    await _client.post(
-      '/api/v1/mobile/chat/messages/$messageId/delete',
-      body: {},
-    );
+    final msgIdInt = int.tryParse(messageId);
+    try {
+      await _client.post(
+        '/api/v1/mobile/chat/messages/$messageId/delete',
+        body: {},
+      );
+    } catch (e) {
+      // Fallback 1: Odoo ORM JSON-RPC call_kw mail.message/unlink
+      if (msgIdInt != null) {
+        try {
+          await _client.post(
+            '/web/dataset/call_kw/mail.message/unlink',
+            body: {
+              'jsonrpc': '2.0',
+              'method': 'call',
+              'params': {
+                'model': 'mail.message',
+                'method': 'unlink',
+                'args': [[msgIdInt]],
+                'kwargs': {},
+              },
+            },
+            auth: true,
+          );
+          return;
+        } catch (_) {
+          // Fallback 2: Clear body to recall message if unlink is restricted
+          try {
+            await _client.post(
+              '/web/dataset/call_kw/mail.message/write',
+              body: {
+                'jsonrpc': '2.0',
+                'method': 'call',
+                'params': {
+                  'model': 'mail.message',
+                  'method': 'write',
+                  'args': [[msgIdInt], {'body': '<i>Tin nhắn đã được thu hồi</i>'}],
+                  'kwargs': {},
+                },
+              },
+              auth: true,
+            );
+            return;
+          } catch (_) {}
+        }
+      }
+      rethrow;
+    }
   }
 }

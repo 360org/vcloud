@@ -38,25 +38,35 @@ class Attendance {
   }
 
   factory Attendance.fromMap(Map<String, dynamic> map) => Attendance(
-    id: map['id'] as String,
-    userId: map['user_id'] as String,
-    checkinTime: _readDate(map['checkin_time']),
-    checkoutTime: _readDate(map['checkout_time']),
-    checkinLat: (map['checkin_lat'] as num?)?.toDouble(),
-    checkinLng: (map['checkin_lng'] as num?)?.toDouble(),
-    checkoutLat: (map['latitude'] as num?)?.toDouble(),
-    checkoutLng: (map['longitude'] as num?)?.toDouble(),
-    createdAt: _readDate(map['created_at']) ?? DateTime.now(),
+    id: (map['id'] ?? map['attendance_id'] ?? '').toString(),
+    userId: (map['user_id'] ?? map['employee_id'] ?? '').toString(),
+    checkinTime: _readDate(map['checkin_time'] ?? map['check_in']),
+    checkoutTime: _readDate(map['checkout_time'] ?? map['check_out']),
+    checkinLat: _readDouble(map['checkin_lat']),
+    checkinLng: _readDouble(map['checkin_lng']),
+    checkoutLat: _readDouble(map['latitude']),
+    checkoutLng: _readDouble(map['longitude']),
+    createdAt: _readDate(map['created_at'] ?? map['create_date']) ?? DateTime.now(),
   );
 }
 
+double? _readDouble(Object? v) {
+  if (v == null || v == false) return null;
+  if (v is num) return v.toDouble();
+  return double.tryParse(v.toString());
+}
+
 DateTime? _readDate(Object? v) {
-  if (v == null) return null;
-  final str = (v as String).trim();
+  if (v == null || v == false) return null;
+  final str = v.toString().trim();
   if (str.isEmpty) return null;
-  if (str.endsWith('Z') || str.contains('+')) {
-    return DateTime.parse(str).toLocal();
+  try {
+    if (str.endsWith('Z') || str.contains('+')) {
+      return DateTime.parse(str).toLocal();
+    }
+    final isoStr = str.contains('T') ? str : str.replaceAll(' ', 'T');
+    return DateTime.parse('${isoStr}Z').toLocal();
+  } catch (_) {
+    return DateTime.tryParse(str)?.toLocal();
   }
-  final isoStr = str.contains('T') ? str : str.replaceAll(' ', 'T');
-  return DateTime.parse('${isoStr}Z').toLocal();
 }

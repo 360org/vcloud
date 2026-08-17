@@ -98,4 +98,52 @@ class Dates {
     final s = d.inSeconds.abs().remainder(60).toString().padLeft(2, '0');
     return '$h:$m:$s';
   }
+
+  /// Chuẩn hóa và parse DateTime từ Odoo Server (luôn coi chuỗi thời gian Odoo là UTC nếu chưa có timezone)
+  static DateTime? parseOdooUtc(dynamic value) {
+    if (value == null || value == false) return null;
+    if (value is DateTime) return value.isUtc ? value.toLocal() : value;
+    final text = value.toString().trim();
+    if (text.isEmpty) return null;
+
+    final parsed = DateTime.tryParse(text);
+    if (parsed == null) return null;
+
+    final hasTz = RegExp(r'(z|[+-]\d\d:?\d\d)$', caseSensitive: false).hasMatch(text);
+    final utcDt = (parsed.isUtc || hasTz)
+        ? parsed.toUtc()
+        : DateTime.utc(
+            parsed.year,
+            parsed.month,
+            parsed.day,
+            parsed.hour,
+            parsed.minute,
+            parsed.second,
+            parsed.millisecond,
+            parsed.microsecond,
+          );
+    return utcDt.toLocal();
+  }
+
+  /// Format chuẩn ngày/giờ hiển thị cho Chat List:
+  /// - Hôm nay: "15:21" (HH:mm)
+  /// - Hôm qua: "Hôm qua"
+  /// - Trong tuần: "Th 4", "Th 5"...
+  /// - Xa hơn: "14/08" (dd/MM)
+  static String chatTimestamp(DateTime dt, {DateTime? now}) {
+    final n = now ?? DateTime.now();
+    final today = DateTime(n.year, n.month, n.day);
+    final local = dt.toLocal();
+    final date = DateTime(local.year, local.month, local.day);
+
+    if (date == today) {
+      return DateFormat('HH:mm').format(local);
+    } else if (date == today.subtract(const Duration(days: 1))) {
+      return 'Hôm qua';
+    } else if (n.difference(local).inDays < 7) {
+      return DateFormat('E', 'vi').format(local);
+    } else {
+      return DateFormat('dd/MM').format(local);
+    }
+  }
 }

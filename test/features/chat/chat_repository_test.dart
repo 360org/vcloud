@@ -11,6 +11,7 @@ import 'package:vcloud/shared/models/conversation.dart';
 class FakeOdooApiClient implements OdooApiClient {
   final Map<String, dynamic> lastPostPayloads = {};
   final List<String> calledEndpoints = [];
+  int channel45Unread = 3;
 
   @override
   OdooSession? get session => OdooSession(
@@ -35,7 +36,7 @@ class FakeOdooApiClient implements OdooApiClient {
           "id": 45,
           "name": "W360S CORP General",
           "channel_type": "group",
-          "unread_count": 3,
+          "unread_count": channel45Unread,
           "member_count": 5,
           "has_avatar": false,
           "last_message": "Đã gửi báo cáo tài chính quý II rồi sếp.",
@@ -127,6 +128,7 @@ class FakeOdooApiClient implements OdooApiClient {
     }
 
     if (path.contains('/mark-read')) {
+      channel45Unread = 0;
       return {
         "status": "success",
         "channel_id": "45",

@@ -119,6 +119,12 @@ class _ComposerWithAttachmentsState extends State<ComposerWithAttachments> {
       if (!context.mounted || image == null) return;
       final bytes = await image.readAsBytes();
       if (!context.mounted) return;
+      
+      var filename = image.name;
+      if (!filename.contains('.')) {
+        filename = '$filename.jpg';
+      }
+      LocalAttachmentCache.save(filename, bytes);
       LocalAttachmentCache.save(image.name, bytes);
 
       showModalBottomSheet(
@@ -126,9 +132,9 @@ class _ComposerWithAttachmentsState extends State<ComposerWithAttachments> {
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
         builder: (sheetContext) => ImagePreviewSheet(
-          filename: image.name,
+          filename: filename,
           bytes: bytes,
-          mimetype: mimetypeForName(image.name) ?? 'image/jpeg',
+          mimetype: mimetypeForName(filename) ?? 'image/jpeg',
           onSend: (upload, caption) async {
             Navigator.pop(sheetContext);
             if (caption != null && caption.trim().isNotEmpty) {

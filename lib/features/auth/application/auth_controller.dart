@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -6,7 +8,7 @@ import '../../../core/notifications/push_notification_controller.dart';
 import '../../../core/notifications/push_notification_service.dart';
 import '../data/auth_repository.dart';
 
-final _authRepoProvider = Provider<AuthRepository>((_) => AuthRepository());
+final authRepositoryProvider = Provider<AuthRepository>((_) => AuthRepository());
 
 /// Single source of truth for the current Odoo-authenticated user.
 final authControllerProvider = AsyncNotifierProvider<AuthController, AuthUser?>(
@@ -19,11 +21,11 @@ class AuthController extends AsyncNotifier<AuthUser?> {
 
   @override
   Future<AuthUser?> build() async {
-    _repo = ref.watch(_authRepoProvider);
+    _repo = ref.watch(authRepositoryProvider);
     _pushNotifications = ref.watch(pushNotificationServiceProvider);
     final user = await _repo.currentUser();
     if (user != null) {
-      await _registerPushDevice();
+      unawaited(_registerPushDevice());
     }
     return user;
   }
@@ -36,7 +38,7 @@ class AuthController extends AsyncNotifier<AuthUser?> {
         password: password,
         tenantId: tenantId,
       );
-      await _registerPushDevice();
+      unawaited(_registerPushDevice());
       state = AsyncData(user);
     } catch (e, st) {
       state = AsyncError(e, st);

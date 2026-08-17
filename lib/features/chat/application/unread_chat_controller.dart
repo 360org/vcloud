@@ -82,12 +82,18 @@ class UnreadChatNotifier extends StateNotifier<UnreadChatState> {
   int _consecutiveFailures = 0;
   bool _isRefreshing = false;
 
-  /// Starts real-time periodic sync to refresh unread message counts dynamically.
   void startRealtimeSync([Duration cadence = const Duration(seconds: 2)]) {
     _periodicTimer?.cancel();
-    _periodicTimer = Timer.periodic(cadence, (_) {
-      loadUnreadCount();
-    });
+    void scheduleNextPoll() {
+      if (!mounted) return;
+      _periodicTimer?.cancel();
+      _periodicTimer = Timer(cadence, () async {
+        if (!mounted) return;
+        await loadUnreadCount();
+        scheduleNextPoll();
+      });
+    }
+    scheduleNextPoll();
   }
 
   @override
@@ -105,7 +111,7 @@ class UnreadChatNotifier extends StateNotifier<UnreadChatState> {
     try {
       final res = await _client.get('/api/v1/mobile/chat/channels');
       final rawJson = jsonEncode(res);
-      final channelCounts = await compute(_parseChannelUnreadCounts, rawJson);
+      final channelCounts = _parseChannelUnreadCounts(rawJson);
       final total = channelCounts.values.fold(0, (sum, count) => sum + count);
 
       if (_consecutiveFailures > 0) {

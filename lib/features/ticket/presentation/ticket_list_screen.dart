@@ -51,15 +51,16 @@ class _TicketListScreenState extends ConsumerState<TicketListScreen>
 
     return AppScaffold(
       title: 'Ticket hỗ trợ',
+      showAppBar: false,
+      wrapSafeArea: false,
       floatingActionButton: FloatingActionButton(
         onPressed: () => context.push('/tickets/new'),
-        backgroundColor: const Color(0xFF2563EB),
+        backgroundColor: const Color(0xFF00C83A),
         foregroundColor: Colors.white,
         elevation: 4,
         shape: const CircleBorder(),
         child: const Icon(LucideIcons.plus, size: 26),
       ),
-
       body: ColoredBox(
         color: Theme.of(context).scaffoldBackgroundColor,
         child: SafeArea(
@@ -71,6 +72,7 @@ class _TicketListScreenState extends ConsumerState<TicketListScreen>
             ),
             data: (_) => Column(
               children: [
+                const _TicketHeader(),
                 const SizedBox(height: 8),
                 _TicketSearchBar(
                   query: _query,
@@ -129,6 +131,107 @@ class _TicketListScreenState extends ConsumerState<TicketListScreen>
   }
 }
 
+class _TicketHeader extends StatelessWidget {
+  const _TicketHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E293B) : Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              border: isDark
+                  ? Border.all(color: Colors.white.withValues(alpha: 0.08))
+                  : null,
+              boxShadow: isDark
+                  ? [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.25),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ]
+                  : const [
+                      BoxShadow(
+                        color: Color(0x0D0F172A),
+                        blurRadius: 14,
+                        offset: Offset(0, 6),
+                      ),
+                    ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  LucideIcons.ticket,
+                  color: Color(0xFF00C83A),
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Ticket',
+                  style: TextStyle(
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Spacer(),
+          PressableScale(
+            onTap: () => context.push('/tickets/new'),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF00C83A), Color(0xFF009D2E)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF00C83A).withValues(alpha: 0.3),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    LucideIcons.plus,
+                    color: Colors.white,
+                    size: 17,
+                  ),
+                  SizedBox(width: 6),
+                  Text(
+                    'Tạo ticket',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _TicketSearchBar extends StatelessWidget {
   const _TicketSearchBar({
@@ -155,41 +258,44 @@ class _TicketSearchBar extends StatelessWidget {
         children: [
           Expanded(
             child: Container(
-              height: 52,
+              height: 50,
               decoration: BoxDecoration(
                 color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF0F3F8),
                 borderRadius: BorderRadius.circular(16),
+                border: isDark
+                    ? Border.all(color: Colors.white.withValues(alpha: 0.08))
+                    : null,
               ),
               child: TextField(
                 onChanged: onChanged,
                 style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurface,
-                  fontSize: 16,
+                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  fontSize: 15,
                 ),
                 decoration: InputDecoration(
                   hintText: 'Tìm kiếm ticket',
-                  hintStyle: const TextStyle(
-                    color: AppColors.textMuted,
-                    fontSize: 16,
+                  hintStyle: TextStyle(
+                    color: isDark ? Colors.white38 : AppColors.textMuted,
+                    fontSize: 15,
                     fontWeight: FontWeight.w500,
                   ),
-                  prefixIcon: const Icon(
+                  prefixIcon: Icon(
                     LucideIcons.search,
-                    color: AppColors.textMuted,
-                    size: 21,
+                    color: isDark ? Colors.white60 : AppColors.textMuted,
+                    size: 20,
                   ),
                   suffixIcon: query.isEmpty
                       ? null
                       : IconButton(
                           onPressed: onClear,
-                          icon: const Icon(
+                          icon: Icon(
                             LucideIcons.x,
-                            color: AppColors.textMuted,
-                            size: 20,
+                            color: isDark ? Colors.white70 : AppColors.textMuted,
+                            size: 19,
                           ),
                         ),
                   border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 15),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 14),
                 ),
               ),
             ),
@@ -198,18 +304,21 @@ class _TicketSearchBar extends StatelessWidget {
           PressableScale(
             onTap: onOpenFilter,
             child: Container(
-              width: 52,
-              height: 52,
+              width: 50,
+              height: 50,
               decoration: BoxDecoration(
                 color: isFilterActive
-                    ? const Color(0xFF2563EB)
+                    ? const Color(0xFF00C83A)
                     : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF0F3F8)),
                 borderRadius: BorderRadius.circular(16),
+                border: isDark && !isFilterActive
+                    ? Border.all(color: Colors.white.withValues(alpha: 0.08))
+                    : null,
               ),
               child: Icon(
                 LucideIcons.slidersHorizontal,
-                color: isFilterActive ? Colors.white : AppColors.textMuted,
-                size: 21,
+                color: isFilterActive ? Colors.white : (isDark ? Colors.white70 : AppColors.textMuted),
+                size: 20,
               ),
             ),
           ),
@@ -240,15 +349,26 @@ class _TicketTabs extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1E293B) : Colors.white,
+          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF0F3F8),
           borderRadius: BorderRadius.circular(22),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x0A0F172A),
-              blurRadius: 12,
-              offset: Offset(0, 6),
-            ),
-          ],
+          border: isDark
+              ? Border.all(color: Colors.white.withValues(alpha: 0.08))
+              : null,
+          boxShadow: isDark
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.2),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : const [
+                  BoxShadow(
+                    color: Color(0x0A0F172A),
+                    blurRadius: 12,
+                    offset: Offset(0, 6),
+                  ),
+                ],
         ),
         child: Row(
           children: [
@@ -256,12 +376,16 @@ class _TicketTabs extends StatelessWidget {
               label: 'Đang xử lý',
               count: doingCount,
               selected: selected == 0,
+              activeColor: const Color(0xFF00C83A),
+              activeColorDeep: const Color(0xFF009D2E),
               onTap: () => onChanged(0),
             ),
             _TicketTabButton(
               label: 'Hoàn thành',
               count: doneCount,
               selected: selected == 1,
+              activeColor: const Color(0xFF2563EB),
+              activeColorDeep: const Color(0xFF1D4ED8),
               onTap: () => onChanged(1),
             ),
           ],
@@ -271,22 +395,26 @@ class _TicketTabs extends StatelessWidget {
   }
 }
 
-
 class _TicketTabButton extends StatelessWidget {
   const _TicketTabButton({
     required this.label,
     required this.count,
     required this.selected,
+    required this.activeColor,
+    required this.activeColorDeep,
     required this.onTap,
   });
 
   final String label;
   final int count;
   final bool selected;
+  final Color activeColor;
+  final Color activeColorDeep;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Expanded(
       child: PressableScale(
         onTap: onTap,
@@ -296,10 +424,23 @@ class _TicketTabButton extends StatelessWidget {
           alignment: Alignment.center,
           decoration: BoxDecoration(
             gradient: selected
-                ? AppColors.featureGrad(AppColors.ticket, AppColors.ticketDeep)
+                ? LinearGradient(
+                    colors: [activeColor, activeColorDeep],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
                 : null,
             color: selected ? null : Colors.transparent,
             borderRadius: BorderRadius.circular(18),
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: activeColor.withValues(alpha: 0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
           ),
           child: Text(
             '$label · $count',
@@ -307,7 +448,9 @@ class _TicketTabButton extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: selected ? Colors.white : AppColors.textSecondary,
+              color: selected
+                  ? Colors.white
+                  : (isDark ? Colors.white70 : AppColors.textSecondary),
               fontSize: 13,
               fontWeight: FontWeight.w900,
             ),

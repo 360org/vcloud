@@ -106,18 +106,36 @@ class TimesheetEntry {
   final Task? task;
 
   factory TimesheetEntry.fromMap(Map<String, dynamic> map) => TimesheetEntry(
-    id: map['id'] as String,
-    userId: map['user_id'] as String,
-    taskName: map['task_name'] as String,
-    category: TimesheetCategoryDb.fromDb(map['category'] as String),
-    duration: TimesheetDurationDb.fromDb(map['duration'] as String),
-    durationMinutes:
-        (map['duration_minutes'] as int?) ??
-        TimesheetDurationDb.fromDb(
-          map['duration'] as String,
-        ).duration.inMinutes,
-    workedDate: DateTime.parse(map['worked_date'] as String),
-    createdAt: DateTime.parse(map['created_at'] as String),
-    taskId: map['task_id'] as String?,
+    id: (map['id'] ?? '').toString(),
+    userId: (map['user_id'] ?? map['employee_id'] ?? '').toString(),
+    taskName: (map['task_name'] ?? map['name'] ?? 'Công việc').toString(),
+    category: TimesheetCategoryDb.fromDb((map['category'] ?? 'Other').toString()),
+    duration: TimesheetDurationDb.fromDb((map['duration'] ?? '1h').toString()),
+    durationMinutes: _parseDurationMinutes(map),
+    workedDate: _parseTimesheetDate(map['worked_date'] ?? map['date']),
+    createdAt: _parseTimesheetDate(map['created_at'] ?? map['create_date']),
+    taskId: map['task_id'] != null && map['task_id'] != false ? map['task_id'].toString() : null,
   );
+}
+
+int _parseDurationMinutes(Map<String, dynamic> map) {
+  final raw = map['duration_minutes'] ?? map['unit_amount'];
+  if (raw is int) return raw;
+  if (raw is num) return (raw * 60).round();
+  if (raw is String) {
+    final parsed = int.tryParse(raw);
+    if (parsed != null) return parsed;
+  }
+  return TimesheetDurationDb.fromDb((map['duration'] ?? '1h').toString()).duration.inMinutes;
+}
+
+DateTime _parseTimesheetDate(Object? v) {
+  if (v == null || v == false) return DateTime.now();
+  final str = v.toString().trim();
+  if (str.isEmpty) return DateTime.now();
+  try {
+    return DateTime.parse(str).toLocal();
+  } catch (_) {
+    return DateTime.now();
+  }
 }

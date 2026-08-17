@@ -1,8 +1,6 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../../auth/application/auth_controller.dart';
 import '../../../core/utils/local_attachment_cache.dart';
@@ -19,10 +17,7 @@ final chatV2MessagesProvider = AutoDisposeAsyncNotifierProviderFamily<
 );
 
 class ChatV2MessageLocalCache {
-  static const _storagePrefix = 'vcloud_chat_msgs_v2_';
-  static const _storage = FlutterSecureStorage();
   static final Map<String, Map<String, ChatV2Message>> _cache = {};
-  static final Set<String> _preloaded = {};
 
   static List<ChatV2Message>? get(String channelId) {
     final map = _cache[channelId];
@@ -36,89 +31,20 @@ class ChatV2MessageLocalCache {
       map[m.id] = m;
     }
     _cache[channelId] = map;
+  }
 
-    if (persist) {
-      // Lưu async vào Persistent Storage (tối đa 25 tin nhắn gần nhất)
-      unawaited(() async {
-        try {
-          final toSave = messages.take(25).map((m) => m.toMap()).toList();
-          await _storage.write(
-            key: '$_storagePrefix$channelId',
-            value: jsonEncode(toSave),
-          );
-        } catch (_) {}
-      }());
+  static void prepend(String channelId, ChatV2Message msg) {
+    final map = _cache[channelId];
+    if (map == null) {
+      _cache[channelId] = {msg.id: msg};
+    } else {
+      _cache[channelId] = {msg.id: msg, ...map};
     }
   }
 
   static void append(String channelId, ChatV2Message msg) {
     final map = _cache.putIfAbsent(channelId, () => <String, ChatV2Message>{});
     map[msg.id] = msg;
-  }
-
-  /// Khởi tạo và nạp tin nhắn từ Offline Storage vào RAM
-  static Future<List<ChatV2Message>?> loadFromStorage(
-    String channelId, {
-    String? currentPartnerId,
-    String? currentUserId,
-  }) async {
-    try {
-      final raw = await _storage.read(key: '$_storagePrefix$channelId');
-      if (raw != null && raw.isNotEmpty) {
-        final List<dynamic> decoded = jsonDecode(raw);
-        final messages = decoded
-            .whereType<Map>()
-            .map((m) => ChatV2Message.fromMap(
-                  Map<String, dynamic>.from(m),
-                  currentPartnerId: currentPartnerId,
-                  currentUserId: currentUserId,
-                ))
-            .toList();
-        if (messages.isNotEmpty) {
-          final map = <String, ChatV2Message>{};
-          for (final m in messages) {
-            map[m.id] = m;
-          }
-          _cache[channelId] = map;
-          return messages;
-        }
-      }
-    } catch (_) {}
-    return null;
-  }
-
-  /// Pre-fetch ngầm các kênh hàng đầu ngay khi mở app
-  static Future<void> preloadChannels(
-    List<String> channelIds,
-    ChatV2Repository repo, {
-    String? partnerId,
-    String? userId,
-  }) async {
-    for (final chId in channelIds.take(8)) {
-      if (!_preloaded.contains(chId)) {
-        _preloaded.add(chId);
-        // Ưu tiên nạp từ Storage trước
-        if (_cache[chId] == null || _cache[chId]!.isEmpty) {
-          await loadFromStorage(
-            chId,
-            currentPartnerId: partnerId,
-            currentUserId: userId,
-          );
-        }
-        // Fetch ngầm từ server Odoo (limit 20)
-        try {
-          final fresh = await repo.getMessages(
-            chId,
-            currentPartnerId: partnerId,
-            currentUserId: userId,
-            limit: 20,
-          );
-          if (fresh.isNotEmpty) {
-            set(chId, fresh);
-          }
-        } catch (_) {}
-      }
-    }
   }
 }
 
@@ -129,6 +55,7 @@ class ChatV2MessagesNotifier
 
   @override
   FutureOr<List<ChatV2Message>> build(String arg) async {
+    debugPrint('🟢 [TRACE] ChatV2MessagesNotifier.build() START - channel: $arg');
     final channelId = arg;
     final repo = ref.watch(chatV2RepositoryProvider);
     final user = ref.watch(authControllerProvider).valueOrNull;
@@ -146,83 +73,112 @@ class ChatV2MessagesNotifier
     _wsSub?.cancel();
     _wsSub = realtime.onMessageReceived.listen((newMsg) {
       if (newMsg.channelId == channelId) {
-        ChatV2MessageLocalCache.append(channelId, newMsg);
+        ChatV2MessageLocalCache.prepend(channelId, newMsg);
         final currentList = state.valueOrNull ?? const [];
         if (!currentList.any((m) => m.id == newMsg.id)) {
-          state = AsyncData([...currentList, newMsg]);
+          state = AsyncData([newMsg, ...currentList]);
         }
       }
     });
 
-    // Polling thích ứng (Adaptive Polling): Chạy nhẹ (12s) khi WebSocket active, chạy nhanh (1.5s) khi WebSocket offline
-    _pollingTimer?.cancel();
-    _pollingTimer = Timer.periodic(const Duration(milliseconds: 1500), (_) async {
-      if (!state.isLoading && state.hasValue) {
-        // Nếu WebSocket đang kết nối ổn định, chỉ fetch ngẫu nhiên hoặc sau chu kỳ dài
-        final isWsActive = realtime.isConnected;
-        final now = DateTime.now().millisecondsSinceEpoch;
-        // Bỏ qua lượt poll nếu WS đang active và chưa tới 12s
-        if (isWsActive && (now % 12000 > 1600)) {
-          return;
-        }
+    // Smart Sequential Polling (2.5s): Chạy tuần tự, chỉ poll khi người dùng đang ở trong phòng chat
+    bool isDisposed = false;
 
-        try {
-          final latest = await repo.getMessages(
-            channelId,
-            currentPartnerId: partnerId,
-            currentUserId: userId,
-          );
-          if (latest.isNotEmpty) {
-            final currentList = state.valueOrNull ?? const [];
-            final currentIds = currentList.map((m) => m.id).toSet();
-            final hasNew = latest.any((m) => !currentIds.contains(m.id));
-            final hasPending = currentList.any((m) => m.status == 'pending');
+    void scheduleNextPoll() {
+      if (isDisposed) return;
+      _pollingTimer?.cancel();
+      _pollingTimer = Timer(const Duration(milliseconds: 2500), () async {
+        if (isDisposed) return;
+        if (!state.isLoading && state.hasValue) {
+          try {
+            final latest = await repo.getMessages(
+              channelId,
+              currentPartnerId: partnerId,
+              currentUserId: userId,
+            );
+            if (!isDisposed && latest.isNotEmpty) {
+              final currentList = state.valueOrNull ?? const [];
+              final currentIds = currentList.map((m) => m.id).toSet();
+              final hasNew = latest.any((m) => !currentIds.contains(m.id));
+              final hasPending = currentList.any((m) => m.status == 'pending');
 
-            if (hasNew || hasPending || currentList.length != latest.length) {
-              ChatV2MessageLocalCache.set(channelId, latest);
-              state = AsyncData(latest);
+              if (hasNew || hasPending || currentList.length != latest.length) {
+                // Bảo tồn thông tin trích dẫn reply (parentId/parentBody/parentAuthorName) từ state hiện tại và ReplyCache
+                // Đảm bảo không bao giờ bị mất thẻ trích dẫn khi backend Odoo production chưa cập nhật
+                final currentById = {for (final m in currentList) m.id: m};
+                final merged = latest.map((m) {
+                  final existing = currentById[m.id];
+                  final replyInfo = ChatV2ReplyCache.get(m.id);
+                  return m.copyWith(
+                    parentId: m.parentId ?? existing?.parentId ?? replyInfo?['parent_id'],
+                    parentBody: m.parentBody ?? existing?.parentBody ?? replyInfo?['parent_body'],
+                    parentAuthorName: m.parentAuthorName ?? existing?.parentAuthorName ?? replyInfo?['parent_author_name'],
+                  );
+                }).toList();
+                ChatV2MessageLocalCache.set(channelId, merged);
+                state = AsyncData(merged);
+              }
             }
-          }
-        } catch (_) {}
-      }
-    });
+          } catch (_) {}
+        }
+        if (!isDisposed) {
+          scheduleNextPoll();
+        }
+      });
+    }
+
+    scheduleNextPoll();
 
     ref.onDispose(() {
+      isDisposed = true;
       _wsSub?.cancel();
       _pollingTimer?.cancel();
     });
 
-    // SWR Cache: Nếu đã có tin nhắn trong Cache (RAM hoặc Offline Storage) -> Trả về tức thì 0.001s
-    var cached = ChatV2MessageLocalCache.get(channelId);
-    if (cached == null || cached.isEmpty) {
-      cached = await ChatV2MessageLocalCache.loadFromStorage(
-        channelId,
-        currentPartnerId: partnerId,
-        currentUserId: userId,
-      );
-    }
-
+    // SWR Cache: Nếu đã có tin nhắn trong Memory Cache -> Trả về tức thì 0.001s
+    final cached = ChatV2MessageLocalCache.get(channelId);
     if (cached != null && cached.isNotEmpty) {
       unawaited(() async {
         try {
+          debugPrint('🟢 [TRACE] ChatV2MessagesNotifier.build SWR getMessages() START');
           final fresh = await repo.getMessages(
             channelId,
             currentPartnerId: partnerId,
             currentUserId: userId,
           );
-          ChatV2MessageLocalCache.set(channelId, fresh);
-          state = AsyncData(fresh);
-        } catch (_) {}
+          debugPrint('🔴 [TRACE] ChatV2MessagesNotifier.build SWR getMessages() END');
+          
+          final currentList = state.valueOrNull ?? cached;
+          final currentById = {for (final m in currentList) m.id: m};
+          final merged = fresh.map((m) {
+            final existing = currentById[m.id];
+            final replyInfo = ChatV2ReplyCache.get(m.id);
+            return m.copyWith(
+              parentId: m.parentId ?? existing?.parentId ?? replyInfo?['parent_id'],
+              parentBody: m.parentBody ?? existing?.parentBody ?? replyInfo?['parent_body'],
+              parentAuthorName: m.parentAuthorName ?? existing?.parentAuthorName ?? replyInfo?['parent_author_name'],
+            );
+          }).toList();
+
+          ChatV2MessageLocalCache.set(channelId, merged);
+          state = AsyncData(merged);
+        } catch (e, st) {
+          debugPrint('❌ [ERROR] ChatV2MessagesNotifier.build SWR: $e\n$st');
+        }
       }());
+      debugPrint('🔴 [TRACE] ChatV2MessagesNotifier.build() END (Returned Cached)');
       return cached;
     }
 
+    debugPrint('🟢 [TRACE] ChatV2MessagesNotifier.build Initial getMessages() START');
     final fresh = await repo.getMessages(
       channelId,
       currentPartnerId: partnerId,
       currentUserId: userId,
     );
+    debugPrint('🔴 [TRACE] ChatV2MessagesNotifier.build Initial getMessages() END');
     ChatV2MessageLocalCache.set(channelId, fresh);
+    debugPrint('🔴 [TRACE] ChatV2MessagesNotifier.build() END (Returned Fresh)');
     return fresh;
   }
 
@@ -270,7 +226,13 @@ class ChatV2MessagesNotifier
     }
   }
 
-  Future<void> sendMessage(String text, {List<int>? attachmentIds, String? parentId}) async {
+  Future<void> sendMessage(
+    String text, {
+    List<int>? attachmentIds,
+    String? parentId,
+    String? parentBody,
+    String? parentAuthorName,
+  }) async {
     final trimmed = text.trim();
     if (trimmed.isEmpty && (attachmentIds == null || attachmentIds.isEmpty)) {
       return;
@@ -297,10 +259,23 @@ class ChatV2MessagesNotifier
       createdAt: DateTime.now(),
       isMine: true,
       status: 'pending',
+      parentId: parentId,
+      parentBody: parentBody,
+      parentAuthorName: parentAuthorName,
     );
 
+    if (parentId != null) {
+      ChatV2ReplyCache.set(
+        tempId,
+        parentId: parentId,
+        parentBody: parentBody,
+        parentAuthorName: parentAuthorName,
+      );
+    }
+
     final previousState = state.valueOrNull ?? const [];
-    state = AsyncData([...previousState, tempMsg]);
+    state = AsyncData([tempMsg, ...previousState]);
+    ChatV2MessageLocalCache.prepend(channelId, tempMsg);
 
     try {
       final sentMsg = await repo.sendMessage(
@@ -310,28 +285,48 @@ class ChatV2MessagesNotifier
         currentPartnerId: partnerId,
         currentUserId: userId,
         authorName: userName,
+        parentId: parentId,
+        parentBody: parentBody,
+        parentAuthorName: parentAuthorName,
       );
+
+      final resolvedSentMsg = sentMsg.copyWith(
+        isMine: true,
+        status: 'sent',
+        parentId: sentMsg.parentId ?? parentId,
+        parentBody: sentMsg.parentBody ?? parentBody,
+        parentAuthorName: sentMsg.parentAuthorName ?? parentAuthorName,
+      );
+
+      if (parentId != null) {
+        ChatV2ReplyCache.set(
+          resolvedSentMsg.id,
+          parentId: parentId,
+          parentBody: parentBody,
+          parentAuthorName: parentAuthorName,
+        );
+      }
 
       // Cập nhật lại tin nhắn trong danh sách
       final currentList = state.valueOrNull ?? const [];
       final updatedList = currentList.map((m) {
         if (m.id == tempId) {
-          return sentMsg.copyWith(isMine: true, status: 'sent');
+          return resolvedSentMsg;
         }
         return m;
       }).toList();
 
-      // Nếu không tìm thấy tempId để thay thế, thêm vào cuối
-      if (!updatedList.any((m) => m.id == sentMsg.id)) {
+      // Nếu không tìm thấy tempId để thay thế, đưa lên đầu
+      if (!updatedList.any((m) => m.id == resolvedSentMsg.id)) {
         updatedList.removeWhere((m) => m.id == tempId);
-        updatedList.add(sentMsg.copyWith(isMine: true, status: 'sent'));
+        updatedList.insert(0, resolvedSentMsg);
       }
 
       ChatV2MessageLocalCache.set(channelId, updatedList);
       state = AsyncData(updatedList);
 
       // Báo sự kiện realtime
-      ref.read(chatV2RealtimeServiceProvider).notifyMessageSent(channelId, sentMsg);
+      ref.read(chatV2RealtimeServiceProvider).notifyMessageSent(channelId, resolvedSentMsg);
       ref.read(chatV2LastSentTrackerProvider.notifier).recordSent(channelId, trimmed);
       ref.read(chatV2ReadStateProvider.notifier).markChannelAsRead(channelId);
 
@@ -421,7 +416,8 @@ class ChatV2MessagesNotifier
     );
 
     final previousState = state.valueOrNull ?? const [];
-    state = AsyncData([...previousState, tempMsg]);
+    state = AsyncData([tempMsg, ...previousState]);
+    ChatV2MessageLocalCache.prepend(channelId, tempMsg);
 
     try {
       // 2. Upload attachment lên Odoo backend
@@ -435,7 +431,9 @@ class ChatV2MessagesNotifier
       if (attIdInt == null) {
         throw Exception('ID đính kèm tệp không hợp lệ.');
       }
+      final attachedWithBytes = att.copyWith(bytes: bytes);
       ChatV2AttachmentImage.cacheBytes(att.id.toString(), bytes);
+      ChatV2AttachmentImage.cacheBytes(filename, bytes);
       LocalAttachmentCache.save(att.id, bytes);
       LocalAttachmentCache.save(filename, bytes);
 
@@ -450,18 +448,26 @@ class ChatV2MessagesNotifier
         authorName: userName,
       );
 
-      // Cập nhật trạng thái sent ngay lập tức cho tin nhắn tạm
+      ChatV2AttachmentImage.cacheBytes(sentMsg.id.toString(), bytes);
+      LocalAttachmentCache.save(sentMsg.id, bytes);
+
+      // Cập nhật trạng thái sent ngay lập tức cho tin nhắn tạm, bảo tồn nguyên vẹn byte nhị phân
       final currentList = state.valueOrNull ?? const [];
       final updatedList = currentList.map((m) {
         if (m.id == tempId) {
           return sentMsg.copyWith(
             isMine: true,
             status: 'sent',
-            attachments: [att],
+            attachments: [attachedWithBytes],
           );
         }
         return m;
       }).toList();
+
+      if (!updatedList.any((m) => m.id == sentMsg.id)) {
+        updatedList.removeWhere((m) => m.id == tempId);
+        updatedList.insert(0, sentMsg.copyWith(isMine: true, status: 'sent', attachments: [attachedWithBytes]));
+      }
 
       ChatV2MessageLocalCache.set(channelId, updatedList);
       state = AsyncData(updatedList);

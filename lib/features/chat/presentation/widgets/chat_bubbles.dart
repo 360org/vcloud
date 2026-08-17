@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -807,19 +806,24 @@ class TextBubble extends StatelessWidget {
       }
 
       spans.add(
-        TextSpan(
-          text: linkText,
-          style: TextStyle(
-            color: linkColor,
-            fontSize: 15,
-            height: 1.35,
-            decoration: TextDecoration.underline,
-            decorationColor: linkColor,
-            decorationThickness: 1.5,
-            fontWeight: FontWeight.w600,
+        WidgetSpan(
+          alignment: PlaceholderAlignment.baseline,
+          baseline: TextBaseline.alphabetic,
+          child: GestureDetector(
+            onTap: () => _handleLinkClick(context, targetUrl),
+            child: Text(
+              linkText,
+              style: TextStyle(
+                color: linkColor,
+                fontSize: 15,
+                height: 1.35,
+                decoration: TextDecoration.underline,
+                decorationColor: linkColor,
+                decorationThickness: 1.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
-          recognizer: TapGestureRecognizer()
-            ..onTap = () => _handleLinkClick(context, targetUrl),
         ),
       );
 
@@ -833,56 +837,87 @@ class TextBubble extends StatelessWidget {
       ));
     }
 
-    return SelectableText.rich(
+    return Text.rich(
       TextSpan(children: spans),
+      overflow: TextOverflow.visible,
     );
   }
 
   void _handleLinkClick(BuildContext context, String rawUrl) async {
-    HapticFeedback.mediumImpact();
+    HapticFeedback.lightImpact();
     final url = rawUrl.trim();
+    final uri = Uri.tryParse(url.contains('://') ? url : 'https://$url');
+    if (uri == null) return;
 
-    final uri = Uri.tryParse(url);
-    if (uri != null) {
+    // 1. Phân tích điều hướng liên kết nội bộ hệ thống (Smart In-App Navigation)
+    final pathSegments = uri.pathSegments;
+
+    // Kênh chat nội bộ: e.g. vuahethong.net/chat/4128, /chat/4128, vcloud://chat/4128
+    if ((uri.scheme == 'vcloud' && uri.host == 'chat') || uri.path.contains('/chat/')) {
+      String? channelId;
       if (uri.scheme == 'vcloud' && uri.host == 'chat') {
-        final channelId =
-            uri.pathSegments.isNotEmpty ? uri.pathSegments.first : null;
-        if (channelId != null && channelId.isNotEmpty) {
-          context.push('/chat/$channelId');
-          return;
+        channelId = pathSegments.isNotEmpty ? pathSegments.first : null;
+      } else {
+        final chatIdx = pathSegments.indexOf('chat');
+        if (chatIdx >= 0 && chatIdx + 1 < pathSegments.length) {
+          channelId = pathSegments[chatIdx + 1];
         }
-      } else if (uri.path.contains('/chat/')) {
-        final segments = uri.pathSegments;
-        final chatIdx = segments.indexOf('chat');
-        if (chatIdx >= 0 && chatIdx + 1 < segments.length) {
-          final channelId = segments[chatIdx + 1];
-          context.push('/chat/$channelId');
+      }
+      if (channelId != null && channelId.isNotEmpty && context.mounted) {
+        context.push('/chat/$channelId');
+        return;
+      }
+    }
+
+    // Phiếu hỗ trợ / Ticket nội bộ: e.g. vuahethong.net/tickets/123, /tickets/123
+    if (uri.path.contains('/tickets/')) {
+      final ticketIdx = pathSegments.indexOf('tickets');
+      if (ticketIdx >= 0 && ticketIdx + 1 < pathSegments.length) {
+        final ticketId = pathSegments[ticketIdx + 1];
+        if (ticketId.isNotEmpty && context.mounted) {
+          context.push('/tickets/$ticketId');
           return;
         }
       }
     }
 
-    final parsedUri = Uri.tryParse(url.contains('://') ? url : 'https://$url');
-    if (parsedUri != null) {
-      try {
-        final launched = await launchUrl(
-          parsedUri,
-          mode: LaunchMode.externalApplication,
-        );
-        if (!launched && context.mounted) {
-          Clipboard.setData(ClipboardData(text: url));
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Đã sao chép liên kết: $url')),
-          );
-        }
-      } catch (_) {
-        if (context.mounted) {
-          Clipboard.setData(ClipboardData(text: url));
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Đã sao chép liên kết: $url')),
+    // Timesheets nội bộ: e.g. vuahethong.net/timesheet
+    if (uri.path == '/timesheet' || uri.path.startsWith('/timesheet')) {
+      if (context.mounted) {
+        context.push('/timesheet');
+        return;
+      }
+    }
+
+    // 2. Mở liên kết Web bên ngoài an toàn với In-App Browser (có sẵn nút Xong/Done để đóng)
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.inAppBrowserView,
+      );
+      if (!launched) {
+        final fallbackLaunched = await launchUrl(uri, mode: LaunchMode.platformDefault);
+        if (!fallbackLaunched) {
+          await Clipboard.setData(ClipboardData(text: url));
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text('Đã sao chép liên kết: $url'),
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 2),
+            ),
           );
         }
       }
+    } catch (_) {
+      await Clipboard.setData(ClipboardData(text: url));
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Đã sao chép liên kết: $url'),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
     }
   }
 }
@@ -1353,14 +1388,23 @@ class _NetworkPreviewImageState extends ConsumerState<NetworkPreviewImage> {
         ? (widget.fallback as ImageAttachmentFallback).fileName
         : null;
 
+    // 1. Tự động tìm attachmentId nếu có trong widget hoặc URL
+    String? resolvedId = widget.attachmentId;
+    if (resolvedId == null || resolvedId.isEmpty || int.tryParse(resolvedId) == null) {
+      final match = RegExp(r'/(?:attachments|image|content)/(\d+)').firstMatch(widget.url);
+      if (match != null) {
+        resolvedId = match.group(1);
+      }
+    }
+
     final localBytes = LocalAttachmentCache.get(
-      widget.attachmentId,
+      resolvedId,
       altKey: fileName ?? widget.url,
     );
 
     if (localBytes != null && localBytes.isNotEmpty) {
       final heroTag =
-          'image-preview-${widget.attachmentId ?? widget.url}-${localBytes.length}';
+          'image-preview-${resolvedId ?? widget.url}-${localBytes.length}';
 
       return GestureDetector(
         onTap: () {
@@ -1371,9 +1415,7 @@ class _NetworkPreviewImageState extends ConsumerState<NetworkPreviewImage> {
               pageBuilder: (_, _, _) => ImageViewerScreen(
                 imageUrl: widget.url,
                 fileName: fileName ?? 'Image',
-                attachmentId: widget.attachmentId == null
-                    ? null
-                    : int.tryParse(widget.attachmentId!),
+                attachmentId: resolvedId == null ? null : int.tryParse(resolvedId),
               ),
             ),
           );
@@ -1384,20 +1426,20 @@ class _NetworkPreviewImageState extends ConsumerState<NetworkPreviewImage> {
             localBytes,
             fit: widget.fit,
             gaplessPlayback: true,
-            errorBuilder: (_, _, _) => ImageAttachmentError(onRetry: _retry),
+            errorBuilder: (_, _, _) => widget.fallback,
           ),
         ),
       );
     }
 
-    final id = widget.attachmentId;
-    if (id != null && id.trim().isNotEmpty && int.tryParse(id) != null) {
+    // 2. Tải qua Authenticated Byte Stream nếu có attachment ID
+    if (resolvedId != null && resolvedId.trim().isNotEmpty && int.tryParse(resolvedId) != null) {
       return FutureBuilder<Uint8List>(
-        future: ref.read(downloadAttachmentActionProvider).bytes(id),
+        future: ref.read(downloadAttachmentActionProvider).bytes(resolvedId),
         builder: (context, snapshot) {
           final bytes = snapshot.data;
           if (bytes != null && bytes.isNotEmpty) {
-            LocalAttachmentCache.save(id, bytes);
+            LocalAttachmentCache.save(resolvedId!, bytes);
             if (fileName != null) LocalAttachmentCache.save(fileName, bytes);
             return GestureDetector(
               onTap: () {
@@ -1408,7 +1450,7 @@ class _NetworkPreviewImageState extends ConsumerState<NetworkPreviewImage> {
                     pageBuilder: (_, _, _) => ImageViewerScreen(
                       imageUrl: widget.url,
                       fileName: fileName ?? 'Image',
-                      attachmentId: int.tryParse(id),
+                      attachmentId: int.tryParse(resolvedId!),
                     ),
                   ),
                 );
@@ -1417,7 +1459,7 @@ class _NetworkPreviewImageState extends ConsumerState<NetworkPreviewImage> {
                 bytes,
                 fit: widget.fit,
                 gaplessPlayback: true,
-                errorBuilder: (_, _, _) => ImageAttachmentError(onRetry: _retry),
+                errorBuilder: (_, _, _) => widget.fallback,
               ),
             );
           }
@@ -1441,11 +1483,9 @@ class _NetworkPreviewImageState extends ConsumerState<NetworkPreviewImage> {
       );
     }
 
-    final rawUrl = (widget.attachmentId != null && widget.attachmentId!.trim().isNotEmpty)
-        ? '/api/v1/mobile/attachments/${widget.attachmentId}/download'
-        : (widget.url.trim().isNotEmpty ? widget.url.trim() : '');
-
-    if (rawUrl.isEmpty) {
+    // 3. Fallback cho URL trực tiếp
+    final rawUrl = widget.url.trim();
+    if (rawUrl.isEmpty || (!rawUrl.startsWith('http://') && !rawUrl.startsWith('https://') && !rawUrl.startsWith('/'))) {
       return widget.fallback;
     }
 
@@ -1462,7 +1502,7 @@ class _NetworkPreviewImageState extends ConsumerState<NetworkPreviewImage> {
             fit: widget.fit,
             headers: odooApiClient.authHeaders,
             gaplessPlayback: true,
-            errorBuilder: (_, _, _) => ImageAttachmentError(onRetry: _retry),
+            errorBuilder: (_, _, _) => widget.fallback,
           );
     } else {
       imageWidget = Image.network(
@@ -1786,42 +1826,83 @@ class MediaInfo {
 
   static MediaInfo? fromContent(String content) {
     final clean = stripHtml(content).trim();
+    if (!clean.startsWith('http://') &&
+        !clean.startsWith('https://') &&
+        !clean.startsWith('/web/image') &&
+        !clean.startsWith('/web/content') &&
+        !clean.startsWith('/api/')) {
+      return null;
+    }
     final uri = Uri.tryParse(clean);
-    if (uri == null || !uri.hasAbsolutePath) return null;
-    if (uri.scheme != 'http' && uri.scheme != 'https') return null;
+    if (uri == null) return null;
     final path = uri.path.toLowerCase();
     final isImage =
         path.endsWith('.jpg') ||
         path.endsWith('.jpeg') ||
         path.endsWith('.png') ||
         path.endsWith('.gif') ||
-        path.endsWith('.webp');
+        path.endsWith('.webp') ||
+        path.endsWith('.svg') ||
+        path.endsWith('.heic') ||
+        path.endsWith('.heif') ||
+        path.contains('/web/image') ||
+        path.contains('/web/content') ||
+        path.contains('/api/v1/mobile/attachments');
     final isVideo =
         path.endsWith('.mp4') ||
         path.endsWith('.mov') ||
         path.endsWith('.m4v') ||
         path.endsWith('.webm');
     if (!isImage && !isVideo) return null;
-    return MediaInfo(url: clean, isImage: isImage, isVideo: isVideo);
+
+    String? attachmentId;
+    final attMatch = RegExp(r'/(?:attachments|image|content)/(\d+)').firstMatch(clean);
+    if (attMatch != null) {
+      attachmentId = attMatch.group(1);
+    }
+
+    return MediaInfo(
+      url: clean,
+      isImage: isImage,
+      isVideo: isVideo,
+      attachmentId: attachmentId,
+    );
   }
 
   static List<MediaInfo> extractAllFromContent(String content) {
     final results = <MediaInfo>[];
-    final single = fromContent(content);
-    if (single != null) {
-      results.add(single);
-      return results;
+    final seen = <String>{};
+
+    // 1. Trích xuất từ thẻ <img src="..."> trong nội dung HTML của Odoo
+    final imgTagRegex = RegExp(r'''<img[^>]+src=["']([^"']+)["']''', caseSensitive: false);
+    for (final match in imgTagRegex.allMatches(content)) {
+      final src = match.group(1)?.trim();
+      if (src != null && src.isNotEmpty && seen.add(src)) {
+        String? attachmentId;
+        final attMatch = RegExp(r'/(?:attachments|image|content)/(\d+)').firstMatch(src);
+        if (attMatch != null) {
+          attachmentId = attMatch.group(1);
+        }
+        results.add(MediaInfo(url: src, isImage: true, isVideo: false, attachmentId: attachmentId));
+      }
     }
-    final rawText = stripHtml(content);
+
+    // 2. Trích xuất direct content
+    final single = fromContent(content);
+    if (single != null && seen.add(single.url)) {
+      results.add(single);
+    }
+
+    // 3. Trích xuất link URLs http/https
     final pattern = RegExp(r'https?:\/\/[^\s<>"{}|\^~\[\]`\\]+');
-    final matches = pattern.allMatches(rawText);
+    final matches = pattern.allMatches(content);
     for (final match in matches) {
       var url = match.group(0)!;
       while (url.endsWith('.') || url.endsWith(',') || url.endsWith(')') || url.endsWith(';') || url.endsWith('>')) {
         url = url.substring(0, url.length - 1);
       }
       final media = fromContent(url);
-      if (media != null) {
+      if (media != null && seen.add(media.url)) {
         results.add(media);
       }
     }
@@ -1831,14 +1912,16 @@ class MediaInfo {
 
 class FileInfo {
   const FileInfo({
-    required this.attachmentId,
+    this.attachmentId = '',
     required this.name,
     required this.sizeLabel,
+    this.url,
   });
 
   final String attachmentId;
   final String name;
   final String sizeLabel;
+  final String? url;
 }
 
 class ReadAvatars extends StatelessWidget {

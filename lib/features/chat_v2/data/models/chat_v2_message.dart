@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../../../core/utils/date_format.dart';
@@ -31,9 +32,14 @@ class ChatV2Attachment {
     return lowerName.endsWith('.png') ||
         lowerName.endsWith('.jpg') ||
         lowerName.endsWith('.jpeg') ||
-        lowerName.endsWith('.gif') ||
         lowerName.endsWith('.webp') ||
-        lowerName.endsWith('.svg');
+        lowerName.endsWith('.gif') ||
+        lowerName.endsWith('.svg') ||
+        lowerName.endsWith('.bmp') ||
+        lowerName.endsWith('.ico') ||
+        lowerName.endsWith('.heic') ||
+        lowerName.endsWith('.heif') ||
+        lowerName.endsWith('.tiff');
   }
 
   String get extension {
@@ -77,6 +83,28 @@ class ChatV2Attachment {
     );
   }
 
+  ChatV2Attachment copyWith({
+    String? id,
+    String? name,
+    String? mimetype,
+    int? fileSize,
+    String? url,
+    String? downloadUrl,
+    String? accessToken,
+    Uint8List? bytes,
+  }) {
+    return ChatV2Attachment(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      mimetype: mimetype ?? this.mimetype,
+      fileSize: fileSize ?? this.fileSize,
+      url: url ?? this.url,
+      downloadUrl: downloadUrl ?? this.downloadUrl,
+      accessToken: accessToken ?? this.accessToken,
+      bytes: bytes ?? this.bytes,
+    );
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -88,16 +116,43 @@ class ChatV2Attachment {
       if (accessToken != null) 'access_token': accessToken,
     };
   }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is ChatV2Attachment &&
+        other.id == id &&
+        other.name == name &&
+        other.mimetype == mimetype &&
+        other.fileSize == fileSize &&
+        other.url == url &&
+        other.downloadUrl == downloadUrl &&
+        other.accessToken == accessToken;
+  }
+
+  @override
+  int get hashCode {
+    return Object.hash(
+      id,
+      name,
+      mimetype,
+      fileSize,
+      url,
+      downloadUrl,
+      accessToken,
+    );
+  }
 }
 
-@immutable
+/// Model tin nhắn trò chuyện V2
 class ChatV2Message {
   const ChatV2Message({
     required this.id,
     required this.channelId,
     required this.content,
     this.authorId,
-    required this.authorName,
+    this.authorName = 'Người dùng',
+    this.authorAvatar,
     this.createdAt,
     this.isMine = false,
     this.status = 'sent',
@@ -112,6 +167,7 @@ class ChatV2Message {
   final String content;
   final String? authorId;
   final String authorName;
+  final String? authorAvatar;
   final DateTime? createdAt;
   final bool isMine;
   final String status;
@@ -130,12 +186,12 @@ class ChatV2Message {
         clean.endsWith('.gif') ||
         clean.endsWith('.webp') ||
         clean.endsWith('.svg') ||
-        clean.startsWith('scaled_screenshot') ||
-        clean.startsWith('scaled_img') ||
-        clean.startsWith('scaled_chatgpt') ||
-        clean.startsWith('scaled_antigravity') ||
-        clean.startsWith('scaled_badge') ||
-        clean.startsWith('scaled_logo') ||
+        clean.endsWith('.bmp') ||
+        clean.endsWith('.ico') ||
+        clean.endsWith('.heic') ||
+        clean.endsWith('.heif') ||
+        clean.endsWith('.tiff') ||
+        clean.startsWith('scaled_') ||
         clean.startsWith('image_picker_');
   }
 
@@ -161,6 +217,7 @@ class ChatV2Message {
     String? content,
     String? authorId,
     String? authorName,
+    String? authorAvatar,
     DateTime? createdAt,
     bool? isMine,
     String? status,
@@ -175,6 +232,7 @@ class ChatV2Message {
       content: content ?? this.content,
       authorId: authorId ?? this.authorId,
       authorName: authorName ?? this.authorName,
+      authorAvatar: authorAvatar ?? this.authorAvatar,
       createdAt: createdAt ?? this.createdAt,
       isMine: isMine ?? this.isMine,
       status: status ?? this.status,
@@ -191,6 +249,7 @@ class ChatV2Message {
     'body': content,
     'author_id': authorId,
     'author_name': authorName,
+    'author_avatar': authorAvatar,
     'date': createdAt?.toIso8601String(),
     'is_mine': isMine,
     'status': status,
@@ -215,7 +274,7 @@ class ChatV2Message {
     String? authorId;
     String authorName = 'Người dùng';
     final rawAuthor = map['author_id'];
-    if (rawAuthor is Map<String, dynamic>) {
+    if (rawAuthor is Map) {
       authorId = _stringOrNull(rawAuthor['id']);
       authorName = _stringOr(rawAuthor['name'], 'Người dùng');
     } else if (rawAuthor != null && rawAuthor != false) {
@@ -240,13 +299,79 @@ class ChatV2Message {
       }
     }
 
+    // Parse Reply Quote từ rawBody nếu có (format <blockquote... hoặc &lt;blockquote...)
+    String? extractedParentId = _stringOrNull(map['parent_id']);
+    String? extractedParentAuthor = _stringOrNull(map['parent_author_name']);
+    String? extractedParentBody = _stringOrNull(map['parent_body']);
+
+    // Tự động unescape rawBody để nhận diện blockquote dù bị Odoo backend escape HTML
+    final unescapedBody = rawBody
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#39;', "'")
+        .replaceAll('&amp;', '&');
+
+    String bodyWithoutQuote = unescapedBody;
+    if (unescapedBody.contains('data-reply-') || unescapedBody.contains('<blockquote') || unescapedBody.contains('o_quote')) {
+      // 1. Nhận diện <div data-reply-...>...</div>
+      final divRegex = RegExp(r'<div([^>]*data-reply-[^>]*)>(.*?)<\/div>', caseSensitive: false, dotAll: true);
+      final divMatch = divRegex.firstMatch(unescapedBody);
+      if (divMatch != null) {
+        final attrs = divMatch.group(1) ?? '';
+        final idMatch = RegExp('data-reply-id="([^"]+)"').firstMatch(attrs) ??
+            RegExp("data-reply-id='([^']+)'").firstMatch(attrs);
+        final authorMatch = RegExp('data-reply-author="([^"]+)"').firstMatch(attrs) ??
+            RegExp("data-reply-author='([^']+)'").firstMatch(attrs);
+        final bodyMatch = RegExp('data-reply-body="([^"]+)"').firstMatch(attrs) ??
+            RegExp("data-reply-body='([^']+)'").firstMatch(attrs);
+
+        extractedParentId ??= idMatch?.group(1);
+        extractedParentAuthor ??= authorMatch?.group(1);
+        extractedParentBody ??= bodyMatch?.group(1);
+
+        bodyWithoutQuote = unescapedBody.replaceFirst(divMatch.group(0)!, '').trim();
+      }
+
+      // 2. Nhận diện <blockquote...>...</blockquote>
+      final bqRegex = RegExp(r'<blockquote([^>]*)>(.*?)<\/blockquote>', caseSensitive: false, dotAll: true);
+      final bqMatch = bqRegex.firstMatch(bodyWithoutQuote);
+      if (bqMatch != null) {
+        final bqAttrs = bqMatch.group(1) ?? '';
+        final bqInner = bqMatch.group(2) ?? '';
+
+        final idMatch = RegExp('data-reply-id="([^"]+)"').firstMatch(bqAttrs) ??
+            RegExp("data-reply-id='([^']+)'").firstMatch(bqAttrs);
+        final authorMatch = RegExp('data-reply-author="([^"]+)"').firstMatch(bqAttrs) ??
+            RegExp("data-reply-author='([^']+)'").firstMatch(bqAttrs);
+        final bodyMatch = RegExp('data-reply-body="([^"]+)"').firstMatch(bqAttrs) ??
+            RegExp("data-reply-body='([^']+)'").firstMatch(bqAttrs);
+
+        extractedParentId ??= idMatch?.group(1);
+        extractedParentAuthor ??= authorMatch?.group(1);
+        extractedParentBody ??= bodyMatch?.group(1);
+
+        if (extractedParentBody == null || extractedParentBody.isEmpty) {
+          final cleanInner = _cleanHtml(bqInner);
+          if (cleanInner.isNotEmpty) {
+            extractedParentBody = cleanInner;
+            extractedParentId ??= 'quote';
+          }
+        }
+
+        bodyWithoutQuote = bodyWithoutQuote.replaceFirst(bqMatch.group(0)!, '').trim();
+      }
+    }
+
+    final cleanContent = _cleanHtml(bodyWithoutQuote);
+
     // Parse attachments
     final parsedAttachments = <ChatV2Attachment>[];
     final rawAtts = map['attachments'];
     if (rawAtts is List) {
       for (final a in rawAtts) {
-        if (a is Map<String, dynamic>) {
-          parsedAttachments.add(ChatV2Attachment.fromMap(a));
+        if (a is Map) {
+          parsedAttachments.add(ChatV2Attachment.fromMap(Map<String, dynamic>.from(a)));
         }
       }
     }
@@ -254,14 +379,25 @@ class ChatV2Message {
     // Fallback: nếu attachments rỗng nhưng có attachment_ids
     if (parsedAttachments.isEmpty && map['attachment_ids'] is List) {
       final attIds = map['attachment_ids'] as List;
+      final clean = cleanContent.toLowerCase();
+      final isImgName = clean.endsWith('.png') ||
+          clean.endsWith('.jpg') ||
+          clean.endsWith('.jpeg') ||
+          clean.endsWith('.webp') ||
+          clean.endsWith('.gif') ||
+          clean.endsWith('.svg') ||
+          clean.startsWith('scaled_');
+
       for (final aid in attIds) {
         if (aid != null) {
           final sId = aid.toString();
           parsedAttachments.add(
             ChatV2Attachment(
               id: sId,
-              name: 'Đính kèm $sId',
-              url: '/web/image/$sId',
+              name: cleanContent.isNotEmpty ? cleanContent : 'Đính kèm $sId',
+              url: isImgName ? '/web/image/$sId' : '/web/content/$sId',
+              downloadUrl: '/web/content/$sId',
+              mimetype: isImgName ? 'image/png' : 'application/octet-stream',
             ),
           );
         }
@@ -285,7 +421,9 @@ class ChatV2Message {
       }
     }
 
-    final cleanContent = _cleanHtml(rawBody);
+    final cleanParentBody = (extractedParentBody != null && extractedParentBody.isNotEmpty)
+        ? _cleanHtml(extractedParentBody)
+        : null;
 
     return ChatV2Message(
       id: id,
@@ -297,9 +435,9 @@ class ChatV2Message {
       isMine: isMine,
       status: _stringOr(map['status'], 'sent'),
       attachments: parsedAttachments,
-      parentId: _stringOrNull(map['parent_id']),
-      parentBody: _stringOrNull(map['parent_body']),
-      parentAuthorName: _stringOrNull(map['parent_author_name']),
+      parentId: extractedParentId,
+      parentBody: cleanParentBody,
+      parentAuthorName: extractedParentAuthor,
     );
   }
 
@@ -321,6 +459,42 @@ class ChatV2Message {
     }
     return text;
   }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is ChatV2Message &&
+        other.id == id &&
+        other.channelId == channelId &&
+        other.content == content &&
+        other.authorId == authorId &&
+        other.authorName == authorName &&
+        other.createdAt == createdAt &&
+        other.isMine == isMine &&
+        other.status == status &&
+        const ListEquality().equals(other.attachments, attachments) &&
+        other.parentId == parentId &&
+        other.parentBody == parentBody &&
+        other.parentAuthorName == parentAuthorName;
+  }
+
+  @override
+  int get hashCode {
+    return Object.hash(
+      id,
+      channelId,
+      content,
+      authorId,
+      authorName,
+      createdAt,
+      isMine,
+      status,
+      const ListEquality().hash(attachments),
+      parentId,
+      parentBody,
+      parentAuthorName,
+    );
+  }
 }
 
 String _stringOr(dynamic val, String fallback) {
@@ -330,6 +504,39 @@ String _stringOr(dynamic val, String fallback) {
 
 String? _stringOrNull(dynamic val) {
   if (val == null || val == false) return null;
+  if (val is List && val.isNotEmpty) {
+    return val[0]?.toString();
+  }
   final str = val.toString().trim();
   return str.isEmpty ? null : str;
 }
+
+/// Bộ đệm bộ nhớ lưu trữ thông tin Reply (Trích dẫn tin nhắn)
+/// Đảm bảo không bao giờ bị mất thẻ trích dẫn khi backend Odoo polling/SWR ghi đè
+class ChatV2ReplyCache {
+  static final Map<String, Map<String, String?>> _memoryCache = {};
+
+  static void set(
+    String messageId, {
+    String? parentId,
+    String? parentBody,
+    String? parentAuthorName,
+  }) {
+    if (messageId.isEmpty) return;
+    if (parentId == null && parentBody == null && parentAuthorName == null) return;
+    _memoryCache[messageId] = {
+      'parent_id': parentId,
+      'parent_body': parentBody,
+      'parent_author_name': parentAuthorName,
+    };
+  }
+
+  static Map<String, String?>? get(String messageId) {
+    return _memoryCache[messageId];
+  }
+
+  static void clear() {
+    _memoryCache.clear();
+  }
+}
+

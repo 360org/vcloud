@@ -96,5 +96,11 @@ void main() {
       expect(filter.presetName, 'Hôm nay');
       expect(filter.projectId, null);
     });
+
+    test('TimesheetSummary handles missing fields safely', () {
+      final summary = TimesheetSummary.fromMap(const {});
+      expect(summary.totalHours, 0.0);
+      expect(summary.count, 0);
+    });
   });
 }

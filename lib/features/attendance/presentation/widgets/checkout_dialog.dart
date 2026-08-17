@@ -54,7 +54,7 @@ class _CheckoutDialogState extends ConsumerState<CheckoutDialog> {
   @override
   Widget build(BuildContext context) {
     final ticketsAsync = ref.watch(ticketsProvider);
-    final tickets = ticketsAsync.value ?? [];
+    final tickets = ticketsAsync.valueOrNull ?? [];
     final doingTickets = tickets
         .where((t) => t.status == TicketStatus.doing)
         .toList();

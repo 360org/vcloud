@@ -10,7 +10,6 @@ import 'package:lucide_flutter/lucide_flutter.dart';
 import '../../core/api/odoo_api_client.dart';
 import '../../core/theme/app_theme.dart';
 import '../../features/chat_v2/application/chat_v2_channels_controller.dart';
-import 'ui_kit.dart';
 
 /// Standard scaffold for top-level tabs (Home/Chat/...). Draws the
 /// app bar and the bottom-nav shell. The shell auto-detects which tab is
@@ -19,11 +18,14 @@ import 'ui_kit.dart';
 ///
 /// Set [showAppBar] to false for screens that paint their own header
 /// (e.g. Home's light greeting header).
-class AppScaffold extends ConsumerWidget {
+class AppScaffold extends StatelessWidget {
   const AppScaffold({
     super.key,
     required this.title,
     required this.body,
+    this.leading,
+    this.showBackButton,
+    this.onBack,
     this.actions,
     this.floatingActionButton,
     this.bottomNavigationBarOverride,
@@ -34,6 +36,9 @@ class AppScaffold extends ConsumerWidget {
 
   final String title;
   final Widget body;
+  final Widget? leading;
+  final bool? showBackButton;
+  final VoidCallback? onBack;
   final List<Widget>? actions;
   final Widget? floatingActionButton;
   final Widget? bottomNavigationBarOverride;
@@ -50,7 +55,7 @@ class AppScaffold extends ConsumerWidget {
   ];
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final loc = GoRouterState.of(context).matchedLocation;
     final activeIndex = () {
       for (var i = 0; i < _tabs.length; i++) {
@@ -60,9 +65,6 @@ class AppScaffold extends ConsumerWidget {
       return null;
     }();
 
-    // Get badge counts
-    final chatUnread = ref.watch(chatV2TotalUnreadProvider);
-
     final Widget? bottom =
         bottomNavigationBarOverride ??
         (activeIndex == null
@@ -70,14 +72,31 @@ class AppScaffold extends ConsumerWidget {
             : _FloatingTabBar(
                 tabs: _tabs,
                 activeIndex: activeIndex,
-                chatUnread: chatUnread,
               ));
+
+    final effectiveShowBack = showBackButton ?? (activeIndex == null);
+    final Widget? effectiveLeading = leading ??
+        (effectiveShowBack
+            ? IconButton(
+                icon: const Icon(LucideIcons.arrowLeft, color: Colors.white, size: 20),
+                tooltip: 'Quay lại',
+                onPressed: onBack ??
+                    () {
+                      if (context.canPop()) {
+                        context.pop();
+                      } else {
+                        context.go('/home');
+                      }
+                    },
+              )
+            : null);
 
     return Scaffold(
       appBar: showAppBar
           ? AppBar(
               centerTitle: true,
               elevation: 0,
+              leading: effectiveLeading,
               title: Text(
                 title,
                 style: const TextStyle(
@@ -102,20 +121,19 @@ class AppScaffold extends ConsumerWidget {
   }
 }
 
-class _FloatingTabBar extends StatelessWidget {
+class _FloatingTabBar extends ConsumerWidget {
   const _FloatingTabBar({
     required this.tabs,
     required this.activeIndex,
-    required this.chatUnread,
   });
 
   final List<_TabSpec> tabs;
   final int activeIndex;
-  final int chatUnread;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final chatUnread = ref.watch(chatV2TotalUnreadProvider);
     return SafeArea(
       top: false,
       minimum: const EdgeInsets.fromLTRB(34, 0, 34, 10),
@@ -227,13 +245,45 @@ class _NavItem extends StatelessWidget {
                   if (badgeCount > 0)
                     Positioned(
                       top: -4,
-                      right: -4,
-                      child: UnreadBadge(
-                        count: badgeCount,
-                        compact: true,
-                        gradient: AppColors.featureGrad(
-                          AppColors.danger,
-                          AppColors.dangerDeep,
+                      right: -6,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 5, vertical: 1.5),
+                        constraints: const BoxConstraints(
+                          minWidth: 18,
+                          minHeight: 18,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: isDark
+                                ? const Color(0xFF1E293B)
+                                : Colors.white,
+                            width: 1.8,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFEF4444)
+                                  .withValues(alpha: 0.4),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1.5),
+                            ),
+                          ],
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          badgeCount > 99 ? '99+' : badgeCount.toString(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            height: 1.1,
+                          ),
                         ),
                       ),
                     ),

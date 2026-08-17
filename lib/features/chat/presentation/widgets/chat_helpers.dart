@@ -54,11 +54,26 @@ String stripHtml(String htmlString) {
 
 String attachmentFileName(Message message) {
   final rawName = message.attachmentName?.trim();
-  if (rawName != null && rawName.isNotEmpty) return rawName;
+  if (rawName != null && rawName.isNotEmpty) {
+    if (!rawName.contains('.') && isImageAttachment(message, rawName)) {
+      return '$rawName.jpg';
+    }
+    return rawName;
+  }
 
   final contentName = stripHtml(message.content).trim();
-  if (contentName.isNotEmpty && contentName.contains('.')) {
-    return contentName;
+  if (contentName.isNotEmpty) {
+    if (contentName.contains('.')) {
+      return contentName;
+    }
+    final lower = contentName.toLowerCase();
+    if (lower.startsWith('image_picker') ||
+        lower.startsWith('img_') ||
+        lower.startsWith('photo_') ||
+        lower.startsWith('image_') ||
+        lower.contains('image_picker')) {
+      return '$contentName.jpg';
+    }
   }
 
   if (message.attachmentMimeType != null) {
@@ -70,6 +85,10 @@ String attachmentFileName(Message message) {
     if (mime.contains('zip')) return 'archive.zip';
     if (mime.contains('text')) return 'document.txt';
     if (mime.contains('image')) return 'image.jpg';
+  }
+
+  if (message.attachmentIds.isNotEmpty) {
+    return 'image.jpg';
   }
 
   return 'tep_dinh_kem';
@@ -130,7 +149,35 @@ IconData fileIcon(String fileName) {
 bool hasAttachmentOrDocument(Message message) {
   if (message.attachmentIds.isNotEmpty) return true;
   final fileName = attachmentFileName(message);
-  return isImageAttachment(message, fileName) || fileExtension(fileName).isNotEmpty;
+  return isImageAttachment(message, fileName) || isDocumentAttachment(message, fileName);
+}
+
+bool isDocumentAttachment(Message message, String fileName) {
+  final mime = message.attachmentMimeType?.toLowerCase() ?? '';
+  if (mime.contains('pdf') ||
+      mime.contains('document') ||
+      mime.contains('word') ||
+      mime.contains('excel') ||
+      mime.contains('sheet') ||
+      mime.contains('presentation') ||
+      mime.contains('powerpoint') ||
+      mime.contains('zip') ||
+      mime.contains('tar') ||
+      mime.contains('rar')) {
+    return true;
+  }
+  final ext = fileExtension(fileName).toLowerCase();
+  return ext == 'pdf' ||
+      ext == 'doc' ||
+      ext == 'docx' ||
+      ext == 'xls' ||
+      ext == 'xlsx' ||
+      ext == 'ppt' ||
+      ext == 'pptx' ||
+      ext == 'zip' ||
+      ext == 'rar' ||
+      ext == 'txt' ||
+      ext == 'csv';
 }
 
 bool isImageAttachment(Message message, String fileName) {
@@ -138,15 +185,33 @@ bool isImageAttachment(Message message, String fileName) {
   if (mime.startsWith('image/')) {
     return true;
   }
+  final lowerName = fileName.toLowerCase();
+  if (lowerName.startsWith('image_picker') ||
+      lowerName.startsWith('img_') ||
+      lowerName.startsWith('photo_') ||
+      lowerName.startsWith('image_') ||
+      lowerName.contains('image_picker') ||
+      lowerName.contains('screenshot')) {
+    return true;
+  }
   final ext = fileExtension(fileName).toLowerCase();
-  return (ext == 'jpg' ||
+  if (ext == 'jpg' ||
       ext == 'jpeg' ||
       ext == 'png' ||
       ext == 'gif' ||
       ext == 'webp' ||
       ext == 'svg' ||
       ext == 'heic' ||
-      ext == 'heif');
+      ext == 'heif' ||
+      ext == 'bmp' ||
+      ext == 'ico') {
+    return true;
+  }
+  // Mặc định tệp đính kèm không phải văn bản thì là ảnh
+  if (message.attachmentIds.isNotEmpty && !isDocumentAttachment(message, fileName)) {
+    return true;
+  }
+  return false;
 }
 
 String? documentThumbnailUrl(Message message) {

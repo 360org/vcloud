@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../attendance/application/attendance_controller.dart';
 import '../../auth/application/auth_controller.dart';
-import '../../chat/application/conversations_controller.dart';
+import '../../chat_v2/application/chat_v2_channels_controller.dart';
 import '../../ticket/application/ticket_controller.dart';
 import '../../timesheet/application/timesheet_controller.dart';
 import '../data/dashboard_repository.dart';
@@ -52,9 +52,9 @@ final homeSummaryProvider = Provider<HomeSummary?>((ref) {
 
   final todayMinutes = ref.watch(todayTotalMinutesProvider);
   final openTickets = ref.watch(openTicketsCountProvider);
-  final convs = ref.watch(conversationsProvider).valueOrNull ?? const [];
-  final recentConvCount = convs.length;
-  final unreadCount = convs.fold(0, (sum, c) => sum + c.unreadCount);
+  final channels = ref.watch(chatV2ChannelsProvider).valueOrNull ?? const [];
+  final recentConvCount = channels.length;
+  final unreadCount = ref.watch(chatV2TotalUnreadProvider);
 
   return HomeSummary(
     userId: auth?.id ?? '',

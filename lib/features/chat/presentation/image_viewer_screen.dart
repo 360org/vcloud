@@ -248,7 +248,7 @@ class _ViewerImage extends ConsumerWidget {
     }
 
     final rawUrl = (attachmentId != null && attachmentId! > 0)
-        ? '/api/v1/mobile/attachments/$attachmentId/download'
+        ? (url.isNotEmpty && !url.contains('/attachments/$attachmentId/download') ? url : '/web/image/$attachmentId')
         : (url.trim().isNotEmpty ? url.trim() : '');
 
     final authUrl = odooApiClient.authenticatedUrl(rawUrl);

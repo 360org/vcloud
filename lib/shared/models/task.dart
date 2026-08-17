@@ -92,24 +92,24 @@ class Task {
     allocatedHours: (map['allocated_hours'] as num?)?.toDouble(),
     spentHours: (map['spent_hours'] as num?)?.toDouble(),
     remainingHours: (map['remaining_hours'] as num?)?.toDouble(),
-    stageName: map['stage_name'] as String?,
-    state: map['state'] as String?,
+    stageName: map['stage_name'] != null && map['stage_name'] != false ? map['stage_name'].toString() : null,
+    state: map['state'] != null && map['state'] != false ? map['state'].toString() : null,
     messages: (map['messages'] as List? ?? const <Object?>[])
         .whereType<Map>()
         .map((m) => TaskMessage.fromMap(Map<String, dynamic>.from(m)))
         .toList(),
-    category: TimesheetCategoryDb.fromDb(map['category'] as String? ?? 'other'),
-    dueDate: map['due_date'] == null
+    category: TimesheetCategoryDb.fromDb((map['category'] ?? 'other').toString()),
+    dueDate: map['due_date'] == null || map['due_date'] == false
         ? DateTime.now()
         : DateTime.tryParse(map['due_date'].toString()) ?? DateTime.now(),
     completedAt: map['completed_at'] == null || map['completed_at'] == false
         ? null
         : DateTime.tryParse(map['completed_at'].toString()),
-    timesheetId: map['timesheet_id']?.toString(),
-    createdAt: map['created_at'] == null
+    timesheetId: map['timesheet_id'] != null && map['timesheet_id'] != false ? map['timesheet_id'].toString() : null,
+    createdAt: map['created_at'] == null || map['created_at'] == false
         ? DateTime.now()
         : DateTime.tryParse(map['created_at'].toString()) ?? DateTime.now(),
-    updatedAt: map['updated_at'] == null
+    updatedAt: map['updated_at'] == null || map['updated_at'] == false
         ? DateTime.now()
         : DateTime.tryParse(map['updated_at'].toString()) ?? DateTime.now(),
   );

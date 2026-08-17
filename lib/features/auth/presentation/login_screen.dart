@@ -27,13 +27,39 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   String? _error;
   bool _obscurePassword = true;
   final _emailFocus = FocusNode();
+  final _passwordFocus = FocusNode();
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _emailFocus.requestFocus();
-    });
+    _loadSavedEmail();
+  }
+
+  Future<void> _loadSavedEmail() async {
+    try {
+      final savedEmail = await ref.read(authRepositoryProvider).getLastLoginEmail();
+      if (!mounted) return;
+      if (savedEmail != null && savedEmail.trim().isNotEmpty) {
+        final emailText = savedEmail.trim();
+        setState(() {
+          _email.value = TextEditingValue(
+            text: emailText,
+            selection: TextSelection.collapsed(offset: emailText.length),
+          );
+        });
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _passwordFocus.requestFocus();
+        });
+      } else {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _emailFocus.requestFocus();
+        });
+      }
+    } catch (_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _emailFocus.requestFocus();
+      });
+    }
   }
 
   @override
@@ -41,6 +67,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _email.dispose();
     _password.dispose();
     _emailFocus.dispose();
+    _passwordFocus.dispose();
     super.dispose();
   }
 
@@ -213,6 +240,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               // Password Input
                               TextFormField(
                                 controller: _password,
+                                focusNode: _passwordFocus,
                                 obscureText: _obscurePassword,
                                 style: const TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.w600),
                                 decoration: InputDecoration(
