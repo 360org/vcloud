@@ -968,8 +968,15 @@ class _ChatV2AttachmentImageState extends State<ChatV2AttachmentImage> {
       return;
     }
 
-    // 2. Network fetch binary via MobileAttachmentRepository (Bearer Token)
-    final attId = int.tryParse(widget.attachment.id);
+    // 2. Resolve attachment ID (either directly or extracted from URL)
+    int? attId = int.tryParse(widget.attachment.id);
+    if (attId == null && widget.attachment.url != null) {
+      final match = RegExp(r'/(?:attachments|image|content)/(\d+)').firstMatch(widget.attachment.url!);
+      if (match != null) {
+        attId = int.tryParse(match.group(1)!);
+      }
+    }
+
     if (attId != null) {
       try {
         final bytes = await MobileAttachmentRepository().fetchBytes(
@@ -979,8 +986,25 @@ class _ChatV2AttachmentImageState extends State<ChatV2AttachmentImage> {
         if (bytes.isNotEmpty) {
           ChatV2AttachmentImage.cacheBytes(widget.attachment.id, bytes);
           ChatV2AttachmentImage.cacheBytes(widget.attachment.name, bytes);
+          ChatV2AttachmentImage.cacheBytes(attId.toString(), bytes);
           LocalAttachmentCache.save(widget.attachment.id, bytes);
           LocalAttachmentCache.save(widget.attachment.name, bytes);
+          LocalAttachmentCache.save(attId.toString(), bytes);
+          if (mounted) {
+            setState(() {
+              _bytes = bytes;
+              _loading = false;
+            });
+          }
+          return;
+        }
+      } catch (_) {}
+    } else if (widget.attachment.url != null && widget.attachment.url!.isNotEmpty) {
+      try {
+        final bytes = await odooApiClient.fetchBytes(widget.attachment.url!);
+        if (bytes.isNotEmpty) {
+          ChatV2AttachmentImage.cacheBytes(widget.attachment.id, bytes);
+          ChatV2AttachmentImage.cacheBytes(widget.attachment.name, bytes);
           if (mounted) {
             setState(() {
               _bytes = bytes;

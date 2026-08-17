@@ -230,10 +230,16 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
       final isImg = ext == 'png' ||
           ext == 'jpg' ||
           ext == 'jpeg' ||
-          ext == 'webp'; // Không nén gif vì compress_plus có thể làm hỏng gif animation
+          ext == 'webp' ||
+          ext == 'gif' ||
+          ext == 'svg' ||
+          ext == 'bmp' ||
+          ext == 'ico' ||
+          ext == 'heic' ||
+          ext == 'heif';
 
       Uint8List finalBytes = bytes;
-      if (isImg) {
+      if (ext == 'jpg' || ext == 'jpeg') {
         try {
           final compressed = await FlutterImageCompress.compressWithList(
             bytes,
@@ -251,7 +257,7 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
         _selectedBytes = finalBytes;
         _selectedFilename = file.name;
         _selectedMimetype = _guessMimeType(ext);
-        _isSelectedImage = isImg || ext == 'gif';
+        _isSelectedImage = isImg;
       });
     } catch (e) {
       if (mounted) {
@@ -273,6 +279,16 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
         return 'image/gif';
       case 'webp':
         return 'image/webp';
+      case 'svg':
+        return 'image/svg+xml';
+      case 'bmp':
+        return 'image/bmp';
+      case 'ico':
+        return 'image/x-icon';
+      case 'heic':
+        return 'image/heic';
+      case 'heif':
+        return 'image/heif';
       case 'pdf':
         return 'application/pdf';
       case 'doc':
