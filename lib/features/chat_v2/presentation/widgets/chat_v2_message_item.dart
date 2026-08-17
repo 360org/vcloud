@@ -436,7 +436,7 @@ class ChatV2MessageItem extends StatelessWidget {
           id: message.id,
           name: cleanName,
           bytes: memoryBytes,
-          mimetype: 'image/png',
+          mimetype: 'image/jpeg',
         ),
         isMine,
       );
@@ -454,7 +454,7 @@ class ChatV2MessageItem extends StatelessWidget {
               id: message.id,
               name: cleanName,
               bytes: diskBytes,
-              mimetype: 'image/png',
+              mimetype: 'image/jpeg',
             ),
             isMine,
           );
