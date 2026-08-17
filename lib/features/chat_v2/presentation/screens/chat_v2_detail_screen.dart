@@ -78,7 +78,13 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
   Future<void> _handleSendMessage(String text) async {
     if (text.trim().isEmpty) return;
 
-    final replyingId = _replyingTo?.id;
+    final replying = _replyingTo;
+    final replyingId = replying?.id;
+    final replyingAuthor = replying?.authorName;
+    final replyingBody = replying?.content.isNotEmpty == true
+        ? replying!.content
+        : (replying?.attachments.isNotEmpty == true ? replying!.attachments.first.name : null);
+
     final editing = _editingMsg;
     setState(() {
       _isSending = true;
@@ -96,7 +102,12 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
       } else {
         await ref
             .read(chatV2MessagesProvider(widget.channelId).notifier)
-            .sendMessage(text, parentId: replyingId);
+            .sendMessage(
+              text,
+              parentId: replyingId,
+              parentBody: replyingBody,
+              parentAuthorName: replyingAuthor,
+            );
       }
 
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());

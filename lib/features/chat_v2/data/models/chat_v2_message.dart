@@ -357,6 +357,11 @@ class ChatV2Message {
       }
     }
 
+    final rawParentBody = _stringOrNull(map['parent_body']);
+    final cleanParentBody = (rawParentBody != null && rawParentBody.isNotEmpty)
+        ? _cleanHtml(rawParentBody)
+        : null;
+
     return ChatV2Message(
       id: id,
       channelId: channelId,
@@ -368,7 +373,7 @@ class ChatV2Message {
       status: _stringOr(map['status'], 'sent'),
       attachments: parsedAttachments,
       parentId: _stringOrNull(map['parent_id']),
-      parentBody: _stringOrNull(map['parent_body']),
+      parentBody: cleanParentBody,
       parentAuthorName: _stringOrNull(map['parent_author_name']),
     );
   }

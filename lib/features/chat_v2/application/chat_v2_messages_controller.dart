@@ -201,7 +201,13 @@ class ChatV2MessagesNotifier
     }
   }
 
-  Future<void> sendMessage(String text, {List<int>? attachmentIds, String? parentId}) async {
+  Future<void> sendMessage(
+    String text, {
+    List<int>? attachmentIds,
+    String? parentId,
+    String? parentBody,
+    String? parentAuthorName,
+  }) async {
     final trimmed = text.trim();
     if (trimmed.isEmpty && (attachmentIds == null || attachmentIds.isEmpty)) {
       return;
@@ -229,6 +235,8 @@ class ChatV2MessagesNotifier
       isMine: true,
       status: 'pending',
       parentId: parentId,
+      parentBody: parentBody,
+      parentAuthorName: parentAuthorName,
     );
 
     final previousState = state.valueOrNull ?? const [];
@@ -246,26 +254,34 @@ class ChatV2MessagesNotifier
         parentId: parentId,
       );
 
+      final resolvedSentMsg = sentMsg.copyWith(
+        isMine: true,
+        status: 'sent',
+        parentId: sentMsg.parentId ?? parentId,
+        parentBody: sentMsg.parentBody ?? parentBody,
+        parentAuthorName: sentMsg.parentAuthorName ?? parentAuthorName,
+      );
+
       // Cập nhật lại tin nhắn trong danh sách
       final currentList = state.valueOrNull ?? const [];
       final updatedList = currentList.map((m) {
         if (m.id == tempId) {
-          return sentMsg.copyWith(isMine: true, status: 'sent');
+          return resolvedSentMsg;
         }
         return m;
       }).toList();
 
       // Nếu không tìm thấy tempId để thay thế, đưa lên đầu
-      if (!updatedList.any((m) => m.id == sentMsg.id)) {
+      if (!updatedList.any((m) => m.id == resolvedSentMsg.id)) {
         updatedList.removeWhere((m) => m.id == tempId);
-        updatedList.insert(0, sentMsg.copyWith(isMine: true, status: 'sent'));
+        updatedList.insert(0, resolvedSentMsg);
       }
 
       ChatV2MessageLocalCache.set(channelId, updatedList);
       state = AsyncData(updatedList);
 
       // Báo sự kiện realtime
-      ref.read(chatV2RealtimeServiceProvider).notifyMessageSent(channelId, sentMsg);
+      ref.read(chatV2RealtimeServiceProvider).notifyMessageSent(channelId, resolvedSentMsg);
       ref.read(chatV2LastSentTrackerProvider.notifier).recordSent(channelId, trimmed);
       ref.read(chatV2ReadStateProvider.notifier).markChannelAsRead(channelId);
 

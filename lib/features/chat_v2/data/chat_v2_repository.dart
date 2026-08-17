@@ -99,6 +99,24 @@ class ChatV2Repository {
         })
         .toList();
 
+    // Tự động phân giải thông tin tin nhắn trả lời (Reply Parent) nếu thiếu metadata từ backend
+    final msgMap = {for (final m in messages) m.id: m};
+    for (int i = 0; i < messages.length; i++) {
+      final msg = messages[i];
+      if (msg.parentId != null && (msg.parentBody == null || msg.parentAuthorName == null)) {
+        final parent = msgMap[msg.parentId];
+        if (parent != null) {
+          final parentContent = parent.content.isNotEmpty
+              ? parent.content
+              : (parent.attachments.isNotEmpty ? parent.attachments.first.name : 'Đính kèm');
+          messages[i] = msg.copyWith(
+            parentBody: msg.parentBody ?? parentContent,
+            parentAuthorName: msg.parentAuthorName ?? parent.authorName,
+          );
+        }
+      }
+    }
+
     // Tự động quét và nạp attachments cho các tin nhắn gửi ảnh/tệp từ Web Odoo hoặc app
     // Bỏ qua các tin nhắn đã được phân giải attachment trước đó để tránh vòng lặp RPC
     final emptyMsgIds = messages
