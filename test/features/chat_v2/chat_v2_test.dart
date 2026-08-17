@@ -779,5 +779,53 @@ void main() {
 
       expect(find.text('Liên kết (3)'), findsOneWidget);
     });
+
+    testWidgets('33. ChatV2MessageItem renders reply quote card when parent details are present', (tester) async {
+      const replyMsg = ChatV2Message(
+        id: '100',
+        channelId: 'ch1',
+        content: 'Dạ em nhận được rồi ạ!',
+        authorName: 'Ma Nguyễn Nhật Tân',
+        isMine: true,
+        parentId: '99',
+        parentAuthorName: 'Bùi Tuấn Kiệt',
+        parentBody: 'Anh Tân kiểm tra giúp em tính năng nhé',
+      );
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: ChatV2MessageItem(message: replyMsg),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Bùi Tuấn Kiệt'), findsOneWidget);
+      expect(find.text('Anh Tân kiểm tra giúp em tính năng nhé'), findsOneWidget);
+      expect(find.text('Dạ em nhận được rồi ạ!'), findsOneWidget);
+    });
+
+    test('34. ChatV2Message safely serializes and deserializes parent_id and quote info', () {
+      final map = {
+        'id': 5001,
+        'channel_id': 4255,
+        'body': 'OK sếp',
+        'parent_id': 5000,
+        'parent_body': 'Gửi báo cáo cho anh nhé',
+        'parent_author_name': 'Sếp Tân',
+      };
+
+      final msg = ChatV2Message.fromMap(map);
+      expect(msg.id, '5001');
+      expect(msg.parentId, '5000');
+      expect(msg.parentBody, 'Gửi báo cáo cho anh nhé');
+      expect(msg.parentAuthorName, 'Sếp Tân');
+
+      final copied = msg.copyWith(content: 'Đã gửi báo cáo');
+      expect(copied.parentId, '5000');
+      expect(copied.parentAuthorName, 'Sếp Tân');
+      expect(copied.content, 'Đã gửi báo cáo');
+    });
   });
 }

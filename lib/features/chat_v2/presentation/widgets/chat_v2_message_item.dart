@@ -185,13 +185,16 @@ class ChatV2MessageItem extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 3),
                               ],
+                              // 0. Render Reply Quote Card if this message is a reply
+                              if (message.parentId != null || message.parentBody != null)
+                                _buildReplyQuoteCard(context, isMine, isDark),
                               // 1. Render actual image attachments with caption
                               if (hasImages) ...[
                                 for (final att in imageAttachments) ...[
                                   _buildImageAttachment(context, att, isMine),
-                              if (imageAttachments.length > 1) const SizedBox(height: 2),
-                            ],
-                          ] else if (message.isImageFilename) ...[
+                                  if (imageAttachments.length > 1) const SizedBox(height: 2),
+                                ],
+                              ] else if (message.isImageFilename) ...[
                             // 2. Render image filename card for historical messages
                             _buildImageFilenameCard(context, isMine),
                           ],
@@ -421,6 +424,64 @@ class ChatV2MessageItem extends StatelessWidget {
       downloadUrl: null,
       directBytes: null,
       isImage: true,
+    );
+  }
+
+  Widget _buildReplyQuoteCard(BuildContext context, bool isMine, bool isDark) {
+    final author = (message.parentAuthorName != null && message.parentAuthorName!.isNotEmpty)
+        ? message.parentAuthorName!
+        : 'Tin nhắn';
+    final body = (message.parentBody != null && message.parentBody!.isNotEmpty)
+        ? message.parentBody!
+        : '...';
+
+    final barColor = isMine
+        ? (isDark ? const Color(0xFF00C83A) : const Color(0xFF00A82D))
+        : (isDark ? const Color(0xFF60A5FA) : const Color(0xFF2563EB));
+
+    final bgColor = isDark
+        ? Colors.black.withValues(alpha: 0.25)
+        : Colors.black.withValues(alpha: 0.05);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(8),
+        border: Border(
+          left: BorderSide(
+            color: barColor,
+            width: 3.5,
+          ),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            author,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: barColor,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            body,
+            style: TextStyle(
+              fontSize: 13,
+              color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
     );
   }
 

@@ -228,6 +228,7 @@ class ChatV2MessagesNotifier
       createdAt: DateTime.now(),
       isMine: true,
       status: 'pending',
+      parentId: parentId,
     );
 
     final previousState = state.valueOrNull ?? const [];
@@ -242,6 +243,7 @@ class ChatV2MessagesNotifier
         currentPartnerId: partnerId,
         currentUserId: userId,
         authorName: userName,
+        parentId: parentId,
       );
 
       // Cập nhật lại tin nhắn trong danh sách

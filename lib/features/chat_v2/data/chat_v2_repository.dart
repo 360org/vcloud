@@ -244,6 +244,7 @@ class ChatV2Repository {
     String? currentPartnerId,
     String? currentUserId,
     String authorName = 'Tôi',
+    String? parentId,
   }) async {
     final payload = <String, dynamic>{
       'channel_id': int.tryParse(channelId) ?? channelId,
@@ -251,6 +252,9 @@ class ChatV2Repository {
     };
     if (attachmentIds != null && attachmentIds.isNotEmpty) {
       payload['attachment_ids'] = attachmentIds;
+    }
+    if (parentId != null && parentId.isNotEmpty) {
+      payload['parent_id'] = int.tryParse(parentId) ?? parentId;
     }
 
     final dynamic data = await _client.post(
@@ -275,6 +279,7 @@ class ChatV2Repository {
       createdAt: DateTime.now(),
       isMine: true,
       status: 'sent',
+      parentId: parentId,
     );
   }
 
@@ -289,16 +294,85 @@ class ChatV2Repository {
   }
 
   Future<void> editMessage(String messageId, String newBody) async {
-    await _client.post(
-      '/api/v1/mobile/chat/messages/$messageId/edit',
-      body: {'body': newBody},
-    );
+    final msgIdInt = int.tryParse(messageId);
+    try {
+      await _client.post(
+        '/api/v1/mobile/chat/messages/$messageId/edit',
+        body: {'body': newBody},
+      );
+    } catch (e) {
+      // Fallback 1: Odoo ORM JSON-RPC call_kw mail.message/write
+      if (msgIdInt != null) {
+        try {
+          await _client.post(
+            '/web/dataset/call_kw/mail.message/write',
+            body: {
+              'jsonrpc': '2.0',
+              'method': 'call',
+              'params': {
+                'model': 'mail.message',
+                'method': 'write',
+                'args': [[msgIdInt], {'body': newBody}],
+                'kwargs': {},
+              },
+            },
+            auth: true,
+          );
+          return;
+        } catch (_) {}
+      }
+      rethrow;
+    }
   }
 
   Future<void> deleteMessage(String messageId) async {
-    await _client.post(
-      '/api/v1/mobile/chat/messages/$messageId/delete',
-      body: {},
-    );
+    final msgIdInt = int.tryParse(messageId);
+    try {
+      await _client.post(
+        '/api/v1/mobile/chat/messages/$messageId/delete',
+        body: {},
+      );
+    } catch (e) {
+      // Fallback 1: Odoo ORM JSON-RPC call_kw mail.message/unlink
+      if (msgIdInt != null) {
+        try {
+          await _client.post(
+            '/web/dataset/call_kw/mail.message/unlink',
+            body: {
+              'jsonrpc': '2.0',
+              'method': 'call',
+              'params': {
+                'model': 'mail.message',
+                'method': 'unlink',
+                'args': [[msgIdInt]],
+                'kwargs': {},
+              },
+            },
+            auth: true,
+          );
+          return;
+        } catch (_) {
+          // Fallback 2: Clear body to recall message if unlink is restricted
+          try {
+            await _client.post(
+              '/web/dataset/call_kw/mail.message/write',
+              body: {
+                'jsonrpc': '2.0',
+                'method': 'call',
+                'params': {
+                  'model': 'mail.message',
+                  'method': 'write',
+                  'args': [[msgIdInt], {'body': '<i>Tin nhắn đã được thu hồi</i>'}],
+                  'kwargs': {},
+                },
+              },
+              auth: true,
+            );
+            return;
+          } catch (_) {}
+        }
+      }
+      rethrow;
+    }
   }
 }
