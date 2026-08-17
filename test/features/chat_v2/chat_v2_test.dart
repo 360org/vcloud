@@ -827,5 +827,40 @@ void main() {
       expect(copied.parentAuthorName, 'Sếp Tân');
       expect(copied.content, 'Đã gửi báo cáo');
     });
+
+    testWidgets('35. ChatV2MessageItem invokes onReplyTap with parentId and renders highlight', (tester) async {
+      String? tappedParentId;
+      const replyMsg = ChatV2Message(
+        id: '100',
+        channelId: 'ch1',
+        content: 'Dạ em nhận được rồi ạ!',
+        authorName: 'Ma Nguyễn Nhật Tân',
+        isMine: true,
+        parentId: '99',
+        parentAuthorName: 'Bùi Tuấn Kiệt',
+        parentBody: 'Anh Tân kiểm tra giúp em tính năng nhé',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ChatV2MessageItem(
+              message: replyMsg,
+              isHighlighted: true,
+              onReplyTap: (parentId) {
+                tappedParentId = parentId;
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Tap on the Quote Card
+      await tester.tap(find.text('Anh Tân kiểm tra giúp em tính năng nhé'));
+      await tester.pumpAndSettle();
+
+      expect(tappedParentId, equals('99'));
+    });
   });
 }

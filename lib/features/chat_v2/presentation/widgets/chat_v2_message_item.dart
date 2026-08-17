@@ -20,6 +20,8 @@ class ChatV2MessageItem extends StatelessWidget {
     this.showAvatar = false,
     this.isGroup = false,
     this.onLongPress,
+    this.onReplyTap,
+    this.isHighlighted = false,
   });
 
   final ChatV2Message message;
@@ -27,6 +29,8 @@ class ChatV2MessageItem extends StatelessWidget {
   final bool showAvatar;
   final bool isGroup;
   final VoidCallback? onLongPress;
+  final ValueChanged<String?>? onReplyTap;
+  final bool isHighlighted;
 
   static const _authorColors = [
     Color(0xFF0284C7), // Sky blue
@@ -74,7 +78,14 @@ class ChatV2MessageItem extends StatelessWidget {
 
     return GestureDetector(
       onLongPress: onLongPress,
-      child: Padding(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeInOut,
+        color: isHighlighted
+            ? (isDark
+                ? const Color(0xFF00C83A).withValues(alpha: 0.18)
+                : const Color(0xFF00C83A).withValues(alpha: 0.15))
+            : Colors.transparent,
         padding: EdgeInsets.symmetric(
           horizontal: 14,
           vertical: showSenderName ? 4 : 2,
@@ -443,44 +454,65 @@ class ChatV2MessageItem extends StatelessWidget {
         ? Colors.black.withValues(alpha: 0.25)
         : Colors.black.withValues(alpha: 0.05);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(8),
-        border: Border(
-          left: BorderSide(
-            color: barColor,
-            width: 3.5,
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        if (message.parentId != null && onReplyTap != null) {
+          onReplyTap!(message.parentId);
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(8),
+          border: Border(
+            left: BorderSide(
+              color: barColor,
+              width: 3.5,
+            ),
           ),
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            author,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: barColor,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  LucideIcons.reply,
+                  size: 11,
+                  color: barColor,
+                ),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    author,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: barColor,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 2),
-          Text(
-            body,
-            style: TextStyle(
-              fontSize: 13,
-              color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
+            const SizedBox(height: 2),
+            Text(
+              body,
+              style: TextStyle(
+                fontSize: 13,
+                color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

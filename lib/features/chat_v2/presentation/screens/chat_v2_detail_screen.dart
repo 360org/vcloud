@@ -42,6 +42,9 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
   final TextEditingController _inputController = TextEditingController();
   final FocusNode _inputFocusNode = FocusNode();
 
+  String? _highlightedMessageId;
+  Timer? _highlightTimer;
+
   @override
   void initState() {
     super.initState();
@@ -60,9 +63,52 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
 
   @override
   void dispose() {
+    _highlightTimer?.cancel();
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _jumpToMessage(String targetId) {
+    if (targetId.isEmpty) return;
+    final messages = ref.read(chatV2MessagesProvider(widget.channelId)).valueOrNull ?? [];
+    final targetIndex = messages.indexWhere((m) => m.id == targetId);
+
+    if (targetIndex != -1) {
+      // Trong ListView reverse: true, index 0 ở dưới cùng (offset 0.0)
+      if (_scrollController.hasClients) {
+        final maxScroll = _scrollController.position.maxScrollExtent;
+        final targetOffset = (targetIndex * 85.0).clamp(0.0, maxScroll);
+        _scrollController.animateTo(
+          targetOffset,
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.easeInOutCubic,
+        );
+      }
+
+      // Kích hoạt hiệu ứng nổi bật trong 1.5 giây
+      setState(() {
+        _highlightedMessageId = targetId;
+      });
+      _highlightTimer?.cancel();
+      _highlightTimer = Timer(const Duration(milliseconds: 1500), () {
+        if (mounted) {
+          setState(() {
+            _highlightedMessageId = null;
+          });
+        }
+      });
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Tin nhắn gốc đã cũ, đang tải thêm...'),
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+      ref.read(chatV2MessagesProvider(widget.channelId).notifier).loadMore();
+    }
   }
 
   void _scrollToBottom() {
@@ -577,6 +623,12 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                     showSenderName: showSenderName,
                                     showAvatar: showAvatar,
                                     isGroup: isActualGroup,
+                                    isHighlighted: message.id == _highlightedMessageId,
+                                    onReplyTap: (parentId) {
+                                      if (parentId != null) {
+                                        _jumpToMessage(parentId);
+                                      }
+                                    },
                                     onLongPress: () {
                                       if (message.content.isEmpty) return;
                                     showModalBottomSheet(
