@@ -231,32 +231,42 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
           ext == 'jpg' ||
           ext == 'jpeg' ||
           ext == 'webp' ||
-          ext == 'gif' ||
-          ext == 'svg' ||
           ext == 'bmp' ||
           ext == 'ico' ||
           ext == 'heic' ||
           ext == 'heif';
 
       Uint8List finalBytes = bytes;
-      if (ext == 'jpg' || ext == 'jpeg') {
+      String finalFilename = file.name;
+      String finalMime = _guessMimeType(ext);
+
+      if (isImg) {
         try {
           final compressed = await FlutterImageCompress.compressWithList(
             bytes,
             minWidth: 1600,
             minHeight: 1600,
-            quality: 80,
+            quality: 85,
+            format: CompressFormat.jpeg,
           );
-          finalBytes = compressed;
+          if (compressed.isNotEmpty) {
+            finalBytes = compressed;
+          }
         } catch (_) {
           // Fallback to original bytes if compression fails
         }
+
+        // Chuẩn hóa tên file sang đuôi .jpg và MIME image/jpeg
+        final dotIndex = finalFilename.lastIndexOf('.');
+        final baseName = dotIndex != -1 ? finalFilename.substring(0, dotIndex) : finalFilename;
+        finalFilename = '$baseName.jpg';
+        finalMime = 'image/jpeg';
       }
 
       setState(() {
         _selectedBytes = finalBytes;
-        _selectedFilename = file.name;
-        _selectedMimetype = _guessMimeType(ext);
+        _selectedFilename = finalFilename;
+        _selectedMimetype = finalMime;
         _isSelectedImage = isImg;
       });
     } catch (e) {
