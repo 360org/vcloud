@@ -103,20 +103,17 @@ class ChatV2MessagesNotifier
               final hasPending = currentList.any((m) => m.status == 'pending');
 
               if (hasNew || hasPending || currentList.length != latest.length) {
-                // Bảo tồn thông tin trích dẫn reply (parentBody/parentAuthorName) từ state hiện tại
-                // vì backend cũ có thể không trả về các trường này khi poll
+                // Bảo tồn thông tin trích dẫn reply (parentId/parentBody/parentAuthorName) từ state hiện tại và ReplyCache
+                // Đảm bảo không bao giờ bị mất thẻ trích dẫn khi backend Odoo production chưa cập nhật
                 final currentById = {for (final m in currentList) m.id: m};
                 final merged = latest.map((m) {
                   final existing = currentById[m.id];
-                  if (existing != null &&
-                      m.parentId != null &&
-                      (m.parentBody == null || m.parentAuthorName == null)) {
-                    return m.copyWith(
-                      parentBody: m.parentBody ?? existing.parentBody,
-                      parentAuthorName: m.parentAuthorName ?? existing.parentAuthorName,
-                    );
-                  }
-                  return m;
+                  final replyInfo = ChatV2ReplyCache.get(m.id);
+                  return m.copyWith(
+                    parentId: m.parentId ?? existing?.parentId ?? replyInfo?['parent_id'],
+                    parentBody: m.parentBody ?? existing?.parentBody ?? replyInfo?['parent_body'],
+                    parentAuthorName: m.parentAuthorName ?? existing?.parentAuthorName ?? replyInfo?['parent_author_name'],
+                  );
                 }).toList();
                 ChatV2MessageLocalCache.set(channelId, merged);
                 state = AsyncData(merged);
@@ -150,8 +147,21 @@ class ChatV2MessagesNotifier
             currentUserId: userId,
           );
           debugPrint('🔴 [TRACE] ChatV2MessagesNotifier.build SWR getMessages() END');
-          ChatV2MessageLocalCache.set(channelId, fresh);
-          state = AsyncData(fresh);
+          
+          final currentList = state.valueOrNull ?? cached;
+          final currentById = {for (final m in currentList) m.id: m};
+          final merged = fresh.map((m) {
+            final existing = currentById[m.id];
+            final replyInfo = ChatV2ReplyCache.get(m.id);
+            return m.copyWith(
+              parentId: m.parentId ?? existing?.parentId ?? replyInfo?['parent_id'],
+              parentBody: m.parentBody ?? existing?.parentBody ?? replyInfo?['parent_body'],
+              parentAuthorName: m.parentAuthorName ?? existing?.parentAuthorName ?? replyInfo?['parent_author_name'],
+            );
+          }).toList();
+
+          ChatV2MessageLocalCache.set(channelId, merged);
+          state = AsyncData(merged);
         } catch (e, st) {
           debugPrint('❌ [ERROR] ChatV2MessagesNotifier.build SWR: $e\n$st');
         }
@@ -254,6 +264,15 @@ class ChatV2MessagesNotifier
       parentAuthorName: parentAuthorName,
     );
 
+    if (parentId != null) {
+      ChatV2ReplyCache.set(
+        tempId,
+        parentId: parentId,
+        parentBody: parentBody,
+        parentAuthorName: parentAuthorName,
+      );
+    }
+
     final previousState = state.valueOrNull ?? const [];
     state = AsyncData([tempMsg, ...previousState]);
     ChatV2MessageLocalCache.prepend(channelId, tempMsg);
@@ -278,6 +297,15 @@ class ChatV2MessagesNotifier
         parentBody: sentMsg.parentBody ?? parentBody,
         parentAuthorName: sentMsg.parentAuthorName ?? parentAuthorName,
       );
+
+      if (parentId != null) {
+        ChatV2ReplyCache.set(
+          resolvedSentMsg.id,
+          parentId: parentId,
+          parentBody: parentBody,
+          parentAuthorName: parentAuthorName,
+        );
+      }
 
       // Cập nhật lại tin nhắn trong danh sách
       final currentList = state.valueOrNull ?? const [];

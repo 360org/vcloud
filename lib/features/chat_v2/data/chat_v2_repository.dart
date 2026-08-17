@@ -87,11 +87,22 @@ class ChatV2Repository {
     final List<ChatV2Message> messages = list
         .whereType<Map>()
         .map((m) {
-          final msg = ChatV2Message.fromMap(
+          var msg = ChatV2Message.fromMap(
             Map<String, dynamic>.from(m),
             currentPartnerId: currentPartnerId,
             currentUserId: currentUserId,
           );
+
+          // Nạp thông tin trích dẫn Reply từ bộ đệm Reply Cache nếu backend chưa có
+          final replyInfo = ChatV2ReplyCache.get(msg.id);
+          if (replyInfo != null) {
+            msg = msg.copyWith(
+              parentId: msg.parentId ?? replyInfo['parent_id'],
+              parentBody: msg.parentBody ?? replyInfo['parent_body'],
+              parentAuthorName: msg.parentAuthorName ?? replyInfo['parent_author_name'],
+            );
+          }
+
           if (msg.attachments.isEmpty && _cachedAttachmentsByMsgId.containsKey(msg.id)) {
             return msg.copyWith(attachments: _cachedAttachmentsByMsgId[msg.id]!);
           }

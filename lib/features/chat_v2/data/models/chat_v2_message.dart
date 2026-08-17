@@ -444,3 +444,33 @@ String? _stringOrNull(dynamic val) {
   final str = val.toString().trim();
   return str.isEmpty ? null : str;
 }
+
+/// Bộ đệm bộ nhớ lưu trữ thông tin Reply (Trích dẫn tin nhắn)
+/// Đảm bảo không bao giờ bị mất thẻ trích dẫn khi backend Odoo polling/SWR ghi đè
+class ChatV2ReplyCache {
+  static final Map<String, Map<String, String?>> _memoryCache = {};
+
+  static void set(
+    String messageId, {
+    String? parentId,
+    String? parentBody,
+    String? parentAuthorName,
+  }) {
+    if (messageId.isEmpty) return;
+    if (parentId == null && parentBody == null && parentAuthorName == null) return;
+    _memoryCache[messageId] = {
+      'parent_id': parentId,
+      'parent_body': parentBody,
+      'parent_author_name': parentAuthorName,
+    };
+  }
+
+  static Map<String, String?>? get(String messageId) {
+    return _memoryCache[messageId];
+  }
+
+  static void clear() {
+    _memoryCache.clear();
+  }
+}
+
