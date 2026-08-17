@@ -70,7 +70,7 @@ class ChatV2MessageItem extends StatelessWidget {
         imageAttachments.any((a) => a.name.trim() == cleanContent || cleanContent.contains(a.name.trim()));
 
     final hasRealCaption = hasAnyImage && !isFileNameContent;
-    final isPureImage = hasImages && !hasRealCaption && !hasDocs;
+    final isPureImage = hasAnyImage && !hasRealCaption && !hasDocs;
 
     return GestureDetector(
       onLongPress: onLongPress,

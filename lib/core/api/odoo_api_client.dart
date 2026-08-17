@@ -459,9 +459,22 @@ class OdooApiClient {
       }
 
       final contentType = response.headers['content-type']?.toLowerCase() ?? '';
-      final bodyStr = response.body;
 
-      // Defensive Parsing: Check Content-Type or if body resembles JSON
+      // Binary fast-path: For raw image/stream data, return binary bytes directly without calling response.body (avoids UTF-8 decode exception)
+      if (contentType.startsWith('image/') ||
+          contentType == 'application/octet-stream' ||
+          contentType == 'application/pdf') {
+        return response.bodyBytes;
+      }
+
+      // Defensive Parsing: Check if JSON or base64 wrapped response
+      String bodyStr = '';
+      try {
+        bodyStr = response.body;
+      } catch (_) {
+        return response.bodyBytes;
+      }
+
       final trimmedBody = bodyStr.trimLeft();
       if (contentType.contains('application/json') || trimmedBody.startsWith('{') || trimmedBody.startsWith('[')) {
         try {
