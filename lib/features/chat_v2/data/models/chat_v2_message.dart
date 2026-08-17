@@ -32,9 +32,14 @@ class ChatV2Attachment {
     return lowerName.endsWith('.png') ||
         lowerName.endsWith('.jpg') ||
         lowerName.endsWith('.jpeg') ||
-        lowerName.endsWith('.gif') ||
         lowerName.endsWith('.webp') ||
-        lowerName.endsWith('.svg');
+        lowerName.endsWith('.gif') ||
+        lowerName.endsWith('.svg') ||
+        lowerName.endsWith('.bmp') ||
+        lowerName.endsWith('.ico') ||
+        lowerName.endsWith('.heic') ||
+        lowerName.endsWith('.heif') ||
+        lowerName.endsWith('.tiff');
   }
 
   String get extension {
@@ -139,14 +144,15 @@ class ChatV2Attachment {
   }
 }
 
-@immutable
+/// Model tin nhắn trò chuyện V2
 class ChatV2Message {
   const ChatV2Message({
     required this.id,
     required this.channelId,
     required this.content,
     this.authorId,
-    required this.authorName,
+    this.authorName = 'Người dùng',
+    this.authorAvatar,
     this.createdAt,
     this.isMine = false,
     this.status = 'sent',
@@ -161,6 +167,7 @@ class ChatV2Message {
   final String content;
   final String? authorId;
   final String authorName;
+  final String? authorAvatar;
   final DateTime? createdAt;
   final bool isMine;
   final String status;
@@ -179,12 +186,12 @@ class ChatV2Message {
         clean.endsWith('.gif') ||
         clean.endsWith('.webp') ||
         clean.endsWith('.svg') ||
-        clean.startsWith('scaled_screenshot') ||
-        clean.startsWith('scaled_img') ||
-        clean.startsWith('scaled_chatgpt') ||
-        clean.startsWith('scaled_antigravity') ||
-        clean.startsWith('scaled_badge') ||
-        clean.startsWith('scaled_logo') ||
+        clean.endsWith('.bmp') ||
+        clean.endsWith('.ico') ||
+        clean.endsWith('.heic') ||
+        clean.endsWith('.heif') ||
+        clean.endsWith('.tiff') ||
+        clean.startsWith('scaled_') ||
         clean.startsWith('image_picker_');
   }
 
@@ -210,6 +217,7 @@ class ChatV2Message {
     String? content,
     String? authorId,
     String? authorName,
+    String? authorAvatar,
     DateTime? createdAt,
     bool? isMine,
     String? status,
@@ -224,6 +232,7 @@ class ChatV2Message {
       content: content ?? this.content,
       authorId: authorId ?? this.authorId,
       authorName: authorName ?? this.authorName,
+      authorAvatar: authorAvatar ?? this.authorAvatar,
       createdAt: createdAt ?? this.createdAt,
       isMine: isMine ?? this.isMine,
       status: status ?? this.status,
@@ -240,6 +249,7 @@ class ChatV2Message {
     'body': content,
     'author_id': authorId,
     'author_name': authorName,
+    'author_avatar': authorAvatar,
     'date': createdAt?.toIso8601String(),
     'is_mine': isMine,
     'status': status,
@@ -264,7 +274,7 @@ class ChatV2Message {
     String? authorId;
     String authorName = 'Người dùng';
     final rawAuthor = map['author_id'];
-    if (rawAuthor is Map<String, dynamic>) {
+    if (rawAuthor is Map) {
       authorId = _stringOrNull(rawAuthor['id']);
       authorName = _stringOr(rawAuthor['name'], 'Người dùng');
     } else if (rawAuthor != null && rawAuthor != false) {
@@ -289,13 +299,15 @@ class ChatV2Message {
       }
     }
 
+    final cleanContent = _cleanHtml(rawBody);
+
     // Parse attachments
     final parsedAttachments = <ChatV2Attachment>[];
     final rawAtts = map['attachments'];
     if (rawAtts is List) {
       for (final a in rawAtts) {
-        if (a is Map<String, dynamic>) {
-          parsedAttachments.add(ChatV2Attachment.fromMap(a));
+        if (a is Map) {
+          parsedAttachments.add(ChatV2Attachment.fromMap(Map<String, dynamic>.from(a)));
         }
       }
     }
@@ -303,14 +315,25 @@ class ChatV2Message {
     // Fallback: nếu attachments rỗng nhưng có attachment_ids
     if (parsedAttachments.isEmpty && map['attachment_ids'] is List) {
       final attIds = map['attachment_ids'] as List;
+      final clean = cleanContent.toLowerCase();
+      final isImgName = clean.endsWith('.png') ||
+          clean.endsWith('.jpg') ||
+          clean.endsWith('.jpeg') ||
+          clean.endsWith('.webp') ||
+          clean.endsWith('.gif') ||
+          clean.endsWith('.svg') ||
+          clean.startsWith('scaled_');
+
       for (final aid in attIds) {
         if (aid != null) {
           final sId = aid.toString();
           parsedAttachments.add(
             ChatV2Attachment(
               id: sId,
-              name: 'Đính kèm $sId',
-              url: '/web/image/$sId',
+              name: cleanContent.isNotEmpty ? cleanContent : 'Đính kèm $sId',
+              url: isImgName ? '/web/image/$sId' : '/web/content/$sId',
+              downloadUrl: '/web/content/$sId',
+              mimetype: isImgName ? 'image/png' : 'application/octet-stream',
             ),
           );
         }
@@ -333,8 +356,6 @@ class ChatV2Message {
         );
       }
     }
-
-    final cleanContent = _cleanHtml(rawBody);
 
     return ChatV2Message(
       id: id,

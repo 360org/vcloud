@@ -699,5 +699,38 @@ void main() {
       expect(updated.bytes!.length, 4);
       expect(updated.isImage, isTrue);
     });
+
+    test('30. ChatV2Message.fromMap safely parses attachments containing Map<dynamic, dynamic>', () {
+      final dynamicMap = <dynamic, dynamic>{
+        'id': 501,
+        'body': 'scaled_logo360_mobile.png',
+        'attachments': <dynamic>[
+          <dynamic, dynamic>{
+            'id': 991,
+            'name': 'scaled_logo360_mobile.png',
+            'mimetype': 'image/png',
+            'file_size': 10240,
+            'url': '/web/image/991',
+          }
+        ],
+      };
+
+      final msg = ChatV2Message.fromMap(Map<String, dynamic>.from(dynamicMap));
+      expect(msg.attachments.length, 1);
+      expect(msg.attachments.first.id, '991');
+      expect(msg.attachments.first.name, 'scaled_logo360_mobile.png');
+      expect(msg.attachments.first.isImage, isTrue);
+    });
+
+    test('31. ChatV2Attachment.isImage accurately detects all image extensions case-insensitively', () {
+      final extensions = ['.png', '.PNG', '.jpg', '.JPG', '.jpeg', '.JPEG', '.webp', '.WEBP', '.gif', '.svg', '.heic', '.heif'];
+      for (final ext in extensions) {
+        final att = ChatV2Attachment(id: '1', name: 'photo$ext');
+        expect(att.isImage, isTrue, reason: 'Failed for extension $ext');
+      }
+
+      const docAtt = ChatV2Attachment(id: '2', name: 'report.pdf', mimetype: 'application/pdf');
+      expect(docAtt.isImage, isFalse);
+    });
   });
 }
