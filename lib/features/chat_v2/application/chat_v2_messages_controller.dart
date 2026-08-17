@@ -252,6 +252,8 @@ class ChatV2MessagesNotifier
         currentUserId: userId,
         authorName: userName,
         parentId: parentId,
+        parentBody: parentBody,
+        parentAuthorName: parentAuthorName,
       );
 
       final resolvedSentMsg = sentMsg.copyWith(

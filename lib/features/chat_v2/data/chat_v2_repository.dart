@@ -263,6 +263,8 @@ class ChatV2Repository {
     String? currentUserId,
     String authorName = 'Tôi',
     String? parentId,
+    String? parentBody,
+    String? parentAuthorName,
   }) async {
     final payload = <String, dynamic>{
       'channel_id': int.tryParse(channelId) ?? channelId,
@@ -281,11 +283,21 @@ class ChatV2Repository {
     );
 
     if (data is Map) {
-      return ChatV2Message.fromMap(
+      final parsed = ChatV2Message.fromMap(
         Map<String, dynamic>.from(data),
         currentPartnerId: currentPartnerId,
         currentUserId: currentUserId,
       );
+      // Bảo tồn thông tin trích dẫn từ local nếu backend chưa trả về
+      // (backend cũ hoặc chưa deploy endpoint mới)
+      if (parentId != null && parsed.parentId == null) {
+        return parsed.copyWith(
+          parentId: parentId,
+          parentBody: parsed.parentBody ?? parentBody,
+          parentAuthorName: parsed.parentAuthorName ?? parentAuthorName,
+        );
+      }
+      return parsed;
     }
 
     return ChatV2Message(
@@ -298,6 +310,8 @@ class ChatV2Repository {
       isMine: true,
       status: 'sent',
       parentId: parentId,
+      parentBody: parentBody,
+      parentAuthorName: parentAuthorName,
     );
   }
 
