@@ -189,11 +189,34 @@ class ChatV2Channel {
       if (directPartnerName != null && directPartnerName!.isNotEmpty) {
         return directPartnerName!;
       }
+      final uTrim = currentUserName.trim();
+      final uLower = uTrim.toLowerCase();
+      final nLower = name.toLowerCase();
+
+      if (nLower.contains(uLower)) {
+        var clean = name;
+        final patterns = [
+          RegExp('^\\s*${RegExp.escape(uTrim)}\\s*[,/|-]\\s*', caseSensitive: false),
+          RegExp('\\s*[,/|-]\\s*${RegExp.escape(uTrim)}\\s*\$', caseSensitive: false),
+          RegExp('^\\s*${RegExp.escape(uTrim)}\\s+(\\bvà\\b|&)\\s*', caseSensitive: false),
+          RegExp('\\s+(\\bvà\\b|&)\\s*${RegExp.escape(uTrim)}\\s*\$', caseSensitive: false),
+        ];
+        for (final p in patterns) {
+          if (p.hasMatch(clean)) {
+            clean = clean.replaceFirst(p, '').trim();
+            break;
+          }
+        }
+        if (clean.isNotEmpty && clean.toLowerCase() != uLower) {
+          return clean;
+        }
+      }
+
       final parts = name.split(RegExp(r'\s*[,/|-]\s*|\s+và\s+|\s+&\s+'));
       if (parts.length >= 2) {
         final otherParts = parts.where((p) => !_matchesUser(p, currentUserName)).toList();
         if (otherParts.isNotEmpty) {
-          return otherParts.first.trim();
+          return otherParts.join(', ').trim();
         }
       }
     }

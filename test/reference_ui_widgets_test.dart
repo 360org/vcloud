@@ -354,6 +354,10 @@ void main() {
   );
 
   testWidgets('TicketDetailScreen shows newest comments first', (tester) async {
+    tester.view.physicalSize = const Size(800, 1600);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() => tester.view.resetPhysicalSize());
+
     await tester.pumpWidget(
       ProviderScope(
         overrides: [

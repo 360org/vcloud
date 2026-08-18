@@ -13,7 +13,7 @@ class Env {
 
   static const String odooDb = String.fromEnvironment(
     'VCLOUD_ODOO_DB',
-    defaultValue: 'demo-17',
+    defaultValue: '',
   );
 
   static const String firebaseApiKey = String.fromEnvironment(

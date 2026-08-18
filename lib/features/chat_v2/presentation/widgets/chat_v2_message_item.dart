@@ -594,21 +594,7 @@ class ChatV2MessageItem extends StatelessWidget {
           );
         }
 
-        final targetAttId = message.attachments.isNotEmpty
-            ? message.attachments.first.id
-            : message.id;
-
-        return _buildImageAttachment(
-          context,
-          ChatV2Attachment(
-            id: targetAttId,
-            name: cleanName,
-            url: '/api/v1/mobile/attachments/$targetAttId/download',
-            downloadUrl: '/api/v1/mobile/attachments/$targetAttId/download',
-            mimetype: 'image/jpeg',
-          ),
-          isMine,
-        );
+        return _buildSimpleFilenameCard(context, isMine, cleanName);
       },
     );
   }
