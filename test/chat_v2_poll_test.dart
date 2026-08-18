@@ -102,5 +102,27 @@ void main() {
       expect(poll!.question, 'check đơn hàng');
       expect(poll.options.length, 2);
     });
+
+    test('6. Parses poll from Odoo sanitized HTML fallback structure', () {
+      const sanitizedHtml = '<p>📊 <b>hello</b></p><ul><li><b>1</b> (0 phiếu)</li><li><b>2</b> (0 phiếu)</li></ul><p><i>Tổng cộng: 0 lượt bình chọn</i></p>';
+      final poll = ChatV2Poll.tryParseFromBody(sanitizedHtml);
+      expect(poll, isNotNull);
+      expect(poll!.question, 'hello');
+      expect(poll.options.length, 2);
+      expect(poll.options[0].text, '1');
+      expect(poll.options[1].text, '2');
+      expect(poll.totalVotes, 0);
+    });
+
+    test('7. Parses poll from plain text fallback format', () {
+      const plainText = '📊 hello\n1 (0 phiếu)\n2 (0 phiếu)\nTổng cộng: 0 lượt bình chọn';
+      final poll = ChatV2Poll.tryParseFromBody(plainText);
+      expect(poll, isNotNull);
+      expect(poll!.question, 'hello');
+      expect(poll.options.length, 2);
+      expect(poll.options[0].text, '1');
+      expect(poll.options[1].text, '2');
+      expect(poll.totalVotes, 0);
+    });
   });
 }

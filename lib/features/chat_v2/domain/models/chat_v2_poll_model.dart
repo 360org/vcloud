@@ -158,16 +158,27 @@ class ChatV2Poll {
     };
   }
 
-  /// Trích xuất ChatV2Poll từ chuỗi HTML body của mail.message
-  static ChatV2Poll? tryParseFromBody(String? body) {
-    if (body == null || body.isEmpty) return null;
+  /// Trích xuất ChatV2Poll từ chuỗi HTML body hoặc content của mail.message
+  static ChatV2Poll? tryParseFromBody(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return null;
+
+    final body = raw.trim();
+
+    // 1. Tự động unescape HTML entities để nhận diện chuỗi JSON / Comment dù bị Odoo encode
+    final unescaped = body
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#34;', '"')
+        .replaceAll('&#39;', "'")
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&amp;', '&');
 
     try {
-      // 1. Tìm comment: <!-- POLL_DATA:{...} -->
+      // 2. Tìm comment: <!-- POLL_DATA:{...} -->
       final commentMatch = RegExp(
         r'<!--\s*POLL_DATA:\s*(\{.*?\})\s*-->',
         dotAll: true,
-      ).firstMatch(body);
+      ).firstMatch(unescaped);
 
       if (commentMatch != null) {
         final jsonStr = commentMatch.group(1);
@@ -177,11 +188,11 @@ class ChatV2Poll {
         }
       }
 
-      // 2. Tìm thẻ <div class="o_poll_json"...>{...}</div>
+      // 3. Tìm thẻ <div class="o_poll_json"...>{...}</div> hoặc <span class="o_poll_data"...>{...}</span>
       final jsonTagMatch = RegExp(
-        r'class=[\x27"]o_poll_json[\x27"][^>]*>(\{.*?\})<\/div>',
+        r'class=[\x27"](?:o_poll_json|o_poll_data)[\x27"][^>]*>(\{.*?\})<\/(?:div|span)>',
         dotAll: true,
-      ).firstMatch(body);
+      ).firstMatch(unescaped);
       if (jsonTagMatch != null) {
         final rawJson = jsonTagMatch.group(1);
         if (rawJson != null) {
@@ -190,47 +201,90 @@ class ChatV2Poll {
         }
       }
 
-      // 3. Tìm data-poll="..."
-      final attrMatch = RegExp(r'data-poll=[\x27"]([^\x27"]+)[\x27"]').firstMatch(body);
+      // 4. Tìm data-poll="..."
+      final attrMatch = RegExp(r'data-poll=[\x27"]([^\x27"]+)[\x27"]').firstMatch(unescaped);
       if (attrMatch != null) {
         final rawAttr = attrMatch.group(1);
         if (rawAttr != null) {
-          final unescaped = rawAttr
-              .replaceAll('&quot;', '"')
-              .replaceAll('&#39;', "'")
-              .replaceAll('&lt;', '<')
-              .replaceAll('&gt;', '>')
-              .replaceAll('&amp;', '&');
-          final decoded = json.decode(unescaped) as Map<String, dynamic>;
+          final decoded = json.decode(rawAttr) as Map<String, dynamic>;
           return ChatV2Poll.fromJson(decoded);
         }
       }
 
-      // 4. Tìm chuỗi JSON nhúng bằng bộ đếm ngoặc nhọn
-      final pollIdx1 = body.indexOf('"id":"poll_');
-      final pollIdx2 = body.indexOf('"id": "poll_');
-      final targetIdx = pollIdx1 != -1 ? pollIdx1 : pollIdx2;
-      if (targetIdx != -1) {
-        final startBrace = body.lastIndexOf('{', targetIdx);
-        if (startBrace != -1) {
-          int depth = 0;
-          int endBrace = -1;
-          for (int i = startBrace; i < body.length; i++) {
-            if (body[i] == '{') {
-              depth++;
-            } else if (body[i] == '}') {
-              depth--;
-              if (depth == 0) {
-                endBrace = i;
-                break;
+      // 5. Tìm chuỗi JSON nhúng chứa "question" và "options" bằng bộ đếm ngoặc nhọn
+      for (final marker in ['"question":', '"options":', '"id":"poll_', '"id": "poll_']) {
+        final targetIdx = unescaped.indexOf(marker);
+        if (targetIdx != -1) {
+          final startBrace = unescaped.lastIndexOf('{', targetIdx);
+          if (startBrace != -1) {
+            int depth = 0;
+            int endBrace = -1;
+            for (int i = startBrace; i < unescaped.length; i++) {
+              if (unescaped[i] == '{') {
+                depth++;
+              } else if (unescaped[i] == '}') {
+                depth--;
+                if (depth == 0) {
+                  endBrace = i;
+                  break;
+                }
+              }
+            }
+            if (endBrace != -1) {
+              final rawJson = unescaped.substring(startBrace, endBrace + 1);
+              final decoded = json.decode(rawJson) as Map<String, dynamic>;
+              if (decoded.containsKey('question') && decoded.containsKey('options')) {
+                return ChatV2Poll.fromJson(decoded);
               }
             }
           }
-          if (endBrace != -1) {
-            final rawJson = body.substring(startBrace, endBrace + 1);
-            final decoded = json.decode(rawJson) as Map<String, dynamic>;
-            return ChatV2Poll.fromJson(decoded);
+        }
+      }
+
+      // 6. FALLBACK PARSER: Nhận diện cấu trúc HTML / Text thuần khi Odoo sanitize lọc mất JSON
+      // Dạng: 📊 <Câu hỏi> ... <Phương án 1> (0 phiếu) ... <Phương án 2> (0 phiếu)
+      if (unescaped.contains('📊') || unescaped.contains('o_poll_card') || unescaped.contains('[Bình chọn]')) {
+        String question = '';
+        final qMatch = RegExp(r'(?:📊|\[Bình chọn\])\s*(?:<b>)?([^<\n]+?)(?:<\/b>)?(?:\s*<|\s*\n|\s*\d+\s*\()').firstMatch(unescaped);
+        if (qMatch != null) {
+          question = qMatch.group(1)?.trim() ?? '';
+        }
+
+        final options = <ChatV2PollOption>[];
+        // Quét các lựa chọn dạng <li><b>Opt</b> (X phiếu)</li> hoặc Opt (X phiếu)
+        final optRegex = RegExp(r'(?:<li>\s*(?:<b>)?)?([^\n<]+?)(?:<\/b>)?\s*\((\d+)\s*(?:phiếu|votes?)\)(?:<\/li>)?', caseSensitive: false);
+        final optMatches = optRegex.allMatches(unescaped);
+
+        int optId = 1;
+        for (final m in optMatches) {
+          var optText = m.group(1)?.replaceAll(RegExp(r'<[^>]*>'), '').trim() ?? '';
+          if (optText.startsWith('📊')) {
+            optText = optText.replaceFirst(RegExp(r'📊\s*'), '').trim();
           }
+          final votes = int.tryParse(m.group(2) ?? '0') ?? 0;
+          if (optText.isNotEmpty && optText != question && !optText.toLowerCase().contains('tổng cộng')) {
+            options.add(ChatV2PollOption(
+              id: optId++,
+              text: optText,
+              voteCount: votes,
+            ));
+          }
+        }
+
+        if (options.length >= 2) {
+          int totalVotes = options.fold(0, (sum, o) => sum + o.voteCount);
+          final totalMatch = RegExp(r'Tổng cộng:\s*(\d+)').firstMatch(unescaped);
+          if (totalMatch != null) {
+            totalVotes = int.tryParse(totalMatch.group(1) ?? '') ?? totalVotes;
+          }
+
+          return ChatV2Poll(
+            id: 'poll_${question.hashCode}',
+            question: question.isNotEmpty ? question : 'Bình chọn',
+            options: options,
+            totalVotes: totalVotes,
+            totalVoters: totalVotes,
+          );
         }
       }
     } catch (_) {
