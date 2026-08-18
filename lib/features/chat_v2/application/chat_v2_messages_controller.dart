@@ -671,7 +671,10 @@ class ChatV2MessagesNotifier
       );
 
       final newBody = '<!-- POLL_DATA:${json.encode(newPoll.toJson())} -->';
-      final updatedMsg = targetMsg.copyWith(content: newBody);
+      final updatedMsg = targetMsg.copyWith(
+        content: newBody,
+        rawBody: newBody,
+      );
 
       final optimisticList = currentList.map((m) => m.id == messageId ? updatedMsg : m).toList();
       state = AsyncData(optimisticList);
@@ -684,7 +687,10 @@ class ChatV2MessagesNotifier
         final newBody = '<!-- POLL_DATA:${json.encode(updatedPoll.toJson())} -->';
         final freshList = (state.valueOrNull ?? const []).map((m) {
           if (m.id == messageId) {
-            return m.copyWith(content: newBody);
+            return m.copyWith(
+              content: newBody,
+              rawBody: newBody,
+            );
           }
           return m;
         }).toList();
