@@ -921,7 +921,7 @@ class _AttendanceCalendarView extends StatelessWidget {
                 itemCount: leadingEmpty + daysInMonth,
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 7,
-                  childAspectRatio: 0.85,
+                  childAspectRatio: 0.72,
                   crossAxisSpacing: 4,
                   mainAxisSpacing: 6,
                 ),
@@ -1002,6 +1002,7 @@ class _AttendanceCalendarView extends StatelessWidget {
                       ),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
                             '$dayNum',
@@ -1015,20 +1016,23 @@ class _AttendanceCalendarView extends StatelessWidget {
                           ),
                           const SizedBox(height: 2),
                           if (holiday != null)
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
-                              decoration: BoxDecoration(
-                                color: (isDark ? const Color(0xFFDC2626) : const Color(0xFFDC2626)).withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(5),
-                              ),
-                              child: Text(
-                                holiday.shortLabel,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 8,
-                                  fontWeight: FontWeight.w900,
-                                  color: isDark ? const Color(0xFFFCA5A5) : const Color(0xFFDC2626),
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                                decoration: BoxDecoration(
+                                  color: (isDark ? const Color(0xFFDC2626) : const Color(0xFFDC2626)).withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(5),
+                                ),
+                                child: Text(
+                                  holiday.shortLabel,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 8,
+                                    fontWeight: FontWeight.w900,
+                                    color: isDark ? const Color(0xFFFCA5A5) : const Color(0xFFDC2626),
+                                  ),
                                 ),
                               ),
                             )
@@ -1037,22 +1041,25 @@ class _AttendanceCalendarView extends StatelessWidget {
                               builder: (context) {
                                 final dayTarget = ShiftConfig.forDate(dayDate).targetWorkMinutes;
                                 final isComplete = dayWorkedMins >= dayTarget;
-                                return Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                                  decoration: BoxDecoration(
-                                    color: isComplete
-                                        ? (isDark ? const Color(0xFF064E3B) : const Color(0xFFDCFCE7))
-                                        : (isDark ? const Color(0xFF451A03) : const Color(0xFFFEF3C7)),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    workedHoursStr,
-                                    style: TextStyle(
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.w800,
+                                return FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                    decoration: BoxDecoration(
                                       color: isComplete
-                                          ? (isDark ? const Color(0xFF86EFAC) : const Color(0xFF15803D))
-                                          : (isDark ? const Color(0xFFFCD34D) : const Color(0xFFB45309)),
+                                          ? (isDark ? const Color(0xFF064E3B) : const Color(0xFFDCFCE7))
+                                          : (isDark ? const Color(0xFF451A03) : const Color(0xFFFEF3C7)),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      workedHoursStr,
+                                      style: TextStyle(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w800,
+                                        color: isComplete
+                                            ? (isDark ? const Color(0xFF86EFAC) : const Color(0xFF15803D))
+                                            : (isDark ? const Color(0xFFFCD34D) : const Color(0xFFB45309)),
+                                      ),
                                     ),
                                   ),
                                 );

@@ -85,6 +85,22 @@ class TicketRepository {
         .toList();
   }
 
+  Future<List<TicketTagOption>> tags() async {
+    try {
+      final res = await _client.get('$_ticketBasePath/tags');
+      if (res is List) {
+        return res
+            .cast<Map<String, dynamic>>()
+            .map(TicketTagOption.fromMap)
+            .where((tag) => tag.name.isNotEmpty)
+            .toList();
+      }
+      return const <TicketTagOption>[];
+    } catch (_) {
+      return const <TicketTagOption>[];
+    }
+  }
+
   Future<Ticket> create({
     required String title,
     required String? description,
@@ -163,6 +179,8 @@ class TicketRepository {
   Map<String, dynamic> _ticketFromOdoo(Map<String, dynamic> map) {
     final created =
         map['create_date'] as String? ?? DateTime.now().toIso8601String();
+    final updated =
+        map['write_date'] as String? ?? created;
     
     final stageRaw = map['stage_id'] ?? map['stage_name'];
     final stageName = stageRaw is List && stageRaw.length > 1
@@ -181,7 +199,7 @@ class TicketRepository {
         stageName.contains('đã đóng') ||
         stageName.contains('đã xong');
 
-    final updatedAtStr = hasCloseDate ? closeDate.toString() : created;
+    final updatedAtStr = hasCloseDate ? closeDate.toString() : updated;
 
     final assignedTo = _many2OneId(map['user_id']) ?? '';
     final hasAssignee = assignedTo.isNotEmpty;

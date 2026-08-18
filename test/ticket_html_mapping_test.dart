@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vcloud/core/api/mobile_attachment_repository.dart';
 import 'package:vcloud/core/api/odoo_api_client.dart';
+import 'package:vcloud/core/error/failure.dart';
 import 'package:vcloud/features/ticket/data/ticket_comment_repository.dart';
 import 'package:vcloud/features/ticket/data/ticket_repository.dart';
 import 'package:vcloud/shared/models/ticket.dart';
@@ -242,6 +243,77 @@ void main() {
     await stream.first;
 
     expect(client.calls.first, 'GET /api/v1/mobile/ticket/list?priority=3&team_id=5');
+  });
+
+  test('MobileAttachmentRepository.upload rejects files larger than 25MB', () async {
+    final client = _FakeOdooApiClient(<String, dynamic>{'id': 1});
+    final repo = MobileAttachmentRepository(client: client);
+
+    // Create a 26 MB dummy byte array
+    final oversizedBytes = Uint8List(26 * 1024 * 1024);
+
+    expect(
+      () => repo.upload(
+        MobileAttachmentUpload(
+          filename: 'oversized_file.zip',
+          bytes: oversizedBytes,
+          mimetype: 'application/zip',
+        ),
+      ),
+      throwsA(
+        isA<Failure>().having(
+          (e) => e.message,
+          'message',
+          contains('vượt quá giới hạn tối đa cho phép (25 MB)'),
+        ),
+      ),
+    );
+    expect(client.calls, isEmpty);
+  });
+
+  test('TicketRepository.tags fetches and parses dynamic tags from backend', () async {
+    final client = _FakeOdooApiClient(<Map<String, dynamic>>[
+      <String, dynamic>{'id': 1, 'name': 'CRM'},
+      <String, dynamic>{'id': 2, 'name': 'Website'},
+      <String, dynamic>{'id': 3, 'name': 'Service'},
+      <String, dynamic>{'id': 4, 'name': 'Repair'},
+    ]);
+    final repo = TicketRepository(client: client);
+
+    final tags = await repo.tags();
+
+    expect(tags, hasLength(4));
+    expect(tags[0].id, 1);
+    expect(tags[0].name, 'CRM');
+    expect(tags[1].name, 'Website');
+    expect(client.calls.single, 'GET /api/v1/mobile/ticket/tags');
+  });
+
+  test('Ticket sorting places newest ticket ID at the top of list', () {
+    final t1 = Ticket.fromMap(<String, dynamic>{
+      'id': '91',
+      'name': 'Ticket cũ',
+      'create_date': '2026-08-18T08:00:00Z',
+    });
+    final t2 = Ticket.fromMap(<String, dynamic>{
+      'id': '103',
+      'name': 'Ticket mới tạo',
+      'create_date': '2026-08-18T08:24:00Z',
+    });
+    final t3 = Ticket.fromMap(<String, dynamic>{
+      'id': '95',
+      'name': 'Ticket trung bình',
+      'create_date': '2026-08-18T08:10:00Z',
+    });
+
+    final list = <Ticket>[t1, t2, t3]..sort((a, b) {
+      final int idA = int.tryParse(a.id) ?? 0;
+      final int idB = int.tryParse(b.id) ?? 0;
+      if (idA != idB) return idB.compareTo(idA);
+      return b.updatedAt.compareTo(a.updatedAt);
+    });
+
+    expect(list.map((t) => t.id).toList(), <String>['103', '95', '91']);
   });
 }
 

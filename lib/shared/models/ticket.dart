@@ -245,3 +245,16 @@ class TicketTeamOption {
         name: (map['name'] ?? '').toString(),
       );
 }
+
+class TicketTagOption {
+  const TicketTagOption({this.id, required this.name});
+
+  final int? id;
+  final String name;
+
+  factory TicketTagOption.fromMap(Map<String, dynamic> map) =>
+      TicketTagOption(
+        id: (map['id'] as num?)?.toInt(),
+        name: (map['name'] ?? '').toString(),
+      );
+}

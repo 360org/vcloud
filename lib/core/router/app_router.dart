@@ -179,26 +179,20 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => CustomTransitionPage<void>(
           key: state.pageKey,
           child: const CreateTicketScreen(),
-          transitionDuration: const Duration(milliseconds: 300),
-          reverseTransitionDuration: const Duration(milliseconds: 250),
+          transitionDuration: const Duration(milliseconds: 260),
+          reverseTransitionDuration: const Duration(milliseconds: 220),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             final curvedAnimation = CurvedAnimation(
               parent: animation,
-              curve: Curves.fastEaseInToSlowEaseOut,
-              reverseCurve: Curves.fastOutSlowIn,
+              curve: Curves.easeOutCubic,
+              reverseCurve: Curves.easeInCubic,
             );
             return SlideTransition(
               position: Tween<Offset>(
-                begin: const Offset(0.15, 0.0),
+                begin: const Offset(1.0, 0.0),
                 end: Offset.zero,
               ).animate(curvedAnimation),
-              child: FadeTransition(
-                opacity: CurvedAnimation(
-                  parent: animation,
-                  curve: Curves.easeOut,
-                ),
-                child: child,
-              ),
+              child: child,
             );
           },
         ),
@@ -208,31 +202,20 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => CustomTransitionPage<void>(
           key: state.pageKey,
           child: TicketDetailScreen(ticketId: state.pathParameters['id']!),
-          transitionDuration: const Duration(milliseconds: 320),
-          reverseTransitionDuration: const Duration(milliseconds: 280),
+          transitionDuration: const Duration(milliseconds: 260),
+          reverseTransitionDuration: const Duration(milliseconds: 220),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             final curvedAnimation = CurvedAnimation(
               parent: animation,
-              curve: Curves.fastEaseInToSlowEaseOut,
-              reverseCurve: Curves.fastOutSlowIn,
+              curve: Curves.easeOutCubic,
+              reverseCurve: Curves.easeInCubic,
             );
             return SlideTransition(
               position: Tween<Offset>(
-                begin: const Offset(0.2, 0.0),
+                begin: const Offset(1.0, 0.0),
                 end: Offset.zero,
               ).animate(curvedAnimation),
-              child: FadeTransition(
-                opacity: Tween<double>(begin: 0.0, end: 1.0).animate(
-                  CurvedAnimation(
-                    parent: animation,
-                    curve: const Interval(0.0, 0.8, curve: Curves.easeOut),
-                  ),
-                ),
-                child: ScaleTransition(
-                  scale: Tween<double>(begin: 0.98, end: 1.0).animate(curvedAnimation),
-                  child: child,
-                ),
-              ),
+              child: child,
             );
           },
         ),

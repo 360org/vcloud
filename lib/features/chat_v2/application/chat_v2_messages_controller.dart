@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
+import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../auth/application/auth_controller.dart';
 import '../../../core/utils/local_attachment_cache.dart';
+import '../domain/models/chat_v2_poll_model.dart';
 import '../data/chat_v2_realtime_service.dart';
 import '../data/chat_v2_repository.dart';
 import '../data/models/chat_v2_message.dart';
@@ -98,23 +101,9 @@ class ChatV2MessagesNotifier
             );
             if (!isDisposed && latest.isNotEmpty) {
               final currentList = state.valueOrNull ?? const [];
-              final currentIds = currentList.map((m) => m.id).toSet();
-              final hasNew = latest.any((m) => !currentIds.contains(m.id));
-              final hasPending = currentList.any((m) => m.status == 'pending');
+              final merged = _mergeMessages(currentList, latest);
 
-              if (hasNew || hasPending || currentList.length != latest.length) {
-                // Bảo tồn thông tin trích dẫn reply (parentId/parentBody/parentAuthorName) từ state hiện tại và ReplyCache
-                // Đảm bảo không bao giờ bị mất thẻ trích dẫn khi backend Odoo production chưa cập nhật
-                final currentById = {for (final m in currentList) m.id: m};
-                final merged = latest.map((m) {
-                  final existing = currentById[m.id];
-                  final replyInfo = ChatV2ReplyCache.get(m.id);
-                  return m.copyWith(
-                    parentId: m.parentId ?? existing?.parentId ?? replyInfo?['parent_id'],
-                    parentBody: m.parentBody ?? existing?.parentBody ?? replyInfo?['parent_body'],
-                    parentAuthorName: m.parentAuthorName ?? existing?.parentAuthorName ?? replyInfo?['parent_author_name'],
-                  );
-                }).toList();
+              if (_hasDifferences(currentList, merged)) {
                 ChatV2MessageLocalCache.set(channelId, merged);
                 state = AsyncData(merged);
               }
@@ -149,19 +138,12 @@ class ChatV2MessagesNotifier
           debugPrint('🔴 [TRACE] ChatV2MessagesNotifier.build SWR getMessages() END');
           
           final currentList = state.valueOrNull ?? cached;
-          final currentById = {for (final m in currentList) m.id: m};
-          final merged = fresh.map((m) {
-            final existing = currentById[m.id];
-            final replyInfo = ChatV2ReplyCache.get(m.id);
-            return m.copyWith(
-              parentId: m.parentId ?? existing?.parentId ?? replyInfo?['parent_id'],
-              parentBody: m.parentBody ?? existing?.parentBody ?? replyInfo?['parent_body'],
-              parentAuthorName: m.parentAuthorName ?? existing?.parentAuthorName ?? replyInfo?['parent_author_name'],
-            );
-          }).toList();
+          final merged = _mergeMessages(currentList, fresh);
 
-          ChatV2MessageLocalCache.set(channelId, merged);
-          state = AsyncData(merged);
+          if (_hasDifferences(currentList, merged)) {
+            ChatV2MessageLocalCache.set(channelId, merged);
+            state = AsyncData(merged);
+          }
         } catch (e, st) {
           debugPrint('❌ [ERROR] ChatV2MessagesNotifier.build SWR: $e\n$st');
         }
@@ -180,6 +162,58 @@ class ChatV2MessagesNotifier
     ChatV2MessageLocalCache.set(channelId, fresh);
     debugPrint('🔴 [TRACE] ChatV2MessagesNotifier.build() END (Returned Fresh)');
     return fresh;
+  }
+
+  static List<ChatV2Message> _mergeMessages(
+    List<ChatV2Message> currentList,
+    List<ChatV2Message> freshList,
+  ) {
+    if (freshList.isEmpty) return currentList;
+    if (currentList.isEmpty) return freshList;
+
+    final currentIds = currentList.map((m) => m.id).toSet();
+    final freshById = {for (final m in freshList) m.id: m};
+
+    // 1. Tìm các tin nhắn mới tinh từ server (chưa có trong currentList)
+    final brandNew = freshList.where((m) => !currentIds.contains(m.id)).map((m) {
+      final replyInfo = ChatV2ReplyCache.get(m.id);
+      return m.copyWith(
+        parentId: m.parentId ?? replyInfo?['parent_id'],
+        parentBody: m.parentBody ?? replyInfo?['parent_body'],
+        parentAuthorName: m.parentAuthorName ?? replyInfo?['parent_author_name'],
+      );
+    }).toList();
+
+    // 2. Cập nhật các tin nhắn hiện có mà không làm mất các tin nhắn cũ đã loadMore
+    final updatedExisting = currentList.map((m) {
+      final fresh = freshById[m.id];
+      if (fresh != null) {
+        final replyInfo = ChatV2ReplyCache.get(fresh.id);
+        return fresh.copyWith(
+          parentId: fresh.parentId ?? m.parentId ?? replyInfo?['parent_id'],
+          parentBody: fresh.parentBody ?? m.parentBody ?? replyInfo?['parent_body'],
+          parentAuthorName: fresh.parentAuthorName ?? m.parentAuthorName ?? replyInfo?['parent_author_name'],
+        );
+      }
+      return m; // Giữ nguyên các trang tin nhắn cũ đã tải về
+    }).toList();
+
+    return [...brandNew, ...updatedExisting];
+  }
+
+  static bool _hasDifferences(List<ChatV2Message> a, List<ChatV2Message> b) {
+    if (a.length != b.length) return true;
+    for (int i = 0; i < a.length; i++) {
+      final ma = a[i];
+      final mb = b[i];
+      if (ma.id != mb.id ||
+          ma.content != mb.content ||
+          ma.status != mb.status ||
+          ma.attachments.length != mb.attachments.length) {
+        return true;
+      }
+    }
+    return false;
   }
 
   bool _isLoadingMore = false;
@@ -472,7 +506,10 @@ class ChatV2MessagesNotifier
       ChatV2MessageLocalCache.set(channelId, updatedList);
       state = AsyncData(updatedList);
 
-      ref.read(chatV2LastSentTrackerProvider.notifier).recordSent(channelId, bodyText);
+      final cleanForTracker = mimetype.startsWith('image/')
+          ? ((caption != null && caption.isNotEmpty) ? caption : '[Hình ảnh]')
+          : bodyText;
+      ref.read(chatV2LastSentTrackerProvider.notifier).recordSent(channelId, cleanForTracker);
       ref.read(chatV2ReadStateProvider.notifier).markChannelAsRead(channelId);
 
       // 5. Invalidate channels để cập nhật preview
@@ -523,6 +560,141 @@ class ChatV2MessagesNotifier
       }
     } catch (e) {
       rethrow;
+    }
+  }
+
+  Future<void> sendPoll({
+    required String question,
+    required List<String> options,
+    bool allowMultiple = false,
+  }) async {
+    final channelId = arg;
+    final repo = ref.read(chatV2RepositoryProvider);
+    final user = ref.read(authControllerProvider).valueOrNull;
+
+    final meta = user?.userMetadata;
+    final partnerId = meta?['partner_id']?.toString() ??
+        meta?['partner']?['id']?.toString();
+    final userId = user?.id;
+    final userName = meta?['name']?.toString() ?? 'Tôi';
+
+    final sentMsg = await repo.sendPoll(
+      channelId: channelId,
+      question: question,
+      options: options,
+      allowMultiple: allowMultiple,
+      currentPartnerId: partnerId,
+      currentUserId: userId,
+      authorName: userName,
+    );
+
+    final currentList = state.valueOrNull ?? const [];
+    final updatedList = [sentMsg, ...currentList.where((m) => m.id != sentMsg.id)];
+    ChatV2MessageLocalCache.set(channelId, updatedList);
+    state = AsyncData(updatedList);
+
+    ref.read(chatV2LastSentTrackerProvider.notifier).recordSent(channelId, '📊 [Bình chọn] $question');
+    ref.read(chatV2ReadStateProvider.notifier).markChannelAsRead(channelId);
+    ref.invalidate(chatV2ChannelsProvider);
+  }
+
+  Future<void> votePoll(String messageId, int optionId) async {
+    final channelId = arg;
+    final repo = ref.read(chatV2RepositoryProvider);
+    final user = ref.read(authControllerProvider).valueOrNull;
+
+    final meta = user?.userMetadata;
+    final partnerIdStr = meta?['partner_id']?.toString() ??
+        meta?['partner']?['id']?.toString();
+    final partnerId = int.tryParse(partnerIdStr ?? '');
+    final partnerName = meta?['name']?.toString() ?? 'Tôi';
+
+    // 1. Optimistic Update locally
+    final currentList = state.valueOrNull ?? const [];
+    final targetMsg = currentList.firstWhereOrNull((m) => m.id == messageId);
+    if (targetMsg != null && targetMsg.isPollMessage && targetMsg.poll != null) {
+      final currentPoll = targetMsg.poll!;
+      final updatedOptions = <ChatV2PollOption>[];
+      final isMulti = currentPoll.allowMultiple;
+      final alreadyVoted = currentPoll.options.firstWhereOrNull((o) => o.id == optionId)?.hasVoted(partnerId) ?? false;
+
+      for (final opt in currentPoll.options) {
+        if (opt.id == optionId) {
+          final newVoters = List<int>.from(opt.voterIds);
+          final newNames = List<String>.from(opt.voterNames);
+          if (alreadyVoted) {
+            final idx = newVoters.indexOf(partnerId!);
+            if (idx >= 0) {
+              newVoters.removeAt(idx);
+              if (idx < newNames.length) newNames.removeAt(idx);
+            }
+          } else if (partnerId != null) {
+            newVoters.add(partnerId);
+            newNames.add(partnerName);
+          }
+          updatedOptions.add(opt.copyWith(
+            voterIds: newVoters,
+            voterNames: newNames,
+            voteCount: newVoters.length,
+          ));
+        } else {
+          if (!isMulti && !alreadyVoted && partnerId != null) {
+            // Remove user from other options
+            final newVoters = List<int>.from(opt.voterIds);
+            final newNames = List<String>.from(opt.voterNames);
+            final idx = newVoters.indexOf(partnerId);
+            if (idx >= 0) {
+              newVoters.removeAt(idx);
+              if (idx < newNames.length) newNames.removeAt(idx);
+            }
+            updatedOptions.add(opt.copyWith(
+              voterIds: newVoters,
+              voterNames: newNames,
+              voteCount: newVoters.length,
+            ));
+          } else {
+            updatedOptions.add(opt);
+          }
+        }
+      }
+
+      final newTotalVotes = updatedOptions.fold(0, (sum, o) => sum + o.voteCount);
+      final newPoll = ChatV2Poll(
+        id: currentPoll.id,
+        question: currentPoll.question,
+        options: updatedOptions,
+        allowMultiple: currentPoll.allowMultiple,
+        creatorId: currentPoll.creatorId,
+        creatorName: currentPoll.creatorName,
+        totalVotes: newTotalVotes,
+        totalVoters: updatedOptions.map((o) => o.voterIds).expand((x) => x).toSet().length,
+      );
+
+      final newBody = '<!-- POLL_DATA:${json.encode(newPoll.toJson())} -->';
+      final updatedMsg = targetMsg.copyWith(content: newBody);
+
+      final optimisticList = currentList.map((m) => m.id == messageId ? updatedMsg : m).toList();
+      state = AsyncData(optimisticList);
+      ChatV2MessageLocalCache.set(channelId, optimisticList);
+    }
+
+    try {
+      final updatedPoll = await repo.votePoll(messageId: messageId, optionId: optionId);
+      if (updatedPoll != null) {
+        final newBody = '<!-- POLL_DATA:${json.encode(updatedPoll.toJson())} -->';
+        final freshList = (state.valueOrNull ?? const []).map((m) {
+          if (m.id == messageId) {
+            return m.copyWith(content: newBody);
+          }
+          return m;
+        }).toList();
+        state = AsyncData(freshList);
+        ChatV2MessageLocalCache.set(channelId, freshList);
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('Vote poll error: $e');
+      }
     }
   }
 }

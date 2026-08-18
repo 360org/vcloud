@@ -11,6 +11,7 @@ import '../../../../core/utils/file_download.dart';
 import '../../../../core/utils/local_attachment_cache.dart';
 import '../../data/models/chat_v2_message.dart';
 import '../screens/chat_v2_image_viewer_screen.dart';
+import 'chat_v2_poll_card.dart';
 
 class ChatV2MessageItem extends StatelessWidget {
   const ChatV2MessageItem({
@@ -76,6 +77,34 @@ class ChatV2MessageItem extends StatelessWidget {
     final hasRealCaption = hasAnyImage && !isFileNameContent;
     final isPureImage = hasAnyImage && !hasRealCaption && !hasDocs;
 
+    final isPureText = message.content.isNotEmpty &&
+        !message.isImageFilename &&
+        !message.isDocumentFilename &&
+        !hasImages &&
+        !hasDocs &&
+        message.parentId == null &&
+        message.parentBody == null;
+
+    final timeAndStatus = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          timeStr,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+            color: isMine
+                ? (isDark ? const Color(0xFF8696A0) : const Color(0xFF667781))
+                : (isDark ? const Color(0xFF8696A0) : const Color(0xFF667781)),
+          ),
+        ),
+        if (isMine) ...[
+          const SizedBox(width: 4),
+          _buildStatusIcon(message.status),
+        ],
+      ],
+    );
+
     return GestureDetector(
       onLongPress: onLongPress,
       child: AnimatedContainer(
@@ -135,9 +164,16 @@ class ChatV2MessageItem extends StatelessWidget {
               const SizedBox(width: 6),
             ],
             Flexible(
-              child: isPureImage
-                  ? _buildPureImageBubble(context, imageAttachments, isMine, timeStr)
-                  : Container(
+              child: (message.isPollMessage && message.poll != null)
+                  ? ChatV2PollCard(
+                      message: message,
+                      poll: message.poll!,
+                      isMine: isMine,
+                      timeStr: timeStr,
+                    )
+                  : isPureImage
+                      ? _buildPureImageBubble(context, imageAttachments, isMine, timeStr)
+                      : Container(
                       constraints: BoxConstraints(
                         maxWidth: MediaQuery.of(context).size.width * 0.72,
                       ),
@@ -181,8 +217,7 @@ class ChatV2MessageItem extends StatelessWidget {
                               ? EdgeInsets.zero
                               : const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                           child: Column(
-                            crossAxisAlignment:
-                                isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               if (!isMine && showSenderName) ...[
@@ -213,6 +248,7 @@ class ChatV2MessageItem extends StatelessWidget {
                           if (hasDocs) ...[
                             Column(
                               mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 for (final att in docAttachments) ...[
                                   _buildDocumentAttachment(context, att, isMine),
@@ -224,49 +260,54 @@ class ChatV2MessageItem extends StatelessWidget {
                             // 4. Render document filename card
                             _buildDocumentFilenameCard(context, isMine),
                           ],
-                          // 5. Render message text/caption if applicable
-                          if (message.content.isNotEmpty &&
-                              !message.isImageFilename &&
-                              !message.isDocumentFilename &&
-                              (!hasImages || !isFileNameContent)) ...[
-                            Padding(
-                              padding: hasAnyImage
-                                  ? const EdgeInsets.only(top: 8, left: 12, right: 12, bottom: 4)
-                                  : EdgeInsets.zero,
-                              child: _buildParsedMessageText(
-                                context: context,
-                                rawText: message.content,
-                                isMine: isMine,
-                                isDark: isDark,
-                                textColor: isDark ? const Color(0xFFE9EDEF) : const Color(0xFF111B21),
+                          // 5. Render message text & time
+                          if (isPureText) ...[
+                            Wrap(
+                              alignment: WrapAlignment.end,
+                              crossAxisAlignment: WrapCrossAlignment.end,
+                              spacing: 8,
+                              runSpacing: 2,
+                              children: [
+                                _buildParsedMessageText(
+                                  context: context,
+                                  rawText: message.content,
+                                  isMine: isMine,
+                                  isDark: isDark,
+                                  textColor: isDark ? const Color(0xFFE9EDEF) : const Color(0xFF111B21),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 1),
+                                  child: timeAndStatus,
+                                ),
+                              ],
+                            ),
+                          ] else ...[
+                            if (message.content.isNotEmpty &&
+                                !message.isImageFilename &&
+                                !message.isDocumentFilename &&
+                                (!hasImages || !isFileNameContent))
+                              Padding(
+                                padding: hasAnyImage
+                                    ? const EdgeInsets.only(top: 8, left: 12, right: 12, bottom: 4)
+                                    : EdgeInsets.zero,
+                                child: _buildParsedMessageText(
+                                  context: context,
+                                  rawText: message.content,
+                                  isMine: isMine,
+                                  isDark: isDark,
+                                  textColor: isDark ? const Color(0xFFE9EDEF) : const Color(0xFF111B21),
+                                ),
+                              ),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: Padding(
+                                padding: hasAnyImage
+                                    ? const EdgeInsets.only(bottom: 6, right: 10, left: 10)
+                                    : const EdgeInsets.only(top: 3),
+                                child: timeAndStatus,
                               ),
                             ),
                           ],
-                          Padding(
-                            padding: hasAnyImage
-                                ? const EdgeInsets.only(bottom: 6, right: 10, left: 10)
-                                : const EdgeInsets.only(top: 3),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                Text(
-                                  timeStr,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w500,
-                                    color: isMine
-                                        ? (isDark ? const Color(0xFF8696A0) : const Color(0xFF667781))
-                                        : (isDark ? const Color(0xFF8696A0) : const Color(0xFF667781)),
-                                  ),
-                                ),
-                                if (isMine) ...[
-                                  const SizedBox(width: 4),
-                                  _buildStatusIcon(message.status),
-                                ],
-                              ],
-                            ),
-                          ),
                         ],
                       ),
                     ),
@@ -553,7 +594,21 @@ class ChatV2MessageItem extends StatelessWidget {
           );
         }
 
-        return _buildSimpleFilenameCard(context, isMine, cleanName);
+        final targetAttId = message.attachments.isNotEmpty
+            ? message.attachments.first.id
+            : message.id;
+
+        return _buildImageAttachment(
+          context,
+          ChatV2Attachment(
+            id: targetAttId,
+            name: cleanName,
+            url: '/api/v1/mobile/attachments/$targetAttId/download',
+            downloadUrl: '/api/v1/mobile/attachments/$targetAttId/download',
+            mimetype: 'image/jpeg',
+          ),
+          isMine,
+        );
       },
     );
   }

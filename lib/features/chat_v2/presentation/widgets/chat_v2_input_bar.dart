@@ -6,6 +6,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 
+import 'chat_v2_create_poll_sheet.dart';
+
 class ChatV2InputBar extends StatefulWidget {
   const ChatV2InputBar({
     super.key,
@@ -13,11 +15,15 @@ class ChatV2InputBar extends StatefulWidget {
     this.onSendImage,
     this.onSendFile,
     this.onTyping,
+    this.onCreatePoll,
+    this.channelId,
     this.isSending = false,
     this.controller,
     this.focusNode,
   });
 
+  final String? channelId;
+  final VoidCallback? onCreatePoll;
   final Future<void> Function(String text) onSend;
   final Future<void> Function({
     required Uint8List bytes,
@@ -376,6 +382,20 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
                     onTap: () {
                       Navigator.pop(ctx);
                       _handlePickFile();
+                    },
+                    isDark: isDark,
+                  ),
+                  _buildAttachmentActionButton(
+                    icon: LucideIcons.barChart2,
+                    gradientColors: const [Color(0xFF10B981), Color(0xFF059669)],
+                    label: 'Bình chọn',
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      if (widget.onCreatePoll != null) {
+                        widget.onCreatePoll!();
+                      } else if (widget.channelId != null) {
+                        ChatV2CreatePollSheet.show(context, widget.channelId!);
+                      }
                     },
                     isDark: isDark,
                   ),

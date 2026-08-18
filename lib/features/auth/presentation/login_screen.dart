@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
 import '../../../core/api/odoo_api_client.dart';
+import '../../../shared/widgets/app_toast.dart';
 import '../../../shared/widgets/brand_logo.dart';
 import '../application/auth_controller.dart';
 import 'tenant_selection_sheet.dart';
@@ -32,7 +33,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   void initState() {
     super.initState();
+    _email.addListener(_onFieldChanged);
+    _password.addListener(_onFieldChanged);
     _loadSavedEmail();
+  }
+
+  void _onFieldChanged() {
+    if (_error != null) {
+      setState(() => _error = null);
+    }
   }
 
   Future<void> _loadSavedEmail() async {
@@ -64,6 +73,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   void dispose() {
+    _email.removeListener(_onFieldChanged);
+    _password.removeListener(_onFieldChanged);
     _email.dispose();
     _password.dispose();
     _emailFocus.dispose();
@@ -72,8 +83,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _submit() async {
+    FocusScope.of(context).unfocus();
     setState(() => _error = null);
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) {
+      setState(() {
+        _error = 'Vui lòng nhập đầy đủ email tài khoản và mật khẩu.';
+      });
+      AppToast.warning(
+        context,
+        title: 'Thông tin chưa đầy đủ',
+        message: 'Vui lòng nhập đầy đủ email và mật khẩu để tiếp tục.',
+      );
+      return;
+    }
     await _attemptSignIn();
   }
 
@@ -102,13 +124,27 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       }
     } catch (e) {
       if (mounted) {
+        String cleanMsg = e
+            .toString()
+            .replaceFirst('Failure: ', '')
+            .replaceFirst('Failure(', '')
+            .replaceFirst(')', '')
+            .trim();
+        if (cleanMsg.isEmpty ||
+            cleanMsg == 'invalid_credentials' ||
+            cleanMsg.contains('invalid_credentials')) {
+          cleanMsg = 'Tài khoản hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại!';
+        }
         setState(() {
           _submitting = false;
-          _error = e
-              .toString()
-              .replaceFirst('Failure(', '')
-              .replaceFirst(')', '');
+          _error = cleanMsg;
         });
+        AppToast.error(
+          context,
+          title: 'Đăng nhập thất bại',
+          message: cleanMsg,
+        );
+        _password.clear();
       }
     }
   }
@@ -224,11 +260,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   ),
                                   enabledBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(16),
-                                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                    borderSide: BorderSide(
+                                      color: _error != null ? const Color(0xFFFCA5A5) : const Color(0xFFE2E8F0),
+                                      width: _error != null ? 1.3 : 1.0,
+                                    ),
                                   ),
                                   focusedBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(16),
-                                    borderSide: const BorderSide(color: Color(0xFF10B981), width: 1.5),
+                                    borderSide: BorderSide(
+                                      color: _error != null ? const Color(0xFFDC2626) : const Color(0xFF10B981),
+                                      width: 1.5,
+                                    ),
                                   ),
                                 ),
                                 keyboardType: TextInputType.emailAddress,
@@ -246,7 +288,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 decoration: InputDecoration(
                                   labelText: 'Mật khẩu',
                                   labelStyle: const TextStyle(color: Color(0xFF64748B)),
-                                  prefixIcon: const Icon(LucideIcons.lock, size: 20, color: Color(0xFF10B981)),
+                                  prefixIcon: Icon(
+                                    LucideIcons.lock,
+                                    size: 20,
+                                    color: _error != null ? const Color(0xFFDC2626) : const Color(0xFF10B981),
+                                  ),
                                   suffixIcon: IconButton(
                                     icon: Icon(
                                       _obscurePassword ? LucideIcons.eyeOff : LucideIcons.eye,
@@ -267,11 +313,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   ),
                                   enabledBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(16),
-                                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                    borderSide: BorderSide(
+                                      color: _error != null ? const Color(0xFFFCA5A5) : const Color(0xFFE2E8F0),
+                                      width: _error != null ? 1.3 : 1.0,
+                                    ),
                                   ),
                                   focusedBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(16),
-                                    borderSide: const BorderSide(color: Color(0xFF10B981), width: 1.5),
+                                    borderSide: BorderSide(
+                                      color: _error != null ? const Color(0xFFDC2626) : const Color(0xFF10B981),
+                                      width: 1.5,
+                                    ),
                                   ),
                                 ),
                                 autofillHints: const [AutofillHints.password],
@@ -280,31 +332,51 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                               // Error Banner
                               if (_error != null) ...[
-                                const SizedBox(height: 14),
+                                const SizedBox(height: 16),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                                   decoration: BoxDecoration(
                                     color: const Color(0xFFFEF2F2),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: const Color(0xFFFCA5A5)),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(color: const Color(0xFFF87171), width: 1.2),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: const Color(0xFFEF4444).withValues(alpha: 0.12),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 3),
+                                      ),
+                                    ],
                                   ),
                                   child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      const Icon(LucideIcons.alertCircle, color: Color(0xFFDC2626), size: 18),
+                                      Container(
+                                        padding: const EdgeInsets.all(4),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(
+                                          LucideIcons.alertTriangle,
+                                          color: Color(0xFFDC2626),
+                                          size: 16,
+                                        ),
+                                      ),
                                       const SizedBox(width: 10),
                                       Expanded(
                                         child: Text(
                                           _error!,
                                           style: const TextStyle(
-                                            color: Color(0xFFDC2626),
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w600,
+                                            color: Color(0xFFB91C1C),
+                                            fontSize: 13.5,
+                                            fontWeight: FontWeight.w700,
+                                            height: 1.35,
                                           ),
                                         ),
                                       ),
                                     ],
                                   ),
-                                ).animate().shake(duration: 400.ms),
+                                ).animate().shake(duration: 450.ms, hz: 4),
                               ],
 
                               const SizedBox(height: 24),
@@ -354,20 +426,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           ),
                         ).animate().fade(duration: 700.ms, delay: 200.ms).slideY(begin: 0.1, end: 0),
 
-                        const SizedBox(height: 20),
-
-                        // Create Account Link
-                        TextButton(
-                          onPressed: () => context.push('/signup'),
-                          child: const Text(
-                            'Tạo tài khoản mới',
-                            style: TextStyle(
-                              color: Color(0xFF475569),
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
+                        // Tạm thời ẩn chức năng Tạo tài khoản mới theo yêu cầu
+                        const SizedBox(height: 12),
                       ],
                     ),
                   ),

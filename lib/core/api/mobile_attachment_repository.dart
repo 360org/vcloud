@@ -71,9 +71,15 @@ class MobileAttachmentRepository {
   MobileAttachmentRepository({OdooApiClient? client})
     : _client = client ?? odooApiClient;
 
+  static const int maxFileSizeBytes = 25 * 1024 * 1024; // 25 MB
+
   final OdooApiClient _client;
 
   Future<MobileAttachment> upload(MobileAttachmentUpload file) async {
+    if (file.bytes.length > maxFileSizeBytes) {
+      final sizeMb = (file.bytes.length / (1024 * 1024)).toStringAsFixed(1);
+      throw Failure('Dung lượng tệp ($sizeMb MB) vượt quá giới hạn tối đa cho phép (25 MB). Vui lòng chọn tệp nhỏ hơn.');
+    }
     final b64 = base64Encode(file.bytes).replaceAll('\r', '').replaceAll('\n', '').trim();
     final res = await _client.post(
       '/api/v1/mobile/attachments/upload',

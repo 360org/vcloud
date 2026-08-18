@@ -274,12 +274,32 @@ class _ChatV2InfoSheetState extends State<ChatV2InfoSheet>
                         shape: BoxShape.circle,
                       ),
                       alignment: Alignment.center,
-                      child: Text(
-                        cleanName.isNotEmpty ? cleanName[0].toUpperCase() : 'C',
-                        style: const TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
+                      child: ClipOval(
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            Center(
+                              child: Text(
+                                cleanName.isNotEmpty ? cleanName[0].toUpperCase() : 'C',
+                                style: const TextStyle(
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                            if (widget.channel.avatarUrl != null &&
+                                widget.channel.avatarUrl!.isNotEmpty)
+                              Image.network(
+                                widget.channel.avatarUrl!,
+                                width: 72,
+                                height: 72,
+                                fit: BoxFit.cover,
+                                gaplessPlayback: true,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    const SizedBox.shrink(),
+                              ),
+                          ],
                         ),
                       ),
                     ),
@@ -477,6 +497,12 @@ class _ChatV2InfoSheetState extends State<ChatV2InfoSheet>
   }
 
   Widget _buildGroupContent(bool isDark) {
+    final memberCount = widget.channel.members.isNotEmpty
+        ? widget.channel.members.length
+        : (widget.channel.memberNames.isNotEmpty
+            ? widget.channel.memberNames.length
+            : widget.channel.memberCount);
+
     return DefaultTabController(
       length: 2,
       child: Column(
@@ -488,7 +514,7 @@ class _ChatV2InfoSheetState extends State<ChatV2InfoSheet>
             unselectedLabelColor: isDark ? Colors.white54 : const Color(0xFF64748B),
             labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
             tabs: [
-              Tab(text: 'Thành viên (${widget.channel.memberNames.length})'),
+              Tab(text: 'Thành viên ($memberCount)'),
               const Tab(text: 'Ảnh & Tài liệu'),
             ],
           ),
@@ -510,7 +536,12 @@ class _ChatV2InfoSheetState extends State<ChatV2InfoSheet>
   }
 
   Widget _buildMembersList(bool isDark) {
-    final members = widget.channel.memberNames;
+    final members = widget.channel.members.isNotEmpty
+        ? widget.channel.members
+        : widget.channel.memberNames
+            .map((name) => ChatV2Member(id: '', name: name))
+            .toList();
+
     if (members.isEmpty) {
       return Center(
         child: Text(
@@ -528,11 +559,14 @@ class _ChatV2InfoSheetState extends State<ChatV2InfoSheet>
       itemCount: members.length,
       separatorBuilder: (_, _) => const SizedBox(height: 8),
       itemBuilder: (context, idx) {
-        final name = members[idx];
-        final isMe = widget.currentUserName != null &&
-            name.toLowerCase().trim() == widget.currentUserName!.toLowerCase().trim();
+        final member = members[idx];
+        final name = member.name;
+        final isMe = member.isMe ||
+            (widget.currentUserName != null &&
+                name.toLowerCase().trim() == widget.currentUserName!.toLowerCase().trim());
         final avatarGrad = ChatV2InfoSheet.getAvatarGradient(name);
         final isLeader = idx == 0;
+        final isOnline = member.imStatus == 'online';
 
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -546,26 +580,67 @@ class _ChatV2InfoSheetState extends State<ChatV2InfoSheet>
           child: Row(
             children: [
               // Member Avatar
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: avatarGrad),
-                  shape: BoxShape.circle,
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  name.isNotEmpty ? name[0].toUpperCase() : 'M',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
+              Stack(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(colors: avatarGrad),
+                      shape: BoxShape.circle,
+                    ),
+                    alignment: Alignment.center,
+                    child: ClipOval(
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Center(
+                            child: Text(
+                              name.isNotEmpty ? name[0].toUpperCase() : 'M',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                              ),
+                            ),
+                          ),
+                          if (member.avatarUrl != null &&
+                              member.avatarUrl!.isNotEmpty)
+                            Image.network(
+                              member.avatarUrl!,
+                              width: 38,
+                              height: 38,
+                              fit: BoxFit.cover,
+                              gaplessPlayback: true,
+                              errorBuilder: (ctx, err, stack) =>
+                                  const SizedBox.shrink(),
+                            ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
+                  if (isOnline)
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        width: 11,
+                        height: 11,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF00C83A),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(width: 12),
 
-              // Member Name
+              // Member Name & Role
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -580,7 +655,18 @@ class _ChatV2InfoSheetState extends State<ChatV2InfoSheet>
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    if (isLeader) ...[
+                    if (member.email != null && member.email!.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        member.email!,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: isDark ? Colors.white54 : const Color(0xFF64748B),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ] else if (isLeader) ...[
                       const SizedBox(height: 2),
                       const Text(
                         'Trưởng nhóm',

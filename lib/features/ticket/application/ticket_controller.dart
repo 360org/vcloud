@@ -36,6 +36,10 @@ final ticketTeamsProvider = FutureProvider<List<TicketTeamOption>>(
   (ref) => ref.read(ticketRepositoryProvider).teams(),
 );
 
+final ticketTagsProvider = FutureProvider<List<TicketTagOption>>(
+  (ref) => ref.read(ticketRepositoryProvider).tags(),
+);
+
 final ticketActivitiesProvider =
     FutureProvider.family<List<TicketActivity>, String>((ref, ticketId) async {
       return ref.read(ticketRepositoryProvider).activities(ticketId);

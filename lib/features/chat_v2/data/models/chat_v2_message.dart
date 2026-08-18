@@ -1,7 +1,9 @@
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 
+import '../../../../core/api/odoo_api_client.dart';
 import '../../../../core/utils/date_format.dart';
+import '../../domain/models/chat_v2_poll_model.dart';
 
 @immutable
 class ChatV2Attachment {
@@ -150,6 +152,7 @@ class ChatV2Message {
     required this.id,
     required this.channelId,
     required this.content,
+    this.rawBody,
     this.authorId,
     this.authorName = 'Người dùng',
     this.authorAvatar,
@@ -165,6 +168,7 @@ class ChatV2Message {
   final String id;
   final String channelId;
   final String content;
+  final String? rawBody;
   final String? authorId;
   final String authorName;
   final String? authorAvatar;
@@ -211,10 +215,15 @@ class ChatV2Message {
         clean.startsWith('hopdong_');
   }
 
+  bool get isPollMessage => poll != null;
+
+  ChatV2Poll? get poll => ChatV2Poll.tryParseFromBody(rawBody ?? content);
+
   ChatV2Message copyWith({
     String? id,
     String? channelId,
     String? content,
+    String? rawBody,
     String? authorId,
     String? authorName,
     String? authorAvatar,
@@ -230,6 +239,7 @@ class ChatV2Message {
       id: id ?? this.id,
       channelId: channelId ?? this.channelId,
       content: content ?? this.content,
+      rawBody: rawBody ?? this.rawBody,
       authorId: authorId ?? this.authorId,
       authorName: authorName ?? this.authorName,
       authorAvatar: authorAvatar ?? this.authorAvatar,
@@ -246,7 +256,7 @@ class ChatV2Message {
   Map<String, dynamic> toMap() => {
     'id': id,
     'channel_id': channelId,
-    'body': content,
+    'body': rawBody ?? content,
     'author_id': authorId,
     'author_name': authorName,
     'author_avatar': authorAvatar,
@@ -313,6 +323,12 @@ class ChatV2Message {
         .replaceAll('&amp;', '&');
 
     String bodyWithoutQuote = unescapedBody;
+    if (bodyWithoutQuote.contains('class="o_poll_json"') || bodyWithoutQuote.contains("class='o_poll_json'")) {
+      bodyWithoutQuote = bodyWithoutQuote.replaceAll(
+        RegExp(r'<div[^>]*class=[\x27"]o_poll_json[\x27"][^>]*>.*?<\/div>', caseSensitive: false, dotAll: true),
+        '',
+      );
+    }
     if (unescapedBody.contains('data-reply-') || unescapedBody.contains('<blockquote') || unescapedBody.contains('o_quote')) {
       // 1. Nhận diện <div data-reply-...>...</div>
       final divRegex = RegExp(r'<div([^>]*data-reply-[^>]*)>(.*?)<\/div>', caseSensitive: false, dotAll: true);
@@ -386,7 +402,11 @@ class ChatV2Message {
           clean.endsWith('.webp') ||
           clean.endsWith('.gif') ||
           clean.endsWith('.svg') ||
-          clean.startsWith('scaled_');
+          clean.endsWith('.heic') ||
+          clean.endsWith('.heif') ||
+          clean.endsWith('.bmp') ||
+          clean.startsWith('scaled_') ||
+          clean.startsWith('image_picker_');
 
       for (final aid in attIds) {
         if (aid != null) {
@@ -394,10 +414,10 @@ class ChatV2Message {
           parsedAttachments.add(
             ChatV2Attachment(
               id: sId,
-              name: cleanContent.isNotEmpty ? cleanContent : 'Đính kèm $sId',
-              url: isImgName ? '/web/image/$sId' : '/web/content/$sId',
-              downloadUrl: '/web/content/$sId',
-              mimetype: isImgName ? 'image/png' : 'application/octet-stream',
+              name: cleanContent.isNotEmpty ? cleanContent : (isImgName ? 'image_$sId.jpg' : 'attachment_$sId'),
+              url: '/api/v1/mobile/attachments/$sId/download',
+              downloadUrl: '/api/v1/mobile/attachments/$sId/download',
+              mimetype: isImgName ? 'image/jpeg' : 'application/octet-stream',
             ),
           );
         }
@@ -425,12 +445,26 @@ class ChatV2Message {
         ? _cleanHtml(extractedParentBody)
         : null;
 
+    final rawAuthorAvatar = _stringOrNull(
+      map['author_avatar'] ??
+          map['avatar_url'] ??
+          map['avatar_128_url'] ??
+          map['avatar_128'] ??
+          map['image_128'],
+    );
+    final authorAvatar = odooApiClient.resolveAvatarUrl(rawAuthorAvatar) ??
+        (authorId != null && authorId.isNotEmpty
+            ? odooApiClient.resolveAvatarUrl('/web/image/res.partner/$authorId/avatar_128')
+            : null);
+
     return ChatV2Message(
       id: id,
       channelId: channelId,
       content: cleanContent,
+      rawBody: rawBody,
       authorId: authorId,
       authorName: authorName,
+      authorAvatar: authorAvatar,
       createdAt: createdAt,
       isMine: isMine,
       status: _stringOr(map['status'], 'sent'),

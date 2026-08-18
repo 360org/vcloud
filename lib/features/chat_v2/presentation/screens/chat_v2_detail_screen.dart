@@ -15,7 +15,6 @@ import '../../application/chat_v2_typing_controller.dart';
 import '../../application/chat_v2_presence_controller.dart';
 import '../../data/chat_v2_realtime_service.dart';
 import '../../../auth/application/auth_controller.dart';
-import '../../../../shared/widgets/html_avatar_image.dart';
 import '../widgets/chat_v2_input_bar.dart';
 import '../widgets/chat_v2_message_item.dart';
 import '../widgets/chat_v2_info_sheet.dart';
@@ -44,6 +43,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
 
   String? _highlightedMessageId;
   Timer? _highlightTimer;
+  bool _showScrollToBottom = false;
 
   @override
   void initState() {
@@ -53,11 +53,20 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
   }
 
   void _onScroll() {
+    if (!_scrollController.hasClients) return;
+
     if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
       final notifier = ref.read(chatV2MessagesProvider(widget.channelId).notifier);
       if (!notifier.isLoadingMore) {
         notifier.loadMore();
       }
+    }
+
+    final showBtn = _scrollController.position.pixels > 300;
+    if (_showScrollToBottom != showBtn) {
+      setState(() {
+        _showScrollToBottom = showBtn;
+      });
     }
   }
 
@@ -115,8 +124,8 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
     if (_scrollController.hasClients) {
       _scrollController.animateTo(
         0.0,
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOut,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
       );
     }
   }
@@ -370,52 +379,35 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                     ],
                   ),
                   alignment: Alignment.center,
-                  child: (avatarUrl != null && avatarUrl.isNotEmpty)
-                      ? ClipOval(
-                          child: SizedBox(
-                            width: 40,
-                            height: 40,
-                            child: buildHtmlAvatarImage(
-                                  url: avatarUrl,
-                                  fallback: Text(
-                                    displayTitle.isNotEmpty
-                                        ? displayTitle[0].toUpperCase()
-                                        : 'C',
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ) ??
-                                Image.network(
-                                  avatarUrl,
-                                  width: 40,
-                                  height: 40,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) => Text(
-                                    displayTitle.isNotEmpty
-                                        ? displayTitle[0].toUpperCase()
-                                        : 'C',
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ),
-                          ),
-                        )
-                      : Text(
-                          displayTitle.isNotEmpty
-                              ? displayTitle[0].toUpperCase()
-                              : 'C',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                  child: ClipOval(
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Center(
+                          child: Text(
+                            displayTitle.isNotEmpty
+                                ? displayTitle[0].toUpperCase()
+                                : 'C',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
+                        if (avatarUrl != null && avatarUrl.isNotEmpty)
+                          Image.network(
+                            avatarUrl,
+                            width: 40,
+                            height: 40,
+                            fit: BoxFit.cover,
+                            gaplessPlayback: true,
+                            errorBuilder: (context, error, stackTrace) =>
+                                const SizedBox.shrink(),
+                          ),
+                      ],
+                    ),
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -686,6 +678,32 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                                   onTap: () async {
                                                     final messenger = ScaffoldMessenger.of(context);
                                                     Navigator.pop(sheetContext);
+                                                    final confirmed = await showDialog<bool>(
+                                                      context: context,
+                                                      builder: (dialogCtx) => AlertDialog(
+                                                        title: const Text('Thu hồi tin nhắn?'),
+                                                        content: const Text(
+                                                          'Bạn có chắc chắn muốn thu hồi tin nhắn này? Tin nhắn sẽ bị thu hồi đối với tất cả mọi người trong cuộc trò chuyện.',
+                                                        ),
+                                                        actions: [
+                                                          TextButton(
+                                                            onPressed: () => Navigator.pop(dialogCtx, false),
+                                                            child: const Text('Hủy'),
+                                                          ),
+                                                          ElevatedButton(
+                                                            style: ElevatedButton.styleFrom(
+                                                              backgroundColor: Colors.red,
+                                                              foregroundColor: Colors.white,
+                                                            ),
+                                                            onPressed: () => Navigator.pop(dialogCtx, true),
+                                                            child: const Text('Thu hồi'),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    );
+
+                                                    if (confirmed != true || !mounted) return;
+
                                                     try {
                                                       await ref.read(chatV2MessagesProvider(widget.channelId).notifier).deleteMessage(message.id);
                                                     } catch (e) {
@@ -903,6 +921,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                       ),
                     ),
                   ChatV2InputBar(
+                    channelId: widget.channelId,
                     controller: _inputController,
                     focusNode: _inputFocusNode,
                     onSend: _handleSendMessage,
@@ -916,6 +935,42 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                 ],
               ),
             ),
+            if (_showScrollToBottom)
+              Positioned(
+                right: 16,
+                bottom: 80,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: _scrollToBottom,
+                    borderRadius: BorderRadius.circular(24),
+                    child: Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: isDark ? 0.45 : 0.18),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                        border: Border.all(
+                          color: isDark ? Colors.white12 : const Color(0xFFE2E8F0),
+                          width: 1,
+                        ),
+                      ),
+                      child: Icon(
+                        LucideIcons.chevronDown,
+                        size: 22,
+                        color: isDark ? const Color(0xFF00C83A) : const Color(0xFF00A82D),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),

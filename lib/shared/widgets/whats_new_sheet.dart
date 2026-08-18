@@ -8,7 +8,7 @@ class WhatsNewSheet extends StatelessWidget {
   static const String _storageKey = 'whats_new_seen_build_number';
 
   /// Kiểm tra và tự động hiển thị Sheet nếu người dùng chưa xem build [targetBuild]
-  static Future<void> showIfNeeded(BuildContext context, {int targetBuild = 75}) async {
+  static Future<void> showIfNeeded(BuildContext context, {int targetBuild = 76}) async {
     try {
       const storage = FlutterSecureStorage();
       final seenStr = await storage.read(key: _storageKey);
@@ -96,7 +96,7 @@ class WhatsNewSheet extends StatelessWidget {
                         Icon(LucideIcons.sparkles, size: 14, color: Color(0xFF00C83A)),
                         SizedBox(width: 6),
                         Text(
-                          'PHIÊN BẢN MỚI v2.4.0 (BUILD 75)',
+                          'PHIÊN BẢN MỚI v2.4.0 (BUILD 76)',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w800,
@@ -111,7 +111,7 @@ class WhatsNewSheet extends StatelessWidget {
 
                   // Tiêu đề chính
                   Text(
-                    'Trải Nghiệm Hội Thoại & Tính Năng Mới',
+                    'Bình Chọn Trực Tuyến & Tối Ưu Toàn Diện',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 19,
@@ -124,7 +124,7 @@ class WhatsNewSheet extends StatelessWidget {
 
                   // Phụ đề
                   Text(
-                    'Khám phá các cải tiến vượt trội về tốc độ, tương tác và đồng bộ trên Vcloud.',
+                    'Khám phá tính năng Thăm dò ý kiến, Toast thông báo nổi và trải nghiệm trò chuyện nâng cấp trên Vcloud.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 13,
@@ -144,52 +144,52 @@ class WhatsNewSheet extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 children: [
                   _FeatureCard(
-                    icon: LucideIcons.messageSquare,
+                    icon: LucideIcons.barChart2,
                     iconColor: const Color(0xFF00C83A),
                     tagText: 'MỚI',
                     tagColor: const Color(0xFF00C83A),
-                    title: 'Bộ ba Thao tác Tin nhắn',
-                    description: 'Chạm giữ tin nhắn để Trả lời kèm trích dẫn gốc, Thu hồi hoặc Chỉnh sửa tin nhắn tức thì.',
+                    title: 'Bình Chọn & Thăm Dò Chat V2',
+                    description: 'Tạo bình chọn linh hoạt 1 hoặc nhiều phương án, tiến trình % thời gian thực và lưu vĩnh viễn trên Odoo.',
                     isDark: isDark,
                   ),
                   const SizedBox(height: 10),
                   _FeatureCard(
-                    icon: LucideIcons.reply,
+                    icon: LucideIcons.bell,
                     iconColor: const Color(0xFF0284C7),
                     tagText: 'TRẢI NGHIỆM',
                     tagColor: const Color(0xFF0284C7),
-                    title: 'Chạm Trích dẫn Nhảy Tin nhắn gốc',
-                    description: 'Chạm vào thẻ Quote Card để cuộn mượt mà và phát sáng nổi bật tin nhắn được trả lời.',
+                    title: 'Thông Báo Nổi Đa Tầng AppToast',
+                    description: 'Thẻ thông báo nổi bo cong 20px, đổ bóng phát sáng đa tầng, không dính đáy và không che phím điều hướng.',
+                    isDark: isDark,
+                  ),
+                  const SizedBox(height: 10),
+                  _FeatureCard(
+                    icon: LucideIcons.messageSquare,
+                    iconColor: const Color(0xFF7C3AED),
+                    tagText: 'TỐI ƯU',
+                    tagColor: const Color(0xFF7C3AED),
+                    title: 'Bong Bóng Chat Ôm Sát & Xem Trước',
+                    description: 'Khung chat ôm sát theo độ dài chữ thực tế, xem trước thông minh [Bình chọn] và [Hình ảnh] ngoài danh sách.',
                     isDark: isDark,
                   ),
                   const SizedBox(height: 10),
                   _FeatureCard(
                     icon: LucideIcons.image,
-                    iconColor: const Color(0xFF7C3AED),
-                    tagText: 'TỐI ƯU',
-                    tagColor: const Color(0xFF7C3AED),
-                    title: 'Đồng bộ Ảnh & Xem trước 0.00s',
-                    description: 'Chuẩn hóa nén JPEG sắc nét, duy trì ảnh hiển thị xuyên suốt đồng bộ giữa Web và Mobile.',
-                    isDark: isDark,
-                  ),
-                  const SizedBox(height: 10),
-                  _FeatureCard(
-                    icon: LucideIcons.fileText,
                     iconColor: const Color(0xFF0D9488),
-                    tagText: 'GIAO DIỆN',
+                    tagText: 'ĐỒNG BỘ',
                     tagColor: const Color(0xFF0D9488),
-                    title: 'Thẻ Tệp Zalo & Shared Media Hub',
-                    description: 'Icon tài liệu gấp góc, hiện dung lượng file và kho phân loại Ảnh / Tài liệu / Liên kết.',
+                    title: 'Đồng Bộ Ảnh iOS & Tự Động Tải',
+                    description: 'Hỗ trợ mượt mà ảnh chụp iPhone 13 (HEIC/image_picker), tự động nạp ảnh qua mạng và xem phóng to sắc nét.',
                     isDark: isDark,
                   ),
                   const SizedBox(height: 10),
                   _FeatureCard(
-                    icon: LucideIcons.zap,
+                    icon: LucideIcons.checkSquare,
                     iconColor: const Color(0xFFEA580C),
                     tagText: 'HIỆU NĂNG',
                     tagColor: const Color(0xFFEA580C),
-                    title: 'Tăng tốc & Báo Đang soạn tin',
-                    description: 'Tải danh sách chat dưới 0.05s và hiển thị trạng thái người gửi thời gian thực.',
+                    title: 'Phân Luồng Timesheet & Tạo Ticket 1-Chạm',
+                    description: 'Chuyển đổi tức thì giữa Task cần làm và hoàn thành, tinh gọn giao diện tạo ticket với trần tệp 25MB.',
                     isDark: isDark,
                   ),
                   const SizedBox(height: 12),

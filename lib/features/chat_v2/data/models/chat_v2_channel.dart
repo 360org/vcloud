@@ -1,8 +1,59 @@
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 
-import '../../../../core/config/env.dart';
+import '../../../../core/api/odoo_api_client.dart';
 import '../../../../core/utils/date_format.dart';
+import '../../domain/models/chat_v2_poll_model.dart';
+
+@immutable
+class ChatV2Member {
+  final String id;
+  final String name;
+  final String? email;
+  final String? avatarUrl;
+  final String imStatus;
+  final bool isMe;
+
+  const ChatV2Member({
+    required this.id,
+    required this.name,
+    this.email,
+    this.avatarUrl,
+    this.imStatus = 'offline',
+    this.isMe = false,
+  });
+
+  factory ChatV2Member.fromJson(dynamic json) {
+    if (json is Map) {
+      final rawAvatar = json['avatar_url']?.toString() ??
+          json['avatar_128_url']?.toString() ??
+          json['avatar_128']?.toString() ??
+          json['image_128']?.toString();
+      final avatarUrl = odooApiClient.resolveAvatarUrl(rawAvatar);
+      return ChatV2Member(
+        id: json['id']?.toString() ?? '',
+        name: json['name']?.toString() ?? '',
+        email: json['email']?.toString(),
+        avatarUrl: avatarUrl,
+        imStatus: json['im_status']?.toString() ?? 'offline',
+        isMe: json['is_me'] == true,
+      );
+    }
+    return ChatV2Member(
+      id: '',
+      name: json?.toString() ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'email': email,
+    'avatar_url': avatarUrl,
+    'im_status': imStatus,
+    'is_me': isMe,
+  };
+}
 
 @immutable
 class ChatV2Channel {
@@ -15,6 +66,7 @@ class ChatV2Channel {
   final DateTime? lastMessageDate;
   final int unreadCount;
   final int memberCount;
+  final List<ChatV2Member> members;
   final List<String> memberNames;
   final String imStatus;
   final String? lastMessageAuthorName;
@@ -34,6 +86,7 @@ class ChatV2Channel {
     this.lastMessageDate,
     this.unreadCount = 0,
     this.memberCount = 0,
+    this.members = const [],
     this.memberNames = const [],
     this.imStatus = 'offline',
     this.lastMessageAuthorName,
@@ -54,6 +107,7 @@ class ChatV2Channel {
     DateTime? lastMessageDate,
     int? unreadCount,
     int? memberCount,
+    List<ChatV2Member>? members,
     List<String>? memberNames,
     String? imStatus,
     String? lastMessageAuthorName,
@@ -73,6 +127,7 @@ class ChatV2Channel {
       lastMessageDate: lastMessageDate ?? this.lastMessageDate,
       unreadCount: unreadCount ?? this.unreadCount,
       memberCount: memberCount ?? this.memberCount,
+      members: members ?? this.members,
       memberNames: memberNames ?? this.memberNames,
       imStatus: imStatus ?? this.imStatus,
       lastMessageAuthorName: lastMessageAuthorName ?? this.lastMessageAuthorName,
@@ -109,7 +164,8 @@ class ChatV2Channel {
     'last_message_date': lastMessageDate?.toIso8601String(),
     'unread_count': unreadCount,
     'member_count': memberCount,
-    'members': memberNames,
+    'members': members.map((m) => m.toJson()).toList(),
+    'member_names': memberNames,
     'im_status': imStatus,
     'last_message_author_name': lastMessageAuthorName,
     'last_message_author_id': lastMessageAuthorId,
@@ -129,75 +185,61 @@ class ChatV2Channel {
     if (name.isEmpty) return 'Cuộc trò chuyện';
     if (currentUserName == null || currentUserName.trim().isEmpty) return name;
 
-    final trimmedName = name.trim();
-    final curName = currentUserName.trim();
-
-    // 1. Kiểm tra nếu name bắt đầu bằng tên user: "Ma Nguyễn Nhật Tân, Chau, Le Ba" -> "Chau, Le Ba"
-    final startPattern = RegExp('^${RegExp.escape(curName)}\\s*,\\s*', caseSensitive: false);
-    if (startPattern.hasMatch(trimmedName)) {
-      final clean = trimmedName.replaceFirst(startPattern, '').trim();
-      if (clean.isNotEmpty) return clean;
-    }
-
-    // 2. Kiểm tra nếu name kết thúc bằng tên user: "Chau, Le Ba, Ma Nguyễn Nhật Tân" -> "Chau, Le Ba"
-    final endPattern = RegExp('\\s*,\\s*${RegExp.escape(curName)}\$', caseSensitive: false);
-    if (endPattern.hasMatch(trimmedName)) {
-      final clean = trimmedName.replaceFirst(endPattern, '').trim();
-      if (clean.isNotEmpty) return clean;
-    }
-
-    // 3. Fallback: Nếu tách theo dấu phẩy, tìm và loại bỏ phần trùng với user
-    if (name.contains(',')) {
-      final parts = name.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
-      final userIdx = parts.indexWhere((p) => _matchesUser(p, currentUserName));
-      if (userIdx != -1 && parts.length > 1) {
-        final otherParts = [...parts]..removeAt(userIdx);
+    if (!isGroup) {
+      if (directPartnerName != null && directPartnerName!.isNotEmpty) {
+        return directPartnerName!;
+      }
+      final parts = name.split(RegExp(r'\s*[,/|-]\s*|\s+và\s+|\s+&\s+'));
+      if (parts.length >= 2) {
+        final otherParts = parts.where((p) => !_matchesUser(p, currentUserName)).toList();
         if (otherParts.isNotEmpty) {
-          return otherParts.join(', ');
+          return otherParts.first.trim();
         }
       }
     }
-
     return name;
   }
 
-  /// Xác định xem có thực sự là nhóm không (loại trừ các kênh 1-1 Odoo đặt tên "A, B")
   bool getActualIsGroup(String? currentUserName) {
-    if (channelType == 'chat') return false;
-    if (channelType == 'channel') return true;
+    if (isGroup) return true;
+    if (memberCount > 2) return true;
+    if (channelType == 'channel' || channelType == 'group') return true;
 
-    if (currentUserName != null && currentUserName.isNotEmpty) {
-      final clean = getCleanName(currentUserName);
-      if (clean != name && clean.isNotEmpty) {
-        // Đã lọc bỏ được tên user hiện tại
-        return false;
-      }
-    }
-    return isGroup;
+    final clean = getCleanName(currentUserName);
+    final count = clean.split(RegExp(r'\s*[,/|-]\s*|\s+và\s+|\s+&\s+')).length;
+    return count > 2;
   }
 
-  factory ChatV2Channel.fromMap(Map<String, dynamic> map) {
-    final id = _stringOr(map['id'], '');
-    final name = _stringOr(map['name'], 'Cuộc trò chuyện');
-    final channelType = _stringOr(map['channel_type'], 'chat');
-    final isGroup = _boolOr(map['is_group'], channelType == 'group' || channelType == 'channel');
-    final rawAvatar = _stringOrNull(map['avatar_url'] ?? map['avatar_128'] ?? map['image_128']);
-    String? avatarUrl;
-    if (rawAvatar != null && rawAvatar.isNotEmpty) {
-      if (rawAvatar.startsWith('http://') || rawAvatar.startsWith('https://')) {
-        avatarUrl = rawAvatar;
-      } else {
-        final base = Env.odooApiBaseUrl.replaceAll(RegExp(r'/+$'), '');
-        final path = rawAvatar.startsWith('/') ? rawAvatar : '/$rawAvatar';
-        avatarUrl = '$base$path';
-      }
+  factory ChatV2Channel.fromMap(Map<String, dynamic> map) => ChatV2Channel.fromJson(map);
+
+  factory ChatV2Channel.fromJson(dynamic raw) {
+    if (raw is! Map) {
+      return ChatV2Channel(id: raw?.toString() ?? '', name: 'Cuộc trò chuyện');
     }
-    final imStatus = _stringOr(map['im_status'], 'offline');
+    final map = raw;
+
+    final id = _stringOr(map['id'] ?? map['channel_id'], '');
+    final name = _stringOr(map['name'] ?? map['display_name'], 'Cuộc trò chuyện');
+    final channelType = _stringOr(map['channel_type'] ?? map['type'], 'chat');
+    final isGroup = map['is_group'] == true ||
+        channelType == 'group' ||
+        channelType == 'channel';
+
+    final rawAvatar = _stringOrNull(
+      map['avatar_url'] ??
+          map['channel_avatar_url'] ??
+          map['avatar_128_url'] ??
+          map['avatar_128'] ??
+          map['image_128'] ??
+          map['avatar'],
+    );
+    final avatarUrl = odooApiClient.resolveAvatarUrl(rawAvatar);
+    final imStatus = _stringOr(map['im_status'] ?? map['user_status'], 'offline');
 
     // Parse last message
-    String? lastMsgText;
     final rawLastMsg = map['last_message'];
-    if (rawLastMsg is Map<String, dynamic>) {
+    String? lastMsgText;
+    if (rawLastMsg is Map) {
       lastMsgText = _stringOrNull(rawLastMsg['body'] ?? rawLastMsg['content']);
     } else if (rawLastMsg is String) {
       lastMsgText = rawLastMsg;
@@ -205,9 +247,9 @@ class ChatV2Channel {
       lastMsgText = _stringOrNull(map['last_message_body'] ?? map['description']);
     }
 
-    // Clean HTML in last message preview
+    // Clean HTML & filenames in last message preview
     if (lastMsgText != null) {
-      lastMsgText = _stripHtml(lastMsgText);
+      lastMsgText = _cleanLastMessageText(lastMsgText);
     }
 
     // Parse date
@@ -225,16 +267,21 @@ class ChatV2Channel {
             map['unread_messages'],
         0);
 
-    // Parse member names
-    final members = <String>[];
-    final rawMembers = map['members'];
+    // Parse members
+    final memberObjs = <ChatV2Member>[];
+    final memberNamesList = <String>[];
+    final rawMembers = map['members'] ?? map['channel_members'];
     if (rawMembers is List) {
       for (final m in rawMembers) {
-        if (m is Map<String, dynamic>) {
-          final mName = _stringOrNull(m['name']);
-          if (mName != null && mName.isNotEmpty) members.add(mName);
+        if (m is Map) {
+          final mem = ChatV2Member.fromJson(m);
+          if (mem.name.isNotEmpty) {
+            memberObjs.add(mem);
+            memberNamesList.add(mem.name);
+          }
         } else if (m is String && m.isNotEmpty) {
-          members.add(m);
+          memberObjs.add(ChatV2Member(id: '', name: m));
+          memberNamesList.add(m);
         }
       }
     }
@@ -242,7 +289,7 @@ class ChatV2Channel {
     // Parse author of last message
     String? authorName;
     String? authorId;
-    if (rawLastMsg is Map<String, dynamic>) {
+    if (rawLastMsg is Map) {
       authorName = _stringOrNull(rawLastMsg['author_name'] ?? rawLastMsg['author']);
       authorId = _stringOrNull(rawLastMsg['author_id']);
     } else {
@@ -254,32 +301,52 @@ class ChatV2Channel {
     final rawMemberCount = map['member_count'] ?? map['members_count'];
     final parsedMemberCount = _intOr(
       rawMemberCount,
-      members.isNotEmpty ? members.length : (isGroup ? 2 : 1),
+      memberObjs.isNotEmpty ? memberObjs.length : (isGroup ? 2 : 1),
     );
 
     final rawDirectPartner = map['direct_partner'];
     String? directPartnerId;
     String? directPartnerName;
     String? directPartnerStatus;
+    String? directPartnerAvatar;
     if (rawDirectPartner is Map) {
       directPartnerId = _stringOrNull(rawDirectPartner['id']);
       directPartnerName = _stringOrNull(rawDirectPartner['name']);
       directPartnerStatus = _stringOrNull(rawDirectPartner['im_status']);
+      directPartnerAvatar = odooApiClient.resolveAvatarUrl(
+        _stringOrNull(rawDirectPartner['avatar_url'] ?? rawDirectPartner['image_128']),
+      );
     }
     directPartnerId ??= _stringOrNull(map['partner_id'] ?? map['other_partner_id']);
     directPartnerStatus ??= imStatus;
+
+    String? finalAvatarUrl = avatarUrl;
+    if (finalAvatarUrl == null && !isGroup) {
+      if (directPartnerAvatar != null && directPartnerAvatar.isNotEmpty) {
+        finalAvatarUrl = directPartnerAvatar;
+      } else if (directPartnerId != null && directPartnerId.isNotEmpty) {
+        finalAvatarUrl = odooApiClient.resolveAvatarUrl('/web/image/res.partner/$directPartnerId/avatar_128');
+      } else if (memberObjs.isNotEmpty) {
+        final otherMember = memberObjs.firstWhereOrNull((m) => !m.isMe);
+        if (otherMember != null && otherMember.id.isNotEmpty) {
+          finalAvatarUrl = otherMember.avatarUrl ??
+              odooApiClient.resolveAvatarUrl('/web/image/res.partner/${otherMember.id}/avatar_128');
+        }
+      }
+    }
 
     return ChatV2Channel(
       id: id,
       name: name,
       channelType: channelType,
       isGroup: isGroup,
-      avatarUrl: avatarUrl,
+      avatarUrl: finalAvatarUrl,
       lastMessage: lastMsgText,
       lastMessageDate: date,
       unreadCount: unread,
       memberCount: parsedMemberCount,
-      memberNames: members,
+      members: memberObjs,
+      memberNames: memberNamesList,
       imStatus: imStatus,
       lastMessageAuthorName: authorName,
       lastMessageAuthorId: authorId,
@@ -308,15 +375,6 @@ class ChatV2Channel {
     return int.tryParse(val.toString()) ?? fallback;
   }
 
-  static bool _boolOr(dynamic val, bool fallback) {
-    if (val == null) return fallback;
-    if (val is bool) return val;
-    final s = val.toString().toLowerCase();
-    if (s == 'true' || s == '1') return true;
-    if (s == 'false' || s == '0') return false;
-    return fallback;
-  }
-
   static String _stripHtml(String html) {
     final text = html
         .replaceAll('&lt;', '<')
@@ -327,6 +385,48 @@ class ChatV2Channel {
         .replaceAll('&amp;', '&');
     final exp = RegExp(r'<[^>]*>', multiLine: true);
     return text.replaceAll(exp, '').replaceAll('&nbsp;', ' ').trim();
+  }
+
+  static String? _cleanLastMessageText(String? raw) {
+    if (raw == null) return null;
+    final poll = ChatV2Poll.tryParseFromBody(raw);
+    if (poll != null) {
+      return '📊 [Bình chọn] ${poll.question}';
+    }
+    final cleaned = _stripHtml(raw).trim();
+    if (cleaned.isEmpty) return null;
+    final lower = cleaned.toLowerCase();
+    if (lower.contains('"id":"poll_') || lower.contains('"id": "poll_')) {
+      final qMatch = RegExp(r'"question":\s*"([^"]+)"').firstMatch(cleaned);
+      final qTitle = qMatch?.group(1) ?? 'Bình chọn';
+      return '📊 [Bình chọn] $qTitle';
+    }
+    final isImg = lower.endsWith('.png') ||
+        lower.endsWith('.jpg') ||
+        lower.endsWith('.jpeg') ||
+        lower.endsWith('.gif') ||
+        lower.endsWith('.webp') ||
+        lower.endsWith('.svg') ||
+        lower.endsWith('.bmp') ||
+        lower.endsWith('.ico') ||
+        lower.endsWith('.heic') ||
+        lower.endsWith('.heif') ||
+        lower.startsWith('scaled_') ||
+        lower.startsWith('image_picker_');
+    if (isImg) {
+      return '[Hình ảnh]';
+    }
+    final isDoc = lower.endsWith('.docx') ||
+        lower.endsWith('.pdf') ||
+        lower.endsWith('.xlsx') ||
+        lower.endsWith('.xls') ||
+        lower.endsWith('.doc') ||
+        lower.endsWith('.zip') ||
+        lower.endsWith('.txt');
+    if (isDoc && !cleaned.startsWith('[Tập tin]') && !cleaned.startsWith('[Tài liệu]')) {
+      return '[Tập tin]';
+    }
+    return cleaned;
   }
 
   @override

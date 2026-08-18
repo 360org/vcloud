@@ -145,6 +145,24 @@ class OdooApiClient {
     return uri.replace(queryParameters: params).toString();
   }
 
+  /// Chuẩn hoá và trả về URL ảnh avatar tuyệt đối hợp lệ.
+  /// Trả về `null` nếu URL rỗng, 'false', 'null', 'undefined'.
+  String? resolveAvatarUrl(String? rawUrl, {String? accessToken}) {
+    if (rawUrl == null) return null;
+    final trimmed = rawUrl.trim();
+    if (trimmed.isEmpty ||
+        trimmed == 'false' ||
+        trimmed == 'null' ||
+        trimmed == 'undefined') {
+      return null;
+    }
+    if (trimmed.startsWith('data:image') ||
+        (!trimmed.contains('/') && trimmed.length > 80)) {
+      return trimmed;
+    }
+    return authenticatedUrl(trimmed, accessToken: accessToken);
+  }
+
   /// Map containing Authorization Bearer header for HTTP network requests.
   Map<String, String>? get authHeaders {
     final token = _session?.accessToken;
@@ -633,6 +651,10 @@ class OdooApiClient {
     if (decoded is Map) {
       final code = decoded['error']?.toString();
       final knownMessage = switch (code) {
+        'invalid_credentials' =>
+          'Tài khoản hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại.',
+        'missing_login_or_password' =>
+          'Vui lòng nhập đầy đủ email và mật khẩu.',
         'tenant_not_found' =>
           'Chưa cấu hình tenant cho tài khoản này. Vui lòng tạo mapping trong Mobile API > Tenant Users.',
         'multiple_tenants' =>

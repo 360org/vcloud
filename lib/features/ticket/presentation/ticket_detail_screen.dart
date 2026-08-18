@@ -12,6 +12,7 @@ import '../../../core/utils/html_text.dart';
 import '../../../shared/models/ticket.dart';
 import '../../../shared/models/ticket_activity.dart';
 import '../../../shared/models/ticket_comment.dart';
+import '../../../shared/widgets/app_toast.dart';
 import '../../../shared/widgets/copyable_error_dialog.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/ui_kit.dart';
@@ -104,9 +105,11 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
         });
       }
       if (mounted) {
-        ScaffoldMessenger.of(
+        AppToast.error(
           context,
-        ).showSnackBar(SnackBar(content: Text('Gửi bình luận thất bại: $e')));
+          title: 'Gửi bình luận thất bại',
+          message: e.toString().replaceFirst('Failure: ', ''),
+        );
       }
     } finally {
       if (mounted) setState(() => _sendingComment = false);
@@ -164,7 +167,7 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
             });
           });
         }
-        if (nextCount > previousCount) _scrollToComments();
+        if (_sendingComment && nextCount > previousCount) _scrollToComments();
       });
     }
 
@@ -179,16 +182,13 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
             const _TicketDetailHeader(),
             Expanded(
               child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                switchInCurve: Curves.easeOutCubic,
-                switchOutCurve: Curves.easeInCubic,
+                duration: const Duration(milliseconds: 200),
+                switchInCurve: Curves.easeOut,
+                switchOutCurve: Curves.easeIn,
                 transitionBuilder: (child, animation) {
                   return FadeTransition(
                     opacity: animation,
-                    child: ScaleTransition(
-                      scale: Tween<double>(begin: 0.98, end: 1.0).animate(animation),
-                      child: child,
-                    ),
+                    child: child,
                   );
                 },
                 child: ticket == null
@@ -288,16 +288,14 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
               _TicketActionBar(
                 ticket: ticket,
                 onTake: () async {
-                  final messenger = ScaffoldMessenger.of(context);
                   final router = GoRouter.of(context);
                   try {
                     await ref.read(ticketActionsProvider).updateStatus(widget.ticketId, TicketStatus.doing);
-                    if (!mounted) return;
-                    messenger.showSnackBar(
-                      const SnackBar(
-                        content: Text('🎉 Đã nhận ticket thành công!'),
-                        behavior: SnackBarBehavior.floating,
-                      ),
+                    if (!mounted || !context.mounted) return;
+                    AppToast.success(
+                      context,
+                      title: 'Đã tiếp nhận ticket',
+                      message: 'Bạn đã tiếp nhận xử lý ticket này thành công.',
                     );
                     if (router.canPop()) {
                       router.pop();
@@ -311,16 +309,14 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
                   }
                 },
                 onComplete: () async {
-                  final messenger = ScaffoldMessenger.of(context);
                   final router = GoRouter.of(context);
                   try {
                     await ref.read(ticketActionsProvider).updateStatus(widget.ticketId, TicketStatus.done);
-                    if (!mounted) return;
-                    messenger.showSnackBar(
-                      const SnackBar(
-                        content: Text('🎉 Đã hoàn thành ticket!'),
-                        behavior: SnackBarBehavior.floating,
-                      ),
+                    if (!mounted || !context.mounted) return;
+                    AppToast.success(
+                      context,
+                      title: 'Hoàn thành ticket',
+                      message: 'Trạng thái ticket đã được cập nhật thành hoàn thành.',
                     );
                     if (router.canPop()) {
                       router.pop();

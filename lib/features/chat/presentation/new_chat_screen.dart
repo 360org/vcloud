@@ -396,7 +396,18 @@ class _GroupFormState extends ConsumerState<_GroupForm> {
   String _query = '';
 
   @override
+  void initState() {
+    super.initState();
+    _name.addListener(_onNameChanged);
+  }
+
+  void _onNameChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   void dispose() {
+    _name.removeListener(_onNameChanged);
     _name.dispose();
     super.dispose();
   }
@@ -439,6 +450,7 @@ class _GroupFormState extends ConsumerState<_GroupForm> {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: TextField(
                 controller: _name,
+                onChanged: (_) => setState(() {}),
                 style: TextStyle(
                   fontSize: 14.5,
                   color: isDark ? Colors.white : const Color(0xFF0F172A),

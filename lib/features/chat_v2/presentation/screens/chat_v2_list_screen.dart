@@ -5,7 +5,6 @@ import 'package:lucide_flutter/lucide_flutter.dart';
 
 import '../../../../core/utils/date_format.dart';
 import '../../../../shared/widgets/app_scaffold.dart';
-import '../../../../shared/widgets/html_avatar_image.dart';
 import '../../../auth/application/auth_controller.dart';
 import '../../application/chat_v2_channels_controller.dart';
 import '../../application/chat_v2_messages_controller.dart';
@@ -601,14 +600,11 @@ class _ChannelListItem extends ConsumerWidget {
                     width: 50,
                     height: 50,
                     decoration: BoxDecoration(
-                      gradient: (channel.avatarUrl != null &&
-                              channel.avatarUrl!.isNotEmpty)
-                          ? null
-                          : LinearGradient(
-                              colors: avatarGrad,
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
+                      gradient: LinearGradient(
+                        colors: avatarGrad,
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
@@ -619,55 +615,36 @@ class _ChannelListItem extends ConsumerWidget {
                       ],
                     ),
                     alignment: Alignment.center,
-                    child: (channel.avatarUrl != null &&
-                            channel.avatarUrl!.isNotEmpty)
-                        ? ClipOval(
-                            child: SizedBox(
-                              width: 50,
-                              height: 50,
-                              child: buildHtmlAvatarImage(
-                                    url: channel.avatarUrl!,
-                                    fallback: Text(
-                                      cleanName.isNotEmpty
-                                          ? cleanName[0].toUpperCase()
-                                          : 'C',
-                                      style: const TextStyle(
-                                        fontSize: 19,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ) ??
-                                  Image.network(
-                                    channel.avatarUrl!,
-                                    width: 50,
-                                    height: 50,
-                                    cacheWidth: 100,
-                                    cacheHeight: 100,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) => Text(
-                                      cleanName.isNotEmpty
-                                          ? cleanName[0].toUpperCase()
-                                          : 'C',
-                                      style: const TextStyle(
-                                        fontSize: 19,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ),
-                            ),
-                          )
-                        : Text(
-                            cleanName.isNotEmpty
-                                ? cleanName[0].toUpperCase()
-                                : 'C',
-                            style: const TextStyle(
-                              fontSize: 19,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                    child: ClipOval(
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Center(
+                            child: Text(
+                              cleanName.isNotEmpty
+                                  ? cleanName[0].toUpperCase()
+                                  : 'C',
+                              style: const TextStyle(
+                                fontSize: 19,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
+                          if (channel.avatarUrl != null &&
+                              channel.avatarUrl!.isNotEmpty)
+                            Image.network(
+                              channel.avatarUrl!,
+                              width: 50,
+                              height: 50,
+                              fit: BoxFit.cover,
+                              gaplessPlayback: true,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  const SizedBox.shrink(),
+                            ),
+                        ],
+                      ),
+                    ),
                   ),
                   if (isGroup)
                     Positioned(
@@ -863,21 +840,40 @@ class _ChannelListItem extends ConsumerWidget {
       }
     }
 
-    final lower = msg.toLowerCase();
+    final lower = msg.toLowerCase().trim();
+    final isImageFilename = lower.endsWith('.png') ||
+        lower.endsWith('.jpg') ||
+        lower.endsWith('.jpeg') ||
+        lower.endsWith('.gif') ||
+        lower.endsWith('.webp') ||
+        lower.endsWith('.svg') ||
+        lower.endsWith('.bmp') ||
+        lower.endsWith('.ico') ||
+        lower.endsWith('.heic') ||
+        lower.endsWith('.heif') ||
+        lower.startsWith('scaled_') ||
+        lower.startsWith('image_picker_') ||
+        lower == 'hình ảnh' ||
+        lower == '[hình ảnh]' ||
+        lower.contains('ảnh chụp');
+
     final isDoc = lower.endsWith('.docx') ||
         lower.endsWith('.pdf') ||
         lower.endsWith('.xlsx') ||
+        lower.endsWith('.xls') ||
         lower.endsWith('.doc') ||
         lower.endsWith('.zip') ||
+        lower.endsWith('.txt') ||
         lower.contains('tệp tin') ||
         lower.contains('tài liệu');
 
-    final isImg = lower.endsWith('.png') ||
-        lower.endsWith('.jpg') ||
-        lower.endsWith('.jpeg') ||
-        lower.endsWith('.webp') ||
-        lower.contains('hình ảnh') ||
-        lower.contains('ảnh chụp');
+    // Chuyển đổi tên file kỹ thuật sang text hiển thị chuyên nghiệp (chuẩn Zalo / Messenger)
+    String displayText = msg;
+    if (isImageFilename) {
+      displayText = '[Hình ảnh]';
+    } else if (isDoc && !msg.startsWith('[Tập tin]') && !msg.startsWith('[Tài liệu]')) {
+      displayText = '[Tập tin]';
+    }
 
     // Lấy trạng thái tin nhắn cuối từ Local Cache (phần tử .first là tin mới nhất)
     String lastMsgStatus = 'sent';
@@ -909,7 +905,7 @@ class _ChannelListItem extends ConsumerWidget {
             color: hasUnread ? const Color(0xFF2563EB) : const Color(0xFF60A5FA),
           ),
           const SizedBox(width: 4),
-        ] else if (isImg) ...[
+        ] else if (isImageFilename) ...[
           Icon(
             LucideIcons.image,
             size: 14,
@@ -919,7 +915,7 @@ class _ChannelListItem extends ConsumerWidget {
         ],
         Expanded(
           child: Text(
-            '$prefix$msg',
+            '$prefix$displayText',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(

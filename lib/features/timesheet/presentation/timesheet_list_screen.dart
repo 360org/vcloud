@@ -13,6 +13,7 @@ import '../../../shared/models/task.dart';
 import '../../../shared/models/task_message.dart';
 import '../../../shared/models/timesheet.dart';
 import '../../../shared/widgets/app_scaffold.dart';
+import '../../../shared/widgets/app_toast.dart';
 import '../../../shared/widgets/ui_kit.dart';
 import '../application/task_controller.dart';
 import '../application/timesheet_controller.dart';
@@ -37,7 +38,7 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
   DateTime? _startedAt;
   Duration _elapsedBeforePause = Duration.zero;
   bool _running = false;
-  bool _showCompletedTasks = false;
+  int _selectedTaskTab = 0; // 0: Cần làm, 1: Đã hoàn thành
   bool _isSearching = false;
   String _searchQuery = '';
   final _taskStatusOverrides = <String, _TaskWorkflowStatus>{};
@@ -405,10 +406,10 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Đổi trạng thái thất bại: ${describeError(e)}'),
-          ),
+        AppToast.error(
+          context,
+          title: 'Đổi trạng thái thất bại',
+          message: describeError(e),
         );
       }
       rethrow;
@@ -461,33 +462,42 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
             .toList();
 
         return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _TaskSection(
-              title: _searchQuery.trim().isNotEmpty
-                  ? 'Kết quả tìm kiếm (${openTasks.length})'
-                  : 'Task cần làm hôm nay',
-              count: openTasks.length,
-              emptyText: _searchQuery.trim().isNotEmpty
-                  ? 'Không tìm thấy task nào phù hợp.'
-                  : 'Bạn đã hoàn thành hết task hôm nay.',
-              tasks: openTasks,
-              done: false,
-              onTap: _showTaskDetail,
-              onChecklist: _openTaskStatusPopup,
-            ),
-            const SizedBox(height: 16),
-            _TaskSection(
-              title: 'Đã hoàn thành',
-              count: doneTasks.length,
-              emptyText: 'Chưa có task nào hoàn thành.',
-              tasks: doneTasks,
-              done: true,
-              collapsed: !_showCompletedTasks,
-              onToggleCollapsed: () {
-                setState(() => _showCompletedTasks = !_showCompletedTasks);
-              },
-              onTap: _showTaskDetail,
-              onChecklist: _openTaskStatusPopup,
+            // Segmented Task Filter Tabs
+            _buildTaskFilterTabs(openTasks.length, doneTasks.length),
+            const SizedBox(height: 12),
+
+            // Active Tab Task Section with Smooth Switcher
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 250),
+              child: _selectedTaskTab == 0
+                  ? _TaskSection(
+                      key: const ValueKey('open_tasks_section'),
+                      title: _searchQuery.trim().isNotEmpty
+                          ? 'Kết quả tìm kiếm (${openTasks.length})'
+                          : 'Task cần làm hôm nay',
+                      count: openTasks.length,
+                      emptyText: _searchQuery.trim().isNotEmpty
+                          ? 'Không tìm thấy task nào phù hợp.'
+                          : 'Tuyệt vời! Bạn đã hoàn thành hết task hôm nay 🎉',
+                      tasks: openTasks,
+                      done: false,
+                      onTap: _showTaskDetail,
+                      onChecklist: _openTaskStatusPopup,
+                    )
+                  : _TaskSection(
+                      key: const ValueKey('done_tasks_section'),
+                      title: _searchQuery.trim().isNotEmpty
+                          ? 'Task đã xong phù hợp (${doneTasks.length})'
+                          : 'Task đã hoàn thành',
+                      count: doneTasks.length,
+                      emptyText: 'Chưa có task nào được hoàn thành hôm nay.',
+                      tasks: doneTasks,
+                      done: true,
+                      onTap: _showTaskDetail,
+                      onChecklist: _openTaskStatusPopup,
+                    ),
             ),
           ],
         );
@@ -496,12 +506,143 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
         icon: LucideIcons.loaderCircle,
         message: 'Đang tải task từ hệ thống...',
       ),
-
       error: (error, _) => _TasksStatusCard(
         icon: LucideIcons.triangleAlert,
         message: describeError(error),
         isError: true,
         onRetry: _onRefresh,
+      ),
+    );
+  }
+
+  Widget _buildTaskFilterTabs(int openCount, int doneCount) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : const Color(0xFFE2E8F0),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildFilterTabItem(
+              index: 0,
+              title: 'Cần làm',
+              count: openCount,
+              icon: LucideIcons.listTodo,
+              activeColor: AppColors.timesheet,
+              isSelected: _selectedTaskTab == 0,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: _buildFilterTabItem(
+              index: 1,
+              title: 'Đã hoàn thành',
+              count: doneCount,
+              icon: LucideIcons.checkCircle2,
+              activeColor: const Color(0xFF10B981),
+              isSelected: _selectedTaskTab == 1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterTabItem({
+    required int index,
+    required String title,
+    required int count,
+    required IconData icon,
+    required Color activeColor,
+    required bool isSelected,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return PressableScale(
+      onTap: () {
+        if (_selectedTaskTab != index) {
+          HapticFeedback.selectionClick();
+          setState(() => _selectedTaskTab = index);
+        }
+      },
+      scale: 0.98,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
+        padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? (isDark ? const Color(0xFF0F172A) : Colors.white)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.06),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: isSelected
+                  ? activeColor
+                  : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+            ),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                  color: isSelected
+                      ? (isDark ? Colors.white : const Color(0xFF0F172A))
+                      : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? activeColor.withValues(alpha: 0.15)
+                    : (isDark
+                        ? Colors.white.withValues(alpha: 0.08)
+                        : const Color(0xFFE2E8F0)),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                '$count',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: isSelected
+                      ? activeColor
+                      : (isDark
+                          ? const Color(0xFFCBD5E1)
+                          : const Color(0xFF475569)),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1128,6 +1269,7 @@ class _TimesheetSummaryCard extends ConsumerWidget {
 
 class _TaskSection extends StatefulWidget {
   const _TaskSection({
+    super.key,
     required this.title,
     required this.count,
     required this.emptyText,
@@ -1135,8 +1277,6 @@ class _TaskSection extends StatefulWidget {
     required this.done,
     required this.onTap,
     required this.onChecklist,
-    this.collapsed = false,
-    this.onToggleCollapsed,
   });
 
   final String title;
@@ -1146,15 +1286,13 @@ class _TaskSection extends StatefulWidget {
   final bool done;
   final ValueChanged<_TodayTask> onTap;
   final ValueChanged<_TodayTask> onChecklist;
-  final bool collapsed;
-  final VoidCallback? onToggleCollapsed;
 
   @override
   State<_TaskSection> createState() => _TaskSectionState();
 }
 
 class _TaskSectionState extends State<_TaskSection> {
-  int _limit = 20;
+  int _limit = 10;
 
   @override
   Widget build(BuildContext context) {
@@ -1193,18 +1331,6 @@ class _TaskSectionState extends State<_TaskSection> {
                       ),
                 fontSize: 12,
               ),
-              if (widget.onToggleCollapsed != null) ...[
-                const SizedBox(width: 6),
-                IconButton(
-                  onPressed: widget.onToggleCollapsed,
-                  visualDensity: VisualDensity.compact,
-                  icon: Icon(
-                    widget.collapsed ? LucideIcons.chevronDown : LucideIcons.chevronUp,
-                    color: AppColors.textMuted,
-                    size: 20,
-                  ),
-                ),
-              ],
             ],
           ),
           const SizedBox(height: 12),
@@ -1217,30 +1343,6 @@ class _TaskSectionState extends State<_TaskSection> {
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                ),
-              ),
-            )
-          else if (widget.collapsed)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: PressableScale(
-                onTap: widget.onToggleCollapsed,
-                scale: 0.99,
-                child: const Row(
-                  children: [
-                    Icon(LucideIcons.eye, color: AppColors.textMuted, size: 16),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Đang thu gọn. Bấm để xem task đã hoàn thành.',
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ],
                 ),
               ),
             )
@@ -1261,21 +1363,40 @@ class _TaskSectionState extends State<_TaskSection> {
                       : AppColors.border,
                 ),
             ],
-            if (hasMore) ...[
+            if (hasMore || (_limit > 10 && tasks.length > 10)) ...[
               const SizedBox(height: 10),
-              Center(
-                child: TextButton.icon(
-                  onPressed: () => setState(() => _limit += 30),
-                  icon: const Icon(LucideIcons.chevronDown, size: 16, color: AppColors.primary),
-                  label: Text(
-                    'Xem thêm (${tasks.length - visibleCount} task khác)',
-                    style: const TextStyle(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (hasMore)
+                    TextButton.icon(
+                      onPressed: () => setState(() => _limit += 20),
+                      icon: const Icon(LucideIcons.chevronDown, size: 16, color: AppColors.primary),
+                      label: Text(
+                        'Xem thêm (${tasks.length - visibleCount} task khác)',
+                        style: const TextStyle(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                        ),
+                      ),
                     ),
-                  ),
-                ),
+                  if (_limit > 10 && tasks.length > 10) ...[
+                    if (hasMore) const SizedBox(width: 8),
+                    TextButton.icon(
+                      onPressed: () => setState(() => _limit = 10),
+                      icon: const Icon(LucideIcons.chevronUp, size: 16, color: AppColors.textMuted),
+                      label: const Text(
+                        'Thu gọn',
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ],
           ],

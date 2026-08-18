@@ -38,7 +38,12 @@ class _TicketListScreenState extends ConsumerState<TicketListScreen>
     final filter = ref.watch(ticketFilterProvider);
     final source = ref.watch(ticketsProvider);
     final tickets = [...ref.watch(effectiveTicketsProvider)]
-      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+      ..sort((a, b) {
+        final int idA = int.tryParse(a.id) ?? 0;
+        final int idB = int.tryParse(b.id) ?? 0;
+        if (idA != idB) return idB.compareTo(idA);
+        return b.updatedAt.compareTo(a.updatedAt);
+      });
 
     final doing = tickets
         .where((ticket) => ticket.status != TicketStatus.done)
@@ -180,7 +185,7 @@ class _TicketHeader extends StatelessWidget {
                   style: TextStyle(
                     color: isDark ? Colors.white : const Color(0xFF0F172A),
                     fontSize: 16,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
               ],
@@ -461,41 +466,54 @@ class _TicketTabButton extends StatelessWidget {
   }
 }
 
-class _TicketList extends StatelessWidget {
+class _TicketList extends ConsumerWidget {
   const _TicketList({super.key, required this.tickets, required this.done});
 
   final List<Ticket> tickets;
   final bool done;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     if (tickets.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(
-            done ? 'Chưa có ticket hoàn thành.' : 'Không có ticket đang xử lý.',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
+      return RefreshIndicator(
+        onRefresh: () async => ref.invalidate(ticketsProvider),
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            SizedBox(height: MediaQuery.of(context).size.height * 0.15),
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  done ? 'Chưa có ticket hoàn thành.' : 'Không có ticket đang xử lý.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
             ),
-          ),
+          ],
         ),
       );
     }
 
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 112),
-      itemCount: tickets.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 10),
-      itemBuilder: (context, index) {
-        final ticket = tickets[index];
-        return done
-            ? _TicketCard(ticket: ticket, done: true)
-            : _OpenTicketCard(ticket: ticket);
-      },
+    return RefreshIndicator(
+      onRefresh: () async => ref.invalidate(ticketsProvider),
+      child: ListView.separated(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 112),
+        itemCount: tickets.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 10),
+        itemBuilder: (context, index) {
+          final ticket = tickets[index];
+          return done
+              ? _TicketCard(ticket: ticket, done: true)
+              : _OpenTicketCard(ticket: ticket);
+        },
+      ),
     );
   }
 }

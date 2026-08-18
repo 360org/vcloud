@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/odoo_api_client.dart';
+import '../domain/models/chat_v2_poll_model.dart';
 import 'models/chat_v2_channel.dart';
 import 'models/chat_v2_message.dart';
 
@@ -23,6 +24,9 @@ class ChatV2Repository {
   String resolveUrl(String path, {String? accessToken}) =>
       _client.authenticatedUrl(path, accessToken: accessToken);
 
+  String? resolveAvatarUrl(String? path, {String? accessToken}) =>
+      _client.resolveAvatarUrl(path, accessToken: accessToken);
+
   Future<List<ChatV2Channel>> getChannels() async {
     final dynamic data = await _client.get('/api/v1/mobile/chat/channels');
 
@@ -41,7 +45,7 @@ class ChatV2Repository {
         .toList();
 
     // Sắp xếp kênh có tin nhắn mới nhất / hoạt động gần nhất lên đầu
-    channels.sort((a, b) {
+    channels.sort((ChatV2Channel a, ChatV2Channel b) {
       final da = a.lastMessageDate ?? DateTime.fromMillisecondsSinceEpoch(0);
       final db = b.lastMessageDate ?? DateTime.fromMillisecondsSinceEpoch(0);
       return db.compareTo(da);
@@ -481,5 +485,53 @@ class ChatV2Repository {
       }
       rethrow;
     }
+  }
+
+  Future<ChatV2Message> sendPoll({
+    required String channelId,
+    required String question,
+    required List<String> options,
+    bool allowMultiple = false,
+    String? currentPartnerId,
+    String? currentUserId,
+    String authorName = 'Tôi',
+  }) async {
+    final body = ChatV2Poll.buildMessageBody(
+      question: question,
+      options: options,
+      allowMultiple: allowMultiple,
+      creatorId: int.tryParse(currentPartnerId ?? ''),
+      creatorName: authorName,
+    );
+
+    return sendMessage(
+      channelId,
+      body,
+      currentPartnerId: currentPartnerId,
+      currentUserId: currentUserId,
+      authorName: authorName,
+    );
+  }
+
+  Future<ChatV2Poll?> votePoll({
+    required String messageId,
+    required int optionId,
+  }) async {
+    try {
+      final dynamic data = await _client.post(
+        '/api/v1/mobile/chat/messages/$messageId/poll/vote',
+        body: {'option_id': optionId},
+      );
+
+      if (data is Map && data['poll'] is Map) {
+        return ChatV2Poll.fromJson(Map<String, dynamic>.from(data['poll'] as Map));
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('Vote poll error for message $messageId: $e');
+      }
+      rethrow;
+    }
+    return null;
   }
 }

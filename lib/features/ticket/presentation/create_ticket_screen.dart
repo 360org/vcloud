@@ -10,6 +10,7 @@ import 'package:lucide_flutter/lucide_flutter.dart';
 import '../../../core/api/mobile_attachment_repository.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/models/ticket.dart';
+import '../../../shared/widgets/app_toast.dart';
 import '../../../shared/widgets/ui_kit.dart';
 import '../application/ticket_controller.dart';
 
@@ -29,7 +30,7 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
   final _imagePicker = ImagePicker();
 
   TicketPriority _priority = TicketPriority.p3;
-  _TicketTag _tag = _ticketTags.first;
+  int? _selectedTagId;
   int? _teamId;
   bool _submitting = false;
 
@@ -41,30 +42,38 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
     super.dispose();
   }
 
+  static const int maxAttachmentBytes = 25 * 1024 * 1024; // 25 MB
+
   Future<void> _submit(List<TicketTeamOption> teams) async {
     if (!_form.currentState!.validate()) return;
     setState(() => _submitting = true);
 
     try {
       final selectedTeamId = _selectedTeamId(teams);
-      await ref
+      final newTicket = await ref
           .read(ticketActionsProvider)
           .create(
             title: _title.text.trim(),
             description: _buildDescription(),
             priority: _priority,
             category: selectedTeamId.toString(),
-            tagIds: _tag.id == null ? const <int>[] : <int>[_tag.id!],
+            tagIds: _selectedTagId == null ? const <int>[] : <int>[_selectedTagId!],
             attachments: _attachmentUploads(),
           );
-      if (mounted) context.pop();
+      if (mounted) {
+        context.pop();
+        AppToast.success(
+          context,
+          title: 'Tạo phiếu hỗ trợ thành công!',
+          message: 'Phiếu #${newTicket.id} đã được gửi thành công đến bộ phận hỗ trợ.',
+        );
+      }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.toString().replaceFirst('Failure: ', '')),
-            backgroundColor: AppColors.danger,
-          ),
+        AppToast.error(
+          context,
+          title: 'Tạo phiếu hỗ trợ thất bại',
+          message: e.toString().replaceFirst('Failure: ', ''),
         );
       }
     } finally {
@@ -110,6 +119,16 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
       _AttachmentSource.document => await _pickDocument(),
     };
     if (picked == null || !mounted) return;
+
+    if (picked.bytes.length > maxAttachmentBytes) {
+      final sizeMb = (picked.bytes.length / (1024 * 1024)).toStringAsFixed(1);
+      AppToast.warning(
+        context,
+        title: 'Tệp vượt quá dung lượng',
+        message: 'Dung lượng tệp ($sizeMb MB) vượt quá mức cho phép (25 MB). Vui lòng chọn tệp nhỏ hơn.',
+      );
+      return;
+    }
 
     setState(() => _attachments.add(picked));
   }
@@ -171,6 +190,7 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
   @override
   Widget build(BuildContext context) {
     final teams = ref.watch(ticketTeamsProvider);
+    final tags = ref.watch(ticketTagsProvider);
 
     return Scaffold(
       backgroundColor: context.bgColor,
@@ -184,8 +204,6 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
               children: [
                 const _CreateTicketHeader(),
                 const SizedBox(height: 16),
-                _TicketSummary(priority: _priority, tag: _tag),
-                const SizedBox(height: 14),
                 _FormPanel(
                   children: [
                     _TicketTextField(
@@ -223,15 +241,43 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
                         setState(() => _priority = priority);
                       },
                     ),
-                    _TicketDropdown<_TicketTag>(
-                      label: 'Tag',
-                      icon: LucideIcons.tag,
-                      value: _tag,
-                      items: _ticketTags,
-                      itemLabel: (item) => item.label,
-                      onChanged: (value) {
-                        if (value != null) setState(() => _tag = value);
+                    tags.when(
+                      data: (items) {
+                        final tagList = [
+                          const TicketTagOption(id: null, name: 'Không chọn'),
+                          ...items,
+                        ];
+                        final selectedTag = tagList.firstWhere(
+                          (t) => t.id == _selectedTagId,
+                          orElse: () => tagList.first,
+                        );
+                        return _TicketDropdown<TicketTagOption>(
+                          label: 'Tag',
+                          icon: LucideIcons.tag,
+                          value: selectedTag,
+                          items: tagList,
+                          itemLabel: (item) => item.name,
+                          onChanged: (value) {
+                            if (value != null) setState(() => _selectedTagId = value.id);
+                          },
+                        );
                       },
+                      loading: () => _TicketDropdown<TicketTagOption>(
+                        label: 'Tag',
+                        icon: LucideIcons.tag,
+                        value: const TicketTagOption(id: null, name: 'Đang tải...'),
+                        items: const [TicketTagOption(id: null, name: 'Đang tải...')],
+                        itemLabel: (t) => t.name,
+                        onChanged: (_) {},
+                      ),
+                      error: (_, _) => _TicketDropdown<TicketTagOption>(
+                        label: 'Tag',
+                        icon: LucideIcons.tag,
+                        value: const TicketTagOption(id: null, name: 'Không chọn'),
+                        items: const [TicketTagOption(id: null, name: 'Không chọn')],
+                        itemLabel: (t) => t.name,
+                        onChanged: (_) {},
+                      ),
                     ),
                     _TicketTextField(
                       controller: _ccEmail,
@@ -279,24 +325,24 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
                   data: (items) => GradientButton(
                     label: 'Gửi ticket',
                     icon: LucideIcons.send,
-                    gradient: AppColors.ticketGrad,
-                    glowColor: AppColors.ticket,
+                    gradient: AppColors.brand,
+                    glowColor: AppColors.primary,
                     loading: _submitting,
                     onPressed: _submitting ? null : () => _submit(items),
                   ),
                   loading: () => const GradientButton(
                     label: 'Đang tải team',
                     icon: LucideIcons.loader,
-                    gradient: AppColors.ticketGrad,
-                    glowColor: AppColors.ticket,
+                    gradient: AppColors.brand,
+                    glowColor: AppColors.primary,
                     loading: true,
                     onPressed: null,
                   ),
                   error: (_, _) => GradientButton(
                     label: 'Gửi ticket',
                     icon: LucideIcons.send,
-                    gradient: AppColors.ticketGrad,
-                    glowColor: AppColors.ticket,
+                    gradient: AppColors.brand,
+                    glowColor: AppColors.primary,
                     loading: _submitting,
                     onPressed: _submitting ? null : () => _submit(const []),
                   ),
@@ -315,162 +361,74 @@ class _CreateTicketHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final titleWidth = (constraints.maxWidth - 120).clamp(180.0, 292.0);
-        return SizedBox(
-          height: 48,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: PressableScale(
-                  onTap: () => Navigator.maybePop(context),
-                  child: Container(
-                    width: 48,
-                    height: 48,
-                    decoration: _softSurfaceDecoration(
-                      context: context,
-                      radius: 24,
-                    ),
-                    child: Icon(
-                      LucideIcons.chevronLeft,
-                      color: context.textColor,
-                      size: 24,
-                    ),
-                  ),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Row(
+      children: [
+        PressableScale(
+          onTap: () => Navigator.maybePop(context),
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E293B) : Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: isDark
+                  ? Border.all(color: Colors.white.withValues(alpha: 0.08))
+                  : Border.all(color: const Color(0xFFE2E8F0)),
+              boxShadow: [
+                BoxShadow(
+                  color: isDark ? Colors.black26 : const Color(0x0A0F172A),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
                 ),
+              ],
+            ),
+            child: Icon(
+              LucideIcons.chevronLeft,
+              color: isDark ? Colors.white : const Color(0xFF0F172A),
+              size: 22,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E293B) : Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: isDark
+                ? Border.all(color: Colors.white.withValues(alpha: 0.08))
+                : Border.all(color: const Color(0xFFE2E8F0)),
+            boxShadow: [
+              BoxShadow(
+                color: isDark ? Colors.black26 : const Color(0x0A0F172A),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
               ),
-              Center(
-                child: SizedBox(
-                  width: titleWidth,
-                  child: Container(
-                    height: 48,
-                    padding: const EdgeInsets.symmetric(horizontal: 18),
-                    alignment: Alignment.center,
-                    decoration: _softSurfaceDecoration(
-                      context: context,
-                      radius: 24,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          LucideIcons.ticketPlus,
-                          color: AppColors.ticket,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 8),
-                        Flexible(
-                          child: Text(
-                            'Tạo ticket',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: context.textColor,
-                              fontSize: 17,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                LucideIcons.ticket,
+                color: Color(0xFF00C83A),
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Tạo ticket',
+                style: TextStyle(
+                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
                 ),
               ),
             ],
           ),
-        );
-      },
-    );
-  }
-}
-
-class _TicketSummary extends StatelessWidget {
-  const _TicketSummary({required this.priority, required this.tag});
-
-  final TicketPriority priority;
-  final _TicketTag tag;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        gradient: AppColors.ticketGrad,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: AppColors.glow(AppColors.ticket, opacity: 0.18),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: const Icon(
-              LucideIcons.sparkles,
-              color: Colors.white,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Phiếu hỗ trợ mới',
-                  style: AppTextStyles.title.copyWith(
-                    color: Colors.white,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    _SummaryPill(label: _priorityLabel(priority)),
-                    _SummaryPill(label: tag.label),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SummaryPill extends StatelessWidget {
-  const _SummaryPill({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
         ),
-      ),
+      ],
     );
   }
 }
@@ -1125,13 +1083,6 @@ String _priorityLabel(TicketPriority priority) => switch (priority) {
   TicketPriority.p4 => 'Thấp',
 };
 
-class _TicketTag {
-  const _TicketTag({required this.id, required this.label});
-
-  final int? id;
-  final String label;
-}
-
 enum _AttachmentSource { photo, camera, document }
 
 class _TicketAttachmentDraft {
@@ -1209,13 +1160,4 @@ const _attachmentSourceItems = <_AttachmentSourceItem>[
     icon: LucideIcons.fileText,
     color: AppColors.ticket,
   ),
-];
-
-const _ticketTags = <_TicketTag>[
-  _TicketTag(id: null, label: 'Không chọn'),
-  _TicketTag(id: 1, label: 'Đăng nhập'),
-  _TicketTag(id: 2, label: 'Odoo'),
-  _TicketTag(id: 3, label: 'Thiết bị'),
-  _TicketTag(id: 4, label: 'Mạng'),
-  _TicketTag(id: 5, label: 'Dữ liệu'),
 ];
