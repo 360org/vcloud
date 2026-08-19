@@ -264,6 +264,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                             selected: isSelected,
                             onSelected: (_) {
                               setState(() => _selectedFilterIndex = idx);
+                              debugPrint('${_filters[idx]} : $count cuộc trò chuyện');
                             },
                             selectedColor: const Color(0xFF00C83A),
                             backgroundColor: isDark
