@@ -68,5 +68,28 @@ void main() {
       expect(message.authorAvatar, contains('/web/image/res.partner/3/avatar_128'));
       expect(message.authorAvatar, startsWith('http'));
     });
+
+    test('5. ChatV2Channel preserves avatarUrl and directPartnerId during copyWith', () {
+      const channel = ChatV2Channel(
+        id: '4244',
+        name: 'Chau, Le Ba',
+        channelType: 'chat',
+        isGroup: false,
+        memberCount: 2,
+        avatarUrl: 'https://vuahethong.net/api/v1/mobile/avatar/res.partner/14',
+        directPartnerId: '14',
+        directPartnerName: 'Chau, Le Ba',
+      );
+
+      final updated = channel.copyWith(
+        lastMessage: 'Hello anh',
+        lastMessageDate: DateTime.now(),
+      );
+
+      expect(updated.avatarUrl, 'https://vuahethong.net/api/v1/mobile/avatar/res.partner/14');
+      expect(updated.directPartnerId, '14');
+      expect(updated.directPartnerName, 'Chau, Le Ba');
+      expect(updated.lastMessage, 'Hello anh');
+    });
   });
 }

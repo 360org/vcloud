@@ -1,33 +1,33 @@
 #!/usr/bin/env bash
 
 # ==============================================================================
-# 🚀 VCLOUD FLUTTER WEB — LOCAL DEVELOPMENT
+# 🚀 VCLOUD FLUTTER WEB QA LAUNCHER
 # ==============================================================================
+#
+# Mục đích:
+#   Chạy Flutter Web local và kết nối trực tiếp Production Backend.
+#
+# Backend:
+#   https://vuahethong.net
 #
 # Frontend:
 #   vclients
 #
-# Backend:
-#   http://192.168.1.100:8069
-#
-# Port:
+# Port mặc định:
 #   8088
 #
-# Chrome profile:
-#   /tmp/flutter_chrome_dev
-#
 # LƯU Ý:
-#   - Đây là launcher DEV/QA.
-#   - KHÔNG tự động git pull.
-#   - Chrome Web Security disabled để Flutter Web localhost
-#     có thể gọi Odoo LAN trực tiếp.
+#   - Đây là launcher dành cho DEV/QA.
+#   - Chrome sử dụng --disable-web-security để test localhost → production API.
+#   - KHÔNG dùng browser session này cho hoạt động web thông thường.
+#   - KHÔNG tự động git pull để tránh thay đổi source ngoài ý muốn.
 #
 # ==============================================================================
 
 set -Eeuo pipefail
 
 # ------------------------------------------------------------------------------
-# Project directory
+# 0. Resolve project directory
 # ------------------------------------------------------------------------------
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -38,8 +38,48 @@ cd "$SCRIPT_DIR"
 # ------------------------------------------------------------------------------
 
 PORT="${PORT:-8088}"
-API_URL="${API_URL:-http://192.168.1.100:8069}"
-CHROME_PROFILE="${CHROME_PROFILE:-/tmp/flutter_chrome_dev}"
+API_URL="${API_URL:-https://vuahethong.net}"
+
+CHROME_PROFILE="${CHROME_PROFILE:-/tmp/flutter_chrome_prod}"
+
+# ------------------------------------------------------------------------------
+# Helper functions
+# ------------------------------------------------------------------------------
+
+cleanup_port() {
+    echo "🧹 Giải phóng port ${PORT}..."
+
+    if command -v fuser >/dev/null 2>&1; then
+        fuser -k -9 "${PORT}/tcp" 2>/dev/null || true
+    fi
+
+    if command -v lsof >/dev/null 2>&1; then
+        lsof -ti "tcp:${PORT}" 2>/dev/null \
+            | xargs -r kill -9 2>/dev/null || true
+    fi
+}
+
+ensure_dependencies() {
+    if [[ ! -d ".dart_tool" ]]; then
+        echo "📦 Chưa có .dart_tool → chạy flutter pub get..."
+        flutter pub get
+        return
+    fi
+
+    echo "✅ Flutter dependencies đã tồn tại."
+}
+
+prepare_chrome_profile() {
+    mkdir -p "$CHROME_PROFILE"
+
+    # Chỉ xóa stale lock files.
+    # Không kill Chrome ở đây.
+    rm -f \
+        "${CHROME_PROFILE}/SingletonLock" \
+        "${CHROME_PROFILE}/SingletonSocket" \
+        "${CHROME_PROFILE}/SingletonCookie" \
+        2>/dev/null || true
+}
 
 # ------------------------------------------------------------------------------
 # Header
@@ -47,70 +87,51 @@ CHROME_PROFILE="${CHROME_PROFILE:-/tmp/flutter_chrome_dev}"
 
 echo
 echo "=============================================================================="
-echo "🚀 VCLOUD FLUTTER WEB — LOCAL DEVELOPMENT"
+echo "🚀 VCLOUD FLUTTER WEB — QA / PRODUCTION BACKEND"
 echo "=============================================================================="
 echo "📂 Frontend : $SCRIPT_DIR"
 echo "🌐 Backend  : $API_URL"
 echo "🔌 Port     : $PORT"
-echo "👤 Profile  : $CHROME_PROFILE"
+echo "🌐 Browser  : Chrome"
 echo "=============================================================================="
 echo
 
 # ------------------------------------------------------------------------------
-# Verify Flutter
+# 1. Verify Flutter
 # ------------------------------------------------------------------------------
 
 if ! command -v flutter >/dev/null 2>&1; then
-    echo "❌ Flutter không được tìm thấy."
+    echo "❌ Không tìm thấy Flutter."
     exit 1
 fi
 
-# ------------------------------------------------------------------------------
-# Free port
-# ------------------------------------------------------------------------------
-
-echo "🧹 Giải phóng port ${PORT}..."
-
-if command -v fuser >/dev/null 2>&1; then
-    fuser -k -9 "${PORT}/tcp" 2>/dev/null || true
-fi
-
-if command -v lsof >/dev/null 2>&1; then
-    lsof -ti "tcp:${PORT}" 2>/dev/null \
-        | xargs -r kill -9 2>/dev/null || true
-fi
+echo "✅ Flutter: $(flutter --version | head -n 1)"
 
 # ------------------------------------------------------------------------------
-# Dependencies
+# 2. Clean port
 # ------------------------------------------------------------------------------
 
-if [[ ! -d ".dart_tool" ]]; then
-    echo "📦 Flutter dependencies chưa tồn tại."
-    flutter pub get
-else
-    echo "✅ Flutter dependencies đã sẵn sàng."
-fi
+cleanup_port
 
 # ------------------------------------------------------------------------------
-# Chrome profile
+# 3. Dependencies
 # ------------------------------------------------------------------------------
 
-mkdir -p "$CHROME_PROFILE"
-
-# Chỉ cleanup stale lock files.
-rm -f \
-    "${CHROME_PROFILE}/SingletonLock" \
-    "${CHROME_PROFILE}/SingletonSocket" \
-    "${CHROME_PROFILE}/SingletonCookie" \
-    2>/dev/null || true
+ensure_dependencies
 
 # ------------------------------------------------------------------------------
-# Launch
+# 4. Chrome profile
+# ------------------------------------------------------------------------------
+
+prepare_chrome_profile
+
+# ------------------------------------------------------------------------------
+# 5. Launch
 # ------------------------------------------------------------------------------
 
 echo
 echo "=============================================================================="
-echo "🌐 STARTING FLUTTER WEB — LOCAL ODOO"
+echo "🌐 STARTING FLUTTER WEB"
 echo "=============================================================================="
 echo
 echo "Backend : $API_URL"
@@ -122,8 +143,8 @@ echo "  R → Hot Restart"
 echo "  h → Help"
 echo "  q → Quit"
 echo
-echo "⚠️ Chrome Web Security DISABLED."
-echo "⚠️ Chỉ sử dụng Chrome session này cho DEV/QA."
+echo "⚠️  Chrome Web Security đang DISABLED cho session này."
+echo "⚠️  Chỉ sử dụng Chrome session này để DEV/QA."
 echo
 echo "=============================================================================="
 echo

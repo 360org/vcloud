@@ -454,7 +454,7 @@ class ChatV2Message {
     );
     final authorAvatar = odooApiClient.resolveAvatarUrl(rawAuthorAvatar) ??
         (authorId != null && authorId.isNotEmpty
-            ? odooApiClient.resolveAvatarUrl('/web/image/res.partner/$authorId/avatar_128')
+            ? odooApiClient.resolveAvatarUrl('/api/v1/mobile/avatar/res.partner/$authorId')
             : null);
 
     return ChatV2Message(

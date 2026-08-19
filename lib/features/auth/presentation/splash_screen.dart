@@ -3,6 +3,9 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../features/chat_v2/application/chat_v2_channels_controller.dart';
+import '../../../features/home/application/home_summary_controller.dart';
+import '../../../features/ticket/application/ticket_controller.dart';
 import '../../../shared/widgets/brand_logo.dart';
 import '../application/auth_controller.dart';
 
@@ -16,12 +19,45 @@ class SplashScreen extends ConsumerStatefulWidget {
 }
 
 class _SplashScreenState extends ConsumerState<SplashScreen> {
+  bool _isWarmingUp = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final user = ref.read(authControllerProvider).valueOrNull;
+      if (user != null) {
+        _warmupAndNavigate();
+      }
+    });
+  }
+
+  Future<void> _warmupAndNavigate() async {
+    if (_isWarmingUp) return;
+    _isWarmingUp = true;
+
+    try {
+      // Warm-up song song các core providers với timeout an toàn 1000ms
+      await Future.wait([
+        ref.read(mobileDashboardSummaryProvider.future),
+        ref.read(chatV2ChannelsProvider.future),
+        ref.read(ticketsProvider.future),
+      ]).timeout(const Duration(milliseconds: 1000));
+    } catch (_) {
+      // Fail-soft: Timeout hoặc lỗi mạng nhẹ vẫn mở Home với dữ liệu sẵn có
+    }
+
+    if (mounted) {
+      context.go('/home');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.listen(authControllerProvider, (previous, next) {
       final user = next.value;
       if (user != null) {
-        context.go('/home');
+        _warmupAndNavigate();
       } else if (!next.isLoading) {
         context.go('/login');
       }

@@ -27,7 +27,8 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen>
     final repo = ref.read(chatRepositoryProvider);
     return repo.allUsers();
   });
-  bool _busy = false;
+  String? _openingPartnerId;
+  bool _groupBusy = false;
 
   @override
   void dispose() {
@@ -35,36 +36,45 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen>
     super.dispose();
   }
 
-  Future<void> _open(String partnerId, {String? partnerName}) async {
-    setState(() => _busy = true);
+  Future<void> _open(Profile p) async {
+    final partnerId = p.partnerId;
+    if (partnerId == null || partnerId.isEmpty) return;
+
+    setState(() => _openingPartnerId = partnerId);
     try {
       final id = await ref
           .read(conversationActionsProvider)
           .openDirect(partnerId);
       final directCh = ChatV2Channel(
         id: id,
-        name: partnerName ?? 'Trò chuyện',
+        name: p.displayName.trim().isNotEmpty ? p.displayName.trim() : 'Trò chuyện',
         channelType: 'chat',
         isGroup: false,
         memberCount: 2,
+        avatarUrl: p.avatarUrl,
         directPartnerId: partnerId,
-        directPartnerName: partnerName,
+        directPartnerName: p.displayName,
         lastMessageDate: DateTime.now(),
       );
       ChatV2ChannelLocalCache.pinDirectChannel(directCh);
-      ref.invalidate(chatV2ChannelsProvider);
+      // ref.invalidate(chatV2ChannelsProvider);
       if (mounted) {
-        final query = partnerName != null && partnerName.trim().isNotEmpty
-            ? '?name=${Uri.encodeComponent(partnerName.trim())}'
+        final queryParams = <String, String>{
+          if (p.displayName.trim().isNotEmpty) 'name': p.displayName.trim(),
+          if (p.avatarUrl != null && p.avatarUrl!.trim().isNotEmpty) 'avatar': p.avatarUrl!.trim(),
+          'partner_id': partnerId,
+        };
+        final queryString = queryParams.isNotEmpty
+            ? '?${Uri(queryParameters: queryParams).query}'
             : '';
-        context.go('/chat/$id$query');
+        context.pushReplacement('/chat/$id$queryString');
       }
     } on Failure catch (f) {
       _snack(f.message);
     } catch (e) {
       _snack('Không thể bắt đầu trò chuyện: $e');
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) setState(() => _openingPartnerId = null);
     }
   }
 
@@ -135,7 +145,7 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen>
                 fontWeight: FontWeight.w500,
               ),
               tabs: const [
-                Tab(text: 'Cá nhân'),
+                Tab(text: 'Nội bộ'),
                 Tab(text: 'Tạo nhóm'),
               ],
             ),
@@ -168,31 +178,32 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen>
 
               return _DirectChatList(
                 users: filteredUsers,
-                busy: _busy,
+                openingPartnerId: _openingPartnerId,
                 onOpen: _open,
                 onRetry: () => ref.invalidate(_usersProvider),
               );
             },
           ),
           _GroupForm(
+            busy: _groupBusy,
             onCreate: (name, ids) async {
               if (name.trim().isEmpty || ids.isEmpty) {
                 _snack('Vui lòng nhập tên nhóm và chọn ít nhất 1 thành viên.');
                 return;
               }
-              setState(() => _busy = true);
+              setState(() => _groupBusy = true);
               try {
                 final id = await ref
                     .read(conversationActionsProvider)
                     .createGroup(name.trim(), ids);
-                ref.invalidate(chatV2ChannelsProvider);
+                // ref.invalidate(chatV2ChannelsProvider);
                 if (!context.mounted) return;
                 final query = '?name=${Uri.encodeComponent(name.trim())}';
-                context.go('/chat/$id$query');
+                context.pushReplacement('/chat/$id$query');
               } catch (e) {
                 _snack('Không thể tạo nhóm: $e');
               } finally {
-                if (mounted) setState(() => _busy = false);
+                if (mounted) setState(() => _groupBusy = false);
               }
             },
           ),
@@ -205,14 +216,14 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen>
 class _DirectChatList extends StatefulWidget {
   const _DirectChatList({
     required this.users,
-    required this.busy,
+    required this.openingPartnerId,
     required this.onOpen,
     required this.onRetry,
   });
 
   final AsyncValue<List<Profile>> users;
-  final bool busy;
-  final Future<void> Function(String partnerId, {String? partnerName}) onOpen;
+  final String? openingPartnerId;
+  final Future<void> Function(Profile profile) onOpen;
   final VoidCallback onRetry;
 
   @override
@@ -367,7 +378,7 @@ class _DirectChatListState extends State<_DirectChatList> {
                                     : const Color(0xFF64748B),
                               ),
                             ),
-                            trailing: widget.busy
+                            trailing: widget.openingPartnerId == p.partnerId
                                 ? const SizedBox(
                                     width: 18,
                                     height: 18,
@@ -383,9 +394,9 @@ class _DirectChatListState extends State<_DirectChatList> {
                                         ? Colors.white54
                                         : const Color(0xFF94A3B8),
                                   ),
-                            onTap: widget.busy || p.partnerId == null
+                            onTap: widget.openingPartnerId != null || p.partnerId == null
                                 ? null
-                                : () => widget.onOpen(p.partnerId!, partnerName: p.displayName),
+                                : () => widget.onOpen(p),
                           ),
                         );
                       },
@@ -404,8 +415,9 @@ class _DirectChatListState extends State<_DirectChatList> {
 }
 
 class _GroupForm extends ConsumerStatefulWidget {
-  const _GroupForm({required this.onCreate});
+  const _GroupForm({required this.onCreate, this.busy = false});
   final Future<void> Function(String name, List<String> ids) onCreate;
+  final bool busy;
 
   @override
   ConsumerState<_GroupForm> createState() => _GroupFormState();
@@ -664,8 +676,17 @@ class _GroupFormState extends ConsumerState<_GroupForm> {
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: FilledButton.icon(
-                  icon: const Icon(LucideIcons.check, size: 18),
-                  onPressed: _selected.isEmpty || _name.text.trim().isEmpty
+                  icon: widget.busy
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(LucideIcons.check, size: 18),
+                  onPressed: widget.busy || _selected.isEmpty || _name.text.trim().isEmpty
                       ? null
                       : () => widget.onCreate(_name.text, _selected.toList()),
                   label: Text(

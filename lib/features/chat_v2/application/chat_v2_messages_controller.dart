@@ -4,6 +4,9 @@ import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+
 import '../../auth/application/auth_controller.dart';
 import '../../../core/utils/local_attachment_cache.dart';
 import '../domain/models/chat_v2_poll_model.dart';
@@ -21,11 +24,72 @@ final chatV2MessagesProvider = AutoDisposeAsyncNotifierProviderFamily<
 
 class ChatV2MessageLocalCache {
   static final Map<String, Map<String, ChatV2Message>> _cache = {};
+  static bool _initialized = false;
+  static Directory? _cacheDir;
+
+  static Future<void> init() async {
+    if (_initialized) return;
+    if (kIsWeb) {
+      _initialized = true;
+      return;
+    }
+    try {
+      final stopwatch = Stopwatch()..start();
+      final docDir = await getApplicationDocumentsDirectory();
+      _cacheDir = Directory('${docDir.path}/chat_v2_messages');
+      if (!await _cacheDir!.exists()) {
+        await _cacheDir!.create(recursive: true);
+      }
+
+      final files = _cacheDir!.listSync();
+      int totalMessagesLoaded = 0;
+      for (final file in files) {
+        if (file is File && file.path.endsWith('.json')) {
+          final channelId = file.path.split('/').last.replaceAll('.json', '');
+          try {
+            final content = await file.readAsString();
+            final List<dynamic> jsonList = jsonDecode(content);
+            final messages = jsonList.map((e) => ChatV2Message.fromMap(e as Map<String, dynamic>, currentUserId: null)).toList(); 
+            
+            final map = <String, ChatV2Message>{};
+            for (final m in messages) {
+              map[m.id] = m;
+            }
+            _cache[channelId] = map;
+            totalMessagesLoaded += messages.length;
+          } catch (e) {
+            debugPrint('Error loading chat messages for channel $channelId: $e');
+          }
+        }
+      }
+      stopwatch.stop();
+      debugPrint('🕒 [PERF] ChatV2MessageLocalCache.init() loaded $totalMessagesLoaded messages in ${stopwatch.elapsedMilliseconds}ms');
+      _initialized = true;
+    } catch (e) {
+      debugPrint('Error init ChatV2MessageLocalCache: $e');
+    }
+  }
 
   static List<ChatV2Message>? get(String channelId) {
     final map = _cache[channelId];
     if (map == null || map.isEmpty) return null;
-    return map.values.toList(growable: false);
+    return map.values.toList()..sort((a, b) {
+      final aTime = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final bTime = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return bTime.compareTo(aTime);
+    });
+  }
+
+  static Future<void> _persist(String channelId) async {
+    if (!_initialized || _cacheDir == null || kIsWeb) return;
+    try {
+      final messages = get(channelId) ?? [];
+      final file = File('${_cacheDir!.path}/$channelId.json');
+      final jsonStr = jsonEncode(messages.map((m) => m.toMap()).toList());
+      await file.writeAsString(jsonStr);
+    } catch (e) {
+      debugPrint('Error persisting chat messages: $e');
+    }
   }
 
   static void set(String channelId, List<ChatV2Message> messages, {bool persist = true}) {
@@ -34,20 +98,23 @@ class ChatV2MessageLocalCache {
       map[m.id] = m;
     }
     _cache[channelId] = map;
+    if (persist) _persist(channelId);
   }
 
-  static void prepend(String channelId, ChatV2Message msg) {
+  static void prepend(String channelId, ChatV2Message msg, {bool persist = true}) {
     final map = _cache[channelId];
     if (map == null) {
       _cache[channelId] = {msg.id: msg};
     } else {
       _cache[channelId] = {msg.id: msg, ...map};
     }
+    if (persist) _persist(channelId);
   }
 
-  static void append(String channelId, ChatV2Message msg) {
+  static void append(String channelId, ChatV2Message msg, {bool persist = true}) {
     final map = _cache.putIfAbsent(channelId, () => <String, ChatV2Message>{});
     map[msg.id] = msg;
+    if (persist) _persist(channelId);
   }
 }
 
@@ -282,7 +349,7 @@ class ChatV2MessagesNotifier
     final userId = user?.id;
     final userName = meta?['name']?.toString() ?? 'Tôi';
 
-    // Tạo tin nhắn tạm (optimistic update)
+    // Tạo tin nhắn tạm (optimistic update) với trạng thái sent ngay lập tức (1 tick)
     final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
     final tempMsg = ChatV2Message(
       id: tempId,
@@ -292,7 +359,7 @@ class ChatV2MessagesNotifier
       authorName: userName,
       createdAt: DateTime.now(),
       isMine: true,
-      status: 'pending',
+      status: 'sent',
       parentId: parentId,
       parentBody: parentBody,
       parentAuthorName: parentAuthorName,
@@ -364,8 +431,17 @@ class ChatV2MessagesNotifier
       ref.read(chatV2LastSentTrackerProvider.notifier).recordSent(channelId, trimmed);
       ref.read(chatV2ReadStateProvider.notifier).markChannelAsRead(channelId);
 
-      // Invalidate danh sách kênh để cập nhật last message
-      ref.invalidate(chatV2ChannelsProvider);
+      ChatV2ChannelLocalCache.updateChannelLastMessage(
+        channelId,
+        lastMessage: trimmed,
+        lastMessageDate: DateTime.now(),
+        authorId: partnerId ?? userId,
+        authorName: userName,
+        unreadCount: 0,
+      );
+
+      // Channel list will auto-update via WebSocket (onChannelUpdated / onMessageReceived)
+      // ref.invalidate(chatV2ChannelsProvider);
     } catch (e) {
       // Đánh dấu tin nhắn lỗi
       final currentList = state.valueOrNull ?? const [];
@@ -512,8 +588,17 @@ class ChatV2MessagesNotifier
       ref.read(chatV2LastSentTrackerProvider.notifier).recordSent(channelId, cleanForTracker);
       ref.read(chatV2ReadStateProvider.notifier).markChannelAsRead(channelId);
 
-      // 5. Invalidate channels để cập nhật preview
-      ref.invalidate(chatV2ChannelsProvider);
+      ChatV2ChannelLocalCache.updateChannelLastMessage(
+        channelId,
+        lastMessage: cleanForTracker,
+        lastMessageDate: DateTime.now(),
+        authorId: partnerId ?? userId,
+        authorName: userName,
+        unreadCount: 0,
+      );
+
+      // Update local cache without invalidating the provider
+      // ref.invalidate(chatV2ChannelsProvider);
     } catch (e) {
       // Đánh dấu tin nhắn tạm bị lỗi
       final currentList = state.valueOrNull ?? const [];
@@ -595,7 +680,16 @@ class ChatV2MessagesNotifier
 
     ref.read(chatV2LastSentTrackerProvider.notifier).recordSent(channelId, '📊 [Bình chọn] $question');
     ref.read(chatV2ReadStateProvider.notifier).markChannelAsRead(channelId);
-    ref.invalidate(chatV2ChannelsProvider);
+
+    final pinned = ChatV2ChannelLocalCache.getPinnedDirectChannel(channelId);
+    if (pinned != null) {
+      ChatV2ChannelLocalCache.pinDirectChannel(pinned.copyWith(
+        lastMessage: '📊 [Bình chọn] $question',
+        lastMessageDate: DateTime.now(),
+      ));
+    }
+
+    // ref.invalidate(chatV2ChannelsProvider);
   }
 
   Future<void> votePoll(String messageId, int optionId) async {

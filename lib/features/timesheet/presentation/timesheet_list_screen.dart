@@ -39,7 +39,6 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
   Duration _elapsedBeforePause = Duration.zero;
   bool _running = false;
   int _selectedTaskTab = 0; // 0: Cần làm, 1: Đã hoàn thành
-  bool _isSearching = false;
   String _searchQuery = '';
   final _taskStatusOverrides = <String, _TaskWorkflowStatus>{};
   final _scrollController = ScrollController();
@@ -651,6 +650,10 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
   Widget build(BuildContext context) {
     super.build(context);
 
+    final filter = ref.watch(timesheetFilterProvider);
+    final isFilterActive =
+        filter.presetName != 'Hôm nay' || filter.projectId != null;
+
     return AppScaffold(
       title: 'Timesheet',
       showAppBar: false,
@@ -669,24 +672,24 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
               ),
               padding: const EdgeInsets.fromLTRB(14, 10, 14, 112),
               children: [
-                _TimesheetHeader(
-                  isSearching: _isSearching,
-                  onToggleSearch: () {
+                const _TimesheetHeader(),
+                const SizedBox(height: 8),
+                _TimesheetSearchBar(
+                  query: _searchQuery,
+                  isFilterActive: isFilterActive,
+                  onChanged: (val) => setState(() => _searchQuery = val),
+                  onClear: () => setState(() => _searchQuery = ''),
+                  onOpenFilter: () {
                     HapticFeedback.lightImpact();
-                    setState(() {
-                      _isSearching = !_isSearching;
-                      if (!_isSearching) _searchQuery = '';
-                    });
+                    showModalBottomSheet<void>(
+                      context: context,
+                      isScrollControlled: true,
+                      backgroundColor: Colors.transparent,
+                      builder: (_) =>
+                          _TimesheetFilterSheet(initialFilter: filter),
+                    );
                   },
                 ),
-                if (_isSearching) ...[
-                  const SizedBox(height: 10),
-                  _TimesheetSearchBar(
-                    query: _searchQuery,
-                    onChanged: (val) => setState(() => _searchQuery = val),
-                    onClear: () => setState(() => _searchQuery = ''),
-                  ),
-                ],
                 const SizedBox(height: 12),
                 _StopwatchCard(
                   elapsed: _elapsed,
@@ -800,164 +803,59 @@ class _TasksStatusCard extends StatelessWidget {
 }
 
 class _TimesheetHeader extends StatelessWidget {
-  const _TimesheetHeader({
-    required this.isSearching,
-    required this.onToggleSearch,
-  });
-
-  final bool isSearching;
-  final VoidCallback onToggleSearch;
+  const _TimesheetHeader();
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Consumer(
-      builder: (context, ref, _) {
-        final filter = ref.watch(timesheetFilterProvider);
-        return Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1E293B) : Colors.white,
-                borderRadius: BorderRadius.circular(24),
-                border: isDark
-                    ? Border.all(color: Colors.white.withValues(alpha: 0.08))
-                    : null,
-                boxShadow: isDark
-                    ? [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.25),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ]
-                    : const [
-                        BoxShadow(
-                          color: Color(0x0D0F172A),
-                          blurRadius: 14,
-                          offset: Offset(0, 6),
-                        ),
-                      ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    LucideIcons.clock,
-                    color: Color(0xFF00C83A),
-                    size: 18,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Timesheet',
-                    style: TextStyle(
-                      color: isDark ? Colors.white : const Color(0xFF0F172A),
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E293B) : Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: isDark
+                ? Border.all(color: Colors.white.withValues(alpha: 0.08))
+                : null,
+            boxShadow: isDark
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.25),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            const Spacer(),
-            PressableScale(
-              onTap: onToggleSearch,
-              child: Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: isSearching
-                      ? const Color(0xFF00C83A)
-                      : (isDark ? const Color(0xFF1E293B) : Colors.white),
-                  shape: BoxShape.circle,
-                  border: isDark && !isSearching
-                      ? Border.all(color: Colors.white.withValues(alpha: 0.08))
-                      : null,
-                  boxShadow: isDark
-                      ? [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.25),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ]
-                      : const [
-                          BoxShadow(
-                            color: Color(0x0D0F172A),
-                            blurRadius: 14,
-                            offset: Offset(0, 6),
-                          ),
-                        ],
-                ),
-                child: Icon(
-                  isSearching ? LucideIcons.x : LucideIcons.search,
-                  color: isSearching
-                      ? Colors.white
-                      : const Color(0xFF00C83A),
-                  size: 18,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            GestureDetector(
-              onTap: () {
-                HapticFeedback.lightImpact();
-                showModalBottomSheet<void>(
-                  context: context,
-                  isScrollControlled: true,
-                  backgroundColor: Colors.transparent,
-                  builder: (_) => _TimesheetFilterSheet(initialFilter: filter),
-                );
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1E293B) : Colors.white,
-                  borderRadius: BorderRadius.circular(24),
-                  border: isDark
-                      ? Border.all(color: Colors.white.withValues(alpha: 0.08))
-                      : null,
-                  boxShadow: isDark
-                      ? [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.25),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ]
-                      : const [
-                          BoxShadow(
-                            color: Color(0x0D0F172A),
-                            blurRadius: 14,
-                            offset: Offset(0, 6),
-                          ),
-                        ],
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      LucideIcons.calendarDays,
-                      color: Color(0xFF00C83A),
-                      size: 18,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      filter.presetName,
-                      style: TextStyle(
-                        color: isDark ? Colors.white : const Color(0xFF0F172A),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                      ),
+                  ]
+                : const [
+                    BoxShadow(
+                      color: Color(0x0D0F172A),
+                      blurRadius: 14,
+                      offset: Offset(0, 6),
                     ),
                   ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                LucideIcons.clock,
+                color: Color(0xFF00C83A),
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Timesheet',
+                style: TextStyle(
+                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
                 ),
               ),
-            ),
-          ],
-        );
-      },
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -965,75 +863,95 @@ class _TimesheetHeader extends StatelessWidget {
 class _TimesheetSearchBar extends StatelessWidget {
   const _TimesheetSearchBar({
     required this.query,
+    required this.isFilterActive,
     required this.onChanged,
     required this.onClear,
+    required this.onOpenFilter,
   });
 
   final String query;
+  final bool isFilterActive;
   final ValueChanged<String> onChanged;
   final VoidCallback onClear;
+  final VoidCallback onOpenFilter;
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Container(
-      height: 48,
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF0F3F8),
-        borderRadius: BorderRadius.circular(16),
-        border: isDark
-            ? Border.all(color: Colors.white.withValues(alpha: 0.08))
-            : null,
-        boxShadow: isDark
-            ? [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.2),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
+    return Row(
+      children: [
+        Expanded(
+          child: Container(
+            height: 50,
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF0F3F8),
+              borderRadius: BorderRadius.circular(16),
+              border: isDark
+                  ? Border.all(color: Colors.white.withValues(alpha: 0.08))
+                  : null,
+            ),
+            child: TextField(
+              onChanged: onChanged,
+              style: TextStyle(
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
+                fontSize: 15,
+              ),
+              decoration: InputDecoration(
+                hintText: 'Tìm kiếm timesheet',
+                hintStyle: TextStyle(
+                  color: isDark ? Colors.white38 : AppColors.textMuted,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
                 ),
-              ]
-            : const [
-                BoxShadow(
-                  color: Color(0x0A0F172A),
-                  blurRadius: 12,
-                  offset: Offset(0, 6),
+                prefixIcon: Icon(
+                  LucideIcons.search,
+                  color: isDark ? Colors.white60 : AppColors.textMuted,
+                  size: 20,
                 ),
-              ],
-      ),
-      child: TextField(
-        autofocus: true,
-        onChanged: onChanged,
-        style: TextStyle(
-          color: isDark ? Colors.white : const Color(0xFF0F172A),
-          fontSize: 15,
-        ),
-        decoration: InputDecoration(
-          hintText: 'Tìm kiếm task, dự án hôm nay...',
-          hintStyle: TextStyle(
-            color: isDark ? Colors.white38 : AppColors.textMuted,
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
+                suffixIcon: query.isEmpty
+                    ? null
+                    : IconButton(
+                        onPressed: onClear,
+                        icon: Icon(
+                          LucideIcons.x,
+                          color: isDark ? Colors.white70 : AppColors.textMuted,
+                          size: 19,
+                        ),
+                      ),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+            ),
           ),
-          prefixIcon: Icon(
-            LucideIcons.search,
-            color: isDark ? const Color(0xFF00C83A) : AppColors.primary,
-            size: 19,
-          ),
-          suffixIcon: query.isEmpty
-              ? null
-              : IconButton(
-                  onPressed: onClear,
-                  icon: Icon(
-                    LucideIcons.x,
-                    color: isDark ? Colors.white70 : AppColors.textMuted,
-                    size: 18,
-                  ),
-                ),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 13),
         ),
-      ),
+        const SizedBox(width: 10),
+        PressableScale(
+          onTap: onOpenFilter,
+          child: Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: isFilterActive
+                  ? const Color(0xFF00C83A)
+                  : (isDark
+                      ? const Color(0xFF1E293B)
+                      : const Color(0xFFF0F3F8)),
+              borderRadius: BorderRadius.circular(16),
+              border: isDark && !isFilterActive
+                  ? Border.all(color: Colors.white.withValues(alpha: 0.08))
+                  : null,
+            ),
+            child: Icon(
+              LucideIcons.slidersHorizontal,
+              color: isFilterActive
+                  ? Colors.white
+                  : (isDark ? Colors.white70 : AppColors.textMuted),
+              size: 20,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

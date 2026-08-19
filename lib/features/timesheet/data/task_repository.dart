@@ -250,22 +250,33 @@ class TaskRepository {
         'name': summary,
       },
     );
-    await _client.put(
-      '/api/v1/project.task/$taskId',
-      body: <String, dynamic>{
-        'values': <String, dynamic>{'state': '1_done'},
-      },
-    );
-    final task = await _client.get('/api/v1/project.task/$taskId');
-    return Task.fromMap(
-      _taskFromOdoo(
-        Map<String, dynamic>.from(task as Map),
-        DateTime.now(),
-        projectId: projectId,
-        completed: true,
-        timesheetId: res is Map ? res['id']?.toString() : null,
-      ),
-    );
+    try {
+      await _client.post(
+        '/api/v1/project.task/$taskId/complete',
+        body: <String, dynamic>{'note': summary},
+      );
+    } catch (_) {
+      try {
+        await _client.put(
+          '/api/v1/mobile/project/task/$taskId/workflow',
+          body: <String, dynamic>{'status': 'done'},
+        );
+      } catch (_) {}
+    }
+    try {
+      return await getTaskDetail(taskId);
+    } catch (_) {
+      final task = await _client.get('/api/v1/project.task/$taskId');
+      return Task.fromMap(
+        _taskFromOdoo(
+          Map<String, dynamic>.from(task as Map),
+          DateTime.now(),
+          projectId: projectId,
+          completed: true,
+          timesheetId: res is Map ? res['id']?.toString() : null,
+        ),
+      );
+    }
   }
 
   /// Lưu trạng thái workflow qua endpoint nghiệp vụ để app không phải tự

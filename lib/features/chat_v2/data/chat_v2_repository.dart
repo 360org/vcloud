@@ -27,8 +27,22 @@ class ChatV2Repository {
   String? resolveAvatarUrl(String? path, {String? accessToken}) =>
       _client.resolveAvatarUrl(path, accessToken: accessToken);
 
-  Future<List<ChatV2Channel>> getChannels() async {
-    final dynamic data = await _client.get('/api/v1/mobile/chat/channels');
+  Future<List<ChatV2Channel>> getChannels({
+    int? limit,
+    int? offset,
+    String? search,
+    String? filter,
+  }) async {
+    final queryParams = <String, Object?>{};
+    if (limit != null) queryParams['limit'] = limit.toString();
+    if (offset != null) queryParams['offset'] = offset.toString();
+    if (search != null && search.trim().isNotEmpty) queryParams['search'] = search.trim();
+    if (filter != null && filter.trim().isNotEmpty) queryParams['filter'] = filter.trim();
+
+    final dynamic data = await _client.get(
+      '/api/v1/mobile/chat/channels',
+      query: queryParams,
+    );
 
     final List<dynamic> list;
     if (data is List) {

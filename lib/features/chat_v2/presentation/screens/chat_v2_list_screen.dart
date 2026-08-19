@@ -22,22 +22,34 @@ class ChatV2ListScreen extends ConsumerStatefulWidget {
 
 class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
   String _searchQuery = '';
-  late int _selectedFilterIndex; // 0: Tất cả, 1: Chưa đọc, 2: Cá nhân, 3: Nhóm
+  int? _selectedFilterIndex; // null: Mặc định (Tất cả), 0: Chưa đọc, 1: Nội bộ, 2: Nhóm, 3: Kênh
 
-  final List<String> _filters = ['Tất cả', 'Chưa đọc', 'Cá nhân', 'Nhóm'];
+  final List<String> _filters = ['Chưa đọc', 'Nội bộ', 'Nhóm', 'Kênh'];
 
-  int _resolveFilterIndex(String? filter) {
-    if (filter == 'unread' || filter == 'chuadoc') return 1;
-    if (filter == 'direct' || filter == 'dm' || filter == 'canhan') return 2;
-    if (filter == 'group' || filter == 'nhom') return 3;
-    return 0;
+  int? _resolveFilterIndex(String? filter) {
+    if (filter == null || filter.isEmpty || filter == 'all' || filter == 'tatca') return null;
+    if (filter == 'unread' || filter == 'chuadoc') return 0;
+    if (filter == 'internal' || filter == 'noibo' || filter == 'direct' || filter == 'dm' || filter == 'canhan' || filter == 'tructiep') return 1;
+    if (filter == 'group' || filter == 'nhom') return 2;
+    if (filter == 'channel' || filter == 'kenh') return 3;
+    return null;
   }
 
   @override
   void initState() {
     super.initState();
     _selectedFilterIndex = _resolveFilterIndex(widget.initialFilter);
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 300) {
+      ref.read(chatV2ChannelsProvider.notifier).loadMore();
+    }
   }
 
   @override
@@ -52,6 +64,8 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
 
   @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -100,13 +114,16 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      'Trò chuyện',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800,
-                        color: isDark ? Colors.white : const Color(0xFF0F172A),
-                        letterSpacing: -0.5,
+                    Expanded(
+                      child: Text(
+                        'Trò chuyện',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          letterSpacing: -0.5,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     Material(
@@ -192,30 +209,18 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                 // ── 3. Filter Chips với số lượng thống kê ───────────────────
                 channelsAsync.maybeWhen(
                   data: (channels) {
-                    final readNotifier =
-                        ref.watch(chatV2ReadStateProvider.notifier);
-                    final allCount = channels.length;
-                    final unreadCount = channels.where((c) {
-                      final isMine = c.isLastMessageFromMe(
-                        currentUserName: currentUserName,
-                        currentPartnerId: currentPartnerId,
-                        currentUserId: currentUserId,
-                      );
-                      return !isMine &&
-                          readNotifier.isChannelUnread(
-                            channelId: c.id,
-                            serverUnreadCount: c.unreadCount,
-                            lastMessageDate: c.lastMessageDate,
-                          );
-                    }).length;
-                    final directCount = channels
-                        .where((c) => !c.getActualIsGroup(currentUserName))
+                    final unreadCount = ref.watch(chatV2TotalUnreadProvider);
+                    final internalCount = channels
+                        .where((c) => c.isInternalDirect(currentUserName))
                         .length;
                     final groupCount = channels
-                        .where((c) => c.getActualIsGroup(currentUserName))
+                        .where((c) => c.isGroupChat(currentUserName))
+                        .length;
+                    final channelCount = channels
+                        .where((c) => c.isChannel)
                         .length;
 
-                    final counts = [allCount, unreadCount, directCount, groupCount];
+                    final counts = [unreadCount, internalCount, groupCount, channelCount];
 
                     return SizedBox(
                       height: 34,
@@ -261,8 +266,15 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                               ],
                             ),
                             selected: isSelected,
-                            onSelected: (_) {
-                              setState(() => _selectedFilterIndex = idx);
+                            onSelected: (selected) {
+                              setState(() {
+                                if (selected) {
+                                  _selectedFilterIndex = idx;
+                                } else {
+                                  _selectedFilterIndex = null; // Bỏ chọn -> Về mặc định: Tất cả
+                                }
+                              });
+                              debugPrint('${_filters[idx]} : $count cuộc trò chuyện');
                             },
                             selectedColor: const Color(0xFF00C83A),
                             backgroundColor: isDark
@@ -308,6 +320,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
               color: const Color(0xFF00C83A),
               onRefresh: () async => ref.refresh(chatV2ChannelsProvider.future),
               child: channelsAsync.when(
+                skipLoadingOnReload: true,
                 loading: () => const Center(
                   child: CircularProgressIndicator(color: Color(0xFF00C83A)),
                 ),
@@ -357,7 +370,6 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                   // Lọc theo search query và filter index
                   final filtered = channels.where((c) {
                     final cleanName = c.getCleanName(currentUserName);
-                    final isActuallyGroup = c.getActualIsGroup(currentUserName);
 
                     if (_searchQuery.isNotEmpty) {
                       final matchName = cleanName.toLowerCase().contains(_searchQuery) ||
@@ -367,7 +379,8 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                           .contains(_searchQuery);
                       if (!matchName && !matchMsg) return false;
                     }
-                    if (_selectedFilterIndex == 1) {
+                    if (_selectedFilterIndex == 0) {
+                      // 0: Chưa đọc
                       final readNotifier =
                           ref.watch(chatV2ReadStateProvider.notifier);
                       final isMine = c.isLastMessageFromMe(
@@ -382,12 +395,21 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                             lastMessageDate: c.lastMessageDate,
                           );
                       if (!isUnread) return false;
-                    }
-                    if (_selectedFilterIndex == 2 && isActuallyGroup) {
-                      return false;
-                    }
-                    if (_selectedFilterIndex == 3 && !isActuallyGroup) {
-                      return false;
+                    } else if (_selectedFilterIndex == 1) {
+                      // 1: Nội bộ (1-1 trực tiếp)
+                      if (!c.isInternalDirect(currentUserName)) {
+                        return false;
+                      }
+                    } else if (_selectedFilterIndex == 2) {
+                      // 2: Nhóm
+                      if (!c.isGroupChat(currentUserName)) {
+                        return false;
+                      }
+                    } else if (_selectedFilterIndex == 3) {
+                      // 3: Kênh
+                      if (!c.isChannel) {
+                        return false;
+                      }
                     }
                     return true;
                   }).toList();
@@ -405,6 +427,21 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                   });
 
                   if (filtered.isEmpty) {
+                    final String emptyMessage;
+                    if (_searchQuery.isNotEmpty) {
+                      emptyMessage = 'Không tìm thấy cuộc trò chuyện nào';
+                    } else if (_selectedFilterIndex == 0) {
+                      emptyMessage = 'Không có tin nhắn chưa đọc';
+                    } else if (_selectedFilterIndex == 1) {
+                      emptyMessage = 'Chưa có cuộc trò chuyện nội bộ nào';
+                    } else if (_selectedFilterIndex == 2) {
+                      emptyMessage = 'Chưa có nhóm trò chuyện nào';
+                    } else if (_selectedFilterIndex == 3) {
+                      emptyMessage = 'Chưa có kênh thảo luận nào';
+                    } else {
+                      emptyMessage = 'Chưa có cuộc trò chuyện nào';
+                    }
+
                     return ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       children: [
@@ -429,11 +466,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          _searchQuery.isNotEmpty
-                              ? 'Không tìm thấy cuộc trò chuyện nào'
-                              : (_selectedFilterIndex == 1
-                                  ? 'Không có tin nhắn chưa đọc'
-                                  : 'Chưa có cuộc trò chuyện nào'),
+                          emptyMessage,
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 16,
@@ -460,9 +493,15 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                     );
                   }
 
+                  final channelsNotifier = ref.watch(chatV2ChannelsProvider.notifier);
+                  final hasMore = channelsNotifier.hasMore;
+                  final isLoadingMore = channelsNotifier.isLoadingMore;
+                  final isFiltered = _searchQuery.isNotEmpty || _selectedFilterIndex != null;
+
                   return ListView.separated(
+                    controller: _scrollController,
                     physics: const AlwaysScrollableScrollPhysics(),
-                    itemCount: filtered.length,
+                    itemCount: filtered.length + ((!isFiltered && (isLoadingMore || (!hasMore && filtered.length >= 40))) ? 1 : 0),
                     padding: const EdgeInsets.symmetric(vertical: 6),
                     separatorBuilder: (_, _) => Divider(
                       height: 1,
@@ -473,8 +512,42 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                           : const Color(0xFFE2E8F0).withValues(alpha: 0.7),
                     ),
                     itemBuilder: (context, index) {
+                      if (index == filtered.length) {
+                        if (isLoadingMore) {
+                          return const Center(
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(vertical: 16),
+                              child: SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00C83A)),
+                                ),
+                              ),
+                            ),
+                          );
+                        }
+                        if (!hasMore) {
+                          return Center(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              child: Text(
+                                'Đã hiển thị tất cả cuộc trò chuyện (${filtered.length})',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
+                                ),
+                              ),
+                            ),
+                          );
+                        }
+                        return const SizedBox.shrink();
+                      }
+
                       final channel = filtered[index];
                       return _ChannelListItem(
+                        key: ValueKey(channel.id),
                         channel: channel,
                         currentUserName: currentUserName,
                         currentPartnerId: currentPartnerId,
@@ -493,17 +566,18 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
 }
 
 class _ChannelListItem extends ConsumerWidget {
-  const _ChannelListItem({
-    required this.channel,
-    this.currentUserName,
-    this.currentPartnerId,
-    this.currentUserId,
-  });
-
   final ChatV2Channel channel;
   final String? currentUserName;
   final String? currentPartnerId;
   final String? currentUserId;
+
+  const _ChannelListItem({
+    super.key,
+    required this.channel,
+    required this.currentUserName,
+    this.currentPartnerId,
+    this.currentUserId,
+  });
 
   // Bảng màu gradient pastel sinh động phân bổ theo tên người dùng
   static const _avatarGradients = [
@@ -543,13 +617,26 @@ class _ChannelListItem extends ConsumerWidget {
         : '';
     final avatarGrad = _getAvatarGradient(cleanName);
 
+    // Kiểm tra tin nhắn cuối từ channel hoặc từ cache tin nhắn
+    final cachedMsgs = ChatV2MessageLocalCache.get(channel.id);
+    final effectiveLastMsg = (channel.lastMessage != null && channel.lastMessage!.isNotEmpty)
+        ? channel.lastMessage
+        : (cachedMsgs != null && cachedMsgs.isNotEmpty
+            ? (cachedMsgs.first.content.isNotEmpty
+                ? cachedMsgs.first.content
+                : (cachedMsgs.first.attachments.isNotEmpty ? '[Hình ảnh]' : null))
+            : null);
+
+    final isFirstMsgMine = cachedMsgs != null && cachedMsgs.isNotEmpty && cachedMsgs.first.isMine;
+
     // Kiểm tra trạng thái chưa đọc từ ReadState Tracker với provider.select
     final readNotifier = ref.watch(chatV2ReadStateProvider.notifier);
     final lastSentText = ref.watch(chatV2LastSentTrackerProvider.select((m) => m[channel.id]));
     final isMineFromTracker = lastSentText != null &&
-        channel.lastMessage?.trim() == lastSentText.trim();
+        effectiveLastMsg?.trim() == lastSentText.trim();
 
-    final isMine = isMineFromTracker ||
+    final isMine = isFirstMsgMine ||
+        isMineFromTracker ||
         channel.isLastMessageFromMe(
           currentUserName: currentUserName,
           currentPartnerId: currentPartnerId,
@@ -559,6 +646,8 @@ class _ChannelListItem extends ConsumerWidget {
     // Watch riêng trạng thái seen của channel này để tự động cập nhật khi có trạng thái đọc mới
     ref.watch(chatV2ReadStateProvider.select((m) => m[channel.id]));
     final hasUnread = !isMine &&
+        effectiveLastMsg != null &&
+        effectiveLastMsg.isNotEmpty &&
         readNotifier.isChannelUnread(
           channelId: channel.id,
           serverUnreadCount: channel.unreadCount,
@@ -787,8 +876,16 @@ class _ChannelListItem extends ConsumerWidget {
 
   Widget _buildLastMessageSnippet(
       WidgetRef ref, bool isDark, bool hasUnread, String cleanName) {
-    final msg = channel.lastMessage;
-    if (msg == null || msg.isEmpty) {
+    final cachedMsgs = ChatV2MessageLocalCache.get(channel.id);
+    final effectiveLastMsg = (channel.lastMessage != null && channel.lastMessage!.isNotEmpty)
+        ? channel.lastMessage
+        : (cachedMsgs != null && cachedMsgs.isNotEmpty
+            ? (cachedMsgs.first.content.isNotEmpty
+                ? cachedMsgs.first.content
+                : (cachedMsgs.first.attachments.isNotEmpty ? '[Hình ảnh]' : null))
+            : null);
+
+    if (effectiveLastMsg == null || effectiveLastMsg.isEmpty) {
       return Text(
         'Nhấn để bắt đầu trò chuyện',
         maxLines: 1,
@@ -801,12 +898,16 @@ class _ChannelListItem extends ConsumerWidget {
       );
     }
 
+    final msg = effectiveLastMsg;
+    final isFirstMsgMine = cachedMsgs != null && cachedMsgs.isNotEmpty && cachedMsgs.first.isMine;
+
     // Kiểm tra xem tin nhắn có phải do mình vừa gửi không với provider.select
     final lastSentText = ref.watch(chatV2LastSentTrackerProvider.select((m) => m[channel.id]));
     final isMineFromTracker =
         lastSentText != null && msg.trim() == lastSentText.trim();
 
-    final isMine = isMineFromTracker ||
+    final isMine = isFirstMsgMine ||
+        isMineFromTracker ||
         channel.isLastMessageFromMe(
           currentUserName: currentUserName,
           currentPartnerId: currentPartnerId,
@@ -826,7 +927,6 @@ class _ChannelListItem extends ConsumerWidget {
         author = _getShortAuthorName(channel.lastMessageAuthorName!);
       } else {
         // Kiểm tra từ Local Cache của tin nhắn kênh nếu đã nạp (phần tử .first là tin mới nhất)
-        final cachedMsgs = ChatV2MessageLocalCache.get(channel.id);
         if (cachedMsgs != null && cachedMsgs.isNotEmpty) {
           final lastMsgObj = cachedMsgs.first;
           if (!lastMsgObj.isMine && lastMsgObj.authorName.isNotEmpty) {
@@ -877,7 +977,6 @@ class _ChannelListItem extends ConsumerWidget {
 
     // Lấy trạng thái tin nhắn cuối từ Local Cache (phần tử .first là tin mới nhất)
     String lastMsgStatus = 'sent';
-    final cachedMsgs = ChatV2MessageLocalCache.get(channel.id);
     if (cachedMsgs != null && cachedMsgs.isNotEmpty) {
       lastMsgStatus = cachedMsgs.first.status;
     }

@@ -489,6 +489,12 @@ void main() {
 
       const widgetDirect = ChatV2ListScreen(initialFilter: 'direct');
       expect(widgetDirect.initialFilter, equals('direct'));
+
+      const widgetInternal = ChatV2ListScreen(initialFilter: 'internal');
+      expect(widgetInternal.initialFilter, equals('internal'));
+
+      const widgetChannel = ChatV2ListScreen(initialFilter: 'channel');
+      expect(widgetChannel.initialFilter, equals('channel'));
     });
 
     test('21. ChatV2MessageLocalCache prepends new message at index 0 for reverse ListView', () {
@@ -861,6 +867,44 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(tappedParentId, equals('99'));
+    });
+
+    test('36. ChatV2Channel filter helpers classify internal, group, and channel correctly', () {
+      // 1. Direct / Internal 1-1 Chat
+      const directChannel = ChatV2Channel(
+        id: '1',
+        name: 'Nguyễn Văn A',
+        channelType: 'chat',
+        isGroup: false,
+        memberCount: 2,
+      );
+      expect(directChannel.isChannel, isFalse);
+      expect(directChannel.isInternalDirect('Lê Bá Châu'), isTrue);
+      expect(directChannel.isGroupChat('Lê Bá Châu'), isFalse);
+
+      // 2. Group Chat
+      const groupChannel = ChatV2Channel(
+        id: '2',
+        name: 'Nhóm Phát Triển Mobile',
+        channelType: 'group',
+        isGroup: true,
+        memberCount: 5,
+      );
+      expect(groupChannel.isChannel, isFalse);
+      expect(groupChannel.isInternalDirect('Lê Bá Châu'), isFalse);
+      expect(groupChannel.isGroupChat('Lê Bá Châu'), isTrue);
+
+      // 3. Channel (Odoo Discuss channel)
+      const discussChannel = ChatV2Channel(
+        id: '3',
+        name: 'general',
+        channelType: 'channel',
+        isGroup: true,
+        memberCount: 20,
+      );
+      expect(discussChannel.isChannel, isTrue);
+      expect(discussChannel.isInternalDirect('Lê Bá Châu'), isFalse);
+      expect(discussChannel.isGroupChat('Lê Bá Châu'), isFalse);
     });
   });
 }
