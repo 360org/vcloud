@@ -22,6 +22,25 @@ class ChatV2ChannelLocalCache {
   static bool _initialized = false;
 
   static List<ChatV2Channel> get cached => _cached;
+  static String? _mergeLastMessage(ChatV2Channel local, ChatV2Channel api) {
+    if (local.lastMessageDate == null) return api.lastMessage ?? local.lastMessage;
+    if (api.lastMessageDate == null) return local.lastMessage ?? api.lastMessage;
+    
+    if (api.lastMessageDate!.isAfter(local.lastMessageDate!)) {
+      return api.lastMessage ?? local.lastMessage;
+    }
+    return local.lastMessage ?? api.lastMessage;
+  }
+
+  static DateTime? _mergeLastMessageDate(ChatV2Channel local, ChatV2Channel api) {
+    if (local.lastMessageDate == null) return api.lastMessageDate;
+    if (api.lastMessageDate == null) return local.lastMessageDate;
+    
+    return api.lastMessageDate!.isAfter(local.lastMessageDate!) 
+        ? api.lastMessageDate 
+        : local.lastMessageDate;
+  }
+
   static ChatV2Channel? getPinnedDirectChannel(String id) => _pinnedDirectChannels[id];
 
   static Future<void> init() async {
@@ -69,6 +88,8 @@ class ChatV2ChannelLocalCache {
           channelType: 'chat',
           isGroup: false,
           memberCount: 2,
+          lastMessage: _mergeLastMessage(c, existing),
+          lastMessageDate: _mergeLastMessageDate(c, existing),
         );
       } else {
         map[c.id] = c;
