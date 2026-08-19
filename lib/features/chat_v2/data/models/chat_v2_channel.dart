@@ -224,9 +224,15 @@ class ChatV2Channel {
   }
 
   bool getActualIsGroup(String? currentUserName) {
-    if (isGroup) return true;
+    if (directPartnerId != null && directPartnerId!.isNotEmpty) return false;
+    if (directPartnerName != null && directPartnerName!.isNotEmpty) return false;
+    if (partnerId != null && partnerId!.isNotEmpty) return false;
+    if (channelType == 'chat' || channelType == 'direct') return false;
+    if (channelType == 'group') return true;
+    if (channelType == 'channel' && (memberCount > 2 || memberCount == 0)) return true;
+    if (memberCount == 1 || memberCount == 2) return false;
     if (memberCount > 2) return true;
-    if (channelType == 'channel' || channelType == 'group') return true;
+    if (isGroup) return true;
 
     final clean = getCleanName(currentUserName);
     final count = clean.split(RegExp(r'\s*[,/|-]\s*|\s+và\s+|\s+&\s+')).length;
@@ -244,9 +250,13 @@ class ChatV2Channel {
     final id = _stringOr(map['id'] ?? map['channel_id'], '');
     final name = _stringOr(map['name'] ?? map['display_name'], 'Cuộc trò chuyện');
     final channelType = _stringOr(map['channel_type'] ?? map['type'], 'chat');
-    final isGroup = map['is_group'] == true ||
-        channelType == 'group' ||
-        channelType == 'channel';
+    final rawIsGroup = map['is_group'];
+    final bool isGroup;
+    if (rawIsGroup is bool) {
+      isGroup = rawIsGroup;
+    } else {
+      isGroup = channelType == 'group' || channelType == 'channel';
+    }
 
     final rawAvatar = _stringOrNull(
       map['avatar_url'] ??
