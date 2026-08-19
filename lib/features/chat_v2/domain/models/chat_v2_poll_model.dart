@@ -330,9 +330,7 @@ class ChatV2Poll {
     final jsonStr = json.encode(pollData);
 
     final buffer = StringBuffer();
-    buffer.write('<!-- POLL_DATA:$jsonStr -->');
     buffer.write('<div class="o_poll_card" data-poll="${jsonStr.replaceAll('"', '&quot;')}">');
-    buffer.write('<div class="o_poll_json" style="display:none;">$jsonStr</div>');
     buffer.write('<p>📊 <b>${question.trim()}</b></p>');
     buffer.write('<ul>');
     for (final opt in options) {
@@ -340,6 +338,8 @@ class ChatV2Poll {
     }
     buffer.write('</ul>');
     buffer.write('<p><i>Tổng cộng: 0 lượt bình chọn</i></p>');
+    buffer.write('<div class="o_poll_json" style="display:none;font-size:0px;line-height:0;opacity:0;">$jsonStr</div>');
+    buffer.write('<!-- POLL_DATA:$jsonStr -->');
     buffer.write('</div>');
 
     return buffer.toString();
