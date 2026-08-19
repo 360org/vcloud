@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,8 +8,10 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
+import '../../../../core/api/odoo_api_client.dart';
 import '../../application/chat_v2_channels_controller.dart';
 import '../../application/chat_v2_messages_controller.dart';
+import '../../application/chat_v2_read_state_controller.dart';
 import '../../data/models/chat_v2_channel.dart';
 import '../../data/models/chat_v2_message.dart';
 import '../../application/chat_v2_typing_controller.dart';
@@ -24,10 +27,14 @@ class ChatV2DetailScreen extends ConsumerStatefulWidget {
     super.key,
     required this.channelId,
     this.title,
+    this.initialAvatarUrl,
+    this.initialPartnerId,
   });
 
   final String channelId;
   final String? title;
+  final String? initialAvatarUrl;
+  final String? initialPartnerId;
 
   @override
   ConsumerState<ChatV2DetailScreen> createState() => _ChatV2DetailScreenState();
@@ -35,7 +42,7 @@ class ChatV2DetailScreen extends ConsumerStatefulWidget {
 
 class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
   late final ScrollController _scrollController;
-  bool _isSending = false;
+  final bool _isSending = false;
   ChatV2Message? _replyingTo;
   ChatV2Message? _editingMsg;
   final TextEditingController _inputController = TextEditingController();
@@ -52,20 +59,25 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
     _scrollController.addListener(_onScroll);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(chatV2ReadStateProvider.notifier).markChannelAsRead(widget.channelId);
       if (widget.title != null && widget.title!.isNotEmpty) {
+        final existing = ChatV2ChannelLocalCache.getPinnedDirectChannel(widget.channelId);
         final directCh = ChatV2Channel(
           id: widget.channelId,
           name: widget.title!,
           channelType: 'chat',
           isGroup: false,
           memberCount: 2,
-          lastMessageDate: DateTime.now(),
+          avatarUrl: widget.initialAvatarUrl ?? existing?.avatarUrl,
+          directPartnerId: widget.initialPartnerId ?? existing?.directPartnerId,
+          directPartnerName: widget.title,
+          lastMessage: existing?.lastMessage,
+          lastMessageDate: existing?.lastMessageDate ?? DateTime.now(),
+          lastMessageAuthorId: existing?.lastMessageAuthorId,
+          lastMessageAuthorName: existing?.lastMessageAuthorName,
+          unreadCount: 0,
         );
         ChatV2ChannelLocalCache.pinDirectChannel(directCh);
-      }
-      final channels = ref.read(chatV2ChannelsProvider).valueOrNull;
-      if (channels == null || !channels.any((c) => c.id == widget.channelId)) {
-        ref.invalidate(chatV2ChannelsProvider);
       }
     });
   }
@@ -160,7 +172,6 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
 
     final editing = _editingMsg;
     setState(() {
-      _isSending = true;
       _replyingTo = null;
       _editingMsg = null;
     });
@@ -173,14 +184,14 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
             .read(chatV2MessagesProvider(widget.channelId).notifier)
             .editMessage(editing.id, text);
       } else {
-        await ref
+        unawaited(ref
             .read(chatV2MessagesProvider(widget.channelId).notifier)
             .sendMessage(
               text,
               parentId: replyingId,
               parentBody: replyingBody,
               parentAuthorName: replyingAuthor,
-            );
+            ));
       }
 
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
@@ -192,10 +203,6 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
             backgroundColor: Colors.redAccent,
           ),
         );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isSending = false);
       }
     }
   }
@@ -330,15 +337,44 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
             : rawTitle);
 
     final headerTextColor = isDark ? Colors.white : const Color(0xFF0F172A);
-    final avatarUrl = currentChannel?.avatarUrl;
+    final messages = messagesAsync.valueOrNull ??
+        ChatV2MessageLocalCache.get(widget.channelId) ??
+        const [];
+
+    // Fallback 4 cấp độ để xác định chính xác avatar của đối phương:
+    String? resolvedAvatarUrl = currentChannel?.avatarUrl;
+    if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
+      resolvedAvatarUrl = widget.initialAvatarUrl;
+    }
+    if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
+      final pid = currentChannel?.directPartnerId ?? widget.initialPartnerId;
+      if (pid != null && pid.isNotEmpty) {
+        resolvedAvatarUrl = odooApiClient.resolveAvatarUrl('/api/v1/mobile/avatar/res.partner/$pid');
+      }
+    }
+    if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
+      final isGroup = currentChannel?.isGroup == true ||
+          (currentChannel != null && currentChannel.getActualIsGroup(currentUserName));
+      if (!isGroup && messages.isNotEmpty) {
+        final otherMsg = messages.firstWhereOrNull((m) =>
+            m.authorName.trim().toLowerCase() != (currentUserName ?? '').trim().toLowerCase() &&
+            ((m.authorAvatar != null && m.authorAvatar!.isNotEmpty) || (m.authorId != null && m.authorId!.isNotEmpty)));
+        if (otherMsg != null) {
+          resolvedAvatarUrl = otherMsg.authorAvatar ??
+              (otherMsg.authorId != null
+                  ? odooApiClient.resolveAvatarUrl('/api/v1/mobile/avatar/res.partner/${otherMsg.authorId}')
+                  : null);
+        }
+      }
+    }
 
     return PopScope(
       canPop: context.canPop(),
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) {
-          ref.invalidate(chatV2ChannelsProvider);
+          // ref.invalidate(chatV2ChannelsProvider);
         } else {
-          ref.invalidate(chatV2ChannelsProvider);
+          // ref.invalidate(chatV2ChannelsProvider);
           context.go('/chat');
         }
       },
@@ -369,7 +405,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
             color: headerTextColor,
           ),
           onPressed: () {
-            ref.invalidate(chatV2ChannelsProvider);
+            // ref.invalidate(chatV2ChannelsProvider);
             if (context.canPop()) {
               context.pop();
             } else {
@@ -421,9 +457,9 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                             ),
                           ),
                         ),
-                        if (avatarUrl != null && avatarUrl.isNotEmpty)
+                        if (resolvedAvatarUrl != null && resolvedAvatarUrl.isNotEmpty)
                           Image.network(
-                            avatarUrl,
+                            resolvedAvatarUrl,
                             width: 40,
                             height: 40,
                             fit: BoxFit.cover,
@@ -550,6 +586,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 760),
                         child: messagesAsync.when(
+                          skipLoadingOnReload: true,
                           data: (messages) {
                             if (messages.isEmpty) {
                               return Center(

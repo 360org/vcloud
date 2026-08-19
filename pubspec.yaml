@@ -2,7 +2,7 @@ name: vcloud
 description: "VCloud employee productivity MVP — chat, attendance, timesheet, tickets."
 publish_to: 'none'
 
-version: 2.4.0+76
+version: 2.5.0+78
 
 environment:
   sdk: ^3.12.0

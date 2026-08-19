@@ -257,6 +257,21 @@ class ChatV2Channel {
     return false;
   }
 
+  /// Kiểm tra có phải kênh thảo luận Odoo (channel) hay không
+  bool get isChannel => channelType == 'channel';
+
+  /// Kiểm tra có phải hội thoại 1-1 nội bộ giữa 2 người hay không (loại trừ nhóm và kênh)
+  bool isInternalDirect(String? currentUserName) {
+    if (channelType == 'channel') return false;
+    return !getActualIsGroup(currentUserName);
+  }
+
+  /// Kiểm tra có phải nhóm trò chuyện nhiều người hay không (loại trừ kênh chung)
+  bool isGroupChat(String? currentUserName) {
+    if (channelType == 'channel') return false;
+    return getActualIsGroup(currentUserName);
+  }
+
   factory ChatV2Channel.fromMap(Map<String, dynamic> map) => ChatV2Channel.fromJson(map);
 
   factory ChatV2Channel.fromJson(dynamic raw) {

@@ -30,6 +30,28 @@ class _AuthListenable extends ChangeNotifier {
   final Ref _ref;
 }
 
+CustomTransitionPage<void> _buildFadePage({
+  required GoRouterState state,
+  required Widget child,
+  Duration duration = const Duration(milliseconds: 240),
+}) {
+  return CustomTransitionPage<void>(
+    key: state.pageKey,
+    child: child,
+    transitionDuration: duration,
+    reverseTransitionDuration: duration,
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      return FadeTransition(
+        opacity: CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+        ),
+        child: child,
+      );
+    },
+  );
+}
+
 final routerProvider = Provider<GoRouter>((ref) {
   final listenable = _AuthListenable(ref);
   ref.onDispose(listenable.dispose);
@@ -122,30 +144,38 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/home',
-        pageBuilder: (context, state) => CustomTransitionPage<void>(
-          key: state.pageKey,
+        pageBuilder: (context, state) => _buildFadePage(
+          state: state,
           child: const HomeScreen(),
-          transitionDuration: const Duration(milliseconds: 400),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            return FadeTransition(
-              opacity: CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
-              child: child,
-            );
-          },
         ),
       ),
-      GoRoute(path: '/profile', builder: (_, _) => const ProfileScreen()),
+      GoRoute(
+        path: '/profile',
+        pageBuilder: (context, state) => _buildFadePage(
+          state: state,
+          child: const ProfileScreen(),
+        ),
+      ),
       GoRoute(
         path: '/profile/edit',
         builder: (_, _) => const EditProfileScreen(),
       ),
-      GoRoute(path: '/profile/about', builder: (_, _) => const AboutScreen()),
+      GoRoute(
+        path: '/profile/about',
+        pageBuilder: (context, state) => _buildFadePage(
+          state: state,
+          child: const AboutScreen(),
+        ),
+      ),
 
       // Chat (V2 - Độc lập, tin cậy)
       GoRoute(
         path: '/chat',
-        builder: (_, s) => ChatV2ListScreen(
-          initialFilter: s.uri.queryParameters['filter'],
+        pageBuilder: (context, state) => _buildFadePage(
+          state: state,
+          child: ChatV2ListScreen(
+            initialFilter: state.uri.queryParameters['filter'],
+          ),
         ),
       ),
       GoRoute(path: '/chat/new', builder: (_, _) => const NewChatScreen()),
@@ -154,20 +184,34 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, s) => ChatV2DetailScreen(
           channelId: s.pathParameters['id']!,
           title: s.uri.queryParameters['name'],
+          initialAvatarUrl: s.uri.queryParameters['avatar'],
+          initialPartnerId: s.uri.queryParameters['partner_id'],
         ),
       ),
 
       // Attendance
-      GoRoute(path: '/attendance', builder: (_, _) => const AttendanceScreen()),
+      GoRoute(
+        path: '/attendance',
+        pageBuilder: (context, state) => _buildFadePage(
+          state: state,
+          child: const AttendanceScreen(),
+        ),
+      ),
       GoRoute(
         path: '/attendance/history',
-        builder: (_, _) => const AttendanceHistoryScreen(),
+        pageBuilder: (context, state) => _buildFadePage(
+          state: state,
+          child: const AttendanceHistoryScreen(),
+        ),
       ),
 
       // Timesheets
       GoRoute(
         path: '/timesheet',
-        builder: (_, _) => const TimesheetListScreen(),
+        pageBuilder: (context, state) => _buildFadePage(
+          state: state,
+          child: const TimesheetListScreen(),
+        ),
       ),
       GoRoute(
         path: '/timesheet/new',
@@ -175,7 +219,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
 
       // Tickets
-      GoRoute(path: '/tickets', builder: (_, _) => const TicketListScreen()),
+      GoRoute(
+        path: '/tickets',
+        pageBuilder: (context, state) => _buildFadePage(
+          state: state,
+          child: const TicketListScreen(),
+        ),
+      ),
       GoRoute(
         path: '/tickets/new',
         pageBuilder: (context, state) => CustomTransitionPage<void>(

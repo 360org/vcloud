@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -8,9 +9,10 @@ import 'chat_v2_read_state_controller.dart';
 import '../data/chat_v2_realtime_service.dart';
 import '../data/chat_v2_repository.dart';
 import '../data/models/chat_v2_channel.dart';
+import 'chat_v2_messages_controller.dart';
 
 final chatV2ChannelsProvider =
-    AsyncNotifierProvider.autoDispose<ChatV2ChannelsNotifier, List<ChatV2Channel>>(
+    AsyncNotifierProvider<ChatV2ChannelsNotifier, List<ChatV2Channel>>(
   ChatV2ChannelsNotifier.new,
 );
 
@@ -19,20 +21,25 @@ class ChatV2ChannelLocalCache {
   static final Map<String, ChatV2Channel> _pinnedDirectChannels = {};
   static const _storage = FlutterSecureStorage();
   static const _storageKey = 'pinned_direct_channels_v2';
+  static const _channelsCacheKey = 'cached_channels_v3';
+  static const _unreadCacheKey = 'cached_unread_count_v3';
   static bool _initialized = false;
 
   static List<ChatV2Channel> get cached => _cached;
   static String? _mergeLastMessage(ChatV2Channel local, ChatV2Channel api) {
-    if (local.lastMessageDate == null) return api.lastMessage ?? local.lastMessage;
-    if (api.lastMessageDate == null) return local.lastMessage ?? api.lastMessage;
+    if (local.lastMessage == null || local.lastMessage!.isEmpty) return api.lastMessage;
+    if (api.lastMessage == null || api.lastMessage!.isEmpty) return local.lastMessage;
+    if (local.lastMessageDate == null) return api.lastMessage;
+    if (api.lastMessageDate == null) return local.lastMessage;
     
     if (api.lastMessageDate!.isAfter(local.lastMessageDate!)) {
-      return api.lastMessage ?? local.lastMessage;
+      return api.lastMessage;
     }
-    return local.lastMessage ?? api.lastMessage;
+    return local.lastMessage;
   }
 
   static DateTime? _mergeLastMessageDate(ChatV2Channel local, ChatV2Channel api) {
+    if (local.lastMessage == null || local.lastMessage!.isEmpty) return api.lastMessageDate ?? local.lastMessageDate;
     if (local.lastMessageDate == null) return api.lastMessageDate;
     if (api.lastMessageDate == null) return local.lastMessageDate;
     
@@ -56,16 +63,73 @@ class ChatV2ChannelLocalCache {
           }
         }
       }
+
+      final channelsData = await _storage.read(key: _channelsCacheKey);
+      if (channelsData != null && channelsData.isNotEmpty) {
+        final List<dynamic> decoded = jsonDecode(channelsData);
+        final loaded = <ChatV2Channel>[];
+        for (final item in decoded) {
+          if (item is Map<String, dynamic>) {
+            loaded.add(ChatV2Channel.fromJson(item));
+          }
+        }
+        if (loaded.isNotEmpty) {
+          set(loaded);
+        }
+      }
+
+      final unreadData = await _storage.read(key: _unreadCacheKey);
+      if (unreadData != null && unreadData.isNotEmpty) {
+        _lastKnownUnread = int.tryParse(unreadData) ?? _lastKnownUnread;
+      }
     } catch (_) {}
     _initialized = true;
   }
 
+  static VoidCallback? onCacheUpdated;
+
   static void pinDirectChannel(ChatV2Channel channel) {
     _pinnedDirectChannels[channel.id] = channel;
-    if (_cached.isNotEmpty) {
+    set(_cached.isNotEmpty ? _cached : [channel]);
+    _saveToStorage();
+    onCacheUpdated?.call();
+  }
+
+  static void updateChannelLastMessage(
+    String channelId, {
+    required String lastMessage,
+    required DateTime lastMessageDate,
+    String? authorId,
+    String? authorName,
+    int? unreadCount,
+  }) {
+    if (_pinnedDirectChannels.containsKey(channelId)) {
+      final old = _pinnedDirectChannels[channelId]!;
+      _pinnedDirectChannels[channelId] = old.copyWith(
+        lastMessage: lastMessage,
+        lastMessageDate: lastMessageDate,
+        lastMessageAuthorId: authorId ?? old.lastMessageAuthorId,
+        lastMessageAuthorName: authorName ?? old.lastMessageAuthorName,
+        unreadCount: unreadCount ?? 0,
+      );
+    }
+    final currentCached = List<ChatV2Channel>.from(_cached);
+    final idx = currentCached.indexWhere((c) => c.id == channelId);
+    if (idx != -1) {
+      final old = currentCached[idx];
+      currentCached[idx] = old.copyWith(
+        lastMessage: lastMessage,
+        lastMessageDate: lastMessageDate,
+        lastMessageAuthorId: authorId ?? old.lastMessageAuthorId,
+        lastMessageAuthorName: authorName ?? old.lastMessageAuthorName,
+        unreadCount: unreadCount ?? (authorId != null ? 0 : old.unreadCount),
+      );
+      set(currentCached);
+    } else if (_pinnedDirectChannels.containsKey(channelId)) {
       set(_cached);
     }
     _saveToStorage();
+    onCacheUpdated?.call();
   }
 
   static Future<void> _saveToStorage() async {
@@ -73,6 +137,21 @@ class ChatV2ChannelLocalCache {
       final list = _pinnedDirectChannels.values.map((c) => c.toMap()).toList();
       await _storage.write(key: _storageKey, value: jsonEncode(list));
     } catch (_) {}
+  }
+
+  static Future<void> _saveCachedChannelsToStorage() async {
+    try {
+      final topChannels = _cached.take(300).map((c) => c.toMap()).toList();
+      await _storage.write(key: _channelsCacheKey, value: jsonEncode(topChannels));
+      if (_lastKnownUnread > 0) {
+        await _storage.write(key: _unreadCacheKey, value: _lastKnownUnread.toString());
+      }
+    } catch (_) {}
+  }
+
+  static void saveUnreadCount(int unread) {
+    _lastKnownUnread = unread;
+    _storage.write(key: _unreadCacheKey, value: unread.toString()).catchError((_) {});
   }
 
   static void set(List<ChatV2Channel> channels) {
@@ -88,6 +167,15 @@ class ChatV2ChannelLocalCache {
           channelType: 'chat',
           isGroup: false,
           memberCount: 2,
+          avatarUrl: (existing.avatarUrl != null && existing.avatarUrl!.isNotEmpty)
+              ? existing.avatarUrl
+              : c.avatarUrl,
+          directPartnerId: (existing.directPartnerId != null && existing.directPartnerId!.isNotEmpty)
+              ? existing.directPartnerId
+              : c.directPartnerId,
+          directPartnerName: (existing.directPartnerName != null && existing.directPartnerName!.isNotEmpty)
+              ? existing.directPartnerName
+              : c.directPartnerName,
           lastMessage: _mergeLastMessage(c, existing),
           lastMessageDate: _mergeLastMessageDate(c, existing),
         );
@@ -102,57 +190,65 @@ class ChatV2ChannelLocalCache {
       return db.compareTo(da);
     });
     _cached = List.unmodifiable(merged);
+    _saveCachedChannelsToStorage();
   }
 }
 
 class ChatV2ChannelsNotifier
-    extends AutoDisposeAsyncNotifier<List<ChatV2Channel>> {
-  StreamSubscription? _wsUpdateSub;
+    extends AsyncNotifier<List<ChatV2Channel>> {
   StreamSubscription? _wsMessageSub;
+  StreamSubscription? _wsUpdateSub;
   Timer? _pollingTimer;
   Timer? _debounceTimer;
   bool _isFetching = false;
+  bool _isLoadingMore = false;
+  bool _hasMore = true;
+
+  bool get hasMore => _hasMore;
+  bool get isLoadingMore => _isLoadingMore;
 
   @override
-  FutureOr<List<ChatV2Channel>> build() async {
+  Future<List<ChatV2Channel>> build() async {
+    debugPrint('🟢 [LIFECYCLE] ChatV2ChannelsNotifier: BUILD (Provider created)');
     await ChatV2ChannelLocalCache.init();
+    await ChatV2MessageLocalCache.init();
     final repo = ref.watch(chatV2RepositoryProvider);
     final realtime = ref.watch(chatV2RealtimeServiceProvider);
-    final user = ref.watch(authControllerProvider).valueOrNull;
+    var isDisposed = false;
 
-    final meta = user?.userMetadata;
-    final partnerId = meta?['partner_id']?.toString() ??
-        meta?['partner']?['id']?.toString();
-    final userId = user?.id;
+    ChatV2ChannelLocalCache.onCacheUpdated = () {
+      if (!isDisposed) {
+        state = AsyncData(ChatV2ChannelLocalCache.cached);
+      }
+    };
 
-    bool isDisposed = false;
-
-    bool hasChannelsChanged(List<ChatV2Channel> oldList, List<ChatV2Channel> newList) {
-      if (oldList.length != newList.length) return true;
-      for (int i = 0; i < oldList.length; i++) {
-        final a = oldList[i];
-        final b = newList[i];
-        if (a.id != b.id ||
-            a.lastMessage != b.lastMessage ||
-            a.lastMessageDate != b.lastMessageDate ||
-            a.unreadCount != b.unreadCount) {
+    bool hasChannelsChanged(List<ChatV2Channel> currentList, List<ChatV2Channel> freshList) {
+      if (freshList.isEmpty && currentList.isNotEmpty) return false;
+      if (currentList.isEmpty && freshList.isNotEmpty) return true;
+      for (final freshItem in freshList) {
+        final match = currentList.firstWhere(
+          (c) => c.id == freshItem.id,
+          orElse: () => freshItem,
+        );
+        if (match.lastMessage != freshItem.lastMessage ||
+            match.lastMessageDate != freshItem.lastMessageDate ||
+            match.unreadCount != freshItem.unreadCount) {
           return true;
         }
       }
       return false;
     }
 
-    // Fetch channels từ server với In-Flight Lock
     Future<void> fetchFreshChannels() async {
       if (_isFetching || isDisposed) return;
       _isFetching = true;
       try {
-        final fresh = await repo.getChannels();
+        final fresh = await repo.getChannels(limit: 50, offset: 0);
         if (isDisposed) return;
         final current = state.valueOrNull ?? ChatV2ChannelLocalCache.cached;
         if (hasChannelsChanged(current, fresh)) {
           ChatV2ChannelLocalCache.set(fresh);
-          state = AsyncData(fresh);
+          state = AsyncData(ChatV2ChannelLocalCache.cached);
         }
       } catch (_) {
       } finally {
@@ -160,7 +256,6 @@ class ChatV2ChannelsNotifier
       }
     }
 
-    // 1. DELTA LOCAL UPDATE: Nhận tin nhắn mới từ WebSocket -> Cập nhật trực tiếp Local State (0 HTTP GET)
     _wsMessageSub?.cancel();
     _wsMessageSub = realtime.onMessageReceived.listen((msg) {
       if (isDisposed || msg.channelId.isEmpty) return;
@@ -168,6 +263,10 @@ class ChatV2ChannelsNotifier
       final current = state.valueOrNull ?? ChatV2ChannelLocalCache.cached;
       final chIndex = current.indexWhere((c) => c.id == msg.channelId);
 
+      final currentUser = ref.read(authControllerProvider).valueOrNull;
+      final meta = currentUser?.userMetadata;
+      final partnerId = meta?['partner_id']?.toString() ?? meta?['partner']?['id']?.toString();
+      final userId = currentUser?.id;
       final isMine = (partnerId != null && msg.authorId == partnerId) ||
           (userId != null && msg.authorId == userId);
 
@@ -179,14 +278,13 @@ class ChatV2ChannelsNotifier
       }
 
       if (chIndex != -1) {
-        // Kênh đã tồn tại -> Cập nhật delta tin nhắn cuối và đẩy lên đầu danh sách
         final target = current[chIndex];
         final updatedChannel = target.copyWith(
           lastMessage: msg.content.isNotEmpty ? msg.content : (msg.attachments.isNotEmpty ? '[Đính kèm]' : null),
           lastMessageDate: msg.createdAt,
           lastMessageAuthorId: msg.authorId,
           lastMessageAuthorName: msg.authorName,
-          unreadCount: isMine ? target.unreadCount : (target.unreadCount + 1),
+          unreadCount: isMine ? 0 : (target.unreadCount + 1),
         );
 
         final reordered = <ChatV2Channel>[
@@ -198,13 +296,11 @@ class ChatV2ChannelsNotifier
         ChatV2ChannelLocalCache.set(reordered);
         state = AsyncData(reordered);
       } else {
-        // Kênh mới chưa có trong danh sách -> Debounce fetch sau 900ms
         _debounceTimer?.cancel();
         _debounceTimer = Timer(const Duration(milliseconds: 900), fetchFreshChannels);
       }
     });
 
-    // 2. IN-FLIGHT LOCK & DEBOUNCE FALLBACK: Gom bão event từ onChannelUpdated (800ms - 1000ms)
     _wsUpdateSub?.cancel();
     _wsUpdateSub = realtime.onChannelUpdated.listen((chId) {
       if (isDisposed) return;
@@ -212,7 +308,6 @@ class ChatV2ChannelsNotifier
       _debounceTimer = Timer(const Duration(milliseconds: 900), fetchFreshChannels);
     });
 
-    // 3. BACKGROUND POLLING NHẸ NHÀNG CHO DANH SÁCH KÊNH (8s/lần)
     void scheduleNextPoll() {
       if (isDisposed) return;
       _pollingTimer?.cancel();
@@ -230,6 +325,7 @@ class ChatV2ChannelsNotifier
     scheduleNextPoll();
 
     ref.onDispose(() {
+      ChatV2ChannelLocalCache.onCacheUpdated = null;
       isDisposed = true;
       _wsUpdateSub?.cancel();
       _wsMessageSub?.cancel();
@@ -243,23 +339,67 @@ class ChatV2ChannelsNotifier
       return cached;
     }
 
-    final fresh = await repo.getChannels();
+    final fresh = await repo.getChannels(limit: 50, offset: 0);
     ChatV2ChannelLocalCache.set(fresh);
-    return fresh;
+    return ChatV2ChannelLocalCache.cached;
   }
 
   Future<void> refresh() async {
+    _hasMore = true;
     final repo = ref.read(chatV2RepositoryProvider);
-    final fresh = await repo.getChannels();
+    final fresh = await repo.getChannels(limit: 50, offset: 0);
     ChatV2ChannelLocalCache.set(fresh);
-    state = AsyncData(fresh);
+    state = AsyncData(ChatV2ChannelLocalCache.cached);
+  }
+
+  Future<void> loadMore() async {
+    if (_isLoadingMore || !_hasMore) return;
+    _isLoadingMore = true;
+    try {
+      final current = state.valueOrNull ?? [];
+      final repo = ref.read(chatV2RepositoryProvider);
+      final nextItems = await repo.getChannels(
+        limit: 50,
+        offset: current.length,
+      );
+
+      if (nextItems.isEmpty || nextItems.length < 50) {
+        _hasMore = false;
+      }
+
+      if (nextItems.isNotEmpty) {
+        final map = <String, ChatV2Channel>{};
+        for (final c in current) {
+          map[c.id] = c;
+        }
+        for (final c in nextItems) {
+          map[c.id] = c;
+        }
+        final merged = map.values.toList();
+        merged.sort((a, b) {
+          final da = a.lastMessageDate ?? DateTime.fromMillisecondsSinceEpoch(0);
+          final db = b.lastMessageDate ?? DateTime.fromMillisecondsSinceEpoch(0);
+          return db.compareTo(da);
+        });
+
+        ChatV2ChannelLocalCache.set(merged);
+        state = AsyncData(merged);
+      }
+    } catch (_) {
+    } finally {
+      _isLoadingMore = false;
+    }
   }
 }
 
-final chatV2TotalUnreadProvider = Provider.autoDispose<int>((ref) {
+int _lastKnownUnread = 0;
+
+final chatV2TotalUnreadProvider = Provider<int>((ref) {
+  ref.keepAlive();
+
   final channelsState = ref.watch(chatV2ChannelsProvider);
   final readNotifier = ref.watch(chatV2ReadStateProvider.notifier);
-  ref.watch(chatV2ReadStateProvider); // Watch thay đổi để tự cập nhật badge khi đọc tin
+  ref.watch(chatV2ReadStateProvider);
 
   final currentUser = ref.watch(authControllerProvider).valueOrNull;
   final meta = currentUser?.userMetadata;
@@ -274,7 +414,7 @@ final chatV2TotalUnreadProvider = Provider.autoDispose<int>((ref) {
 
   return channelsState.maybeWhen(
     data: (channels) {
-      return channels.where((c) {
+      final unread = channels.where((c) {
         final lastSentText = lastSentMap[c.id];
         final isMineFromTracker = lastSentText != null &&
             c.lastMessage?.trim() == lastSentText.trim();
@@ -293,7 +433,10 @@ final chatV2TotalUnreadProvider = Provider.autoDispose<int>((ref) {
               lastMessageDate: c.lastMessageDate,
             );
       }).length;
+      _lastKnownUnread = unread;
+      ChatV2ChannelLocalCache.saveUnreadCount(unread);
+      return unread;
     },
-    orElse: () => 0,
+    orElse: () => _lastKnownUnread,
   );
 });

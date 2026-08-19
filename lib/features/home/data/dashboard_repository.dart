@@ -34,7 +34,10 @@ class MobileDashboardSummary {
           _minutesOrNull(timesheet['today_minutes']) ??
           _hoursToMinutes(map['today_hours'] ?? timesheet['today_hours']),
       openTickets: _intOrNull(
-        map['open_tickets'] ?? tickets['open'] ?? tickets['open_count'],
+        map['open_ticket_count'] ??
+            map['open_tickets'] ??
+            tickets['open'] ??
+            tickets['open_count'],
       ),
       recentConversationCount: _intOrNull(
         map['total_channel_count'] ??
@@ -43,7 +46,9 @@ class MobileDashboardSummary {
             chat['channel_count'],
       ),
       unreadMessageCount: _intOrNull(
-        map['unread_message_count'] ?? chat['unread_count'],
+        map['unread_chat_count'] ??
+            map['unread_message_count'] ??
+            chat['unread_count'],
       ),
     );
   }

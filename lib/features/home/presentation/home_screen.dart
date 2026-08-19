@@ -24,7 +24,10 @@ import '../../timesheet/application/task_controller.dart';
 
 import '../../timesheet/application/timesheet_controller.dart';
 import '../../timesheet/presentation/widgets/checklist_editor.dart';
+import '../../ticket/application/ticket_controller.dart';
+import '../../../shared/models/ticket.dart';
 import '../application/home_summary_controller.dart';
+import '../application/home_performance_diagnostics.dart';
 import '../../../../shared/widgets/whats_new_sheet.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -40,6 +43,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    HomePerformanceDiagnostics.runBenchmark(ref);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         WhatsNewSheet.showIfNeeded(context, targetBuild: 75);
@@ -165,7 +169,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ? DateTime.now().difference(openSession!.checkinTime!).inMinutes
             : 0));
 
-    final openTickets = dashboard?.openTickets ?? summary?.openTickets ?? 0;
+    final effectiveTickets = ref.watch(effectiveTicketsProvider);
+    final localDoingTicketsCount = effectiveTickets.where((t) => t.status != TicketStatus.done).length;
+    final openTickets = localDoingTicketsCount > 0
+        ? localDoingTicketsCount
+        : (dashboard?.openTickets ?? summary?.openTickets ?? 0);
     final fallbackChatCount = (dashboard?.recentConversationCount != null && dashboard!.recentConversationCount! > 0)
         ? dashboard.recentConversationCount!
         : (summary?.recentConversationCount != null && summary!.recentConversationCount > 0
@@ -213,6 +221,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               _QuickNavGrid(
                 ticketCount: openTickets,
                 chatCount: fallbackChatCount,
+                unreadCount: ref.watch(chatV2TotalUnreadProvider),
                 taskCount: todayTasks.length,
               ),
               const SizedBox(height: 20),
@@ -1007,18 +1016,28 @@ class _QuickNavGrid extends ConsumerWidget {
   const _QuickNavGrid({
     required this.ticketCount,
     required this.chatCount,
+    required this.unreadCount,
     required this.taskCount,
   });
 
   final int ticketCount;
   final int chatCount;
+  final int unreadCount;
   final int taskCount;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final liveUnreadCount = ref.watch(chatV2TotalUnreadProvider);
+    final localUnreadCount = ref.watch(chatV2TotalUnreadProvider);
     final channelCount = ref.watch(chatV2ChannelsProvider.select((c) => c.valueOrNull?.length ?? 0));
-    final liveChatCount = channelCount > 0 ? channelCount : (chatCount > 0 ? chatCount : 0);
+    final effectiveTickets = ref.watch(effectiveTicketsProvider);
+    final localDoingTicketsCount = effectiveTickets.where((t) => t.status != TicketStatus.done).length;
+    final liveTicketCount = localDoingTicketsCount > 0
+        ? localDoingTicketsCount
+        : (ticketCount > 0 ? ticketCount : 0);
+    
+    // Nguồn chân lý đếm tổng: Sử dụng trực tiếp số cuộc trò chuyện chưa đọc từ chatV2TotalUnreadProvider
+    final liveChatCount = chatCount > 0 ? chatCount : (channelCount > 0 ? channelCount : 0);
+    final liveUnreadCount = localUnreadCount;
 
     return Column(
       children: [
@@ -1039,7 +1058,7 @@ class _QuickNavGrid extends ConsumerWidget {
             _MetricPill(
               icon: LucideIcons.ticket,
               label: 'Ticket',
-              value: ticketCount.toString(),
+              value: liveTicketCount.toString(),
               caption: 'Cần xử lý',
               gradient: AppColors.ticketGrad,
               onTap: () => context.go('/tickets'),
@@ -1048,7 +1067,7 @@ class _QuickNavGrid extends ConsumerWidget {
               icon: LucideIcons.mailOpen,
               label: 'Chưa đọc',
               value: liveUnreadCount.toString(),
-              caption: 'Tin nhắn mới',
+              caption: 'Cuộc trò chuyện',
               gradient: AppColors.chatGrad,
               onTap: () => context.go('/chat?filter=unread'),
             ),

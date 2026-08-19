@@ -45,12 +45,15 @@ class PushNotificationService {
   /// no cache invalidation. The auth controller decides what to refetch.
   final StreamController<RemoteMessage> _onMessageController =
       StreamController<RemoteMessage>.broadcast();
+  final StreamController<RemoteMessage> _onMessageOpenedAppController =
+      StreamController<RemoteMessage>.broadcast();
   StreamSubscription<RemoteMessage>? _onMessageSubscription;
+  StreamSubscription<RemoteMessage>? _onMessageOpenedAppSubscription;
   bool _onMessageWired = false;
+  bool _onMessageOpenedAppWired = false;
 
   Stream<RemoteMessage> get onMessageStream {
-    if (kIsWeb || !Env.firebasePushConfigured) {
-      // No-op on web/unconfigured; callers still get a valid (empty) stream.
+    if (!Env.firebasePushConfigured) {
       return const Stream<RemoteMessage>.empty();
     }
     _ensureInitialized().then((ok) {
@@ -64,11 +67,35 @@ class PushNotificationService {
     return _onMessageController.stream;
   }
 
+  Stream<RemoteMessage> get onMessageOpenedAppStream {
+    if (!Env.firebasePushConfigured) {
+      return const Stream<RemoteMessage>.empty();
+    }
+    _ensureInitialized().then((ok) {
+      if (!ok || _onMessageOpenedAppWired) return;
+      _onMessageOpenedAppWired = true;
+      _onMessageOpenedAppSubscription = FirebaseMessaging.onMessageOpenedApp.listen(
+        _onMessageOpenedAppController.add,
+        onError: _onMessageOpenedAppController.addError,
+      );
+    });
+    return _onMessageOpenedAppController.stream;
+  }
+
+  Future<RemoteMessage?> getInitialMessage() async {
+    if (!await _ensureInitialized()) return null;
+    return _messaging?.getInitialMessage();
+  }
+
   Future<void> registerCurrentDevice() async {
     if (!await _ensureInitialized()) return;
 
     final messaging = _messaging!;
-    final permission = await messaging.requestPermission();
+    final permission = await messaging.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
     if (permission.authorizationStatus == AuthorizationStatus.denied) {
       return;
     }
@@ -96,35 +123,42 @@ class PushNotificationService {
     await _storage.delete(key: _deviceTokenKey);
   }
 
-  /// Releases the foreground FCM subscription. Called on logout so a listener
-  /// never survives a session. The broadcast controller itself is left open
-  /// so a later login can re-wire [FirebaseMessaging.onMessage] via
-  /// [onMessageStream] (the provider owning this service is app-scoped, not
-  /// per-session).
+  /// Releases FCM subscriptions. Called on logout so a listener
+  /// never survives a session.
   void dispose() {
     _onMessageSubscription?.cancel();
     _onMessageSubscription = null;
     _onMessageWired = false;
+    _onMessageOpenedAppSubscription?.cancel();
+    _onMessageOpenedAppSubscription = null;
+    _onMessageOpenedAppWired = false;
   }
 
   Future<bool> _ensureInitialized() async {
-    if (kIsWeb || !Env.firebasePushConfigured) return false;
+    if (!Env.firebasePushConfigured) return false;
     if (_initialized) return true;
 
-    await Firebase.initializeApp(
-      options: VCloudFirebaseOptions.currentPlatform,
-    );
-    _messaging ??= FirebaseMessaging.instance;
-    FirebaseMessaging.onBackgroundMessage(
-      vcloudFirebaseMessagingBackgroundHandler,
-    );
-    await _messaging!.setForegroundNotificationPresentationOptions(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
-    _initialized = true;
-    return true;
+    try {
+      await Firebase.initializeApp(
+        options: VCloudFirebaseOptions.currentPlatform,
+      );
+      _messaging ??= FirebaseMessaging.instance;
+      if (!kIsWeb) {
+        FirebaseMessaging.onBackgroundMessage(
+          vcloudFirebaseMessagingBackgroundHandler,
+        );
+      }
+      await _messaging!.setForegroundNotificationPresentationOptions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+      _initialized = true;
+      return true;
+    } catch (e) {
+      debugPrint('Firebase push init error: $e');
+      return false;
+    }
   }
 
   Future<String?> _currentTokenIfAvailable() async {
@@ -141,6 +175,7 @@ class PushNotificationService {
   }
 
   static String get _platformName {
+    if (kIsWeb) return 'web';
     return switch (defaultTargetPlatform) {
       TargetPlatform.android => 'android',
       TargetPlatform.iOS => 'ios',
@@ -152,6 +187,7 @@ class PushNotificationService {
   }
 
   static String get _deviceName {
+    if (kIsWeb) return 'Web Browser';
     return switch (defaultTargetPlatform) {
       TargetPlatform.android => 'Android device',
       TargetPlatform.iOS => 'iOS device',

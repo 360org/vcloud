@@ -147,15 +147,36 @@ class ChatV2MessageItem extends StatelessWidget {
                       ),
                     ],
                   ),
+                  clipBehavior: Clip.antiAlias,
                   alignment: Alignment.center,
-                  child: Text(
-                    message.authorName.isNotEmpty
-                        ? message.authorName[0].toUpperCase()
-                        : 'U',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
+                  child: ClipOval(
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Center(
+                          child: Text(
+                            message.authorName.isNotEmpty
+                                ? message.authorName[0].toUpperCase()
+                                : 'U',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        if (message.authorAvatar != null &&
+                            message.authorAvatar!.isNotEmpty)
+                          Image.network(
+                            message.authorAvatar!,
+                            width: 28,
+                            height: 28,
+                            fit: BoxFit.cover,
+                            gaplessPlayback: true,
+                            errorBuilder: (context, error, stackTrace) =>
+                                const SizedBox.shrink(),
+                          ),
+                      ],
                     ),
                   ),
                 )
@@ -1013,7 +1034,7 @@ class ChatV2AttachmentImage extends StatefulWidget {
   static final Map<String, Uint8List> imageCache = {};
 
   static void cacheBytes(String key, Uint8List bytes) {
-    if (key.isNotEmpty && bytes.isNotEmpty) {
+    if (key.isNotEmpty && bytes.isNotEmpty && !LocalAttachmentCache.isGenericKey(key)) {
       imageCache[key] = bytes;
     }
   }
@@ -1026,6 +1047,16 @@ class _ChatV2AttachmentImageState extends State<ChatV2AttachmentImage> {
   Uint8List? _bytes;
   bool _loading = true;
 
+  String get _uniqueKey {
+    if (widget.attachment.id.isNotEmpty && widget.attachment.id != '0') {
+      return 'att_${widget.attachment.id}';
+    }
+    if (widget.attachment.url != null && widget.attachment.url!.isNotEmpty) {
+      return 'url_${widget.attachment.url!}';
+    }
+    return 'att_hash_${widget.attachment.hashCode}';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -1033,18 +1064,19 @@ class _ChatV2AttachmentImageState extends State<ChatV2AttachmentImage> {
   }
 
   void _initBytesSync() {
+    final key = _uniqueKey;
+
     // 1. Synchronously grab bytes if present on attachment
     if (widget.attachment.bytes != null && widget.attachment.bytes!.isNotEmpty) {
       _bytes = widget.attachment.bytes;
       _loading = false;
-      ChatV2AttachmentImage.cacheBytes(widget.attachment.id, widget.attachment.bytes!);
-      LocalAttachmentCache.save(widget.attachment.name, widget.attachment.bytes!);
+      ChatV2AttachmentImage.cacheBytes(key, widget.attachment.bytes!);
+      LocalAttachmentCache.save(key, widget.attachment.bytes!);
       return;
     }
 
-    // 2. Synchronously check in-memory RAM cache
-    final inMemory = ChatV2AttachmentImage.imageCache[widget.attachment.id] ??
-        ChatV2AttachmentImage.imageCache[widget.attachment.name];
+    // 2. Synchronously check in-memory RAM cache with unique key
+    final inMemory = ChatV2AttachmentImage.imageCache[key];
     if (inMemory != null && inMemory.isNotEmpty) {
       _bytes = inMemory;
       _loading = false;
@@ -1058,7 +1090,10 @@ class _ChatV2AttachmentImageState extends State<ChatV2AttachmentImage> {
   @override
   void didUpdateWidget(ChatV2AttachmentImage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.attachment.bytes != null && widget.attachment.bytes!.isNotEmpty) {
+    if (widget.attachment.id != oldWidget.attachment.id ||
+        widget.attachment.url != oldWidget.attachment.url) {
+      _initBytesSync();
+    } else if (widget.attachment.bytes != null && widget.attachment.bytes!.isNotEmpty) {
       if (_bytes != widget.attachment.bytes) {
         _bytes = widget.attachment.bytes;
         _loading = false;
@@ -1067,11 +1102,11 @@ class _ChatV2AttachmentImageState extends State<ChatV2AttachmentImage> {
   }
 
   Future<void> _loadImage() async {
-    // 1. Cache lookup from disk/storage
-    final cached = await LocalAttachmentCache.getAsync(
-      widget.attachment.id,
-      altKey: widget.attachment.name,
-    ) ?? ChatV2AttachmentImage.imageCache[widget.attachment.id] ?? ChatV2AttachmentImage.imageCache[widget.attachment.name];
+    final key = _uniqueKey;
+
+    // 1. Cache lookup from disk/storage using unique key ONLY
+    final cached = await LocalAttachmentCache.getAsync(key) ??
+        ChatV2AttachmentImage.imageCache[key];
 
     if (cached != null && cached.isNotEmpty) {
       if (mounted) {
@@ -1099,12 +1134,8 @@ class _ChatV2AttachmentImageState extends State<ChatV2AttachmentImage> {
           accessToken: widget.attachment.accessToken,
         );
         if (bytes.isNotEmpty) {
-          ChatV2AttachmentImage.cacheBytes(widget.attachment.id, bytes);
-          ChatV2AttachmentImage.cacheBytes(widget.attachment.name, bytes);
-          ChatV2AttachmentImage.cacheBytes(attId.toString(), bytes);
-          LocalAttachmentCache.save(widget.attachment.id, bytes);
-          LocalAttachmentCache.save(widget.attachment.name, bytes);
-          LocalAttachmentCache.save(attId.toString(), bytes);
+          ChatV2AttachmentImage.cacheBytes(key, bytes);
+          LocalAttachmentCache.save(key, bytes);
           if (mounted) {
             setState(() {
               _bytes = bytes;
@@ -1118,8 +1149,8 @@ class _ChatV2AttachmentImageState extends State<ChatV2AttachmentImage> {
       try {
         final bytes = await odooApiClient.fetchBytes(widget.attachment.url!);
         if (bytes.isNotEmpty) {
-          ChatV2AttachmentImage.cacheBytes(widget.attachment.id, bytes);
-          ChatV2AttachmentImage.cacheBytes(widget.attachment.name, bytes);
+          ChatV2AttachmentImage.cacheBytes(key, bytes);
+          LocalAttachmentCache.save(key, bytes);
           if (mounted) {
             setState(() {
               _bytes = bytes;

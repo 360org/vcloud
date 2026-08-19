@@ -12,6 +12,22 @@ class LocalAttachmentCache {
   static final Map<String, Uint8List> _memCache = <String, Uint8List>{};
   static String? _mobileDirPath;
 
+  /// Kiểm tra các tên file chung chung dễ gây xung đột giữa các kênh
+  static bool isGenericKey(String key) {
+    final lower = key.trim().toLowerCase();
+    return lower == 'image.png' ||
+        lower == 'image.jpg' ||
+        lower == 'image.jpeg' ||
+        lower == 'image.webp' ||
+        lower == 'screenshot.png' ||
+        lower == 'hình ảnh' ||
+        lower == 'image' ||
+        lower == 'file' ||
+        lower == 'attachment' ||
+        lower.startsWith('image_picker_') ||
+        lower.startsWith('scaled_image_picker_');
+  }
+
   /// Clean key name for safe storage lookup and file naming on iOS/Android.
   static String _cleanKey(String key) {
     final trimmed = key.trim();
@@ -61,6 +77,8 @@ class LocalAttachmentCache {
   /// Save raw file/image bytes into RAM and platform persistent storage.
   static void save(String key, Uint8List bytes) {
     if (key.trim().isEmpty || bytes.isEmpty) return;
+    if (isGenericKey(key)) return; // Cấm lưu key chung chung để tránh tráo ảnh giữa các kênh
+
     final clean = _cleanKey(key);
     _memCache[clean] = bytes;
     _memCache[key.trim()] = bytes;
@@ -87,10 +105,10 @@ class LocalAttachmentCache {
   /// Retrieve cached local bytes from RAM, LocalStorage (Web), or Physical File (Mobile) immediately.
   static Uint8List? get(String? key, {String? altKey}) {
     final keysToTry = <String>[
-      if (key != null && key.trim().isNotEmpty) key.trim(),
-      if (key != null && key.trim().isNotEmpty) _cleanKey(key),
-      if (altKey != null && altKey.trim().isNotEmpty) altKey.trim(),
-      if (altKey != null && altKey.trim().isNotEmpty) _cleanKey(altKey),
+      if (key != null && key.trim().isNotEmpty && !isGenericKey(key)) key.trim(),
+      if (key != null && key.trim().isNotEmpty && !isGenericKey(key)) _cleanKey(key),
+      if (altKey != null && altKey.trim().isNotEmpty && !isGenericKey(altKey)) altKey.trim(),
+      if (altKey != null && altKey.trim().isNotEmpty && !isGenericKey(altKey)) _cleanKey(altKey),
     ];
 
     for (final k in keysToTry) {
@@ -135,10 +153,10 @@ class LocalAttachmentCache {
     if (_mobileDirPath == null) return null;
 
     final keysToTry = <String>[
-      if (key != null && key.trim().isNotEmpty) key.trim(),
-      if (key != null && key.trim().isNotEmpty) _cleanKey(key),
-      if (altKey != null && altKey.trim().isNotEmpty) altKey.trim(),
-      if (altKey != null && altKey.trim().isNotEmpty) _cleanKey(altKey),
+      if (key != null && key.trim().isNotEmpty && !isGenericKey(key)) key.trim(),
+      if (key != null && key.trim().isNotEmpty && !isGenericKey(key)) _cleanKey(key),
+      if (altKey != null && altKey.trim().isNotEmpty && !isGenericKey(altKey)) altKey.trim(),
+      if (altKey != null && altKey.trim().isNotEmpty && !isGenericKey(altKey)) _cleanKey(altKey),
     ];
 
     for (final k in keysToTry) {

@@ -9,6 +9,7 @@ import 'package:intl/date_symbol_data_local.dart';
 
 import 'app.dart';
 import 'core/utils/local_attachment_cache.dart';
+import 'features/chat_v2/application/chat_v2_channels_controller.dart';
 
 void _logDetailedError(Object error, StackTrace? stack, {String context = 'FLUTTER'}) {
   final errStr = error.toString();
@@ -26,6 +27,7 @@ Future<void> main() async {
     WidgetsFlutterBinding.ensureInitialized();
     await initializeDateFormatting();
     await LocalAttachmentCache.ensureInitialized();
+    await ChatV2ChannelLocalCache.init();
 
     // Override default Grey Screen in Release builds with a clear error UI & Copy Log feature
     ErrorWidget.builder = (FlutterErrorDetails details) {

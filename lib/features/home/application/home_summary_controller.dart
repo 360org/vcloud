@@ -76,6 +76,7 @@ final dashboardRepositoryProvider = Provider<DashboardRepository>(
 );
 
 final mobileDashboardSummaryProvider =
-    FutureProvider.autoDispose<MobileDashboardSummary>(
-      (ref) => ref.read(dashboardRepositoryProvider).summary(),
-    );
+    FutureProvider<MobileDashboardSummary>((ref) {
+  ref.keepAlive();
+  return ref.read(dashboardRepositoryProvider).summary();
+});
