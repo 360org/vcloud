@@ -364,6 +364,14 @@ class ChatV2MessagesNotifier
       ref.read(chatV2LastSentTrackerProvider.notifier).recordSent(channelId, trimmed);
       ref.read(chatV2ReadStateProvider.notifier).markChannelAsRead(channelId);
 
+      final pinned = ChatV2ChannelLocalCache.getPinnedDirectChannel(channelId);
+      if (pinned != null) {
+        ChatV2ChannelLocalCache.pinDirectChannel(pinned.copyWith(
+          lastMessage: trimmed,
+          lastMessageDate: DateTime.now(),
+        ));
+      }
+
       // Invalidate danh sách kênh để cập nhật last message
       ref.invalidate(chatV2ChannelsProvider);
     } catch (e) {
@@ -512,6 +520,14 @@ class ChatV2MessagesNotifier
       ref.read(chatV2LastSentTrackerProvider.notifier).recordSent(channelId, cleanForTracker);
       ref.read(chatV2ReadStateProvider.notifier).markChannelAsRead(channelId);
 
+      final pinned = ChatV2ChannelLocalCache.getPinnedDirectChannel(channelId);
+      if (pinned != null) {
+        ChatV2ChannelLocalCache.pinDirectChannel(pinned.copyWith(
+          lastMessage: cleanForTracker,
+          lastMessageDate: DateTime.now(),
+        ));
+      }
+
       // 5. Invalidate channels để cập nhật preview
       ref.invalidate(chatV2ChannelsProvider);
     } catch (e) {
@@ -595,6 +611,15 @@ class ChatV2MessagesNotifier
 
     ref.read(chatV2LastSentTrackerProvider.notifier).recordSent(channelId, '📊 [Bình chọn] $question');
     ref.read(chatV2ReadStateProvider.notifier).markChannelAsRead(channelId);
+
+    final pinned = ChatV2ChannelLocalCache.getPinnedDirectChannel(channelId);
+    if (pinned != null) {
+      ChatV2ChannelLocalCache.pinDirectChannel(pinned.copyWith(
+        lastMessage: '📊 [Bình chọn] $question',
+        lastMessageDate: DateTime.now(),
+      ));
+    }
+
     ref.invalidate(chatV2ChannelsProvider);
   }
 

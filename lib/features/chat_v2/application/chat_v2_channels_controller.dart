@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../auth/application/auth_controller.dart';
@@ -15,14 +17,43 @@ final chatV2ChannelsProvider =
 class ChatV2ChannelLocalCache {
   static List<ChatV2Channel> _cached = const [];
   static final Map<String, ChatV2Channel> _pinnedDirectChannels = {};
+  static const _storage = FlutterSecureStorage();
+  static const _storageKey = 'pinned_direct_channels_v2';
+  static bool _initialized = false;
 
   static List<ChatV2Channel> get cached => _cached;
+  static ChatV2Channel? getPinnedDirectChannel(String id) => _pinnedDirectChannels[id];
+
+  static Future<void> init() async {
+    if (_initialized) return;
+    try {
+      final data = await _storage.read(key: _storageKey);
+      if (data != null && data.isNotEmpty) {
+        final List<dynamic> decoded = jsonDecode(data);
+        for (final item in decoded) {
+          if (item is Map<String, dynamic>) {
+            final ch = ChatV2Channel.fromJson(item);
+            _pinnedDirectChannels[ch.id] = ch;
+          }
+        }
+      }
+    } catch (_) {}
+    _initialized = true;
+  }
 
   static void pinDirectChannel(ChatV2Channel channel) {
     _pinnedDirectChannels[channel.id] = channel;
     if (_cached.isNotEmpty) {
       set(_cached);
     }
+    _saveToStorage();
+  }
+
+  static Future<void> _saveToStorage() async {
+    try {
+      final list = _pinnedDirectChannels.values.map((c) => c.toMap()).toList();
+      await _storage.write(key: _storageKey, value: jsonEncode(list));
+    } catch (_) {}
   }
 
   static void set(List<ChatV2Channel> channels) {
@@ -63,6 +94,7 @@ class ChatV2ChannelsNotifier
 
   @override
   FutureOr<List<ChatV2Channel>> build() async {
+    await ChatV2ChannelLocalCache.init();
     final repo = ref.watch(chatV2RepositoryProvider);
     final realtime = ref.watch(chatV2RealtimeServiceProvider);
     final user = ref.watch(authControllerProvider).valueOrNull;
