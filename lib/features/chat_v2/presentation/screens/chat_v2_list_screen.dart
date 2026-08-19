@@ -136,9 +136,9 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                         customBorder: const CircleBorder(),
                         onTap: () => context.push('/chat/new'),
                         child: const Padding(
-                          padding: EdgeInsets.all(8),
+                          padding: EdgeInsets.all(10),
                           child: Icon(
-                            LucideIcons.plus,
+                            LucideIcons.messageSquarePlus,
                             color: Colors.white,
                             size: 20,
                           ),

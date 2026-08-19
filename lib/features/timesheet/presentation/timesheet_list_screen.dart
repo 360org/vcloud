@@ -1860,7 +1860,7 @@ class _TaskDetailSheetState extends ConsumerState<_TaskDetailSheet> {
                     Expanded(
                       child: _TaskDetailMetric(
                         icon: LucideIcons.hourglass,
-                        label: 'Thời gian dự kiến',
+                        label: 'Tổng thời gian cho phép',
                         value: _formatHours(task.allocatedHours),
                       ),
                     ),
@@ -3465,10 +3465,12 @@ String _formatTaskDuration(Duration duration) {
 }
 
 String _formatHours(double? hours) {
-  if (hours == null || hours <= 0) return '0 giờ';
-  final minutes = (hours * 60).round();
+  if (hours == null || hours == 0) return '0 giờ';
+  final isNegative = hours < 0;
+  final minutes = (hours.abs() * 60).round();
   if (minutes <= 0) return '0 giờ';
-  return _formatMinutes(minutes);
+  final formatted = _formatMinutes(minutes);
+  return isNegative ? '-$formatted' : formatted;
 }
 
 String _formatMinutes(int minutes) {

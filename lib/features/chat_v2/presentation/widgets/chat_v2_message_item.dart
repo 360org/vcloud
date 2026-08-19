@@ -244,6 +244,8 @@ class ChatV2MessageItem extends StatelessWidget {
                               if (!isMine && showSenderName) ...[
                                 Text(
                                   message.authorName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w700,
@@ -668,9 +670,7 @@ class ChatV2MessageItem extends StatelessWidget {
           return;
         }
         if (downloadUrl != null && downloadUrl.isNotEmpty) {
-          final full = downloadUrl.startsWith('http')
-              ? downloadUrl
-              : odooApiClient.absoluteUrl(downloadUrl);
+          final full = odooApiClient.authenticatedUrl(downloadUrl);
           openDownloadUrl(full);
         }
       },

@@ -340,8 +340,9 @@ class TaskRepository {
           ((map['spent_hours'] ?? map['effective_hours'] ?? map['total_hours_spent'] ?? map['subtask_effective_hours']) as num?)
               ?.toDouble(),
       'remaining_hours': (map['remaining_hours'] as num?)?.toDouble() ??
-          (((map['allocated_hours'] ?? map['planned_hours']) is num && (map['effective_hours'] ?? map['total_hours_spent']) is num)
-              ? (((map['allocated_hours'] ?? map['planned_hours']) as num).toDouble() - ((map['effective_hours'] ?? map['total_hours_spent']) as num).toDouble())
+          (((map['allocated_hours'] ?? map['planned_hours'] ?? map['subtask_planned_hours']) is num)
+              ? (((map['allocated_hours'] ?? map['planned_hours'] ?? map['subtask_planned_hours']) as num).toDouble() -
+                  (((map['spent_hours'] ?? map['effective_hours'] ?? map['total_hours_spent'] ?? map['subtask_effective_hours']) as num?)?.toDouble() ?? 0.0))
               : null),
       'stage_name':
           _many2OneName(map['stage_id']) ?? _stringOrNull(map['stage_name']) ?? _stringOrNull(map['stage']),

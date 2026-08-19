@@ -174,11 +174,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final openTickets = localDoingTicketsCount > 0
         ? localDoingTicketsCount
         : (dashboard?.openTickets ?? summary?.openTickets ?? 0);
-    final fallbackChatCount = (dashboard?.recentConversationCount != null && dashboard!.recentConversationCount! > 0)
-        ? dashboard.recentConversationCount!
-        : (summary?.recentConversationCount != null && summary!.recentConversationCount > 0
-            ? summary.recentConversationCount
-            : 0);
+    final loadedChatChannels = ref.watch(chatV2ChannelsProvider).valueOrNull;
+    final fallbackChatCount = (loadedChatChannels != null && loadedChatChannels.isNotEmpty)
+        ? loadedChatChannels.length
+        : ((dashboard?.recentConversationCount != null && dashboard!.recentConversationCount! > 0)
+            ? dashboard.recentConversationCount!
+            : (summary?.recentConversationCount != null && summary!.recentConversationCount > 0
+                ? summary.recentConversationCount
+                : 0));
     final statusBusy = _statusBusy || todayState.isLoading;
 
     return AppScaffold(
