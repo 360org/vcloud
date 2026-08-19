@@ -562,25 +562,16 @@ class ChatV2MessagesNotifier
       LocalAttachmentCache.save(sentMsg.id, bytes);
 
       // Cập nhật trạng thái sent ngay lập tức cho tin nhắn tạm, bảo tồn nguyên vẹn byte nhị phân
-      final currentList = state.valueOrNull ?? const [];
-      final updatedList = currentList.map((m) {
-        if (m.id == tempId) {
-          return sentMsg.copyWith(
-            isMine: true,
-            status: 'sent',
-            attachments: [attachedWithBytes],
-          );
-        }
-        return m;
-      }).toList();
+      final currentList = (state.valueOrNull ?? const []).toList();
+      currentList.removeWhere((m) => m.id == tempId || m.id == sentMsg.id);
+      currentList.insert(0, sentMsg.copyWith(
+        isMine: true,
+        status: 'sent',
+        attachments: [attachedWithBytes],
+      ));
 
-      if (!updatedList.any((m) => m.id == sentMsg.id)) {
-        updatedList.removeWhere((m) => m.id == tempId);
-        updatedList.insert(0, sentMsg.copyWith(isMine: true, status: 'sent', attachments: [attachedWithBytes]));
-      }
-
-      ChatV2MessageLocalCache.set(channelId, updatedList);
-      state = AsyncData(updatedList);
+      ChatV2MessageLocalCache.set(channelId, currentList);
+      state = AsyncData(currentList);
 
       final cleanForTracker = mimetype.startsWith('image/')
           ? ((caption != null && caption.isNotEmpty) ? caption : '[Hình ảnh]')
@@ -596,20 +587,20 @@ class ChatV2MessagesNotifier
         authorName: userName,
         unreadCount: 0,
       );
-
-      // Update local cache without invalidating the provider
-      // ref.invalidate(chatV2ChannelsProvider);
     } catch (e) {
-      // Đánh dấu tin nhắn tạm bị lỗi
+      debugPrint('❌ [ERROR] sendAttachment error: $e');
       final currentList = state.valueOrNull ?? const [];
-      state = AsyncData(
-        currentList.map((m) {
-          if (m.id == tempId) {
-            return m.copyWith(status: 'error');
-          }
-          return m;
-        }).toList(),
-      );
+      final hasTemp = currentList.any((m) => m.id == tempId);
+      if (hasTemp) {
+        state = AsyncData(
+          currentList.map((m) {
+            if (m.id == tempId) {
+              return m.copyWith(status: 'error');
+            }
+            return m;
+          }).toList(),
+        );
+      }
     }
   }
 

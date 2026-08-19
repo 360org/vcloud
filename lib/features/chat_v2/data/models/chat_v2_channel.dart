@@ -30,8 +30,7 @@ class ChatV2Member {
           json['avatar_128_url']?.toString() ??
           json['avatar_128']?.toString() ??
           json['image_128']?.toString();
-      final avatarUrl = odooApiClient.resolveAvatarUrl(rawAvatar) ??
-          (id.isNotEmpty ? odooApiClient.resolveAvatarUrl('/api/v1/mobile/avatar/res.partner/$id') : null);
+      final avatarUrl = odooApiClient.resolveAvatarUrl(rawAvatar);
       return ChatV2Member(
         id: id,
         name: json['name']?.toString() ?? '',
@@ -390,13 +389,12 @@ class ChatV2Channel {
     if (finalAvatarUrl == null && !isGroup) {
       if (directPartnerAvatar != null && directPartnerAvatar.isNotEmpty) {
         finalAvatarUrl = directPartnerAvatar;
-      } else if (directPartnerId != null && directPartnerId.isNotEmpty) {
-        finalAvatarUrl = odooApiClient.resolveAvatarUrl('/api/v1/mobile/avatar/res.partner/$directPartnerId');
       } else if (memberObjs.isNotEmpty) {
-        final otherMember = memberObjs.firstWhereOrNull((m) => !m.isMe);
-        if (otherMember != null && otherMember.id.isNotEmpty) {
-          finalAvatarUrl = otherMember.avatarUrl ??
-              odooApiClient.resolveAvatarUrl('/api/v1/mobile/avatar/res.partner/${otherMember.id}');
+        final otherMember = memberObjs.firstWhereOrNull(
+          (m) => !m.isMe && m.avatarUrl != null && m.avatarUrl!.isNotEmpty,
+        );
+        if (otherMember != null) {
+          finalAvatarUrl = otherMember.avatarUrl;
         }
       }
     }

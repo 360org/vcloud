@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -39,6 +40,25 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen>
   Future<void> _open(Profile p) async {
     final partnerId = p.partnerId;
     if (partnerId == null || partnerId.isEmpty) return;
+
+    // 1. Optimistic Fast-Path: Kiểm tra xem đã có cuộc trò chuyện với partnerId này trong cache chưa
+    final cachedChannels = ChatV2ChannelLocalCache.cached;
+    final existingChannel = cachedChannels.firstWhereOrNull(
+      (c) => !c.isGroup && (c.directPartnerId == partnerId || c.partnerId == partnerId),
+    );
+
+    if (existingChannel != null) {
+      final queryParams = <String, String>{
+        if (p.displayName.trim().isNotEmpty) 'name': p.displayName.trim(),
+        if (p.avatarUrl != null && p.avatarUrl!.trim().isNotEmpty) 'avatar': p.avatarUrl!.trim(),
+        'partner_id': partnerId,
+      };
+      final queryString = queryParams.isNotEmpty
+          ? '?${Uri(queryParameters: queryParams).query}'
+          : '';
+      context.pushReplacement('/chat/${existingChannel.id}$queryString');
+      return;
+    }
 
     setState(() => _openingPartnerId = partnerId);
     try {

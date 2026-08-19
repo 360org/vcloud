@@ -8,7 +8,6 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
-import '../../../../core/api/odoo_api_client.dart';
 import '../../application/chat_v2_channels_controller.dart';
 import '../../application/chat_v2_messages_controller.dart';
 import '../../application/chat_v2_read_state_controller.dart';
@@ -316,7 +315,13 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
 
     // Lấy thông tin user hiện tại để hiển thị tên sạch của người đối diện
     final currentUser = ref.watch(authControllerProvider).valueOrNull;
-    final currentUserName = currentUser?.userMetadata['display_name'] as String?;
+    final currentUserName = (currentUser?.userMetadata['name'] ??
+        currentUser?.userMetadata['display_name'] ??
+        currentUser?.userMetadata['login'] ??
+        '') as String?;
+    final currentUserId = currentUser?.id;
+    final currentPartnerId = currentUser?.userMetadata['partner_id']?.toString() ??
+        currentUser?.userMetadata['partner']?['id']?.toString();
 
     // Lấy thông tin kênh từ cache nếu có (chỉ watch duy nhất kênh hiện tại)
     final currentChannel = ref.watch(chatV2ChannelsProvider.select(
@@ -341,29 +346,26 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
         ChatV2MessageLocalCache.get(widget.channelId) ??
         const [];
 
-    // Fallback 4 cấp độ để xác định chính xác avatar của đối phương:
+    // Fallback các cấp độ an toàn để xác định avatar của đối phương (tuyệt đối không lấy avatar của bản thân):
     String? resolvedAvatarUrl = currentChannel?.avatarUrl;
     if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
       resolvedAvatarUrl = widget.initialAvatarUrl;
     }
     if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
-      final pid = currentChannel?.directPartnerId ?? widget.initialPartnerId;
-      if (pid != null && pid.isNotEmpty) {
-        resolvedAvatarUrl = odooApiClient.resolveAvatarUrl('/api/v1/mobile/avatar/res.partner/$pid');
-      }
-    }
-    if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
       final isGroup = currentChannel?.isGroup == true ||
           (currentChannel != null && currentChannel.getActualIsGroup(currentUserName));
       if (!isGroup && messages.isNotEmpty) {
-        final otherMsg = messages.firstWhereOrNull((m) =>
-            m.authorName.trim().toLowerCase() != (currentUserName ?? '').trim().toLowerCase() &&
-            ((m.authorAvatar != null && m.authorAvatar!.isNotEmpty) || (m.authorId != null && m.authorId!.isNotEmpty)));
+        final otherMsg = messages.firstWhereOrNull((m) {
+          if (m.isMine) return false;
+          if (currentUserId != null && m.authorId == currentUserId) return false;
+          if (currentPartnerId != null && m.authorId == currentPartnerId) return false;
+          if (currentUserName != null && currentUserName.isNotEmpty) {
+            if (m.authorName.trim().toLowerCase() == currentUserName.trim().toLowerCase()) return false;
+          }
+          return (m.authorAvatar != null && m.authorAvatar!.isNotEmpty);
+        });
         if (otherMsg != null) {
-          resolvedAvatarUrl = otherMsg.authorAvatar ??
-              (otherMsg.authorId != null
-                  ? odooApiClient.resolveAvatarUrl('/api/v1/mobile/avatar/res.partner/${otherMsg.authorId}')
-                  : null);
+          resolvedAvatarUrl = otherMsg.authorAvatar;
         }
       }
     }
@@ -1100,7 +1102,10 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
   void _handleHeaderTap(BuildContext context, ChatV2Channel? channel, bool isDark) {
     if (channel == null) return;
     final currentUser = ref.read(authControllerProvider).valueOrNull;
-    final currentUserName = currentUser?.userMetadata['display_name'] as String?;
+    final currentUserName = (currentUser?.userMetadata['name'] ??
+        currentUser?.userMetadata['display_name'] ??
+        currentUser?.userMetadata['login'] ??
+        '') as String?;
     final messagesAsync = ref.read(chatV2MessagesProvider(widget.channelId));
     final currentMessages = messagesAsync.valueOrNull ??
         ChatV2MessageLocalCache.get(widget.channelId) ??
