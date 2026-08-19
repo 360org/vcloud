@@ -14,11 +14,42 @@ final chatV2ChannelsProvider =
 
 class ChatV2ChannelLocalCache {
   static List<ChatV2Channel> _cached = const [];
+  static final Map<String, ChatV2Channel> _pinnedDirectChannels = {};
 
   static List<ChatV2Channel> get cached => _cached;
 
+  static void pinDirectChannel(ChatV2Channel channel) {
+    _pinnedDirectChannels[channel.id] = channel;
+    if (_cached.isNotEmpty) {
+      set(_cached);
+    }
+  }
+
   static void set(List<ChatV2Channel> channels) {
-    _cached = List.unmodifiable(channels);
+    final map = <String, ChatV2Channel>{};
+    for (final c in channels) {
+      map[c.id] = c;
+    }
+    for (final c in _pinnedDirectChannels.values) {
+      if (map.containsKey(c.id)) {
+        final existing = map[c.id]!;
+        map[c.id] = existing.copyWith(
+          name: (c.name.isNotEmpty && c.name != 'Trò chuyện') ? c.name : existing.name,
+          channelType: 'chat',
+          isGroup: false,
+          memberCount: 2,
+        );
+      } else {
+        map[c.id] = c;
+      }
+    }
+    final merged = map.values.toList();
+    merged.sort((a, b) {
+      final da = a.lastMessageDate ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final db = b.lastMessageDate ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return db.compareTo(da);
+    });
+    _cached = List.unmodifiable(merged);
   }
 }
 

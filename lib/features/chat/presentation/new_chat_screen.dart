@@ -10,6 +10,7 @@ import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/loading_view.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../chat_v2/application/chat_v2_channels_controller.dart';
+import '../../chat_v2/data/models/chat_v2_channel.dart';
 import '../application/conversations_controller.dart';
 
 class NewChatScreen extends ConsumerStatefulWidget {
@@ -40,6 +41,17 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen>
       final id = await ref
           .read(conversationActionsProvider)
           .openDirect(partnerId);
+      final directCh = ChatV2Channel(
+        id: id,
+        name: partnerName ?? 'Trò chuyện',
+        channelType: 'chat',
+        isGroup: false,
+        memberCount: 2,
+        directPartnerId: partnerId,
+        directPartnerName: partnerName,
+        lastMessageDate: DateTime.now(),
+      );
+      ChatV2ChannelLocalCache.pinDirectChannel(directCh);
       ref.invalidate(chatV2ChannelsProvider);
       if (mounted) {
         final query = partnerName != null && partnerName.trim().isNotEmpty

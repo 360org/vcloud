@@ -52,6 +52,17 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
     _scrollController.addListener(_onScroll);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (widget.title != null && widget.title!.isNotEmpty) {
+        final directCh = ChatV2Channel(
+          id: widget.channelId,
+          name: widget.title!,
+          channelType: 'chat',
+          isGroup: false,
+          memberCount: 2,
+          lastMessageDate: DateTime.now(),
+        );
+        ChatV2ChannelLocalCache.pinDirectChannel(directCh);
+      }
       final channels = ref.read(chatV2ChannelsProvider).valueOrNull;
       if (channels == null || !channels.any((c) => c.id == widget.channelId)) {
         ref.invalidate(chatV2ChannelsProvider);

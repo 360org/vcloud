@@ -224,19 +224,33 @@ class ChatV2Channel {
   }
 
   bool getActualIsGroup(String? currentUserName) {
+    // 1. Nếu có trên 2 thành viên -> Chắc chắn là Nhóm
+    if (memberCount > 2) return true;
+    if (members.length > 2) return true;
+
+    // 2. Nếu là loại nhóm tường minh (channel_type == 'group')
+    if (channelType == 'group') return true;
+
+    // 3. Nếu tên chứa danh sách >= 3 người (VD: "A, B, C")
+    final clean = getCleanName(currentUserName);
+    final count = clean.split(RegExp(r'\s*[,/|-]\s*|\s+và\s+|\s+&\s+')).length;
+    if (count > 2) return true;
+
+    // 4. Nếu có partnerId / directPartner / chat type -> 1-1 Cá nhân
     if (directPartnerId != null && directPartnerId!.isNotEmpty) return false;
     if (directPartnerName != null && directPartnerName!.isNotEmpty) return false;
     if (partnerId != null && partnerId!.isNotEmpty) return false;
     if (channelType == 'chat' || channelType == 'direct') return false;
-    if (channelType == 'group') return true;
-    if (channelType == 'channel' && (memberCount > 2 || memberCount == 0)) return true;
+
+    // 5. Nếu memberCount là 1 hoặc 2 -> 1-1 Cá nhân
     if (memberCount == 1 || memberCount == 2) return false;
-    if (memberCount > 2) return true;
+    if (members.length == 1 || members.length == 2) return false;
+
+    // 6. Nếu được đánh dấu isGroup = true
     if (isGroup) return true;
 
-    final clean = getCleanName(currentUserName);
-    final count = clean.split(RegExp(r'\s*[,/|-]\s*|\s+và\s+|\s+&\s+')).length;
-    return count > 2;
+    // 7. Mặc định là cá nhân 1-1
+    return false;
   }
 
   factory ChatV2Channel.fromMap(Map<String, dynamic> map) => ChatV2Channel.fromJson(map);
@@ -255,7 +269,7 @@ class ChatV2Channel {
     if (rawIsGroup is bool) {
       isGroup = rawIsGroup;
     } else {
-      isGroup = channelType == 'group' || channelType == 'channel';
+      isGroup = channelType == 'group';
     }
 
     final rawAvatar = _stringOrNull(
