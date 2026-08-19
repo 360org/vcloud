@@ -36,7 +36,7 @@ void main() {
 
   group('TASK #16447: Group Filter vs Channel Filter Logic', () {
     test('Channel with channel_type == "group" is classified as Group Chat', () {
-      final groupChannel = ChatV2Channel(
+      const groupChannel = ChatV2Channel(
         id: '201',
         name: 'Chuyển Nhà Trọn Gói',
         channelType: 'group',
@@ -49,7 +49,7 @@ void main() {
     });
 
     test('Channel with channel_type == "chat" is classified as Internal Direct', () {
-      final directChannel = ChatV2Channel(
+      const directChannel = ChatV2Channel(
         id: '202',
         name: 'Bùi Tuấn Kiệt',
         channelType: 'chat',
@@ -64,7 +64,7 @@ void main() {
     });
 
     test('General announcement channel is classified as isChannel', () {
-      final broadcastChannel = ChatV2Channel(
+      const broadcastChannel = ChatV2Channel(
         id: '203',
         name: 'Thông Báo Toàn Công Ty',
         channelType: 'channel',
@@ -115,14 +115,14 @@ void main() {
 
   group('TASK #16449: Cache Fast-Path Navigation for Direct Chats', () {
     test('Local cache can instantly locate existing 1-1 conversation by partnerId', () {
-      final ch1 = ChatV2Channel(
+      const ch1 = ChatV2Channel(
         id: '115',
         name: 'Bùi Tuấn Kiệt',
         channelType: 'chat',
         isGroup: false,
         directPartnerId: '120',
       );
-      final ch2 = ChatV2Channel(
+      const ch2 = ChatV2Channel(
         id: '116',
         name: 'Lâm Á Thi',
         channelType: 'chat',
@@ -138,6 +138,83 @@ void main() {
 
       expect(found.id, '115');
       expect(found.name, 'Bùi Tuấn Kiệt');
+    });
+  });
+
+  group('TASK #16450: Last Message Resolution & Clean Preview', () {
+    test('ChatV2Channel parses last_message with image attachment filename cleanly', () {
+      final json = {
+        'id': '115',
+        'name': 'Bùi Tuấn Kiệt',
+        'channel_type': 'chat',
+        'is_group': false,
+        'last_message': 'scaled_image_picker_123.jpg',
+        'last_message_date': '2026-08-19 15:30:00',
+        'last_message_author_id': 115,
+        'last_message_author_name': 'Ma Nguyễn Nhật Tân',
+      };
+
+      final channel = ChatV2Channel.fromJson(json);
+      expect(channel.lastMessage, '[Hình ảnh]');
+      expect(channel.isLastMessageFromMe(currentUserName: 'Ma Nguyễn Nhật Tân', currentPartnerId: '115'), isTrue);
+    });
+
+    test('ChatV2Channel parses last_message with HTML body cleanly', () {
+      final json = {
+        'id': '116',
+        'name': 'Lâm Á Thi',
+        'channel_type': 'chat',
+        'is_group': false,
+        'last_message': '<p>Chào bạn, chúc một ngày tốt lành!</p>',
+        'last_message_date': '2026-08-19 15:31:00',
+        'last_message_author_id': 116,
+        'last_message_author_name': 'Lâm Á Thi',
+      };
+
+      final channel = ChatV2Channel.fromJson(json);
+      expect(channel.lastMessage, 'Chào bạn, chúc một ngày tốt lành!');
+      expect(channel.isLastMessageFromMe(currentUserName: 'Ma Nguyễn Nhật Tân', currentPartnerId: '115'), isFalse);
+    });
+  });
+
+  group('TASK #16451: Self Message Elimination from Unread Filter', () {
+    test('isLastMessageFromMe recognizes self-authored messages accurately', () {
+      const channel = ChatV2Channel(
+        id: '115',
+        name: 'Bùi Tuấn Kiệt',
+        channelType: 'chat',
+        isGroup: false,
+        lastMessage: '[Hình ảnh]',
+        lastMessageAuthorId: '115',
+        lastMessageAuthorName: 'Ma Nguyễn Nhật Tân',
+        unreadCount: 1, // Dù server vô tình trả 1
+      );
+
+      final isMine = channel.isLastMessageFromMe(
+        currentUserName: 'Ma Nguyễn Nhật Tân',
+        currentPartnerId: '115',
+        currentUserId: '2',
+      );
+
+      expect(isMine, isTrue);
+    });
+
+    test('isLastMessageFromMe recognizes "Bạn" or "Tôi" as self-authored', () {
+      const channel = ChatV2Channel(
+        id: '115',
+        name: 'Bùi Tuấn Kiệt',
+        channelType: 'chat',
+        isGroup: false,
+        lastMessage: 'Đã gửi file xong rồi',
+        lastMessageAuthorName: 'Bạn',
+      );
+
+      final isMine = channel.isLastMessageFromMe(
+        currentUserName: 'Ma Nguyễn Nhật Tân',
+        currentPartnerId: '115',
+      );
+
+      expect(isMine, isTrue);
     });
   });
 }

@@ -149,8 +149,13 @@ class ChatV2Channel {
       if (currentPartnerId != null && lastMessageAuthorId == currentPartnerId) return true;
       if (currentUserId != null && lastMessageAuthorId == currentUserId) return true;
     }
-    if (lastMessageAuthorName != null && currentUserName != null) {
-      if (lastMessageAuthorName!.trim().toLowerCase() == currentUserName.trim().toLowerCase()) return true;
+    if (lastMessageAuthorName != null) {
+      final aLower = lastMessageAuthorName!.trim().toLowerCase();
+      if (aLower == 'tôi' || aLower == 'bạn' || aLower == 'me') return true;
+      if (currentUserName != null && currentUserName.trim().isNotEmpty) {
+        final uLower = currentUserName.trim().toLowerCase();
+        if (aLower == uLower || aLower.contains(uLower) || uLower.contains(aLower)) return true;
+      }
     }
     return false;
   }

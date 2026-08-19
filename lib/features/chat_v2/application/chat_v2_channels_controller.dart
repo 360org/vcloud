@@ -415,11 +415,16 @@ final chatV2TotalUnreadProvider = Provider<int>((ref) {
   return channelsState.maybeWhen(
     data: (channels) {
       final unread = channels.where((c) {
+        final cachedMsgs = ChatV2MessageLocalCache.get(c.id);
+        final isFirstMsgMine = cachedMsgs != null &&
+            cachedMsgs.isNotEmpty &&
+            cachedMsgs.first.isMine;
         final lastSentText = lastSentMap[c.id];
         final isMineFromTracker = lastSentText != null &&
             c.lastMessage?.trim() == lastSentText.trim();
 
-        final isMine = isMineFromTracker ||
+        final isMine = isFirstMsgMine ||
+            isMineFromTracker ||
             c.isLastMessageFromMe(
               currentUserName: currentUserName,
               currentPartnerId: currentPartnerId,

@@ -381,19 +381,34 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                     }
                     if (_selectedFilterIndex == 0) {
                       // 0: Chưa đọc
+                      final cachedMsgs = ChatV2MessageLocalCache.get(c.id);
+                      final isFirstMsgMine = cachedMsgs != null &&
+                          cachedMsgs.isNotEmpty &&
+                          cachedMsgs.first.isMine;
+                      final lastSentText = ref.watch(
+                          chatV2LastSentTrackerProvider.select((m) => m[c.id]));
+                      final isMineFromTracker = lastSentText != null &&
+                          (c.lastMessage != null &&
+                              c.lastMessage!.trim() == lastSentText.trim());
+
+                      final isMine = isFirstMsgMine ||
+                          isMineFromTracker ||
+                          c.isLastMessageFromMe(
+                            currentUserName: currentUserName,
+                            currentPartnerId: currentPartnerId,
+                            currentUserId: currentUserId,
+                          );
+
+                      // Nếu tin nhắn cuối do chính mình gửi -> Chắc chắn KHÔNG nằm trong tab Chưa đọc
+                      if (isMine) return false;
+
                       final readNotifier =
                           ref.watch(chatV2ReadStateProvider.notifier);
-                      final isMine = c.isLastMessageFromMe(
-                        currentUserName: currentUserName,
-                        currentPartnerId: currentPartnerId,
-                        currentUserId: currentUserId,
+                      final isUnread = readNotifier.isChannelUnread(
+                        channelId: c.id,
+                        serverUnreadCount: c.unreadCount,
+                        lastMessageDate: c.lastMessageDate,
                       );
-                      final isUnread = !isMine &&
-                          readNotifier.isChannelUnread(
-                            channelId: c.id,
-                            serverUnreadCount: c.unreadCount,
-                            lastMessageDate: c.lastMessageDate,
-                          );
                       if (!isUnread) return false;
                     } else if (_selectedFilterIndex == 1) {
                       // 1: Nội bộ (1-1 trực tiếp)
