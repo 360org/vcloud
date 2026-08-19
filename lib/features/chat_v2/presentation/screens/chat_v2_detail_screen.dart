@@ -322,9 +322,13 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
     final avatarUrl = currentChannel?.avatarUrl;
 
     return PopScope(
+      canPop: context.canPop(),
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) {
           ref.invalidate(chatV2ChannelsProvider);
+        } else {
+          ref.invalidate(chatV2ChannelsProvider);
+          context.go('/chat');
         }
       },
       child: Scaffold(
@@ -355,7 +359,11 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
           ),
           onPressed: () {
             ref.invalidate(chatV2ChannelsProvider);
-            context.pop();
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/chat');
+            }
           },
           tooltip: 'Quay lại',
         ),
