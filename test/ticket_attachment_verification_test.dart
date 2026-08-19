@@ -48,6 +48,34 @@ void main() {
       );
     });
 
+    test('MobileAttachment.fromMap parses download_url and access_token', () {
+      final json = {
+        'id': 91621,
+        'name': 'screenshot.jpg',
+        'mimetype': 'image/jpeg',
+        'file_size': 2048,
+        'access_token': 'secret_random_token_abc',
+        'download_url': '/api/v1/mobile/attachments/91621/download?access_token=secret_random_token_abc',
+      };
+
+      final attachment = MobileAttachment.fromMap(json);
+
+      expect(attachment.id, 91621);
+      expect(attachment.accessToken, 'secret_random_token_abc');
+      expect(attachment.downloadUrl, '/api/v1/mobile/attachments/91621/download?access_token=secret_random_token_abc');
+
+      final client = OdooApiClient(baseUrl: 'https://vuahethong.net');
+      final finalUrl = client.authenticatedUrl(
+        attachment.downloadUrl ?? '/api/v1/mobile/attachments/${attachment.id}/download',
+        accessToken: attachment.accessToken,
+      );
+
+      expect(
+        finalUrl,
+        'https://vuahethong.net/api/v1/mobile/attachments/91621/download?access_token=secret_random_token_abc',
+      );
+    });
+
     test('Extension and Mimetype detection for PDF, Image, Spreadsheet, Document', () {
       final files = [
         {'name': 'document.pdf', 'mime': 'application/pdf'},

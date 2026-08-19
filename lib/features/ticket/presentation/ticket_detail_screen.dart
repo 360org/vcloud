@@ -1267,7 +1267,9 @@ class _AttachmentTile extends StatelessWidget {
     return PressableScale(
       onTap: () {
         final downloadUrl = odooApiClient.authenticatedUrl(
-          '/api/v1/mobile/attachments/${attachment.id}/download',
+          attachment.downloadUrl ??
+              '/api/v1/mobile/attachments/${attachment.id}/download',
+          accessToken: attachment.accessToken,
         );
         openDownloadUrl(downloadUrl);
       },
