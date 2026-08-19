@@ -9,6 +9,7 @@ import '../../../shared/widgets/app_scaffold.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/loading_view.dart';
 import '../../auth/application/auth_controller.dart';
+import '../../chat_v2/application/chat_v2_channels_controller.dart';
 import '../application/conversations_controller.dart';
 
 class NewChatScreen extends ConsumerStatefulWidget {
@@ -33,13 +34,19 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen>
     super.dispose();
   }
 
-  Future<void> _open(String partnerId) async {
+  Future<void> _open(String partnerId, {String? partnerName}) async {
     setState(() => _busy = true);
     try {
       final id = await ref
           .read(conversationActionsProvider)
           .openDirect(partnerId);
-      if (mounted) context.go('/chat/$id');
+      ref.invalidate(chatV2ChannelsProvider);
+      if (mounted) {
+        final query = partnerName != null && partnerName.trim().isNotEmpty
+            ? '?name=${Uri.encodeComponent(partnerName.trim())}'
+            : '';
+        context.go('/chat/$id$query');
+      }
     } on Failure catch (f) {
       _snack(f.message);
     } catch (e) {
@@ -166,8 +173,10 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen>
                 final id = await ref
                     .read(conversationActionsProvider)
                     .createGroup(name.trim(), ids);
+                ref.invalidate(chatV2ChannelsProvider);
                 if (!context.mounted) return;
-                context.go('/chat/$id');
+                final query = '?name=${Uri.encodeComponent(name.trim())}';
+                context.go('/chat/$id$query');
               } catch (e) {
                 _snack('Không thể tạo nhóm: $e');
               } finally {
@@ -191,7 +200,7 @@ class _DirectChatList extends StatefulWidget {
 
   final AsyncValue<List<Profile>> users;
   final bool busy;
-  final Future<void> Function(String partnerId) onOpen;
+  final Future<void> Function(String partnerId, {String? partnerName}) onOpen;
   final VoidCallback onRetry;
 
   @override
@@ -364,7 +373,7 @@ class _DirectChatListState extends State<_DirectChatList> {
                                   ),
                             onTap: widget.busy || p.partnerId == null
                                 ? null
-                                : () => widget.onOpen(p.partnerId!),
+                                : () => widget.onOpen(p.partnerId!, partnerName: p.displayName),
                           ),
                         );
                       },

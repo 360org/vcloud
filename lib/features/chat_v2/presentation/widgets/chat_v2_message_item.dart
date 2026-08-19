@@ -561,7 +561,8 @@ class ChatV2MessageItem extends StatelessWidget {
   Widget _buildImageFilenameCard(BuildContext context, bool isMine) {
     final cleanName = message.content.trim();
     final memoryBytes = ChatV2AttachmentImage.imageCache[cleanName] ??
-        ChatV2AttachmentImage.imageCache[message.id];
+        ChatV2AttachmentImage.imageCache[message.id] ??
+        LocalAttachmentCache.get(null, altKey: cleanName);
 
     if (memoryBytes != null && memoryBytes.isNotEmpty) {
       return _buildImageAttachment(
@@ -576,27 +577,7 @@ class ChatV2MessageItem extends StatelessWidget {
       );
     }
 
-    return FutureBuilder<Uint8List?>(
-      future: LocalAttachmentCache.getAsync(null, altKey: cleanName),
-      builder: (context, snapshot) {
-        if (snapshot.hasData && snapshot.data != null && snapshot.data!.isNotEmpty) {
-          final diskBytes = snapshot.data!;
-          ChatV2AttachmentImage.cacheBytes(cleanName, diskBytes);
-          return _buildImageAttachment(
-            context,
-            ChatV2Attachment(
-              id: message.id,
-              name: cleanName,
-              bytes: diskBytes,
-              mimetype: 'image/jpeg',
-            ),
-            isMine,
-          );
-        }
-
-        return _buildSimpleFilenameCard(context, isMine, cleanName);
-      },
-    );
+    return _buildSimpleFilenameCard(context, isMine, cleanName);
   }
 
   Widget _buildDocumentAttachment(BuildContext context, ChatV2Attachment att, bool isMine) {

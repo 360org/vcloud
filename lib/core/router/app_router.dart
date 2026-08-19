@@ -151,8 +151,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/chat/new', builder: (_, _) => const NewChatScreen()),
       GoRoute(
         path: '/chat/:id',
-        builder: (_, s) =>
-            ChatV2DetailScreen(channelId: s.pathParameters['id']!),
+        builder: (_, s) => ChatV2DetailScreen(
+          channelId: s.pathParameters['id']!,
+          title: s.uri.queryParameters['name'],
+        ),
       ),
 
       // Attendance

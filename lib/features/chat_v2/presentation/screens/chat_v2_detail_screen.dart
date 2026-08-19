@@ -50,6 +50,13 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
     super.initState();
     _scrollController = ScrollController();
     _scrollController.addListener(_onScroll);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final channels = ref.read(chatV2ChannelsProvider).valueOrNull;
+      if (channels == null || !channels.any((c) => c.id == widget.channelId)) {
+        ref.invalidate(chatV2ChannelsProvider);
+      }
+    });
   }
 
   void _onScroll() {
