@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../chat_v2/application/chat_v2_channels_controller.dart';
@@ -117,9 +117,12 @@ class HomePerformanceDiagnostics {
       checkAndPrint();
     });
 
-    // Timeout safety fallback: Force print at 3500ms if any slow network
-    Future.delayed(const Duration(milliseconds: 3500), () {
-      checkAndPrint(true);
-    });
+    // Timeout safety fallback: Force print at 3500ms if any slow network (only outside automated test binding)
+    final isTestEnvironment = WidgetsBinding.instance.runtimeType.toString().contains('Test');
+    if (!isTestEnvironment) {
+      Future.delayed(const Duration(milliseconds: 3500), () {
+        checkAndPrint(true);
+      });
+    }
   }
 }

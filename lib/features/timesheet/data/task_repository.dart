@@ -350,7 +350,10 @@ class TaskRepository {
       'due_date': dueDate,
       'completed_at': isDone ? (map['date_end']?.toString() ?? now) : null,
 
-      'timesheet_id': timesheetId,
+      'timesheet_id':
+          timesheetId ??
+          _idOrNull(map['timesheet_id']) ??
+          _idOrNull(map['timesheet_ids']),
       'created_at': now,
       'updated_at': now,
     };

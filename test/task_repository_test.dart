@@ -14,10 +14,13 @@ void main() {
       duration: TimesheetDuration.thirty,
     );
 
-    final body = client.posts.single.body as Map<String, dynamic>;
+    final logPost = client.posts.firstWhere(
+      (p) => p.path == '/api/v1/mobile/timesheet/log',
+    );
+    final body = logPost.body as Map<String, dynamic>;
     expect(task.isCompleted, isTrue);
     expect(task.timesheetId, '99');
-    expect(client.posts.single.path, '/api/v1/mobile/timesheet/log');
+    expect(logPost.path, '/api/v1/mobile/timesheet/log');
     expect(body, <String, dynamic>{
       'project_id': 7,
       'task_id': 42,
@@ -25,10 +28,10 @@ void main() {
       'date': body['date'],
       'name': 'Fix timer save',
     });
-    expect(client.puts.single.path, '/api/v1/project.task/42');
-    expect(client.puts.single.body, <String, dynamic>{
-      'values': <String, dynamic>{'state': '1_done'},
-    });
+    final completePost = client.posts.firstWhere(
+      (p) => p.path == '/api/v1/project.task/42/complete',
+    );
+    expect(completePost.body, <String, dynamic>{'note': 'Fix timer save'});
   });
 
   test('complete can log the exact stopwatch duration', () async {
@@ -42,7 +45,10 @@ void main() {
       elapsed: const Duration(minutes: 5),
     );
 
-    final body = client.posts.single.body as Map<String, dynamic>;
+    final logPost = client.posts.firstWhere(
+      (p) => p.path == '/api/v1/mobile/timesheet/log',
+    );
+    final body = logPost.body as Map<String, dynamic>;
     expect(body['unit_amount'], closeTo(5 / 60, 0.000001));
   });
 
@@ -194,13 +200,20 @@ class _FakeOdooApiClient extends OdooApiClient {
         <String, dynamic>{'id': 12, 'name': 'Backend', 'color': 4},
       ];
     }
-    if (path == '/api/v1/project.task/42') {
+    if (path == '/api/v1/mobile/project/task/42' ||
+        path == '/api/v1/project.task/42') {
+      final isDone = puts.any(
+            (p) =>
+                p.path == '/api/v1/mobile/project/task/42/workflow' ||
+                p.path == '/api/v1/project.task/42',
+          ) ||
+          posts.any((p) => p.path == '/api/v1/project.task/42/complete');
       return <String, dynamic>{
         'id': 42,
         'name': 'Timer task',
         'project_id': 7,
         'user_id': 3,
-        'state': '01_in_progress',
+        'state': isDone ? '1_done' : '01_in_progress',
         'timesheet_ids': <int>[99],
       };
     }
