@@ -25,13 +25,15 @@ class ChatV2Member {
 
   factory ChatV2Member.fromJson(dynamic json) {
     if (json is Map) {
+      final id = json['id']?.toString() ?? '';
       final rawAvatar = json['avatar_url']?.toString() ??
           json['avatar_128_url']?.toString() ??
           json['avatar_128']?.toString() ??
           json['image_128']?.toString();
-      final avatarUrl = odooApiClient.resolveAvatarUrl(rawAvatar);
+      final avatarUrl = odooApiClient.resolveAvatarUrl(rawAvatar) ??
+          (id.isNotEmpty ? odooApiClient.resolveAvatarUrl('/api/v1/mobile/avatar/res.partner/$id') : null);
       return ChatV2Member(
-        id: json['id']?.toString() ?? '',
+        id: id,
         name: json['name']?.toString() ?? '',
         email: json['email']?.toString(),
         avatarUrl: avatarUrl,
@@ -224,6 +226,9 @@ class ChatV2Channel {
   }
 
   bool getActualIsGroup(String? currentUserName) {
+    // 0. Ưu tiên cao nhất: channelType == 'chat' hoặc 'direct' là cá nhân
+    if (channelType == 'chat' || channelType == 'direct') return false;
+
     // 1. Nếu có trên 2 thành viên -> Chắc chắn là Nhóm
     if (memberCount > 2) return true;
     if (members.length > 2) return true;
@@ -240,7 +245,6 @@ class ChatV2Channel {
     if (directPartnerId != null && directPartnerId!.isNotEmpty) return false;
     if (directPartnerName != null && directPartnerName!.isNotEmpty) return false;
     if (partnerId != null && partnerId!.isNotEmpty) return false;
-    if (channelType == 'chat' || channelType == 'direct') return false;
 
     // 5. Nếu memberCount là 1 hoặc 2 -> 1-1 Cá nhân
     if (memberCount == 1 || memberCount == 2) return false;
@@ -372,12 +376,12 @@ class ChatV2Channel {
       if (directPartnerAvatar != null && directPartnerAvatar.isNotEmpty) {
         finalAvatarUrl = directPartnerAvatar;
       } else if (directPartnerId != null && directPartnerId.isNotEmpty) {
-        finalAvatarUrl = odooApiClient.resolveAvatarUrl('/web/image/res.partner/$directPartnerId/avatar_128');
+        finalAvatarUrl = odooApiClient.resolveAvatarUrl('/api/v1/mobile/avatar/res.partner/$directPartnerId');
       } else if (memberObjs.isNotEmpty) {
         final otherMember = memberObjs.firstWhereOrNull((m) => !m.isMe);
         if (otherMember != null && otherMember.id.isNotEmpty) {
           finalAvatarUrl = otherMember.avatarUrl ??
-              odooApiClient.resolveAvatarUrl('/web/image/res.partner/${otherMember.id}/avatar_128');
+              odooApiClient.resolveAvatarUrl('/api/v1/mobile/avatar/res.partner/${otherMember.id}');
         }
       }
     }

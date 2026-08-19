@@ -22,14 +22,15 @@ class ChatV2ListScreen extends ConsumerStatefulWidget {
 
 class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
   String _searchQuery = '';
-  late int _selectedFilterIndex; // 0: Tất cả, 1: Chưa đọc, 2: Cá nhân, 3: Nhóm
+  late int _selectedFilterIndex; // 0: Tất cả, 1: Chưa đọc, 2: Trực tiếp, 3: Nhóm
 
-  final List<String> _filters = ['Tất cả', 'Chưa đọc', 'Cá nhân', 'Nhóm'];
+  final List<String> _filters = ['Tất cả', 'Chưa đọc', 'Trực tiếp', 'Nhóm'];
 
   int _resolveFilterIndex(String? filter) {
     if (filter == 'unread' || filter == 'chuadoc') return 1;
-    if (filter == 'direct' || filter == 'dm' || filter == 'canhan') return 2;
+    if (filter == 'direct' || filter == 'dm' || filter == 'canhan' || filter == 'tructiep') return 2;
     if (filter == 'group' || filter == 'nhom') return 3;
     return 0;
   }
@@ -38,6 +39,15 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
   void initState() {
     super.initState();
     _selectedFilterIndex = _resolveFilterIndex(widget.initialFilter);
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 300) {
+      ref.read(chatV2ChannelsProvider.notifier).loadMore();
+    }
   }
 
   @override
@@ -52,6 +62,8 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
 
   @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -100,13 +112,16 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      'Trò chuyện',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800,
-                        color: isDark ? Colors.white : const Color(0xFF0F172A),
-                        letterSpacing: -0.5,
+                    Expanded(
+                      child: Text(
+                        'Trò chuyện',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          letterSpacing: -0.5,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     Material(
@@ -192,22 +207,8 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                 // ── 3. Filter Chips với số lượng thống kê ───────────────────
                 channelsAsync.maybeWhen(
                   data: (channels) {
-                    final readNotifier =
-                        ref.watch(chatV2ReadStateProvider.notifier);
                     final allCount = channels.length;
-                    final unreadCount = channels.where((c) {
-                      final isMine = c.isLastMessageFromMe(
-                        currentUserName: currentUserName,
-                        currentPartnerId: currentPartnerId,
-                        currentUserId: currentUserId,
-                      );
-                      return !isMine &&
-                          readNotifier.isChannelUnread(
-                            channelId: c.id,
-                            serverUnreadCount: c.unreadCount,
-                            lastMessageDate: c.lastMessageDate,
-                          );
-                    }).length;
+                    final unreadCount = ref.watch(chatV2TotalUnreadProvider);
                     final directCount = channels
                         .where((c) => !c.getActualIsGroup(currentUserName))
                         .length;
@@ -308,6 +309,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
               color: const Color(0xFF00C83A),
               onRefresh: () async => ref.refresh(chatV2ChannelsProvider.future),
               child: channelsAsync.when(
+                skipLoadingOnReload: true,
                 loading: () => const Center(
                   child: CircularProgressIndicator(color: Color(0xFF00C83A)),
                 ),
@@ -460,9 +462,15 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                     );
                   }
 
+                  final channelsNotifier = ref.watch(chatV2ChannelsProvider.notifier);
+                  final hasMore = channelsNotifier.hasMore;
+                  final isLoadingMore = channelsNotifier.isLoadingMore;
+                  final isFiltered = _searchQuery.isNotEmpty || _selectedFilterIndex != 0;
+
                   return ListView.separated(
+                    controller: _scrollController,
                     physics: const AlwaysScrollableScrollPhysics(),
-                    itemCount: filtered.length,
+                    itemCount: filtered.length + ((!isFiltered && (isLoadingMore || (!hasMore && filtered.length >= 40))) ? 1 : 0),
                     padding: const EdgeInsets.symmetric(vertical: 6),
                     separatorBuilder: (_, _) => Divider(
                       height: 1,
@@ -473,8 +481,42 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                           : const Color(0xFFE2E8F0).withValues(alpha: 0.7),
                     ),
                     itemBuilder: (context, index) {
+                      if (index == filtered.length) {
+                        if (isLoadingMore) {
+                          return const Center(
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(vertical: 16),
+                              child: SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00C83A)),
+                                ),
+                              ),
+                            ),
+                          );
+                        }
+                        if (!hasMore) {
+                          return Center(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              child: Text(
+                                'Đã hiển thị tất cả cuộc trò chuyện (${filtered.length})',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
+                                ),
+                              ),
+                            ),
+                          );
+                        }
+                        return const SizedBox.shrink();
+                      }
+
                       final channel = filtered[index];
                       return _ChannelListItem(
+                        key: ValueKey(channel.id),
                         channel: channel,
                         currentUserName: currentUserName,
                         currentPartnerId: currentPartnerId,
@@ -493,17 +535,18 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
 }
 
 class _ChannelListItem extends ConsumerWidget {
-  const _ChannelListItem({
-    required this.channel,
-    this.currentUserName,
-    this.currentPartnerId,
-    this.currentUserId,
-  });
-
   final ChatV2Channel channel;
   final String? currentUserName;
   final String? currentPartnerId;
   final String? currentUserId;
+
+  const _ChannelListItem({
+    super.key,
+    required this.channel,
+    required this.currentUserName,
+    this.currentPartnerId,
+    this.currentUserId,
+  });
 
   // Bảng màu gradient pastel sinh động phân bổ theo tên người dùng
   static const _avatarGradients = [
