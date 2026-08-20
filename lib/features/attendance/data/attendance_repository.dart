@@ -145,7 +145,7 @@ class AttendanceRepository {
     return Attendance.fromMap(_attendanceFromCheckOut(res));
   }
 
-  Stream<List<Attendance>> watchRecent({int limit = 50}) {
+  Stream<List<Attendance>> watchRecent({int limit = 500}) {
     final controller = StreamController<List<Attendance>>();
 
     Future<void> refresh() async {
