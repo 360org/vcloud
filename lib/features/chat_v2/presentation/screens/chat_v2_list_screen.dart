@@ -627,11 +627,6 @@ class _ChannelListItem extends ConsumerWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cleanName = channel.getCleanName(currentUserName);
     final isGroup = channel.getActualIsGroup(currentUserName);
-    final timeStr = channel.lastMessageDate != null
-        ? _formatDate(channel.lastMessageDate!)
-        : '';
-    final avatarGrad = _getAvatarGradient(cleanName);
-
     // Kiểm tra tin nhắn cuối từ channel hoặc từ cache tin nhắn
     final cachedMsgs = ChatV2MessageLocalCache.get(channel.id);
     final effectiveLastMsg = (channel.lastMessage != null && channel.lastMessage!.isNotEmpty)
@@ -641,6 +636,18 @@ class _ChannelListItem extends ConsumerWidget {
                 ? cachedMsgs.first.content
                 : (cachedMsgs.first.attachments.isNotEmpty ? '[Hình ảnh]' : null))
             : null);
+
+    // Ưu tiên thời gian của tin nhắn thực tế từ cache nếu có
+    final effectiveLastDate = (cachedMsgs != null && cachedMsgs.isNotEmpty && cachedMsgs.first.createdAt != null)
+        ? ((channel.lastMessageDate == null || cachedMsgs.first.createdAt!.isAfter(channel.lastMessageDate!))
+            ? cachedMsgs.first.createdAt
+            : channel.lastMessageDate)
+        : channel.lastMessageDate;
+
+    final timeStr = effectiveLastDate != null
+        ? _formatDate(effectiveLastDate)
+        : '';
+    final avatarGrad = _getAvatarGradient(cleanName);
 
     final isFirstMsgMine = cachedMsgs != null && cachedMsgs.isNotEmpty && cachedMsgs.first.isMine;
 
@@ -666,7 +673,7 @@ class _ChannelListItem extends ConsumerWidget {
         readNotifier.isChannelUnread(
           channelId: channel.id,
           serverUnreadCount: channel.unreadCount,
-          lastMessageDate: channel.lastMessageDate,
+          lastMessageDate: effectiveLastDate,
         );
 
     return Material(

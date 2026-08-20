@@ -132,6 +132,23 @@ class ChatV2ChannelLocalCache {
     onCacheUpdated?.call();
   }
 
+  static void markChannelAsRead(String channelId) {
+    if (_pinnedDirectChannels.containsKey(channelId)) {
+      final old = _pinnedDirectChannels[channelId]!;
+      _pinnedDirectChannels[channelId] = old.copyWith(unreadCount: 0);
+    }
+    final currentCached = List<ChatV2Channel>.from(_cached);
+    final idx = currentCached.indexWhere((c) => c.id == channelId);
+    if (idx != -1) {
+      currentCached[idx] = currentCached[idx].copyWith(unreadCount: 0);
+      set(currentCached);
+    } else if (_pinnedDirectChannels.containsKey(channelId)) {
+      set(_cached);
+    }
+    _saveToStorage();
+    onCacheUpdated?.call();
+  }
+
   static Future<void> _saveToStorage() async {
     try {
       final list = _pinnedDirectChannels.values.map((c) => c.toMap()).toList();

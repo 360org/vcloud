@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/chat_v2_repository.dart';
+import 'chat_v2_channels_controller.dart';
 
 /// Quản lý trạng thái đã đọc / chưa đọc của từng cuộc trò chuyện
 final chatV2ReadStateProvider =
@@ -26,6 +27,9 @@ class ChatV2ReadStateNotifier extends Notifier<Map<String, DateTime>> {
     };
     _memoryCache[channelId] = now;
     state = updated;
+
+    // Cập nhật tức thì local cache channels
+    ChatV2ChannelLocalCache.markChannelAsRead(channelId);
 
     // Đồng bộ lên Odoo Backend (background)
     unawaited(() async {
@@ -53,18 +57,18 @@ class ChatV2ReadStateNotifier extends Notifier<Map<String, DateTime>> {
     final lastSeen = state[channelId] ?? _memoryCache[channelId];
 
     // 1. Ưu tiên Local State: Nếu đã click xem trong phiên làm việc này
-    if (lastSeen != null && lastMessageDate != null) {
-      // Chỉ tính là chưa đọc nếu có tin nhắn gửi ĐẾN SAU thời điểm mình vừa xem
-      if (lastMessageDate.toUtc().millisecondsSinceEpoch >
-          lastSeen.toUtc().millisecondsSinceEpoch) {
-        return true;
+    if (lastSeen != null) {
+      if (lastMessageDate != null) {
+        // Chỉ tính là chưa đọc nếu có tin nhắn gửi ĐẾN SAU thời điểm mình vừa xem (> 2 giây buffer)
+        if (lastMessageDate.toUtc().isAfter(lastSeen.toUtc().add(const Duration(seconds: 2)))) {
+          return true;
+        }
       }
       // Nếu tin nhắn cuối đã cũ hơn hoặc bằng thời điểm mình xem -> Chắc chắn ĐÃ ĐỌC
-      // (Bỏ qua serverUnreadCount vì server có thể gửi về số cũ do polling chậm)
       return false;
     }
 
-    // 2. Nếu chưa từng click xem trong phiên này, tin cậy hoàn toàn vào Server
+    // 2. Nếu chưa từng click xem trong phiên này, tin cậy vào Server
     if (serverUnreadCount > 0) return true;
 
     return false;
