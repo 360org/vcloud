@@ -35,6 +35,9 @@ class Task {
     this.allocatedHours,
     this.spentHours,
     this.remainingHours,
+    this.lastLogHours,
+    this.lastLogDate,
+    this.lastLogNote,
     this.stageName,
     this.state,
     this.messages = const <TaskMessage>[],
@@ -56,6 +59,9 @@ class Task {
   final double? allocatedHours;
   final double? spentHours;
   final double? remainingHours;
+  final double? lastLogHours;
+  final String? lastLogDate;
+  final String? lastLogNote;
   final String? stageName;
   final String? state;
   final List<TaskMessage> messages;
@@ -92,6 +98,9 @@ class Task {
     allocatedHours: (map['allocated_hours'] as num?)?.toDouble(),
     spentHours: (map['spent_hours'] as num?)?.toDouble(),
     remainingHours: (map['remaining_hours'] as num?)?.toDouble(),
+    lastLogHours: (map['last_log_hours'] as num?)?.toDouble(),
+    lastLogDate: map['last_log_date']?.toString(),
+    lastLogNote: map['last_log_note']?.toString(),
     stageName: map['stage_name'] != null && map['stage_name'] != false ? map['stage_name'].toString() : null,
     state: map['state'] != null && map['state'] != false ? map['state'].toString() : null,
     messages: (map['messages'] as List? ?? const <Object?>[])

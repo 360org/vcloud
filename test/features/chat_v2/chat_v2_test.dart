@@ -906,5 +906,23 @@ void main() {
       expect(discussChannel.isInternalDirect('Lê Bá Châu'), isFalse);
       expect(discussChannel.isGroupChat('Lê Bá Châu'), isFalse);
     });
+
+    test('37. ChatV2ListScreen accepts initialFilter variants for mobile filter modal', () {
+      const widgetAll = ChatV2ListScreen(initialFilter: 'all');
+      expect(widgetAll.initialFilter, equals('all'));
+
+      const widgetUnread = ChatV2ListScreen(initialFilter: 'unread');
+      expect(widgetUnread.initialFilter, equals('unread'));
+
+      const widgetDirect = ChatV2ListScreen(initialFilter: 'tructiep');
+      expect(widgetDirect.initialFilter, equals('tructiep'));
+
+      const widgetGroup = ChatV2ListScreen(initialFilter: 'nhom');
+      expect(widgetGroup.initialFilter, equals('nhom'));
+
+      const widgetChannel = ChatV2ListScreen(initialFilter: 'kenh');
+      expect(widgetChannel.initialFilter, equals('kenh'));
+    });
   });
 }
+

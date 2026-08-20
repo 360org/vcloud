@@ -260,7 +260,7 @@ class ChatV2ChannelsNotifier
       if (_isFetching || isDisposed) return;
       _isFetching = true;
       try {
-        final fresh = await repo.getChannels(limit: 300, offset: 0);
+        final fresh = await repo.getChannels();
         if (isDisposed) return;
         final current = state.valueOrNull ?? ChatV2ChannelLocalCache.cached;
         if (hasChannelsChanged(current, fresh)) {

@@ -344,6 +344,9 @@ class TaskRepository {
               ? (((map['allocated_hours'] ?? map['planned_hours'] ?? map['subtask_planned_hours']) as num).toDouble() -
                   (((map['spent_hours'] ?? map['effective_hours'] ?? map['total_hours_spent'] ?? map['subtask_effective_hours']) as num?)?.toDouble() ?? 0.0))
               : null),
+      'last_log_hours': (map['last_log_hours'] as num?)?.toDouble(),
+      'last_log_date': map['last_log_date']?.toString(),
+      'last_log_note': map['last_log_note']?.toString(),
       'stage_name':
           _many2OneName(map['stage_id']) ?? _stringOrNull(map['stage_name']) ?? _stringOrNull(map['stage']),
       'state': _stringOrNull(map['state']),

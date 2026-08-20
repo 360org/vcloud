@@ -319,14 +319,15 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
             stageName: task.stageName,
           ),
       done: done,
-      // Prefer the locally-saved "what I did" summary over the round-tripped
-      // entry name so a freshly-saved note doesn't get clobbered by a
-      // backend re-fetch that returned the task title (or a stale value)
-      // instead of the user's text.
-      logged: entry == null
-          ? (localLog?.duration ?? Duration.zero)
-          : Duration(minutes: entry.durationMinutes),
-      note: localLog?.summary ?? entry?.taskName ?? '',
+      // Ưu tiên entry hôm nay -> log hoàn thành local -> lần log gần nhất từ Odoo backend
+      logged: entry != null
+          ? Duration(minutes: entry.durationMinutes)
+          : (localLog != null
+              ? localLog.duration
+              : (task.lastLogHours != null && task.lastLogHours! > 0
+                  ? Duration(minutes: (task.lastLogHours! * 60).round())
+                  : Duration.zero)),
+      note: localLog?.summary ?? entry?.taskName ?? task.lastLogNote ?? '',
       completedAt: task.completedAt ?? localLog?.completedAt,
     );
   }
@@ -1548,6 +1549,15 @@ class _TaskDetailSheetState extends ConsumerState<_TaskDetailSheet> {
       final repo = ref.read(taskRepositoryProvider);
       final fullTask = await repo.getTaskDetail(widget.task.id);
       if (mounted) {
+        final lastLogDuration = (widget.task.logged != Duration.zero)
+            ? widget.task.logged
+            : ((fullTask.lastLogHours != null && fullTask.lastLogHours! > 0)
+                ? Duration(minutes: (fullTask.lastLogHours! * 60).round())
+                : Duration.zero);
+        final lastLogNote = widget.task.note.trim().isNotEmpty
+            ? widget.task.note
+            : (fullTask.lastLogNote ?? '');
+
         setState(() {
           _detailedTask = _TodayTask(
             id: fullTask.id,
@@ -1572,10 +1582,16 @@ class _TaskDetailSheetState extends ConsumerState<_TaskDetailSheet> {
             accent: widget.task.accent,
             icon: widget.task.icon,
             done: widget.task.done,
-            logged: widget.task.logged,
-            note: widget.task.note,
+            logged: lastLogDuration,
+            note: lastLogNote,
             completedAt: fullTask.completedAt ?? widget.task.completedAt,
           );
+          if (_noteController.text.trim().isEmpty && lastLogNote.isNotEmpty) {
+            _noteController.text = lastLogNote;
+          }
+          if (widget.task.logged == Duration.zero && lastLogDuration > Duration.zero) {
+            _duration = durationBucketForElapsed(lastLogDuration);
+          }
         });
       }
     } catch (_) {}

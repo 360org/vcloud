@@ -52,8 +52,11 @@ final homeSummaryProvider = Provider<HomeSummary?>((ref) {
 
   final todayMinutes = ref.watch(todayTotalMinutesProvider);
   final openTickets = ref.watch(openTicketsCountProvider);
+  final dashboard = ref.watch(mobileDashboardSummaryProvider).valueOrNull;
   final channels = ref.watch(chatV2ChannelsProvider).valueOrNull ?? const [];
-  final recentConvCount = channels.length;
+  final recentConvCount = (dashboard?.recentConversationCount != null && dashboard!.recentConversationCount! > 0)
+      ? dashboard.recentConversationCount!
+      : channels.length;
   final unreadCount = ref.watch(chatV2TotalUnreadProvider);
 
   return HomeSummary(
