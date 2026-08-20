@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -8,6 +9,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'app.dart';
+import 'core/config/env.dart';
+import 'core/notifications/firebase_push_options.dart';
 import 'core/utils/local_attachment_cache.dart';
 import 'features/chat_v2/application/chat_v2_channels_controller.dart';
 
@@ -28,6 +31,17 @@ Future<void> main() async {
     await initializeDateFormatting();
     await LocalAttachmentCache.ensureInitialized();
     await ChatV2ChannelLocalCache.init();
+
+    // Safely initialize Firebase if configured
+    if (!kIsWeb && Env.firebasePushConfigured) {
+      try {
+        await Firebase.initializeApp(
+          options: VCloudFirebaseOptions.currentPlatform,
+        );
+      } catch (e) {
+        debugPrint('Firebase init in main skipped: $e');
+      }
+    }
 
     // Override default Grey Screen in Release builds with a clear error UI & Copy Log feature
     ErrorWidget.builder = (FlutterErrorDetails details) {
@@ -111,19 +125,23 @@ Future<void> main() async {
       );
     };
 
-    // Catch unhandled Flutter errors & send to Firebase Crashlytics
+    // Catch unhandled Flutter errors & send to Firebase Crashlytics if initialized
     FlutterError.onError = (FlutterErrorDetails details) {
-      if (!kIsWeb) {
-        FirebaseCrashlytics.instance.recordFlutterFatalError(details);
+      if (!kIsWeb && Firebase.apps.isNotEmpty) {
+        try {
+          FirebaseCrashlytics.instance.recordFlutterFatalError(details);
+        } catch (_) {}
       }
       FlutterError.presentError(details);
       _logDetailedError(details.exception, details.stack, context: 'UI/FRAMEWORK');
     };
 
-    // Catch platform dispatcher errors & send to Firebase Crashlytics
+    // Catch platform dispatcher errors & send to Firebase Crashlytics if initialized
     PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
-      if (!kIsWeb) {
-        FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+      if (!kIsWeb && Firebase.apps.isNotEmpty) {
+        try {
+          FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+        } catch (_) {}
       }
       _logDetailedError(error, stack, context: 'PLATFORM DISPATCHER');
       return true;
@@ -131,8 +149,10 @@ Future<void> main() async {
 
     runApp(const ProviderScope(child: VCloudApp()));
   }, (Object error, StackTrace stack) {
-    if (!kIsWeb) {
-      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    if (!kIsWeb && Firebase.apps.isNotEmpty) {
+      try {
+        FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+      } catch (_) {}
     }
     _logDetailedError(error, stack, context: 'ZONED GUARDED');
   });
