@@ -19,10 +19,10 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 >   git fetch origin && git checkout fix/app-chat-stabilization && git pull origin fix/app-chat-stabilization
 >   ```
 > 
-> **📢 Hướng Dẫn Kỹ Thuật Khi Merge & Deploy (`17.0` & `release/ios-appstore`)**:
-> 1. **Bảo Toàn Logic Đã Kiểm Thử**: Khi review hoặc deploy, tuyệt đối không làm phá vỡ các logic cốt lõi đã pass 100% test suite (*Local Cache First < 1.2ms, Batch SQL Prefetch O(1), GPS Location Card parsing, Pagination 80 kênh + 35 messages Telegram-style*).
-> 2. **Góp Ý Qua Audit & Changelog**: Mọi thay đổi hoặc góp ý cần cập nhật minh bạch vào [`docs/AUDIT_REPORT.md`](file:///media/tanma/DATA/save/mobile/docs/AUDIT_REPORT.md) và [`docs/CHANGELOGS.md`](file:///media/tanma/DATA/save/mobile/docs/CHANGELOGS.md).
-> 3. **Quy Trình Deploy**: Pull từ `fix/app-chat-stabilization` vào nhánh đích (`17.0` cho backend, `release/ios-appstore` cho frontend) và verify `flutter analyze` (0 errors) + `flutter test` (100% pass) trước khi release.
+> **📢 Hướng Dẫn Kỹ Thuật Khi Review & Deploy Trên Nhánh `17.0` & `release/ios-appstore`**:
+> 1. **Quy Trình Merge & Deploy**: Sau khi **anh Tân** kiểm tra và merge nhánh `fix/app-chat-stabilization` vào **`17.0`** (Backend Odoo `v_mobile`) và **`release/ios-appstore`** (Frontend Mobile `vclients`), **Claude Code / Sếp** sẽ checkout và thực hiện deploy trực tiếp trên nhánh `17.0` (Odoo SaaS Upgrade) và `release/ios-appstore` (GitHub Actions CI/CD).
+> 2. **Bảo Toàn Logic Đã Kiểm Toán**: Khi deploy hoặc chỉnh sửa trên nhánh `17.0` / `release/ios-appstore`, tuyệt đối không làm thay đổi hay phá vỡ các logic cốt lõi đã pass 100% test suite (*Local Cache First < 1.2ms, Batch SQL Prefetch O(1), GPS Location Card parsing, Pagination 80 kênh + 35 messages Telegram-style, và `mounted` checks*).
+> 3. **Góp Ý Qua Audit & Changelog**: Mọi thay đổi hoặc góp ý cần cập nhật minh bạch vào [`docs/AUDIT_REPORT.md`](file:///media/tanma/DATA/save/mobile/docs/AUDIT_REPORT.md) và [`docs/CHANGELOGS.md`](file:///media/tanma/DATA/save/mobile/docs/CHANGELOGS.md).
 
 ### ⚡ [PERF] Tối Ưu Hóa Hiệu Năng Toàn Diện Mobile & Backend (60fps Chat & Batch Prefetch)
 - **Tối Ưu Hóa Tải Kênh Chat (Initial Batch Size: 80 Kênh & Lazy Load Infinite Scroll)**:

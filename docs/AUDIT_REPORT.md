@@ -107,14 +107,13 @@ Mã nguồn phiên bản **`v2.5.0+79`** đã hoàn thành toàn bộ các yêu 
 
 ### 4.3 📢 Lời Nhắn & Hướng Dẫn Kỹ Thuật Dành Cho Claude Code (Release & Deployment Lead)
 > [!IMPORTANT]
-> **Chỉ dẫn quan trọng khi Merge & Deploy lên Production (`17.0` & `release/ios-appstore`)**:
-> 1. **Bảo Toàn Logic Đã Kiểm Thử**: Nếu trong quá trình review hoặc deploy, Claude Code / Sếp có điều chỉnh mã nguồn ở Backend (`17.0`) hoặc Frontend (`release/ios-appstore`), **tuyệt đối không làm phá vỡ các logic cốt lõi** đã pass 100% test suite (đặc biệt là: *Local Cache First < 1.2ms, Batch SQL Prefetch O(1), GPS Location Card parsing, Pagination 80 kênh + 35 messages Telegram-style, và `mounted` safety checks*).
-> 2. **Góp Ý & Cập Nhật Minh Bạch Qua Audit**: Mọi góp ý kỹ thuật hoặc thay đổi cấu trúc cần được ghi nhận đồng bộ vào tài liệu [`docs/AUDIT_REPORT.md`](file:///media/tanma/DATA/save/mobile/docs/AUDIT_REPORT.md) và [`docs/CHANGELOGS.md`](file:///media/tanma/DATA/save/mobile/docs/CHANGELOGS.md) để duy trì tính toàn vẹn (Traceability) theo chuẩn AIaC 3.0.
-> 3. **Quy Trình Pull & Deploy Chuẩn**:
->    - Thực hiện pull/merge từ nhánh làm việc đang audit (`fix/app-chat-stabilization`) vào các nhánh release đích:
->      * **Backend Odoo**: Merge `fix/app-chat-stabilization` ➔ `17.0` ➔ Zero-Downtime Service Upgrade.
->      * **Frontend Mobile**: Merge `fix/app-chat-stabilization` ➔ `release/ios-appstore` ➔ Kích hoạt GitHub Actions CI/CD build TestFlight / App Store.
->    - Sau khi merge, chạy xác nhận `flutter analyze` (**0 errors, 0 warnings**) và `flutter test` (**207/207 tests PASS 100%**) để đảm bảo tuyệt đối không phát sinh lỗi hồi quy (regression).
+> **Chỉ dẫn quan trọng khi Review & Deploy trên nhánh `17.0` (Backend) & `release/ios-appstore` (Frontend)**:
+> 1. **Quy Trình Merge & Deploy**:
+>    - Toàn bộ tính năng, sửa lỗi và tối ưu hiệu năng của phiên bản **`v2.5.0+79`** đã hoàn thiện trên nhánh làm việc `fix/app-chat-stabilization`.
+>    - **Anh Tân** sẽ trực tiếp kiểm tra giao diện và merge nhánh `fix/app-chat-stabilization` vào nhánh **`17.0`** (Backend Odoo `v_mobile`) và nhánh **`release/ios-appstore`** (Frontend Mobile `vclients`).
+>    - **Claude Code / Sếp** sẽ checkout và thực hiện deploy trực tiếp trên nhánh **`17.0`** (nâng cấp Odoo SaaS Zero-Downtime) và nhánh **`release/ios-appstore`** (kích hoạt GitHub Actions CI/CD build TestFlight / App Store).
+> 2. **Bảo Toàn Logic Đã Kiểm Toán**: Khi Claude Code thực hiện deploy hoặc có tinh chỉnh trên nhánh `17.0` / `release/ios-appstore`, **tuyệt đối không làm thay đổi hay phá vỡ các logic cốt lõi** đã pass 100% test suite (bao gồm: *Local Cache First < 1.2ms, Batch SQL Prefetch O(1), GPS Location Card parsing, Pagination 80 kênh + 35 messages Telegram-style, và `mounted` safety checks*).
+> 3. **Góp Ý & Cập Nhật Minh Bạch Qua Audit**: Mọi góp ý kỹ thuật hoặc thay đổi cấu trúc cần được ghi nhận đồng bộ vào tài liệu [`docs/AUDIT_REPORT.md`](file:///media/tanma/DATA/save/mobile/docs/AUDIT_REPORT.md) và [`docs/CHANGELOGS.md`](file:///media/tanma/DATA/save/mobile/docs/CHANGELOGS.md) để duy trì tính toàn vẹn (Traceability) theo chuẩn AIaC 3.0.
 
 ---
 *Báo cáo được khởi tạo và lưu trữ chính thức tại:* [`/media/tanma/DATA/save/mobile/docs/AUDIT_REPORT.md`](file:///media/tanma/DATA/save/mobile/docs/AUDIT_REPORT.md)
