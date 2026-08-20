@@ -1029,9 +1029,7 @@ class _ChannelListItem extends ConsumerWidget {
 
     // Ưu tiên thời gian của tin nhắn thực tế từ cache nếu có
     final effectiveLastDate = (cachedMsgs != null && cachedMsgs.isNotEmpty && cachedMsgs.first.createdAt != null)
-        ? ((channel.lastMessageDate == null || cachedMsgs.first.createdAt!.isAfter(channel.lastMessageDate!))
-            ? cachedMsgs.first.createdAt
-            : channel.lastMessageDate)
+        ? cachedMsgs.first.createdAt
         : channel.lastMessageDate;
 
     final timeStr = effectiveLastDate != null
