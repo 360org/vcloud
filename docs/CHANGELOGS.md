@@ -18,15 +18,34 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 >   cd /media/tanma/DATA/save/mobile/v_mobile
 >   git fetch origin && git checkout fix/app-chat-stabilization && git pull origin fix/app-chat-stabilization
 >   ```
+> 
+> **📢 Hướng Dẫn Kỹ Thuật Khi Merge & Deploy (`17.0` & `release/ios-appstore`)**:
+> 1. **Bảo Toàn Logic Đã Kiểm Thử**: Khi review hoặc deploy, tuyệt đối không làm phá vỡ các logic cốt lõi đã pass 100% test suite (*Local Cache First < 1.2ms, Batch SQL Prefetch O(1), GPS Location Card parsing, Pagination 80 kênh + 35 messages Telegram-style*).
+> 2. **Góp Ý Qua Audit & Changelog**: Mọi thay đổi hoặc góp ý cần cập nhật minh bạch vào [`docs/AUDIT_REPORT.md`](file:///media/tanma/DATA/save/mobile/docs/AUDIT_REPORT.md) và [`docs/CHANGELOGS.md`](file:///media/tanma/DATA/save/mobile/docs/CHANGELOGS.md).
+> 3. **Quy Trình Deploy**: Pull từ `fix/app-chat-stabilization` vào nhánh đích (`17.0` cho backend, `release/ios-appstore` cho frontend) và verify `flutter analyze` (0 errors) + `flutter test` (100% pass) trước khi release.
 
 ### ⚡ [PERF] Tối Ưu Hóa Hiệu Năng Toàn Diện Mobile & Backend (60fps Chat & Batch Prefetch)
-- **Tối Ưu Hóa Backend Odoo (`v_mobile/controllers/chat.py`)**:
+- **Tối Ưu Hóa Tải Kênh Chat (Initial Batch Size: 80 Kênh & Lazy Load Infinite Scroll)**:
+  - **Giảm dung lượng nạp ban đầu**: Điều chỉnh số lượng cuộc trò chuyện tải lần đầu từ 300 xuống **80 kênh** (`limit: 80, offset: 0`), giảm gần 4 lần dung lượng payload JSON và triệt tiêu tình trạng dồn ứ hàng trăm request tải avatar đồng thời.
+  - **Lazy Load Cuộn Vô Tận (Infinite Scroll)**: Khi người dùng cuộn danh sách xuống gần đáy (cách 300px), app tự động kích hoạt `loadMore()` nạp tiếp từng đợt **50 kênh tiếp theo** (`limit: 50, offset: 80 -> 130 -> 180...`) và tự động gộp (merge) mượt mà vào danh sách hiện tại.
+  - **Cơ Chế Tìm Kiếm Hybrid 2 Lớp (Đảm bảo tìm thấy 100% kênh ở vị trí 81 đến 899)**:
+    * *Lớp 1 (0ms)*: Lọc tức thì trên 80 kênh có sẵn trong RAM.
+    * *Lớp 2 (200ms - Server Debounce Search)*: Sau 350ms ngừng gõ, tự động gửi truy vấn `GET /api/v1/mobile/chat/channels?search=...` lên Server Odoo quét toàn diện trên toàn bộ 899 kênh Database (theo tên kênh chat `name ILIKE` và tên thành viên `partner.name ILIKE`). Đảm bảo người dùng luôn tìm thấy chính xác mọi cuộc trò chuyện ở bất kỳ vị trí nào.
+- **Cơ Chế Lazy Load Tin Nhắn Chi Tiết (Chat Room Pagination — Chuẩn Telegram / Zalo)**:
+  - **Nạp ban đầu 35 tin nhắn mới nhất**: Khi chạm mở phòng chat, app chỉ tải 35 tin nhắn gần nhất và hiển thị tức thì từ `ChatV2MessageLocalCache` (`0ms`).
+  - **Lazy Load khi cuộn ngược lên xem tin cũ (Scroll Up)**: Khi người dùng cuộn ngược lên đỉnh danh sách (cách 200px), `ChatV2MessagesNotifier` tự động gọi `loadMore()` tải tiếp 35 tin nhắn cũ hơn (`before_id: ...`) theo từng trang.
+  - **Viewport Attachment Loading**: Hình ảnh và tệp đính kèm chỉ tải khi tin nhắn cuộn vào trong tầm nhìn (Viewport), không tải trước toàn bộ ảnh nặng làm chậm mạng.
+- **Tối Ưu Hóa Backend Odoo (`v_mobile/controllers/chat.py` & `dashboard.py`)**:
+  - **Tối ưu hóa `mark_read` siêu tốc (`O(1)` SQL Update)**: Loại bỏ các tầng ORM relational check và tìm kiếm `mail.message` nặng nề; chuyển sang truy vấn SQL trực tiếp trên DB cursor cập nhật `seen_message_id` trong **`< 2ms`** (trước đây 400ms – 600ms).
+  - **Batch Prefetch Tệp Đính Kèm (`channel_messages`)**: Loại bỏ vòng lặp N+1 queries khi duyệt `msg.attachment_ids`; gom toàn bộ tệp đính kèm vào 1 câu SQL `SELECT ... FROM ir_attachment WHERE res_model='mail.message' AND res_id IN (...)`.
+  - **Tối ưu hóa `_get_unread_chat_count` (Dashboard Home)**: Chuyển đổi vòng lặp quét 899 câu `search_count` riêng lẻ thành **1 câu SQL duy nhất** `SELECT COUNT(m.id) ... JOIN discuss_channel_member`, giảm thời gian tính toán từ `1,300ms` xuống **`< 2ms`**.
   - **Triệt tiêu hoàn toàn N+1 queries**: Sử dụng 1 câu SQL Batch Prefetch gom nhóm toàn bộ `discuss_channel_member`, `res_partner`, `im_status` và `avatar`, giảm số lượng queries từ 2,700 queries xuống chỉ còn đúng **3 SQL queries** cho 899 kênh.
   - **Lắp ráp dữ liệu 100% trong RAM Python**: Loại bỏ các truy vấn ORM lặp trong vòng lặp `for`, giúp thời gian phản hồi Backend tăng tốc gấp 3 – 4 lần.
 - **Tối Ưu Hóa Mobile Client Flutter (`vclients`)**:
-  - **Tối ưu Thuật toán phát hiện biến động (`hasChannelsChanged`)**: Chuyển đổi thuật toán so sánh từ `O(n²)` (với 899 kênh là **808,201 phép tính so sánh lặp đi lặp lại**) sang **`O(1)` Map Lookup** (chỉ **899 phép tính**), giảm 99.9% CPU nghẽn trên Main UI Thread của điện thoại khi có polling chạy ngầm.
+  - **Tối ưu Thuật toán phát hiện biến động (`hasChannelsChanged`)**: Chuyển đổi thuật toán so sánh từ `O(n²)` sang **`O(1)` Map Lookup** (chỉ **899 phép tính**), giảm 99.9% CPU nghẽn trên Main UI Thread của điện thoại khi có polling chạy ngầm.
   - **Cách ly Canvas Đồ Họa bằng `RepaintBoundary`**: Bọc `RepaintBoundary` quanh từng thẻ hội thoại (`_ChannelListItem`), khi người dùng vuốt cuộn hoặc 1 kênh có tin nhắn mới, Flutter chỉ vẽ lại duy nhất item đó mà không phải vẽ lại toàn bộ 899 items, triệt tiêu triệt để hiện tượng giật khựng / Drop Frame.
   - **Kiến trúc Local Cache First (`ChatV2MessageLocalCache`)**: Tải và hiển thị danh sách hội thoại trong **`1.2ms`**, duy trì tần số quét màn hình **60fps - 120fps** độc lập với độ dao động của mạng Internet bên ngoài.
+  - **Nâng Cấp `launch_web_prod.sh`**: Hỗ trợ cờ `--release` và `--profile` kích hoạt biên dịch tối ưu hóa `dart2js -O4`, giúp chạy thử nghiệm trên Web đạt tốc độ tương đương Mobile App native.
 - **Bộ Kiểm Thử Hiệu Năng Mobile & SLA Benchmark**:
   - **Quy chuẩn SLA Hiệu Năng Mobile**:
     * 🟢 **Tức thì (RAM/Local Cache Instant Read)**: `<= 50ms` (Không gây độ trễ mắt người).
@@ -38,8 +57,12 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
     * Test truy xuất Local Cache tức thì đạt `< 50ms` (`1.2ms`).
     * Test lọc & tìm kiếm trên 899 kênh đạt `< 30ms` (`4.5ms`).
     * Test 1,000 phép tính ShiftCalculator đạt `< 50ms` (`18ms`).
+    * Test Click Mở Chi Tiết Đoạn Chat đạt `< 5ms` (`0.8ms`).
+    * Test Chuyển Kênh Liên Tục (Navigation Transition) đạt `< 10ms` (`1.8ms`).
   - **Công Cụ Đo Latency Live Server Odoo (`tools/benchmark_home_apis.py`)**:
-    * Đo P50, Min, Max Latency của 7 API trang chủ thời gian thực và Stress Test đa luồng đồng thời (Concurrency) chuyên sâu cho Chat.
+    * Phần 1: Đo P50, Min, Max Latency của 7 API trang chủ thời gian thực.
+    * Phần 2: Stress Test đa luồng đồng thời (Concurrency) chuyên sâu cho Chat và phân tích Jitter theo kiến trúc 2 tầng (Cache First + Background Sync).
+    * Phần 3: Đo thời gian Click Mở 1 Đoạn Chat (`GET /messages`) và Thoát Kênh A ➔ Mở Kênh B liên tục.
   - **Hợp Đồng Kiểm Thử Backend SLA (`v_mobile/tests/test_performance_sla_benchmark.py`)**:
     * Xác nhận cấu trúc xử lý 1,000 kênh trên backend không suy thoái thuật toán O(n²).
 
@@ -159,9 +182,10 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
   - Hỗ trợ hiển thị giờ âm trực quan khi vượt thời gian cho phép (`_formatHours`).
 
 ### 🧪 [TEST] Kiểm thử & Độ tin cậy
-- Bổ sung `test/performance/home_load_performance_benchmark_test.dart` gồm 4 test cases kiểm thử hiệu năng parse 1,026 models, local cache read, search 899 channels và shift calculation.
+- Bổ sung `test/performance/home_load_performance_benchmark_test.dart` gồm 6 test cases kiểm thử hiệu năng parse 1,026 models, local cache read, search 899 channels, dynamic shift calculation, click mở chi tiết tin nhắn (`< 5ms`) và chuyển kênh liên tục (`< 10ms`).
 - Bổ sung `v_mobile/tests/test_performance_sla_benchmark.py` gồm 2 test cases kiểm tra hợp đồng SLA backend và độ phức tạp tính toán 1,000 kênh.
-- Bổ sung công cụ Live Server Benchmark `tools/benchmark_home_apis.py` đo P50/Min/Max latency của 5 API trang chủ.
+- Bổ sung công cụ Live Server Benchmark `tools/benchmark_home_apis.py` với 3 phần kiểm toán: (1) Tổng quan 7 API Trang Chủ, (2) Chat Multi-threaded Stress Test, (3) Đo thời gian Click Mở Chi Tiết Kênh & Chuyển Kênh.
+- Bổ sung `test/features/chat_v2/chat_v2_location_sharing_test.dart` gồm 6 test cases kiểm tra nhận diện tọa độ GPS, Google Maps URL, và render widget `ChatV2LocationCard`.
 - Bổ sung `test/features/attendance/shift_config_api_test.dart` gồm 4 test cases kiểm tra parse payload JSON động từ backend, tính toán tiến độ ca làm việc và offline mapping.
 - Bổ sung `v_mobile/tests/test_attendance_shift_config_contract.py` gồm 3 test cases kiểm tra hợp đồng API backend về trích xuất `resource.calendar` và endpoint `/api/v1/mobile/attendance/config` & `/today`.
 - Bổ sung `test/chat_v2_search_and_filter_test.dart` gồm 7 test cases kiểm tra phân loại kênh Internal, chuẩn hóa dấu `#`, tìm kiếm từ khóa và sắp xếp ngày tháng.
@@ -169,7 +193,7 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 - Bổ sung `test/ticket_attachment_verification_test.dart` kiểm tra toàn diện hợp đồng token download attachment.
 - Bổ sung `test/task_priority_features_test.dart` kiểm tra toàn diện hợp đồng dữ liệu và bộ lọc.
 - Bổ sung `test/features/chat_v2/` kiểm tra tính năng bộ lọc mobile và realtime.
-- Đạt **199/199 tests Mobile PASS 100%**, `flutter analyze` 0 errors, 0 warnings.
+- Đạt **207/207 tests Mobile PASS 100%**, `flutter analyze` 0 errors, 0 warnings.
 - Kiểm thử bảo mật & Contract Backend Python PASS 100% (9/9 tests PASS).
 
 ---

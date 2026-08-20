@@ -149,8 +149,22 @@ echo
 echo "=============================================================================="
 echo
 
+MODE_FLAG=""
+for arg in "$@"; do
+    if [[ "$arg" == "--release" ]] || [[ "$arg" == "--profile" ]]; then
+        MODE_FLAG="$arg"
+    fi
+done
+
+if [[ -n "$MODE_FLAG" ]]; then
+    echo "⚡ Chế độ chạy: $MODE_FLAG (AOT Optimized - Siêu mượt 60-120fps)"
+else
+    echo "🐞 Chế độ chạy: Debug JIT (Mặc định cho Dev). Dùng './launch_web_prod.sh --release' để chạy tốc độ tối đa."
+fi
+
 exec flutter run \
     -d chrome \
+    $MODE_FLAG \
     --web-port="$PORT" \
     --web-browser-flag="--disable-web-security" \
     --web-browser-flag="--user-data-dir=$CHROME_PROFILE" \

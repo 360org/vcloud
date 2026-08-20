@@ -609,6 +609,8 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                   return ListView.separated(
                     controller: _scrollController,
                     physics: const AlwaysScrollableScrollPhysics(),
+                    addRepaintBoundaries: true,
+                    addAutomaticKeepAlives: false,
                     itemCount: filtered.length + ((!isFiltered && (isLoadingMore || (!hasMore && filtered.length >= 40))) ? 1 : 0),
                     padding: const EdgeInsets.symmetric(vertical: 6),
                     separatorBuilder: (_, _) => Divider(

@@ -175,5 +175,85 @@ void main() {
         reason: 'SLA BREACH: 1,000 phép tính ShiftCalculator mất ${stopwatch.elapsedMilliseconds}ms (Vượt ngưỡng 50ms)',
       );
     });
+
+    test('5. [SLA <= 5ms] Channel Open & Detail Loading Latency Benchmark (Click & Load Messages)', () {
+      const channelId = 'channel_load_test_1';
+      final mockMessages = List<ChatV2Message>.generate(
+        35,
+        (i) => ChatV2Message(
+          id: 'msg_ch1_$i',
+          channelId: channelId,
+          content: 'Nội dung tin nhắn trong phòng chat #$i',
+          authorName: 'Thành viên $i',
+          createdAt: DateTime.now().subtract(Duration(minutes: 35 - i)),
+          isMine: i % 2 == 0,
+        ),
+      );
+
+      // Lưu vào cache
+      ChatV2MessageLocalCache.set(channelId, mockMessages, persist: false);
+
+      final stopwatch = Stopwatch()..start();
+
+      // Giả lập hành vi khi người dùng click vào 1 item chat:
+      // 1. Đọc tin nhắn từ RAM Cache để render ngay lập tức
+      final messages = ChatV2MessageLocalCache.get(channelId);
+      // 2. Parse và định tuyến danh sách hiển thị
+      expect(messages, isNotNull);
+      expect(messages!.length, equals(35));
+
+      stopwatch.stop();
+
+      expect(
+        stopwatch.elapsedMicroseconds / 1000.0,
+        lessThan(5.0),
+        reason: 'SLA BREACH: Click mở chi tiết đoạn chat mất ${stopwatch.elapsedMicroseconds / 1000.0}ms (Vượt ngưỡng 5ms)',
+      );
+    });
+
+    test('6. [SLA <= 10ms] Channel Switching & Fast Navigation Stress Test (Exit A ➔ Enter B ➔ Re-enter A)', () {
+      const channelA = 'channel_nav_A';
+      const channelB = 'channel_nav_B';
+      const channelC = 'channel_nav_C';
+
+      // Seed dữ liệu tin nhắn cho 3 kênh
+      for (final ch in [channelA, channelB, channelC]) {
+        final msgs = List<ChatV2Message>.generate(
+          35,
+          (i) => ChatV2Message(
+            id: '${ch}_msg_$i',
+            channelId: ch,
+            content: 'Tin nhắn trao đổi tại kênh $ch số $i',
+            authorName: 'User $i',
+            createdAt: DateTime.now().subtract(Duration(minutes: i)),
+            isMine: i % 3 == 0,
+          ),
+        );
+        ChatV2MessageLocalCache.set(ch, msgs, persist: false);
+      }
+
+      final stopwatch = Stopwatch()..start();
+
+      // Giả lập chuỗi hành vi: Vào A ➔ Thoát A vào B ➔ Thoát B vào C ➔ Quay lại A
+      final msgsA = ChatV2MessageLocalCache.get(channelA);
+      expect(msgsA!.first.channelId, equals(channelA));
+
+      final msgsB = ChatV2MessageLocalCache.get(channelB);
+      expect(msgsB!.first.channelId, equals(channelB));
+
+      final msgsC = ChatV2MessageLocalCache.get(channelC);
+      expect(msgsC!.first.channelId, equals(channelC));
+
+      final msgsAReturn = ChatV2MessageLocalCache.get(channelA);
+      expect(msgsAReturn!.first.channelId, equals(channelA));
+
+      stopwatch.stop();
+
+      expect(
+        stopwatch.elapsedMicroseconds / 1000.0,
+        lessThan(10.0),
+        reason: 'SLA BREACH: Chuyển đổi liên tục 4 lần giữa các kênh mất ${stopwatch.elapsedMicroseconds / 1000.0}ms (Vượt ngưỡng 10ms)',
+      );
+    });
   });
 }
