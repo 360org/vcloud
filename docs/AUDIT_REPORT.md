@@ -106,13 +106,16 @@ Mã nguồn phiên bản **`v2.5.0+79`** đã hoàn thành toàn bộ các yêu 
   ```
 
 ### 4.3 📢 Lời Nhắn & Hướng Dẫn Kỹ Thuật Dành Cho Claude Code (Release & Deployment Lead)
-> [!IMPORTANT]
-> **Chỉ dẫn quan trọng khi Review & Deploy trên nhánh `17.0` (Backend) & `release/ios-appstore` (Frontend)**:
+> [!CAUTION]
+> **CẢNH BÁO QUAN TRỌNG KHI REVIEW & DEPLOY TRÊN NHÁNH `17.0` & `release/ios-appstore`**:
 > 1. **Quy Trình Merge & Deploy**:
 >    - Toàn bộ tính năng, sửa lỗi và tối ưu hiệu năng của phiên bản **`v2.5.0+79`** đã hoàn thiện trên nhánh làm việc `fix/app-chat-stabilization`.
 >    - **Anh Tân** sẽ trực tiếp kiểm tra giao diện và merge nhánh `fix/app-chat-stabilization` vào nhánh **`17.0`** (Backend Odoo `v_mobile`) và nhánh **`release/ios-appstore`** (Frontend Mobile `vclients`).
 >    - **Claude Code / Sếp** sẽ checkout và thực hiện deploy trực tiếp trên nhánh **`17.0`** (nâng cấp Odoo SaaS Zero-Downtime) và nhánh **`release/ios-appstore`** (kích hoạt GitHub Actions CI/CD build TestFlight / App Store).
-> 2. **Bảo Toàn Logic Đã Kiểm Toán**: Khi Claude Code thực hiện deploy hoặc có tinh chỉnh trên nhánh `17.0` / `release/ios-appstore`, **tuyệt đối không làm thay đổi hay phá vỡ các logic cốt lõi** đã pass 100% test suite (bao gồm: *Local Cache First < 1.2ms, Batch SQL Prefetch O(1), GPS Location Card parsing, Pagination 80 kênh + 35 messages Telegram-style, và `mounted` safety checks*).
+> 2. **CẢNH BÁO NGHIÊM NGẶT: Tuyệt Đối Không Thay Đổi Logic Code Đã Qua Kiểm Toán**:
+>    - Nếu Claude Code tự ý thay đổi logic code, cấu trúc DTO model, API payload hoặc cơ chế quản lý state trên nhánh `17.0` / `release/ios-appstore`, toàn bộ **hệ thống test suite (207 unit & widget tests)** sẽ bị **FAIL (LỖI ĐỎ)** ngay lập tức.
+>    - Khi test bị lỗi, quy trình **GitHub Actions CI/CD sẽ tự động chặn đứng pipeline (Build Failed)** và **HOÀN TOÀN KHÔNG THỂ DEPLOY hay phát hành bản dựng App Store / TestFlight được**.
+>    - Do đó, **BẮT BUỘC BẢO TOÀN NGUYÊN VẸN 100%** các logic cốt lõi đã pass toàn diện (*Local Cache First < 1.2ms, Batch SQL Prefetch O(1), GPS Location Card parsing, Pagination 80 kênh + 35 messages Telegram-style, và `mounted` safety checks*).
 > 3. **Góp Ý & Cập Nhật Minh Bạch Qua Audit**: Mọi góp ý kỹ thuật hoặc thay đổi cấu trúc cần được ghi nhận đồng bộ vào tài liệu [`docs/AUDIT_REPORT.md`](file:///media/tanma/DATA/save/mobile/docs/AUDIT_REPORT.md) và [`docs/CHANGELOGS.md`](file:///media/tanma/DATA/save/mobile/docs/CHANGELOGS.md) để duy trì tính toàn vẹn (Traceability) theo chuẩn AIaC 3.0.
 
 ---

@@ -19,9 +19,9 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 >   git fetch origin && git checkout fix/app-chat-stabilization && git pull origin fix/app-chat-stabilization
 >   ```
 > 
-> **📢 Hướng Dẫn Kỹ Thuật Khi Review & Deploy Trên Nhánh `17.0` & `release/ios-appstore`**:
+> **📢 Hướng Dẫn Kỹ Thuật & Cảnh Báo Khi Review & Deploy Trên Nhánh `17.0` & `release/ios-appstore`**:
 > 1. **Quy Trình Merge & Deploy**: Sau khi **anh Tân** kiểm tra và merge nhánh `fix/app-chat-stabilization` vào **`17.0`** (Backend Odoo `v_mobile`) và **`release/ios-appstore`** (Frontend Mobile `vclients`), **Claude Code / Sếp** sẽ checkout và thực hiện deploy trực tiếp trên nhánh `17.0` (Odoo SaaS Upgrade) và `release/ios-appstore` (GitHub Actions CI/CD).
-> 2. **Bảo Toàn Logic Đã Kiểm Toán**: Khi deploy hoặc chỉnh sửa trên nhánh `17.0` / `release/ios-appstore`, tuyệt đối không làm thay đổi hay phá vỡ các logic cốt lõi đã pass 100% test suite (*Local Cache First < 1.2ms, Batch SQL Prefetch O(1), GPS Location Card parsing, Pagination 80 kênh + 35 messages Telegram-style, và `mounted` checks*).
+> 2. **CẢNH BÁO: Không Thay Đổi Logic Code Đã Kiểm Toán**: Nếu Claude Code tự ý thay đổi logic code trên nhánh `17.0` / `release/ios-appstore`, toàn bộ hệ thống test suite (**207 tests**) trên máy anh Tân sẽ bị **FAIL (LỖI ĐỎ)**, dẫn đến luồng **GitHub Actions CI/CD bị chặn hoàn toàn (Build Failed)** và **KHÔNG THỂ DEPLOY ĐƯỢC**. Bắt buộc bảo toàn nguyên vẹn 100% logic đã audit (*Local Cache First < 1.2ms, Batch SQL Prefetch O(1), GPS Location Card, Nạp 80 kênh + Pagination 35 messages Telegram-style, và `mounted` checks*).
 > 3. **Góp Ý Qua Audit & Changelog**: Mọi thay đổi hoặc góp ý cần cập nhật minh bạch vào [`docs/AUDIT_REPORT.md`](file:///media/tanma/DATA/save/mobile/docs/AUDIT_REPORT.md) và [`docs/CHANGELOGS.md`](file:///media/tanma/DATA/save/mobile/docs/CHANGELOGS.md).
 
 ### ⚡ [PERF] Tối Ưu Hóa Hiệu Năng Toàn Diện Mobile & Backend (60fps Chat & Batch Prefetch)
