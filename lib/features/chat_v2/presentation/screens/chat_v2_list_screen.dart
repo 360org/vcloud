@@ -461,12 +461,16 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                     final cleanName = c.getCleanName(currentUserName);
 
                     if (_searchQuery.isNotEmpty) {
-                      final matchName = cleanName.toLowerCase().contains(_searchQuery) ||
-                          c.name.toLowerCase().contains(_searchQuery);
-                      final matchMsg = (c.lastMessage ?? '')
-                          .toLowerCase()
-                          .contains(_searchQuery);
-                      if (!matchName && !matchMsg) return false;
+                      final q = _searchQuery.replaceAll('#', '').trim().toLowerCase();
+                      final matchCleanName = cleanName.replaceAll('#', '').toLowerCase().contains(q);
+                      final matchRawName = c.name.replaceAll('#', '').toLowerCase().contains(q);
+                      final matchMsg = (c.lastMessage ?? '').toLowerCase().contains(q);
+                      final matchMembers = c.memberNames.any((m) => m.toLowerCase().contains(q));
+                      final matchDirect = (c.directPartnerName ?? '').toLowerCase().contains(q);
+
+                      if (!matchCleanName && !matchRawName && !matchMsg && !matchMembers && !matchDirect) {
+                        return false;
+                      }
                     }
                     if (_selectedFilterIndex == 0) {
                       // 0: Chưa đọc
