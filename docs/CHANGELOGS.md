@@ -54,13 +54,18 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
     * 🟢 **API đơn lẻ (Chấm công, Ticket, Timesheet, Shift Config)**: `<= 1,000ms - 1,500ms` (Đạt chuẩn trải nghiệm di động).
     * 🟡 **API danh sách lớn (Chats 899 kênh, Tasks 100+ items)**: `<= 2,000ms` (Chấp nhận được).
     * 🔴 **Vi Phạm Ngưỡng Hiệu Năng (SLA Breach / Chậm)**: `> 3,000ms` (Bắt buộc phải áp dụng Local Cache tức thì và phân trang/lazy loading).
+  - **Tối Ưu Hóa Backend Odoo (`v_mobile/controllers/chat.py`)**:
+    * Triệt tiêu hoàn toàn **N+1 queries**: Sử dụng 1 câu SQL Batch Prefetch gom nhóm toàn bộ `discuss_channel_member`, `res_partner`, `im_status` và `avatar`, giảm số lượng queries từ 2,700 queries xuống chỉ còn đúng **3 SQL queries** cho 899 kênh.
+  - **Tối Ưu Hóa Mobile Client Flutter (`vclients`)**:
+    * Chuyển đổi thuật toán kiểm tra biến động `hasChannelsChanged` từ `O(n²)` (808,201 phép so sánh) sang `O(1)` Map Lookup (899 phép tính), giảm 99.9% CPU nghẽn trên Main UI Thread.
+    * Bọc `RepaintBoundary` cho từng `_ChannelListItem`, cách ly canvas đồ họa của từng item, triệt tiêu hiện tượng repaint lan truyền gây giật khựng khi cuộn.
   - **Bộ Test Hiệu Năng Frontend (`vclients/test/performance/home_load_performance_benchmark_test.dart`)**:
     * Test nạp & parse 1,026 đối tượng JSON đồng thời (899 Channels + 107 Tasks + 20 Tickets) đạt `< 150ms`.
     * Test truy xuất Local Cache tức thì đạt `< 50ms`.
     * Test lọc & tìm kiếm trên 899 kênh đạt `< 30ms`.
     * Test 1,000 phép tính ShiftCalculator đạt `< 50ms`.
   - **Công Cụ Đo Latency Live Server Odoo (`tools/benchmark_home_apis.py`)**:
-    * Tự động đo P50, Min, Max Latency của 5 API trang chủ thời gian thực và xuất báo cáo trực quan màu sắc.
+    * Tự động đo P50, Min, Max Latency của 5 API trang chủ và Stress Test đa luồng đồng thời (Concurrency) chuyên sâu cho Chat.
   - **Hợp Đồng Kiểm Thử Backend SLA (`v_mobile/tests/test_performance_sla_benchmark.py`)**:
     * Xác nhận cấu trúc xử lý 1,000 kênh trên backend không suy thoái thuật toán O(n²).
 - **Hỗ Trợ Kênh Thảo Luận Công Khai / Kênh Internal & Tìm Kiếm Trực Tiếp Từ Server**:

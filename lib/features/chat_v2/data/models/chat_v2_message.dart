@@ -219,6 +219,42 @@ class ChatV2Message {
 
   ChatV2Poll? get poll => ChatV2Poll.tryParseFromBody(rawBody ?? content);
 
+  static final _locationRegex = RegExp(
+    r'(?:https?:\/\/)?(?:www\.)?(?:maps\.google\.com\/(?:\?q=|maps\?q=)|maps\.apple\.com\/(?:\?q=|maps\?q=)|google\.com\/maps\?q=|openstreetmap\.org\/\?mlat=)(-?\d+\.?\d*)[,\/](-?\d+\.?\d*)',
+    caseSensitive: false,
+  );
+
+  bool get isLocationMessage {
+    final text = (rawBody ?? content).trim();
+    if (text.isEmpty) return false;
+    return text.contains('maps.google.com') ||
+        text.contains('maps.apple.com') ||
+        text.contains('google.com/maps') ||
+        text.contains('openstreetmap.org') ||
+        (text.contains('📍') && _locationRegex.hasMatch(text));
+  }
+
+  ({double lat, double lng, String mapUrl})? get locationCoordinates {
+    final text = (rawBody ?? content).trim();
+    final match = _locationRegex.firstMatch(text);
+    if (match != null && match.groupCount >= 2) {
+      final latStr = match.group(1);
+      final lngStr = match.group(2);
+      if (latStr != null && lngStr != null) {
+        final lat = double.tryParse(latStr);
+        final lng = double.tryParse(lngStr);
+        if (lat != null && lng != null) {
+          return (
+            lat: lat,
+            lng: lng,
+            mapUrl: 'https://maps.google.com/?q=$lat,$lng',
+          );
+        }
+      }
+    }
+    return null;
+  }
+
   ChatV2Message copyWith({
     String? id,
     String? channelId,

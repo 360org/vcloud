@@ -1064,18 +1064,19 @@ class _ChannelListItem extends ConsumerWidget {
           lastMessageDate: effectiveLastDate,
         );
 
-    return Material(
-      color: hasUnread
-          ? (isDark
-              ? const Color(0xFF00C83A).withValues(alpha: 0.08)
-              : const Color(0xFF00C83A).withValues(alpha: 0.05))
-          : Colors.transparent,
-      child: InkWell(
-        onTap: () {
-          ref.read(chatV2ReadStateProvider.notifier).markChannelAsRead(channel.id);
-          context.push('/chat/${channel.id}');
-        },
-        child: Container(
+    return RepaintBoundary(
+      child: Material(
+        color: hasUnread
+            ? (isDark
+                ? const Color(0xFF00C83A).withValues(alpha: 0.08)
+                : const Color(0xFF00C83A).withValues(alpha: 0.05))
+            : Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            ref.read(chatV2ReadStateProvider.notifier).markChannelAsRead(channel.id);
+            context.push('/chat/${channel.id}');
+          },
+          child: Container(
           decoration: BoxDecoration(
             border: hasUnread
                 ? const Border(
@@ -1281,8 +1282,9 @@ class _ChannelListItem extends ConsumerWidget {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildLastMessageSnippet(
       WidgetRef ref, bool isDark, bool hasUnread, String cleanName) {

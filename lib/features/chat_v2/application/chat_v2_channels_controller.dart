@@ -242,12 +242,12 @@ class ChatV2ChannelsNotifier
     bool hasChannelsChanged(List<ChatV2Channel> currentList, List<ChatV2Channel> freshList) {
       if (freshList.isEmpty && currentList.isNotEmpty) return false;
       if (currentList.isEmpty && freshList.isNotEmpty) return true;
+      if (currentList.length != freshList.length) return true;
+      final currentMap = {for (final c in currentList) c.id: c};
       for (final freshItem in freshList) {
-        final match = currentList.firstWhere(
-          (c) => c.id == freshItem.id,
-          orElse: () => freshItem,
-        );
-        if (match.lastMessage != freshItem.lastMessage ||
+        final match = currentMap[freshItem.id];
+        if (match == null ||
+            match.lastMessage != freshItem.lastMessage ||
             match.lastMessageDate != freshItem.lastMessageDate ||
             match.unreadCount != freshItem.unreadCount) {
           return true;

@@ -11,6 +11,7 @@ import '../../../../core/utils/file_download.dart';
 import '../../../../core/utils/local_attachment_cache.dart';
 import '../../data/models/chat_v2_message.dart';
 import '../screens/chat_v2_image_viewer_screen.dart';
+import 'chat_v2_location_card.dart';
 import 'chat_v2_poll_card.dart';
 
 class ChatV2MessageItem extends StatelessWidget {
@@ -192,6 +193,31 @@ class ChatV2MessageItem extends StatelessWidget {
                       isMine: isMine,
                       timeStr: timeStr,
                     )
+                  : (message.isLocationMessage && message.locationCoordinates != null)
+                      ? Column(
+                          crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                          children: [
+                            if (!isMine && showSenderName) ...[
+                              Text(
+                                message.authorName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: authorColor,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                            ],
+                            ChatV2LocationCard(
+                              message: message,
+                              isMine: isMine,
+                            ),
+                            const SizedBox(height: 2),
+                            timeAndStatus,
+                          ],
+                        )
                   : isPureImage
                       ? _buildPureImageBubble(context, imageAttachments, isMine, timeStr)
                       : Container(

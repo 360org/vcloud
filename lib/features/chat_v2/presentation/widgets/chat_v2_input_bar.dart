@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:geolocator/geolocator.dart';
 
 import 'chat_v2_create_poll_sheet.dart';
 
@@ -325,6 +326,114 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
     }
   }
 
+  Future<void> _handleShareLocation() async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final isServiceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!isServiceEnabled) {
+        if (mounted) {
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text('Vui lòng bật dịch vụ định vị (GPS) trên thiết bị của bạn.'),
+              behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+        return;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          if (mounted) {
+            messenger.showSnackBar(
+              const SnackBar(
+                content: Text('Quyền truy cập vị trí bị từ chối.'),
+                behavior: SnackBarBehavior.floating,
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        if (mounted) {
+          showDialog<void>(
+            context: context,
+            builder: (dCtx) => AlertDialog(
+              title: const Text('Quyền truy cập vị trí'),
+              content: const Text(
+                'Ứng dụng cần quyền vị trí để gửi tọa độ bản đồ trong chat. Vui lòng mở Cài đặt để cấp quyền.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dCtx),
+                  child: const Text('Đóng'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(dCtx);
+                    Geolocator.openAppSettings();
+                  },
+                  child: const Text('Mở Cài đặt'),
+                ),
+              ],
+            ),
+          );
+        }
+        return;
+      }
+
+      if (mounted) {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                ),
+                SizedBox(width: 12),
+                Text('Đang lấy vị trí GPS hiện tại...'),
+              ],
+            ),
+            duration: Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 10),
+      );
+
+      final lat = position.latitude;
+      final lng = position.longitude;
+      final locationMsg = '📍 Vị trí: https://maps.google.com/?q=$lat,$lng';
+
+      await widget.onSend(locationMsg);
+    } catch (e) {
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Không thể lấy vị trí: $e'),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
   void _showAttachmentMenu() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -337,7 +446,7 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
       ),
       builder: (ctx) => SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -345,61 +454,74 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
               Container(
                 width: 38,
                 height: 4.5,
-                margin: const EdgeInsets.only(bottom: 22),
+                margin: const EdgeInsets.only(bottom: 20),
                 decoration: BoxDecoration(
                   color: isDark ? Colors.white24 : const Color(0xFFCBD5E1),
                   borderRadius: BorderRadius.circular(3),
                 ),
               ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildAttachmentActionButton(
-                    icon: LucideIcons.image,
-                    gradientColors: const [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
-                    label: 'Thư viện',
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      _handlePickImage(ImageSource.gallery);
-                    },
-                    isDark: isDark,
-                  ),
-                  _buildAttachmentActionButton(
-                    icon: LucideIcons.camera,
-                    gradientColors: const [Color(0xFFF43F5E), Color(0xFFE11D48)],
-                    label: 'Máy ảnh',
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      _handlePickImage(ImageSource.camera);
-                    },
-                    isDark: isDark,
-                  ),
-                  _buildAttachmentActionButton(
-                    icon: LucideIcons.fileText,
-                    gradientColors: const [Color(0xFF3B82F6), Color(0xFF1D4ED8)],
-                    label: 'Tài liệu',
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      _handlePickFile();
-                    },
-                    isDark: isDark,
-                  ),
-                  _buildAttachmentActionButton(
-                    icon: LucideIcons.barChart2,
-                    gradientColors: const [Color(0xFF10B981), Color(0xFF059669)],
-                    label: 'Bình chọn',
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      if (widget.onCreatePoll != null) {
-                        widget.onCreatePoll!();
-                      } else if (widget.channelId != null) {
-                        ChatV2CreatePollSheet.show(context, widget.channelId!);
-                      }
-                    },
-                    isDark: isDark,
-                  ),
-                ],
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildAttachmentActionButton(
+                      icon: LucideIcons.image,
+                      gradientColors: const [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
+                      label: 'Thư viện',
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _handlePickImage(ImageSource.gallery);
+                      },
+                      isDark: isDark,
+                    ),
+                    _buildAttachmentActionButton(
+                      icon: LucideIcons.camera,
+                      gradientColors: const [Color(0xFFF43F5E), Color(0xFFE11D48)],
+                      label: 'Máy ảnh',
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _handlePickImage(ImageSource.camera);
+                      },
+                      isDark: isDark,
+                    ),
+                    _buildAttachmentActionButton(
+                      icon: LucideIcons.fileText,
+                      gradientColors: const [Color(0xFF3B82F6), Color(0xFF1D4ED8)],
+                      label: 'Tài liệu',
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _handlePickFile();
+                      },
+                      isDark: isDark,
+                    ),
+                    _buildAttachmentActionButton(
+                      icon: LucideIcons.barChart2,
+                      gradientColors: const [Color(0xFF10B981), Color(0xFF059669)],
+                      label: 'Bình chọn',
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        if (widget.onCreatePoll != null) {
+                          widget.onCreatePoll!();
+                        } else if (widget.channelId != null) {
+                          ChatV2CreatePollSheet.show(context, widget.channelId!);
+                        }
+                      },
+                      isDark: isDark,
+                    ),
+                    _buildAttachmentActionButton(
+                      icon: LucideIcons.mapPin,
+                      gradientColors: const [Color(0xFFF59E0B), Color(0xFFD97706)],
+                      label: 'Vị trí',
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _handleShareLocation();
+                      },
+                      isDark: isDark,
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 10),
             ],
@@ -423,13 +545,13 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
       },
       borderRadius: BorderRadius.circular(20),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 58,
-              height: 58,
+              width: 54,
+              height: 54,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: gradientColors,
@@ -446,14 +568,14 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
                 ],
               ),
               alignment: Alignment.center,
-              child: Icon(icon, color: Colors.white, size: 26),
+              child: Icon(icon, color: Colors.white, size: 24),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             Text(
               label,
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 13,
+                fontSize: 12,
                 fontWeight: FontWeight.w600,
                 color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF334155),
                 letterSpacing: 0.1,
