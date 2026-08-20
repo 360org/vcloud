@@ -125,13 +125,15 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
   - Hỗ trợ hiển thị giờ âm trực quan khi vượt thời gian cho phép (`_formatHours`).
 
 ### 🧪 [TEST] Kiểm thử & Độ tin cậy
+- Bổ sung `test/features/attendance/shift_config_api_test.dart` gồm 4 test cases kiểm tra parse payload JSON động từ backend, tính toán tiến độ ca làm việc và offline mapping.
+- Bổ sung `v_mobile/tests/test_attendance_shift_config_contract.py` gồm 3 test cases kiểm tra hợp đồng API backend về trích xuất `resource.calendar` và endpoint `/api/v1/mobile/attendance/config` & `/today`.
 - Bổ sung `test/chat_v2_search_and_filter_test.dart` gồm 7 test cases kiểm tra phân loại kênh Internal, chuẩn hóa dấu `#`, tìm kiếm từ khóa và sắp xếp ngày tháng.
 - Bổ sung `v_mobile/tests/test_chat_search_and_channels_contract.py` kiểm tra hợp đồng API backend về kênh nội bộ công khai, sắp xếp `write_date desc` và search query.
 - Bổ sung `test/ticket_attachment_verification_test.dart` kiểm tra toàn diện hợp đồng token download attachment.
 - Bổ sung `test/task_priority_features_test.dart` kiểm tra toàn diện hợp đồng dữ liệu và bộ lọc.
 - Bổ sung `test/features/chat_v2/` kiểm tra tính năng bộ lọc mobile và realtime.
-- Đạt **191/191 tests Mobile PASS 100%**, `flutter analyze` 0 errors, 0 warnings.
-- Kiểm thử bảo mật Backend Python PASS 100% (4/4 tests PASS).
+- Đạt **195/195 tests Mobile PASS 100%**, `flutter analyze` 0 errors, 0 warnings.
+- Kiểm thử bảo mật & Contract Backend Python PASS 100% (7/7 tests PASS).
 
 ---
 
