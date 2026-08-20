@@ -716,6 +716,8 @@ class _DetailedShiftBreakdownCard extends ConsumerWidget {
     final date = (checkin ?? now).toLocal();
     final lunchStart = DateTime(date.year, date.month, date.day, config.lunchStartHour, config.lunchStartMinute);
     final lunchEnd = DateTime(date.year, date.month, date.day, config.lunchEndHour, config.lunchEndMinute);
+    final lunchMinutes = ((config.lunchEndHour * 60 + config.lunchEndMinute) - (config.lunchStartHour * 60 + config.lunchStartMinute)).clamp(15, 180);
+    final lunchFormatted = lunchMinutes % 60 == 0 ? '${lunchMinutes ~/ 60} tiếng' : '$lunchMinutes phút';
 
     final morningWorked = shiftProgress.morningWorkedMinutes;
     final afternoonWorked = shiftProgress.afternoonWorkedMinutes;
@@ -865,9 +867,9 @@ class _DetailedShiftBreakdownCard extends ConsumerWidget {
               ),
               const SizedBox(width: 6),
 
-              // Nghỉ trưa segment (1h = 60m)
+              // Nghỉ trưa segment
               Expanded(
-                flex: 60,
+                flex: lunchMinutes,
                 child: Column(
                   children: [
                     const Text(
@@ -964,7 +966,7 @@ class _DetailedShiftBreakdownCard extends ConsumerWidget {
                   icon: LucideIcons.utensils,
                   iconColor: const Color(0xFFD97706),
                   title: 'Giờ nghỉ trưa (${config.lunchTimeRange})',
-                  subtitle: '1 tiếng nghỉ ngơi • Tự động đóng băng công',
+                  subtitle: '$lunchFormatted nghỉ ngơi • Tự động đóng băng công',
                   isCompleted: now.isAfter(lunchEnd),
                 ),
                 const Padding(
