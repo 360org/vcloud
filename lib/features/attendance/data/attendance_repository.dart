@@ -6,12 +6,27 @@ import '../../../core/api/odoo_api_client.dart';
 import '../../../core/error/failure.dart';
 import '../../../core/notifications/realtime_constants.dart';
 import '../../../shared/models/attendance.dart';
+import '../domain/shift_calculator.dart';
 
 class AttendanceRepository {
   AttendanceRepository({OdooApiClient? client})
     : _client = client ?? odooApiClient;
 
   final OdooApiClient _client;
+  static ShiftConfig? cachedShiftConfig;
+
+  Future<ShiftConfig> getShiftConfig({DateTime? date}) async {
+    try {
+      final query = date != null ? <String, Object?>{'date': date.toIso8601String().split('T').first} : <String, Object?>{};
+      final res = await _client.get('/api/v1/mobile/attendance/config', query: query);
+      if (res is Map) {
+        final config = ShiftConfig.fromMap(Map<String, dynamic>.from(res));
+        cachedShiftConfig = config;
+        return config;
+      }
+    } catch (_) {}
+    return cachedShiftConfig ?? ShiftConfig.forDate(date ?? DateTime.now());
+  }
 
   Future<void> ensurePermission() async {
     final svc = await Geolocator.isLocationServiceEnabled();
@@ -173,6 +188,11 @@ class AttendanceRepository {
 
   Attendance? _attendanceFromToday(dynamic raw) {
     final map = Map<String, dynamic>.from(raw as Map);
+    if (map['shift_config'] is Map) {
+      try {
+        cachedShiftConfig = ShiftConfig.fromMap(Map<String, dynamic>.from(map['shift_config'] as Map));
+      } catch (_) {}
+    }
     final attendanceState = map['attendance_state']?.toString().toLowerCase();
     final isCheckedIn =
         map['is_checked_in'] == true ||

@@ -33,6 +33,74 @@ class ShiftConfig {
   final bool allowEarlyCheckinWorkHours;
   final String dayName;
 
+  factory ShiftConfig.fromMap(Map<String, dynamic> map) {
+    return ShiftConfig(
+      shiftStartHour: (map['shift_start_hour'] as num?)?.toInt() ?? 8,
+      shiftStartMinute: (map['shift_start_minute'] as num?)?.toInt() ?? 0,
+      shiftEndHour: (map['shift_end_hour'] as num?)?.toInt() ?? 17,
+      shiftEndMinute: (map['shift_end_minute'] as num?)?.toInt() ?? 0,
+      lunchStartHour: (map['lunch_start_hour'] as num?)?.toInt() ?? 12,
+      lunchStartMinute: (map['lunch_start_minute'] as num?)?.toInt() ?? 0,
+      lunchEndHour: (map['lunch_end_hour'] as num?)?.toInt() ?? 13,
+      lunchEndMinute: (map['lunch_end_minute'] as num?)?.toInt() ?? 0,
+      morningTargetMinutes: (map['morning_target_minutes'] as num?)?.toInt() ?? 240,
+      afternoonTargetMinutes: (map['afternoon_target_minutes'] as num?)?.toInt() ?? 240,
+      targetWorkMinutes: (map['target_work_minutes'] as num?)?.toInt() ?? 480,
+      allowEarlyCheckinWorkHours: map['allow_early_checkin_work_hours'] == true,
+      dayName: map['day_name']?.toString() ?? 'Ngày làm việc',
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return <String, dynamic>{
+      'shift_start_hour': shiftStartHour,
+      'shift_start_minute': shiftStartMinute,
+      'shift_end_hour': shiftEndHour,
+      'shift_end_minute': shiftEndMinute,
+      'lunch_start_hour': lunchStartHour,
+      'lunch_start_minute': lunchStartMinute,
+      'lunch_end_hour': lunchEndHour,
+      'lunch_end_minute': lunchEndMinute,
+      'morning_target_minutes': morningTargetMinutes,
+      'afternoon_target_minutes': afternoonTargetMinutes,
+      'target_work_minutes': targetWorkMinutes,
+      'allow_early_checkin_work_hours': allowEarlyCheckinWorkHours,
+      'day_name': dayName,
+    };
+  }
+
+  ShiftConfig copyWith({
+    int? shiftStartHour,
+    int? shiftStartMinute,
+    int? shiftEndHour,
+    int? shiftEndMinute,
+    int? lunchStartHour,
+    int? lunchStartMinute,
+    int? lunchEndHour,
+    int? lunchEndMinute,
+    int? morningTargetMinutes,
+    int? afternoonTargetMinutes,
+    int? targetWorkMinutes,
+    bool? allowEarlyCheckinWorkHours,
+    String? dayName,
+  }) {
+    return ShiftConfig(
+      shiftStartHour: shiftStartHour ?? this.shiftStartHour,
+      shiftStartMinute: shiftStartMinute ?? this.shiftStartMinute,
+      shiftEndHour: shiftEndHour ?? this.shiftEndHour,
+      shiftEndMinute: shiftEndMinute ?? this.shiftEndMinute,
+      lunchStartHour: lunchStartHour ?? this.lunchStartHour,
+      lunchStartMinute: lunchStartMinute ?? this.lunchStartMinute,
+      lunchEndHour: lunchEndHour ?? this.lunchEndHour,
+      lunchEndMinute: lunchEndMinute ?? this.lunchEndMinute,
+      morningTargetMinutes: morningTargetMinutes ?? this.morningTargetMinutes,
+      afternoonTargetMinutes: afternoonTargetMinutes ?? this.afternoonTargetMinutes,
+      targetWorkMinutes: targetWorkMinutes ?? this.targetWorkMinutes,
+      allowEarlyCheckinWorkHours: allowEarlyCheckinWorkHours ?? this.allowEarlyCheckinWorkHours,
+      dayName: dayName ?? this.dayName,
+    );
+  }
+
   /// Returns the standard shift configuration based on the day of the week:
   /// - Thứ Hai (T2): 07:30 - 17:00, lunch 12:00 - 13:00 (Sáng: 4h30, Chiều: 4h => 8h30 / 510m)
   /// - Thứ Bảy (T7): 08:00 - 16:30, lunch 12:00 - 13:00 (Sáng: 4h, Chiều: 3h30 => 7h30 / 450m)

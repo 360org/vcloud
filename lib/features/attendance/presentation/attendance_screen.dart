@@ -697,15 +697,19 @@ class _WeeklySummary extends ConsumerWidget {
   }
 }
 
-class _DetailedShiftBreakdownCard extends StatelessWidget {
+class _DetailedShiftBreakdownCard extends ConsumerWidget {
   const _DetailedShiftBreakdownCard({required this.open});
   final Attendance? open;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final checkin = open?.checkinTime;
-    final shiftProgress = ShiftCalculator.calculate(checkinTime: checkin);
+    final dynamicConfig = ref.watch(currentShiftConfigProvider);
+    final shiftProgress = ShiftCalculator.calculate(
+      checkinTime: checkin,
+      config: dynamicConfig,
+    );
     final config = shiftProgress.config;
 
     final now = DateTime.now();

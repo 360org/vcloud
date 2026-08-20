@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../shared/models/attendance.dart';
 import '../data/attendance_repository.dart';
+import '../domain/shift_calculator.dart';
 
 final attendanceRepositoryProvider = Provider<AttendanceRepository>(
   (_) => AttendanceRepository(),
@@ -42,4 +43,14 @@ final attendanceActionsProvider = Provider(
 /// endpoint, not history, because history can contain stale open rows.
 final openSessionProvider = Provider<Attendance?>((ref) {
   return ref.watch(attendanceTodayProvider).valueOrNull;
+});
+
+final shiftConfigProvider = FutureProvider.autoDispose<ShiftConfig>((ref) async {
+  final repo = ref.watch(attendanceRepositoryProvider);
+  return repo.getShiftConfig();
+});
+
+final currentShiftConfigProvider = Provider<ShiftConfig>((ref) {
+  final asyncConfig = ref.watch(shiftConfigProvider);
+  return asyncConfig.valueOrNull ?? AttendanceRepository.cachedShiftConfig ?? ShiftConfig.forDate(DateTime.now());
 });

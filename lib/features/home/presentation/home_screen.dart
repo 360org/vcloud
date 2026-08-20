@@ -249,7 +249,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 }
 
-class _GreetingHeader extends StatelessWidget {
+class _GreetingHeader extends ConsumerWidget {
   const _GreetingHeader({
     required this.userId,
     required this.displayName,
@@ -281,13 +281,16 @@ class _GreetingHeader extends StatelessWidget {
   final VoidCallback onOpenAttendance;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final today = _vietnameseDateTime(DateTime.now());
-    final shiftConfig = ShiftConfig.forDate(DateTime.now());
+    final shiftConfig = ref.watch(currentShiftConfigProvider);
     final targetMinutes = shiftConfig.targetWorkMinutes;
     final shiftProgress = (isOnline && checkinTime != null)
-        ? ShiftCalculator.calculate(checkinTime: checkinTime!)
+        ? ShiftCalculator.calculate(
+            checkinTime: checkinTime!,
+            config: shiftConfig,
+          )
         : null;
     final displayMinutes = shiftProgress != null ? shiftProgress.workedMinutes : todayMinutes;
     final isCompleted = displayMinutes >= targetMinutes;

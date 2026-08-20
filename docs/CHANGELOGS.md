@@ -31,6 +31,19 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 - **Fix Đồng Bộ Giờ & Lần Log Gần Nhất Cho Task Detail (Timesheet Modal)**:
   - **Backend**: Cập nhật `all_project_tasks` và `task_detail` trong `v_mobile/controllers/project.py`, loại bỏ điều kiện kẹp cứng `max(allocated - effective, 0.0)` giúp hiển thị chính xác số giờ âm khi vượt thời gian cho phép (như `-3 giờ`); đồng thời truy vấn bản ghi mới nhất từ `account.analytic.line` để trả về `last_log_hours`, `last_log_date`, `last_log_note`.
   - **Frontend**: Nâng cấp `Task` model, `task_repository.dart`, và `timesheet_list_screen.dart` để hiển thị chính xác các chỉ số *"Lần log gần nhất"*, *"Tổng thời gian cho phép"*, *"Tổng thời gian đã làm"*, và *"Còn lại"*.
+- **Lấy Cấu Hình Ca Làm Việc Động Từ Backend API (Dynamic Shift Configuration & Work Schedule)**:
+  - **Backend (`v_mobile/controllers/attendance.py`)**:
+    - Xóa bỏ việc phụ thuộc vào cấu hình tĩnh; bổ sung hàm `_get_shift_config(employee, target_date)` tự động đọc lịch làm việc thực tế của nhân viên từ `employee.resource_calendar_id` (hoặc `company_id.resource_calendar_id`).
+    - Bóc tách chính xác các mốc thời gian: Giờ bắt đầu/kết thúc ca sáng (`morning_target_minutes`, `morningTimeRange`), Giờ nghỉ trưa (`lunchTimeRange`), Giờ ca chiều (`afternoon_target_minutes`, `afternoonTimeRange`), Tổng mục tiêu ngày (`target_work_minutes`, `targetHoursFormatted`).
+    - Trả về đối tượng `shift_config` trong endpoint `/api/v1/mobile/attendance/today` và cung cấp endpoint độc lập `/api/v1/mobile/attendance/config`.
+  - **Frontend (`vclients`)**:
+    - Nâng cấp model `ShiftConfig` (`shift_calculator.dart`): Bổ sung constructor `ShiftConfig.fromMap(Map<String, dynamic> map)`, `toMap()`, `copyWith(...)` để parse dữ liệu thời gian thực từ API backend, giữ fallback an toàn `ShiftConfig.forDate(...)`.
+    - Thêm `shiftConfigProvider` và `currentShiftConfigProvider` trong `attendance_controller.dart` và cập nhật `AttendanceRepository` cache cấu hình ca làm việc.
+    - Cập nhật Widget **`_DetailedShiftBreakdownCard`** (màn hình Chấm công) và **`_GreetingHeader`** (màn hình Trang chủ) đọc ca làm việc động từ Riverpod Provider, tự động hiển thị chính xác 100% khung giờ ca sáng, nghỉ trưa, ca chiều và thanh tiến độ theo dữ liệu Odoo.
+  - **Unit Tests**:
+    - Thêm `vclients/test/features/attendance/shift_config_api_test.dart` (4 test cases).
+    - Thêm `v_mobile/tests/test_attendance_shift_config_contract.py` (3 test cases).
+    - Đạt **195/195 tests Flutter PASS 100%**, `flutter analyze` 0 errors, 0 warnings.
 - **Hỗ Trợ Kênh Thảo Luận Công Khai / Kênh Internal & Tìm Kiếm Trực Tiếp Từ Server**:
   - **Backend (`v_mobile/controllers/chat.py`)**:
     - Tự động bao gồm tất cả các kênh công khai nội bộ (`channel_type = 'channel'`) cho toàn bộ nhân viên nội bộ (`not user.share`), cho phép hiển thị các kênh công ty như `#Internal` ngay cả khi user chưa được add thủ công vào member trước đó.
