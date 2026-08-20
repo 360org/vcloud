@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
+
+import '../../data/chat_v2_repository.dart';
 
 import '../../../../core/utils/date_format.dart';
 import '../../../../shared/widgets/app_scaffold.dart';
@@ -25,6 +28,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
   final ScrollController _scrollController = ScrollController();
   String _searchQuery = '';
   int? _selectedFilterIndex; // null: Mặc định (Tất cả), 0: Chưa đọc, 1: Nội bộ, 2: Nhóm, 3: Kênh
+  Timer? _searchDebounceTimer;
 
   final List<String> _filters = ['Chưa đọc', 'Nội bộ', 'Nhóm', 'Kênh'];
 
@@ -37,11 +41,45 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
     return null;
   }
 
+  void _onSearchChanged(String val) {
+    final query = val.trim().toLowerCase();
+    setState(() => _searchQuery = query);
+
+    _searchDebounceTimer?.cancel();
+    if (query.isNotEmpty) {
+      _searchDebounceTimer = Timer(const Duration(milliseconds: 350), () async {
+        try {
+          final results = await ref.read(chatV2RepositoryProvider).getChannels(
+                search: query,
+                limit: 50,
+              );
+          if (mounted && results.isNotEmpty) {
+            final current = List<ChatV2Channel>.from(ChatV2ChannelLocalCache.cached);
+            final existingIds = current.map((c) => c.id).toSet();
+            final toAdd = results.where((c) => !existingIds.contains(c.id)).toList();
+            if (toAdd.isNotEmpty) {
+              ChatV2ChannelLocalCache.set([...current, ...toAdd]);
+            }
+          }
+        } catch (_) {}
+      });
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     _selectedFilterIndex = _resolveFilterIndex(widget.initialFilter);
     _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _searchDebounceTimer?.cancel();
+    _searchController.dispose();
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
   }
 
   void _onScroll() {
@@ -60,14 +98,6 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
         _selectedFilterIndex = _resolveFilterIndex(widget.initialFilter);
       });
     }
-  }
-
-  @override
-  void dispose() {
-    _scrollController.removeListener(_onScroll);
-    _scrollController.dispose();
-    _searchController.dispose();
-    super.dispose();
   }
 
   @override
@@ -166,9 +196,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                         ),
                         child: TextField(
                           controller: _searchController,
-                          onChanged: (val) {
-                            setState(() => _searchQuery = val.trim().toLowerCase());
-                          },
+                          onChanged: _onSearchChanged,
                           style: TextStyle(
                             fontSize: 14,
                             color: isDark ? Colors.white : const Color(0xFF0F172A),

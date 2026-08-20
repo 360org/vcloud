@@ -260,7 +260,7 @@ class ChatV2ChannelsNotifier
       if (_isFetching || isDisposed) return;
       _isFetching = true;
       try {
-        final fresh = await repo.getChannels(limit: 50, offset: 0);
+        final fresh = await repo.getChannels(limit: 300, offset: 0);
         if (isDisposed) return;
         final current = state.valueOrNull ?? ChatV2ChannelLocalCache.cached;
         if (hasChannelsChanged(current, fresh)) {
@@ -356,7 +356,7 @@ class ChatV2ChannelsNotifier
       return cached;
     }
 
-    final fresh = await repo.getChannels(limit: 50, offset: 0);
+    final fresh = await repo.getChannels(limit: 300, offset: 0);
     ChatV2ChannelLocalCache.set(fresh);
     return ChatV2ChannelLocalCache.cached;
   }
@@ -364,7 +364,7 @@ class ChatV2ChannelsNotifier
   Future<void> refresh() async {
     _hasMore = true;
     final repo = ref.read(chatV2RepositoryProvider);
-    final fresh = await repo.getChannels(limit: 50, offset: 0);
+    final fresh = await repo.getChannels(limit: 300, offset: 0);
     ChatV2ChannelLocalCache.set(fresh);
     state = AsyncData(ChatV2ChannelLocalCache.cached);
   }
