@@ -148,168 +148,229 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                // ── 2. Search Bar ───────────────────────────────────────────
-                Container(
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: isDark
-                        ? const Color(0xFF0F172A)
-                        : const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: isDark ? Colors.white10 : const Color(0xFFE2E8F0),
-                      width: 0.8,
-                    ),
-                  ),
-                  child: TextField(
-                    controller: _searchController,
-                    onChanged: (val) {
-                      setState(() => _searchQuery = val.trim().toLowerCase());
-                    },
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: isDark ? Colors.white : const Color(0xFF0F172A),
-                    ),
-                    decoration: InputDecoration(
-                      hintText: 'Tìm kiếm cuộc trò chuyện...',
-                      hintStyle: TextStyle(
-                        fontSize: 14,
-                        color: isDark
-                            ? Colors.white38
-                            : const Color(0xFF94A3B8),
-                      ),
-                      prefixIcon: Icon(
-                        LucideIcons.search,
-                        size: 18,
-                        color: isDark
-                            ? Colors.white54
-                            : const Color(0xFF94A3B8),
-                      ),
-                      suffixIcon: _searchQuery.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(LucideIcons.x, size: 16),
+                // ── 2. Search & Filter Bar ───────────────────────────────────
+                Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? const Color(0xFF0F172A)
+                              : const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: isDark ? Colors.white10 : const Color(0xFFE2E8F0),
+                            width: 0.8,
+                          ),
+                        ),
+                        child: TextField(
+                          controller: _searchController,
+                          onChanged: (val) {
+                            setState(() => _searchQuery = val.trim().toLowerCase());
+                          },
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          ),
+                          decoration: InputDecoration(
+                            hintText: 'Tìm kiếm cuộc trò chuyện...',
+                            hintStyle: TextStyle(
+                              fontSize: 14,
+                              color: isDark
+                                  ? Colors.white38
+                                  : const Color(0xFF94A3B8),
+                            ),
+                            prefixIcon: Icon(
+                              LucideIcons.search,
+                              size: 18,
                               color: isDark
                                   ? Colors.white54
                                   : const Color(0xFF94A3B8),
-                              onPressed: () {
-                                _searchController.clear();
-                                setState(() => _searchQuery = '');
-                              },
-                            )
-                          : null,
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                      contentPadding:
-                          const EdgeInsets.symmetric(vertical: 10),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // ── 3. Filter Chips với số lượng thống kê ───────────────────
-                channelsAsync.maybeWhen(
-                  data: (channels) {
-                    final unreadCount = ref.watch(chatV2TotalUnreadProvider);
-                    final internalCount = channels
-                        .where((c) => c.isInternalDirect(currentUserName))
-                        .length;
-                    final groupCount = channels
-                        .where((c) => c.isGroupChat(currentUserName))
-                        .length;
-                    final channelCount = channels
-                        .where((c) => c.isChannel)
-                        .length;
-
-                    final counts = [unreadCount, internalCount, groupCount, channelCount];
-
-                    return SizedBox(
-                      height: 34,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: _filters.length,
-                        separatorBuilder: (_, _) => const SizedBox(width: 8),
-                        itemBuilder: (context, idx) {
-                          final isSelected = _selectedFilterIndex == idx;
-                          final count = counts[idx];
-
-                          return ChoiceChip(
-                            showCheckmark: false,
-                            label: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(_filters[idx]),
-                                const SizedBox(width: 5),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 6, vertical: 1.5),
-                                  decoration: BoxDecoration(
-                                    color: isSelected
-                                        ? Colors.white.withValues(alpha: 0.25)
-                                        : (isDark
-                                            ? Colors.white12
-                                            : const Color(0xFFE2E8F0)),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Text(
-                                    count.toString(),
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold,
-                                      color: isSelected
-                                          ? Colors.white
-                                          : (isDark
-                                              ? Colors.white70
-                                              : const Color(0xFF64748B)),
-                                    ),
-                                  ),
-                                ),
-                              ],
                             ),
-                            selected: isSelected,
-                            onSelected: (selected) {
-                              setState(() {
-                                if (selected) {
-                                  _selectedFilterIndex = idx;
-                                } else {
-                                  _selectedFilterIndex = null; // Bỏ chọn -> Về mặc định: Tất cả
-                                }
-                              });
-                              debugPrint('${_filters[idx]} : $count cuộc trò chuyện');
-                            },
-                            selectedColor: const Color(0xFF00C83A),
-                            backgroundColor: isDark
-                                ? const Color(0xFF0F172A)
-                                : const Color(0xFFF1F5F9),
-                            labelStyle: TextStyle(
-                              fontSize: 12.5,
-                              fontWeight:
-                                  isSelected ? FontWeight.w700 : FontWeight.w500,
-                              color: isSelected
-                                  ? Colors.white
-                                  : (isDark
-                                      ? Colors.white70
-                                      : const Color(0xFF64748B)),
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            side: BorderSide(
-                              color: isSelected
-                                  ? Colors.transparent
-                                  : (isDark
-                                      ? Colors.white10
-                                      : const Color(0xFFE2E8F0)),
-                              width: 0.8,
-                            ),
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                            visualDensity: VisualDensity.compact,
-                          );
-                        },
+                            suffixIcon: _searchQuery.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(LucideIcons.x, size: 16),
+                                    color: isDark
+                                        ? Colors.white54
+                                        : const Color(0xFF94A3B8),
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      setState(() => _searchQuery = '');
+                                    },
+                                  )
+                                : null,
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            contentPadding:
+                                const EdgeInsets.symmetric(vertical: 10),
+                          ),
+                        ),
                       ),
-                    );
-                  },
-                  orElse: () => const SizedBox.shrink(),
+                    ),
+                    const SizedBox(width: 8),
+                    // ── Nút Filter Icon ─────────────────────────────────────
+                    channelsAsync.maybeWhen(
+                      data: (channels) {
+                        final unreadCount = ref.watch(chatV2TotalUnreadProvider);
+                        final internalCount = channels
+                            .where((c) => c.isInternalDirect(currentUserName))
+                            .length;
+                        final groupCount = channels
+                            .where((c) => c.isGroupChat(currentUserName))
+                            .length;
+                        final channelCount = channels
+                            .where((c) => c.isChannel)
+                            .length;
+                        final counts = [unreadCount, internalCount, groupCount, channelCount];
+                        final isFilterActive = _selectedFilterIndex != null;
+
+                        return Material(
+                          color: isFilterActive
+                              ? const Color(0xFF00C83A)
+                              : (isDark
+                                  ? const Color(0xFF0F172A)
+                                  : const Color(0xFFF1F5F9)),
+                          borderRadius: BorderRadius.circular(14),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(14),
+                            onTap: () => _showFilterSheet(
+                              context: context,
+                              channels: channels,
+                              counts: counts,
+                              currentUserName: currentUserName,
+                            ),
+                            child: Container(
+                              width: 42,
+                              height: 42,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: isFilterActive
+                                      ? Colors.transparent
+                                      : (isDark
+                                          ? Colors.white10
+                                          : const Color(0xFFE2E8F0)),
+                                  width: 0.8,
+                                ),
+                              ),
+                              child: Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  Icon(
+                                    LucideIcons.slidersHorizontal,
+                                    size: 19,
+                                    color: isFilterActive
+                                        ? Colors.white
+                                        : (isDark
+                                            ? Colors.white70
+                                            : const Color(0xFF475569)),
+                                  ),
+                                  if (isFilterActive)
+                                    Positioned(
+                                      top: 8,
+                                      right: 8,
+                                      child: Container(
+                                        width: 7,
+                                        height: 7,
+                                        decoration: const BoxDecoration(
+                                          color: Colors.white,
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                      orElse: () => Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? const Color(0xFF0F172A)
+                              : const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: isDark
+                                ? Colors.white10
+                                : const Color(0xFFE2E8F0),
+                            width: 0.8,
+                          ),
+                        ),
+                        child: Icon(
+                          LucideIcons.slidersHorizontal,
+                          size: 19,
+                          color: isDark
+                              ? Colors.white38
+                              : const Color(0xFF94A3B8),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
+                // ── 3. Active Filter Mini Indicator (khi đang lọc) ──────────
+                if (_selectedFilterIndex != null) ...[
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? const Color(0xFF00C83A).withValues(alpha: 0.18)
+                              : const Color(0xFFE8F9EE),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: const Color(0xFF00C83A).withValues(alpha: 0.35),
+                            width: 0.8,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              LucideIcons.filter,
+                              size: 12,
+                              color: Color(0xFF00C83A),
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              'Đang lọc: ${_filters[_selectedFilterIndex!]}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF00C83A),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            InkWell(
+                              onTap: () =>
+                                  setState(() => _selectedFilterIndex = null),
+                              borderRadius: BorderRadius.circular(10),
+                              child: Container(
+                                padding: const EdgeInsets.all(2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF00C83A).withValues(alpha: 0.2),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  LucideIcons.x,
+                                  size: 11,
+                                  color: Color(0xFF00C83A),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
@@ -575,6 +636,301 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showFilterSheet({
+    required BuildContext context,
+    required List<ChatV2Channel> channels,
+    required List<int> counts,
+    required String? currentUserName,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Container(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E293B) : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.15),
+                blurRadius: 20,
+                offset: const Offset(0, -4),
+              ),
+            ],
+          ),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Drag Handle
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white24 : const Color(0xFFCBD5E1),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Sheet Header
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF00C83A).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            LucideIcons.slidersHorizontal,
+                            size: 18,
+                            color: Color(0xFF00C83A),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Lọc cuộc trò chuyện',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_selectedFilterIndex != null)
+                      TextButton(
+                        onPressed: () {
+                          setState(() => _selectedFilterIndex = null);
+                          Navigator.pop(ctx);
+                        },
+                        style: TextButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        ),
+                        child: const Text(
+                          'Đặt lại',
+                          style: TextStyle(
+                            color: Color(0xFF00C83A),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      )
+                    else
+                      IconButton(
+                        icon: Icon(
+                          LucideIcons.x,
+                          size: 20,
+                          color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                        ),
+                        onPressed: () => Navigator.pop(ctx),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // Option 1: Tất cả
+                _buildFilterOption(
+                  ctx: ctx,
+                  isDark: isDark,
+                  title: 'Tất cả cuộc trò chuyện',
+                  subtitle: 'Toàn bộ danh sách trò chuyện',
+                  count: channels.length,
+                  icon: LucideIcons.messageSquare,
+                  iconColor: const Color(0xFF3B82F6),
+                  isSelected: _selectedFilterIndex == null,
+                  onTap: () {
+                    setState(() => _selectedFilterIndex = null);
+                    Navigator.pop(ctx);
+                  },
+                ),
+                const SizedBox(height: 8),
+                // Option 2: Chưa đọc (index 0)
+                _buildFilterOption(
+                  ctx: ctx,
+                  isDark: isDark,
+                  title: 'Chưa đọc',
+                  subtitle: 'Tin nhắn mới chưa xem',
+                  count: counts[0],
+                  icon: LucideIcons.bellRing,
+                  iconColor: const Color(0xFFEF4444),
+                  isSelected: _selectedFilterIndex == 0,
+                  onTap: () {
+                    setState(() => _selectedFilterIndex = 0);
+                    Navigator.pop(ctx);
+                  },
+                ),
+                const SizedBox(height: 8),
+                // Option 3: Nội bộ 1-1 (index 1)
+                _buildFilterOption(
+                  ctx: ctx,
+                  isDark: isDark,
+                  title: 'Trò chuyện nội bộ',
+                  subtitle: 'Tin nhắn trực tiếp 1-1',
+                  count: counts[1],
+                  icon: LucideIcons.user,
+                  iconColor: const Color(0xFF10B981),
+                  isSelected: _selectedFilterIndex == 1,
+                  onTap: () {
+                    setState(() => _selectedFilterIndex = 1);
+                    Navigator.pop(ctx);
+                  },
+                ),
+                const SizedBox(height: 8),
+                // Option 4: Nhóm (index 2)
+                _buildFilterOption(
+                  ctx: ctx,
+                  isDark: isDark,
+                  title: 'Nhóm trò chuyện',
+                  subtitle: 'Nhóm thảo luận nhiều người',
+                  count: counts[2],
+                  icon: LucideIcons.users,
+                  iconColor: const Color(0xFF8B5CF6),
+                  isSelected: _selectedFilterIndex == 2,
+                  onTap: () {
+                    setState(() => _selectedFilterIndex = 2);
+                    Navigator.pop(ctx);
+                  },
+                ),
+                const SizedBox(height: 8),
+                // Option 5: Kênh (index 3)
+                _buildFilterOption(
+                  ctx: ctx,
+                  isDark: isDark,
+                  title: 'Kênh thảo luận',
+                  subtitle: 'Kênh phòng ban & dự án',
+                  count: counts[3],
+                  icon: LucideIcons.hash,
+                  iconColor: const Color(0xFFF59E0B),
+                  isSelected: _selectedFilterIndex == 3,
+                  onTap: () {
+                    setState(() => _selectedFilterIndex = 3);
+                    Navigator.pop(ctx);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildFilterOption({
+    required BuildContext ctx,
+    required bool isDark,
+    required String title,
+    required String subtitle,
+    required int count,
+    required IconData icon,
+    required Color iconColor,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: isSelected
+          ? (isDark
+              ? const Color(0xFF00C83A).withValues(alpha: 0.15)
+              : const Color(0xFFE8F9EE))
+          : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC)),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isSelected
+                  ? const Color(0xFF00C83A)
+                  : (isDark ? Colors.white10 : const Color(0xFFE2E8F0)),
+              width: isSelected ? 1.4 : 0.8,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: iconColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: iconColor, size: 18),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark ? Colors.white54 : const Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? const Color(0xFF00C83A).withValues(alpha: 0.2)
+                      : (isDark ? Colors.white12 : const Color(0xFFE2E8F0)),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  count.toString(),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: isSelected
+                        ? const Color(0xFF00C83A)
+                        : (isDark ? Colors.white70 : const Color(0xFF64748B)),
+                  ),
+                ),
+              ),
+              if (isSelected) ...[
+                const SizedBox(width: 8),
+                const Icon(
+                  LucideIcons.check,
+                  color: Color(0xFF00C83A),
+                  size: 18,
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
