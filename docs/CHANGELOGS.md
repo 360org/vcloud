@@ -167,6 +167,14 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
   - Đồng bộ số lượng kênh trò chuyện tức thì giữa `chatV2ChannelsProvider` và Widget Chats trên Trang Chủ.
 
 ### 🛡️ [FIX] Sửa lỗi & Tăng cường an toàn
+- **Attachment Upload Sudo Execution & Pre-linking (Commit `a65bbd2`)**:
+  - Đảm bảo endpoint `send_message` thực thi trong context `sudo()` và liên kết trước `res_model='mail.message'` cho toàn bộ danh sách `attachment_ids` trước khi commit, loại bỏ triệt để lỗi `403 AccessError` khi gửi nhiều file hoặc ảnh nặng đồng thời.
+- **Bảo Mật File Đính Kèm & Chống Thất Thoát Dữ Liệu (Security ACL & Orphan Check — Commit `87b8c88`, `46879ed`)**:
+  - Chặn upload tệp đính kèm vào các kênh chat hoặc bản ghi nghiệp vụ mà người dùng không có quyền đọc/ghi.
+  - Chặn tải xuống attachment mồ côi (orphan attachment) hoặc file trong phòng chat nếu người dùng không phải là thành viên hợp lệ hoặc không có `access_token` hợp lệ.
+  - Bổ sung bộ kiểm thử bảo mật hồi quy tự động `v_mobile/tests/test_attachment_security_contract.py`.
+- **Lưu Trữ Ghim Trò Chuyện Bền Vững (Pinned Channel Persistence — Commit `4b57d28`)**:
+  - Lưu trữ danh sách ID kênh được ghim (`pinnedChannelIds`) vào `FlutterSecureStorage`, đảm bảo giữ nguyên trạng thái ghim lên đầu sau khi reload trang web hoặc khởi động lại ứng dụng.
 - **Ticket Attachment Authorization (Task #16447)**:
   - Khắc phục triệt để lỗi `access_denied` khi tải tệp đính kèm Ticket (`helpdesk.ticket`) từ app và browser.
   - Bổ sung xác thực quyền đọc target model và fallback ORM ACL trong `_check_attachment_authorization`.
