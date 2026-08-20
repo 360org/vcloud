@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -20,29 +22,52 @@ class SplashScreen extends ConsumerStatefulWidget {
 
 class _SplashScreenState extends ConsumerState<SplashScreen> {
   bool _isWarmingUp = false;
+  Timer? _fallbackTimer;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final authState = ref.read(authControllerProvider);
+      final user = authState.valueOrNull;
+      if (user != null) {
+        _warmupAndNavigate();
+      } else if (!authState.isLoading) {
+        context.go('/login');
+      }
+    });
+
+    // Fail-safe 1.5s timeout: nếu mạng chậm hoặc auth state không đổi, tự động chuyển trang
+    _fallbackTimer = Timer(const Duration(milliseconds: 1500), () {
+      if (!mounted) return;
       final user = ref.read(authControllerProvider).valueOrNull;
       if (user != null) {
         _warmupAndNavigate();
+      } else {
+        context.go('/login');
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _fallbackTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _warmupAndNavigate() async {
     if (_isWarmingUp) return;
     _isWarmingUp = true;
+    _fallbackTimer?.cancel();
 
     try {
-      // Warm-up song song các core providers với timeout an toàn 1000ms
+      // Warm-up song song các core providers với timeout an toàn 800ms
       await Future.wait([
         ref.read(mobileDashboardSummaryProvider.future),
         ref.read(chatV2ChannelsProvider.future),
         ref.read(ticketsProvider.future),
-      ]).timeout(const Duration(milliseconds: 1000));
+      ]).timeout(const Duration(milliseconds: 800));
     } catch (_) {
       // Fail-soft: Timeout hoặc lỗi mạng nhẹ vẫn mở Home với dữ liệu sẵn có
     }
@@ -59,6 +84,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       if (user != null) {
         _warmupAndNavigate();
       } else if (!next.isLoading) {
+        _fallbackTimer?.cancel();
         context.go('/login');
       }
     });
@@ -241,7 +267,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                   const Padding(
                     padding: EdgeInsets.only(bottom: 20),
                     child: Text(
-                      '360 CORP • v2.4.0',
+                      '360 CORP • v2.5.0',
                       style: TextStyle(
                         color: Color(0xFF94A3B8),
                         fontSize: 11.5,

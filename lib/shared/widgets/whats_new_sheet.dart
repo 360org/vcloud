@@ -8,7 +8,7 @@ class WhatsNewSheet extends StatelessWidget {
   static const String _storageKey = 'whats_new_seen_build_number';
 
   /// Kiểm tra và tự động hiển thị Sheet nếu người dùng chưa xem build [targetBuild]
-  static Future<void> showIfNeeded(BuildContext context, {int targetBuild = 76}) async {
+  static Future<void> showIfNeeded(BuildContext context, {int targetBuild = 79}) async {
     try {
       const storage = FlutterSecureStorage();
       final seenStr = await storage.read(key: _storageKey);
@@ -96,7 +96,7 @@ class WhatsNewSheet extends StatelessWidget {
                         Icon(LucideIcons.sparkles, size: 14, color: Color(0xFF00C83A)),
                         SizedBox(width: 6),
                         Text(
-                          'PHIÊN BẢN MỚI v2.4.0 (BUILD 76)',
+                          'PHIÊN BẢN MỚI v2.5.0 (BUILD 79)',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w800,
