@@ -143,21 +143,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final displayName = (name != null && name.isNotEmpty)
         ? name
         : (user?.email?.split('@').first ?? 'Người dùng');
-    final todayTasks = ref
-        .watch(todayTasksProvider)
-        .maybeWhen(
-          data: (tasks) => tasks
-              .where((task) => !task.isCompleted)
-              .take(3)
-              .map(_todayTaskPreviewFromTask)
-              .toList(),
-          orElse: () => const <_TodayTaskPreview>[],
-        );
+    final allTasks = ref.watch(todayTasksProvider).valueOrNull ?? const <Task>[];
+    final totalOpenTasksCount = allTasks.where((task) => !task.isCompleted).length;
+    final todayTasks = allTasks
+        .where((task) => !task.isCompleted)
+        .take(3)
+        .map(_todayTaskPreviewFromTask)
+        .toList();
     // Attendance is the source of truth immediately after a toggle. The
     // dashboard is a separate cached snapshot and may be one request behind.
     final openSession = ref.watch(openSessionProvider);
     final isOnline = openSession?.isOpen ?? summary?.isCheckedIn ?? dashboard?.isCheckedIn ?? false;
-    final closedMinutes = dashboard?.todayMinutes ?? summary?.todayMinutes ?? 0;
+    final todayAttendanceMinutes = ref.watch(todayAttendanceMinutesProvider);
+    final closedMinutes = todayAttendanceMinutes > 0
+        ? todayAttendanceMinutes
+        : (dashboard?.todayMinutes ?? summary?.todayMinutes ?? 0);
     
     final shiftProgress = (isOnline && openSession?.checkinTime != null)
         ? ShiftCalculator.calculate(checkinTime: openSession!.checkinTime)
@@ -197,6 +197,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ref.invalidate(homeSummaryProvider);
             ref.invalidate(mobileDashboardSummaryProvider);
             ref.invalidate(attendanceTodayProvider);
+            ref.invalidate(attendanceStreamProvider);
             ref.invalidate(todayTasksProvider);
             ref.invalidate(openSessionProvider);
             ref.invalidate(chatV2ChannelsProvider);
@@ -228,7 +229,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ticketCount: openTickets,
                 chatCount: fallbackChatCount,
                 unreadCount: ref.watch(chatV2TotalUnreadProvider),
-                taskCount: todayTasks.length,
+                taskCount: totalOpenTasksCount,
               ),
               const SizedBox(height: 20),
               _TodayWork(tasks: todayTasks),
@@ -442,11 +443,11 @@ class _GreetingHeader extends ConsumerWidget {
                               width: 8,
                               height: 8,
                               decoration: BoxDecoration(
-                                color: isOnline ? AppColors.success : AppColors.primary,
+                                color: (isOnline || displayMinutes >= targetMinutes) ? AppColors.success : AppColors.primary,
                                 shape: BoxShape.circle,
                                 boxShadow: [
                                   BoxShadow(
-                                    color: (isOnline ? AppColors.success : AppColors.primary).withValues(alpha: 0.5),
+                                    color: (isOnline || displayMinutes >= targetMinutes ? AppColors.success : AppColors.primary).withValues(alpha: 0.5),
                                     blurRadius: 6,
                                     spreadRadius: 1,
                                   ),
@@ -458,13 +459,15 @@ class _GreetingHeader extends ConsumerWidget {
                               child: Text(
                                 shiftProgress != null
                                     ? shiftProgress.badgeLabel
-                                    : (isOnline ? 'Đã vào ca' : 'Chưa vào ca làm'),
+                                    : (displayMinutes >= targetMinutes
+                                        ? 'Đã hoàn thành ca 🎉'
+                                        : (isOnline ? 'Đã vào ca' : 'Chưa vào ca làm')),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w800,
-                                  color: isOnline ? AppColors.success : AppColors.primary,
+                                  color: (isOnline || displayMinutes >= targetMinutes) ? AppColors.success : AppColors.primary,
                                 ),
                               ),
                             ),
@@ -527,7 +530,7 @@ class _GreetingHeader extends ConsumerWidget {
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w900,
-                          color: isOnline ? AppColors.success : AppColors.primary,
+                          color: (isOnline || isCompleted) ? AppColors.success : AppColors.primary,
                         ),
                       ),
                     ],
@@ -552,13 +555,13 @@ class _GreetingHeader extends ConsumerWidget {
                           height: 7,
                           decoration: BoxDecoration(
                             gradient: AppColors.featureGrad(
-                              isOnline ? AppColors.success : AppColors.primary,
-                              isOnline ? AppColors.primary : AppColors.success,
+                              (isOnline || isCompleted) ? AppColors.success : AppColors.primary,
+                              (isOnline || isCompleted) ? const Color(0xFF10B981) : AppColors.success,
                             ),
                             borderRadius: BorderRadius.circular(99),
                             boxShadow: [
                               BoxShadow(
-                                color: (isOnline ? AppColors.success : AppColors.primary).withValues(alpha: 0.35),
+                                color: ((isOnline || isCompleted) ? AppColors.success : AppColors.primary).withValues(alpha: 0.35),
                                 blurRadius: 6,
                                 offset: const Offset(0, 2),
                               ),
@@ -610,13 +613,19 @@ class _GreetingHeader extends ConsumerWidget {
                               ? (shiftProgress.remainingMinutes > 0
                                   ? 'Còn ${_durationVi(Duration(minutes: shiftProgress.remainingMinutes))} đến mốc ${shiftConfig.shiftEndHour.toString().padLeft(2, '0')}:${shiftConfig.shiftEndMinute.toString().padLeft(2, '0')}'
                                   : '🎉 Đã hoàn thành xuất sắc ${shiftConfig.targetHoursFormatted} làm việc!')
-                              : 'Chưa bắt đầu ca làm việc',
+                              : (displayMinutes >= targetMinutes
+                                  ? '🎉 Đã hoàn thành xuất sắc ca làm việc hôm nay (${_durationVi(Duration(minutes: displayMinutes))})'
+                                  : (displayMinutes > 0
+                                      ? 'Đã tích lũy ${_durationVi(Duration(minutes: displayMinutes))} • Chưa vào ca mới'
+                                      : 'Chưa bắt đầu ca làm việc')),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
-                            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.65),
+                            color: (displayMinutes >= targetMinutes)
+                                ? AppColors.success
+                                : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.65),
                           ),
                         ),
                       ),
@@ -1036,6 +1045,8 @@ class _QuickNavGrid extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final dashboard = ref.watch(mobileDashboardSummaryProvider).valueOrNull;
+    final serverUnread = dashboard?.unreadMessageCount;
     final localUnreadCount = ref.watch(chatV2TotalUnreadProvider);
     final channelCount = ref.watch(chatV2ChannelsProvider.select((c) => c.valueOrNull?.length ?? 0));
     final effectiveTickets = ref.watch(effectiveTicketsProvider);
@@ -1044,9 +1055,9 @@ class _QuickNavGrid extends ConsumerWidget {
         ? localDoingTicketsCount
         : (ticketCount > 0 ? ticketCount : 0);
     
-    // Nguồn chân lý đếm tổng: Sử dụng trực tiếp số cuộc trò chuyện chưa đọc từ chatV2TotalUnreadProvider
+    // Nguồn chân lý đếm tổng: Ưu tiên local unread, nếu 0 thì đọc trực tiếp từ Server Dashboard Summary
     final liveChatCount = chatCount > 0 ? chatCount : (channelCount > 0 ? channelCount : 0);
-    final liveUnreadCount = localUnreadCount;
+    final liveUnreadCount = localUnreadCount > 0 ? localUnreadCount : (serverUnread ?? localUnreadCount);
 
     return Column(
       children: [

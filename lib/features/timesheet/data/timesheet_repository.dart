@@ -21,15 +21,25 @@ class TimesheetRepository {
 
   final OdooApiClient _client;
 
+  static List<TimesheetEntry> _cachedEntries = const <TimesheetEntry>[];
+
   Stream<List<TimesheetEntry>> watchRecent({int limit = 100}) {
     final controller = StreamController<List<TimesheetEntry>>.broadcast();
 
     Future<void> refresh() async {
+      // 1. SWR Cache: Phát ngay dữ liệu có sẵn trong RAM
+      if (_cachedEntries.isNotEmpty && !controller.isClosed) {
+        controller.add(_cachedEntries);
+      }
+
       try {
         final list = await fetchPage(limit: limit, offset: 0);
+        _cachedEntries = list;
         if (!controller.isClosed) controller.add(list);
       } catch (e) {
-        if (!controller.isClosed) {
+        if (!controller.isClosed && _cachedEntries.isNotEmpty) {
+          controller.add(_cachedEntries);
+        } else if (!controller.isClosed) {
           controller.addError(Failure('Reload failed: $e'));
         }
       }

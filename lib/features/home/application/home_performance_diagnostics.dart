@@ -117,10 +117,10 @@ class HomePerformanceDiagnostics {
       checkAndPrint();
     });
 
-    // Timeout safety fallback: Force print at 3500ms if any slow network (only outside automated test binding)
+    // Timeout safety fallback: Force print at 6000ms if any slow network (only outside automated test binding)
     final isTestEnvironment = WidgetsBinding.instance.runtimeType.toString().contains('Test');
     if (!isTestEnvironment) {
-      Future.delayed(const Duration(milliseconds: 3500), () {
+      Future.delayed(const Duration(milliseconds: 6000), () {
         checkAndPrint(true);
       });
     }

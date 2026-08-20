@@ -209,6 +209,22 @@ class ChatV2ChannelLocalCache {
     _cached = List.unmodifiable(merged);
     _saveCachedChannelsToStorage();
   }
+
+  static void remove(String channelId) {
+    _pinnedDirectChannels.remove(channelId);
+    _cached = List.unmodifiable(_cached.where((c) => c.id != channelId).toList());
+    _saveToStorage();
+    _saveCachedChannelsToStorage();
+    onCacheUpdated?.call();
+  }
+
+  static void clear() {
+    _pinnedDirectChannels.clear();
+    _cached = const [];
+    _saveToStorage();
+    _saveCachedChannelsToStorage();
+    onCacheUpdated?.call();
+  }
 }
 
 class ChatV2ChannelsNotifier
@@ -226,11 +242,12 @@ class ChatV2ChannelsNotifier
 
   @override
   Future<List<ChatV2Channel>> build() async {
+    ref.keepAlive();
     debugPrint('🟢 [LIFECYCLE] ChatV2ChannelsNotifier: BUILD (Provider created)');
     await ChatV2ChannelLocalCache.init();
     await ChatV2MessageLocalCache.init();
-    final repo = ref.watch(chatV2RepositoryProvider);
-    final realtime = ref.watch(chatV2RealtimeServiceProvider);
+    final repo = ref.read(chatV2RepositoryProvider);
+    final realtime = ref.read(chatV2RealtimeServiceProvider);
     var isDisposed = false;
 
     ChatV2ChannelLocalCache.onCacheUpdated = () {
@@ -356,8 +373,12 @@ class ChatV2ChannelsNotifier
       return cached;
     }
 
-    final fresh = await repo.getChannels(limit: 80, offset: 0);
-    ChatV2ChannelLocalCache.set(fresh);
+    try {
+      final fresh = await repo.getChannels(limit: 80, offset: 0);
+      ChatV2ChannelLocalCache.set(fresh);
+    } catch (e) {
+      debugPrint('ChatV2ChannelsNotifier: initial fetch error: $e');
+    }
     return ChatV2ChannelLocalCache.cached;
   }
 

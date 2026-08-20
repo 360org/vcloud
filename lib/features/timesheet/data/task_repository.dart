@@ -72,19 +72,31 @@ class TaskRepository {
     }
   }
 
+  static List<Task> _cachedTodayTasks = const <Task>[];
+
   Stream<List<Task>> watchToday({DateTime? day}) {
     final ctl = StreamController<List<Task>>.broadcast();
 
     Future<void> refresh() async {
+      // 1. SWR Cache: Phát ngay dữ liệu có sẵn trong RAM
+      if (_cachedTodayTasks.isNotEmpty && !ctl.isClosed) {
+        ctl.add(_cachedTodayTasks);
+      }
+
       try {
         final tasks = await listAllTasks().timeout(
           const Duration(seconds: 15),
-          onTimeout: () => const <Task>[],
+          onTimeout: () => _cachedTodayTasks,
         );
+        _cachedTodayTasks = tasks;
         if (!ctl.isClosed) ctl.add(tasks);
       } catch (e) {
         debugPrint('watchToday error: $e');
-        if (!ctl.isClosed) ctl.add(const <Task>[]);
+        if (!ctl.isClosed && _cachedTodayTasks.isNotEmpty) {
+          ctl.add(_cachedTodayTasks);
+        } else if (!ctl.isClosed) {
+          ctl.add(const <Task>[]);
+        }
       }
     }
 

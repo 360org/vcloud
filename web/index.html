@@ -38,18 +38,215 @@
   <link rel="manifest" href="manifest.json">
 
   <style>
-    html, body { margin: 0; padding: 0; height: 100%; background: #F1F8F2; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background: #f8fafc;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
     #boot-loader {
-      position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
-      color: #64748B; flex-direction: column; gap: 14px; z-index: 0;
-      font-size: 13.5px; font-weight: 600; letter-spacing: 0.3px;
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      padding: 60px 24px 36px 24px;
+      box-sizing: border-box;
+      background: radial-gradient(circle at 50% 8%, #eefbf3 0%, #f8fafc 52%, #ffffff 100%);
+      z-index: 999999;
+      pointer-events: none;
+      overflow: hidden;
     }
-    #boot-loader .spinner {
-      width: 34px; height: 34px; border: 3px solid rgba(16, 185, 129, 0.2);
-      border-top-color: #10B981; border-radius: 50%; animation: spin .85s linear infinite;
+
+    /* Ambient Optical Glows */
+    .boot-glow-1 {
+      position: absolute;
+      top: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 280px;
+      height: 280px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(0, 206, 44, 0.18) 0%, rgba(0, 119, 205, 0.14) 40%, transparent 70%);
+      filter: blur(40px);
+      z-index: 1;
+      pointer-events: none;
     }
-    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .boot-glow-2 {
+      position: absolute;
+      bottom: 80px;
+      right: -30px;
+      width: 220px;
+      height: 220px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(0, 119, 205, 0.14) 0%, transparent 70%);
+      filter: blur(35px);
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    /* Header Brand Area */
+    .boot-content-top {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 40px;
+      z-index: 2;
+      width: 100%;
+      text-align: center;
+    }
+
+    .boot-logo-hero {
+      margin-bottom: 18px;
+      filter: drop-shadow(0 10px 24px rgba(0, 119, 205, 0.10));
+    }
+
+    .boot-logo-img {
+      width: 230px;
+      max-width: 80vw;
+      height: auto;
+      display: block;
+    }
+
+    .boot-tagline-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(0, 206, 44, 0.08);
+      padding: 7px 16px;
+      border-radius: 20px;
+      border: 1px solid rgba(0, 206, 44, 0.22);
+      backdrop-filter: blur(8px);
+      box-shadow: 0 4px 12px rgba(0, 206, 44, 0.05);
+    }
+
+    .boot-indicator-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #00ce2c;
+      box-shadow: 0 0 8px #00ce2c;
+      flex-shrink: 0;
+    }
+
+    .boot-tagline-text {
+      color: #00871d;
+      font-size: 11.5px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+    }
+
+    /* Bottom 3D Loader Area */
+    .boot-content-bottom {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 18px;
+      margin-bottom: 50px;
+      z-index: 2;
+    }
+
+    .brand-orbit-loader {
+      position: relative;
+      width: 76px;
+      height: 76px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .loader-globe-svg {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      box-shadow: 0 0 18px rgba(0, 206, 44, 0.45);
+      z-index: 2;
+      position: relative;
+    }
+
+    .loader-3d-orbit-stage {
+      position: absolute;
+      inset: 0;
+      perspective: 900px;
+      transform-style: preserve-3d;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 3;
+    }
+
+    .loader-orbit-ring {
+      position: absolute;
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      border: 3.5px solid #0077cd;
+      transform: rotateX(68deg) rotateY(-32deg);
+      transform-style: preserve-3d;
+      box-shadow: 0 0 12px rgba(0, 119, 205, 0.55);
+      animation: spin-orbit-3d 1.8s linear infinite;
+    }
+
+    .loader-orbit-ring::after {
+      content: '';
+      position: absolute;
+      top: -6px;
+      left: calc(50% - 6px);
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #00ce2c;
+      box-shadow: 0 0 12px #00ce2c, 0 0 6px #ffffff;
+    }
+
+    .loader-orbit-trace {
+      position: absolute;
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      border: 1px dashed rgba(0, 206, 44, 0.35);
+      transform: rotateX(68deg) rotateY(-32deg);
+      transform-style: preserve-3d;
+      animation: spin-orbit-3d-reverse 5s linear infinite;
+    }
+
+    .boot-loading-text {
+      color: #475569;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      animation: text-pulse 2s ease-in-out infinite;
+    }
+
+    .boot-footer {
+      font-size: 10.5px;
+      font-weight: 700;
+      color: #94a3b8;
+      letter-spacing: 1.5px;
+      z-index: 2;
+    }
+
+    @keyframes spin-orbit-3d {
+      0% { transform: rotateX(68deg) rotateY(-32deg) rotateZ(0deg); }
+      100% { transform: rotateX(68deg) rotateY(-32deg) rotateZ(360deg); }
+    }
+
+    @keyframes spin-orbit-3d-reverse {
+      0% { transform: rotateX(68deg) rotateY(-32deg) rotateZ(360deg); }
+      100% { transform: rotateX(68deg) rotateY(-32deg) rotateZ(0deg); }
+    }
+
+    @keyframes text-pulse {
+      0%, 100% { opacity: 0.45; }
+      50% { opacity: 1; }
+    }
   </style>
 </head>
 <body>
@@ -67,17 +264,50 @@
        #0175C2 body background visible. -->
   <script src="flutter_bootstrap.js" async></script>
 
-  <!-- Visible fallback while Flutter initialises -->
+  <!-- Official World360 3D Orbit Splash & Boot Loader -->
   <div id="boot-loader">
-    <div class="spinner"></div>
-    <div>Loading Vcloud…</div>
- </div>
+    <div class="boot-glow-1"></div>
+    <div class="boot-glow-2"></div>
+
+    <!-- Top Brand Hero -->
+    <div class="boot-content-top">
+      <div class="boot-logo-hero">
+        <img src="brand_logo.png" class="boot-logo-img" alt="World360 - Vua hệ thống">
+      </div>
+      <div class="boot-tagline-wrap">
+        <div class="boot-indicator-dot"></div>
+        <span class="boot-tagline-text">Hệ sinh thái Quản trị & Năng suất Doanh nghiệp</span>
+      </div>
+    </div>
+
+    <!-- Bottom 3D Loader Area -->
+    <div class="boot-content-bottom">
+      <div class="brand-orbit-loader">
+        <!-- Exact World360 Globe Graphic (#00ce2c) with Americas continents -->
+        <svg viewBox="0 0 100 100" class="loader-globe-svg">
+          <circle cx="50" cy="50" r="48" fill="#00ce2c" />
+          <g fill="#ffffff">
+            <path d="M 32 24 C 36 21, 46 22, 50 25 C 53 28, 54 32, 50 35 C 47 37, 45 41, 48 44 C 52 46, 56 49, 58 54 C 59 58, 56 62, 53 64 C 50 65, 47 62, 44 60 C 42 58, 38 59, 36 61 C 34 63, 30 65, 27 62 C 24 59, 23 54, 21 50 C 19 45, 18 39, 21 34 C 24 28, 29 27, 32 24 Z" />
+            <path d="M 54 18 C 57 16, 63 17, 66 21 C 67 24, 64 27, 60 28 C 56 29, 55 24, 54 18 Z" />
+            <path d="M 44 68 C 48 66, 54 67, 58 71 C 62 75, 63 81, 61 86 C 59 90, 54 94, 49 97 C 45 96, 44 91, 43 86 C 42 81, 40 76, 41 72 C 41 70, 42 69, 44 68 Z" />
+          </g>
+        </svg>
+
+        <!-- 3D Orbiting Ring (#0077cd) -->
+        <div class="loader-3d-orbit-stage">
+          <div class="loader-orbit-ring"></div>
+          <div class="loader-orbit-trace"></div>
+        </div>
+      </div>
+
+      <div class="boot-loading-text">ĐANG KẾT NỐI HỆ THỐNG...</div>
+    </div>
+
+    <div class="boot-footer">WORLD360 CORP • V2.5.0</div>
+  </div>
 
   <script>
-    // Hide the loader after Flutter renders its first frame. Do not attach a
-    // global `error` handler here: image, avatar, and other asset failures
-    // also emit browser error events, and must not cover a running app with a
-    // false "failed to start" screen.
+    // Hide the loader after Flutter renders its first frame.
     window.addEventListener('flutter-first-frame', function () {
       var el = document.getElementById('boot-loader');
       if (el) el.style.display = 'none';

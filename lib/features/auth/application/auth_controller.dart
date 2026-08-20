@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/auth_user.dart';
 import '../../../core/notifications/push_notification_controller.dart';
 import '../../../core/notifications/push_notification_service.dart';
+import '../../chat_v2/application/chat_v2_channels_controller.dart';
 import '../data/auth_repository.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>((_) => AuthRepository());
@@ -69,6 +70,7 @@ class AuthController extends AsyncNotifier<AuthUser?> {
 
   Future<void> signOut() async {
     await _unregisterPushDevice();
+    ChatV2ChannelLocalCache.clear();
     await _repo.signOut();
     state = const AsyncData(null);
   }

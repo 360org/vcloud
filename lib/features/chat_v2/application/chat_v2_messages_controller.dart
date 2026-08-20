@@ -116,6 +116,16 @@ class ChatV2MessageLocalCache {
     map[msg.id] = msg;
     if (persist) _persist(channelId);
   }
+
+  static void remove(String channelId) {
+    _cache.remove(channelId);
+    if (_initialized && _cacheDir != null && !kIsWeb) {
+      try {
+        final file = File('${_cacheDir!.path}/$channelId.json');
+        if (file.existsSync()) file.deleteSync();
+      } catch (_) {}
+    }
+  }
 }
 
 class ChatV2MessagesNotifier
@@ -220,15 +230,23 @@ class ChatV2MessagesNotifier
     }
 
     debugPrint('🟢 [TRACE] ChatV2MessagesNotifier.build Initial getMessages() START');
-    final fresh = await repo.getMessages(
-      channelId,
-      currentPartnerId: partnerId,
-      currentUserId: userId,
-    );
-    debugPrint('🔴 [TRACE] ChatV2MessagesNotifier.build Initial getMessages() END');
-    ChatV2MessageLocalCache.set(channelId, fresh);
-    debugPrint('🔴 [TRACE] ChatV2MessagesNotifier.build() END (Returned Fresh)');
-    return fresh;
+    try {
+      final fresh = await repo.getMessages(
+        channelId,
+        currentPartnerId: partnerId,
+        currentUserId: userId,
+      );
+      debugPrint('🔴 [TRACE] ChatV2MessagesNotifier.build Initial getMessages() END');
+      ChatV2MessageLocalCache.set(channelId, fresh);
+      debugPrint('🔴 [TRACE] ChatV2MessagesNotifier.build() END (Returned Fresh)');
+      return fresh;
+    } catch (e) {
+      if (e.toString().contains('channel_not_found')) {
+        ChatV2ChannelLocalCache.remove(channelId);
+        ChatV2MessageLocalCache.remove(channelId);
+      }
+      rethrow;
+    }
   }
 
   static List<ChatV2Message> _mergeMessages(

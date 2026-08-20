@@ -26,6 +26,8 @@
 
 set -Eeuo pipefail
 
+export PATH="$PATH:$HOME/flutter/bin:/usr/local/bin"
+
 # ------------------------------------------------------------------------------
 # 0. Resolve project directory
 # ------------------------------------------------------------------------------
@@ -47,7 +49,7 @@ CHROME_PROFILE="${CHROME_PROFILE:-/tmp/flutter_chrome_prod}"
 # ------------------------------------------------------------------------------
 
 cleanup_port() {
-    echo "🧹 Giải phóng port ${PORT}..."
+    echo "🧹 Giải phóng port ${PORT} và dọn dẹp tiến trình Flutter Web cũ..."
 
     if command -v fuser >/dev/null 2>&1; then
         fuser -k -9 "${PORT}/tcp" 2>/dev/null || true
@@ -57,6 +59,9 @@ cleanup_port() {
         lsof -ti "tcp:${PORT}" 2>/dev/null \
             | xargs -r kill -9 2>/dev/null || true
     fi
+
+    # Giải phóng các tiến trình frontend_server / chrome runner mồ côi nếu có
+    pkill -f "flutter_tools.*--web-port=${PORT}" 2>/dev/null || true
 }
 
 ensure_dependencies() {
@@ -69,15 +74,27 @@ ensure_dependencies() {
     echo "✅ Flutter dependencies đã tồn tại."
 }
 
+CLEAN_PROFILE=false
+for arg in "$@"; do
+    if [[ "$arg" == "--clean" ]] || [[ "$arg" == "-c" ]]; then
+        CLEAN_PROFILE=true
+    fi
+done
+
 prepare_chrome_profile() {
+    if [[ "$CLEAN_PROFILE" == "true" ]]; then
+        echo "🧹 Đang dọn sạch toàn bộ cache trình duyệt và session cũ ($CHROME_PROFILE)..."
+        rm -rf "$CHROME_PROFILE" 2>/dev/null || true
+    fi
+
     mkdir -p "$CHROME_PROFILE"
 
-    # Chỉ xóa stale lock files.
-    # Không kill Chrome ở đây.
+    # Xóa stale lock và socket files để tránh compiler crash / port collision
     rm -f \
         "${CHROME_PROFILE}/SingletonLock" \
         "${CHROME_PROFILE}/SingletonSocket" \
         "${CHROME_PROFILE}/SingletonCookie" \
+        "${CHROME_PROFILE}/DevToolsActivePort" \
         2>/dev/null || true
 }
 
@@ -101,11 +118,13 @@ echo
 # ------------------------------------------------------------------------------
 
 if ! command -v flutter >/dev/null 2>&1; then
-    echo "❌ Không tìm thấy Flutter."
+    echo "❌ Không tìm thấy Flutter trong PATH ($PATH)."
     exit 1
 fi
 
-echo "✅ Flutter: $(flutter --version | head -n 1)"
+FLUTTER_RAW_VER="$(flutter --version 2>&1 || true)"
+FLUTTER_VER_FIRST_LINE="$(echo "$FLUTTER_RAW_VER" | head -n 1)"
+echo "✅ Flutter: $FLUTTER_VER_FIRST_LINE"
 
 # ------------------------------------------------------------------------------
 # 2. Clean port

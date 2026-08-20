@@ -19,14 +19,20 @@ class TicketRepository {
 
   static const _ticketBasePath = '/api/v1/mobile/ticket';
   static final Map<String, String> _descriptionCache = <String, String>{};
+  static List<Ticket> _cachedTickets = const <Ticket>[];
 
   final OdooApiClient _client;
   final MobileAttachmentRepository _attachmentRepository;
 
   Stream<List<Ticket>> watchAssigned({TicketFilter? filter}) {
-    final ctl = StreamController<List<Ticket>>();
+    final ctl = StreamController<List<Ticket>>.broadcast();
 
     Future<void> refresh() async {
+      // 1. SWR Cache: Phát ngay dữ liệu có sẵn trong RAM để render 0ms
+      if (_cachedTickets.isNotEmpty && !ctl.isClosed) {
+        ctl.add(_cachedTickets);
+      }
+
       try {
         final queryParams = <String, String>{};
         if (filter?.priority != null) {
@@ -42,33 +48,26 @@ class TicketRepository {
         final res = await _client.get('$_ticketBasePath/list$queryString');
         final rawList = (res as List).cast<Map<String, dynamic>>();
 
-        await Future.wait(
-          rawList.map((map) async {
-            final id = map['id'].toString();
-            final desc = _cleanOptionalText(map['description']);
-            if (desc != null && desc.isNotEmpty) {
-              _descriptionCache[id] = desc;
-            } else if (!_descriptionCache.containsKey(id)) {
-              try {
-                final detail = await _client.get('$_ticketBasePath/$id');
-                if (detail is Map) {
-                  final cleaned = _cleanOptionalText(detail['description']);
-                  if (cleaned != null && cleaned.isNotEmpty) {
-                    _descriptionCache[id] = cleaned;
-                  }
-                }
-              } catch (_) {}
-            }
-          }),
-        );
+        for (final map in rawList) {
+          final id = map['id'].toString();
+          final desc = _cleanOptionalText(map['description']);
+          if (desc != null && desc.isNotEmpty) {
+            _descriptionCache[id] = desc;
+          }
+        }
 
         final list = rawList
             .map(_ticketFromOdoo)
             .map(Ticket.fromMap)
             .toList();
+        _cachedTickets = list;
         if (!ctl.isClosed) ctl.add(list);
       } catch (e) {
-        if (!ctl.isClosed) ctl.addError(Failure('Reload failed: $e'));
+        if (!ctl.isClosed && _cachedTickets.isNotEmpty) {
+          ctl.add(_cachedTickets);
+        } else if (!ctl.isClosed) {
+          ctl.addError(Failure('Reload failed: $e'));
+        }
       }
     }
 

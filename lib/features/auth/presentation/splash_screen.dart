@@ -9,10 +9,11 @@ import '../../../features/chat_v2/application/chat_v2_channels_controller.dart';
 import '../../../features/home/application/home_summary_controller.dart';
 import '../../../features/ticket/application/ticket_controller.dart';
 import '../../../shared/widgets/brand_logo.dart';
+import '../../../shared/widgets/brand_orbit_loader.dart';
 import '../application/auth_controller.dart';
 
-/// Modern executive light-themed splash screen for VCloud / Vua Hệ Thống.
-/// Harmonizes seamlessly with the app's clean white and mint palette.
+/// Modern executive light-themed splash screen for VCloud / Vua Hệ Thống / World360.
+/// Harmonizes seamlessly with the official 3D Orbit Brand Loader & Ambient Aura design.
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
@@ -89,169 +90,191 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       }
     });
 
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return Scaffold(
       body: Stack(
         children: [
-          // ── Fresh Light Mint Gradient Background ─────────────────────────
+          // ── Radial Tech Background Gradient ──────────────────────────────
           Container(
             width: double.infinity,
             height: double.infinity,
             decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
+              gradient: RadialGradient(
+                center: Alignment(0.0, -0.84),
+                radius: 1.2,
                 colors: [
-                  Color(0xFFE8F5E9), // Soft Mint Top
-                  Color(0xFFF1F8F2), // Light Fresh Green Accent
-                  Color(0xFFF8FAFC), // Crisp Off-White Bottom
+                  Color(0xFFEEFBF3), // Soft Fresh Mint Peak (#eefbf3)
+                  Color(0xFFF8FAFC), // Tech Slate Off-White (#f8fafc)
+                  Color(0xFFFFFFFF), // Pure Crisp Base (#ffffff)
                 ],
+                stops: [0.0, 0.52, 1.0],
               ),
             ),
           ),
 
-          // ── Ambient Emerald Aura Glow ────────────────────────────────────
+          // ── Ambient Glow 1 (Top Green-Blue Aura) ─────────────────────────
           Positioned(
-            top: -60,
-            left: MediaQuery.of(context).size.width / 2 - 150,
+            top: 40,
+            left: screenWidth / 2 - 140,
             child: Container(
-              width: 300,
-              height: 300,
+              width: 280,
+              height: 280,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFF10B981).withValues(alpha: 0.16),
+                gradient: RadialGradient(
+                  colors: [
+                    const Color(0xFF00CE2C).withValues(alpha: 0.18),
+                    const Color(0xFF0077CD).withValues(alpha: 0.14),
+                    Colors.transparent,
+                  ],
+                  stops: const [0.0, 0.4, 0.75],
+                ),
               ),
             )
                 .animate(
                   onPlay: (controller) => controller.repeat(reverse: true),
                 )
                 .scale(
-                  begin: const Offset(0.9, 0.9),
-                  end: const Offset(1.1, 1.1),
-                  duration: 2500.ms,
+                  begin: const Offset(0.92, 0.92),
+                  end: const Offset(1.08, 1.08),
+                  duration: 3000.ms,
                   curve: Curves.easeInOut,
                 ),
           ),
 
-          // ── Main Content Column ──────────────────────────────────────────
+          // ── Ambient Glow 2 (Bottom-Right Blue Aura) ──────────────────────
+          Positioned(
+            bottom: 80,
+            right: -40,
+            child: Container(
+              width: 220,
+              height: 220,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    const Color(0xFF0077CD).withValues(alpha: 0.14),
+                    Colors.transparent,
+                  ],
+                  stops: const [0.0, 0.7],
+                ),
+              ),
+            ),
+          ),
+
+          // ── Main Content Area ────────────────────────────────────────────
           SafeArea(
             child: SizedBox.expand(
               child: Column(
                 children: [
                   const Spacer(flex: 3),
 
-                  // ── Clean Crisp Brand Logo ───────────────────────────────
+                  // ── Clean Authentic Brand Logo Hero ───────────────────────
                   Container(
-                    width: 220,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 22,
-                      vertical: 16,
-                    ),
+                    alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(28),
-                      border: Border.all(
-                        color: const Color(0xFFE2E8F0).withValues(alpha: 0.9),
-                      ),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF0F172A).withValues(alpha: 0.07),
-                          blurRadius: 30,
+                          color: const Color(0xFF0077CD).withValues(alpha: 0.08),
+                          blurRadius: 24,
                           offset: const Offset(0, 10),
-                        ),
-                        BoxShadow(
-                          color: const Color(0xFF10B981).withValues(alpha: 0.12),
-                          blurRadius: 18,
-                          offset: const Offset(0, 4),
                         ),
                       ],
                     ),
-                    alignment: Alignment.center,
-                    child: const BrandLogo(height: 62),
+                    child: const BrandLogo(height: 70),
                   )
                       .animate()
                       .scale(
                         duration: 650.ms,
                         curve: Curves.easeOutBack,
-                        begin: const Offset(0.8, 0.8),
+                        begin: const Offset(0.85, 0.85),
                         end: const Offset(1.0, 1.0),
                       )
                       .fadeIn(duration: 450.ms),
 
-                  const SizedBox(height: 26),
+                  const SizedBox(height: 18),
 
-                  // ── Brand Title & Tagline ─────────────────────────────────
-                  const Text(
-                    'VUA HỆ THỐNG',
-                    style: TextStyle(
-                      color: Color(0xFF0F172A),
-                      fontSize: 22,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 2.0,
-                    ),
-                  )
-                      .animate()
-                      .fadeIn(delay: 180.ms, duration: 450.ms)
-                      .slideY(begin: 0.2, end: 0, curve: Curves.easeOutCubic),
-
-                  const SizedBox(height: 8),
-
+                  // ── Enterprise Tagline Badge ──────────────────────────────
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 5,
+                      horizontal: 16,
+                      vertical: 7,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFECFDF5),
+                      color: const Color(0xFF00CE2C).withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: const Color(0xFFD1FAE5),
+                        color: const Color(0xFF00CE2C).withValues(alpha: 0.22),
                       ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF00CE2C).withValues(alpha: 0.05),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
-                    child: const Text(
-                      'Hệ sinh thái Quản trị & Năng suất Doanh nghiệp',
-                      style: TextStyle(
-                        color: Color(0xFF059669),
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.2,
-                      ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Status Indicator Dot (Pulsing green energy)
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Color(0xFF00CE2C),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Color(0xFF00CE2C),
+                                blurRadius: 8,
+                                spreadRadius: 1,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Hệ sinh thái Quản trị & Năng suất Doanh nghiệp',
+                          style: TextStyle(
+                            color: Color(0xFF00871D),
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                      ],
                     ),
                   )
                       .animate()
-                      .fadeIn(delay: 300.ms, duration: 450.ms)
-                      .slideY(begin: 0.2, end: 0, curve: Curves.easeOutCubic),
+                      .fadeIn(delay: 250.ms, duration: 450.ms)
+                      .slideY(begin: 0.15, end: 0, curve: Curves.easeOutCubic),
 
                   const Spacer(flex: 3),
 
-                  // ── Modern Refined Emerald Loader ─────────────────────────
+                  // ── Official World360 3D Orbit Loader & Pulse Text ────────
                   Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const SizedBox(
-                        width: 32,
-                        height: 32,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.6,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            Color(0xFF10B981),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
+                      // 3D Globe & Orbit Ring Loader
+                      const BrandOrbitLoader(size: 78),
+                      const SizedBox(height: 18),
+                      // Pulse Status Text
                       const Text(
-                        'Đang kết nối hệ thống...',
+                        'ĐANG KẾT NỐI HỆ THỐNG...',
                         style: TextStyle(
-                          color: Color(0xFF64748B),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.2,
+                          color: Color(0xFF475569),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.5,
                         ),
                       )
                           .animate(
                             onPlay: (controller) => controller.repeat(reverse: true),
                           )
                           .fade(
-                            begin: 0.6,
+                            begin: 0.45,
                             end: 1.0,
                             duration: 1000.ms,
                             curve: Curves.easeInOut,
@@ -259,7 +282,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                     ],
                   )
                       .animate()
-                      .fadeIn(delay: 450.ms, duration: 450.ms),
+                      .fadeIn(delay: 400.ms, duration: 450.ms),
 
                   const Spacer(flex: 1),
 
@@ -267,17 +290,17 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                   const Padding(
                     padding: EdgeInsets.only(bottom: 20),
                     child: Text(
-                      '360 CORP • v2.5.0',
+                      'WORLD360 CORP • v2.5.0',
                       style: TextStyle(
                         color: Color(0xFF94A3B8),
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 1.0,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.5,
                       ),
                     ),
                   )
                       .animate()
-                      .fadeIn(delay: 550.ms, duration: 400.ms),
+                      .fadeIn(delay: 500.ms, duration: 400.ms),
                 ],
               ),
             ),

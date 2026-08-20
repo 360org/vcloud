@@ -842,14 +842,20 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Icon(
-                                    LucideIcons.alertCircle,
+                                  Icon(
+                                    error.toString().contains('channel_not_found')
+                                        ? LucideIcons.messageSquareDashed
+                                        : LucideIcons.alertCircle,
                                     size: 40,
-                                    color: Colors.redAccent,
+                                    color: error.toString().contains('channel_not_found')
+                                        ? Colors.amber
+                                        : Colors.redAccent,
                                   ),
                                   const SizedBox(height: 12),
                                   Text(
-                                    'Không thể tải tin nhắn',
+                                    error.toString().contains('channel_not_found')
+                                        ? 'Cuộc hội thoại không tồn tại'
+                                        : 'Không thể tải tin nhắn',
                                     style: TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.w600,
@@ -858,7 +864,9 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                   ),
                                   const SizedBox(height: 6),
                                   Text(
-                                    '$error',
+                                    error.toString().contains('channel_not_found')
+                                        ? 'Kênh chat này không tồn tại trên hệ thống máy chủ hiện tại hoặc đã được dọn dẹp.'
+                                        : '$error',
                                     style: const TextStyle(
                                       fontSize: 13,
                                       color: Colors.grey,
@@ -869,35 +877,57 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                   Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      ElevatedButton.icon(
-                                        onPressed: () {
-                                          ref.invalidate(chatV2MessagesProvider(widget.channelId));
-                                        },
-                                        icon: const Icon(LucideIcons.rotateCw, size: 16),
-                                        label: const Text('Thử lại'),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: const Color(0xFF00C83A),
-                                          foregroundColor: Colors.white,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(10),
+                                      if (error.toString().contains('channel_not_found'))
+                                        ElevatedButton.icon(
+                                          onPressed: () {
+                                            ChatV2ChannelLocalCache.remove(widget.channelId);
+                                            if (context.canPop()) {
+                                              context.pop();
+                                            } else {
+                                              context.go('/chat');
+                                            }
+                                          },
+                                          icon: const Icon(LucideIcons.arrowLeft, size: 16),
+                                          label: const Text('Về danh sách'),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: const Color(0xFF00C83A),
+                                            foregroundColor: Colors.white,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(10),
+                                            ),
+                                          ),
+                                        )
+                                      else ...[
+                                        ElevatedButton.icon(
+                                          onPressed: () {
+                                            ref.invalidate(chatV2MessagesProvider(widget.channelId));
+                                          },
+                                          icon: const Icon(LucideIcons.rotateCw, size: 16),
+                                          label: const Text('Thử lại'),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: const Color(0xFF00C83A),
+                                            foregroundColor: Colors.white,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(10),
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      ElevatedButton.icon(
-                                        onPressed: () {
-                                          Clipboard.setData(ClipboardData(text: 'Lỗi tải tin nhắn: $error\n$stack'));
-                                        },
-                                        icon: const Icon(Icons.copy, size: 16),
-                                        label: const Text('Copy Lỗi'),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.red,
-                                          foregroundColor: Colors.white,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(10),
+                                        const SizedBox(width: 8),
+                                        ElevatedButton.icon(
+                                          onPressed: () {
+                                            Clipboard.setData(ClipboardData(text: 'Lỗi tải tin nhắn: $error\n$stack'));
+                                          },
+                                          icon: const Icon(Icons.copy, size: 16),
+                                          label: const Text('Copy Lỗi'),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.red,
+                                            foregroundColor: Colors.white,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(10),
+                                            ),
                                           ),
                                         ),
-                                      ),
+                                      ],
                                     ],
                                   ),
                                 ],

@@ -31,8 +31,10 @@ class MobileDashboardSummary {
       ),
       todayMinutes:
           _minutesOrNull(map['today_minutes']) ??
+          _minutesOrNull(attendance['today_attendance_minutes']) ??
+          _hoursToMinutes(attendance['today_worked_hours']) ??
           _minutesOrNull(timesheet['today_minutes']) ??
-          _hoursToMinutes(map['today_hours'] ?? timesheet['today_hours']),
+          _hoursToMinutes(map['today_hours'] ?? timesheet['today_hours'] ?? map['today_timesheet_hours']),
       openTickets: _intOrNull(
         map['open_ticket_count'] ??
             map['open_tickets'] ??
