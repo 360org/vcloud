@@ -40,10 +40,14 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
     - Nâng cấp model `ShiftConfig` (`shift_calculator.dart`): Bổ sung constructor `ShiftConfig.fromMap(Map<String, dynamic> map)`, `toMap()`, `copyWith(...)` để parse dữ liệu thời gian thực từ API backend, giữ fallback an toàn `ShiftConfig.forDate(...)`.
     - Thêm `shiftConfigProvider` và `currentShiftConfigProvider` trong `attendance_controller.dart` và cập nhật `AttendanceRepository` cache cấu hình ca làm việc.
     - Cập nhật Widget **`_DetailedShiftBreakdownCard`** (màn hình Chấm công) và **`_GreetingHeader`** (màn hình Trang chủ) đọc ca làm việc động từ Riverpod Provider, tự động hiển thị chính xác 100% khung giờ ca sáng, nghỉ trưa, ca chiều và thanh tiến độ theo dữ liệu Odoo.
+    - Tính toán thời lượng nghỉ trưa linh hoạt (`lunchMinutes` và `lunchFormatted`) từ `config.lunchStart` và `config.lunchEnd` thay vì giá trị cố định.
   - **Unit Tests**:
     - Thêm `vclients/test/features/attendance/shift_config_api_test.dart` (4 test cases).
     - Thêm `v_mobile/tests/test_attendance_shift_config_contract.py` (3 test cases).
     - Đạt **195/195 tests Flutter PASS 100%**, `flutter analyze` 0 errors, 0 warnings.
+- **Tối Ưu Độ Phủ Dữ Liệu Lịch Sử Chấm Công (Attendance History & Calendar Scope)**:
+  - **Backend (`v_mobile/controllers/attendance.py`)**: Nâng trần tham số `limit` trong endpoint `/api/v1/mobile/attendance/history` từ `100` lên `500` bản ghi; đảm bảo trả về trọn vẹn toàn bộ lịch sử vào/ra ca của nhân viên cho các chu kỳ chấm công nhiều tháng/cả năm.
+  - **Frontend (`vclients`)**: Nâng default query `limit` trong `AttendanceRepository.watchRecent()` lên `500` bản ghi, giúp màn hình **Lịch sử chấm công** (`attendance_history_screen.dart`) và Calendar View luôn sẵn sàng dữ liệu đầy đủ khi lật qua lại giữa các tháng trước/sau mà không bị giới hạn cục bộ.
 - **Hỗ Trợ Kênh Thảo Luận Công Khai / Kênh Internal & Tìm Kiếm Trực Tiếp Từ Server**:
   - **Backend (`v_mobile/controllers/chat.py`)**:
     - Tự động bao gồm tất cả các kênh công khai nội bộ (`channel_type = 'channel'`) cho toàn bộ nhân viên nội bộ (`not user.share`), cho phép hiển thị các kênh công ty như `#Internal` ngay cả khi user chưa được add thủ công vào member trước đó.
