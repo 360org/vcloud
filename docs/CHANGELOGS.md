@@ -48,6 +48,21 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 - **Tối Ưu Độ Phủ Dữ Liệu Lịch Sử Chấm Công (Attendance History & Calendar Scope)**:
   - **Backend (`v_mobile/controllers/attendance.py`)**: Nâng trần tham số `limit` trong endpoint `/api/v1/mobile/attendance/history` từ `100` lên `500` bản ghi; đảm bảo trả về trọn vẹn toàn bộ lịch sử vào/ra ca của nhân viên cho các chu kỳ chấm công nhiều tháng/cả năm.
   - **Frontend (`vclients`)**: Nâng default query `limit` trong `AttendanceRepository.watchRecent()` lên `500` bản ghi, giúp màn hình **Lịch sử chấm công** (`attendance_history_screen.dart`) và Calendar View luôn sẵn sàng dữ liệu đầy đủ khi lật qua lại giữa các tháng trước/sau mà không bị giới hạn cục bộ.
+- **Bộ Kiểm Thử Hiệu Năng Mobile & Tiêu Chuẩn Giới Hạn SLA (Performance Budgets)**:
+  - **Quy chuẩn SLA Hiệu Năng Mobile**:
+    * 🟢 **Tức thì (RAM/Local Cache Instant Read)**: `<= 50ms` (Không gây độ trễ mắt người).
+    * 🟢 **API đơn lẻ (Chấm công, Ticket, Timesheet, Shift Config)**: `<= 1,000ms - 1,500ms` (Đạt chuẩn trải nghiệm di động).
+    * 🟡 **API danh sách lớn (Chats 899 kênh, Tasks 100+ items)**: `<= 2,000ms` (Chấp nhận được).
+    * 🔴 **Vi Phạm Ngưỡng Hiệu Năng (SLA Breach / Chậm)**: `> 3,000ms` (Bắt buộc phải áp dụng Local Cache tức thì và phân trang/lazy loading).
+  - **Bộ Test Hiệu Năng Frontend (`vclients/test/performance/home_load_performance_benchmark_test.dart`)**:
+    * Test nạp & parse 1,026 đối tượng JSON đồng thời (899 Channels + 107 Tasks + 20 Tickets) đạt `< 150ms`.
+    * Test truy xuất Local Cache tức thì đạt `< 50ms`.
+    * Test lọc & tìm kiếm trên 899 kênh đạt `< 30ms`.
+    * Test 1,000 phép tính ShiftCalculator đạt `< 50ms`.
+  - **Công Cụ Đo Latency Live Server Odoo (`tools/benchmark_home_apis.py`)**:
+    * Tự động đo P50, Min, Max Latency của 5 API trang chủ thời gian thực và xuất báo cáo trực quan màu sắc.
+  - **Hợp Đồng Kiểm Thử Backend SLA (`v_mobile/tests/test_performance_sla_benchmark.py`)**:
+    * Xác nhận cấu trúc xử lý 1,000 kênh trên backend không suy thoái thuật toán O(n²).
 - **Hỗ Trợ Kênh Thảo Luận Công Khai / Kênh Internal & Tìm Kiếm Trực Tiếp Từ Server**:
   - **Backend (`v_mobile/controllers/chat.py`)**:
     - Tự động bao gồm tất cả các kênh công khai nội bộ (`channel_type = 'channel'`) cho toàn bộ nhân viên nội bộ (`not user.share`), cho phép hiển thị các kênh công ty như `#Internal` ngay cả khi user chưa được add thủ công vào member trước đó.
@@ -129,6 +144,9 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
   - Hỗ trợ hiển thị giờ âm trực quan khi vượt thời gian cho phép (`_formatHours`).
 
 ### 🧪 [TEST] Kiểm thử & Độ tin cậy
+- Bổ sung `test/performance/home_load_performance_benchmark_test.dart` gồm 4 test cases kiểm thử hiệu năng parse 1,026 models, local cache read, search 899 channels và shift calculation.
+- Bổ sung `v_mobile/tests/test_performance_sla_benchmark.py` gồm 2 test cases kiểm tra hợp đồng SLA backend và độ phức tạp tính toán 1,000 kênh.
+- Bổ sung công cụ Live Server Benchmark `tools/benchmark_home_apis.py` đo P50/Min/Max latency của 5 API trang chủ.
 - Bổ sung `test/features/attendance/shift_config_api_test.dart` gồm 4 test cases kiểm tra parse payload JSON động từ backend, tính toán tiến độ ca làm việc và offline mapping.
 - Bổ sung `v_mobile/tests/test_attendance_shift_config_contract.py` gồm 3 test cases kiểm tra hợp đồng API backend về trích xuất `resource.calendar` và endpoint `/api/v1/mobile/attendance/config` & `/today`.
 - Bổ sung `test/chat_v2_search_and_filter_test.dart` gồm 7 test cases kiểm tra phân loại kênh Internal, chuẩn hóa dấu `#`, tìm kiếm từ khóa và sắp xếp ngày tháng.
@@ -136,8 +154,8 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 - Bổ sung `test/ticket_attachment_verification_test.dart` kiểm tra toàn diện hợp đồng token download attachment.
 - Bổ sung `test/task_priority_features_test.dart` kiểm tra toàn diện hợp đồng dữ liệu và bộ lọc.
 - Bổ sung `test/features/chat_v2/` kiểm tra tính năng bộ lọc mobile và realtime.
-- Đạt **195/195 tests Mobile PASS 100%**, `flutter analyze` 0 errors, 0 warnings.
-- Kiểm thử bảo mật & Contract Backend Python PASS 100% (7/7 tests PASS).
+- Đạt **199/199 tests Mobile PASS 100%**, `flutter analyze` 0 errors, 0 warnings.
+- Kiểm thử bảo mật & Contract Backend Python PASS 100% (9/9 tests PASS).
 
 ---
 
