@@ -71,7 +71,7 @@
   <false/>
   ```
 - ✅ **Quy chuẩn Versioning**: Đã khóa cứng mã phiên bản `version: 2.5.0+79` đồng nhất trên toàn bộ hệ thống tài liệu và cấu hình.
-- ✅ **Sẵn sàng Build Android & iOS**: Bản dựng Android APK (`vcloud-release.apk`) đã build thành công; nhánh `release/ios-appstore` sẵn sàng cho Codemagic trigger bản phát hành chính thức khi anh Tân yêu cầu.
+- ✅ **Sẵn sàng Build Android & iOS**: Bản dựng Android APK (`vcloud-release.apk`) đã build thành công; nhánh `release/ios-appstore` sẵn sàng cho GitHub Actions CI/CD trigger bản phát hành chính thức khi anh Tân yêu cầu.
 
 ---
 
@@ -113,7 +113,7 @@ Mã nguồn phiên bản **`v2.5.0+79`** đã hoàn thành toàn bộ các yêu 
 > 3. **Quy Trình Pull & Deploy Chuẩn**:
 >    - Thực hiện pull/merge từ nhánh làm việc đang audit (`fix/app-chat-stabilization`) vào các nhánh release đích:
 >      * **Backend Odoo**: Merge `fix/app-chat-stabilization` ➔ `17.0` ➔ Zero-Downtime Service Upgrade.
->      * **Frontend Mobile**: Merge `fix/app-chat-stabilization` ➔ `release/ios-appstore` ➔ Kích hoạt Codemagic CI/CD build TestFlight / App Store.
+>      * **Frontend Mobile**: Merge `fix/app-chat-stabilization` ➔ `release/ios-appstore` ➔ Kích hoạt GitHub Actions CI/CD build TestFlight / App Store.
 >    - Sau khi merge, chạy xác nhận `flutter analyze` (**0 errors, 0 warnings**) và `flutter test` (**207/207 tests PASS 100%**) để đảm bảo tuyệt đối không phát sinh lỗi hồi quy (regression).
 
 ---
