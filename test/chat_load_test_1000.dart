@@ -119,6 +119,16 @@ class _FakeMarkAsReadAction implements MarkAsReadAction {
   Future<void> markAsRead(String conversationId) async {}
 }
 
+class _FakeMessagesNotifier extends MessagesNotifier {
+  _FakeMessagesNotifier(this._initial);
+  final List<Message> _initial;
+
+  @override
+  FutureOr<MessagesState> build(String arg) {
+    return MessagesState(messages: _initial, hasMore: false);
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   HttpOverrides.global = _TestHttpOverrides();
@@ -191,7 +201,7 @@ void main() {
         authControllerProvider.overrideWith(_FakeAuthController.new),
         conversationsProvider.overrideWith((ref) => Stream.value([sampleSummary])),
         conversationDetailsProvider('42').overrideWith((ref) async => sampleConversation),
-        messagesProvider('42').overrideWith((ref) => Stream.value(initialMessages)),
+        messagesProvider.overrideWith(() => _FakeMessagesNotifier(initialMessages)),
         sendMessageActionProvider.overrideWithValue(fakeSendMessage),
         sendAttachmentActionProvider.overrideWithValue(fakeSendAttachment),
         markAsReadActionProvider.overrideWithValue(fakeMarkAsRead),

@@ -55,7 +55,7 @@ class _ChatInfoSheetState extends ConsumerState<ChatInfoSheet> {
   List<Message> get _effectiveMessages {
     final convId = widget.conversationId ?? widget.conversation?.id;
     if (convId != null && convId.isNotEmpty) {
-      final liveMessages = ref.watch(messagesProvider(convId)).valueOrNull;
+      final liveMessages = ref.watch(messagesProvider(convId)).valueOrNull?.messages;
       if (liveMessages != null && liveMessages.isNotEmpty) {
         return liveMessages;
       }

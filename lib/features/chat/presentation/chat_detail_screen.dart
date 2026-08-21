@@ -121,13 +121,13 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
     final currentUser = ref.watch(authControllerProvider).value;
     final myId = currentUser?.id ?? '';
     final myIdentityIds = _myIdentityIds(currentUser);
-    final messages = ref.watch(messagesProvider(widget.conversationId));
+    final messagesState = ref.watch(messagesProvider(widget.conversationId));
 
-    ref.listen<AsyncValue<List<Message>>>(
+    ref.listen<AsyncValue<MessagesState>>(
       messagesProvider(widget.conversationId),
       (previous, next) {
-        final prevList = previous?.valueOrNull ?? const [];
-        final nextList = next.valueOrNull ?? const [];
+        final prevList = previous?.valueOrNull?.messages ?? const [];
+        final nextList = next.valueOrNull?.messages ?? const [];
 
         if (prevList.isEmpty && nextList.isNotEmpty) {
           _scrollToBottom();
@@ -159,7 +159,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
     final conversation = details.valueOrNull;
     final title = _chatTitle(conversation, fallbackTitle, myIdentityIds);
     final senderProfiles = _senderProfiles(conversation);
-    final pinnedMessage = _pinnedMessage(messages.valueOrNull);
+    final pinnedMessage = _pinnedMessage(messagesState.valueOrNull?.messages);
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -182,14 +182,15 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
                     title: title,
                     conversation: conversation,
                     currentIdentityIds: myIdentityIds,
-                    messages: messages.valueOrNull ?? const [],
+                    messages: messagesState.valueOrNull?.messages ?? const [],
                   ),
                 ),
                 if (pinnedMessage != null)
                   PinnedMessageBanner(message: pinnedMessage),
                 Expanded(
-                  child: messages.when(
-                    data: (list) {
+                  child: messagesState.when(
+                    data: (state) {
+                      final list = state.messages;
                       if (list.isEmpty) {
                         return const EmptyConversation();
                       }
@@ -198,14 +199,45 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
                         currentUser,
                         myIdentityIds,
                       );
-                      return ListView.builder(
-                        controller: _scroll,
-                        reverse: true,
-                        padding: const EdgeInsets.fromLTRB(10, 10, 10, 18),
-                        itemCount: list.length,
-                        itemBuilder: (_, index) {
-                          final listIndex = list.length - 1 - index;
-                          final message = list[listIndex];
+
+                      final itemCount = list.length + (state.hasMore ? 1 : 0);
+
+                      return NotificationListener<ScrollNotification>(
+                        onNotification: (ScrollNotification scrollInfo) {
+                          if (scrollInfo.metrics.pixels >=
+                                  scrollInfo.metrics.maxScrollExtent - 200 &&
+                              !state.isLoadingMore &&
+                              state.hasMore) {
+                            ref
+                                .read(messagesProvider(widget.conversationId).notifier)
+                                .loadMore();
+                          }
+                          return false;
+                        },
+                        child: ListView.builder(
+                          controller: _scroll,
+                          reverse: true,
+                          padding: const EdgeInsets.fromLTRB(10, 10, 10, 18),
+                          itemCount: itemCount,
+                          itemBuilder: (_, index) {
+                            if (index == list.length) {
+                              return const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 12),
+                                child: Center(
+                                  child: SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }
+
+                            final listIndex = list.length - 1 - index;
+                            final message = list[listIndex];
                           final older = listIndex == 0
                               ? null
                               : list[listIndex - 1];
@@ -256,8 +288,9 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
                             ],
                           );
                         },
-                      );
-                    },
+                      ),
+                    );
+                  },
                     loading: () => const LoadingView(),
                     error: (e, _) => ErrorView(
                       error: e,
