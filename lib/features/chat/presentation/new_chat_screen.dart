@@ -216,7 +216,16 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen>
                 final id = await ref
                     .read(conversationActionsProvider)
                     .createGroup(name.trim(), ids);
-                // ref.invalidate(chatV2ChannelsProvider);
+                // Pin channel nhóm vào cache với channelType đúng
+                final groupCh = ChatV2Channel(
+                  id: id,
+                  name: name.trim(),
+                  channelType: 'group',
+                  isGroup: true,
+                  memberCount: ids.length + 1, // + chính mình
+                );
+                ChatV2ChannelLocalCache.pinDirectChannel(groupCh);
+                ref.invalidate(chatV2ChannelsProvider);
                 if (!context.mounted) return;
                 final query = '?name=${Uri.encodeComponent(name.trim())}';
                 context.pushReplacement('/chat/$id$query');

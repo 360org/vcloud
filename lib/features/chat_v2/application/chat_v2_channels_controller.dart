@@ -23,7 +23,9 @@ class ChatV2ChannelLocalCache {
   static const _storageKey = 'pinned_direct_channels_v2';
   static const _channelsCacheKey = 'cached_channels_v3';
   static const _unreadCacheKey = 'cached_unread_count_v3';
+  static const _pinnedIdsKey = 'user_pinned_channel_ids';
   static bool _initialized = false;
+  static Set<String> _userPinnedIds = {};
 
   static List<ChatV2Channel> get cached => _cached;
   static String? _mergeLastMessage(ChatV2Channel local, ChatV2Channel api) {
@@ -82,11 +84,36 @@ class ChatV2ChannelLocalCache {
       if (unreadData != null && unreadData.isNotEmpty) {
         _lastKnownUnread = int.tryParse(unreadData) ?? _lastKnownUnread;
       }
+
+      final pinnedIdsData = await _storage.read(key: _pinnedIdsKey);
+      if (pinnedIdsData != null && pinnedIdsData.isNotEmpty) {
+        final List<dynamic> decoded = jsonDecode(pinnedIdsData);
+        _userPinnedIds = decoded.map((e) => e.toString()).toSet();
+      }
     } catch (_) {}
     _initialized = true;
   }
 
   static VoidCallback? onCacheUpdated;
+
+  static bool isUserPinned(String channelId) => _userPinnedIds.contains(channelId);
+
+  static void toggleUserPin(String channelId) {
+    if (_userPinnedIds.contains(channelId)) {
+      _userPinnedIds.remove(channelId);
+    } else {
+      _userPinnedIds.add(channelId);
+    }
+    _saveUserPinnedIds();
+    // Force re-sort via set()
+    set(_cached);
+  }
+
+  static Future<void> _saveUserPinnedIds() async {
+    try {
+      await _storage.write(key: _pinnedIdsKey, value: jsonEncode(_userPinnedIds.toList()));
+    } catch (_) {}
+  }
 
   static void pinDirectChannel(ChatV2Channel channel) {
     _pinnedDirectChannels[channel.id] = channel;
@@ -179,11 +206,9 @@ class ChatV2ChannelLocalCache {
     for (final c in _pinnedDirectChannels.values) {
       if (map.containsKey(c.id)) {
         final existing = map[c.id]!;
+        // Giữ nguyên channelType/isGroup/memberCount từ API (hoặc từ pinned nếu API chưa có)
         map[c.id] = existing.copyWith(
           name: (c.name.isNotEmpty && c.name != 'Trò chuyện') ? c.name : existing.name,
-          channelType: 'chat',
-          isGroup: false,
-          memberCount: 2,
           avatarUrl: (existing.avatarUrl != null && existing.avatarUrl!.isNotEmpty)
               ? existing.avatarUrl
               : c.avatarUrl,
@@ -202,6 +227,11 @@ class ChatV2ChannelLocalCache {
     }
     final merged = map.values.toList();
     merged.sort((a, b) {
+      // Ghim lên đầu
+      final aPinned = _userPinnedIds.contains(a.id);
+      final bPinned = _userPinnedIds.contains(b.id);
+      if (aPinned && !bPinned) return -1;
+      if (!aPinned && bPinned) return 1;
       final da = a.lastMessageDate ?? DateTime.fromMillisecondsSinceEpoch(0);
       final db = b.lastMessageDate ?? DateTime.fromMillisecondsSinceEpoch(0);
       return db.compareTo(da);
@@ -266,7 +296,8 @@ class ChatV2ChannelsNotifier
         if (match == null ||
             match.lastMessage != freshItem.lastMessage ||
             match.lastMessageDate != freshItem.lastMessageDate ||
-            match.unreadCount != freshItem.unreadCount) {
+            match.unreadCount != freshItem.unreadCount ||
+            match.imStatus != freshItem.imStatus) {
           return true;
         }
       }
@@ -281,7 +312,17 @@ class ChatV2ChannelsNotifier
         if (isDisposed) return;
         final current = state.valueOrNull ?? ChatV2ChannelLocalCache.cached;
         if (fresh.isNotEmpty && hasChannelsChanged(current, fresh)) {
-          ChatV2ChannelLocalCache.set(fresh);
+          // Giữ lại imStatus cũ nếu fresh trả offline nhưng cũ đang online
+          // tránh nhấp nháy indicator do latency poll
+          final currentMap = {for (final c in current) c.id: c};
+          final merged = fresh.map((f) {
+            final old = currentMap[f.id];
+            if (old != null && old.imStatus == 'online' && f.imStatus == 'offline') {
+              return f.copyWith(imStatus: 'online');
+            }
+            return f;
+          }).toList();
+          ChatV2ChannelLocalCache.set(merged);
           state = AsyncData(ChatV2ChannelLocalCache.cached);
         }
       } catch (_) {

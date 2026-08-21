@@ -551,4 +551,74 @@ class ChatV2Repository {
     }
     return null;
   }
+
+  Future<void> leaveChannel(String channelId) async {
+    final chIdInt = int.tryParse(channelId);
+    try {
+      await _client.post(
+        '/api/v1/mobile/chat/channels/$channelId/leave',
+        body: {},
+      );
+    } catch (_) {
+      try {
+        await _client.post(
+          '/api/v1/mobile/chat/channels/$channelId/archive',
+          body: {},
+        );
+      } catch (_) {
+        if (chIdInt != null) {
+          try {
+            await _client.post(
+              '/web/dataset/call_kw/discuss.channel/action_unfollow',
+              body: {
+                'jsonrpc': '2.0',
+                'method': 'call',
+                'params': {
+                  'model': 'discuss.channel',
+                  'method': 'action_unfollow',
+                  'args': [[chIdInt]],
+                  'kwargs': {},
+                },
+              },
+              auth: true,
+            );
+          } catch (_) {}
+        }
+      }
+    }
+  }
+
+  Future<void> archiveChannel(String channelId) async {
+    try {
+      await _client.post('/api/v1/mobile/chat/channels/$channelId/archive');
+    } catch (_) {}
+  }
+
+  Future<List<ChatV2Member>> fetchChannelMembers(String channelId) async {
+    final chIdInt = int.tryParse(channelId);
+    if (chIdInt == null) return [];
+    try {
+      final res = await _client.get('/api/v1/mobile/chat/channels/$chIdInt/members');
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data is Map && data['members'] is List) {
+          return (data['members'] as List)
+              .map((m) => ChatV2Member.fromJson(m))
+              .where((m) => m.name.isNotEmpty)
+              .toList();
+        } else if (data is List) {
+          return data
+              .map((m) => ChatV2Member.fromJson(m))
+              .where((m) => m.name.isNotEmpty)
+              .toList();
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[ChatV2Repository] fetchChannelMembers error for $channelId: $e');
+      }
+    }
+    return [];
+  }
 }
+

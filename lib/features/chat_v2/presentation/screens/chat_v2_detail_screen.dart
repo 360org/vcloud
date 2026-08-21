@@ -61,22 +61,30 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
       ref.read(chatV2ReadStateProvider.notifier).markChannelAsRead(widget.channelId);
       if (widget.title != null && widget.title!.isNotEmpty) {
         final existing = ChatV2ChannelLocalCache.getPinnedDirectChannel(widget.channelId);
-        final directCh = ChatV2Channel(
-          id: widget.channelId,
-          name: widget.title!,
-          channelType: 'chat',
-          isGroup: false,
-          memberCount: 2,
-          avatarUrl: widget.initialAvatarUrl ?? existing?.avatarUrl,
-          directPartnerId: widget.initialPartnerId ?? existing?.directPartnerId,
-          directPartnerName: widget.title,
-          lastMessage: existing?.lastMessage,
-          lastMessageDate: existing?.lastMessageDate ?? DateTime.now(),
-          lastMessageAuthorId: existing?.lastMessageAuthorId,
-          lastMessageAuthorName: existing?.lastMessageAuthorName,
-          unreadCount: 0,
-        );
-        ChatV2ChannelLocalCache.pinDirectChannel(directCh);
+        // Nếu đã có channel (vd: vừa tạo group), giữ nguyên loại channel
+        if (existing != null) {
+          final updatedCh = existing.copyWith(
+            name: widget.title!,
+            avatarUrl: widget.initialAvatarUrl ?? existing.avatarUrl,
+            lastMessageDate: existing.lastMessageDate ?? DateTime.now(),
+            unreadCount: 0,
+          );
+          ChatV2ChannelLocalCache.pinDirectChannel(updatedCh);
+        } else {
+          final directCh = ChatV2Channel(
+            id: widget.channelId,
+            name: widget.title!,
+            channelType: 'chat',
+            isGroup: false,
+            memberCount: 2,
+            avatarUrl: widget.initialAvatarUrl,
+            directPartnerId: widget.initialPartnerId,
+            directPartnerName: widget.title,
+            lastMessageDate: DateTime.now(),
+            unreadCount: 0,
+          );
+          ChatV2ChannelLocalCache.pinDirectChannel(directCh);
+        }
       }
     });
   }
@@ -1141,12 +1149,9 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
         ChatV2MessageLocalCache.get(widget.channelId) ??
         [];
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        return ChatV2InfoSheet(
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (ctx) => ChatV2InfoSheet(
           channel: channel,
           currentUserName: currentUserName,
           messages: currentMessages,
@@ -1159,8 +1164,8 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
               ),
             );
           },
-        );
-      },
+        ),
+      ),
     );
   }
 }

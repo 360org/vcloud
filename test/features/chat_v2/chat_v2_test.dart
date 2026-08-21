@@ -604,11 +604,17 @@ void main() {
       );
 
       // Verify it displays partner's clean name and not current user's name
+      expect(find.text('Tùy chọn hội thoại'), findsOneWidget);
+      expect(find.byIcon(LucideIcons.arrowLeft), findsOneWidget);
       expect(find.text('Bùi Tuấn Kiệt'), findsOneWidget);
       expect(find.text('Đang trực tuyến'), findsOneWidget);
-      expect(find.text('Tìm kiếm'), findsOneWidget);
-      expect(find.text('Thông báo'), findsOneWidget);
-      expect(find.text('Sao chép link'), findsOneWidget);
+      expect(find.text('Tìm tin nhắn'), findsOneWidget);
+      expect(find.text('Tắt thông báo'), findsOneWidget);
+      expect(find.text('Chia sẻ link'), findsOneWidget);
+      // For 1-1 chat, member list card and add member quick action MUST NOT be displayed
+      expect(find.text('Thêm thành viên'), findsNothing);
+      expect(find.textContaining('Danh sách thành viên'), findsNothing);
+      expect(find.text('Ẩn cuộc trò chuyện'), findsOneWidget);
     });
 
     testWidgets('27. ChatV2InfoSheet renders group chat with member list and media hub', (tester) async {
@@ -632,13 +638,17 @@ void main() {
         ),
       );
 
+      expect(find.text('Tùy chọn nhóm'), findsOneWidget);
+      expect(find.byIcon(LucideIcons.arrowLeft), findsOneWidget);
       expect(find.text('Internal'), findsOneWidget);
       expect(find.text('Nhóm trò chuyện • 7 thành viên'), findsOneWidget);
-      expect(find.text('Thành viên (3)'), findsOneWidget);
-      expect(find.text('Ảnh & Tài liệu'), findsOneWidget);
+      expect(find.text('Danh sách thành viên (7)'), findsOneWidget);
+      expect(find.text('Ảnh, file, link đã gửi'), findsOneWidget);
+      expect(find.text('Thêm thành viên'), findsOneWidget);
       expect(find.text('Ma Nguyễn Nhật Tân (Bạn)'), findsOneWidget);
       expect(find.text('Bùi Tuấn Kiệt'), findsOneWidget);
       expect(find.text('Châu Lê Bá'), findsOneWidget);
+      expect(find.text('Rời nhóm', skipOffstage: false), findsOneWidget);
     });
 
     testWidgets('28. ChatV2InfoSheet comprehensively extracts images, documents and links', (tester) async {
@@ -685,9 +695,8 @@ void main() {
         ),
       );
 
-      expect(find.text('Ảnh (1)'), findsOneWidget);
-      expect(find.text('Tài liệu (1)'), findsOneWidget);
-      expect(find.text('Liên kết (2)'), findsOneWidget);
+      expect(find.text('Ảnh, file, link đã gửi'), findsOneWidget);
+      expect(find.text('1 ảnh, 1 file, 2 link'), findsOneWidget);
     });
 
     test('29. ChatV2Attachment supports copyWith and preserves bytes accurately', () {
@@ -783,7 +792,7 @@ void main() {
         ),
       );
 
-      expect(find.text('Liên kết (3)'), findsOneWidget);
+      expect(find.text('0 ảnh, 0 file, 3 link'), findsOneWidget);
     });
 
     testWidgets('33. ChatV2MessageItem renders reply quote card when parent details are present', (tester) async {
