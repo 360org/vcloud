@@ -43,15 +43,20 @@ class ChatV2ChannelLocalCache {
   }
 
   static DateTime? _mergeLastMessageDate(ChatV2Channel local, ChatV2Channel api) {
-    if (local.lastMessage == null || local.lastMessage!.isEmpty) return api.lastMessageDate ?? local.lastMessageDate;
-    if (local.lastMessageDate == null) return api.lastMessageDate;
-    if (api.lastMessageDate == null) return local.lastMessageDate;
+    // Nếu channel local có tin nhắn từ cache tin nhắn, lấy thời gian tin nhắn mới nhất
+    final cachedMsgs = ChatV2MessageLocalCache.get(local.id);
+    final cachedDate = (cachedMsgs != null && cachedMsgs.isNotEmpty) ? cachedMsgs.first.createdAt : null;
 
-    final localUtc = local.lastMessageDate!.toUtc();
+    final localDate = cachedDate ?? local.lastMessageDate;
+    if (local.lastMessage == null || local.lastMessage!.isEmpty) return api.lastMessageDate ?? localDate;
+    if (localDate == null) return api.lastMessageDate;
+    if (api.lastMessageDate == null) return localDate;
+
+    final localUtc = localDate.toUtc();
     final apiUtc = api.lastMessageDate!.toUtc();
     return apiUtc.isAfter(localUtc)
         ? api.lastMessageDate
-        : local.lastMessageDate;
+        : localDate;
   }
 
   static ChatV2Channel? getPinnedDirectChannel(String id) => _pinnedDirectChannels[id];
@@ -205,7 +210,20 @@ class ChatV2ChannelLocalCache {
   static void set(List<ChatV2Channel> channels) {
     final map = <String, ChatV2Channel>{};
     for (final c in channels) {
-      map[c.id] = c;
+      final cachedMsgs = ChatV2MessageLocalCache.get(c.id);
+      final cachedFirst = (cachedMsgs != null && cachedMsgs.isNotEmpty) ? cachedMsgs.first : null;
+      final cachedDate = cachedFirst?.createdAt;
+      if (cachedDate != null && (c.lastMessageDate == null || cachedDate.toUtc().isAfter(c.lastMessageDate!.toUtc()))) {
+        final cachedContent = (cachedFirst != null && cachedFirst.content.isNotEmpty)
+            ? cachedFirst.content
+            : ((cachedFirst != null && cachedFirst.attachments.isNotEmpty) ? '[Hình ảnh]' : null);
+        map[c.id] = c.copyWith(
+          lastMessageDate: cachedDate,
+          lastMessage: cachedContent ?? c.lastMessage,
+        );
+      } else {
+        map[c.id] = c;
+      }
     }
     for (final c in _pinnedDirectChannels.values) {
       if (map.containsKey(c.id)) {

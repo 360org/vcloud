@@ -165,15 +165,12 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
 
         if (resolvedAtt.isImage) {
           if (!_images.any((x) =>
-              (x.id.isNotEmpty && x.id == resolvedAtt.id) ||
-              (x.url != null && x.url!.isNotEmpty && x.url == resolvedAtt.url) ||
-              x.name == resolvedAtt.name)) {
+              (x.id.isNotEmpty && resolvedAtt.id.isNotEmpty && x.id == resolvedAtt.id))) {
             _images.add(resolvedAtt);
           }
         } else {
           if (!_files.any((x) =>
-              (x.id.isNotEmpty && x.id == resolvedAtt.id) ||
-              x.name == resolvedAtt.name)) {
+              (x.id.isNotEmpty && resolvedAtt.id.isNotEmpty && x.id == resolvedAtt.id))) {
             _files.add(resolvedAtt);
           }
         }

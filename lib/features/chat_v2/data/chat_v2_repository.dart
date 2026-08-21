@@ -152,11 +152,12 @@ class ChatV2Repository {
 
     // Tự động quét và nạp attachments / parent_id cho các tin nhắn gửi từ Web Odoo hoặc app
     final targetRpcMsgIds = messages
-        .where((m) =>
-            ((m.content.isEmpty || m.isImageFilename || m.isDocumentFilename) &&
-                m.attachments.isEmpty &&
-                !_resolvedAttachmentMsgIds.contains(m.id)) ||
-            (m.parentId == null && !_resolvedParentMsgIds.contains(m.id)))
+        .where((m) {
+          final isAttachmentCandidate = (m.content.isEmpty || m.isImageFilename || m.isDocumentFilename || m.hasImageAttachment) &&
+              !_resolvedAttachmentMsgIds.contains(m.id);
+          final isParentCandidate = m.parentId == null && !_resolvedParentMsgIds.contains(m.id);
+          return isAttachmentCandidate || isParentCandidate;
+        })
         .map((m) => int.tryParse(m.id))
         .whereType<int>()
         .toList();

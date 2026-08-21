@@ -71,7 +71,6 @@ class ChatV2MessageItem extends StatelessWidget {
 
     final cleanContent = message.content.trim();
     final isFileNameContent = cleanContent.isEmpty ||
-        message.isImageFilename ||
         cleanContent == 'Sent attachment' ||
         cleanContent == '[Hình ảnh]' ||
         cleanContent == '[Tập tin]' ||
@@ -81,7 +80,7 @@ class ChatV2MessageItem extends StatelessWidget {
     final isPureImage = hasAnyImage && !hasRealCaption && !hasDocs;
 
     final isPureText = message.content.isNotEmpty &&
-        !message.isImageFilename &&
+        (!message.isImageFilename || hasImages) &&
         !message.isDocumentFilename &&
         !hasImages &&
         !hasDocs &&
@@ -1132,9 +1131,13 @@ class _ChatV2AttachmentImageState extends State<ChatV2AttachmentImage> {
   Future<void> _loadImage() async {
     final key = _uniqueKey;
 
-    // 1. Cache lookup from disk/storage using unique key ONLY
+    // 1. Cache lookup from disk/storage using unique key, then fallback by id and name
     final cached = await LocalAttachmentCache.getAsync(key) ??
-        ChatV2AttachmentImage.imageCache[key];
+        ChatV2AttachmentImage.imageCache[key] ??
+        (widget.attachment.id.isNotEmpty ? await LocalAttachmentCache.getAsync(widget.attachment.id) : null) ??
+        (widget.attachment.id.isNotEmpty ? ChatV2AttachmentImage.imageCache[widget.attachment.id] : null) ??
+        (widget.attachment.name.isNotEmpty ? await LocalAttachmentCache.getAsync(null, altKey: widget.attachment.name) : null) ??
+        (widget.attachment.name.isNotEmpty ? ChatV2AttachmentImage.imageCache[widget.attachment.name] : null);
 
     if (cached != null && cached.isNotEmpty) {
       if (mounted) {

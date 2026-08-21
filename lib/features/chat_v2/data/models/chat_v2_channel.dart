@@ -167,7 +167,7 @@ class ChatV2Channel {
     'is_group': isGroup,
     'avatar_url': avatarUrl,
     'last_message': lastMessage,
-    'last_message_date': lastMessageDate?.toUtc().toIso8601String(),
+    'last_message_date': lastMessageDate?.toIso8601String(),
     'unread_count': unreadCount,
     'member_count': memberCount,
     'members': members.map((m) => m.toJson()).toList(),

@@ -274,7 +274,11 @@ class ChatV2MessagesNotifier
       final fresh = freshById[m.id];
       if (fresh != null) {
         final replyInfo = ChatV2ReplyCache.get(fresh.id);
+        final mergedAtts = fresh.attachments.isNotEmpty
+            ? fresh.attachments
+            : m.attachments;
         return fresh.copyWith(
+          attachments: mergedAtts,
           parentId: fresh.parentId ?? m.parentId ?? replyInfo?['parent_id'],
           parentBody: fresh.parentBody ?? m.parentBody ?? replyInfo?['parent_body'],
           parentAuthorName: fresh.parentAuthorName ?? m.parentAuthorName ?? replyInfo?['parent_author_name'],
