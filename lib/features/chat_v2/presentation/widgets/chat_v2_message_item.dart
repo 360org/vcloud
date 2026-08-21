@@ -73,7 +73,9 @@ class ChatV2MessageItem extends StatelessWidget {
     final isFileNameContent = cleanContent.isEmpty ||
         message.isImageFilename ||
         cleanContent == 'Sent attachment' ||
-        imageAttachments.any((a) => a.name.trim() == cleanContent || cleanContent.contains(a.name.trim()));
+        cleanContent == '[Hình ảnh]' ||
+        cleanContent == '[Tập tin]' ||
+        imageAttachments.any((a) => a.name.trim() == cleanContent);
 
     final hasRealCaption = hasAnyImage && !isFileNameContent;
     final isPureImage = hasAnyImage && !hasRealCaption && !hasDocs;

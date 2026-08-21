@@ -99,7 +99,7 @@ class Dates {
     return '$h:$m:$s';
   }
 
-  /// Chuẩn hóa và parse DateTime từ Odoo Server (luôn coi chuỗi thời gian Odoo là UTC nếu chưa có timezone)
+  /// Chuẩn hóa và parse DateTime từ Odoo Server hoặc Local Cache
   static DateTime? parseOdooUtc(dynamic value) {
     if (value == null || value == false) return null;
     if (value is DateTime) return value.isUtc ? value.toLocal() : value;
@@ -109,19 +109,28 @@ class Dates {
     final parsed = DateTime.tryParse(text);
     if (parsed == null) return null;
 
+    // Nếu chuỗi đã có chỉ định múi giờ (Z hoặc +07:00 / -05:00)
     final hasTz = RegExp(r'(z|[+-]\d\d:?\d\d)$', caseSensitive: false).hasMatch(text);
-    final utcDt = (parsed.isUtc || hasTz)
-        ? parsed.toUtc()
-        : DateTime.utc(
-            parsed.year,
-            parsed.month,
-            parsed.day,
-            parsed.hour,
-            parsed.minute,
-            parsed.second,
-            parsed.millisecond,
-            parsed.microsecond,
-          );
+    if (hasTz || parsed.isUtc) {
+      return parsed.toLocal();
+    }
+
+    // Nếu không có múi giờ, đối với Odoo Server chuỗi YYYY-MM-DD HH:mm:ss là UTC
+    // Nhưng nếu chuỗi có chữ 'T' (dạng ISO từ DateTime.toIso8601String() của Flutter), đó là Local Time
+    if (text.contains('T')) {
+      return parsed;
+    }
+
+    final utcDt = DateTime.utc(
+      parsed.year,
+      parsed.month,
+      parsed.day,
+      parsed.hour,
+      parsed.minute,
+      parsed.second,
+      parsed.millisecond,
+      parsed.microsecond,
+    );
     return utcDt.toLocal();
   }
 
