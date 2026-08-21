@@ -74,7 +74,7 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen>
         avatarUrl: p.avatarUrl,
         directPartnerId: partnerId,
         directPartnerName: p.displayName,
-        lastMessageDate: DateTime.now(),
+        lastMessageDate: existingChannel?.lastMessageDate,
       );
       ChatV2ChannelLocalCache.pinDirectChannel(directCh);
       // ref.invalidate(chatV2ChannelsProvider);
