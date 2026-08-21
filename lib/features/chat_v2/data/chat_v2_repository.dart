@@ -42,6 +42,9 @@ class ChatV2Repository {
     final dynamic data = await _client.get(
       '/api/v1/mobile/chat/channels',
       query: queryParams,
+    ).timeout(
+      const Duration(seconds: 10),
+      onTimeout: () => const <dynamic>[],
     );
 
     final List<dynamic> list;

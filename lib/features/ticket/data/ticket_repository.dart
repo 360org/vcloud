@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show debugPrint;
+
 import '../../../core/api/odoo_api_client.dart';
 import '../../../core/api/mobile_attachment_repository.dart';
 import '../../../core/error/failure.dart';
@@ -63,10 +65,11 @@ class TicketRepository {
         _cachedTickets = list;
         if (!ctl.isClosed) ctl.add(list);
       } catch (e) {
+        debugPrint('TicketRepository watchAssigned error: $e');
         if (!ctl.isClosed && _cachedTickets.isNotEmpty) {
           ctl.add(_cachedTickets);
         } else if (!ctl.isClosed) {
-          ctl.addError(Failure('Reload failed: $e'));
+          ctl.add(const <Ticket>[]);
         }
       }
     }

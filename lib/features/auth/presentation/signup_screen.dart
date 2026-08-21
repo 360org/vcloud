@@ -48,7 +48,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
             displayName: _name.text.trim(),
             tenantId: tenantId,
           );
-      if (mounted) context.go('/home');
+      if (mounted) context.go('/chat');
     } on MultipleTenantsFailure catch (e) {
       if (!mounted) return;
       final choice = await showTenantSelectionSheet(context, e.tenants);

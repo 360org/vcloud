@@ -114,7 +114,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _showSuccessTransition = true;
       });
       await Future.delayed(const Duration(milliseconds: 1400));
-      if (mounted) context.go('/home');
+      if (mounted) context.go('/chat');
     } on MultipleTenantsFailure catch (e) {
       if (!mounted) return;
       setState(() => _submitting = false);

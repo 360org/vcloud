@@ -280,7 +280,7 @@ class ChatV2ChannelsNotifier
         final fresh = await repo.getChannels(limit: 80);
         if (isDisposed) return;
         final current = state.valueOrNull ?? ChatV2ChannelLocalCache.cached;
-        if (hasChannelsChanged(current, fresh)) {
+        if (fresh.isNotEmpty && hasChannelsChanged(current, fresh)) {
           ChatV2ChannelLocalCache.set(fresh);
           state = AsyncData(ChatV2ChannelLocalCache.cached);
         }

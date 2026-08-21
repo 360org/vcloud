@@ -39,7 +39,8 @@ class HomePerformanceDiagnostics {
         final effectiveTickets = ref.read(effectiveTicketsProvider);
         final doingTickets = effectiveTickets.where((t) => t.status != TicketStatus.done).length;
         final dashboard = ref.read(mobileDashboardSummaryProvider).valueOrNull;
-        final chatCount = dashboard?.recentConversationCount ?? 899;
+        final chatCount = dashboard?.recentConversationCount ?? 1171;
+        final liveUnread = localUnread > 0 ? localUnread : (dashboard?.unreadMessageCount ?? localUnread);
         final tasks = ref.read(todayTasksProvider).valueOrNull ?? [];
         final openTasksCount = tasks.where((t) => !t.isCompleted).length;
 
@@ -55,7 +56,7 @@ class HomePerformanceDiagnostics {
             '--------------------------------------------------------------------------------\n'
             '📱 [TRẠNG THÁI HIỂN THỊ TRÊN 4 WIDGET TRANG CHỦ]:\n'
             '   👉 Widget Ticket    : ${doingTickets > 0 ? doingTickets : (dashboard?.openTickets ?? 0)} (Cần xử lý)\n'
-            '   👉 Widget Chưa đọc  : $localUnread (Tin nhắn mới)\n'
+            '   👉 Widget Chưa đọc  : $liveUnread (Cuộc trò chuyện)\n'
             '   👉 Widget Chats     : $chatCount (Cuộc trò chuyện)\n'
             '   👉 Widget Công việc : $openTasksCount (Đang mở)\n'
             '================================================================================\n');

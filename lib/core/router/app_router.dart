@@ -95,7 +95,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             }
           } catch (_) {}
         }
-        return '/home';
+        return '/chat';
       }
       return null;
     },

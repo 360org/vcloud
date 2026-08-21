@@ -14,7 +14,7 @@ class ThemeController extends AsyncNotifier<AppThemeMode> {
   Future<AppThemeMode> build() async {
     final prefs = ref.read(userPreferencesRepositoryProvider);
     final data = await prefs.getPreferences();
-    final theme = data['theme'] as String? ?? 'light';
+    final theme = data['theme'] as String? ?? 'system';
     return _parseTheme(theme);
   }
 
@@ -22,10 +22,11 @@ class ThemeController extends AsyncNotifier<AppThemeMode> {
     switch (theme) {
       case 'dark':
         return AppThemeMode.dark;
-      case 'system':
-        return AppThemeMode.system;
-      default:
+      case 'light':
         return AppThemeMode.light;
+      case 'system':
+      default:
+        return AppThemeMode.system;
     }
   }
 

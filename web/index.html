@@ -23,7 +23,8 @@
   <!-- Required so Flutter's canvas is sized correctly; without this Edge logs
        "A 'viewport' meta element was not specified" and renders a blank page. -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
-  <meta name="theme-color" content="#F1F8F2">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#F1F8F2">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#050B10">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
@@ -38,13 +39,43 @@
   <link rel="manifest" href="manifest.json">
 
   <style>
+    :root {
+      color-scheme: light dark;
+      --boot-bg: radial-gradient(circle at 50% 8%, #eefbf3 0%, #f8fafc 52%, #ffffff 100%);
+      --boot-body-bg: #f8fafc;
+      --boot-glow-1: radial-gradient(circle, rgba(0, 206, 44, 0.18) 0%, rgba(0, 119, 205, 0.14) 40%, transparent 70%);
+      --boot-glow-2: radial-gradient(circle, rgba(0, 119, 205, 0.14) 0%, transparent 70%);
+      --boot-logo-shadow: drop-shadow(0 10px 24px rgba(0, 119, 205, 0.10));
+      --boot-tag-bg: rgba(0, 206, 44, 0.08);
+      --boot-tag-border: rgba(0, 206, 44, 0.22);
+      --boot-tag-text: #00871d;
+      --boot-loading-text: #475569;
+      --boot-footer: #94a3b8;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --boot-bg: radial-gradient(circle at 50% 8%, #081a12 0%, #050b10 55%, #020406 100%);
+        --boot-body-bg: #020406;
+        --boot-glow-1: radial-gradient(circle, rgba(0, 206, 44, 0.22) 0%, rgba(0, 119, 205, 0.16) 40%, transparent 70%);
+        --boot-glow-2: radial-gradient(circle, rgba(0, 119, 205, 0.16) 0%, transparent 70%);
+        --boot-logo-shadow: drop-shadow(0 12px 28px rgba(0, 206, 44, 0.25));
+        --boot-tag-bg: rgba(0, 206, 44, 0.12);
+        --boot-tag-border: rgba(0, 206, 44, 0.30);
+        --boot-tag-text: #00ce2c;
+        --boot-loading-text: #cbd5e1;
+        --boot-footer: #64748b;
+      }
+    }
+
     html, body {
       margin: 0;
       padding: 0;
       height: 100%;
-      background: #f8fafc;
+      background: var(--boot-body-bg);
       overflow: hidden;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      transition: background 0.3s ease;
     }
 
     #boot-loader {
@@ -56,10 +87,11 @@
       align-items: center;
       padding: 60px 24px 36px 24px;
       box-sizing: border-box;
-      background: radial-gradient(circle at 50% 8%, #eefbf3 0%, #f8fafc 52%, #ffffff 100%);
+      background: var(--boot-bg);
       z-index: 999999;
       pointer-events: none;
       overflow: hidden;
+      transition: background 0.3s ease;
     }
 
     /* Ambient Optical Glows */
@@ -71,7 +103,7 @@
       width: 280px;
       height: 280px;
       border-radius: 50%;
-      background: radial-gradient(circle, rgba(0, 206, 44, 0.18) 0%, rgba(0, 119, 205, 0.14) 40%, transparent 70%);
+      background: var(--boot-glow-1);
       filter: blur(40px);
       z-index: 1;
       pointer-events: none;
@@ -84,7 +116,7 @@
       width: 220px;
       height: 220px;
       border-radius: 50%;
-      background: radial-gradient(circle, rgba(0, 119, 205, 0.14) 0%, transparent 70%);
+      background: var(--boot-glow-2);
       filter: blur(35px);
       z-index: 1;
       pointer-events: none;
@@ -103,7 +135,7 @@
 
     .boot-logo-hero {
       margin-bottom: 18px;
-      filter: drop-shadow(0 10px 24px rgba(0, 119, 205, 0.10));
+      filter: var(--boot-logo-shadow);
     }
 
     .boot-logo-img {
@@ -117,10 +149,10 @@
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      background: rgba(0, 206, 44, 0.08);
+      background: var(--boot-tag-bg);
       padding: 7px 16px;
       border-radius: 20px;
-      border: 1px solid rgba(0, 206, 44, 0.22);
+      border: 1px solid var(--boot-tag-border);
       backdrop-filter: blur(8px);
       box-shadow: 0 4px 12px rgba(0, 206, 44, 0.05);
     }
@@ -135,7 +167,7 @@
     }
 
     .boot-tagline-text {
-      color: #00871d;
+      color: var(--boot-tag-text);
       font-size: 11.5px;
       font-weight: 600;
       letter-spacing: 0.02em;
@@ -217,7 +249,7 @@
     }
 
     .boot-loading-text {
-      color: #475569;
+      color: var(--boot-loading-text);
       font-size: 11px;
       font-weight: 700;
       text-transform: uppercase;
@@ -228,7 +260,7 @@
     .boot-footer {
       font-size: 10.5px;
       font-weight: 700;
-      color: #94a3b8;
+      color: var(--boot-footer);
       letter-spacing: 1.5px;
       z-index: 2;
     }

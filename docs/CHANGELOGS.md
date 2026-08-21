@@ -4,23 +4,23 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 
 ---
 
-## [v2.5.0+80] — 2026-08-20
+## [v2.5.0+80] — 2026-08-21
 
 > [!IMPORTANT]
 > **Nhánh làm việc chung cho phiên bản v2.5.0+80 (Dành cho các AI Agent khác / Claude Code / Codex tiếp quản)**:
-> - **Frontend (`vclients`)**: Nhánh `fix/app-chat-stabilization`
+> - **Frontend (`vclients`)**: Nhánh `fix/app-build80-stabilization`
 >   ```bash
 >   cd /media/tanma/DATA/save/mobile/vclients
->   git fetch origin && git checkout fix/app-chat-stabilization && git pull origin fix/app-chat-stabilization
+>   git fetch origin && git checkout fix/app-build80-stabilization && git pull origin fix/app-build80-stabilization
 >   ```
-> - **Backend (`v_mobile`)**: Nhánh `fix/app-chat-stabilization`
+> - **Backend (`v_mobile`)**: Nhánh `fix/app-build80-stabilization`
 >   ```bash
 >   cd /media/tanma/DATA/save/mobile/v_mobile
->   git fetch origin && git checkout fix/app-chat-stabilization && git pull origin fix/app-chat-stabilization
+>   git fetch origin && git checkout fix/app-build80-stabilization && git pull origin fix/app-build80-stabilization
 >   ```
 > 
 > **📢 Hướng Dẫn Kỹ Thuật & Cảnh Báo Khi Review & Deploy Trên Nhánh `17.0` & `release/ios-appstore`**:
-> 1. **Quy Trình Merge & Deploy**: Sau khi **anh Tân** kiểm tra và merge nhánh `fix/app-chat-stabilization` vào **`17.0`** (Backend Odoo `v_mobile`) và **`release/ios-appstore`** (Frontend Mobile `vclients`), **Claude Code / Sếp** sẽ checkout và thực hiện deploy trực tiếp trên nhánh `17.0` (Odoo SaaS Upgrade) và `release/ios-appstore` (GitHub Actions CI/CD).
+> 1. **Quy Trình Merge & Deploy**: Sau khi **anh Tân** kiểm tra và merge nhánh `fix/app-build80-stabilization` vào **`17.0`** (Backend Odoo `v_mobile`) và **`release/ios-appstore`** (Frontend Mobile `vclients`), **Claude Code / Sếp** sẽ checkout và thực hiện deploy trực tiếp trên nhánh `17.0` (Odoo SaaS Upgrade) và `release/ios-appstore` (GitHub Actions CI/CD).
 > 2. **CẢNH BÁO: Không Thay Đổi Logic Code Đã Kiểm Toán**: Toàn bộ 210 test case đã vượt qua kiểm thử. Bắt buộc bảo toàn nguyên vẹn 100% logic đã audit (*SWR RAM Cache 16ms, keepAlive Providers, Odoo 17 Dynamic Field Filter, allocated_hours mapping*).
 
 ### ⚡ [PERF & ARCHITECTURE] Tối Ưu Hóa Hiệu Năng Toàn Diện & SWR RAM Cache (Build 80)
@@ -42,6 +42,25 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
   - Chuẩn hoá 100% theo Odoo 17 Native: Sử dụng trường `allocated_hours`, `effective_hours`, `remaining_hours`, `discuss.channel`, `account.analytic.line`.
 - **Cơ Chế Dynamic Field Filter**:
   - Áp dụng bộ lọc trường động `[f for f in candidate_fields if f in Model._fields]` trên 100% các controller backend (`project.py`, `ticket.py`, `timesheet.py`, `dashboard.py`) trước khi gọi `search_read`/`read`, ngăn chặn 100% lỗi `Invalid field` trên mọi cơ sở dữ liệu.
+
+### 🎯 [NAVIGATION & UX] Chuyển Hướng Mặc Định Sang Tab Trò Chuyện & Tối Ưu Loading Splash
+- **Chuyển Tab Mặc Định Sau Đăng Nhập Sang Trò Chuyện (`/chat`)**:
+  - Đổi điểm đến mặc định của ứng dụng sau khi hoàn thành Boot Splash và Đăng nhập từ `/home` sang **`/chat`**.
+  - Giúp người dùng tiếp cận tức thì các kênh trao đổi công việc, tin nhắn nội bộ và nhóm dự án mà không cần thêm thao tác chuyển tab.
+  - Đồng bộ fallback khi nhận Push Notification mở app chuyển hướng thẳng vào `/chat`.
+- **Nâng Cấp Nút Tạo Cuộc Trò Chuyện Mới Thành Floating Action Button (FAB)**:
+  - Loại bỏ nút thêm cũ ở góc phải trên cùng của thanh Header màn hình Trò chuyện, giúp tiêu đề trang thanh thoát và thoáng đãng.
+  - Chuyển sang nút tròn nổi (`FloatingActionButton`) ở góc dưới cùng bên phải với màu xanh `#00C83A`, icon `LucideIcons.plus` màu trắng và `elevation: 4`, đồng bộ 100% phong cách thiết kế với màn hình Ticket.
+- **Tối Ưu Hóa & Đồng Bộ Theme Tự Động Cho Màn Hình Splash**:
+  - Khắc phục triệt để lỗi logic `(themeMode == AppThemeMode.system && platformDark)` khiến màn hình Splash bị ép hiển thị màu nền trắng sáng trên trình duyệt Chrome/Linux.
+  - Kết nối trực tiếp với logic `AppThemeMode.system.themeMode` (tự động kích hoạt Dark Mode Deep Forest Green từ 18:00 đến 06:00 theo giờ Việt Nam).
+  - Đồng bộ fallback `themeMode` tại `MaterialApp.router` khi provider đang ở trạng thái `loading`, triệt tiêu hoàn toàn hiện tượng chớp sáng giao diện khi vừa bật app.
+- **Tối Ưu Hóa Chu Trình 2 Tầng Loading (Boot Initialization vs Live Data Fetching)**:
+  - Tối ưu hóa chu trình Warm-up tại `SplashScreen`: Đọc nhanh Token từ `Secure Storage` và nạp trước dữ liệu quan trọng trong vòng **300ms – 800ms**.
+  - Kết hợp với kiến trúc **SWR RAM Cache** tại các widget Home/Chat, giúp hiển thị ngay dữ liệu trong **16ms** mà không gây hiện tượng tải chồng chéo.
+- **Chuẩn Hóa Script Chạy Local `launch_web.sh` (Direct Local Backend Sync)**:
+  - Bỏ lệnh `git pull origin 17.0` từ xa, đảm bảo giữ nguyên 100% mã nguồn Backend đang chỉnh sửa tại máy local (`/media/tanma/DATA/save/mobile/v_mobile`).
+  - Tự động gọi lệnh nâng cấp (`button_immediate_upgrade()`) cho module `mobile_api` vào Odoo Docker local (`demo-17`), giúp mọi thay đổi code Backend có hiệu lực ngay lập tức.
 
 ### 🎨 [UI/UX] Đồng Bộ Giao Diện Boot Loader Web (`web/index.html`)
 - **Khắc phục lỗi ảnh logo World360 bị cắt góc**:

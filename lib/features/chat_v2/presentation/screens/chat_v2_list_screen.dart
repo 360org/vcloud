@@ -117,6 +117,15 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
     return AppScaffold(
       title: 'Trò chuyện',
       showAppBar: false,
+      floatingActionButton: FloatingActionButton(
+        heroTag: 'chat_new_fab',
+        onPressed: () => context.push('/chat/new'),
+        backgroundColor: const Color(0xFF00C83A),
+        foregroundColor: Colors.white,
+        elevation: 4,
+        shape: const CircleBorder(),
+        child: const Icon(LucideIcons.plus, size: 26),
+      ),
       body: Column(
         children: [
           // ── 1. Top Header ───────────────────────────────────────────────
@@ -141,41 +150,15 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Trò chuyện',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w800,
-                          color: isDark ? Colors.white : const Color(0xFF0F172A),
-                          letterSpacing: -0.5,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Material(
-                      color: const Color(0xFF00C83A),
-                      shape: const CircleBorder(),
-                      elevation: 1,
-                      shadowColor:
-                          const Color(0xFF00C83A).withValues(alpha: 0.4),
-                      child: InkWell(
-                        customBorder: const CircleBorder(),
-                        onTap: () => context.push('/chat/new'),
-                        child: const Padding(
-                          padding: EdgeInsets.all(10),
-                          child: Icon(
-                            LucideIcons.messageSquarePlus,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                Text(
+                  'Trò chuyện',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    letterSpacing: -0.5,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 12),
                 // ── 2. Search & Filter Bar ───────────────────────────────────

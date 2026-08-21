@@ -7,12 +7,13 @@ import 'package:go_router/go_router.dart';
 
 import '../../../features/chat_v2/application/chat_v2_channels_controller.dart';
 import '../../../features/home/application/home_summary_controller.dart';
+import '../../../features/profile/application/theme_controller.dart';
 import '../../../features/ticket/application/ticket_controller.dart';
 import '../../../shared/widgets/brand_logo.dart';
 import '../../../shared/widgets/brand_orbit_loader.dart';
 import '../application/auth_controller.dart';
 
-/// Modern executive light-themed splash screen for VCloud / Vua Hệ Thống / World360.
+/// Modern executive light/dark-themed splash screen for VCloud / Vua Hệ Thống / World360.
 /// Harmonizes seamlessly with the official 3D Orbit Brand Loader & Ambient Aura design.
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -74,7 +75,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     }
 
     if (mounted) {
-      context.go('/home');
+      context.go('/chat');
     }
   }
 
@@ -91,24 +92,74 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     });
 
     final screenWidth = MediaQuery.of(context).size.width;
+    final themeMode = ref.watch(themeControllerProvider).valueOrNull ?? AppThemeMode.system;
+    final isDark = themeMode.themeMode == ThemeMode.dark ||
+        Theme.of(context).brightness == Brightness.dark;
+
+    final bgColors = isDark
+        ? const [
+            Color(0xFF081A12), // Deep Forest Green Peak (#081a12)
+            Color(0xFF050B10), // Cyber Dark Slate (#050b10)
+            Color(0xFF020406), // Pure Void Base (#020406)
+          ]
+        : const [
+            Color(0xFFEEFBF3), // Soft Fresh Mint Peak (#eefbf3)
+            Color(0xFFF8FAFC), // Tech Slate Off-White (#f8fafc)
+            Color(0xFFFFFFFF), // Pure Crisp Base (#ffffff)
+          ];
+
+    final glow1Color = isDark
+        ? const Color(0xFF00CE2C).withValues(alpha: 0.22)
+        : const Color(0xFF00CE2C).withValues(alpha: 0.18);
+    final glow2Color = isDark
+        ? const Color(0xFF0077CD).withValues(alpha: 0.16)
+        : const Color(0xFF0077CD).withValues(alpha: 0.14);
+
+    final logoShadow = isDark
+        ? BoxShadow(
+            color: const Color(0xFF00CE2C).withValues(alpha: 0.20),
+            blurRadius: 28,
+            offset: const Offset(0, 12),
+          )
+        : BoxShadow(
+            color: const Color(0xFF0077CD).withValues(alpha: 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          );
+
+    final tagBg = isDark
+        ? const Color(0xFF00CE2C).withValues(alpha: 0.12)
+        : const Color(0xFF00CE2C).withValues(alpha: 0.08);
+    final tagBorder = isDark
+        ? const Color(0xFF00CE2C).withValues(alpha: 0.30)
+        : const Color(0xFF00CE2C).withValues(alpha: 0.22);
+    final tagTextColor = isDark
+        ? const Color(0xFF00CE2C)
+        : const Color(0xFF00871D);
+
+    final loadingTextColor = isDark
+        ? const Color(0xFFCBD5E1)
+        : const Color(0xFF475569);
+
+    final footerTextColor = isDark
+        ? const Color(0xFF64748B)
+        : const Color(0xFF94A3B8);
 
     return Scaffold(
+      backgroundColor: isDark ? const Color(0xFF020406) : const Color(0xFFFFFFFF),
       body: Stack(
         children: [
           // ── Radial Tech Background Gradient ──────────────────────────────
-          Container(
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 350),
             width: double.infinity,
             height: double.infinity,
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               gradient: RadialGradient(
-                center: Alignment(0.0, -0.84),
+                center: const Alignment(0.0, -0.84),
                 radius: 1.2,
-                colors: [
-                  Color(0xFFEEFBF3), // Soft Fresh Mint Peak (#eefbf3)
-                  Color(0xFFF8FAFC), // Tech Slate Off-White (#f8fafc)
-                  Color(0xFFFFFFFF), // Pure Crisp Base (#ffffff)
-                ],
-                stops: [0.0, 0.52, 1.0],
+                colors: bgColors,
+                stops: const [0.0, 0.52, 1.0],
               ),
             ),
           ),
@@ -124,8 +175,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    const Color(0xFF00CE2C).withValues(alpha: 0.18),
-                    const Color(0xFF0077CD).withValues(alpha: 0.14),
+                    glow1Color,
+                    glow2Color,
                     Colors.transparent,
                   ],
                   stops: const [0.0, 0.4, 0.75],
@@ -154,7 +205,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    const Color(0xFF0077CD).withValues(alpha: 0.14),
+                    glow2Color,
                     Colors.transparent,
                   ],
                   stops: const [0.0, 0.7],
@@ -174,13 +225,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                   Container(
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF0077CD).withValues(alpha: 0.08),
-                          blurRadius: 24,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
+                      boxShadow: [logoShadow],
                     ),
                     child: const BrandLogo(height: 70),
                   )
@@ -196,16 +241,17 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                   const SizedBox(height: 18),
 
                   // ── Enterprise Tagline Badge ──────────────────────────────
-                  Container(
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 350),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 7,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF00CE2C).withValues(alpha: 0.08),
+                      color: tagBg,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: const Color(0xFF00CE2C).withValues(alpha: 0.22),
+                        color: tagBorder,
                       ),
                       boxShadow: [
                         BoxShadow(
@@ -235,10 +281,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        const Text(
+                        Text(
                           'Hệ sinh thái Quản trị & Năng suất Doanh nghiệp',
                           style: TextStyle(
-                            color: Color(0xFF00871D),
+                            color: tagTextColor,
                             fontSize: 11.5,
                             fontWeight: FontWeight.w600,
                             letterSpacing: 0.2,
@@ -261,10 +307,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                       const BrandOrbitLoader(size: 78),
                       const SizedBox(height: 18),
                       // Pulse Status Text
-                      const Text(
+                      Text(
                         'ĐANG KẾT NỐI HỆ THỐNG...',
                         style: TextStyle(
-                          color: Color(0xFF475569),
+                          color: loadingTextColor,
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 1.5,
@@ -287,12 +333,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                   const Spacer(flex: 1),
 
                   // ── Bottom Corporate Footer ───────────────────────────────
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 20),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 20),
                     child: Text(
                       'WORLD360 CORP • v2.5.0',
                       style: TextStyle(
-                        color: Color(0xFF94A3B8),
+                        color: footerTextColor,
                         fontSize: 10.5,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 1.5,

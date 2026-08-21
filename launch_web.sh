@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 
 # ==============================================================================
-# 🚀 VCLOUD FLUTTER WEB — LOCAL DEVELOPMENT & AUTO-SYNC
+# 🚀 VCLOUD FLUTTER WEB — LOCAL DEVELOPMENT (DIRECT LOCAL SYNC)
 # ==============================================================================
 #
 # Mục đích:
-#   1. Tự động cập nhật code mới của Backend (v_mobile) trên hệ thống branch 17.0.
-#   2. Đồng bộ mã nguồn và khởi động Odoo 17 trên Máy Server Local (192.168.1.100)
-#      hoặc fallback Odoo 17 Docker trên Laptop (127.0.0.1:8069).
+#   1. Sử dụng trực tiếp mã nguồn Backend Local trên máy ($BACKEND_DIR).
+#      KHÔNG pull từ GitLab remote 17.0 để bảo toàn 100% code mới vừa sửa ở local.
+#   2. Khởi động Odoo 17 Docker trên Laptop (127.0.0.1:8069) và nạp/upgrade module
+#      mobile_api trực tiếp từ thư mục local.
 #   3. Khởi chạy Google Chrome Flutter Web kết nối trực tiếp Odoo Backend Local.
 #
 # Frontend:
@@ -53,39 +54,33 @@ API_URL="${API_URL:-}"
 
 echo
 echo "=============================================================================="
-echo "🚀 VCLOUD FLUTTER WEB — LOCAL DEV & AUTO-SYNC BACKEND 17.0"
+echo "🚀 VCLOUD FLUTTER WEB — LOCAL DEV & DIRECT LOCAL BACKEND"
 echo "=============================================================================="
 echo "📂 Frontend   : $SCRIPT_DIR"
-echo "📂 Backend    : $BACKEND_DIR"
+echo "📂 Backend    : $BACKEND_DIR (Local Machine)"
 echo "🔌 Web Port   : $PORT"
 echo "👤 Profile    : $CHROME_PROFILE"
 echo "=============================================================================="
 echo
 
 # ------------------------------------------------------------------------------
-# 1. Cập nhật code Backend v_mobile từ branch 17.0
+# 1. Kiểm tra mã nguồn Backend Local (Không pull git remote)
 # ------------------------------------------------------------------------------
 
-if [[ -d "$BACKEND_DIR/.git" ]]; then
-    echo "📥 [1/3] Đang kiểm tra & cập nhật code Backend (v_mobile) branch 17.0..."
-    (
-        cd "$BACKEND_DIR"
-        git fetch origin 17.0 >/dev/null 2>&1 || true
-        CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '')"
-        if [[ "$CURRENT_BRANCH" == "17.0" ]]; then
-            echo "   ↳ Đang pull code mới nhất trên nhánh 17.0..."
-            git pull origin 17.0 || echo "   ⚠️ Không thể tự động pull (working tree dirty), giữ nguyên code hiện tại."
-        else
-            echo "   ↳ Đã fetch nhánh origin/17.0 (nhánh hiện tại: $CURRENT_BRANCH)."
-        fi
-    )
-    echo "   ✅ Code Backend đã sẵn sàng."
+echo "💻 [1/3] Đang kiểm tra mã nguồn Backend Local ($BACKEND_DIR)..."
+if [[ -d "$BACKEND_DIR" ]]; then
+    # Đảm bảo symlink trong dev_env trỏ chính xác vào thư mục v_mobile local
+    if [[ -d "$LOCAL_DEV_DIR/modules/default" ]]; then
+        ln -sfn "$BACKEND_DIR" "$LOCAL_DEV_DIR/modules/default/mobile_api" 2>/dev/null || true
+        ln -sfn "$BACKEND_DIR" "$LOCAL_DEV_DIR/modules/default/v_mobile" 2>/dev/null || true
+    fi
+    echo "   ✅ Đang sử dụng trực tiếp code local trên máy (không ghi đè từ git remote)."
 else
-    echo "ℹ️ Không tìm thấy git repo tại $BACKEND_DIR, bỏ qua bước git update."
+    echo "   ⚠️ Cảnh báo: Không tìm thấy thư mục Backend tại $BACKEND_DIR"
 fi
 
 # ------------------------------------------------------------------------------
-# 2. Khởi động Odoo 17 dev_env trên Máy Laptop (Local)
+# 2. Khởi động Odoo 17 dev_env trên Máy Laptop (Local) & Nạp code mới
 # ------------------------------------------------------------------------------
 
 echo
@@ -94,8 +89,23 @@ echo "🔄 [2/3] Đang khởi động Odoo 17 trên Máy Laptop (Local)..."
 if [[ -d "$LOCAL_DEV_DIR" ]]; then
     echo "   🐳 Đang khởi động Odoo 17 Docker trên Laptop ($LOCAL_DEV_DIR)..."
     (cd "$LOCAL_DEV_DIR" && ./prod up -d) >/dev/null 2>&1 || true
-    echo "   🔄 Khởi động lại container Odoo demo-17 để nạp code mới..."
+    echo "   🔄 Khởi động lại container Odoo demo-17 để nạp code local mới..."
     (cd "$LOCAL_DEV_DIR" && ./prod restart odoo) >/dev/null 2>&1 || true
+    
+    # Nâng cấp module mobile_api trong database demo-17 nếu container đang chạy
+    if command -v docker >/dev/null 2>&1; then
+        echo "   ⚡ Đang nâng cấp module mobile_api trên DB demo-17..."
+        docker exec demo-17 python3 -c "import odoo; from odoo import api, SUPERUSER_ID
+registry = odoo.registry('demo-17')
+with registry.cursor() as cr:
+    env = api.Environment(cr, SUPERUSER_ID, {})
+    mod = env['ir.module.module'].search([('name', 'in', ['mobile_api', 'v_mobile'])])
+    for m in mod:
+        if m.state == 'installed':
+            m.button_immediate_upgrade()
+" >/dev/null 2>&1 || true
+        echo "   ✅ Đã nạp và nâng cấp code Backend local vào Odoo thành công!"
+    fi
 else
     echo "   ⚠️ Không tìm thấy $LOCAL_DEV_DIR"
 fi

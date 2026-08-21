@@ -102,7 +102,7 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
     } else if (ticketId != null && ticketId.toString().isNotEmpty) {
       ref.read(routerProvider).go('/tickets/$ticketId');
     } else {
-      ref.read(routerProvider).go('/home');
+      ref.read(routerProvider).go('/chat');
     }
   }
 
@@ -117,8 +117,8 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
       darkTheme: buildDarkTheme(),
       themeMode: themeMode.when(
         data: (mode) => mode.themeMode,
-        loading: () => ThemeMode.system,
-        error: (e, st) => ThemeMode.system,
+        loading: () => AppThemeMode.system.themeMode,
+        error: (e, st) => AppThemeMode.system.themeMode,
       ),
       routerConfig: router,
     );
