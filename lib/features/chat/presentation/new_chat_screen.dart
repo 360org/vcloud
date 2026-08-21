@@ -206,7 +206,7 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen>
           ),
           _GroupForm(
             busy: _groupBusy,
-            onCreate: (name, ids) async {
+            onCreate: (name, ids, selectedUsers) async {
               if (name.trim().isEmpty || ids.isEmpty) {
                 _snack('Vui lòng nhập tên nhóm và chọn ít nhất 1 thành viên.');
                 return;
@@ -216,13 +216,35 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen>
                 final id = await ref
                     .read(conversationActionsProvider)
                     .createGroup(name.trim(), ids);
-                // Pin channel nhóm vào cache với channelType đúng
+
+                // Lấy thông tin user hiện tại & các user đã chọn để tạo danh sách member ban đầu
+                final currentUser = ref.read(authControllerProvider).valueOrNull;
+                final meta = currentUser?.userMetadata;
+                final myName = (meta?['name'] ?? meta?['display_name'] ?? 'Tôi') as String;
+                final myPartnerId = meta?['partner_id']?.toString() ?? meta?['partner']?['id']?.toString() ?? '';
+
+                final initialMembers = <ChatV2Member>[
+                  ChatV2Member(id: myPartnerId, name: myName, isMe: true),
+                  ...selectedUsers.where((u) => ids.contains(u.partnerId)).map(
+                    (u) => ChatV2Member(
+                      id: u.partnerId ?? '',
+                      name: u.displayName,
+                      avatarUrl: u.avatarUrl,
+                    ),
+                  ),
+                ];
+                final initialMemberNames = initialMembers.map((m) => m.name).toList();
+
+                // Pin channel nhóm vào cache với channelType và danh sách thành viên đầy đủ
                 final groupCh = ChatV2Channel(
                   id: id,
                   name: name.trim(),
                   channelType: 'group',
                   isGroup: true,
-                  memberCount: ids.length + 1, // + chính mình
+                  memberCount: initialMembers.length,
+                  members: initialMembers,
+                  memberNames: initialMemberNames,
+                  lastMessageDate: DateTime.now(),
                 );
                 ChatV2ChannelLocalCache.pinDirectChannel(groupCh);
                 ref.invalidate(chatV2ChannelsProvider);
@@ -445,7 +467,7 @@ class _DirectChatListState extends State<_DirectChatList> {
 
 class _GroupForm extends ConsumerStatefulWidget {
   const _GroupForm({required this.onCreate, this.busy = false});
-  final Future<void> Function(String name, List<String> ids) onCreate;
+  final Future<void> Function(String name, List<String> ids, List<Profile> selectedUsers) onCreate;
   final bool busy;
 
   @override
@@ -717,7 +739,7 @@ class _GroupFormState extends ConsumerState<_GroupForm> {
                       : const Icon(LucideIcons.check, size: 18),
                   onPressed: widget.busy || _selected.isEmpty || _name.text.trim().isEmpty
                       ? null
-                      : () => widget.onCreate(_name.text, _selected.toList()),
+                      : () => widget.onCreate(_name.text, _selected.toList(), rawList),
                   label: Text(
                     _selected.isEmpty
                         ? 'Chọn ít nhất 1 thành viên'

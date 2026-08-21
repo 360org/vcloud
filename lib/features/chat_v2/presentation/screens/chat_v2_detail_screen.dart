@@ -507,7 +507,11 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                           if (isActualGroup) {
                             final count = (currentChannel?.memberCount ?? 0) > 0
                                 ? currentChannel!.memberCount
-                                : 2;
+                                : (currentChannel?.members.length ?? 0) > 0
+                                    ? currentChannel!.members.length
+                                    : (currentChannel?.memberNames.length ?? 0) > 0
+                                        ? currentChannel!.memberNames.length
+                                        : 2;
                             return Row(
                               children: [
                                 Icon(

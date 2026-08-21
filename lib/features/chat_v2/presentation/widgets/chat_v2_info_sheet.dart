@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -99,6 +100,25 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
   Future<void> _loadRemoteMembers() async {
     final isGroup = widget.channel.getActualIsGroup(widget.currentUserName);
     if (!isGroup) return;
+
+    // 1. Khởi tạo ngay từ local cache nếu channel đã có danh sách members/memberNames
+    final cached = ChatV2ChannelLocalCache.cached
+        .firstWhereOrNull((c) => c.id == widget.channel.id);
+    if (cached != null) {
+      if (cached.members.isNotEmpty && _members.length < cached.members.length) {
+        setState(() {
+          _members = List.from(cached.members);
+          _memberCount = _members.length;
+        });
+      } else if (cached.memberNames.isNotEmpty && _members.isEmpty) {
+        setState(() {
+          _members = cached.memberNames
+              .map((n) => ChatV2Member(id: '', name: n))
+              .toList();
+          _memberCount = _members.length;
+        });
+      }
+    }
 
     setState(() => _isLoadingMembers = true);
     try {
