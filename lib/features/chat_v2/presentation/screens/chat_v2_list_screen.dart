@@ -132,8 +132,10 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
         shape: const CircleBorder(),
         child: const Icon(LucideIcons.plus, size: 26),
       ),
-      body: Column(
-        children: [
+      body: Container(
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        child: Column(
+          children: [
           // ── 1. Top Header ───────────────────────────────────────────────
           Container(
             padding: EdgeInsets.only(
@@ -666,6 +668,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
           ),
         ],
       ),
+    ),
     );
   }
 
@@ -1063,8 +1066,8 @@ class _ChannelListItem extends ConsumerWidget {
       child: Material(
         color: hasUnread
             ? (isDark
-                ? const Color(0xFF00C83A).withValues(alpha: 0.08)
-                : const Color(0xFF00C83A).withValues(alpha: 0.05))
+                ? const Color(0xFF1E293B)
+                : Colors.white)
             : Colors.transparent,
         child: InkWell(
           onTap: () {
