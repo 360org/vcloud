@@ -463,6 +463,7 @@ class UserAvatar extends StatelessWidget {
     return _AvatarNetworkImage(
       url: networkUrl,
       fallback: fallback,
+      size: size,
     );
   }
 
@@ -505,10 +506,12 @@ class _AvatarNetworkImage extends StatelessWidget {
   _AvatarNetworkImage({
     required this.url,
     required this.fallback,
+    required this.size,
   }) : super(key: ValueKey(url));
 
   final String url;
   final Widget fallback;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
@@ -516,6 +519,8 @@ class _AvatarNetworkImage extends StatelessWidget {
       url,
       key: ValueKey(url),
       fit: BoxFit.cover,
+      cacheWidth: (size * MediaQuery.devicePixelRatioOf(context)).round(),
+      cacheHeight: (size * MediaQuery.devicePixelRatioOf(context)).round(),
       gaplessPlayback: true,
       errorBuilder: (context, error, stackTrace) {
         return fallback;

@@ -27,7 +27,7 @@ Trong quá trình xây dựng hệ thống CI/CD tự động phát hành lên A
 | Thông số | Giá trị chuẩn | Ghi chú |
 | :--- | :--- | :--- |
 | **Tài khoản Apple ID (App Manager)** | `tanmnn@360.org.vn` | Tài khoản có quyền quản trị và phát hành ứng dụng của W360S |
-| **Mật khẩu ứng dụng (16 ký tự)** | `yrgq-fslk-lwll-tmas` | Tạo từ [account.apple.com](https://account.apple.com) -> Security -> App-Specific Passwords |
+| **Mật khẩu ứng dụng (16 ký tự)** | Lưu trong `APPLE_APP_PASS` của CI Secrets | Tạo từ [account.apple.com](https://account.apple.com) -> Security -> App-Specific Passwords |
 | **Issuer ID (W360S CORP)** | `69a6de93-488c-47e3-e053-5b8c7c11a4d1` | Định danh tổ chức trên Apple Developer |
 
 > [!TIP]
@@ -51,13 +51,13 @@ Dưới đây là cấu hình chuẩn đã được kiểm chứng hoạt độn
 
 ### Quy trình thao tác phát hành bản build mới (Trong 3 bước):
 1. **Bước 1:** Cập nhật số build trong `vclients/pubspec.yaml` (Ví dụ: `version: 2.4.0+22`).
-2. **Bước 2:** Commit & push code lên nhánh `release/ios-appstore`:
+2. **Bước 2:** Commit & push code lên nguồn `release/ios-appstore`:
    ```bash
    git add pubspec.yaml codemagic.yaml
    git commit -m "chore(release): bump version to 2.4.0+22"
    git push origin release/ios-appstore
    ```
-3. **Bước 3:** Mở [codemagic.io](https://codemagic.io) -> Bấm **`Start new build`** -> Chọn nhánh `release/ios-appstore` -> Workflow `iOS to TestFlight` -> Chờ 5 phút là ứng dụng tự động xuất hiện trên Apple TestFlight!
+3. **Bước 3:** Mở [codemagic.io](https://codemagic.io) -> Bấm **`Start new build`** -> Chọn nguồn `release/ios-appstore` -> Workflow `iOS to TestFlight` -> Chờ 5 phút là ứng dụng tự động xuất hiện trên Apple TestFlight!
 
 ---
 

@@ -10,9 +10,9 @@
 * **Dự án:** VCloud Mobile App (`vclients`)
 * **Mã doanh nghiệp:** W360S JOINT STOCK COMPANY (`ZC3H8887XS`)
 * **Bundle ID:** `com.w360s.wcloudapp`
-* **Branch điểm mốc ổn định (Stable Target Branch):** `release/ios-appstore`
-* **Commit Checkpoint PASSED chuẩn:** `a8772a1` (*fix(ios): update app-specific password for TestFlight deployment*)
-* **Mật khẩu Apple App-Specific Password:** `yrgq-fslk-lwll-tmas`
+* **Nguồn điểm mốc ổn định:** cấu hình release mobile hiện hành
+* **Commit Checkpoint PASSED chuẩn:** lưu trong lịch sử Git nội bộ
+* **Mật khẩu Apple App-Specific Password:** lưu trong CI Secrets, không ghi vào repo
 * **Trạng thái Build:** ✅ PASSED 100% trên TestFlight iOS & Android (APK + AAB).
 
 ---
@@ -30,8 +30,8 @@ git status --short
 ### 🔹 BƯỚC 2: Đồng bộ mã nguồn mới nhất từ Remote điểm mốc
 ```bash
 git fetch --all
-git checkout release/ios-appstore
-git reset --hard origin/release/ios-appstore
+git checkout <release-source>
+git reset --hard origin/<release-source>
 ```
 
 ### 🔹 BƯỚC 3: Dọn dẹp triệt để rác build local (Untracked files & cache)
@@ -46,7 +46,7 @@ flutter pub get
 
 ### 🔹 BƯỚC 5: Kiểm tra xác minh Ancestry và báo cáo Sếp
 ```bash
-git merge-base --is-ancestor HEAD origin/release/ios-appstore
+git merge-base --is-ancestor HEAD origin/<release-source>
 ```
 
 ---
@@ -58,8 +58,8 @@ Sau khi hoàn thành 5 bước trên, Agent lập tức phản hồi Sếp theo 
 ```text
 ✅ ĐÃ ROLLBACK DỰ ÁN VỀ ĐIỂM MỐC AN TOÀN THÀNH CÔNG!
 
-• Branch hiện tại: release/ios-appstore
-• Commit Checkpoint: a8772a1 (PASSED TestFlight 100%)
+• Nguồn hiện tại: release mobile
+• Commit Checkpoint: PASSED TestFlight 100%
 • Trạng thái Codebase: Sạch sẽ, không còn lỗi, sẵn sàng phát triển tiếp.
 • Dependencies: Đã nạp lại flutter pub get thành công.
 ```

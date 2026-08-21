@@ -6,22 +6,13 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 
 ## [v2.5.0+80] — 2026-08-21
 
-> [!IMPORTANT]
-> **Nhánh làm việc chung cho phiên bản v2.5.0+80 (Dành cho các AI Agent khác / Claude Code / Codex tiếp quản)**:
-> - **Frontend (`vclients`)**: Nhánh `fix/app-build80-stabilization`
->   ```bash
->   cd /media/tanma/DATA/save/mobile/vclients
->   git fetch origin && git checkout fix/app-build80-stabilization && git pull origin fix/app-build80-stabilization
->   ```
-> - **Backend (`v_mobile`)**: Nhánh `fix/app-build80-stabilization`
->   ```bash
->   cd /media/tanma/DATA/save/mobile/v_mobile
->   git fetch origin && git checkout fix/app-build80-stabilization && git pull origin fix/app-build80-stabilization
->   ```
-> 
-> **📢 Hướng Dẫn Kỹ Thuật & Cảnh Báo Khi Review & Deploy Trên Nhánh `17.0` & `release/ios-appstore`**:
-> 1. **Quy Trình Merge & Deploy**: Sau khi **anh Tân** kiểm tra và merge nhánh `fix/app-build80-stabilization` vào **`17.0`** (Backend Odoo `v_mobile`) và **`release/ios-appstore`** (Frontend Mobile `vclients`), **Claude Code / Sếp** sẽ checkout và thực hiện deploy trực tiếp trên nhánh `17.0` (Odoo SaaS Upgrade) và `release/ios-appstore` (GitHub Actions CI/CD).
-> 2. **CẢNH BÁO: Không Thay Đổi Logic Code Đã Kiểm Toán**: Toàn bộ 210 test case đã vượt qua kiểm thử. Bắt buộc bảo toàn nguyên vẹn 100% logic đã audit (*SWR RAM Cache 16ms, keepAlive Providers, Odoo 17 Dynamic Field Filter, allocated_hours mapping*).
+### ⚡ [PERF HOTFIX] Giảm jank chat và giảm RAM avatar
+- Static hóa `DateFormat('HH:mm')` trong `ChatV2MessageItem` để tránh cấp phát lại formatter khi message list rebuild.
+- Static hóa regex tách `attachmentId` trong chat bubble/image path để giảm allocation trong render path.
+- Thêm `cacheWidth/cacheHeight` theo DPR cho avatar 28px/40px/50px và avatar shell, tránh decode bitmap full-size.
+- Bọc message item trong `RepaintBoundary` ở chat detail; `_ChannelListItem` đã có boundary giữ nguyên.
+- Quy tắc GitHub build sạch: không đưa thông tin handoff nội bộ, tên nhánh phát triển hoặc đường dẫn máy cá nhân vào tài liệu public.
+
 
 ### ⚡ [PERF & ARCHITECTURE] Tối Ưu Hóa Hiệu Năng Toàn Diện & SWR RAM Cache (Build 80)
 - **Kiến Trúc Bộ Nhớ Đệm RAM Tức Thì (Zero-Wait Stale-While-Revalidate - SWR)**:
@@ -59,7 +50,7 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
   - Tối ưu hóa chu trình Warm-up tại `SplashScreen`: Đọc nhanh Token từ `Secure Storage` và nạp trước dữ liệu quan trọng trong vòng **300ms – 800ms**.
   - Kết hợp với kiến trúc **SWR RAM Cache** tại các widget Home/Chat, giúp hiển thị ngay dữ liệu trong **16ms** mà không gây hiện tượng tải chồng chéo.
 - **Chuẩn Hóa Script Chạy Local `launch_web.sh` (Direct Local Backend Sync)**:
-  - Bỏ lệnh `git pull origin 17.0` từ xa, đảm bảo giữ nguyên 100% mã nguồn Backend đang chỉnh sửa tại máy local (`/media/tanma/DATA/save/mobile/v_mobile`).
+  - Bỏ lệnh `git pull origin 17.0` từ xa, đảm bảo giữ nguyên 100% mã nguồn Backend đang chỉnh sửa tại máy local (`<V_MOBILE_ROOT>`).
   - Tự động gọi lệnh nâng cấp (`button_immediate_upgrade()`) cho module `mobile_api` vào Odoo Docker local (`demo-17`), giúp mọi thay đổi code Backend có hiệu lực ngay lập tức.
 
 ### 🎨 [UI/UX] Đồng Bộ Giao Diện Boot Loader Web & Modal Sheet "Có Gì Mới" Build 80
@@ -68,7 +59,7 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
   - Thiết lập cơ chế tự động hiển thị Sheet khi mở app (`targetBuild: 80`) tại cả màn hình Home và Chat List ngay sau khi đăng nhập.
   - Đồng bộ mục cài đặt "Có gì mới trong v2.5.0 (Build 80)" trên `ProfileScreen` và thông tin phiên bản tại `AboutScreen`.
 - **Khắc phục lỗi ảnh logo World360 bị cắt góc**:
-  - Đồng bộ file ảnh logo chuẩn gốc [`web/brand_logo.png`](file:///media/tanma/DATA/save/mobile/vclients/web/brand_logo.png).
+  - Đồng bộ file ảnh logo chuẩn gốc [`web/brand_logo.png`](/web/brand_logo.png).
   - Chuẩn hóa màn hình HTML Boot Loader giống hệt 100% màn hình Splash của Flutter: Logo `world360 Vua hệ thống` sắc nét, badge thương hiệu, quả cầu xoay 3D Orbit Loader phát sáng và chân trang `WORLD360 CORP • V2.5.0`.
 
 ### 🟢 [QUALITY & TESTS]
@@ -79,23 +70,6 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 
 ## [v2.5.0+79] — 2026-08-20
 
-> [!IMPORTANT]
-> **Nhánh làm việc chung cho phiên bản v2.5.0+79 (Dành cho các AI Agent khác / Claude Code / Codex tiếp quản)**:
-> - **Frontend (`vclients`)**: Nhánh `fix/app-chat-stabilization`
->   ```bash
->   cd /media/tanma/DATA/save/mobile/vclients
->   git fetch origin && git checkout fix/app-chat-stabilization && git pull origin fix/app-chat-stabilization
->   ```
-> - **Backend (`v_mobile`)**: Nhánh `fix/app-chat-stabilization`
->   ```bash
->   cd /media/tanma/DATA/save/mobile/v_mobile
->   git fetch origin && git checkout fix/app-chat-stabilization && git pull origin fix/app-chat-stabilization
->   ```
-> 
-> **📢 Hướng Dẫn Kỹ Thuật & Cảnh Báo Khi Review & Deploy Trên Nhánh `17.0` & `release/ios-appstore`**:
-> 1. **Quy Trình Merge & Deploy**: Sau khi **anh Tân** kiểm tra và merge nhánh `fix/app-chat-stabilization` vào **`17.0`** (Backend Odoo `v_mobile`) và **`release/ios-appstore`** (Frontend Mobile `vclients`), **Claude Code / Sếp** sẽ checkout và thực hiện deploy trực tiếp trên nhánh `17.0` (Odoo SaaS Upgrade) và `release/ios-appstore` (GitHub Actions CI/CD).
-> 2. **CẢNH BÁO: Không Thay Đổi Logic Code Đã Kiểm Toán**: Nếu Claude Code tự ý thay đổi logic code trên nhánh `17.0` / `release/ios-appstore`, toàn bộ hệ thống test suite (**207 tests**) trên máy anh Tân sẽ bị **FAIL (LỖI ĐỎ)**, dẫn đến luồng **GitHub Actions CI/CD bị chặn hoàn toàn (Build Failed)** và **KHÔNG THỂ DEPLOY ĐƯỢC**. Bắt buộc bảo toàn nguyên vẹn 100% logic đã audit (*Local Cache First < 1.2ms, Batch SQL Prefetch O(1), GPS Location Card, Nạp 80 kênh + Pagination 35 messages Telegram-style, và `mounted` checks*).
-> 3. **Góp Ý Qua Audit & Changelog**: Mọi thay đổi hoặc góp ý cần cập nhật minh bạch vào [`docs/AUDIT_REPORT.md`](file:///media/tanma/DATA/save/mobile/docs/AUDIT_REPORT.md) và [`docs/CHANGELOGS.md`](file:///media/tanma/DATA/save/mobile/docs/CHANGELOGS.md).
 
 ### ⚡ [PERF] Tối Ưu Hóa Hiệu Năng Toàn Diện Mobile & Backend (60fps Chat & Batch Prefetch)
 - **Tối Ưu Hóa Tải Kênh Chat (Initial Batch Size: 80 Kênh & Lazy Load Infinite Scroll)**:

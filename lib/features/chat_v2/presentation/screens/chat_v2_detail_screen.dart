@@ -473,6 +473,8 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                             width: 40,
                             height: 40,
                             fit: BoxFit.cover,
+                            cacheWidth: (40 * MediaQuery.devicePixelRatioOf(context)).round(),
+                            cacheHeight: (40 * MediaQuery.devicePixelRatioOf(context)).round(),
                             gaplessPlayback: true,
                             errorBuilder: (context, error, stackTrace) =>
                                 const SizedBox.shrink(),
@@ -805,12 +807,12 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         _buildDateSeparator(message.createdAt!, isDark),
-                                        itemWidget,
+                                        RepaintBoundary(child: itemWidget),
                                       ],
                                     );
                                   }
 
-                                  return itemWidget;
+                                  return RepaintBoundary(child: itemWidget);
                                 } catch (e, stack) {
                                   return Container(
                                     padding: const EdgeInsets.all(16),

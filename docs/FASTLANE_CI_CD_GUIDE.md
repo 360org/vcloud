@@ -26,7 +26,7 @@ Vào **Settings -> Secrets and variables -> Actions** trên GitHub (hoặc **Set
 | :--- | :--- | :---: |
 | `APP_STORE_CONNECT_KEY_ID` | Key ID tạo từ App Store Connect (Ví dụ: `3J68D9JX79`) | iOS (TestFlight) |
 | `APP_STORE_CONNECT_ISSUER_ID` | Issuer ID của tổ chức W360S (`69a6de93-48bc-47e3-e053-5b8c7c11a4d1`) | iOS (TestFlight) |
-| `APP_STORE_CONNECT_KEY_CONTENT` | Nội dung file khóa bảo mật `.p8` (Bắt đầu bằng `-----BEGIN PRIVATE KEY-----`) | iOS (TestFlight) |
+| `APP_STORE_CONNECT_KEY_CONTENT` | Nội dung file khóa bảo mật `.p8`, lưu nguyên văn trong CI Secret | iOS (TestFlight) |
 | `APPLE_APP_PASS` *(Dự phòng)* | Mật khẩu ứng dụng 16 ký tự (Ví dụ: `xxxx-xxxx-xxxx-xxxx`) nếu không dùng Key `.p8` | iOS (TestFlight) |
 | `APPLE_ID` | Email quản trị Apple App Manager (`tanmnn@360.org.vn`) | iOS (TestFlight) |
 | `WEBHOOK_URL` | Đường dẫn Webhook (Slack, Discord, Telegram Bot HTTP Endpoint) | Webhook Alerts |
@@ -37,27 +37,24 @@ Vào **Settings -> Secrets and variables -> Actions** trên GitHub (hoặc **Set
 ## 3. QUY TRÌNH KÍCH HOẠT BUILD TỰ ĐỘNG (WEBHOOK & GIT PUSH)
 
 ### Cách 1: Tự động qua Git Push (Phổ biến nhất)
-Khi bạn push code lên các nhánh release:
+Khi Sếp đẩy nguồn phát hành mobile:
 ```bash
-# Push bản iOS TestFlight
-git push origin release/ios-appstore
-
-# Push bản Android Release
-git push origin release/android-playstore
+# Push nguồn build release theo cấu hình CI/CD của dự án
+git push origin <release-source>
 ```
 Pipeline sẽ tự động khởi chạy Fastlane ➔ Build ➔ Upload TestFlight / Play Store ➔ Bắn Webhook thông báo!
 
 ### Cách 2: Kích hoạt thủ công từ giao diện GitHub
 1. Vào tab **Actions** trên GitHub Repository.
 2. Chọn Workflow **Mobile CI/CD (Fastlane + Webhooks)**.
-3. Nhấn **Run workflow** -> Chọn nhánh và Nền tảng muốn build (`all`, `ios`, hoặc `android`).
+3. Nhấn **Run workflow** -> Chọn nguồn release và nền tảng muốn build (`all`, `ios`, hoặc `android`).
 
 ### Cách 3: Kích hoạt từ xa qua Webhook Trigger (HTTP POST)
 Bạn có thể gọi HTTP POST request từ bất kỳ đâu (Website nội bộ, cURL script, crm, v.v.):
 ```bash
-curl -X POST https://api.github.com/repos/360org_mobiles/vclients/dispatches \
+curl -X POST https://api.github.com/repos/360org/vcloud/dispatches \
   -H "Accept: application/vnd.github.v3+json" \
-  -H "Authorization: token YOUR_GITHUB_PERSONAL_ACCESS_TOKEN" \
+  -H "Authorization: Bearer <GITHUB_TOKEN>" \
   -d '{"event_type": "trigger-build"}'
 ```
 
@@ -100,7 +97,7 @@ bundle exec fastlane android beta
 
 ### Lỗi 2: `invalid curve name (OpenSSL::PKey::ECError)` khi đọc API Key `.p8`
 - **Nguyên nhân:** Trong ngôn ngữ Ruby, chuỗi rỗng `""` được tính là `true`. Khi không có secret `.p8`, Fastlane đọc chuỗi rỗng và cố gắng giải mã OpenSSL EC key.
-- **Giải pháp đã xử lý:** Cập nhật Fastfile kiểm tra điều kiện thực tế `!key_content.strip.empty?`. Khi không có file `.p8`, Fastlane tự động chuyển sang tài khoản App Manager (`tanmnn@360.org.vn` + `yrgq-fslk-lwll-tmas`).
+- **Giải pháp đã xử lý:** Cập nhật Fastfile kiểm tra điều kiện thực tế `!key_content.strip.empty?`. Khi không có file `.p8`, Fastlane tự động chuyển sang xác thực App Manager qua CI Secrets `APPLE_ID` và `APPLE_APP_PASS`.
 
 ### Lỗi 3: `Could not find aab file` / `You passed invalid parameters to upload_to_play_store`
 - **Nguyên nhân:** Chưa có tài khoản Google Play Console nhưng biến môi trường Google Credentials bị đọc nhầm hoặc sai đường dẫn tương đối.

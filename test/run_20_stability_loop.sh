@@ -3,8 +3,8 @@
 
 set -e
 
-PROJECT_DIR="/media/tanma/DATA/save/mobile/vclients"
-FLUTTER_BIN="/home/tanma/flutter/bin/flutter"
+PROJECT_DIR="${PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+FLUTTER_BIN="${FLUTTER_BIN:-flutter}"
 TEST_FILE="test/chat_features_integration_test.dart"
 TOTAL_ITERATIONS=20
 

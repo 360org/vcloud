@@ -11,7 +11,7 @@ Google Play yêu cầu ứng dụng phải được ký bằng một **Upload Ke
 ### Lệnh tạo Keystore (Chạy trên Terminal/Git Bash):
 
 ```bash
-cd /media/tanma/DATA/save/mobile/vclients/android
+cd <VCLOUD_ROOT>/android
 
 keytool -genkey -v -keystore upload-keystore.jks \
   -storetype JKS \
@@ -45,7 +45,7 @@ storeFile=upload-keystore.jks
 Mở terminal tại thư mục `vclients`:
 
 ```bash
-cd /media/tanma/DATA/save/mobile/vclients
+cd <VCLOUD_ROOT>
 
 # 1. Cập nhật các dependency và kiểm tra mã nguồn
 flutter pub get
@@ -64,7 +64,7 @@ Kết quả tạo ra tại:
 Nếu môi trường dev chưa cấu hình Flutter hoặc muốn build trên môi trường sạch:
 
 ```bash
-cd /media/tanma/DATA/save/mobile/vclients
+cd <VCLOUD_ROOT>
 mkdir -p dist
 
 docker run --rm -v "$PWD":/src -w /src \

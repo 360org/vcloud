@@ -73,8 +73,12 @@ jobs:
             CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
             PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
             KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
-            KC_PASS=$(echo "${KEYCHAIN_PASSWORD:-buildpassword123}" | tr -d '\r\n')
-            P12_PASS=$(echo "${P12_PASSWORD:-123456}" | tr -d '\r\n')
+            KC_PASS=$(echo "$KEYCHAIN_PASSWORD" | tr -d '\r\n')
+            P12_PASS=$(echo "$P12_PASSWORD" | tr -d '\r\n')
+            if [ -z "$KC_PASS" ] || [ -z "$P12_PASS" ]; then
+              echo "❌ KEYCHAIN_PASSWORD and P12_PASSWORD must be configured in GitHub Secrets."
+              exit 1
+            fi
 
             python3 -c "import base64, os, re; cert_c = re.sub(r'[^A-Za-z0-9+/=]', '', os.environ.get('BUILD_CERTIFICATE_BASE64', '')); pp_c = re.sub(r'[^A-Za-z0-9+/=]', '', os.environ.get('BUILD_PROVISION_PROFILE_BASE64', '')); cert_c += '=' * (-len(cert_c) % 4 if len(cert_c) % 4 else 0); pp_c += '=' * (-len(pp_c) % 4 if len(pp_c) % 4 else 0); open('$CERTIFICATE_PATH', 'wb').write(base64.b64decode(cert_c)); open('$PP_PATH', 'wb').write(base64.b64decode(pp_c))"
 
@@ -87,10 +91,7 @@ jobs:
 
             if ! security import $CERTIFICATE_PATH -k $KEYCHAIN_PATH -P "$P12_PASS" -f pkcs12 -A; then
               echo "⚠️ First attempt with -f pkcs12 failed, trying without format flag..."
-              if ! security import $CERTIFICATE_PATH -k $KEYCHAIN_PATH -P "$P12_PASS" -A; then
-                echo "⚠️ Second attempt failed, trying fallback passphrase '123456'..."
-                security import $CERTIFICATE_PATH -k $KEYCHAIN_PATH -P "123456" -A
-              fi
+              security import $CERTIFICATE_PATH -k $KEYCHAIN_PATH -P "$P12_PASS" -A
             fi
 
             security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KC_PASS" $KEYCHAIN_PATH

@@ -1136,6 +1136,8 @@ class _ChannelListItem extends ConsumerWidget {
                               width: 50,
                               height: 50,
                               fit: BoxFit.cover,
+                              cacheWidth: (50 * MediaQuery.devicePixelRatioOf(context)).round(),
+                              cacheHeight: (50 * MediaQuery.devicePixelRatioOf(context)).round(),
                               gaplessPlayback: true,
                               errorBuilder: (context, error, stackTrace) =>
                                   const SizedBox.shrink(),

@@ -15,7 +15,7 @@ def run_load_test_loop(target_iterations: int = 1000, batch_size: int = 10):
     print("=================================================================")
     
     test_command = [
-        "/home/tanma/flutter/bin/flutter",
+        "flutter",
         "test",
         "test/chat_features_integration_test.dart"
     ]
@@ -34,7 +34,7 @@ def run_load_test_loop(target_iterations: int = 1000, batch_size: int = 10):
         try:
             res = subprocess.run(
                 test_command,
-                cwd="/media/tanma/DATA/save/mobile/vclients",
+                cwd=str(__import__("pathlib").Path(__file__).resolve().parents[1]),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,

@@ -239,8 +239,11 @@ platform :ios do
         ENV.delete("APP_STORE_CONNECT_KEY_CONTENT")
         ENV.delete("APP_STORE_CONNECT_KEY_BASE64")
 
-        apple_id_email = ENV["APPLE_ID"] || ENV["FASTLANE_USER"] || "tanmnn@360.org.vn"
-        app_pass = ENV["APPLE_APP_PASS"] || ENV["FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD"] || "yrgq-fslk-lwll-tmas"
+        apple_id_email = ENV["APPLE_ID"] || ENV["FASTLANE_USER"]
+        app_pass = ENV["APPLE_APP_PASS"] || ENV["FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD"]
+        if apple_id_email.to_s.strip.empty? || app_pass.to_s.strip.empty?
+          UI.user_error!("APPLE_ID and APPLE_APP_PASS must be configured in CI secrets for App-Specific Password upload.")
+        end
 
         ENV["FASTLANE_USER"] = apple_id_email
         ENV["FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD"] = app_pass

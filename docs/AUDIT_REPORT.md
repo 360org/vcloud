@@ -3,7 +3,7 @@
 
 > **Tiêu chuẩn kiểm toán**: `360-flutter` Mobile Standards & AIaC 3.0 Engineering Baseline.  
 > **Phạm vi kiểm toán**: Hệ thống Mobile App Flutter (`vclients`) & Odoo Backend Services (`v_mobile`).  
-> **Người thực hiện**: Hệ thống AIaC Audit tự động — Bàn giao trực tiếp cho **anh Tân**.
+> **Người thực hiện**: Hệ thống AIaC Audit tự động.
 
 ---
 
@@ -12,10 +12,10 @@
 ### 1.1 Thống kê Quy mô Mã nguồn (Codebase Metrics)
 | Thành phần | Số lượng Files | Tổng số dòng Code | Trạng thái Kiểm tra Tĩnh | Độ bao phủ / Kết quả Test |
 | :--- | :---: | :---: | :---: | :---: |
-| **Frontend Mobile (`vclients/lib`)** | **134 files** | **50,150 dòng** | `flutter analyze` **0 errors, 0 warnings** | Đạt **210/210 tests PASS (100%)** |
-| **Frontend Tests (`vclients/test`)** | **38 files** | **6,950 dòng** | Hoàn thành 100% Suite Test | 7 Performance / SLA Benchmarks |
-| **Backend Odoo (`v_mobile`)** | **110 files** | **16,180 dòng** | Python AST & Linter Verified | **9/9 Contract Tests PASS (100%)** |
-| **Tổng toàn hệ thống** | **282 files** | **73,280 dòng** | **CHUẨN TUYỆT ĐỐI** | **100% TEST PASS XANH** |
+| **Frontend Mobile (`vclients/lib`)** | **134 files** | **50,150 dòng** | `flutter analyze` chưa chạy được trong môi trường hiện tại | Chưa chạy lại sau hotfix |
+| **Frontend Tests (`vclients/test`)** | **38 files** | **6,950 dòng** | Chưa chạy lại sau hotfix | Chưa chạy lại sau hotfix |
+| **Backend Odoo (`v_mobile`)** | **110 files** | **16,180 dòng** | Python syntax check PASS | Contract tests chưa chạy lại |
+| **Tổng toàn hệ thống** | **282 files** | **73,280 dòng** | **ĐÃ HOTFIX, CHỜ FLUTTER TOOLCHAIN** | **BLOCKED — FLUTTER TOOLCHAIN MISSING** |
 
 ### 1.2 Kiến trúc Hệ thống
 * **Kiến trúc Tổng thể**: Clean Architecture 3 lớp phân tách triệt để (*Data Layer ➔ Domain Layer ➔ Presentation Layer*).
@@ -66,7 +66,14 @@
   - Thay thế subqueries nặng bằng Index Scan trực tiếp `(model, res_id, id DESC)`, giảm thời gian truy vấn từ **30s (Timeout) xuống `< 15ms`**.
   - Đếm số kênh có tin nhắn chưa đọc bằng 1 câu lệnh SQL duy nhất `SELECT COUNT(DISTINCT m.res_id) ...` loại trừ tin nhắn tác giả và user notifications.
 - ✅ **Script Chạy Local `launch_web.sh` Tối Giản**:
-  - Sử dụng trực tiếp mã nguồn local trên máy (`/media/tanma/DATA/save/mobile/v_mobile`), tự động nạp & nâng cấp module Odoo Docker `demo-17` mà không pull từ remote 17.0.
+  - Sử dụng trực tiếp mã nguồn backend đã kiểm chứng, không tự pull nguồn không liên quan trong lúc build mobile.
+
+
+### 2.1 Hotfix hiệu năng sau audit
+- Static hóa formatter giờ và regex attachment trong luồng render chat.
+- Giảm decode bitmap avatar bằng `cacheWidth/cacheHeight` theo DPR ở message avatar, header avatar, list avatar và shell avatar.
+- Cô lập repaint message item trong chat detail bằng `RepaintBoundary`; chat list giữ `_ChannelListItem` boundary hiện có.
+- GitHub giữ vai trò nguồn build sạch, không chứa thông tin handoff nội bộ hoặc tên nhánh phát triển trong tài liệu public.
 
 ---
 
@@ -77,8 +84,8 @@
   <false/>
   ```
 - ✅ **Quy chuẩn Versioning**: Đã khóa cứng mã phiên bản `version: 2.5.0+80` đồng nhất trên toàn bộ hệ thống tài liệu và cấu hình `pubspec.yaml`.
-- ✅ **Quy tắc Đặt Tên Nhánh Build +1 (RULE 24)**: Thiết lập quy chuẩn nhánh làm việc tự động tăng theo số Build (`fix/app-build80-stabilization` ➔ `fix/app-build81-stabilization`...).
-- ✅ **Đồng bộ Nhánh Release (`release/ios-appstore`)**: Nhánh release đã đồng bộ 100% mã nguồn mới nhất trên GitLab (`origin`), GitHub (`github`) và GitHub Build (`github-build`).
+- ✅ **Quy tắc Build sạch**: GitHub chỉ chứa nguồn phục vụ đóng gói bản phát hành, không chứa thông tin handoff nội bộ.
+- ✅ **Đồng bộ nguồn phát hành**: Nguồn build đã đồng bộ cho luồng CI/CD mobile.
 
 ---
 
@@ -91,39 +98,17 @@
 | **3. Apple HIG, Accessibility & UI/UX** | Chat Landing, FAB Button, Dark Mode VN Time, Touch 44pt | **100 / 100** | 🟢 **XUẤT SẮC** |
 | **4. Tiêu chuẩn Ponytail & Odoo 17 Native** | Allocated hours, Dynamic Filter, SQL Index < 15ms | **100 / 100** | 🟢 **XUẤT SẮC** |
 | **5. App Store Connect & CI/CD Compliance** | Encryption key, Semantic Versioning 2.5.0+80, Tag sync | **100 / 100** | 🟢 **XUẤT SẮC** |
-| **TỔNG ĐIỂM TOÀN DIỆN HỆ THỐNG** | **Điểm trung bình trọng số** | **100 / 100** | 🟢 **PRODUCTION READY** |
+| **TỔNG ĐIỂM TOÀN DIỆN HỆ THỐNG** | **Điểm trung bình trọng số** | **Chưa chấm lại sau hotfix** | 🟡 **BLOCKED — FLUTTER TOOLCHAIN MISSING** |
 
 ---
 
 ## 🎯 PHẦN 4: KẾT LUẬN & KIẾN NGHỊ PHÁT HÀNH TESTFLIGHT
 
 ### 4.1 Kết luận
-Mã nguồn phiên bản **`v2.5.0+80`** đã hoàn thành toàn bộ các yêu cầu chức năng, sửa lỗi tận gốc, tối ưu hóa hiệu năng vượt chuẩn SLA, đạt **210/210 tests Mobile PASS 100%** và **0 lỗi/cảnh báo phân tích tĩnh**.
+Mã nguồn phiên bản **`v2.5.0+80`** đã áp dụng hotfix hiệu năng và đã qua kiểm tra syntax/diff cơ bản. `flutter analyze` và `flutter test` chưa chạy được trong môi trường hiện tại vì thiếu Flutter toolchain trong `PATH`.
 
-### 4.2 Hướng dẫn Nhánh Làm Việc Cho Các AI Agent / Dev Khác Tiếp Quản
-* **Frontend Repository (`vclients`)**: Nhánh `fix/app-build80-stabilization`
-  ```bash
-  cd /media/tanma/DATA/save/mobile/vclients
-  git fetch origin && git checkout fix/app-build80-stabilization && git pull origin fix/app-build80-stabilization
-  ```
-* **Backend Repository (`v_mobile`)**: Nhánh `fix/app-build80-stabilization`
-  ```bash
-  cd /media/tanma/DATA/save/mobile/v_mobile
-  git fetch origin && git checkout fix/app-build80-stabilization && git pull origin fix/app-build80-stabilization
-  ```
-
-### 4.3 📢 Lời Nhắn & Hướng Dẫn Kỹ Thuật Dành Cho Claude Code (Release & Deployment Lead)
-> [!CAUTION]
-> **CẢNH BÁO QUAN TRỌNG KHI REVIEW & DEPLOY TRÊN NHÁNH `17.0` & `release/ios-appstore`**:
-> 1. **Quy Trình Merge & Deploy**:
->    - Toàn bộ tính năng, sửa lỗi và tối ưu hiệu năng của phiên bản **`v2.5.0+80`** đã hoàn thiện trên nhánh làm việc `fix/app-build80-stabilization` và đã đồng bộ vào `release/ios-appstore`.
->    - **Anh Tân** trực tiếp kích hoạt build TestFlight qua nhánh **`release/ios-appstore`** trên GitHub Actions CI/CD.
->    - **Claude Code / Sếp** checkout và thực hiện deploy trực tiếp trên nhánh **`17.0`** (nâng cấp Odoo SaaS Zero-Downtime).
-> 2. **CẢNH BÁO NGHIÊM NGẶT: Tuyệt Đối Không Thay Đổi Logic Code Đã Qua Kiểm Toán**:
->    - Nếu Claude Code tự ý thay đổi logic code, cấu trúc DTO model, API payload hoặc cơ chế quản lý state trên nhánh `17.0`, toàn bộ **hệ thống test suite (210 unit & widget tests)** sẽ bị **FAIL (LỖI ĐỎ)** ngay lập tức.
->    - Khi test bị lỗi, quy trình **GitHub Actions CI/CD sẽ tự động chặn đứng pipeline (Build Failed)** và **HOÀN TOÀN KHÔNG THỂ DEPLOY hay phát hành bản dựng App Store / TestFlight được**.
->    - Do đó, **BẮT BUỘC BẢO TOÀN NGUYÊN VẸN 100%** các logic cốt lõi đã pass toàn diện (*SWR RAM Cache 16ms, KeepAlive Notifiers, Odoo 17 Dynamic Field Filter, Allocated hours mapping, và SQL Index Scan O(1)*).
-> 3. **Góp Ý & Cập Nhật Minh Bạch Qua Audit**: Mọi góp ý kỹ thuật hoặc thay đổi cấu trúc cần được ghi nhận đồng bộ vào tài liệu [`docs/AUDIT_REPORT.md`](file:///media/tanma/DATA/save/mobile/docs/AUDIT_REPORT.md) và [`docs/CHANGELOGS.md`](file:///media/tanma/DATA/save/mobile/docs/CHANGELOGS.md) để duy trì tính toàn vẹn (Traceability) theo chuẩn AIaC 3.0.
+### 4.2 Quy tắc phát hành sạch
+GitHub chỉ dùng cho nguồn build phát hành, không đưa thông tin handoff nội bộ, tên nhánh phát triển hoặc đường dẫn máy cá nhân vào tài liệu public.
 
 ---
-*Báo cáo được khởi tạo và lưu trữ chính thức tại:* [`/media/tanma/DATA/save/mobile/docs/AUDIT_REPORT.md`](file:///media/tanma/DATA/save/mobile/docs/AUDIT_REPORT.md)
+*Báo cáo được lưu trong tài liệu dự án VCloud.*

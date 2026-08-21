@@ -22,7 +22,7 @@ Tiến trình biên dịch Xcode, Ký số chứng chỉ, Đóng gói IPA và Up
 
 ## 2. GIẢI THÍCH VỀ SỐ BUILD `2.4.0 (7)`
 
-Trong file cấu hình [.github/workflows/deploy.yml](file:///media/tanma/DATA/save/mobile/vclients/.github/workflows/deploy.yml), biến `BUILD_NUMBER` được tự động gán bằng:
+Trong file cấu hình [.github/workflows/deploy.yml](/.github/workflows/deploy.yml), biến `BUILD_NUMBER` được tự động gán bằng:
 ```yaml
 BUILD_NUMBER: ${{ github.run_number }}
 ```
@@ -40,7 +40,7 @@ BUILD_NUMBER: ${{ github.run_number }}
 | Tên Secret trên GitHub | Ý nghĩa & Nguồn file |
 | :--- | :--- |
 | **`BUILD_CERTIFICATE_BASE64`** | Chuỗi mã hóa Base64 của tệp chứng chỉ `ios_distribution.p12` (Team `ZC3H8887XS`). |
-| **`P12_PASSWORD`** | Mật khẩu giải mã file p12: `123456` |
+| **`P12_PASSWORD`** | Mật khẩu giải mã file p12, lưu trong CI Secrets |
 | **`BUILD_PROVISION_PROFILE_BASE64`** | Chuỗi mã hóa Base64 của file `V_cloud.mobileprovision` (UUID: `708b7563-9ec8-4d21-936a-d6edffa66671`). |
 
 ### Đã tạo sẵn 2 file Base64 nguồn dưới máy local:
@@ -54,8 +54,8 @@ BUILD_NUMBER: ${{ github.run_number }}
 Để không bị lỗi xác thực `401 NOT_AUTHORIZED` khi API Key `.p8` bị Apple chặn:
 
 1. **Thông số xác thực chính chủ Apple:**
-   * **Tài khoản App Manager:** `tanmnn@360.org.vn`
-   * **Mật khẩu ứng dụng 16 ký tự:** `yrgq-fslk-lwll-tmas`
+   * **Tài khoản App Manager:** lưu trong CI Secret `APPLE_ID`.
+   * **Mật khẩu ứng dụng 16 ký tự:** lưu trong CI Secret `APPLE_APP_PASS`, không ghi trực tiếp vào repo.
    * **Secret GitHub:** `APPLE_ID` và `APPLE_APP_PASS`
 
 2. **Cơ chế dọn rác biến môi trường trong Fastfile:**

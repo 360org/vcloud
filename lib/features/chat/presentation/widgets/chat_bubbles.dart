@@ -27,6 +27,9 @@ import 'package:vcloud/shared/widgets/ui_kit.dart';
 import 'chat_helpers.dart';
 import 'chat_sheets.dart';
 
+final RegExp _attachmentIdPattern =
+    RegExp(r'/(?:attachments|image|content)/(\d+)');
+
 Color getIncomingBubbleColor(BuildContext context) =>
     context.isDarkMode ? AppColors.darkSurface : const Color(0xFFE7F8E7);
 Color getIncomingBubbleBorder(BuildContext context) =>
@@ -1391,7 +1394,7 @@ class _NetworkPreviewImageState extends ConsumerState<NetworkPreviewImage> {
     // 1. Tự động tìm attachmentId nếu có trong widget hoặc URL
     String? resolvedId = widget.attachmentId;
     if (resolvedId == null || resolvedId.isEmpty || int.tryParse(resolvedId) == null) {
-      final match = RegExp(r'/(?:attachments|image|content)/(\d+)').firstMatch(widget.url);
+      final match = _attachmentIdPattern.firstMatch(widget.url);
       if (match != null) {
         resolvedId = match.group(1);
       }
@@ -1856,7 +1859,7 @@ class MediaInfo {
     if (!isImage && !isVideo) return null;
 
     String? attachmentId;
-    final attMatch = RegExp(r'/(?:attachments|image|content)/(\d+)').firstMatch(clean);
+    final attMatch = _attachmentIdPattern.firstMatch(clean);
     if (attMatch != null) {
       attachmentId = attMatch.group(1);
     }
@@ -1879,7 +1882,7 @@ class MediaInfo {
       final src = match.group(1)?.trim();
       if (src != null && src.isNotEmpty && seen.add(src)) {
         String? attachmentId;
-        final attMatch = RegExp(r'/(?:attachments|image|content)/(\d+)').firstMatch(src);
+        final attMatch = _attachmentIdPattern.firstMatch(src);
         if (attMatch != null) {
           attachmentId = attMatch.group(1);
         }

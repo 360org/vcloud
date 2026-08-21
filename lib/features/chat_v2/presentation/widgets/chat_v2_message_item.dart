@@ -14,6 +14,9 @@ import '../screens/chat_v2_image_viewer_screen.dart';
 import 'chat_v2_location_card.dart';
 import 'chat_v2_poll_card.dart';
 
+final RegExp _attachmentIdPattern =
+    RegExp(r'/(?:attachments|image|content)/(\d+)');
+
 class ChatV2MessageItem extends StatelessWidget {
   const ChatV2MessageItem({
     super.key,
@@ -33,6 +36,8 @@ class ChatV2MessageItem extends StatelessWidget {
   final VoidCallback? onLongPress;
   final ValueChanged<String?>? onReplyTap;
   final bool isHighlighted;
+
+  static final DateFormat _timeFormatter = DateFormat('HH:mm');
 
   static const _authorColors = [
     Color(0xFF0284C7), // Sky blue
@@ -58,8 +63,9 @@ class ChatV2MessageItem extends StatelessWidget {
     final isMine = message.isMine;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final authorColor = getAuthorColor(message.authorName);
+    final avatarCacheSize = (28 * MediaQuery.devicePixelRatioOf(context)).round();
     final timeStr = message.createdAt != null
-        ? DateFormat('HH:mm').format(message.createdAt!)
+        ? _timeFormatter.format(message.createdAt!)
         : '';
 
     final imageAttachments = message.attachments.where((a) => a.isImage).toList();
@@ -174,6 +180,8 @@ class ChatV2MessageItem extends StatelessWidget {
                             width: 28,
                             height: 28,
                             fit: BoxFit.cover,
+                            cacheWidth: avatarCacheSize,
+                            cacheHeight: avatarCacheSize,
                             gaplessPlayback: true,
                             errorBuilder: (context, error, stackTrace) =>
                                 const SizedBox.shrink(),
@@ -1152,7 +1160,7 @@ class _ChatV2AttachmentImageState extends State<ChatV2AttachmentImage> {
     // 2. Resolve attachment ID (either directly or extracted from URL)
     int? attId = int.tryParse(widget.attachment.id);
     if (attId == null && widget.attachment.url != null) {
-      final match = RegExp(r'/(?:attachments|image|content)/(\d+)').firstMatch(widget.attachment.url!);
+      final match = _attachmentIdPattern.firstMatch(widget.attachment.url!);
       if (match != null) {
         attId = int.tryParse(match.group(1)!);
       }
