@@ -73,10 +73,10 @@ jobs:
             CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
             PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
             KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
-            KC_PASS=$(echo "$KEYCHAIN_PASSWORD" | tr -d '\r\n')
-            P12_PASS=$(echo "$P12_PASSWORD" | tr -d '\r\n')
-            if [ -z "$KC_PASS" ] || [ -z "$P12_PASS" ]; then
-              echo "❌ KEYCHAIN_PASSWORD and P12_PASSWORD must be configured in GitHub Secrets."
+            KC_PASS=$(printf '%s' "${KEYCHAIN_PASSWORD:-$(uuidgen)}" | tr -d '\r\n')
+            P12_PASS=$(printf '%s' "$P12_PASSWORD" | tr -d '\r\n')
+            if [ -z "$P12_PASS" ]; then
+              echo "❌ P12_PASSWORD must be configured in GitHub Secrets."
               exit 1
             fi
 
