@@ -33,8 +33,10 @@ class ChatV2ChannelLocalCache {
     if (api.lastMessage == null || api.lastMessage!.isEmpty) return local.lastMessage;
     if (local.lastMessageDate == null) return api.lastMessage;
     if (api.lastMessageDate == null) return local.lastMessage;
-    
-    if (api.lastMessageDate!.isAfter(local.lastMessageDate!)) {
+
+    final localUtc = local.lastMessageDate!.toUtc();
+    final apiUtc = api.lastMessageDate!.toUtc();
+    if (apiUtc.isAfter(localUtc)) {
       return api.lastMessage;
     }
     return local.lastMessage;
@@ -44,9 +46,11 @@ class ChatV2ChannelLocalCache {
     if (local.lastMessage == null || local.lastMessage!.isEmpty) return api.lastMessageDate ?? local.lastMessageDate;
     if (local.lastMessageDate == null) return api.lastMessageDate;
     if (api.lastMessageDate == null) return local.lastMessageDate;
-    
-    return api.lastMessageDate!.isAfter(local.lastMessageDate!) 
-        ? api.lastMessageDate 
+
+    final localUtc = local.lastMessageDate!.toUtc();
+    final apiUtc = api.lastMessageDate!.toUtc();
+    return apiUtc.isAfter(localUtc)
+        ? api.lastMessageDate
         : local.lastMessageDate;
   }
 
@@ -232,8 +236,8 @@ class ChatV2ChannelLocalCache {
       final bPinned = _userPinnedIds.contains(b.id);
       if (aPinned && !bPinned) return -1;
       if (!aPinned && bPinned) return 1;
-      final da = a.lastMessageDate ?? DateTime.fromMillisecondsSinceEpoch(0);
-      final db = b.lastMessageDate ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final da = (a.lastMessageDate ?? DateTime.fromMillisecondsSinceEpoch(0)).toUtc();
+      final db = (b.lastMessageDate ?? DateTime.fromMillisecondsSinceEpoch(0)).toUtc();
       return db.compareTo(da);
     });
     _cached = List.unmodifiable(merged);
@@ -456,8 +460,8 @@ class ChatV2ChannelsNotifier
         }
         final merged = map.values.toList();
         merged.sort((a, b) {
-          final da = a.lastMessageDate ?? DateTime.fromMillisecondsSinceEpoch(0);
-          final db = b.lastMessageDate ?? DateTime.fromMillisecondsSinceEpoch(0);
+          final da = (a.lastMessageDate ?? DateTime.fromMillisecondsSinceEpoch(0)).toUtc();
+          final db = (b.lastMessageDate ?? DateTime.fromMillisecondsSinceEpoch(0)).toUtc();
           return db.compareTo(da);
         });
 
