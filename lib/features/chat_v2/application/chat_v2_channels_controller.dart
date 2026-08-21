@@ -454,6 +454,17 @@ final chatV2TotalUnreadProvider = Provider<int>((ref) {
     data: (channels) {
       final unread = channels.where((c) {
         final cachedMsgs = ChatV2MessageLocalCache.get(c.id);
+        final effectiveLastMsg = (c.lastMessage != null && c.lastMessage!.isNotEmpty)
+            ? c.lastMessage
+            : (cachedMsgs != null && cachedMsgs.isNotEmpty
+                ? cachedMsgs.first.content
+                : null);
+
+        // Kênh chưa có tin nhắn nào thì không tính vào badge chưa đọc
+        if (effectiveLastMsg == null || effectiveLastMsg.trim().isEmpty) {
+          return false;
+        }
+
         final isFirstMsgMine = cachedMsgs != null &&
             cachedMsgs.isNotEmpty &&
             cachedMsgs.first.isMine;

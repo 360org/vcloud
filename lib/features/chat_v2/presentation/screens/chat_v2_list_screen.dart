@@ -481,6 +481,12 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                             currentUserId: currentUserId,
                           );
 
+                      // Nếu chưa có tin nhắn nào trong phòng -> Không hiển thị ở Chưa đọc
+                      if (c.lastMessage == null || c.lastMessage!.trim().isEmpty) {
+                        final cachedMsgs = ChatV2MessageLocalCache.get(c.id);
+                        if (cachedMsgs == null || cachedMsgs.isEmpty) return false;
+                      }
+
                       // Nếu tin nhắn cuối do chính mình gửi -> Chắc chắn KHÔNG nằm trong tab Chưa đọc
                       if (isMine) return false;
 
@@ -1046,7 +1052,7 @@ class _ChannelListItem extends ConsumerWidget {
     ref.watch(chatV2ReadStateProvider.select((m) => m[channel.id]));
     final hasUnread = !isMine &&
         effectiveLastMsg != null &&
-        effectiveLastMsg.isNotEmpty &&
+        effectiveLastMsg.trim().isNotEmpty &&
         readNotifier.isChannelUnread(
           channelId: channel.id,
           serverUnreadCount: channel.unreadCount,
