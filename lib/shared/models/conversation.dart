@@ -54,7 +54,7 @@ class ConversationSummary {
 
     return ConversationSummary(
       id: id,
-      isGroup: channelType != 'chat' && memberCount > 2,
+      isGroup: channelType == 'group' || channelType == 'channel' || (channelType != 'chat' && memberCount > 2),
       title: (map['name'] ?? 'Chat').toString(),
       lastMessage: lastMessageText == null
           ? null
