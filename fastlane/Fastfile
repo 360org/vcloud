@@ -1,0 +1,336 @@
+default_platform(:ios)
+
+# Helper method to post real-time notification to Webhook (Slack, Discord, Telegram, or custom server)
+def send_webhook(title, message, status = "success")
+  webhook_url = ENV["WEBHOOK_URL"]
+  if webhook_url.nil? || webhook_url.strip.empty?
+    UI.message("ℹ️ No WEBHOOK_URL environment variable provided. Skipping webhook alert.")
+    return
+  end
+
+  color_code = status == "success" ? 3066993 : 15158332
+  payload = {
+    embeds: [
+      {
+        title: title,
+        description: message,
+        color: color_code,
+        timestamp: Time.now.utc.iso8601,
+        footer: {
+          text: "VCloud Mobile CI/CD Automation • Fastlane"
+        }
+      }
+    ],
+    text: "📢 **#{title}**\n#{message}"
+  }
+
+  require 'net/http'
+  require 'uri'
+  require 'json'
+  require 'time'
+
+  uri = URI.parse(webhook_url)
+  http = Net::HTTP.new(uri.host, uri.port)
+  http.use_ssl = (uri.scheme == 'https')
+
+  request_path = (uri.path.nil? || uri.path.empty?) ? '/' : uri.path
+  request_path += "?#{uri.query}" if uri.query && !uri.query.empty?
+
+  request = Net::HTTP::Post.new(request_path, { 'Content-Type' => 'application/json' })
+  request.body = payload.to_json
+  
+  response = http.request(request)
+  if response.code.to_i >= 200 && response.code.to_i < 300
+    UI.success("✅ Webhook notification dispatched successfully! (HTTP #{response.code})")
+  else
+    UI.important("⚠️ Webhook response returned non-2xx status: HTTP #{response.code} #{response.body}")
+  end
+rescue => e
+  UI.important("⚠️ Could not send webhook alert: #{e.message}")
+end
+
+# Lane to automatically increment build number in pubspec.yaml
+desc "Increment build number (+1) in pubspec.yaml"
+lane :bump do |options|
+  pubspec_path = "../pubspec.yaml"
+  content = File.read(pubspec_path)
+  
+  if content =~ /^version:\s*(\d+\.\d+\.\d+)\+(\d+)/
+    version_name = $1
+    old_build = $2.to_i
+    new_build = old_build + 1
+    new_version = "version: #{version_name}+#{new_build}"
+    
+    new_content = content.sub(/^version:.*$/, new_version)
+    File.write(pubspec_path, new_content)
+    
+    UI.success("🎉 Updated pubspec.yaml version from #{version_name}+#{old_build} to #{version_name}+#{new_build}")
+  else
+    UI.error("⚠️ Could not parse version pattern in pubspec.yaml")
+  end
+end
+
+platform :ios do
+  desc "Build signed IPA and deploy to Apple TestFlight with automated Release Notes"
+  lane :beta do |options|
+    begin
+      UI.header("🚀 Launching iOS TestFlight Fastlane Pipeline")
+
+      # Resolve absolute workspace paths relative to Fastfile location
+      xcodeproj_path = File.expand_path("../ios/Runner.xcodeproj", __dir__)
+      export_plist_path = File.expand_path("../ios/export_options.plist", __dir__)
+      pubspec_path = File.expand_path("../pubspec.yaml", __dir__)
+      vclients_dir = File.expand_path("..", __dir__)
+      ipa_dir = File.expand_path("../build/ios/ipa", __dir__)
+
+      # 1. Setup App Store Connect API Key if valid key content is provided
+      api_key = nil
+      key_content = ENV["APP_STORE_CONNECT_KEY_CONTENT"]
+      key_id = ENV["APP_STORE_CONNECT_KEY_ID"]
+      issuer_id = ENV["APP_STORE_CONNECT_ISSUER_ID"]
+
+      has_key_content = !(key_content.nil? || key_content.to_s.strip.empty?)
+      has_key_id = !(key_id.nil? || key_id.to_s.strip.empty?)
+      has_issuer_id = !(issuer_id.nil? || issuer_id.to_s.strip.empty?)
+
+      UI.message("🔑 Secrets Diagnostic -> Key ID: #{has_key_id ? 'CONFIGURED' : 'MISSING'}, Issuer ID: #{has_issuer_id ? 'CONFIGURED' : 'MISSING'}, Key Content: #{has_key_content ? 'CONFIGURED' : 'MISSING'}")
+
+      if has_key_content && has_key_id && has_issuer_id
+        begin
+          api_key = app_store_connect_api_key(
+            key_id: key_id.strip,
+            issuer_id: issuer_id.strip,
+            key_content: key_content.strip,
+            is_key_content_base64: ENV["APP_STORE_CONNECT_KEY_BASE64"] == "true",
+            in_house: false
+          )
+        rescue => key_err
+          UI.important("⚠️ Invalid API Key .p8 content or revoked key (#{key_err.message}). Cleaning API Key env vars and falling back to App-Specific Password authentication...")
+          api_key = nil
+          ENV.delete("APP_STORE_CONNECT_KEY_ID")
+          ENV.delete("APP_STORE_CONNECT_ISSUER_ID")
+          ENV.delete("APP_STORE_CONNECT_KEY_CONTENT")
+          ENV.delete("APP_STORE_CONNECT_KEY_BASE64")
+        end
+
+        UI.message("📦 Checking App Store Distribution Certificates & Profiles...")
+        begin
+          get_certificates(
+            api_key: api_key,
+            development: false
+          )
+          get_provisioning_profile(
+            api_key: api_key,
+            app_identifier: "com.w360s.wcloudapp",
+            development: false
+          )
+        rescue => cert_err
+          UI.important("ℹ️ Remote cert fetch skipped (#{cert_err.message}). Using pre-installed keychain certificate & profile 'V_cloud'.")
+        end
+
+        profile_name = (lane_context[SharedValues::SIGH_NAME] rescue nil) || ENV["SIGH_PROFILE_NAME"] || ENV["SIGH_NAME"] || "V_cloud"
+
+        UI.message("⚙️ Updating Xcode Code Signing settings for Manual Signing with profile: #{profile_name}")
+        update_code_signing_settings(
+          use_automatic_signing: false,
+          path: xcodeproj_path,
+          targets: ["Runner"],
+          team_id: "ZC3H8887XS",
+          code_sign_identity: "iPhone Distribution",
+          profile_name: profile_name
+        )
+
+        require 'plist'
+        export_options_hash = {
+          "method" => "app-store",
+          "teamID" => "ZC3H8887XS",
+          "uploadSymbols" => true,
+          "manageAppVersionAndBuildNumber" => false,
+          "testFlightInternalTestingOnly" => true,
+          "signingStyle" => "manual",
+          "provisioningProfiles" => {
+            "com.w360s.wcloudapp" => profile_name
+          }
+        }
+        File.write(export_plist_path, export_options_hash.to_plist)
+        UI.success("📝 Dynamically generated #{export_plist_path} for profile '#{profile_name}'")
+      else
+        UI.important("⚠️ App Store Connect API Key secrets are missing or optional in runner environment.")
+        UI.message("⚙️ Using pre-installed provisioning profile 'V_cloud' and team 'ZC3H8887XS'...")
+        update_code_signing_settings(
+          use_automatic_signing: false,
+          path: xcodeproj_path,
+          targets: ["Runner"],
+          team_id: "ZC3H8887XS",
+          code_sign_identity: "iPhone Distribution",
+          profile_name: "V_cloud"
+        )
+      end
+
+      # 2. Extract version, build number, and git commit changelog
+      require 'yaml'
+      pubspec = YAML.load_file(pubspec_path)
+      version_parts = pubspec["version"].to_s.split("+")
+      build_name = version_parts[0] || "2.4.0"
+      build_number = ENV["BUILD_NUMBER"] || version_parts[1] || "40"
+      api_base_url = ENV["VCLOUD_ODOO_API_BASE_URL"] || "https://vuahethong.net"
+
+      # Extract latest git commit message for TestFlight "What to Test"
+      latest_commit_msg = sh("git log -1 --pretty=%B").strip rescue "VCloud Mobile iOS Build v#{build_name}+#{build_number}"
+      changelog_text = latest_commit_msg.empty? ? "VCloud Mobile iOS Release v#{build_name}+#{build_number}" : latest_commit_msg[0..490]
+
+      UI.message("📱 Target App Version: #{build_name}+#{build_number}")
+      UI.message("🌐 Target API Base URL: #{api_base_url}")
+      UI.message("📝 TestFlight Release Notes: #{changelog_text}")
+
+      # 3. Clean stale IPA artifacts before building
+      require 'fileutils'
+      FileUtils.mkdir_p(ipa_dir)
+      stale_ipas = Dir.glob(File.join(ipa_dir, "*.ipa"))
+      unless stale_ipas.empty?
+        UI.message("🧹 Cleaning #{stale_ipas.length} stale IPA file(s) before build...")
+        stale_ipas.each { |f| File.delete(f) rescue nil }
+      end
+
+      # 4. Build IPA using Flutter (using App Store export options)
+      sh("cd #{vclients_dir} && flutter build ipa --release --export-options-plist=ios/export_options.plist --build-name=#{build_name} --build-number=#{build_number} --dart-define=VCLOUD_ODOO_API_BASE_URL=#{api_base_url}")
+
+      # Dynamically discover newly built IPA artifact
+      ipa_candidates = Dir.glob(File.join(ipa_dir, "*.ipa"))
+      if ipa_candidates.empty?
+        UI.user_error!("❌ Flutter build completed successfully, but no IPA file was found in #{ipa_dir}!")
+      end
+
+      if ipa_candidates.length > 1
+        UI.message("📦 Found multiple IPA files in #{ipa_dir}:")
+        ipa_candidates.each { |candidate| UI.message("   - #{candidate}") }
+      end
+
+      ipa_path = ipa_candidates.max_by { |path| File.mtime(path) }
+      UI.success("📦 Selected IPA for TestFlight upload: #{ipa_path}")
+
+      # 5. Upload to Apple TestFlight & Auto-Distribute to Testers with Release Notes
+      tester_groups = ENV["TESTFLIGHT_GROUPS"] ? ENV["TESTFLIGHT_GROUPS"].split(",") : ["360 internal testing staff"]
+      app_store_app_id = "1365622472"
+
+      uploaded = false
+
+      if api_key
+        begin
+          UI.message("📦 Uploading to TestFlight via App Store Connect API Key...")
+          upload_to_testflight(
+            api_key: api_key,
+            apple_id: app_store_app_id,
+            groups: tester_groups,
+            changelog: changelog_text,
+            skip_waiting_for_build_processing: true,
+            ipa: ipa_path
+          )
+          uploaded = true
+        rescue => api_err
+          UI.important("⚠️ TestFlight upload via API Key failed: #{api_err.message}. Falling back to App-Specific Password...")
+        end
+      end
+
+      unless uploaded
+        # Clean stale API Key environment variables so altool does NOT attempt to use broken JWT tokens
+        ENV.delete("APP_STORE_CONNECT_KEY_ID")
+        ENV.delete("APP_STORE_CONNECT_ISSUER_ID")
+        ENV.delete("APP_STORE_CONNECT_KEY_CONTENT")
+        ENV.delete("APP_STORE_CONNECT_KEY_BASE64")
+
+        apple_id_email = ENV["APPLE_ID"] || ENV["FASTLANE_USER"]
+        app_pass = ENV["APPLE_APP_PASS"] || ENV["FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD"]
+        if apple_id_email.to_s.strip.empty? || app_pass.to_s.strip.empty?
+          UI.user_error!("APPLE_ID and APPLE_APP_PASS must be configured in CI secrets for App-Specific Password upload.")
+        end
+
+        ENV["FASTLANE_USER"] = apple_id_email
+        ENV["FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD"] = app_pass
+
+        UI.message("🔑 Authenticating and uploading using Apple native altool (#{apple_id_email})")
+        begin
+          sh("xcrun altool --upload-app --type ios -f \"#{ipa_path}\" -u \"#{apple_id_email}\" -p \"#{app_pass}\" --asc-provider ZC3H8887XS")
+          uploaded = true
+          UI.success("🎉 Successfully uploaded IPA to TestFlight using Apple App Manager (#{apple_id_email})!")
+        rescue => altool_err
+          UI.important("⚠️ altool upload encountered an issue (#{altool_err.message}), attempting fallback via Fastlane...")
+          upload_to_testflight(
+            api_key: nil,
+            username: apple_id_email,
+            apple_id: app_store_app_id,
+            groups: tester_groups,
+            changelog: changelog_text,
+            skip_waiting_for_build_processing: true,
+            ipa: ipa_path
+          )
+          uploaded = true
+        end
+      end
+
+      # 5. Dispatch Webhook Success Alert
+      send_webhook(
+        "🚀 TestFlight Release Successful!",
+        "VCloud Mobile iOS **v#{build_name}+#{build_number}** has been built and uploaded to Apple TestFlight.\n• Changelog: #{changelog_text}\n• API: #{api_base_url}\n• Bundle: com.w360s.wcloudapp",
+        "success"
+      )
+    rescue => ex
+      send_webhook("❌ TestFlight Release Failed", "Pipeline encountered an error: #{ex.message}", "error")
+      raise ex
+    end
+  end
+end
+
+platform :android do
+  desc "Build Android APK & AAB release packages"
+  lane :beta do |options|
+    begin
+      UI.header("🤖 Launching Android Fastlane Pipeline")
+
+      require 'yaml'
+      pubspec = YAML.load_file("../pubspec.yaml")
+      version_parts = pubspec["version"].to_s.split("+")
+      build_name = version_parts[0] || "2.4.0"
+      build_number = ENV["BUILD_NUMBER"] || version_parts[1] || "40"
+      api_base_url = ENV["VCLOUD_ODOO_API_BASE_URL"] || "https://vuahethong.net"
+
+      UI.message("📱 Target App Version: #{build_name}+#{build_number}")
+
+      # 1. Build Universal APK
+      sh("cd .. && flutter pub get")
+      sh("cd .. && flutter build apk --release --build-name=#{build_name} --build-number=#{build_number} --dart-define=VCLOUD_ODOO_API_BASE_URL=#{api_base_url}")
+
+      # 2. Build App Bundle (AAB) for Google Play
+      sh("cd .. && flutter build appbundle --release --build-name=#{build_name} --build-number=#{build_number} --dart-define=VCLOUD_ODOO_API_BASE_URL=#{api_base_url}")
+
+      # 3. Optional Google Play Internal Track Upload (Only if credentials provided)
+      gcloud_creds = ENV["GCLOUD_SERVICE_ACCOUNT_CREDENTIALS"]
+      if gcloud_creds && !gcloud_creds.strip.empty?
+        aab_path = File.exist?("../build/app/outputs/bundle/release/app-release.aab") ? "../build/app/outputs/bundle/release/app-release.aab" : "build/app/outputs/bundle/release/app-release.aab"
+        if File.exist?(aab_path) || File.exist?(File.expand_path(aab_path, __dir__))
+          UI.message("📦 Uploading AAB to Google Play Console...")
+          upload_to_play_store(
+            track: ENV["GOOGLE_PLAY_TRACK"] || "internal",
+            aab: aab_path,
+            json_key_data: gcloud_creds,
+            package_name: "com.w360s.wcloudapp"
+          )
+        else
+          UI.important("⚠️ AAB build complete. Skipping Google Play upload (AAB path not found).")
+        end
+      else
+        UI.message("ℹ️ Android APK & AAB build completed successfully (No Google Play Console credentials provided).")
+      end
+
+      # 4. Dispatch Webhook Success Alert
+      send_webhook(
+        "🤖 Android Release Successful!",
+        "VCloud Mobile Android **v#{build_name}+#{build_number}** APK and AAB build completed!\n• API: #{api_base_url}\n• APK Output: `build/app/outputs/flutter-apk/app-release.apk`",
+        "success"
+      )
+    rescue => ex
+      send_webhook("❌ Android Release Failed", "Pipeline encountered an error: #{ex.message}", "error")
+      raise ex
+    end
+  end
+end

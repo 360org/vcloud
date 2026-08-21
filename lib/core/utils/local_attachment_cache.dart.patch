@@ -1,0 +1,20 @@
+--- vclients/lib/core/utils/local_attachment_cache.dart
++++ vclients/lib/core/utils/local_attachment_cache.dart
+@@ -107,17 +107,10 @@
+         }
+       } else {
+-        // Mobile Environment: Check physical disk file
+-        try {
+-          if (_mobileDirPath != null) {
+-            final file = File('$_mobileDirPath/$k.bin');
+-            if (file.existsSync()) {
+-              final bytes = file.readAsBytesSync();
+-              _memCache[k] = bytes; // Populate RAM cache
+-              return bytes;
+-            }
+-          }
+-        } catch (_) {}
++        // DO NOT DO SYNCHRONOUS DISK I/O HERE.
++        // Use getAsync() instead if you want to read from disk.
+       }
+     }

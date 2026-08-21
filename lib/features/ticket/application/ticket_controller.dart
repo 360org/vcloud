@@ -1,0 +1,191 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../core/api/mobile_attachment_repository.dart';
+import '../../../shared/models/activity_log.dart';
+import '../../../shared/models/ticket.dart';
+import '../../../shared/models/ticket_comment.dart';
+import '../data/activity_log_repository.dart';
+import '../data/ticket_comment_repository.dart';
+import '../data/ticket_repository.dart';
+
+import '../../../shared/models/ticket_activity.dart';
+
+final ticketRepositoryProvider = Provider<TicketRepository>(
+  (_) => TicketRepository(),
+);
+
+class TicketFilterNotifier extends Notifier<TicketFilter> {
+  @override
+  TicketFilter build() => const TicketFilter();
+
+  void update(TicketFilter filter) => state = filter;
+  void clear() => state = const TicketFilter();
+}
+
+final ticketFilterProvider =
+    NotifierProvider<TicketFilterNotifier, TicketFilter>(
+      TicketFilterNotifier.new,
+    );
+
+final ticketsProvider = StreamProvider<List<Ticket>>((ref) {
+  final filter = ref.watch(ticketFilterProvider);
+  return ref.read(ticketRepositoryProvider).watchAssigned(filter: filter);
+});
+
+final ticketTeamsProvider = FutureProvider<List<TicketTeamOption>>(
+  (ref) => ref.read(ticketRepositoryProvider).teams(),
+);
+
+final ticketTagsProvider = FutureProvider<List<TicketTagOption>>(
+  (ref) => ref.read(ticketRepositoryProvider).tags(),
+);
+
+final ticketActivitiesProvider =
+    FutureProvider.family<List<TicketActivity>, String>((ref, ticketId) async {
+      return ref.read(ticketRepositoryProvider).activities(ticketId);
+    });
+
+
+/// Lightweight notifier that holds an *override* list used for
+/// optimistic status updates. When non-null, the rest of the app
+/// reads it in place of [ticketsProvider]; when null, the source
+/// stream is used.
+class TicketOverride extends Notifier<List<Ticket>?> {
+  @override
+  List<Ticket>? build() => null;
+
+  void set(List<Ticket>? next) => state = next;
+}
+
+final ticketOverrideProvider = NotifierProvider<TicketOverride, List<Ticket>?>(
+  TicketOverride.new,
+);
+
+final effectiveTicketsProvider = Provider<List<Ticket>>((ref) {
+  final override = ref.watch(ticketOverrideProvider);
+  if (override != null) return override;
+  return ref.watch(ticketsProvider).valueOrNull ?? const <Ticket>[];
+});
+
+class TicketActions {
+  TicketActions(this._repo, this._ref);
+  final TicketRepository _repo;
+  final Ref _ref;
+
+  Future<Ticket> create({
+    required String title,
+    required String? description,
+    TicketPriority priority = TicketPriority.p3,
+    String? category,
+    List<int> tagIds = const <int>[],
+    List<MobileAttachmentUpload> attachments = const <MobileAttachmentUpload>[],
+  }) async {
+    final t = await _repo.create(
+      title: title,
+      description: description,
+      priority: priority,
+      category: category,
+      tagIds: tagIds,
+      attachments: attachments,
+    );
+    _ref.invalidate(ticketsProvider);
+    return t;
+  }
+
+  /// Optimistic status update. We patch the override, fire the API,
+  /// and roll the override back to null on success/failure — letting
+  /// the source stream re-emit authoritative data on the next tick.
+  Future<void> updateStatus(String id, TicketStatus status) async {
+    final cur = _ref.read(ticketsProvider).valueOrNull ?? const <Ticket>[];
+    final patched = [
+      for (final t in cur) t.id == id ? t.copyWith(status: status) : t,
+    ];
+    _ref.read(ticketOverrideProvider.notifier).set(patched);
+    try {
+      await _repo.updateStatus(id, status);
+    } catch (_) {
+      _ref.read(ticketOverrideProvider.notifier).set(null);
+      _ref.invalidate(ticketsProvider);
+      rethrow;
+    }
+    _ref.read(ticketOverrideProvider.notifier).set(null);
+    _ref.invalidate(ticketsProvider);
+  }
+
+  Future<void> delete(String id) async {
+    await _repo.delete(id);
+    _ref.invalidate(ticketsProvider);
+  }
+
+  Future<void> updatePriority(String id, TicketPriority priority) async {
+    await _repo.updatePriority(id, priority);
+    _ref.invalidate(ticketsProvider);
+  }
+
+  Future<void> updateCategory(String id, String? category) async {
+    await _repo.updateCategory(id, category);
+    _ref.invalidate(ticketsProvider);
+  }
+
+  Future<void> sendContact(String ticketId, int partnerId) async {
+    await _repo.sendContact(ticketId, partnerId);
+    _ref.invalidate(ticketCommentsProvider(ticketId));
+    _ref.invalidate(activityLogProvider(ticketId));
+  }
+}
+
+final ticketActionsProvider = Provider(
+  (ref) => TicketActions(ref.read(ticketRepositoryProvider), ref),
+);
+
+final openTicketsCountProvider = Provider<int>((ref) {
+  final list = ref.watch(effectiveTicketsProvider);
+  return list.where((t) => t.status.isOpen).length;
+});
+
+// --- Ticket Comments ---
+
+final ticketCommentRepositoryProvider = Provider<TicketCommentRepository>(
+  (_) => TicketCommentRepository(),
+);
+
+/// Watch comments for a specific ticket.
+final ticketCommentsProvider = StreamProvider.autoDispose
+    .family<List<TicketComment>, String>(
+      (ref, ticketId) =>
+          ref.read(ticketCommentRepositoryProvider).watchByTicket(ticketId),
+    );
+
+class TicketCommentActions {
+  TicketCommentActions(this._repo, this._ref);
+  final TicketCommentRepository _repo;
+  final Ref _ref;
+
+  Future<TicketComment> add(String ticketId, String content) async {
+    final comment = await _repo.add(ticketId, content);
+    _ref.invalidate(ticketCommentsProvider(ticketId));
+    _ref.invalidate(activityLogProvider(ticketId));
+    return comment;
+  }
+
+  Future<void> delete(String commentId) async {
+    await _repo.delete(commentId);
+  }
+}
+
+final ticketCommentActionsProvider = Provider(
+  (ref) => TicketCommentActions(ref.read(ticketCommentRepositoryProvider), ref),
+);
+
+// --- Activity Log ---
+
+final activityLogRepositoryProvider = Provider<ActivityLogRepository>(
+  (_) => ActivityLogRepository(),
+);
+
+/// Watch activity log for a specific ticket.
+final activityLogProvider = StreamProvider.autoDispose
+    .family<List<ActivityLog>, String>(
+      (ref, ticketId) =>
+          ref.read(activityLogRepositoryProvider).watchByTicket(ticketId),
+    );

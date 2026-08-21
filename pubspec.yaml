@@ -1,0 +1,59 @@
+name: vcloud
+description: "VCloud employee productivity MVP — chat, attendance, timesheet, tickets."
+publish_to: 'none'
+
+version: 2.5.0+80
+
+environment:
+  sdk: ^3.12.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # State management
+  flutter_riverpod: ^2.5.1
+
+  # Routing
+  go_router: ^14.2.0
+
+  # Backend
+  http: ^1.2.2
+  web: ^1.1.1
+  web_socket_channel: ^3.0.1
+
+  # Device / native
+  geolocator: ^11.0.0
+  flutter_secure_storage: ^9.2.2
+  file_picker: ^10.3.9
+
+  # Utilities
+  intl: ^0.19.0
+  uuid: ^4.4.0
+  rxdart: ^0.27.7
+
+  # UI / motion
+  flutter_animate: ^4.5.0   # declarative entrance + micro animations
+  lucide_flutter: ^1.20.0    # modern line icon set
+  image_picker: ^1.2.2
+  firebase_core: ^4.11.0
+  firebase_messaging: ^16.4.1
+  package_info_plus: ^9.0.1
+  firebase_crashlytics: ^5.2.6
+  path_provider: ^2.1.6
+  url_launcher: ^6.3.2
+  flutter_image_compress: ^2.5.1
+  collection: ^1.19.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  integration_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+  assets:
+    - branding/

@@ -1,0 +1,18 @@
+.git
+.gitignore
+build/
+.dart_tool/
+.idea/
+.vscode/
+*.iml
+# host-only platform tooling not needed for a web build
+android/.gradle/
+ios/Pods/
+ios/.symlinks/
+windows/flutter/ephemeral/
+linux/flutter/ephemeral/
+macos/Flutter/ephemeral/
+# docs / meta
+docs/
+README.md
+.metadata

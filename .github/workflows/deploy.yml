@@ -1,0 +1,177 @@
+name: Mobile CI/CD (Fastlane + Webhooks)
+
+on:
+  push:
+    branches:
+      - main
+      - "release/*"
+      - release/ios-appstore
+      - release/android-playstore
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Build Target Platform"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - ios
+          - android
+  repository_dispatch:
+    types: [trigger-build]
+
+jobs:
+  build-ios-testflight:
+    name: Build & Deploy iOS (TestFlight)
+    if: github.event_name != 'workflow_dispatch' || inputs.target == 'all' || inputs.target == 'ios'
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter Engine
+        uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+          cache: true
+
+      - name: Cache Swift Package Manager Dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/org.swift.swiftpm
+          key: ${{ runner.os }}-swiftpm-${{ hashFiles('**/Package.resolved', '**/project.pbxproj') }}
+          restore-keys: |
+            ${{ runner.os }}-swiftpm-
+
+      - name: Setup Ruby & Fastlane Toolchain
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+
+      - name: Install Project Dependencies
+        run: |
+          flutter pub get
+          bundle install
+
+      - name: Run Flutter Static Analysis & Unit Tests
+        run: |
+          flutter analyze
+          flutter test
+
+      - name: Install Apple Certificate and Provisioning Profile
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          if [ -n "$BUILD_CERTIFICATE_BASE64" ] && [ -n "$BUILD_PROVISION_PROFILE_BASE64" ]; then
+            echo "📦 Importing Apple Distribution Certificate and Provisioning Profile..."
+            CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+            PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
+            KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+            KC_PASS=$(echo "$KEYCHAIN_PASSWORD" | tr -d '\r\n')
+            P12_PASS=$(echo "$P12_PASSWORD" | tr -d '\r\n')
+            if [ -z "$KC_PASS" ] || [ -z "$P12_PASS" ]; then
+              echo "❌ KEYCHAIN_PASSWORD and P12_PASSWORD must be configured in GitHub Secrets."
+              exit 1
+            fi
+
+            python3 -c "import base64, os, re; cert_c = re.sub(r'[^A-Za-z0-9+/=]', '', os.environ.get('BUILD_CERTIFICATE_BASE64', '')); pp_c = re.sub(r'[^A-Za-z0-9+/=]', '', os.environ.get('BUILD_PROVISION_PROFILE_BASE64', '')); cert_c += '=' * (-len(cert_c) % 4 if len(cert_c) % 4 else 0); pp_c += '=' * (-len(pp_c) % 4 if len(pp_c) % 4 else 0); open('$CERTIFICATE_PATH', 'wb').write(base64.b64decode(cert_c)); open('$PP_PATH', 'wb').write(base64.b64decode(pp_c))"
+
+            echo "📊 Certificate file size: $(wc -c < $CERTIFICATE_PATH) bytes"
+            echo "📊 Provisioning profile file size: $(wc -c < $PP_PATH) bytes"
+
+            security create-keychain -p "$KC_PASS" $KEYCHAIN_PATH
+            security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+            security unlock-keychain -p "$KC_PASS" $KEYCHAIN_PATH
+
+            if ! security import $CERTIFICATE_PATH -k $KEYCHAIN_PATH -P "$P12_PASS" -f pkcs12 -A; then
+              echo "⚠️ First attempt with -f pkcs12 failed, trying without format flag..."
+              security import $CERTIFICATE_PATH -k $KEYCHAIN_PATH -P "$P12_PASS" -A
+            fi
+
+            security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KC_PASS" $KEYCHAIN_PATH
+            security list-keychain -d user -s $KEYCHAIN_PATH
+
+            UUID=$(security cms -D -i $PP_PATH 2>/dev/null | grep -A1 UUID | grep string | sed 's/<string>//g' | sed 's/<\/string>//g' | tr -d ' \t\r\n' || echo "708b7563-9ec8-4d21-936a-d6edffa66671")
+            mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+            cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
+            cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/708b7563-9ec8-4d21-936a-d6edffa66671.mobileprovision
+            echo "✅ Certificate and Provisioning Profile installed successfully (UUID: $UUID)!"
+          else
+            echo "⚠️ BUILD_CERTIFICATE_BASE64 or BUILD_PROVISION_PROFILE_BASE64 missing from GitHub Secrets."
+          fi
+
+      - name: Execute Fastlane iOS TestFlight Pipeline
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_KEY_CONTENT }}
+          APP_STORE_CONNECT_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_KEY_BASE64 }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASS: ${{ secrets.APPLE_APP_PASS }}
+          WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
+          VCLOUD_ODOO_API_BASE_URL: "https://vuahethong.net"
+        run: |
+          bundle exec fastlane ios beta
+
+      - name: Upload iOS IPA Artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vcloud-ios-ipa
+          path: build/ios/ipa/*.ipa
+
+  build-android-release:
+    name: Build & Package Android (APK + AAB)
+    if: github.event_name != 'workflow_dispatch' || inputs.target == 'all' || inputs.target == 'android'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Setup Flutter Engine
+        uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+          cache: true
+
+      - name: Setup Ruby & Fastlane Toolchain
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+
+      - name: Install Project Dependencies
+        run: |
+          flutter pub get
+          bundle install
+
+      - name: Execute Fastlane Android Release Pipeline
+        env:
+          GCLOUD_SERVICE_ACCOUNT_CREDENTIALS: ${{ secrets.GCLOUD_SERVICE_ACCOUNT_CREDENTIALS }}
+          WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
+          BUILD_NUMBER: ${{ github.run_number }}
+          VCLOUD_ODOO_API_BASE_URL: "https://vuahethong.net"
+        run: |
+          bundle exec fastlane android beta
+
+      - name: Upload Android Release Artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vcloud-android-builds
+          path: |
+            build/app/outputs/flutter-apk/*.apk
+            build/app/outputs/bundle/release/*.aab

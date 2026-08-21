@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 2,
+  "note": "Feature map dẫn xuất từ PageRank Repo-Map của Aider kết hợp AST/domain signals.",
+  "hotspots": [
+    {
+      "file": "lib/core/utils/date_format.dart",
+      "pagerank": 0.0381,
+      "signals": 13
+    },
+    {
+      "file": "lib/core/utils/vn_holidays.dart",
+      "pagerank": 0.0378,
+      "signals": 3
+    },
+    {
+      "file": "lib/core/error/failure.dart",
+      "pagerank": 0.0209,
+      "signals": 3
+    },
+    {
+      "file": "lib/shared/widgets/ui_kit.dart",
+      "pagerank": 0.0208,
+      "signals": 61
+    },
+    {
+      "file": "test/features/chat/chat_repository_test.dart",
+      "pagerank": 0.0164,
+      "signals": 11
+    },
+    {
+      "file": "lib/core/api/odoo_api_client.dart",
+      "pagerank": 0.0164,
+      "signals": 24
+    },
+    {
+      "file": "test/reference_ui_widgets_test.dart",
+      "pagerank": 0.0135,
+      "signals": 10
+    },
+    {
+      "file": "test/chat_openapi_mapping_test.dart",
+      "pagerank": 0.0134,
+      "signals": 5
+    },
+    {
+      "file": "test/task_repository_test.dart",
+      "pagerank": 0.013,
+      "signals": 5
+    },
+    {
+      "file": "test/ticket_html_mapping_test.dart",
+      "pagerank": 0.0128,
+      "signals": 4
+    },
+    {
+      "file": "test/push_notification_repository_test.dart",
+      "pagerank": 0.0127,
+      "signals": 4
+    },
+    {
+      "file": "test/auth_avatar_mapping_test.dart",
+      "pagerank": 0.0125,
+      "signals": 4
+    }
+  ]
+}
