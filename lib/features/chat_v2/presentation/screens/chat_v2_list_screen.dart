@@ -8,6 +8,7 @@ import '../../data/chat_v2_repository.dart';
 
 import '../../../../core/utils/date_format.dart';
 import '../../../../shared/widgets/app_scaffold.dart';
+import '../../../../shared/widgets/whats_new_sheet.dart';
 import '../../../auth/application/auth_controller.dart';
 import '../../application/chat_v2_channels_controller.dart';
 import '../../application/chat_v2_messages_controller.dart';
@@ -71,6 +72,11 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
     super.initState();
     _selectedFilterIndex = _resolveFilterIndex(widget.initialFilter);
     _scrollController.addListener(_onScroll);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        WhatsNewSheet.showIfNeeded(context, targetBuild: 80);
+      }
+    });
   }
 
   @override

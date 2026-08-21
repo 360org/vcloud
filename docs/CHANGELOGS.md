@@ -62,14 +62,18 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
   - Bỏ lệnh `git pull origin 17.0` từ xa, đảm bảo giữ nguyên 100% mã nguồn Backend đang chỉnh sửa tại máy local (`/media/tanma/DATA/save/mobile/v_mobile`).
   - Tự động gọi lệnh nâng cấp (`button_immediate_upgrade()`) cho module `mobile_api` vào Odoo Docker local (`demo-17`), giúp mọi thay đổi code Backend có hiệu lực ngay lập tức.
 
-### 🎨 [UI/UX] Đồng Bộ Giao Diện Boot Loader Web (`web/index.html`)
+### 🎨 [UI/UX] Đồng Bộ Giao Diện Boot Loader Web & Modal Sheet "Có Gì Mới" Build 80
+- **Nâng Cấp Toàn Diện Modal Sheet "Có Gì Mới" (`whats_new_sheet.dart`)**:
+  - Cập nhật giao diện thông báo tính năng mới lên **`v2.5.0 (Build 80)`** với 5 thẻ tính năng nổi bật: *SWR RAM Cache 16ms, Tab Chat mặc định & Nút FAB nổi, Chuẩn hóa Odoo 17 Native & SQL Index O(1), Auto Dark Mode & Splash Warm-up, HTML Boot Loader Web*.
+  - Thiết lập cơ chế tự động hiển thị Sheet khi mở app (`targetBuild: 80`) tại cả màn hình Home và Chat List ngay sau khi đăng nhập.
+  - Đồng bộ mục cài đặt "Có gì mới trong v2.5.0 (Build 80)" trên `ProfileScreen` và thông tin phiên bản tại `AboutScreen`.
 - **Khắc phục lỗi ảnh logo World360 bị cắt góc**:
   - Đồng bộ file ảnh logo chuẩn gốc [`web/brand_logo.png`](file:///media/tanma/DATA/save/mobile/vclients/web/brand_logo.png).
   - Chuẩn hóa màn hình HTML Boot Loader giống hệt 100% màn hình Splash của Flutter: Logo `world360 Vua hệ thống` sắc nét, badge thương hiệu, quả cầu xoay 3D Orbit Loader phát sáng và chân trang `WORLD360 CORP • V2.5.0`.
 
 ### 🟢 [QUALITY & TESTS]
 - **Static Analysis**: `flutter analyze` ➔ **0 errors, 0 warnings**.
-- **Automated Tests**: `flutter test` ➔ **210/210 tests PASS (100%)**.
+- **Automated Tests**: `flutter test` ➔ **210/210 tests PASS (100%)** *(Bao gồm cập nhật test case tại `whats_new_sheet_test.dart`)*.
 
 ---
 

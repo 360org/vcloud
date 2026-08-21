@@ -46,7 +46,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     HomePerformanceDiagnostics.runBenchmark(ref);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        WhatsNewSheet.showIfNeeded(context, targetBuild: 75);
+        WhatsNewSheet.showIfNeeded(context, targetBuild: 80);
       }
     });
   }

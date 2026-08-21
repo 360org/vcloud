@@ -12,10 +12,10 @@ final appVersionProvider = FutureProvider<String>((ref) async {
   try {
     final info = await PackageInfo.fromPlatform();
     final version = info.version.isNotEmpty ? info.version : '2.5.0';
-    final build = info.buildNumber.isNotEmpty ? info.buildNumber : '79';
+    final build = info.buildNumber.isNotEmpty ? info.buildNumber : '80';
     return 'v$version+$build';
   } catch (_) {
-    return 'v2.5.0+79';
+    return 'v2.5.0+80';
   }
 });
 
@@ -28,7 +28,7 @@ class AboutScreen extends ConsumerWidget {
     final versionAsync = ref.watch(appVersionProvider);
     final versionText = versionAsync.maybeWhen(
       data: (v) => 'Phiên bản $v',
-      orElse: () => 'Phiên bản v2.5.0+79',
+      orElse: () => 'Phiên bản v2.5.0+80',
     );
 
     return AppScaffold(

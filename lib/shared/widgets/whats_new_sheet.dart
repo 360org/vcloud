@@ -8,7 +8,7 @@ class WhatsNewSheet extends StatelessWidget {
   static const String _storageKey = 'whats_new_seen_build_number';
 
   /// Kiểm tra và tự động hiển thị Sheet nếu người dùng chưa xem build [targetBuild]
-  static Future<void> showIfNeeded(BuildContext context, {int targetBuild = 79}) async {
+  static Future<void> showIfNeeded(BuildContext context, {int targetBuild = 80}) async {
     try {
       const storage = FlutterSecureStorage();
       final seenStr = await storage.read(key: _storageKey);
@@ -96,7 +96,7 @@ class WhatsNewSheet extends StatelessWidget {
                         Icon(LucideIcons.sparkles, size: 14, color: Color(0xFF00C83A)),
                         SizedBox(width: 6),
                         Text(
-                          'PHIÊN BẢN MỚI v2.5.0 (BUILD 79)',
+                          'PHIÊN BẢN MỚI v2.5.0 (BUILD 80)',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w800,
@@ -111,7 +111,7 @@ class WhatsNewSheet extends StatelessWidget {
 
                   // Tiêu đề chính
                   Text(
-                    'Bình Chọn Trực Tuyến & Tối Ưu Toàn Diện',
+                    'Hiệu Năng Vượt Trội & Trải Nghiệm Chat Mượt Mà',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 19,
@@ -124,7 +124,7 @@ class WhatsNewSheet extends StatelessWidget {
 
                   // Phụ đề
                   Text(
-                    'Khám phá tính năng Thăm dò ý kiến, Toast thông báo nổi và trải nghiệm trò chuyện nâng cấp trên Vcloud.',
+                    'Khám phá bộ nhớ đệm SWR RAM siêu tốc 16ms, tab Chat mặc định, giao diện tối ưu và chuẩn hoá Odoo 17 Native.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 13,
@@ -144,52 +144,52 @@ class WhatsNewSheet extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 children: [
                   _FeatureCard(
-                    icon: LucideIcons.barChart2,
+                    icon: LucideIcons.zap,
                     iconColor: const Color(0xFF00C83A),
-                    tagText: 'MỚI',
+                    tagText: 'HIỆU NĂNG',
                     tagColor: const Color(0xFF00C83A),
-                    title: 'Bình Chọn & Thăm Dò Chat V2',
-                    description: 'Tạo bình chọn linh hoạt 1 hoặc nhiều phương án, tiến trình % thời gian thực và lưu vĩnh viễn trên Odoo.',
-                    isDark: isDark,
-                  ),
-                  const SizedBox(height: 10),
-                  _FeatureCard(
-                    icon: LucideIcons.bell,
-                    iconColor: const Color(0xFF0284C7),
-                    tagText: 'TRẢI NGHIỆM',
-                    tagColor: const Color(0xFF0284C7),
-                    title: 'Thông Báo Nổi Đa Tầng AppToast',
-                    description: 'Thẻ thông báo nổi bo cong 20px, đổ bóng phát sáng đa tầng, không dính đáy và không che phím điều hướng.',
+                    title: 'RAM Cache SWR Siêu Tốc 16ms',
+                    description: 'Mở tức thì Ticket, Task và Timesheet trong 16ms từ RAM, giảm >80% lưu lượng mạng và triệt tiêu giật lag.',
                     isDark: isDark,
                   ),
                   const SizedBox(height: 10),
                   _FeatureCard(
                     icon: LucideIcons.messageSquare,
+                    iconColor: const Color(0xFF0284C7),
+                    tagText: 'TRẢI NGHIỆM',
+                    tagColor: const Color(0xFF0284C7),
+                    title: 'Tab Trò Chuyện & Nút Tạo Nổi FAB',
+                    description: 'Vào thẳng màn hình Chat ngay khi mở app, bổ sung nút tròn nổi FAB tạo cuộc trò chuyện mới nhanh chóng.',
+                    isDark: isDark,
+                  ),
+                  const SizedBox(height: 10),
+                  _FeatureCard(
+                    icon: LucideIcons.database,
                     iconColor: const Color(0xFF7C3AED),
-                    tagText: 'TỐI ƯU',
-                    tagColor: const Color(0xFF7C3AED),
-                    title: 'Bong Bóng Chat Ôm Sát & Xem Trước',
-                    description: 'Khung chat ôm sát theo độ dài chữ thực tế, xem trước thông minh [Bình chọn] và [Hình ảnh] ngoài danh sách.',
-                    isDark: isDark,
-                  ),
-                  const SizedBox(height: 10),
-                  _FeatureCard(
-                    icon: LucideIcons.image,
-                    iconColor: const Color(0xFF0D9488),
                     tagText: 'ĐỒNG BỘ',
-                    tagColor: const Color(0xFF0D9488),
-                    title: 'Đồng Bộ Ảnh iOS & Tự Động Tải',
-                    description: 'Hỗ trợ mượt mà ảnh chụp iPhone 13 (HEIC/image_picker), tự động nạp ảnh qua mạng và xem phóng to sắc nét.',
+                    tagColor: const Color(0xFF7C3AED),
+                    title: 'Chuẩn Hóa Odoo 17 Native & Index O(1)',
+                    description: 'Tối ưu truy vấn danh sách Chat từ 30s xuống <15ms, tương thích hoàn hảo trường dữ liệu Odoo 17 Native.',
                     isDark: isDark,
                   ),
                   const SizedBox(height: 10),
                   _FeatureCard(
-                    icon: LucideIcons.checkSquare,
+                    icon: LucideIcons.moon,
+                    iconColor: const Color(0xFF0D9488),
+                    tagText: 'GIAO DIỆN',
+                    tagColor: const Color(0xFF0D9488),
+                    title: 'Auto Dark Mode & Splash Warm-up',
+                    description: 'Tự động chuyển Dark Mode Deep Forest Green ban đêm, nạp nhanh Token 300ms loại bỏ chớp sáng màn hình.',
+                    isDark: isDark,
+                  ),
+                  const SizedBox(height: 10),
+                  _FeatureCard(
+                    icon: LucideIcons.sparkles,
                     iconColor: const Color(0xFFEA580C),
-                    tagText: 'HIỆU NĂNG',
+                    tagText: 'THƯƠNG HIỆU',
                     tagColor: const Color(0xFFEA580C),
-                    title: 'Phân Luồng Timesheet & Tạo Ticket 1-Chạm',
-                    description: 'Chuyển đổi tức thì giữa Task cần làm và hoàn thành, tinh gọn giao diện tạo ticket với trần tệp 25MB.',
+                    title: 'HTML Boot Loader Web Sắc Nét',
+                    description: 'Logo World360 sắc nét, 3D Orbit Loader phát sáng đồng bộ 100% nhận diện thương hiệu Vua Hệ Thống.',
                     isDark: isDark,
                   ),
                   const SizedBox(height: 12),
