@@ -4,6 +4,16 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 
 ---
 
+## [v2.5.0+81] — 2026-08-22
+
+### 🛡️ [FIX] Khắc phục lỗi Crash Server (RPC_ERROR strftime) & Lỗi Mất Ảnh Chat V2
+- **Nguyên nhân Lỗi Crash:** Khi hệ thống tự động thêm thành viên vào kênh (channel) hoặc đánh dấu đã đọc, trường `last_interest_dt` trong cơ sở dữ liệu `discuss_channel_member` bị bỏ trống (NULL). Do code Odoo 17 gọi hàm định dạng ngày tháng `.strftime()` trên giá trị NULL này nên sinh ra lỗi crash `AttributeError`.
+- **Cách khắc phục (Backend):** Bổ sung truyền giá trị `NOW()` (hoặc `fields.Datetime.now()`) vào câu lệnh INSERT và ORM `.create()` cho cột `last_interest_dt`. Viết thêm một hàm `post_init_hook` tự động chạy câu lệnh SQL UPDATE để rà soát và chữa cháy các dữ liệu cũ bị NULL mỗi khi cập nhật module, đảm bảo Odoo server không bao giờ bị dính lỗi này nữa.
+- **Nguyên nhân Lỗi Mất Ảnh (Chỉ hiện Text):** Code backend chỉ sử dụng bảng `ir_attachment` để tìm các ảnh đính kèm theo `res_model = 'mail.message'`. Điều này làm sót các tệp gắn vào tin nhắn thông qua luồng Chat (nằm ở bảng quan hệ `message_attachment_rel`). Hậu quả là Frontend nhận API trả về mảng `attachments` rỗng, dẫn đến khi F5 thì ảnh biến thành text (fallback).
+- **Cách khắc phục (Backend):** Nâng cấp câu truy vấn batch prefetch lấy tệp đính kèm (`attachments`) bằng toán tử SQL `UNION` để gộp chung kết quả tìm kiếm từ cả bảng `ir_attachment` và `message_attachment_rel`, giúp app luôn load được đẩy đủ data ảnh và hiển thị đúng định dạng.
+
+---
+
 ## [v2.5.0+80] — 2026-08-21
 
 ### ⚡ [PERF HOTFIX] Giảm jank chat và giảm RAM avatar
