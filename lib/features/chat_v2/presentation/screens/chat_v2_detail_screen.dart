@@ -701,7 +701,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                       }
                                     },
                                     onReactionTap: (emoji) {
-                                      ref.read(chatV2MessagesControllerProvider(widget.channelId).notifier).toggleReaction(message.id, emoji);
+                                      ref.read(chatV2MessagesProvider(widget.channelId).notifier).toggleReaction(message.id, emoji);
                                     },
                                     onLongPress: () {
                                       if (message.content.isEmpty && message.attachments.isEmpty) return;
@@ -729,7 +729,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                                       return GestureDetector(
                                                         onTap: () {
                                                           Navigator.pop(sheetContext);
-                                                          ref.read(chatV2MessagesControllerProvider(widget.channelId).notifier).toggleReaction(message.id, emoji);
+                                                          ref.read(chatV2MessagesProvider(widget.channelId).notifier).toggleReaction(message.id, emoji);
                                                         },
                                                         child: Container(
                                                           padding: const EdgeInsets.all(8),

@@ -1,6 +1,8 @@
-import 'package:equatable/equatable.dart';
+import 'package:collection/collection.dart';
+import 'package:flutter/foundation.dart';
 
-class ChatV2Reaction extends Equatable {
+@immutable
+class ChatV2Reaction {
   final String content;
   final int count;
   final List<dynamic> partners;
@@ -17,7 +19,7 @@ class ChatV2Reaction extends Equatable {
     return ChatV2Reaction(
       content: json['content'] as String? ?? '',
       count: json['count'] as int? ?? 0,
-      partners: json['partners'] as List<dynamic>? ?? [],
+      partners: json['partners'] as List<dynamic>? ?? const [],
       hasMe: json['has_me'] as bool? ?? false,
     );
   }
@@ -46,5 +48,20 @@ class ChatV2Reaction extends Equatable {
   }
 
   @override
-  List<Object?> get props => [content, count, partners, hasMe];
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is ChatV2Reaction &&
+        other.content == content &&
+        other.count == count &&
+        other.hasMe == hasMe &&
+        const ListEquality().equals(other.partners, partners);
+  }
+
+  @override
+  int get hashCode => Object.hash(
+        content,
+        count,
+        hasMe,
+        const ListEquality().hash(partners),
+      );
 }

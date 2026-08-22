@@ -8,12 +8,10 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 
 import '../../auth/application/auth_controller.dart';
-import '../../../../core/api/odoo_api_client.dart';
 import '../../../core/utils/local_attachment_cache.dart';
 import '../domain/models/chat_v2_poll_model.dart';
 import '../data/chat_v2_realtime_service.dart';
 import '../data/chat_v2_repository.dart';
-import '../data/models/chat_v2_channel.dart';
 import '../data/models/chat_v2_message.dart';
 import '../data/models/chat_v2_reaction.dart';
 import '../presentation/widgets/chat_v2_message_item.dart';
