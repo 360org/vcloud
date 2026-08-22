@@ -13,6 +13,7 @@ import '../../data/models/chat_v2_message.dart';
 import '../screens/chat_v2_image_viewer_screen.dart';
 import 'chat_v2_location_card.dart';
 import 'chat_v2_poll_card.dart';
+import 'chat_v2_voice_message_player.dart';
 
 final RegExp _attachmentIdPattern =
     RegExp(r'/(?:attachments|image|content)/(\d+)');
@@ -26,7 +27,7 @@ class ChatV2MessageItem extends StatelessWidget {
     this.isGroup = false,
     this.onLongPress,
     this.onReplyTap,
-    this.onReactionTap,
+    this.onReactionBadgeTap,
     this.isHighlighted = false,
   });
 
@@ -36,7 +37,7 @@ class ChatV2MessageItem extends StatelessWidget {
   final bool isGroup;
   final VoidCallback? onLongPress;
   final ValueChanged<String?>? onReplyTap;
-  final ValueChanged<String>? onReactionTap;
+  final VoidCallback? onReactionBadgeTap;
   final bool isHighlighted;
 
   static final DateFormat _timeFormatter = DateFormat('HH:mm');
@@ -71,8 +72,10 @@ class ChatV2MessageItem extends StatelessWidget {
         : '';
 
     final imageAttachments = message.attachments.where((a) => a.isImage).toList();
-    final docAttachments = message.attachments.where((a) => !a.isImage).toList();
+    final audioAttachments = message.attachments.where((a) => a.isAudio).toList();
+    final docAttachments = message.attachments.where((a) => !a.isImage && !a.isAudio).toList();
     final hasImages = imageAttachments.isNotEmpty;
+    final hasAudio = audioAttachments.isNotEmpty;
     final hasDocs = docAttachments.isNotEmpty;
     final isHistoricalImage = message.isImageFilename && !hasImages;
     final hasAnyImage = hasImages || isHistoricalImage;
@@ -82,7 +85,10 @@ class ChatV2MessageItem extends StatelessWidget {
         cleanContent == 'Sent attachment' ||
         cleanContent == '[Hình ảnh]' ||
         cleanContent == '[Tập tin]' ||
-        imageAttachments.any((a) => a.name.trim() == cleanContent);
+        cleanContent == '[Tin nhắn thoại]' ||
+        cleanContent == '[Ghi âm]' ||
+        imageAttachments.any((a) => a.name.trim() == cleanContent) ||
+        audioAttachments.any((a) => a.name.trim() == cleanContent);
 
     final hasRealCaption = hasAnyImage && !isFileNameContent;
     final isPureImage = hasAnyImage && !hasRealCaption && !hasDocs;
@@ -92,6 +98,7 @@ class ChatV2MessageItem extends StatelessWidget {
         !message.isDocumentFilename &&
         !hasImages &&
         !hasDocs &&
+        !hasAudio &&
         message.parentId == null &&
         message.parentBody == null;
 
@@ -298,7 +305,18 @@ class ChatV2MessageItem extends StatelessWidget {
                               // 0. Render Reply Quote Card if this message is a reply
                               if (message.parentId != null || message.parentBody != null)
                                 _buildReplyQuoteCard(context, isMine, isDark),
-                              // 1. Render actual image attachments with caption
+                              // 1. Render Audio Attachments
+                              if (hasAudio)
+                                for (final att in audioAttachments) ...[
+                                  ChatV2VoiceMessagePlayer(
+                                    attachment: att,
+                                    isMine: isMine,
+                                  ),
+                                  if (audioAttachments.length > 1 || hasImages || hasDocs) 
+                                    const SizedBox(height: 2),
+                                ],
+
+                              // 2. Render actual image attachments with caption
                               if (hasImages) ...[
                                 for (final att in imageAttachments) ...[
                                   _buildImageAttachment(context, att, isMine),
@@ -308,7 +326,7 @@ class ChatV2MessageItem extends StatelessWidget {
                             // 2. Render image filename card for historical messages
                             _buildImageFilenameCard(context, isMine),
                           ],
-                          // 3. Render actual document attachments
+                          // 4. Render actual document attachments
                           if (hasDocs) ...[
                             Column(
                               mainAxisSize: MainAxisSize.min,
@@ -349,10 +367,11 @@ class ChatV2MessageItem extends StatelessWidget {
                             if (message.content.isNotEmpty &&
                                 !message.isImageFilename &&
                                 !message.isDocumentFilename &&
-                                (!hasImages || !isFileNameContent))
+                                (!hasImages || !isFileNameContent) &&
+                                (!hasAudio || !isFileNameContent))
                               Padding(
-                                padding: hasAnyImage
-                                    ? const EdgeInsets.only(top: 8, left: 12, right: 12, bottom: 4)
+                                padding: (hasAnyImage || hasAudio)
+                                    ? const EdgeInsets.only(top: 4, left: 12, right: 12, bottom: 4)
                                     : EdgeInsets.zero,
                                 child: _buildParsedMessageText(
                                   context: context,
@@ -1079,7 +1098,7 @@ class ChatV2MessageItem extends StatelessWidget {
         alignment: isMine ? WrapAlignment.end : WrapAlignment.start,
         children: message.reactions.map((reaction) {
           return GestureDetector(
-            onTap: onReactionTap != null ? () => onReactionTap!(reaction.content) : null,
+            onTap: onReactionBadgeTap,
             behavior: HitTestBehavior.opaque,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),

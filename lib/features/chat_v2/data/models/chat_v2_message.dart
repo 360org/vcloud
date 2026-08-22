@@ -45,6 +45,19 @@ class ChatV2Attachment {
         lowerName.endsWith('.tiff');
   }
 
+  bool get isAudio {
+    final mime = mimetype?.toLowerCase() ?? '';
+    if (mime.startsWith('audio/')) return true;
+    final lowerName = name.toLowerCase();
+    return lowerName.endsWith('.m4a') ||
+        lowerName.endsWith('.aac') ||
+        lowerName.endsWith('.mp3') ||
+        lowerName.endsWith('.wav') ||
+        lowerName.endsWith('.ogg') ||
+        lowerName.endsWith('.webm') ||
+        lowerName.endsWith('.opus');
+  }
+
   String get extension {
     final idx = name.lastIndexOf('.');
     if (idx != -1 && idx < name.length - 1) {

@@ -45,6 +45,10 @@ dependencies:
   url_launcher: ^6.3.2
   flutter_image_compress: ^2.5.1
   collection: ^1.19.1
+  
+  # Voice Messaging
+  record: ^5.0.5
+  audioplayers: ^6.0.0
 
 dev_dependencies:
   flutter_test:

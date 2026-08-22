@@ -7,6 +7,12 @@ import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:geolocator/geolocator.dart';
 
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
+
 import 'chat_v2_create_poll_sheet.dart';
 
 class ChatV2InputBar extends StatefulWidget {
@@ -62,6 +68,15 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
   Timer? _typingDebounce;
   bool _isTyping = false;
 
+  // Voice recording state
+  final AudioRecorder _audioRecorder = AudioRecorder();
+  bool _isRecording = false;
+  bool _isRecordCancelled = false;
+  Duration _recordDuration = Duration.zero;
+  Timer? _recordTimer;
+  String? _recordPath;
+  AudioEncoder _currentEncoder = AudioEncoder.aacLc;
+
   @override
   void initState() {
     super.initState();
@@ -98,11 +113,174 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
   @override
   void dispose() {
     _typingDebounce?.cancel();
+    _recordTimer?.cancel();
+    _audioRecorder.dispose();
     _controller.removeListener(_onTextChanged);
     _focusNode.removeListener(_onFocusChanged);
     if (widget.controller == null) _controller.dispose();
     if (widget.focusNode == null) _focusNode.dispose();
     super.dispose();
+  }
+
+  Future<void> _startRecording() async {
+    if (_isRecording) return;
+    try {
+      final hasPerm = await _audioRecorder.hasPermission();
+      if (!hasPerm) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Vui lòng cấp quyền Micro trên trình duyệt/thiết bị để ghi âm'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return;
+      }
+
+      String? savePath;
+      if (!kIsWeb) {
+        final dir = await getTemporaryDirectory();
+        savePath = '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+        _recordPath = savePath;
+      }
+
+      // Tự động nhận diện encoder tương thích với platform
+      AudioEncoder encoder = AudioEncoder.aacLc;
+      if (kIsWeb) {
+        if (await _audioRecorder.isEncoderSupported(AudioEncoder.opus)) {
+          encoder = AudioEncoder.opus;
+        } else if (await _audioRecorder.isEncoderSupported(AudioEncoder.wav)) {
+          encoder = AudioEncoder.wav;
+        }
+      } else {
+        if (!await _audioRecorder.isEncoderSupported(AudioEncoder.aacLc)) {
+          if (await _audioRecorder.isEncoderSupported(AudioEncoder.opus)) {
+            encoder = AudioEncoder.opus;
+          }
+        }
+      }
+      _currentEncoder = encoder;
+
+      HapticFeedback.lightImpact();
+
+      await _audioRecorder.start(
+        RecordConfig(encoder: encoder),
+        path: savePath ?? '',
+      );
+
+      setState(() {
+        _isRecording = true;
+        _isRecordCancelled = false;
+        _recordDuration = Duration.zero;
+      });
+
+      _recordTimer?.cancel();
+      _recordTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (mounted) {
+          setState(() => _recordDuration += const Duration(seconds: 1));
+        }
+      });
+    } catch (e) {
+      debugPrint('Error starting record: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Không thể bắt đầu ghi âm: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _cancelRecording() async {
+    if (!_isRecording) return;
+    _recordTimer?.cancel();
+    try {
+      final path = await _audioRecorder.stop();
+      if (!kIsWeb && path != null) {
+        final file = File(path);
+        if (await file.exists()) await file.delete();
+      }
+    } catch (e) {
+      debugPrint('Error cancelling record: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRecording = false;
+          _isRecordCancelled = false;
+          _recordDuration = Duration.zero;
+        });
+      }
+    }
+  }
+
+  Future<void> _stopRecordingAndSend() async {
+    if (!_isRecording) return;
+    _recordTimer?.cancel();
+
+    try {
+      final path = await _audioRecorder.stop();
+      final wasCancelled = _isRecordCancelled;
+
+      setState(() {
+        _isRecording = false;
+        _isRecordCancelled = false;
+        _recordDuration = Duration.zero;
+      });
+
+      if (wasCancelled || path == null || path.isEmpty) {
+        if (!kIsWeb && path != null) {
+          final file = File(path);
+          if (await file.exists()) await file.delete();
+        }
+        return;
+      }
+
+      Uint8List? bytes;
+      String ext = 'm4a';
+      String mime = 'audio/m4a';
+
+      if (_currentEncoder == AudioEncoder.opus) {
+        ext = kIsWeb ? 'webm' : 'opus';
+        mime = kIsWeb ? 'audio/webm' : 'audio/opus';
+      } else if (_currentEncoder == AudioEncoder.wav) {
+        ext = 'wav';
+        mime = 'audio/wav';
+      }
+
+      final filename = 'voice_${DateTime.now().millisecondsSinceEpoch}.$ext';
+
+      if (kIsWeb) {
+        final res = await http.get(Uri.parse(path));
+        bytes = res.bodyBytes;
+      } else {
+        final file = File(path);
+        if (await file.exists()) {
+          bytes = await file.readAsBytes();
+          await file.delete();
+        }
+      }
+
+      if (bytes != null && bytes.isNotEmpty && widget.onSendFile != null) {
+        setState(() => _isUploading = true);
+        await widget.onSendFile!(
+          bytes: bytes,
+          filename: filename,
+          mimetype: mime,
+        );
+        setState(() => _isUploading = false);
+      }
+    } catch (e) {
+      debugPrint('Error stopping record: $e');
+      if (mounted) {
+        setState(() {
+          _isRecording = false;
+          _isUploading = false;
+        });
+      }
+    }
   }
 
   Future<void> _handleSend() async {
@@ -763,12 +941,52 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
                                   splashRadius: 20,
                                 ),
                               ),
-                              // TextField
+                              // TextField or Recording UI
                               Expanded(
-                                child: Padding(
-                                  padding: const EdgeInsets.only(left: 4, right: 14),
-                                  child: TextField(
-                                    controller: _controller,
+                                child: _isRecording
+                                    ? Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                        child: Row(
+                                          children: [
+                                            // Nút Hủy thu âm
+                                            IconButton(
+                                              icon: const Icon(LucideIcons.trash2, color: Color(0xFFEF4444), size: 20),
+                                              tooltip: 'Hủy ghi âm',
+                                              onPressed: _cancelRecording,
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Container(
+                                              width: 8,
+                                              height: 8,
+                                              decoration: const BoxDecoration(
+                                                color: Color(0xFFEF4444),
+                                                shape: BoxShape.circle,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              '${_recordDuration.inMinutes.toString().padLeft(2, '0')}:${(_recordDuration.inSeconds % 60).toString().padLeft(2, '0')}',
+                                              style: TextStyle(
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w600,
+                                                color: isDark ? Colors.white : Colors.black,
+                                              ),
+                                            ),
+                                            const Spacer(),
+                                            Text(
+                                              _isRecordCancelled ? 'Thả tay để hủy' : 'Đang ghi âm...',
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                color: _isRecordCancelled ? const Color(0xFFEF4444) : (isDark ? Colors.white54 : Colors.black54),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      )
+                                    : Padding(
+                                        padding: const EdgeInsets.only(left: 4, right: 14),
+                                        child: TextField(
+                                          controller: _controller,
                                     focusNode: _focusNode,
                                     textCapitalization: TextCapitalization.sentences,
                                     minLines: 1,
@@ -814,24 +1032,41 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      // 2. Nút Gửi WhatsApp (Floating Action Button tròn xanh lá)
+                      // 2. Nút Gửi hoặc Ghi âm
                       GestureDetector(
-                        onTap: canSend ? _handleSend : null,
+                        onTap: () {
+                          if (canSend) {
+                            _handleSend();
+                          } else if (_isRecording) {
+                            _stopRecordingAndSend();
+                          } else {
+                            _startRecording();
+                          }
+                        },
+                        onLongPressStart: canSend ? null : (_) => _startRecording(),
+                        onLongPressMoveUpdate: canSend ? null : (details) {
+                          if (details.localOffsetFromOrigin.dx < -60) {
+                            if (!_isRecordCancelled) {
+                              setState(() => _isRecordCancelled = true);
+                              HapticFeedback.lightImpact();
+                            }
+                          } else {
+                            if (_isRecordCancelled) {
+                              setState(() => _isRecordCancelled = false);
+                            }
+                          }
+                        },
+                        onLongPressEnd: canSend ? null : (_) => _stopRecordingAndSend(),
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 180),
                           width: 46,
                           height: 46,
                           decoration: BoxDecoration(
-                            color: canSend
-                                ? const Color(0xFF00C83A)
-                                : (isDark
-                                    ? const Color(0xFF1F2C34)
-                                    : const Color(0xFF00C83A).withValues(alpha: 0.45)),
+                            color: const Color(0xFF00C83A),
                             shape: BoxShape.circle,
                             boxShadow: [
                               BoxShadow(
-                                color: (canSend ? const Color(0xFF00C83A) : Colors.black)
-                                    .withValues(alpha: canSend ? 0.35 : 0.08),
+                                color: const Color(0xFF00C83A).withValues(alpha: 0.35),
                                 blurRadius: 6,
                                 offset: const Offset(0, 2),
                               ),
@@ -847,10 +1082,15 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
                                     color: Colors.white,
                                   ),
                                 )
-                              : const Icon(
-                                  LucideIcons.send,
-                                  size: 20,
-                                  color: Colors.white,
+                              : AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 150),
+                                  transitionBuilder: (child, animation) => ScaleTransition(scale: animation, child: child),
+                                  child: Icon(
+                                    (_isRecording || canSend) ? LucideIcons.send : LucideIcons.mic,
+                                    key: ValueKey('${_isRecording}_$canSend'),
+                                    size: 20,
+                                    color: Colors.white,
+                                  ),
                                 ),
                         ),
                       ),

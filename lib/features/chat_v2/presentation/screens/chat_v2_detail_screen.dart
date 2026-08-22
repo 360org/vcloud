@@ -20,6 +20,7 @@ import '../../../auth/application/auth_controller.dart';
 import '../widgets/chat_v2_input_bar.dart';
 import '../widgets/chat_v2_message_item.dart';
 import '../widgets/chat_v2_info_sheet.dart';
+import '../widgets/chat_v2_reaction_details_sheet.dart';
 
 class ChatV2DetailScreen extends ConsumerStatefulWidget {
   const ChatV2DetailScreen({
@@ -700,8 +701,17 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                         _jumpToMessage(parentId);
                                       }
                                     },
-                                    onReactionTap: (emoji) {
-                                      ref.read(chatV2MessagesProvider(widget.channelId).notifier).toggleReaction(message.id, emoji);
+                                    onReactionBadgeTap: () {
+                                      if (message.reactions.isEmpty) return;
+                                      showModalBottomSheet(
+                                        context: context,
+                                        isScrollControlled: true,
+                                        backgroundColor: Colors.transparent,
+                                        builder: (_) => ChatV2ReactionDetailsSheet(
+                                          reactions: message.reactions,
+                                          currentUserName: currentUserName,
+                                        ),
+                                      );
                                     },
                                     onLongPress: () {
                                       if (message.content.isEmpty && message.attachments.isEmpty) return;
