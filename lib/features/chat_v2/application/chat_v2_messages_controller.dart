@@ -8,11 +8,14 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 
 import '../../auth/application/auth_controller.dart';
+import '../../../../core/api/odoo_api_client.dart';
 import '../../../core/utils/local_attachment_cache.dart';
 import '../domain/models/chat_v2_poll_model.dart';
 import '../data/chat_v2_realtime_service.dart';
 import '../data/chat_v2_repository.dart';
+import '../data/models/chat_v2_channel.dart';
 import '../data/models/chat_v2_message.dart';
+import '../data/models/chat_v2_reaction.dart';
 import '../presentation/widgets/chat_v2_message_item.dart';
 import 'chat_v2_channels_controller.dart';
 import 'chat_v2_read_state_controller.dart';
@@ -807,6 +810,77 @@ class ChatV2MessagesNotifier
     } catch (e) {
       if (kDebugMode) {
         debugPrint('Vote poll error: $e');
+      }
+    }
+  }
+
+  Future<void> toggleReaction(String messageId, String emoji) async {
+    final channelId = arg;
+    final repo = ref.read(chatV2RepositoryProvider);
+    final user = ref.read(authControllerProvider).valueOrNull;
+
+    final meta = user?.userMetadata;
+    final partnerIdStr = meta?['partner_id']?.toString() ??
+        meta?['partner']?['id']?.toString();
+    final partnerId = int.tryParse(partnerIdStr ?? '');
+    final partnerName = meta?['name']?.toString() ?? 'Tôi';
+
+    // 1. Optimistic Update locally
+    final currentList = state.valueOrNull ?? const [];
+    final targetMsg = currentList.firstWhereOrNull((m) => m.id == messageId);
+    if (targetMsg != null && partnerId != null) {
+      final currentReactions = List<ChatV2Reaction>.from(targetMsg.reactions);
+      final existingIndex = currentReactions.indexWhere((r) => r.content == emoji);
+      
+      if (existingIndex >= 0) {
+        // Có reaction này rồi
+        final r = currentReactions[existingIndex];
+        if (r.hasMe) {
+          // Bỏ reaction
+          final newCount = r.count - 1;
+          if (newCount <= 0) {
+            currentReactions.removeAt(existingIndex);
+          } else {
+            final newPartners = List<dynamic>.from(r.partners)..removeWhere((p) => p['id'] == partnerId);
+            currentReactions[existingIndex] = r.copyWith(count: newCount, partners: newPartners, hasMe: false);
+          }
+        } else {
+          // Thêm reaction mình vào list đã có người thả
+          final newPartners = List<dynamic>.from(r.partners)..add({'id': partnerId, 'name': partnerName});
+          currentReactions[existingIndex] = r.copyWith(count: r.count + 1, partners: newPartners, hasMe: true);
+        }
+      } else {
+        // Chưa ai thả emoji này, tạo mới
+        currentReactions.add(ChatV2Reaction(
+          content: emoji,
+          count: 1,
+          partners: [{'id': partnerId, 'name': partnerName}],
+          hasMe: true,
+        ));
+      }
+
+      final updatedMsg = targetMsg.copyWith(reactions: currentReactions);
+      final optimisticList = currentList.map((m) => m.id == messageId ? updatedMsg : m).toList();
+      state = AsyncData(optimisticList);
+      ChatV2MessageLocalCache.set(channelId, optimisticList);
+    }
+
+    // 2. Network Call
+    try {
+      final updatedReactions = await repo.toggleReaction(messageId: messageId, content: emoji);
+      if (updatedReactions != null) {
+        final freshList = (state.valueOrNull ?? const []).map((m) {
+          if (m.id == messageId) {
+            return m.copyWith(reactions: updatedReactions);
+          }
+          return m;
+        }).toList();
+        state = AsyncData(freshList);
+        ChatV2MessageLocalCache.set(channelId, freshList);
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('Toggle reaction error: $e');
       }
     }
   }

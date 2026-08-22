@@ -700,20 +700,56 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                         _jumpToMessage(parentId);
                                       }
                                     },
+                                    onReactionTap: (emoji) {
+                                      ref.read(chatV2MessagesControllerProvider(widget.channelId).notifier).toggleReaction(message.id, emoji);
+                                    },
                                     onLongPress: () {
-                                      if (message.content.isEmpty) return;
-                                    showModalBottomSheet(
-                                      context: context,
-                                      backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
-                                      shape: const RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-                                      ),
-                                      builder: (sheetContext) {
-                                        return SafeArea(
-                                          child: Column(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              ListTile(
+                                      if (message.content.isEmpty && message.attachments.isEmpty) return;
+                                      
+                                      final emojis = ['👍', '❤️', '😂', '😮', '😢', '😡'];
+
+                                      showModalBottomSheet(
+                                        context: context,
+                                        backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+                                        shape: const RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                                        ),
+                                        builder: (sheetContext) {
+                                          return SafeArea(
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                // Reaction Picker
+                                                Padding(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                                  child: Row(
+                                                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                                    children: emojis.map((emoji) {
+                                                      final isSelected = message.reactions.any((r) => r.content == emoji && r.hasMe);
+                                                      return GestureDetector(
+                                                        onTap: () {
+                                                          Navigator.pop(sheetContext);
+                                                          ref.read(chatV2MessagesControllerProvider(widget.channelId).notifier).toggleReaction(message.id, emoji);
+                                                        },
+                                                        child: Container(
+                                                          padding: const EdgeInsets.all(8),
+                                                          decoration: BoxDecoration(
+                                                            color: isSelected 
+                                                              ? (isDark ? const Color(0xFF00C83A).withValues(alpha: 0.2) : const Color(0xFF00C83A).withValues(alpha: 0.15))
+                                                              : Colors.transparent,
+                                                            borderRadius: BorderRadius.circular(12),
+                                                          ),
+                                                          child: Text(
+                                                            emoji,
+                                                            style: const TextStyle(fontSize: 28),
+                                                          ),
+                                                        ),
+                                                      );
+                                                    }).toList(),
+                                                  ),
+                                                ),
+                                                const Divider(height: 1),
+                                                ListTile(
                                                 leading: Icon(LucideIcons.reply, color: isDark ? Colors.white : Colors.black),
                                                 title: Text('Trả lời', style: TextStyle(color: isDark ? Colors.white : Colors.black)),
                                                 onTap: () {

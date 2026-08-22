@@ -26,6 +26,7 @@ class ChatV2MessageItem extends StatelessWidget {
     this.isGroup = false,
     this.onLongPress,
     this.onReplyTap,
+    this.onReactionTap,
     this.isHighlighted = false,
   });
 
@@ -35,6 +36,7 @@ class ChatV2MessageItem extends StatelessWidget {
   final bool isGroup;
   final VoidCallback? onLongPress;
   final ValueChanged<String?>? onReplyTap;
+  final ValueChanged<String>? onReactionTap;
   final bool isHighlighted;
 
   static final DateFormat _timeFormatter = DateFormat('HH:mm');
@@ -195,44 +197,48 @@ class ChatV2MessageItem extends StatelessWidget {
               const SizedBox(width: 6),
             ],
             Flexible(
-              child: (message.isPollMessage && message.poll != null)
-                  ? ChatV2PollCard(
-                      message: message,
-                      poll: message.poll!,
-                      isMine: isMine,
-                      timeStr: timeStr,
-                    )
-                  : (message.isLocationMessage && message.locationCoordinates != null)
-                      ? Column(
-                          crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                          children: [
-                            if (!isMine && showSenderName) ...[
-                              Text(
-                                message.authorName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: authorColor,
-                                ),
-                              ),
-                              const SizedBox(height: 3),
-                            ],
-                            ChatV2LocationCard(
-                              message: message,
-                              isMine: isMine,
-                            ),
-                            const SizedBox(height: 2),
-                            timeAndStatus,
-                          ],
+              child: Column(
+                crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  (message.isPollMessage && message.poll != null)
+                      ? ChatV2PollCard(
+                          message: message,
+                          poll: message.poll!,
+                          isMine: isMine,
+                          timeStr: timeStr,
                         )
-                  : isPureImage
-                      ? _buildPureImageBubble(context, imageAttachments, isMine, timeStr)
-                      : Container(
-                      constraints: BoxConstraints(
-                        maxWidth: MediaQuery.of(context).size.width * 0.72,
-                      ),
+                      : (message.isLocationMessage && message.locationCoordinates != null)
+                          ? Column(
+                              crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                              children: [
+                                if (!isMine && showSenderName) ...[
+                                  Text(
+                                    message.authorName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: authorColor,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                ],
+                                ChatV2LocationCard(
+                                  message: message,
+                                  isMine: isMine,
+                                ),
+                                const SizedBox(height: 2),
+                                timeAndStatus,
+                              ],
+                            )
+                      : isPureImage
+                          ? _buildPureImageBubble(context, imageAttachments, isMine, timeStr)
+                          : Container(
+                          constraints: BoxConstraints(
+                            maxWidth: MediaQuery.of(context).size.width * 0.72,
+                          ),
                       decoration: BoxDecoration(
                         color: isMine
                             ? (isDark
@@ -368,9 +374,12 @@ class ChatV2MessageItem extends StatelessWidget {
                           ],
                         ],
                       ),
-                    ),
                   ),
-                ),
+                  if (message.reactions.isNotEmpty)
+                    _buildReactionBadges(context, isMine),
+                ],
+              ),
+            ),
           ),
         ],
       ),
@@ -1051,6 +1060,65 @@ class ChatV2MessageItem extends StatelessWidget {
         ),
       );
     }
+  }
+
+  Widget _buildReactionBadges(BuildContext context, bool isMine) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    return Padding(
+      padding: EdgeInsets.only(
+        top: 2,
+        left: isMine ? 0 : 4,
+        right: isMine ? 4 : 0,
+      ),
+      child: Wrap(
+        spacing: 4,
+        runSpacing: 4,
+        alignment: isMine ? WrapAlignment.end : WrapAlignment.start,
+        children: message.reactions.map((reaction) {
+          return GestureDetector(
+            onTap: onReactionTap != null ? () => onReactionTap!(reaction.content) : null,
+            behavior: HitTestBehavior.opaque,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+              decoration: BoxDecoration(
+              color: reaction.hasMe
+                  ? (isDark ? const Color(0xFF005C4B) : const Color(0xFFD9FDD3))
+                  : (isDark ? const Color(0xFF202C33) : const Color(0xFFF0F2F5)),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: reaction.hasMe
+                    ? (isDark ? const Color(0xFF00C83A).withValues(alpha: 0.3) : const Color(0xFF00C83A).withValues(alpha: 0.3))
+                    : (isDark ? const Color(0xFF374151) : const Color(0xFFE5E7EB)),
+                width: 0.5,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  reaction.content,
+                  style: const TextStyle(fontSize: 12),
+                ),
+                if (reaction.count > 1) ...[
+                  const SizedBox(width: 4),
+                  Text(
+                    '${reaction.count}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: reaction.hasMe
+                          ? (isDark ? const Color(0xFFE9EDEF) : const Color(0xFF111B21))
+                          : (isDark ? const Color(0xFF8696A0) : const Color(0xFF667781)),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
   }
 }
 

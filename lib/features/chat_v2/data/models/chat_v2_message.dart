@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import '../../../../core/api/odoo_api_client.dart';
 import '../../../../core/utils/date_format.dart';
 import '../../domain/models/chat_v2_poll_model.dart';
+import 'chat_v2_reaction.dart';
 
 @immutable
 class ChatV2Attachment {
@@ -163,6 +164,7 @@ class ChatV2Message {
     this.parentId,
     this.parentBody,
     this.parentAuthorName,
+    this.reactions = const [],
   });
 
   final String id;
@@ -179,6 +181,7 @@ class ChatV2Message {
   final String? parentId;
   final String? parentBody;
   final String? parentAuthorName;
+  final List<ChatV2Reaction> reactions;
 
   bool get hasImageAttachment => attachments.any((a) => a.isImage);
 
@@ -270,6 +273,7 @@ class ChatV2Message {
     String? parentId,
     String? parentBody,
     String? parentAuthorName,
+    List<ChatV2Reaction>? reactions,
   }) {
     return ChatV2Message(
       id: id ?? this.id,
@@ -286,6 +290,7 @@ class ChatV2Message {
       parentId: parentId ?? this.parentId,
       parentBody: parentBody ?? this.parentBody,
       parentAuthorName: parentAuthorName ?? this.parentAuthorName,
+      reactions: reactions ?? this.reactions,
     );
   }
 
@@ -303,6 +308,7 @@ class ChatV2Message {
     'parent_id': parentId,
     'parent_body': parentBody,
     'parent_author_name': parentAuthorName,
+    'reactions': reactions.map((r) => r.toJson()).toList(),
   };
 
   factory ChatV2Message.fromMap(
@@ -481,6 +487,16 @@ class ChatV2Message {
         ? _cleanHtml(extractedParentBody)
         : null;
 
+    final parsedReactions = <ChatV2Reaction>[];
+    final rawReacts = map['reactions'];
+    if (rawReacts is List) {
+      for (final r in rawReacts) {
+        if (r is Map) {
+          parsedReactions.add(ChatV2Reaction.fromJson(Map<String, dynamic>.from(r)));
+        }
+      }
+    }
+
     final rawAuthorAvatar = _stringOrNull(
       map['author_avatar'] ??
           map['avatar_url'] ??
@@ -508,6 +524,7 @@ class ChatV2Message {
       parentId: extractedParentId,
       parentBody: cleanParentBody,
       parentAuthorName: extractedParentAuthor,
+      reactions: parsedReactions,
     );
   }
 
@@ -545,7 +562,8 @@ class ChatV2Message {
         const ListEquality().equals(other.attachments, attachments) &&
         other.parentId == parentId &&
         other.parentBody == parentBody &&
-        other.parentAuthorName == parentAuthorName;
+        other.parentAuthorName == parentAuthorName &&
+        const ListEquality().equals(other.reactions, reactions);
   }
 
   @override
@@ -563,6 +581,7 @@ class ChatV2Message {
       parentId,
       parentBody,
       parentAuthorName,
+      const ListEquality().hash(reactions),
     );
   }
 }

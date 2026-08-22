@@ -7,6 +7,7 @@ import '../../../core/api/odoo_api_client.dart';
 import '../domain/models/chat_v2_poll_model.dart';
 import 'models/chat_v2_channel.dart';
 import 'models/chat_v2_message.dart';
+import 'models/chat_v2_reaction.dart';
 
 final chatV2RepositoryProvider = Provider<ChatV2Repository>((ref) {
   return ChatV2Repository(odooApiClient);
@@ -617,6 +618,31 @@ class ChatV2Repository {
       }
     }
     return [];
+  }
+
+  Future<List<ChatV2Reaction>?> toggleReaction({
+    required String messageId,
+    required String content,
+  }) async {
+    try {
+      final dynamic data = await _client.post(
+        '/api/v1/mobile/chat/reaction',
+        body: {
+          'message_id': messageId,
+          'content': content,
+        },
+      );
+      if (data is Map && data['reactions'] is List) {
+        return (data['reactions'] as List)
+            .map((e) => ChatV2Reaction.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList();
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[ChatV2Repository] toggleReaction error for $messageId: $e');
+      }
+    }
+    return null;
   }
 }
 
