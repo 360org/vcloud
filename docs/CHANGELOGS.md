@@ -12,6 +12,12 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 - **Nguyên nhân Lỗi Mất Ảnh (Chỉ hiện Text):** Code backend chỉ sử dụng bảng `ir_attachment` để tìm các ảnh đính kèm theo `res_model = 'mail.message'`. Điều này làm sót các tệp gắn vào tin nhắn thông qua luồng Chat (nằm ở bảng quan hệ `message_attachment_rel`). Hậu quả là Frontend nhận API trả về mảng `attachments` rỗng, dẫn đến khi F5 thì ảnh biến thành text (fallback).
 - **Cách khắc phục (Backend):** Nâng cấp câu truy vấn batch prefetch lấy tệp đính kèm (`attachments`) bằng toán tử SQL `UNION` để gộp chung kết quả tìm kiếm từ cả bảng `ir_attachment` và `message_attachment_rel`, giúp app luôn load được đẩy đủ data ảnh và hiển thị đúng định dạng.
 
+### 👥 [FIX] Khắc phục lỗi Sai Số Lượng Thành Viên & Không Hiển Thị Danh Sách Thành Viên Nhóm Chat
+- **Nguyên nhân Lỗi 1 (Hiển thị sai số lượng thành viên - 0/2 thành viên):** Trong hàm `list_channels` (`v_mobile/controllers/chat.py`), câu lệnh SQL batch prefetch thành viên đã query `p.im_status` trực tiếp từ bảng `res_partner`. Do `im_status` trong Odoo 17 là trường tính toán (compute) và không tồn tại dưới dạng cột database trên `res_partner`, PostgreSQL ném ra exception `column p.im_status does not exist` dẫn đến rollback toàn bộ khối `members_by_channel`, khiến `member_count` trả về `0` và `members` trả về `[]`. Khi đó giao diện fallback hiển thị 2 thành viên hoặc 0 thành viên.
+- **Cách khắc phục (Backend):** Sửa câu lệnh SQL prefetch thành viên bằng cách `LEFT JOIN res_users u ON u.partner_id = p.id` và `COALESCE(u.im_status, 'offline') AS im_status`, kèm theo khối fallback SQL an toàn để không bao giờ bị rỗng danh sách thành viên.
+- **Nguyên nhân Lỗi 2 (Chưa hiển thị được danh sách thành viên trong nhóm):** Trong hàm `fetchChannelMembers` (`chat_v2_repository.dart`), code Frontend xử lý `res.statusCode` và `jsonDecode(res.body)` như kiểu `http.Response`. Tuy nhiên `_client.get` trong `OdooApiClient` đã tự động giải mã JSON và trả về `Map<String, dynamic>`, dẫn đến lỗi runtime `NoSuchMethodError: statusCode` khiến khối `catch` kích hoạt và trả về mảng rỗng `[]`. Đồng thời hàm `_loadRemoteMembers()` trong `ChatV2InfoSheet` chỉ kiểm tra `isGroup` mà bỏ sót loại kênh thảo luận `channel`.
+- **Cách khắc phục (Frontend):** Sửa hàm `fetchChannelMembers` để parse trực tiếp từ đối tượng JSON decoded (`Map`/`List`). Cập nhật `_loadRemoteMembers` nạp cho cả kênh `channel`/`group` và tự động đồng bộ vào `ChatV2ChannelLocalCache.updateChannel` để lưu trữ tức thì.
+
 ---
 
 ## [v2.5.0+80] — 2026-08-21

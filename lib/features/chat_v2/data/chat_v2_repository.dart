@@ -600,19 +600,16 @@ class ChatV2Repository {
     if (chIdInt == null) return [];
     try {
       final res = await _client.get('/api/v1/mobile/chat/channels/$chIdInt/members');
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        if (data is Map && data['members'] is List) {
-          return (data['members'] as List)
-              .map((m) => ChatV2Member.fromJson(m))
-              .where((m) => m.name.isNotEmpty)
-              .toList();
-        } else if (data is List) {
-          return data
-              .map((m) => ChatV2Member.fromJson(m))
-              .where((m) => m.name.isNotEmpty)
-              .toList();
-        }
+      if (res is Map && res['members'] is List) {
+        return (res['members'] as List)
+            .map((m) => ChatV2Member.fromJson(m))
+            .where((m) => m.name.isNotEmpty)
+            .toList();
+      } else if (res is List) {
+        return res
+            .map((m) => ChatV2Member.fromJson(m))
+            .where((m) => m.name.isNotEmpty)
+            .toList();
       }
     } catch (e) {
       if (kDebugMode) {

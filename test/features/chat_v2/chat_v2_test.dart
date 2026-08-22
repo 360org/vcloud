@@ -932,6 +932,30 @@ void main() {
       const widgetChannel = ChatV2ListScreen(initialFilter: 'kenh');
       expect(widgetChannel.initialFilter, equals('kenh'));
     });
+
+    test('38. ChatV2Member and members list parse correctly from Odoo JSON API', () {
+      final jsonResponse = {
+        'channel_id': 12,
+        'count': 4,
+        'members': [
+          {'id': 1, 'name': 'Admin User', 'email': 'admin@example.com', 'im_status': 'online', 'avatar_url': '/web/image/1'},
+          {'id': 2, 'name': 'Marc Demo', 'email': 'marc@example.com', 'im_status': 'offline', 'avatar_url': null},
+          {'id': 3, 'name': 'Mitchell Admin', 'email': 'mitchell@example.com', 'im_status': 'away', 'avatar_url': null},
+          {'id': 4, 'name': 'Colleague', 'email': 'colleague@example.com', 'im_status': 'online', 'avatar_url': null},
+        ],
+      };
+
+      final members = (jsonResponse['members'] as List)
+          .map((m) => ChatV2Member.fromJson(m))
+          .where((m) => m.name.isNotEmpty)
+          .toList();
+
+      expect(members.length, equals(4));
+      expect(members[0].name, equals('Admin User'));
+      expect(members[0].imStatus, equals('online'));
+      expect(members[1].name, equals('Marc Demo'));
+      expect(members[1].imStatus, equals('offline'));
+    });
   });
 }
 

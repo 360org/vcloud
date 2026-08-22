@@ -131,6 +131,20 @@ class ChatV2ChannelLocalCache {
     onCacheUpdated?.call();
   }
 
+  static void updateChannel(ChatV2Channel channel) {
+    final currentCached = List<ChatV2Channel>.from(_cached);
+    final idx = currentCached.indexWhere((c) => c.id == channel.id);
+    if (idx != -1) {
+      currentCached[idx] = channel;
+      set(currentCached);
+    } else {
+      currentCached.add(channel);
+      set(currentCached);
+    }
+    _saveToStorage();
+    onCacheUpdated?.call();
+  }
+
   static void updateChannelLastMessage(
     String channelId, {
     required String lastMessage,

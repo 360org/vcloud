@@ -99,7 +99,8 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
 
   Future<void> _loadRemoteMembers() async {
     final isGroup = widget.channel.getActualIsGroup(widget.currentUserName);
-    if (!isGroup) return;
+    final isChannel = widget.channel.channelType == 'channel' || widget.channel.channelType == 'group';
+    if (!isGroup && !isChannel) return;
 
     // 1. Khởi tạo ngay từ local cache nếu channel đã có danh sách members/memberNames
     final cached = ChatV2ChannelLocalCache.cached
@@ -131,6 +132,12 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
           _memberCount = remoteMembers.length;
           _isLoadingMembers = false;
         });
+        ChatV2ChannelLocalCache.updateChannel(
+          widget.channel.copyWith(
+            members: remoteMembers,
+            memberCount: remoteMembers.length,
+          ),
+        );
       }
     } catch (_) {
       // Ignored
