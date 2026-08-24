@@ -170,7 +170,9 @@ void main() {
         // Kiểm chứng: Stream foreground nhận tin nhắn thành công và huy hiệu đọc là số nguyên hợp lệ
         expect(container.read(chatV2TotalUnreadProvider), isA<int>());
 
-        await tester.pump(const Duration(seconds: 1));
+        // Đợi 5 giây để Banner Timer (4s) hết hạn và tự đóng
+        await tester.pump(const Duration(seconds: 5));
+        await tester.pumpAndSettle();
       },
     );
   });
