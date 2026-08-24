@@ -124,13 +124,15 @@ class AuthController extends AsyncNotifier<AuthUser?> {
       
       await _pushNotifications.registerCurrentDevice();
     } catch (e) {
-      debugPrint('Push registration skipped: $e');
-      AppToast.showGlobal(
-        type: AppToastType.error,
-        title: 'Lỗi đăng ký Push',
-        message: e.toString(),
-        duration: const Duration(seconds: 10),
-      );
+      debugPrint('❌ [PUSH REGISTRATION FAILED]: $e');
+      if (!kIsWeb) {
+        AppToast.showGlobal(
+          type: AppToastType.error,
+          title: 'Lỗi đăng ký Push',
+          message: e.toString(),
+          duration: const Duration(seconds: 10),
+        );
+      }
     }
   }
 

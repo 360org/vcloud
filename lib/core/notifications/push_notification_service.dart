@@ -136,6 +136,16 @@ class PushNotificationService {
 
     final installationId = await _installationId();
     final packageInfo = await PackageInfo.fromPlatform();
+
+    debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    debugPrint('🔔 [PUSH NOTIFICATION TOKEN REGISTERED]');
+    debugPrint('📱 Platform       : $_platformName');
+    debugPrint('🏷️ Device Name    : $_deviceName');
+    debugPrint('🆔 Installation ID: $installationId');
+    debugPrint('📦 App Version    : ${packageInfo.version}+${packageInfo.buildNumber}');
+    debugPrint('🔑 FCM Token      :\n$token');
+    debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
     await _repository.registerDevice(
       deviceToken: token,
       platform: _platformName,

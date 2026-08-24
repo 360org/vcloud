@@ -571,7 +571,7 @@ class ChatV2MessagesNotifier
       LocalAttachmentCache.save(filename, bytes);
 
       // 3. Gửi tin nhắn với attachment ID vào Odoo Chatter
-      final bodyText = (caption != null && caption.isNotEmpty) ? caption : filename;
+      final bodyText = (caption != null && caption.isNotEmpty) ? caption : '';
       final sentMsg = await repo.sendMessage(
         channelId,
         bodyText,
@@ -584,9 +584,8 @@ class ChatV2MessagesNotifier
       ChatV2AttachmentImage.cacheBytes(sentMsg.id.toString(), bytes);
       LocalAttachmentCache.save(sentMsg.id, bytes);
 
-      // Cập nhật trạng thái sent ngay lập tức cho tin nhắn tạm, bảo tồn nguyên vẹn byte nhị phân
-      final currentList = (state.valueOrNull ?? const []).toList();
-      currentList.removeWhere((m) => m.id == tempId || m.id == sentMsg.id);
+      // 4. Cập nhật state với tin nhắn đã gửi thành công
+      final currentList = (state.valueOrNull ?? []).where((m) => m.id != tempId).toList();
       currentList.insert(0, sentMsg.copyWith(
         isMine: true,
         status: 'sent',
@@ -611,7 +610,7 @@ class ChatV2MessagesNotifier
           ? ((caption != null && caption.isNotEmpty) ? caption : '[Hình ảnh]')
           : (isVoiceAtt
               ? ((caption != null && caption.isNotEmpty) ? caption : '[Ghi âm]')
-              : bodyText);
+              : ((caption != null && caption.isNotEmpty) ? caption : '[Tệp tin]'));
       ref.read(chatV2LastSentTrackerProvider.notifier).recordSent(channelId, cleanForTracker);
       ref.read(chatV2ReadStateProvider.notifier).markChannelAsRead(channelId);
 

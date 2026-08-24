@@ -2,6 +2,52 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.5.0+88] — 2026-08-24
+
+> [!IMPORTANT]
+> **Nhánh làm việc & Bản dựng phát hành v2.5.0+88 (TestFlight & App Store CI/CD)**:
+> - **Nhánh Release (`vclients`)**: `release/ios-appstore`
+> - **Nhánh Tính Năng (`vclients`)**: `fix/app-build88-stabilization`
+> - **Test Suite Status**: **235/235 tests PASS (100%)**, `flutter analyze` 0 issues.
+> - **CI/CD Pipeline**: GitHub Actions Fastlane build iOS TestFlight (IPA) & Android (APK + AAB) **HOÀN TOÀN XANH (SUCCESS)**.
+
+### 🔔 [APNS P8 KEY & PUSH NOTIFICATION TRACKING] Hoàn Tất Tích Hợp Thông Báo Đẩy iOS & Terminal Logging
+- **Hoàn Thiện Khóa APNs Auth Key (`.p8`)**:
+  - Đăng ký và cấu hình thành công khóa APNs Key mới (`XSKV9X4NK4`) phạm vi `Sandbox & Production` cho Team ID `ZC3H8887XS` trên Firebase Console, kết nối thông suốt với iPhone 13 và nhận thông báo đẩy thành công 100%.
+- **Bổ Sung Quyền Thư Viện Ảnh iOS (`Info.plist`)**:
+  - Khai báo bổ sung `NSPhotoLibraryAddUsageDescription` cho phép ứng dụng lưu ảnh từ Chat/Ticket vào Photos của iPhone.
+- **Tối Ưu Web Push Service Worker (`firebase-messaging-sw.js`)**:
+  - Tạo mới tệp `web/firebase-messaging-sw.js` chuẩn hóa Firebase Web Messaging Service Worker, khắc phục triệt để lỗi MIME type `text/html` trên trình duyệt Flutter Web.
+- **Bổ Sung Terminal Token & Installation ID Logging (`push_notification_service.dart`)**:
+  - Hiển thị trực quan khối log `[PUSH NOTIFICATION TOKEN REGISTERED]` chứa đầy đủ `Platform`, `Device Name`, `Installation ID`, `App Version`, và `FCM Token` trực tiếp trên Terminal `dartvm` phục vụ theo dõi và kiểm thử thiết bị.
+
+---
+
+## [v2.5.0+87] — 2026-08-24
+
+> [!IMPORTANT]
+> **Nhánh làm việc & Bản dựng phát hành v2.5.0+87 (TestFlight & App Store CI/CD)**:
+> - **Nhánh Release (`vclients`)**: `release/ios-appstore`
+> - **Test Suite Status**: **235/235 tests PASS (100%)**, `flutter analyze` 0 issues.
+> - **CI/CD Pipeline**: GitHub Actions Fastlane build iOS TestFlight (IPA) & Android (APK + AAB) **HOÀN TOÀN XANH (SUCCESS)**.
+
+### 🎙️ [AUDIO & VOICE MESSAGING SYNCHRONIZATION] Đồng Bộ Tin Nhắn Thoại & Tối Ưu Stream Âm Thanh Giữa Mobile và Web Discuss
+- **Loại bỏ Trùng Lặp 3 Phần Tử Trên Web Discuss (`chat.py` & `chat_v2_messages_controller.dart`)**:
+  - Khi người dùng gửi tin nhắn thoại hoặc tệp đính kèm không có chú thích (caption), hệ thống tự động thiết lập `body = ""` (chuỗi rỗng) cho Odoo `mail.message`.
+  - Khắc phục triệt để lỗi Odoo Web Discuss sinh ra cả 3 phần tử (Thanh phát Audio Player + Bong bóng chat chữ `voice_xxx.m4a` + Thẻ tải file) cho 1 tin nhắn thoại duy nhất. Bây giờ Web Discuss hiển thị chuẩn xác 100% thanh Voice Player như Odoo gốc.
+- **Tối Ưu Hóa Stream Âm Thanh Inline (`attachments.py`)**:
+  - Bổ sung `audio/*` và các đuôi tệp âm thanh (`.m4a`, `.webm`, `.wav`, `.mp3`, `.ogg`, `.opus`, `.aac`) vào danh mục `is_inline_type` tại endpoint `/api/v1/mobile/attachments/<id>/download`.
+  - Trả về header `Content-Disposition: inline; filename="..."`, cho phép trình duyệt web và thiết bị di động stream trực tiếp âm thanh mượt mà mà không bị chặn hoặc tự động kích hoạt popup tải file.
+  - Bổ sung tự động suy luận MIME type chuẩn cho các tệp âm thanh khi tải lên tại `/api/v1/mobile/attachments/upload`.
+- **Sửa Lỗi ID Ảo Khi Phát Tin Nhắn Thoại Cũ (`chat_v2_message_item.dart` & `chat_v2_voice_message_player.dart`)**:
+  - Khắc phục lỗi gán `message.id` (ID của `mail.message`) làm `attachment.id` khiến player gọi sai API và nhận về lỗi `404 attachment_not_found`.
+  - Ưu tiên sử dụng trực tiếp `downloadUrl` và `url` có kèm `access_token` để phát âm thanh ngay lập tức, đồng thời lưu đệm (cache) bộ nhớ RAM cho các lần phát tiếp theo.
+- **Tối Ưu Trải Nghiệm Ghi Âm & Lọc Chạm Nhầm (`chat_v2_input_bar.dart`)**:
+  - Tự động hủy và không gửi bản ghi nếu người dùng chỉ chạm nhấp nháy (< 400ms) hoặc tệp thu âm không đủ dung lượng (< 200 bytes), ngăn chặn việc phát sinh tin nhắn rác 0 byte.
+  - Chuẩn hóa tương thích 2 chiều hoàn hảo giữa bản ghi âm AAC-LC (`.m4a`) trên iOS/Android và Opus/WAV (`.webm`, `.wav`) trên Web.
+
+---
+
 ## [v2.5.0+86] — 2026-08-24
 
 > [!IMPORTANT]

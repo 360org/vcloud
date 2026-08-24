@@ -216,11 +216,12 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
 
   Future<void> _stopRecordingAndSend() async {
     if (!_isRecording) return;
+    final recordedDuration = _recordDuration;
+    final wasCancelled = _isRecordCancelled;
     _recordTimer?.cancel();
 
     try {
       final path = await _audioRecorder.stop();
-      final wasCancelled = _isRecordCancelled;
 
       setState(() {
         _isRecording = false;
@@ -228,8 +229,8 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
         _recordDuration = Duration.zero;
       });
 
-      if (wasCancelled || path == null || path.isEmpty) {
-        if (!kIsWeb && path != null) {
+      if (wasCancelled || path == null || path.isEmpty || (recordedDuration.inSeconds == 0 && recordedDuration.inMilliseconds < 400)) {
+        if (!kIsWeb && path != null && path.isNotEmpty) {
           final file = File(path);
           if (await file.exists()) await file.delete();
         }
@@ -246,6 +247,9 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
       } else if (_currentEncoder == AudioEncoder.wav) {
         ext = 'wav';
         mime = 'audio/wav';
+      } else if (_currentEncoder == AudioEncoder.aacLc) {
+        ext = 'm4a';
+        mime = 'audio/m4a';
       }
 
       final filename = 'voice_${DateTime.now().millisecondsSinceEpoch}.$ext';
@@ -261,7 +265,7 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
         }
       }
 
-      if (bytes != null && bytes.isNotEmpty && widget.onSendFile != null) {
+      if (bytes != null && bytes.length >= 200 && widget.onSendFile != null) {
         setState(() => _isUploading = true);
         await widget.onSendFile!(
           bytes: bytes,

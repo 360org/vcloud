@@ -97,22 +97,28 @@ class _ChatV2VoiceMessagePlayerState extends State<ChatV2VoiceMessagePlayer> {
           // 2. Fetch authenticated bytes từ Odoo API
           if (bytes == null || bytes.isEmpty) {
             final attId = int.tryParse(widget.attachment.id);
-            if (attId != null && attId > 0) {
-              bytes = await MobileAttachmentRepository().fetchBytes(
-                attId,
-                accessToken: widget.attachment.accessToken,
-              );
-            } else if (widget.attachment.downloadUrl != null &&
+            if (widget.attachment.downloadUrl != null &&
                 widget.attachment.downloadUrl!.isNotEmpty) {
               bytes = await odooApiClient.fetchBytes(widget.attachment.downloadUrl!);
             } else if (widget.attachment.url != null &&
                 widget.attachment.url!.isNotEmpty) {
               bytes = await odooApiClient.fetchBytes(widget.attachment.url!);
+            } else if (attId != null && attId > 0 && !widget.attachment.id.startsWith('temp_')) {
+              bytes = await MobileAttachmentRepository().fetchBytes(
+                attId,
+                accessToken: widget.attachment.accessToken,
+              );
             }
           }
 
           if (bytes != null && bytes.isNotEmpty) {
             _audioBytes = bytes;
+            if (widget.attachment.id.isNotEmpty) {
+              LocalAttachmentCache.save(widget.attachment.id, bytes);
+            }
+            if (widget.attachment.name.isNotEmpty) {
+              LocalAttachmentCache.save(widget.attachment.name, bytes);
+            }
             final lower = widget.attachment.name.toLowerCase();
             String mime = widget.attachment.mimetype ?? '';
             if (mime.isEmpty || mime == 'audio/m4a') {
