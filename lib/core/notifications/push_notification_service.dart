@@ -100,6 +100,17 @@ class PushNotificationService {
       return;
     }
 
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+      String? apnsToken = await messaging.getAPNSToken();
+      if (apnsToken == null) {
+        for (int i = 0; i < 3; i++) {
+          await Future.delayed(const Duration(seconds: 1));
+          apnsToken = await messaging.getAPNSToken();
+          if (apnsToken != null) break;
+        }
+      }
+    }
+
     final token = await messaging.getToken();
     if (token == null || token.isEmpty) return;
 

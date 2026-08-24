@@ -1,7 +1,9 @@
-import 'dart:typed_data';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../../../../core/api/mobile_attachment_repository.dart';
 import '../../../../core/api/odoo_api_client.dart';
@@ -113,19 +115,58 @@ class _ChatV2VoiceMessagePlayerState extends State<ChatV2VoiceMessagePlayer> {
             _audioBytes = bytes;
             final lower = widget.attachment.name.toLowerCase();
             String mime = widget.attachment.mimetype ?? '';
-            if (mime.isEmpty) {
+            if (mime.isEmpty || mime == 'audio/m4a') {
               if (lower.endsWith('.webm')) {
                 mime = 'audio/webm';
               } else if (lower.endsWith('.opus')) {
                 mime = 'audio/opus';
               } else if (lower.endsWith('.wav')) {
                 mime = 'audio/wav';
+              } else if (lower.endsWith('.mp3')) {
+                mime = 'audio/mpeg';
               } else {
-                mime = 'audio/m4a';
+                mime = kIsWeb ? 'audio/mp4' : 'audio/m4a';
               }
             }
+            if (kIsWeb && (mime == 'audio/m4a' || mime.isEmpty)) {
+              mime = 'audio/mp4';
+            }
 
-            await _player.play(BytesSource(bytes, mimeType: mime));
+            // Thiết lập AudioContext chuẩn cho loa ngoài trên iOS & Android
+            try {
+              await _player.setAudioContext(AudioContext(
+                iOS: AudioContextIOS(
+                  category: AVAudioSessionCategory.playback,
+                  options: const {
+                    AVAudioSessionOptions.defaultToSpeaker,
+                    AVAudioSessionOptions.mixWithOthers,
+                  },
+                ),
+                android: const AudioContextAndroid(
+                  isSpeakerphoneOn: true,
+                  stayAwake: true,
+                  contentType: AndroidContentType.music,
+                  usageType: AndroidUsageType.media,
+                  audioFocus: AndroidAudioFocus.gain,
+                ),
+              ));
+            } catch (_) {}
+
+            Source source;
+            if (kIsWeb) {
+              source = BytesSource(bytes, mimeType: mime);
+            } else {
+              final tempDir = await getTemporaryDirectory();
+              final ext = lower.endsWith('.webm')
+                  ? 'webm'
+                  : (lower.endsWith('.wav') ? 'wav' : (lower.endsWith('.opus') ? 'opus' : 'm4a'));
+              final cleanId = widget.attachment.id.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
+              final tempFile = File('${tempDir.path}/voice_${cleanId}_${DateTime.now().millisecondsSinceEpoch}.$ext');
+              await tempFile.writeAsBytes(bytes, flush: true);
+              source = DeviceFileSource(tempFile.path);
+            }
+
+            await _player.play(source);
           } else {
             debugPrint('Không thể tải dữ liệu âm thanh: ${widget.attachment.name}');
           }

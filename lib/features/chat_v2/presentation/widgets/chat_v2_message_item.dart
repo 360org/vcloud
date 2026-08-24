@@ -73,6 +73,17 @@ class ChatV2MessageItem extends StatelessWidget {
 
     final imageAttachments = message.attachments.where((a) => a.isImage).toList();
     final audioAttachments = message.attachments.where((a) => a.isAudio).toList();
+    if (audioAttachments.isEmpty && message.isVoiceFilename && message.content.isNotEmpty) {
+      audioAttachments.add(
+        ChatV2Attachment(
+          id: message.id,
+          name: message.content.trim(),
+          mimetype: message.content.toLowerCase().endsWith('.webm')
+              ? 'audio/webm'
+              : (message.content.toLowerCase().endsWith('.wav') ? 'audio/wav' : 'audio/m4a'),
+        ),
+      );
+    }
     final docAttachments = message.attachments.where((a) => !a.isImage && !a.isAudio).toList();
     final hasImages = imageAttachments.isNotEmpty;
     final hasAudio = audioAttachments.isNotEmpty;
