@@ -103,13 +103,31 @@ class PushNotificationService {
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
       String? apnsToken = await messaging.getAPNSToken();
       if (apnsToken == null) {
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < 6; i++) {
           await Future.delayed(const Duration(seconds: 1));
           apnsToken = await messaging.getAPNSToken();
           if (apnsToken != null) break;
         }
       }
     }
+
+    // Lắng nghe token refresh tự động
+    messaging.onTokenRefresh.listen((newToken) async {
+      if (newToken.isNotEmpty) {
+        try {
+          final installationId = await _installationId();
+          final packageInfo = await PackageInfo.fromPlatform();
+          await _repository.registerDevice(
+            deviceToken: newToken,
+            platform: _platformName,
+            deviceName: _deviceName,
+            installationId: installationId,
+            appVersion: '${packageInfo.version}+${packageInfo.buildNumber}',
+          );
+          await _storage.write(key: _deviceTokenKey, value: newToken);
+        } catch (_) {}
+      }
+    });
 
     final token = await messaging.getToken();
     if (token == null || token.isEmpty) return;

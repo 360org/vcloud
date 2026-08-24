@@ -21,7 +21,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Check header and badge
-      expect(find.text('PHIÊN BẢN MỚI v2.5.0 (BUILD 83)'), findsOneWidget);
+      expect(find.text('PHIÊN BẢN MỚI v2.5.0 (BUILD 84)'), findsOneWidget);
       expect(find.text('Trò Chuyện Trực Tiếp & Cảm Xúc Sống Động'), findsOneWidget);
 
       // Check feature cards
@@ -62,13 +62,13 @@ void main() {
       await tester.tap(find.text('Show Sheet'));
       await tester.pumpAndSettle();
 
-      expect(find.text('PHIÊN BẢN MỚI v2.5.0 (BUILD 83)'), findsOneWidget);
+      expect(find.text('PHIÊN BẢN MỚI v2.5.0 (BUILD 84)'), findsOneWidget);
 
       // Tap CTA button to close sheet
       await tester.tap(find.text('KHÁM PHÁ & TRẢI NGHIỆM NGAY'));
       await tester.pumpAndSettle();
 
-      expect(find.text('PHIÊN BẢN MỚI v2.5.0 (BUILD 83)'), findsNothing);
+      expect(find.text('PHIÊN BẢN MỚI v2.5.0 (BUILD 84)'), findsNothing);
     });
   });
 }
