@@ -313,7 +313,7 @@ platform :android do
             track: ENV["GOOGLE_PLAY_TRACK"] || "internal",
             aab: aab_path,
             json_key_data: gcloud_creds,
-            package_name: "com.w360s.wcloudapp"
+            package_name: "com.vcloud.vcloud"
           )
         else
           UI.important("⚠️ AAB build complete. Skipping Google Play upload (AAB path not found).")

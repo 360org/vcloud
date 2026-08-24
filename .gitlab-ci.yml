@@ -19,7 +19,6 @@ flutter_test:
     - flutter analyze
     - flutter test
   only:
-    - main
     - release/ios-appstore
     - release/android-playstore
 
@@ -40,7 +39,6 @@ deploy_android:
       - build/app/outputs/bundle/release/*.aab
     expire_in: 30 days
   only:
-    - main
     - release/android-playstore
     - triggers
     - web

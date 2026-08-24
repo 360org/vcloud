@@ -13,7 +13,14 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 
 ### 🔒 [CI] Bảo vệ `main` khỏi build release tự động
 - Gỡ trigger branch `main` khỏi `.github/workflows/deploy.yml`.
+- Gỡ trigger `main` khỏi GitLab CI và Codemagic để push/merge `main` không tự build release.
 - CI release chỉ chạy khi push `release/*`, `release/ios-appstore`, `release/android-playstore`, tag `v*`, hoặc chạy thủ công.
+
+### 🛡️ [AUDIT] Vá lỗi cấu hình phát hành sau audit
+- Sửa Android Fastlane/Codemagic dùng đúng package `com.vcloud.vcloud` khi upload Google Play.
+- Chặn release Android ký bằng debug key; thiếu `android/key.properties` sẽ fail-fast.
+- Gỡ iOS `NSAllowsArbitraryLoads` để khóa App Transport Security theo HTTPS production.
+- Cập nhật `docs/AUDIT_REPORT.md` cho kết quả audit `v2.5.0+81`.
 
 ---
 
