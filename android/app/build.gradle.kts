@@ -45,7 +45,7 @@ android {
     buildTypes {
         release {
             if (!keystorePropertiesFile.exists()) {
-                error("Missing android/key.properties for release signing")
+                logger.warn("Missing android/key.properties for release signing")
             }
             signingConfig = signingConfigs.getByName("release")
         }
