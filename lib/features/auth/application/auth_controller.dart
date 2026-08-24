@@ -115,6 +115,13 @@ class AuthController extends AsyncNotifier<AuthUser?> {
 
   Future<void> _registerPushDevice() async {
     try {
+      // CHẾ ĐỘ TEST LOCAL (Chỉ chạy ở máy anh Tân khi Debug):
+      // Giả lập lỗi Firebase Token rỗng để test tính năng UI Logging (Toast màu đỏ)
+      if (kDebugMode) {
+        // Uncomment dòng dưới đây để bật chế độ Test hiển thị lỗi Push Toast
+        // throw Exception('TEST LỖI LOCAL: Firebase không trả về Device Token!');
+      }
+      
       await _pushNotifications.registerCurrentDevice();
     } catch (e) {
       debugPrint('Push registration skipped: $e');

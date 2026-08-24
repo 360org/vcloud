@@ -2,6 +2,20 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.5.0+86] — 2026-08-24
+
+> [!IMPORTANT]
+> **Nhánh làm việc & Bản dựng phát hành v2.5.0+86 (TestFlight & App Store CI/CD)**:
+> - **Nhánh Release (`vclients`)**: `release/ios-appstore`
+> - **Test Suite Status**: **235/235 tests PASS (100%)**, `flutter analyze` 0 issues.
+> - **CI/CD Pipeline**: GitHub Actions Fastlane build iOS TestFlight (IPA) & Android (APK + AAB) **HOÀN TOÀN XANH (SUCCESS)**.
+
+### 🛡️ [IOS PUSH NOTIFICATION DEBUGGING] Hỗ Trợ Gỡ Lỗi APNs Bằng Giao Diện (UI Logging)
+- **Bắt Lỗi Chủ Động (`auth_controller.dart`)**: Tích hợp cơ chế `try...catch` chủ động khi lấy FCM Token. Ngăn chặn hiện tượng *ngầm nuốt lỗi (silent fail)* khi SDK Firebase không kết nối được Apple APNs do sai cấu hình `.p8`/`.p12`.
+- **Global UI Logging Toast (`app.dart` & `app_toast.dart`)**: Cấu hình `rootScaffoldMessengerKey` cho phép luồng nền (Background Logic) gọi và hiển thị lỗi Toast đỏ trực tiếp lên màn hình mà không bị phụ thuộc vào BuildContext hiện tại, giúp lập trình viên và người dùng nhận diện ngay mã lỗi Firebase (VD: `channel-error`) trực quan trên thiết bị thật.
+- **Dọn Dẹp & Đồng Bộ Test Suite (`whats_new_sheet_test.dart`)**: Cập nhật nội dung kiểm thử khớp 100% với giao diện hiện tại của màn hình Tính Năng Mới, giúp toàn bộ **235 Test Cases hoàn toàn XANH**.
+
+
 ---
 
 ## [v2.5.0+81] — 2026-08-24

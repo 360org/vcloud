@@ -31,7 +31,7 @@ void main() {
       expect(find.text('Tải Nhóm Chat Siêu Tốc & Fix Lỗi'), findsOneWidget);
 
       // Check tags
-      expect(find.text('Build 86 (UI Logging)'), findsOneWidget);
+      expect(find.text('TÍNH NĂNG MỚI'), findsOneWidget);
       expect(find.text('TRẢI NGHIỆM'), findsOneWidget);
       expect(find.text('THÔNG BÁO'), findsOneWidget);
       expect(find.text('HIỆU NĂNG'), findsOneWidget);
