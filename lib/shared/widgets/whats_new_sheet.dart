@@ -8,7 +8,7 @@ class WhatsNewSheet extends StatelessWidget {
   static const String _storageKey = 'whats_new_seen_build_number';
 
   /// Kiểm tra và tự động hiển thị Sheet nếu người dùng chưa xem build [targetBuild]
-  static Future<void> showIfNeeded(BuildContext context, {int targetBuild = 80}) async {
+  static Future<void> showIfNeeded(BuildContext context, {int targetBuild = 82}) async {
     try {
       const storage = FlutterSecureStorage();
       final seenStr = await storage.read(key: _storageKey);
@@ -96,7 +96,7 @@ class WhatsNewSheet extends StatelessWidget {
                         Icon(LucideIcons.sparkles, size: 14, color: Color(0xFF00C83A)),
                         SizedBox(width: 6),
                         Text(
-                          'PHIÊN BẢN MỚI v2.5.0 (BUILD 80)',
+                          'PHIÊN BẢN MỚI v2.5.0 (BUILD 82)',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w800,
@@ -111,7 +111,7 @@ class WhatsNewSheet extends StatelessWidget {
 
                   // Tiêu đề chính
                   Text(
-                    'Hiệu Năng Vượt Trội & Trải Nghiệm Chat Mượt Mà',
+                    'Trò Chuyện Trực Tiếp & Cảm Xúc Sống Động',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 19,
@@ -124,7 +124,7 @@ class WhatsNewSheet extends StatelessWidget {
 
                   // Phụ đề
                   Text(
-                    'Khám phá bộ nhớ đệm SWR RAM siêu tốc 16ms, tab Chat mặc định, giao diện tối ưu và chuẩn hoá Odoo 17 Native.',
+                    'Khám phá tính năng Ghi âm thoại, chi tiết thả cảm xúc (Reaction), thông báo nổi In-App và tối ưu tải nhóm chat siêu tốc.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 13,
@@ -144,52 +144,42 @@ class WhatsNewSheet extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 children: [
                   _FeatureCard(
-                    icon: LucideIcons.zap,
+                    icon: LucideIcons.mic,
                     iconColor: const Color(0xFF00C83A),
-                    tagText: 'HIỆU NĂNG',
+                    tagText: 'TÍNH NĂNG MỚI',
                     tagColor: const Color(0xFF00C83A),
-                    title: 'RAM Cache SWR Siêu Tốc 16ms',
-                    description: 'Mở tức thì Ticket, Task và Timesheet trong 16ms từ RAM, giảm >80% lưu lượng mạng và triệt tiêu giật lag.',
+                    title: 'Ghi Âm & Tin Nhắn Thoại',
+                    description: 'Gửi tin nhắn thoại chất lượng cao trực tiếp trong luồng chat. Trải nghiệm giao tiếp nhanh chóng và sinh động hơn.',
                     isDark: isDark,
                   ),
                   const SizedBox(height: 10),
                   _FeatureCard(
-                    icon: LucideIcons.messageSquare,
+                    icon: LucideIcons.smilePlus,
                     iconColor: const Color(0xFF0284C7),
                     tagText: 'TRẢI NGHIỆM',
                     tagColor: const Color(0xFF0284C7),
-                    title: 'Tab Trò Chuyện & Nút Tạo Nổi FAB',
-                    description: 'Vào thẳng màn hình Chat ngay khi mở app, bổ sung nút tròn nổi FAB tạo cuộc trò chuyện mới nhanh chóng.',
+                    title: 'Chi Tiết Thả Cảm Xúc (Reactions)',
+                    description: 'Nhấn giữ tin nhắn để thả cảm xúc, nhấn vào emoji để xem chi tiết ai đã thả biểu tượng gì một cách trực quan.',
                     isDark: isDark,
                   ),
                   const SizedBox(height: 10),
                   _FeatureCard(
-                    icon: LucideIcons.database,
-                    iconColor: const Color(0xFF7C3AED),
-                    tagText: 'ĐỒNG BỘ',
-                    tagColor: const Color(0xFF7C3AED),
-                    title: 'Chuẩn Hóa Odoo 17 Native & Index O(1)',
-                    description: 'Tối ưu truy vấn danh sách Chat từ 30s xuống <15ms, tương thích hoàn hảo trường dữ liệu Odoo 17 Native.',
-                    isDark: isDark,
-                  ),
-                  const SizedBox(height: 10),
-                  _FeatureCard(
-                    icon: LucideIcons.moon,
-                    iconColor: const Color(0xFF0D9488),
-                    tagText: 'GIAO DIỆN',
-                    tagColor: const Color(0xFF0D9488),
-                    title: 'Auto Dark Mode & Splash Warm-up',
-                    description: 'Tự động chuyển Dark Mode Deep Forest Green ban đêm, nạp nhanh Token 300ms loại bỏ chớp sáng màn hình.',
-                    isDark: isDark,
-                  ),
-                  const SizedBox(height: 10),
-                  _FeatureCard(
-                    icon: LucideIcons.sparkles,
+                    icon: LucideIcons.bellRing,
                     iconColor: const Color(0xFFEA580C),
-                    tagText: 'THƯƠNG HIỆU',
+                    tagText: 'THÔNG BÁO',
                     tagColor: const Color(0xFFEA580C),
-                    title: 'HTML Boot Loader Web Sắc Nét',
-                    description: 'Logo World360 sắc nét, 3D Orbit Loader phát sáng đồng bộ 100% nhận diện thương hiệu Vua Hệ Thống.',
+                    title: 'Thông Báo Nổi In-App (Banner)',
+                    description: 'Nhận ngay thông báo tin nhắn mới dạng banner nổi (Floating) khi đang sử dụng app, không lo bỏ lỡ thông tin.',
+                    isDark: isDark,
+                  ),
+                  const SizedBox(height: 10),
+                  _FeatureCard(
+                    icon: LucideIcons.zap,
+                    iconColor: const Color(0xFF7C3AED),
+                    tagText: 'HIỆU NĂNG',
+                    tagColor: const Color(0xFF7C3AED),
+                    title: 'Tải Nhóm Chat Siêu Tốc & Fix Lỗi',
+                    description: 'Tối ưu API tải danh sách thành viên nhóm nhanh gấp 5 lần, đồng thời khắc phục triệt để lỗi mất ảnh (hiện text) khi F5.',
                     isDark: isDark,
                   ),
                   const SizedBox(height: 12),
