@@ -8,6 +8,7 @@ import '../../application/chat_v2_call_watcher.dart';
 import '../../domain/models/chat_v2_call_session.dart';
 import '../screens/chat_v2_call_screen.dart';
 import 'chat_v2_incoming_call_dialog.dart';
+import 'chat_v2_in_app_banner.dart';
 
 /// Widget bao bọc toàn ứng dụng (Global Call Overlay Listener)
 /// Tự động hiển thị popup cuộc gọi đến và xử lý chuyển tiếp màn hình đàm thoại
@@ -29,6 +30,7 @@ class ChatV2CallListener extends ConsumerWidget {
     return Stack(
       children: [
         child,
+        const InAppNotificationBanner(),
         if (isIncoming)
           Positioned.fill(
             child: Material(

@@ -213,6 +213,7 @@ class ChatV2IncomingCallDialog extends ConsumerWidget {
           color: Colors.transparent,
           child: InkWell(
             onTap: onPressed,
+            splashFactory: InkRipple.splashFactory,
             borderRadius: BorderRadius.circular(30),
             child: Container(
               width: 58,

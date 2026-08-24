@@ -10,6 +10,7 @@ import 'chat_v2_read_state_controller.dart';
 import '../data/chat_v2_realtime_service.dart';
 import '../data/chat_v2_repository.dart';
 import '../data/models/chat_v2_channel.dart';
+import '../presentation/widgets/chat_v2_in_app_banner.dart';
 import 'chat_v2_messages_controller.dart';
 
 final chatV2ChannelsProvider =
@@ -415,9 +416,26 @@ class ChatV2ChannelsNotifier
         if (isDisposed) return;
         final current = state.valueOrNull ?? ChatV2ChannelLocalCache.cached;
         if (fresh.isNotEmpty && hasChannelsChanged(current, fresh)) {
+          // Hiển thị in-app banner khi phát hiện có tin nhắn mới gửi đến
+          final currentMap = {for (final c in current) c.id: c};
+          for (final f in fresh) {
+            final old = currentMap[f.id];
+            if (old != null &&
+                f.unreadCount > old.unreadCount &&
+                (f.lastMessage != null && f.lastMessage!.isNotEmpty)) {
+              final isMuted = ChatV2ChannelLocalCache.isUserMuted(f.id);
+              if (!isMuted) {
+                ref.read(inAppNotificationProvider.notifier).show(
+                  title: f.directPartnerName ?? f.name,
+                  body: f.lastMessage ?? '',
+                  channelId: f.id,
+                );
+              }
+            }
+          }
+
           // Giữ lại imStatus cũ nếu fresh trả offline nhưng cũ đang online
           // tránh nhấp nháy indicator do latency poll
-          final currentMap = {for (final c in current) c.id: c};
           final merged = fresh.map((f) {
             final old = currentMap[f.id];
             if (old != null && old.imStatus == 'online' && f.imStatus == 'offline') {
@@ -451,6 +469,11 @@ class ChatV2ChannelsNotifier
 
       if (!isMine && !isMuted) {
         HapticFeedback.heavyImpact();
+        ref.read(inAppNotificationProvider.notifier).show(
+          title: msg.authorName.isNotEmpty ? msg.authorName : 'Tin nhắn mới',
+          body: msg.content.isNotEmpty ? msg.content : (msg.attachments.isNotEmpty ? '[Đính kèm]' : ''),
+          channelId: msg.channelId,
+        );
       }
 
       if (isMine) {
