@@ -8,7 +8,7 @@ class WhatsNewSheet extends StatelessWidget {
   static const String _storageKey = 'whats_new_seen_build_number';
 
   /// Kiểm tra và tự động hiển thị Sheet nếu người dùng chưa xem build [targetBuild]
-  static Future<void> showIfNeeded(BuildContext context, {int targetBuild = 85}) async {
+  static Future<void> showIfNeeded(BuildContext context, {int targetBuild = 88}) async {
     try {
       const storage = FlutterSecureStorage();
       final seenStr = await storage.read(key: _storageKey);
@@ -96,7 +96,7 @@ class WhatsNewSheet extends StatelessWidget {
                         Icon(LucideIcons.sparkles, size: 14, color: Color(0xFF00C83A)),
                         SizedBox(width: 6),
                         Text(
-                          'PHIÊN BẢN MỚI v2.5.0 (BUILD 86)',
+                          'PHIÊN BẢN MỚI v2.5.0 (BUILD 88)',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w800,
@@ -111,7 +111,7 @@ class WhatsNewSheet extends StatelessWidget {
 
                   // Tiêu đề chính
                   Text(
-                    'Trò Chuyện Trực Tiếp & Cảm Xúc Sống Động',
+                    'Thông Báo Đẩy APNs & Trải Nghiệm Mượt Mà',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 19,
@@ -124,7 +124,7 @@ class WhatsNewSheet extends StatelessWidget {
 
                   // Phụ đề
                   Text(
-                    'Khám phá tính năng Ghi âm thoại, chi tiết thả cảm xúc (Reaction), thông báo nổi In-App và tối ưu tải nhóm chat siêu tốc.',
+                    'Khám phá thông báo đẩy iOS thời gian thực, đồng bộ tin nhắn thoại & stream âm thanh siêu tốc cùng quyền truy cập ảnh tối ưu.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 13,
@@ -144,32 +144,32 @@ class WhatsNewSheet extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 children: [
                   _FeatureCard(
-                    icon: LucideIcons.mic,
-                    iconColor: const Color(0xFF00C83A),
-                    tagText: 'TÍNH NĂNG MỚI',
-                    tagColor: const Color(0xFF00C83A),
-                    title: 'Ghi Âm & Tin Nhắn Thoại',
-                    description: 'Gửi tin nhắn thoại chất lượng cao trực tiếp trong luồng chat. Trải nghiệm giao tiếp nhanh chóng và sinh động hơn.',
-                    isDark: isDark,
-                  ),
-                  const SizedBox(height: 10),
-                  _FeatureCard(
-                    icon: LucideIcons.smilePlus,
-                    iconColor: const Color(0xFF0284C7),
-                    tagText: 'TRẢI NGHIỆM',
-                    tagColor: const Color(0xFF0284C7),
-                    title: 'Chi Tiết Thả Cảm Xúc (Reactions)',
-                    description: 'Nhấn giữ tin nhắn để thả cảm xúc, nhấn vào emoji để xem chi tiết ai đã thả biểu tượng gì một cách trực quan.',
-                    isDark: isDark,
-                  ),
-                  const SizedBox(height: 10),
-                  _FeatureCard(
                     icon: LucideIcons.bellRing,
+                    iconColor: const Color(0xFF00C83A),
+                    tagText: 'THÔNG BÁO ĐẨY',
+                    tagColor: const Color(0xFF00C83A),
+                    title: 'Thông Báo Đẩy APNs iOS & Firebase',
+                    description: 'Nhận thông báo đẩy thời gian thực trên iPhone 13 cho tin nhắn chat, ticket và phân công công việc ngay cả khi tắt app.',
+                    isDark: isDark,
+                  ),
+                  const SizedBox(height: 10),
+                  _FeatureCard(
+                    icon: LucideIcons.mic,
+                    iconColor: const Color(0xFF0284C7),
+                    tagText: 'ĐỒNG BỘ THOẠI',
+                    tagColor: const Color(0xFF0284C7),
+                    title: 'Tin Nhắn Thoại & Stream Âm Thanh',
+                    description: 'Tối ưu stream âm thanh chuẩn inline, đồng bộ hiển thị Voice Player mượt mà giữa Mobile và Web Discuss, loại bỏ trùng lặp tin nhắn.',
+                    isDark: isDark,
+                  ),
+                  const SizedBox(height: 10),
+                  _FeatureCard(
+                    icon: LucideIcons.image,
                     iconColor: const Color(0xFFEA580C),
-                    tagText: 'THÔNG BÁO',
+                    tagText: 'QUYỀN RIÊNG TƯ',
                     tagColor: const Color(0xFFEA580C),
-                    title: 'Thông Báo Nổi In-App (Banner)',
-                    description: 'Nhận ngay thông báo tin nhắn mới dạng banner nổi (Floating) khi đang sử dụng app, không lo bỏ lỡ thông tin.',
+                    title: 'Quyền Thư Viện Ảnh Toàn Diện',
+                    description: 'Cải tiến quyền truy cập ảnh và lưu ảnh trực tiếp từ tin nhắn chat vào Thư viện ảnh iOS & Android nhanh chóng, an toàn.',
                     isDark: isDark,
                   ),
                   const SizedBox(height: 10),
@@ -178,8 +178,8 @@ class WhatsNewSheet extends StatelessWidget {
                     iconColor: const Color(0xFF7C3AED),
                     tagText: 'HIỆU NĂNG',
                     tagColor: const Color(0xFF7C3AED),
-                    title: 'Tải Nhóm Chat Siêu Tốc & Fix Lỗi',
-                    description: 'Tối ưu API tải danh sách thành viên nhóm nhanh gấp 5 lần, đồng thời khắc phục triệt để lỗi mất ảnh (hiện text) khi F5.',
+                    title: 'Tối Ưu Service Worker & Token Log',
+                    description: 'Dập tắt lỗi Web Push Service Worker trên trình duyệt và bổ sung hiển thị trực quan Installation ID, FCM Token phục vụ quản lý thiết bị.',
                     isDark: isDark,
                   ),
                   const SizedBox(height: 12),

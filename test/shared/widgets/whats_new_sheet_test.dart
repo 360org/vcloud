@@ -21,19 +21,19 @@ void main() {
       await tester.pumpAndSettle();
 
       // Check header and badge
-      expect(find.text('PHIÊN BẢN MỚI v2.5.0 (BUILD 86)'), findsOneWidget);
-      expect(find.text('Trò Chuyện Trực Tiếp & Cảm Xúc Sống Động'), findsOneWidget);
+      expect(find.text('PHIÊN BẢN MỚI v2.5.0 (BUILD 88)'), findsOneWidget);
+      expect(find.text('Thông Báo Đẩy APNs & Trải Nghiệm Mượt Mà'), findsOneWidget);
 
       // Check feature cards
-      expect(find.text('Ghi Âm & Tin Nhắn Thoại'), findsOneWidget);
-      expect(find.text('Chi Tiết Thả Cảm Xúc (Reactions)'), findsOneWidget);
-      expect(find.text('Thông Báo Nổi In-App (Banner)'), findsOneWidget);
-      expect(find.text('Tải Nhóm Chat Siêu Tốc & Fix Lỗi'), findsOneWidget);
+      expect(find.text('Thông Báo Đẩy APNs iOS & Firebase'), findsOneWidget);
+      expect(find.text('Tin Nhắn Thoại & Stream Âm Thanh'), findsOneWidget);
+      expect(find.text('Quyền Thư Viện Ảnh Toàn Diện'), findsOneWidget);
+      expect(find.text('Tối Ưu Service Worker & Token Log'), findsOneWidget);
 
       // Check tags
-      expect(find.text('TÍNH NĂNG MỚI'), findsOneWidget);
-      expect(find.text('TRẢI NGHIỆM'), findsOneWidget);
-      expect(find.text('THÔNG BÁO'), findsOneWidget);
+      expect(find.text('THÔNG BÁO ĐẨY'), findsOneWidget);
+      expect(find.text('ĐỒNG BỘ THOẠI'), findsOneWidget);
+      expect(find.text('QUYỀN RIÊNG TƯ'), findsOneWidget);
       expect(find.text('HIỆU NĂNG'), findsOneWidget);
 
       // Check CTA button
@@ -62,13 +62,13 @@ void main() {
       await tester.tap(find.text('Show Sheet'));
       await tester.pumpAndSettle();
 
-      expect(find.text('PHIÊN BẢN MỚI v2.5.0 (BUILD 86)'), findsOneWidget);
+      expect(find.text('PHIÊN BẢN MỚI v2.5.0 (BUILD 88)'), findsOneWidget);
 
       // Tap CTA button to close sheet
       await tester.tap(find.text('KHÁM PHÁ & TRẢI NGHIỆM NGAY'));
       await tester.pumpAndSettle();
 
-      expect(find.text('PHIÊN BẢN MỚI v2.5.0 (BUILD 86)'), findsNothing);
+      expect(find.text('PHIÊN BẢN MỚI v2.5.0 (BUILD 88)'), findsNothing);
     });
   });
 }
