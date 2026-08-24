@@ -11,7 +11,7 @@
 #   https://vuahethong.net
 #
 # Frontend:
-#   vclients
+#   VCloud
 #
 # Port mặc định:
 #   8088

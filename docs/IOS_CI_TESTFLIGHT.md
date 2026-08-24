@@ -1,10 +1,10 @@
-# iOS CI va TestFlight (Codemagic)
+# iOS CI va TestFlight (GitHub Actions/Fastlane)
 
-Pipeline `ios-testflight` trong `codemagic.yaml` build IPA tren macOS cua
-Codemagic, ky bang App Store profile va upload len TestFlight. Pipeline chay
-khi push vao nhanh `main`; co the chay thu cong tu Codemagic tren mot nhanh bat
-ky. Khong co chung chi, khoa Apple, hay cau hinh production nao duoc luu trong
-GitLab.
+Pipeline `ios-testflight` trong `.github/workflows/deploy.yml` build IPA tren macOS cua
+GitHub Actions/Fastlane, ky bang App Store profile va upload len TestFlight. Pipeline chi chay
+khi push vao `release/*`, `release/ios-appstore`, `release/android-playstore`, tag `v*`, hoac
+chay thu cong tu GitHub Actions/Fastlane. Push/merge vao `main` khong tu dong build release.
+Khong co chung chi, khoa Apple, hay cau hinh production nao duoc luu trong GitLab.
 
 ## Thiet lap mot lan
 
@@ -13,13 +13,13 @@ GitLab.
    Luu **Apple ID** dang so cua app tai App Store Connect > General > App
    Information.
 2. Tai App Store Connect > Users and Access > Integrations > App Store Connect
-   API, tao mot key rieng cho Codemagic voi quyen `App Manager`. Tai file `.p8`
+   API, tao mot key rieng cho GitHub Actions/Fastlane voi quyen `App Manager`. Tai file `.p8`
    ngay luc tao (Apple chi cho tai mot lan) va ghi lai `Issuer ID`, `Key ID`.
-3. Dang nhap Codemagic bang tai khoan co quyen vao GitLab, them repository
-   `360org_mobiles/vclients`, sau do vao Team settings > Team integrations >
+3. Dang nhap GitHub Actions/Fastlane bang tai khoan co quyen vao GitLab, them repository
+   `360org_mobiles/VCloud`, sau do vao Team settings > Team integrations >
    Developer Portal. Them key tren voi ten chinh xac
    `vcloud_app_store_connect`.
-4. Vao Team settings > codemagic.yaml settings > Code signing identities:
+4. Vao Team settings > .github/workflows/deploy.yml settings > Code signing identities:
    tao/dua len mot **Apple Distribution** certificate, sau do fetch/dua len
    **App Store** provisioning profile cho `com.vcloud.vcloud`. Pipeline se tim
    dung certificate/profile dua theo Bundle ID va `app_store` distribution type.
@@ -41,8 +41,8 @@ GitLab.
 
 ## Phat hanh TestFlight
 
-1. Commit va push `codemagic.yaml` len `main`.
-2. Mo Codemagic, chon workflow **iOS to TestFlight**. Pipeline se chay
+1. Commit va push `.github/workflows/deploy.yml` len `main`.
+2. Mo GitHub Actions/Fastlane, chon workflow **iOS to TestFlight**. Pipeline se chay
    `flutter analyze`, `flutter test`, build IPA ky App Store va upload IPA.
 3. Cho Apple xu ly build, sau do vao App Store Connect > TestFlight de them
    internal tester. Build hien tai duoc danh dau **internal testing only**, nen

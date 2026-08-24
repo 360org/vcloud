@@ -11,8 +11,8 @@ import urllib.request
 import os
 
 BASE_URL = "https://vuahethong.net"
-LOGIN_USER = "tanmnn@360.org.vn"
-LOGIN_PASS = "@360.org.vn"
+LOGIN_USER = os.environ.get("ODOO_USER", "")
+LOGIN_PASS = os.environ.get("ODOO_PASS", "")
 
 class TestAvatarVerification(unittest.TestCase):
     @classmethod

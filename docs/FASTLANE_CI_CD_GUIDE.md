@@ -1,12 +1,12 @@
 # HƯỚNG DẪN TỰ ĐỘNG HÓA CI/CD SỬ DỤNG FASTLANE + GITHUB ACTIONS / GITLAB CI + WEBHOOK
 
-**Dự án:** VCloud Mobile App (`vclients`)  
-**Tổ chức:** W360S JOINT STOCK COMPANY  
-**App ID:** `com.w360s.wcloudapp` (`1365622472`)  
+**Dự án:** VCloud Mobile App
+**Tổ chức:** W360S JOINT STOCK COMPANY
+**App ID:** `com.w360s.wcloudapp` (`1365622472`)
 
 ---
 
-## 1. TỔNG QUAN HỆ THỐNG CI/CD MỚI (THAY THẾ CODEMAGIC)
+## 1. TỔNG QUAN HỆ THỐNG CI/CD MỚI (THAY THẾ GITHUB ACTIONS / FASTLANE)
 
 Hệ thống CI/CD mới được xây dựng bằng **Fastlane chính chủ (`https://fastlane.tools/`)**, kết hợp với **GitHub Actions** / **GitLab CI** và **Hệ thống Webhook tự động thông báo kết quả**.
 
@@ -28,7 +28,7 @@ Vào **Settings -> Secrets and variables -> Actions** trên GitHub (hoặc **Set
 | `APP_STORE_CONNECT_ISSUER_ID` | Issuer ID của tổ chức W360S (`69a6de93-48bc-47e3-e053-5b8c7c11a4d1`) | iOS (TestFlight) |
 | `APP_STORE_CONNECT_KEY_CONTENT` | Nội dung file khóa bảo mật `.p8`, lưu nguyên văn trong CI Secret | iOS (TestFlight) |
 | `APPLE_APP_PASS` *(Dự phòng)* | Mật khẩu ứng dụng 16 ký tự (Ví dụ: `xxxx-xxxx-xxxx-xxxx`) nếu không dùng Key `.p8` | iOS (TestFlight) |
-| `APPLE_ID` | Email quản trị Apple App Manager (`tanmnn@360.org.vn`) | iOS (TestFlight) |
+| `APPLE_ID` | Email quản trị Apple App Manager (`<APPLE_ID>`) | iOS (TestFlight) |
 | `WEBHOOK_URL` | Đường dẫn Webhook (Slack, Discord, Telegram Bot HTTP Endpoint) | Webhook Alerts |
 | `GCLOUD_SERVICE_ACCOUNT_CREDENTIALS` | JSON Service Account của Google Play Console (dành cho Android) | Android (Play Store) |
 
@@ -66,7 +66,7 @@ Nếu bạn muốn chạy Fastlane thử nghiệm trên máy local:
 
 ### 1. Cài đặt Fastlane:
 ```bash
-cd vclients
+cd VCloud
 bundle install
 ```
 
@@ -75,10 +75,14 @@ bundle install
 export APP_STORE_CONNECT_KEY_ID="3J68D9JX79"
 export APP_STORE_CONNECT_ISSUER_ID="69a6de93-48bc-47e3-e053-5b8c7c11a4d1"
 export APP_STORE_CONNECT_KEY_CONTENT="$(cat path/to/AuthKey_3J68D9JX79.p8)"
+export APPLE_ID="email-app-manager@example.com"
+export APPLE_APP_PASS="xxxx-xxxx-xxxx-xxxx"
 export WEBHOOK_URL="https://your-webhook-endpoint.com/api"
 
 bundle exec fastlane ios beta
 ```
+
+`APP_STORE_CONNECT_KEY_CONTENT` được ưu tiên nếu có key `.p8` hợp lệ. Khi không có `.p8`, Fastlane fallback sang `APPLE_ID` + `APPLE_APP_PASS`. Không ghi email thật hoặc app-specific password vào repo.
 
 ### 3. Chạy lane Android (Build APK & AAB):
 ```bash

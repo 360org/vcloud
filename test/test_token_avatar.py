@@ -3,12 +3,13 @@
 """Test python to check if adding token= to /web/image/ URLs breaks Odoo avatar requests.
 """
 
+import os
 import urllib.request
 import json
 
 BASE_URL = "https://vuahethong.net"
-LOGIN_USER = "tanmnn@360.org.vn"
-LOGIN_PASS = "@360.org.vn"
+LOGIN_USER = os.environ.get("ODOO_USER", "")
+LOGIN_PASS = os.environ.get("ODOO_PASS", "")
 
 # Login
 url = f"{BASE_URL}/api/v1/mobile/auth/login"

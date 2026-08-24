@@ -1,11 +1,11 @@
 # TÀI LIỆU QUY TRÌNH KÝ SỐ VÀ XUẤT BẢN iOS TESTFLIGHT THÀNH CÔNG (PASSED SOLUTION)
 
-**Dự án:** VCloud Mobile App (`vclients`)  
-**Doanh nghiệp:** W360S JOINT STOCK COMPANY  
-**Bundle ID:** `com.w360s.wcloudapp`  
-**Team ID:** `ZC3H8887XS`  
-**App ID:** `1365622472`  
-**Ngày kiểm chứng PASSED thành công 100%:** 13/08/2026  
+**Dự án:** VCloud Mobile App
+**Doanh nghiệp:** W360S JOINT STOCK COMPANY
+**Bundle ID:** `com.w360s.wcloudapp`
+**Team ID:** `ZC3H8887XS`
+**App ID:** `1365622472`
+**Ngày kiểm chứng PASSED thành công 100%:** 13/08/2026
 
 ---
 
@@ -84,4 +84,4 @@ BUILD_NUMBER: ${{ github.run_number }}
 
 ---
 
-*Tài liệu này được lưu trữ vĩnh viễn tại `vclients/docs/IOS_PASSED_SOLUTION_AND_TROUBLESHOOTING.md` để đảm bảo hệ thống CI/CD iOS vận hành mượt mà lâu dài.*
+*Tài liệu này được lưu trữ vĩnh viễn tại `docs/IOS_PASSED_SOLUTION_AND_TROUBLESHOOTING.md` để đảm bảo hệ thống CI/CD iOS vận hành mượt mà lâu dài.*

@@ -191,7 +191,7 @@ agents can understand the intent, not just the code diff.
 ## Documentation Practice
 
 ### User Idea
-- Keep `SPEC.md`, `ARCH.md`, `implementation_plan.md`, and `AGENTS.md` updated.
+- Keep `docs/SPEC.md`, `docs/ARCH.md`, `docs/PLAN.md`, and `AGENTS.md` updated.
 - Create a separate idea/improvement file that records what ideas were suggested
   and what improvements were generated from them.
 

@@ -3,13 +3,14 @@
 """Test fetching avatar with Odoo Session Cookie vs JWT Bearer vs Public
 """
 
+import os
 import urllib.request
 import json
 import http.cookiejar
 
 BASE_URL = "https://vuahethong.net"
-LOGIN_USER = "tanmnn@360.org.vn"
-LOGIN_PASS = "@360.org.vn"
+LOGIN_USER = os.environ.get("ODOO_USER", "")
+LOGIN_PASS = os.environ.get("ODOO_PASS", "")
 
 # Setup CookieJar
 cj = http.cookiejar.CookieJar()

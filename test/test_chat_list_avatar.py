@@ -2,11 +2,12 @@
 # -*- coding: utf-8 -*-
 """
 UnitTest kiểm tra trực tiếp Avatar API Odoo cho:
-1. User cá nhân (Ma Nguyễn Nhật Tân - User 3514): Xác minh ảnh con mèo hồng (~10KB)
+1. User cá nhân (Nguyễn Văn A - User 3514): Xác minh ảnh con mèo hồng (~10KB)
 2. Toàn bộ danh sách Chat Channels (/api/v1/mobile/chat/channels): Kiểm tra từng avatar của từng người dùng trong chat.
 """
 
 import unittest
+import os
 import urllib.request
 import json
 
@@ -19,8 +20,8 @@ class TestChatListAvatar(unittest.TestCase):
     def setUpClass(cls):
         print("\n🔑 1. Đang đăng nhập lấy JWT Access Token...")
         payload = json.dumps({
-            "login": "tanmnn@360.org.vn",
-            "password": "@360.org.vn"
+            "login": os.environ.get("ODOO_USER", ""),
+            "password": os.environ.get("ODOO_PASS", "")
         }).encode("utf-8")
         
         req = urllib.request.Request(

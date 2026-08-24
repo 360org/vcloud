@@ -139,7 +139,7 @@ When modifying Odoo 17:
 | **`17.0`**                 | Protected Odoo 17 production/staging branch | ❌ **NEVER** | Merge Request + Reviewer approval |
 | **`fix/*`**                | Bug fixes and maintenance                   |    ✅ Yes    | Merge Request → `17.0`            |
 | **`feature/*`**            | New features and enhancements               |    ✅ Yes    | Merge Request → `17.0`            |
-| **`release/ios-appstore`** | iOS App Store / TestFlight release workflow |  ✅ **Yes**  | Direct Push / Codemagic           |
+| **`release/ios-appstore`** | iOS App Store / TestFlight release workflow |  ✅ **Yes**  | Direct Push / GitHub Actions/Fastlane           |
 
 ---
 
@@ -290,7 +290,7 @@ Use `release/ios-appstore` ONLY for iOS release-related work, including:
 * `ios/Runner/Info.plist`
 * Export Compliance configuration
 * iOS signing/release configuration
-* Codemagic iOS configuration
+* GitHub Actions/Fastlane iOS configuration
 * iOS-specific release fixes
 * App Store Connect preparation
 
@@ -313,7 +313,7 @@ Commit
   ↓
 Push directly to release/ios-appstore
   ↓
-Codemagic
+GitHub Actions/Fastlane
   ↓
 App Store Connect / TestFlight
 ```
@@ -325,7 +325,8 @@ git checkout release/ios-appstore
 git pull --ff-only origin release/ios-appstore
 git add <required-files>
 git commit -m "fix(ios): <description>"
-git push origin release/ios-appstore
+git push origin HEAD:release/ios-appstore
+git push github HEAD:release/ios-appstore
 ```
 
 ## 4.3 Merge Request Exception
@@ -869,7 +870,7 @@ Rules:
 
 ---
 
-# 18. 🧩 Codemagic / TestFlight Release
+# 18. 🧩 GitHub Actions/Fastlane / TestFlight Release
 
 For iOS release tasks on:
 
@@ -887,7 +888,7 @@ verify as applicable:
 * Export compliance
 * Signing configuration
 * Provisioning configuration
-* Codemagic configuration
+* GitHub Actions/Fastlane configuration
 * Release build result
 * App Store Connect upload result
 
@@ -1082,7 +1083,7 @@ Only include when applicable:
 - Version:
 - Build number:
 - Export compliance:
-- Codemagic:
+- GitHub Actions/Fastlane:
 - TestFlight:
 
 ### 🌿 Git
@@ -1276,7 +1277,8 @@ release/ios-appstore
 direct push is allowed:
 
 ```bash
-git push origin release/ios-appstore
+git push origin HEAD:release/ios-appstore
+git push github HEAD:release/ios-appstore
 ```
 
 No MR is required unless explicitly requested.

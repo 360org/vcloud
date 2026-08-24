@@ -46,7 +46,7 @@ class FakeOdooApiClient implements OdooApiClient {
         },
         {
           "id": 46,
-          "name": "Tân Nhật",
+          "name": "Nguyễn Văn A",
           "channel_type": "chat",
           "unread_count": 0,
           "member_count": 2,
@@ -64,7 +64,7 @@ class FakeOdooApiClient implements OdooApiClient {
           {
             "id": 1010,
             "body": "Nội dung tin nhắn văn bản mới",
-            "author_id": [103, "Tân Nhật"],
+            "author_id": [103, "Nguyễn Văn A"],
             "author_avatar": false,
             "date": "2026-08-13 01:25:08",
             "is_read": true,
@@ -110,7 +110,7 @@ class FakeOdooApiClient implements OdooApiClient {
           "id": 1010,
           "body": map['body'] ?? "",
           "author_id": 103,
-          "author_name": "Tân Nhật",
+          "author_name": "Nguyễn Văn A",
           "create_date": "2026-08-13 01:25:08",
           "attachment_ids": attachmentIds ?? [],
           "attachments": attachmentIds != null && attachmentIds.isNotEmpty

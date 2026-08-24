@@ -27,7 +27,7 @@ keytool -genkey -v -keystore upload-keystore.jks \
 
 ### Tạo file cấu hình `key.properties`:
 
-Sau khi tạo xong file `upload-keystore.jks`, tạo file `vclients/android/key.properties`:
+Sau khi tạo xong file `upload-keystore.jks`, tạo file `android/key.properties`:
 
 ```properties
 storePassword=MAT_KHAU_STORE_CUA_BAN
@@ -42,7 +42,7 @@ storeFile=upload-keystore.jks
 
 ### Cách 1: Build bằng Flutter CLI (Trên máy dev)
 
-Mở terminal tại thư mục `vclients`:
+Mở terminal tại thư mục `VCloud`:
 
 ```bash
 cd <VCLOUD_ROOT>

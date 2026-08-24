@@ -17,7 +17,7 @@ Quy tắc này nhằm **tối ưu hóa 100% hạn ngạch (quota) tính toán v�
 ---
 
 ## 📝 3. QUY TRÌNH XUẤT CHECKLIST KIỂM THỰ (MANDATORY CHECKLIST GENERATION)
-Sau khi hoàn thành bất kỳ tác vụ chỉnh sửa giao diện nào (Frontend Flutter `vclients` hoặc các giao diện XML/Web của Odoo Backend `v_mobile`), Antigravity **bắt buộc** phải dừng lại và xuất ra một bảng **Danh sách kiểm tra trực quan (Visual QA Checklist)** định dạng Markdown súc tích theo cấu trúc sau:
+Sau khi hoàn thành bất kỳ tác vụ chỉnh sửa giao diện nào (Frontend Flutter `VCloud` hoặc các giao diện XML/Web của Odoo Backend `v_mobile`), Antigravity **bắt buộc** phải dừng lại và xuất ra một bảng **Danh sách kiểm tra trực quan (Visual QA Checklist)** định dạng Markdown súc tích theo cấu trúc sau:
 
 ### 📊 BẢNG TIÊU CHÍ ĐÁNH GIÁ TRỰC QUAN (VISUAL QA CHECKLIST)
 

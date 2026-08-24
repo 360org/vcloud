@@ -76,11 +76,6 @@
 	<string>VCloud uses your photo library so you can choose photos for chat and support tickets.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>VCloud sử dụng micro để ghi âm tin nhắn thoại và thực hiện cuộc gọi thoại trong ứng dụng.</string>
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsArbitraryLoads</key>
-		<true/>
-	</dict>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 </dict>

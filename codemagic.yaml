@@ -8,8 +8,6 @@ workflows:
       events:
         - push
       branch_patterns:
-        - pattern: main
-          include: true
         - pattern: release/*
           include: true
         - pattern: release/ios-appstore
@@ -83,8 +81,6 @@ workflows:
       events:
         - push
       branch_patterns:
-        - pattern: main
-          include: true
         - pattern: release/*
           include: true
         - pattern: release/android-playstore
@@ -96,7 +92,7 @@ workflows:
       android_signing:
         - vcloud_keystore
       vars:
-        PACKAGE_NAME: com.w360s.wcloudapp
+        PACKAGE_NAME: com.vcloud.vcloud
         GOOGLE_PLAY_TRACK: internal
       flutter: stable
     scripts:

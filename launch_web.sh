@@ -12,7 +12,7 @@
 #   3. Khởi chạy Google Chrome Flutter Web kết nối trực tiếp Odoo Backend Local.
 #
 # Frontend:
-#   vclients
+#   VCloud
 #
 # Default Backend:
 #   http://127.0.0.1:8069 (Laptop Local /dev_env/17.0)
@@ -36,7 +36,7 @@ export PATH="$PATH:$HOME/flutter/bin:/usr/local/bin"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MOBILE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 BACKEND_DIR="$MOBILE_ROOT/v_mobile"
-LOCAL_DEV_DIR="/media/tanma/DATA/save/dev_env/17.0"
+LOCAL_DEV_DIR="${LOCAL_DEV_DIR:-}"
 
 cd "$SCRIPT_DIR"
 
@@ -70,7 +70,7 @@ echo
 echo "💻 [1/3] Đang kiểm tra mã nguồn Backend Local ($BACKEND_DIR)..."
 if [[ -d "$BACKEND_DIR" ]]; then
     # Đảm bảo symlink trong dev_env trỏ chính xác vào thư mục v_mobile local
-    if [[ -d "$LOCAL_DEV_DIR/modules/default" ]]; then
+    if [[ -n "$LOCAL_DEV_DIR" && -d "$LOCAL_DEV_DIR/modules/default" ]]; then
         ln -sfn "$BACKEND_DIR" "$LOCAL_DEV_DIR/modules/default/mobile_api" 2>/dev/null || true
         ln -sfn "$BACKEND_DIR" "$LOCAL_DEV_DIR/modules/default/v_mobile" 2>/dev/null || true
     fi
@@ -86,7 +86,7 @@ fi
 echo
 echo "🔄 [2/3] Đang khởi động Odoo 17 trên Máy Laptop (Local)..."
 
-if [[ -d "$LOCAL_DEV_DIR" ]]; then
+if [[ -n "$LOCAL_DEV_DIR" && -d "$LOCAL_DEV_DIR" ]]; then
     echo "   🐳 Đang khởi động Odoo 17 Docker trên Laptop ($LOCAL_DEV_DIR)..."
     (cd "$LOCAL_DEV_DIR" && ./prod up -d) >/dev/null 2>&1 || true
     echo "   🔄 Khởi động lại container Odoo demo-17 để nạp code local mới..."
@@ -107,7 +107,7 @@ with registry.cursor() as cr:
         echo "   ✅ Đã nạp và nâng cấp code Backend local vào Odoo thành công!"
     fi
 else
-    echo "   ⚠️ Không tìm thấy $LOCAL_DEV_DIR"
+    echo "   ⚠️ LOCAL_DEV_DIR chưa được cấu hình; bỏ qua khởi động Odoo Docker local."
 fi
 
 if [[ -z "$API_URL" ]]; then

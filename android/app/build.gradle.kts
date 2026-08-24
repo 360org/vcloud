@@ -44,11 +44,10 @@ android {
 
     buildTypes {
         release {
-            signingConfig = if (keystorePropertiesFile.exists()) {
-                signingConfigs.getByName("release")
-            } else {
-                signingConfigs.getByName("debug")
+            if (!keystorePropertiesFile.exists()) {
+                error("Missing android/key.properties for release signing")
             }
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }
