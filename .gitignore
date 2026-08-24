@@ -66,3 +66,10 @@ app.*.map.json
 
 # CodeGraph local index
 .codegraph/
+
+# Firebase Credentials & Configs (DO NOT COMMIT)
+google-services.json
+GoogleService-Info.plist
+*firebase-adminsdk*.json
+firebase_service_account.json
+

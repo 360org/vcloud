@@ -144,7 +144,7 @@ class _ChatV2VoiceMessagePlayerState extends State<ChatV2VoiceMessagePlayer> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final primaryColor = const Color(0xFF00C83A);
+    const primaryColor = Color(0xFF00C83A);
     final iconBgColor = widget.isMine
         ? (isDark ? const Color(0xFF005C4B) : const Color(0xFF25D366))
         : (isDark ? const Color(0xFF202C33) : const Color(0xFF00C83A));
@@ -240,7 +240,7 @@ class _ChatV2VoiceMessagePlayerState extends State<ChatV2VoiceMessagePlayer> {
                         Container(
                           width: 6,
                           height: 6,
-                          decoration: BoxDecoration(
+                          decoration: const BoxDecoration(
                             color: primaryColor,
                             shape: BoxShape.circle,
                           ),

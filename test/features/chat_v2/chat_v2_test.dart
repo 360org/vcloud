@@ -614,7 +614,7 @@ void main() {
       // For 1-1 chat, member list card and add member quick action MUST NOT be displayed
       expect(find.text('Thêm thành viên'), findsNothing);
       expect(find.textContaining('Danh sách thành viên'), findsNothing);
-      expect(find.text('Ẩn cuộc trò chuyện'), findsOneWidget);
+      expect(find.text('Ẩn cuộc trò chuyện'), findsNothing);
     });
 
     testWidgets('27. ChatV2InfoSheet renders group chat with member list and media hub', (tester) async {

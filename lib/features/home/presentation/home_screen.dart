@@ -128,7 +128,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final todayState = ref.watch(attendanceTodayProvider);
     final dashboard = ref.watch(mobileDashboardSummaryProvider).valueOrNull;
     final notificationState = ref.watch(mobileNotificationsProvider);
-    final notificationCount = notificationState.valueOrNull?.total ?? 0;
+    final dismissedIds = ref.watch(dismissedNotificationIdsProvider);
+    final allNotifs = notificationState.valueOrNull?.items ?? const <MobileNotificationItem>[];
+    final notificationCount = allNotifs
+        .where((it) =>
+            !dismissedIds.contains(it.id.toString()) &&
+            !dismissedIds.contains('${it.eventType}_${it.id}'))
+        .length;
     // DO NOT MODIFY OR REFACTOR THIS AVATAR LOADING LOGIC. IT IS THE SOURCE OF TRUTH FOR USER AVATAR DISPLAY.
     // CẤM SỬA HOẶC XÓA LOGIC TẢI AVATAR NÀY - ĐÂY LÀ NGUỒN SỰ THẬT HIỂN THỊ AVATAR DÙNG CHUNG.
     final user = ref.watch(authControllerProvider).valueOrNull;
@@ -714,14 +720,21 @@ class _NotificationSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final notifications = ref.watch(mobileNotificationsProvider);
+    final dismissedIds = ref.watch(dismissedNotificationIdsProvider);
     final list = notifications.valueOrNull;
-    final items = (list?.items ?? const <MobileNotificationItem>[]).toList()
+    final allItems = (list?.items ?? const <MobileNotificationItem>[]).toList()
       ..sort((a, b) {
         final aTime = a.timestamp ?? DateTime.fromMillisecondsSinceEpoch(0);
         final bTime = b.timestamp ?? DateTime.fromMillisecondsSinceEpoch(0);
         return bTime.compareTo(aTime);
       });
-    final totalCount = list?.total ?? items.length;
+
+    final items = allItems
+        .where((it) =>
+            !dismissedIds.contains(it.id.toString()) &&
+            !dismissedIds.contains('${it.eventType}_${it.id}'))
+        .toList();
+    final totalCount = items.length;
 
     return SafeArea(
       top: false,
@@ -799,11 +812,41 @@ class _NotificationSheet extends ConsumerWidget {
                         ],
                       ),
                     ),
+                    if (items.isNotEmpty)
+                      PressableScale(
+                        onTap: () {
+                          final allKeys = items.map((e) => e.id.toString()).toList();
+                          ref.read(dismissedNotificationIdsProvider.notifier).dismissAll(allKeys);
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: AppColors.soft(AppColors.danger),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(LucideIcons.trash2, color: AppColors.danger, size: 14),
+                              SizedBox(width: 4),
+                              Text(
+                                'Xóa hết',
+                                style: TextStyle(
+                                  color: AppColors.danger,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    const SizedBox(width: 4),
                     IconButton(
                       tooltip: 'Làm mới',
                       onPressed: () =>
                           ref.invalidate(mobileNotificationsProvider),
-                      icon: const Icon(LucideIcons.refreshCw, size: 19),
+                      icon: const Icon(LucideIcons.refreshCw, size: 18),
                     ),
                   ],
                 ),
@@ -822,7 +865,10 @@ class _NotificationSheet extends ConsumerWidget {
                   padding: const EdgeInsets.fromLTRB(12, 10, 12, 18),
                   children: [
                     for (final notification in items)
-                      _NotificationItemTile(item: notification),
+                      _NotificationItemTile(
+                        key: ValueKey('notif_tile_${notification.id}'),
+                        item: notification,
+                      ),
                     if (items.isEmpty && !notifications.isLoading)
                       const _NotificationEmptyState(),
                   ],
@@ -836,27 +882,70 @@ class _NotificationSheet extends ConsumerWidget {
   }
 }
 
-class _NotificationItemTile extends StatelessWidget {
-  const _NotificationItemTile({required this.item});
+String _cleanNotificationText(String raw) {
+  if (raw.isEmpty) return '';
+  var text = raw.replaceAll(RegExp(r'<[^>]*>|&[^;]+;'), ' ').trim();
+  text = text.replaceAll(RegExp(r'\s+'), ' ');
+  if (text.startsWith('voice_') &&
+      (text.endsWith('.webm') || text.endsWith('.mp3') || text.endsWith('.m4a'))) {
+    return '🎙️ Tin nhắn thoại';
+  }
+  if (text.toLowerCase().endsWith('.png') ||
+      text.toLowerCase().endsWith('.jpg') ||
+      text.toLowerCase().endsWith('.jpeg') ||
+      text.toLowerCase().endsWith('.webp')) {
+    return '🖼️ Hình ảnh';
+  }
+  if (text.toLowerCase().endsWith('.pdf') ||
+      text.toLowerCase().endsWith('.docx') ||
+      text.toLowerCase().endsWith('.xlsx') ||
+      text.toLowerCase().endsWith('.zip')) {
+    return '📎 Tệp đính kèm';
+  }
+  return text;
+}
+
+class _NotificationItemTile extends ConsumerWidget {
+  const _NotificationItemTile({super.key, required this.item});
 
   final MobileNotificationItem item;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final decoration = _notificationDecoration(item.eventType);
     final route = _notificationRoute(item.data);
-    return _NotificationTile(
-      icon: decoration.icon,
-      accent: decoration.accent,
-      title: item.title,
-      subtitle: item.body,
-      time: item.timestamp == null
-          ? ''
-          : Dates.chatListLabelVi(item.timestamp!),
-      onTap: () {
-        Navigator.of(context).pop();
-        if (route != null) context.go(route);
+    return Dismissible(
+      key: ValueKey('notif_dismiss_${item.id}'),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        margin: const EdgeInsets.only(bottom: 10),
+        decoration: BoxDecoration(
+          color: AppColors.danger,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: const Icon(LucideIcons.trash2, color: Colors.white, size: 20),
+      ),
+      onDismissed: (_) {
+        ref.read(dismissedNotificationIdsProvider.notifier).dismiss(item.id.toString());
       },
+      child: _NotificationTile(
+        icon: decoration.icon,
+        accent: decoration.accent,
+        title: _cleanNotificationText(item.title),
+        subtitle: _cleanNotificationText(item.body),
+        time: item.timestamp == null
+            ? ''
+            : Dates.chatListLabelVi(item.timestamp!),
+        onTap: () {
+          Navigator.of(context).pop();
+          if (route != null) context.go(route);
+        },
+        onDelete: () {
+          ref.read(dismissedNotificationIdsProvider.notifier).dismiss(item.id.toString());
+        },
+      ),
     );
   }
 }
@@ -904,6 +993,7 @@ class _NotificationTile extends StatelessWidget {
     required this.subtitle,
     required this.time,
     required this.onTap,
+    required this.onDelete,
   });
 
   final IconData icon;
@@ -912,6 +1002,7 @@ class _NotificationTile extends StatelessWidget {
   final String subtitle;
   final String time;
   final VoidCallback onTap;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -967,7 +1058,25 @@ class _NotificationTile extends StatelessWidget {
             const SizedBox(width: 10),
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
+                GestureDetector(
+                  onTap: onDelete,
+                  behavior: HitTestBehavior.opaque,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: context.textMuted.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      LucideIcons.x,
+                      size: 13,
+                      color: context.textSecondary,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
                 Text(
                   time,
                   style: AppTextStyles.caption.copyWith(

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -9,6 +10,7 @@ import 'chat_v2_read_state_controller.dart';
 import '../data/chat_v2_realtime_service.dart';
 import '../data/chat_v2_repository.dart';
 import '../data/models/chat_v2_channel.dart';
+import '../presentation/widgets/chat_v2_in_app_banner.dart';
 import 'chat_v2_messages_controller.dart';
 
 final chatV2ChannelsProvider =
@@ -24,8 +26,11 @@ class ChatV2ChannelLocalCache {
   static const _channelsCacheKey = 'cached_channels_v3';
   static const _unreadCacheKey = 'cached_unread_count_v3';
   static const _pinnedIdsKey = 'user_pinned_channel_ids';
+  static const _mutedIdsKey = 'user_muted_channel_ids';
   static bool _initialized = false;
+  static List<String> _userPinnedOrder = [];
   static Set<String> _userPinnedIds = {};
+  static Set<String> _userMutedIds = {};
 
   static List<ChatV2Channel> get cached => _cached;
   static String? _mergeLastMessage(ChatV2Channel local, ChatV2Channel api) {
@@ -97,7 +102,14 @@ class ChatV2ChannelLocalCache {
       final pinnedIdsData = await _storage.read(key: _pinnedIdsKey);
       if (pinnedIdsData != null && pinnedIdsData.isNotEmpty) {
         final List<dynamic> decoded = jsonDecode(pinnedIdsData);
-        _userPinnedIds = decoded.map((e) => e.toString()).toSet();
+        _userPinnedOrder = decoded.map((e) => e.toString()).toList();
+        _userPinnedIds = _userPinnedOrder.toSet();
+      }
+
+      final mutedIdsData = await _storage.read(key: _mutedIdsKey);
+      if (mutedIdsData != null && mutedIdsData.isNotEmpty) {
+        final List<dynamic> decoded = jsonDecode(mutedIdsData);
+        _userMutedIds = decoded.map((e) => e.toString()).toSet();
       }
     } catch (_) {}
     _initialized = true;
@@ -107,11 +119,20 @@ class ChatV2ChannelLocalCache {
 
   static bool isUserPinned(String channelId) => _userPinnedIds.contains(channelId);
 
+  static int getPinnedIndex(String channelId) {
+    final idx = _userPinnedOrder.indexOf(channelId);
+    return idx != -1 ? idx : 999999;
+  }
+
   static void toggleUserPin(String channelId) {
     if (_userPinnedIds.contains(channelId)) {
       _userPinnedIds.remove(channelId);
+      _userPinnedOrder.remove(channelId);
     } else {
       _userPinnedIds.add(channelId);
+      if (!_userPinnedOrder.contains(channelId)) {
+        _userPinnedOrder.add(channelId);
+      }
     }
     _saveUserPinnedIds();
     // Force re-sort via set()
@@ -120,7 +141,25 @@ class ChatV2ChannelLocalCache {
 
   static Future<void> _saveUserPinnedIds() async {
     try {
-      await _storage.write(key: _pinnedIdsKey, value: jsonEncode(_userPinnedIds.toList()));
+      await _storage.write(key: _pinnedIdsKey, value: jsonEncode(_userPinnedOrder));
+    } catch (_) {}
+  }
+
+  static bool isUserMuted(String channelId) => _userMutedIds.contains(channelId);
+
+  static void toggleUserMute(String channelId) {
+    if (_userMutedIds.contains(channelId)) {
+      _userMutedIds.remove(channelId);
+    } else {
+      _userMutedIds.add(channelId);
+    }
+    _saveUserMutedIds();
+    set(_cached);
+  }
+
+  static Future<void> _saveUserMutedIds() async {
+    try {
+      await _storage.write(key: _mutedIdsKey, value: jsonEncode(_userMutedIds.toList()));
     } catch (_) {}
   }
 
@@ -131,19 +170,20 @@ class ChatV2ChannelLocalCache {
     onCacheUpdated?.call();
   }
 
-  static void updateChannel(ChatV2Channel channel) {
+  static void updateChannel(ChatV2Channel channel, {bool addIfMissing = true}) {
     final currentCached = List<ChatV2Channel>.from(_cached);
     final idx = currentCached.indexWhere((c) => c.id == channel.id);
     if (idx != -1) {
       currentCached[idx] = channel;
       set(currentCached);
-    } else {
+    } else if (addIfMissing) {
       currentCached.add(channel);
       set(currentCached);
     }
     _saveToStorage();
     onCacheUpdated?.call();
   }
+
 
   static void updateChannelLastMessage(
     String channelId, {
@@ -228,9 +268,26 @@ class ChatV2ChannelLocalCache {
       final cachedFirst = (cachedMsgs != null && cachedMsgs.isNotEmpty) ? cachedMsgs.first : null;
       final cachedDate = cachedFirst?.createdAt;
       if (cachedDate != null && (c.lastMessageDate == null || cachedDate.toUtc().isAfter(c.lastMessageDate!.toUtc()))) {
-        final cachedContent = (cachedFirst != null && cachedFirst.content.isNotEmpty)
-            ? cachedFirst.content
-            : ((cachedFirst != null && cachedFirst.attachments.isNotEmpty) ? '[Hình ảnh]' : null);
+        String? cachedContent;
+        if (cachedFirst != null) {
+          final contentLower = cachedFirst.content.toLowerCase().trim();
+          final isVoice = cachedFirst.hasAudio ||
+              contentLower.endsWith('.webm') ||
+              contentLower.endsWith('.mp3') ||
+              contentLower.endsWith('.m4a') ||
+              contentLower.endsWith('.wav') ||
+              contentLower.startsWith('voice_') ||
+              contentLower.contains('voice_') ||
+              contentLower == '[ghi âm]' ||
+              contentLower == 'ghi âm';
+          if (cachedFirst.content.isNotEmpty) {
+            cachedContent = isVoice ? '[Ghi âm]' : cachedFirst.content;
+          } else if (cachedFirst.attachments.isNotEmpty) {
+            final att = cachedFirst.attachments.first;
+            final isAudioAtt = att.isAudio || (att.mimetype != null && att.mimetype!.startsWith('audio/'));
+            cachedContent = isAudioAtt ? '[Ghi âm]' : '[Hình ảnh]';
+          }
+        }
         map[c.id] = c.copyWith(
           lastMessageDate: cachedDate,
           lastMessage: cachedContent ?? c.lastMessage,
@@ -263,17 +320,28 @@ class ChatV2ChannelLocalCache {
     }
     final merged = map.values.toList();
     merged.sort((a, b) {
-      // Ghim lên đầu
+      // Ghim lên đầu theo đúng thứ tự ghim cố định (1, 2, 3, 4, 5)
       final aPinned = _userPinnedIds.contains(a.id);
       final bPinned = _userPinnedIds.contains(b.id);
       if (aPinned && !bPinned) return -1;
       if (!aPinned && bPinned) return 1;
+      if (aPinned && bPinned) {
+        final idxA = _userPinnedOrder.indexOf(a.id);
+        final idxB = _userPinnedOrder.indexOf(b.id);
+        return (idxA != -1 ? idxA : 999999).compareTo(idxB != -1 ? idxB : 999999);
+      }
       final da = (a.lastMessageDate ?? DateTime.fromMillisecondsSinceEpoch(0)).toUtc();
       final db = (b.lastMessageDate ?? DateTime.fromMillisecondsSinceEpoch(0)).toUtc();
       return db.compareTo(da);
     });
     _cached = List.unmodifiable(merged);
     _saveCachedChannelsToStorage();
+  }
+
+  static void archive(String channelId) {
+    _cached = List.unmodifiable(_cached.where((c) => c.id != channelId).toList());
+    _saveCachedChannelsToStorage();
+    onCacheUpdated?.call();
   }
 
   static void remove(String channelId) {
@@ -348,9 +416,26 @@ class ChatV2ChannelsNotifier
         if (isDisposed) return;
         final current = state.valueOrNull ?? ChatV2ChannelLocalCache.cached;
         if (fresh.isNotEmpty && hasChannelsChanged(current, fresh)) {
+          // Hiển thị in-app banner khi phát hiện có tin nhắn mới gửi đến
+          final currentMap = {for (final c in current) c.id: c};
+          for (final f in fresh) {
+            final old = currentMap[f.id];
+            if (old != null &&
+                f.unreadCount > old.unreadCount &&
+                (f.lastMessage != null && f.lastMessage!.isNotEmpty)) {
+              final isMuted = ChatV2ChannelLocalCache.isUserMuted(f.id);
+              if (!isMuted) {
+                ref.read(inAppNotificationProvider.notifier).show(
+                  title: f.directPartnerName ?? f.name,
+                  body: f.lastMessage ?? '',
+                  channelId: f.id,
+                );
+              }
+            }
+          }
+
           // Giữ lại imStatus cũ nếu fresh trả offline nhưng cũ đang online
           // tránh nhấp nháy indicator do latency poll
-          final currentMap = {for (final c in current) c.id: c};
           final merged = fresh.map((f) {
             final old = currentMap[f.id];
             if (old != null && old.imStatus == 'online' && f.imStatus == 'offline') {
@@ -380,12 +465,24 @@ class ChatV2ChannelsNotifier
       final userId = currentUser?.id;
       final isMine = (partnerId != null && msg.authorId == partnerId) ||
           (userId != null && msg.authorId == userId);
+      final isMuted = ChatV2ChannelLocalCache.isUserMuted(msg.channelId);
+
+      if (!isMine && !isMuted) {
+        HapticFeedback.heavyImpact();
+        ref.read(inAppNotificationProvider.notifier).show(
+          title: msg.authorName.isNotEmpty ? msg.authorName : 'Tin nhắn mới',
+          body: msg.content.isNotEmpty ? msg.content : (msg.attachments.isNotEmpty ? '[Đính kèm]' : ''),
+          channelId: msg.channelId,
+        );
+      }
 
       if (isMine) {
         ref.read(chatV2ReadStateProvider.notifier).markChannelAsRead(msg.channelId);
       } else {
         ref.read(chatV2LastSentTrackerProvider.notifier).clear(msg.channelId);
-        ref.read(chatV2ReadStateProvider.notifier).markChannelAsUnread(msg.channelId);
+        if (!isMuted) {
+          ref.read(chatV2ReadStateProvider.notifier).markChannelAsUnread(msg.channelId);
+        }
       }
 
       if (chIndex != -1) {
@@ -505,7 +602,32 @@ class ChatV2ChannelsNotifier
       _isLoadingMore = false;
     }
   }
+
+  Future<void> archiveChannel(String channelId) async {
+    try {
+      await ref.read(chatV2RepositoryProvider).archiveChannel(channelId);
+      ChatV2ChannelLocalCache.remove(channelId);
+      final current = state.valueOrNull ?? ChatV2ChannelLocalCache.cached;
+      final updated = current.where((c) => c.id != channelId).toList();
+      ChatV2ChannelLocalCache.set(updated);
+      state = AsyncData(updated);
+      ref.invalidate(chatV2ArchivedChannelsProvider);
+    } catch (_) {}
+  }
+
+  Future<void> unarchiveChannel(String channelId) async {
+    try {
+      await ref.read(chatV2RepositoryProvider).unarchiveChannel(channelId);
+      await refresh(); // Reload channels from API to get it back
+      ref.invalidate(chatV2ArchivedChannelsProvider);
+    } catch (_) {}
+  }
 }
+
+final chatV2ArchivedChannelsProvider = FutureProvider.autoDispose<List<ChatV2Channel>>((ref) async {
+  final repo = ref.read(chatV2RepositoryProvider);
+  return repo.getChannels(showArchived: true, limit: 100);
+});
 
 int _lastKnownUnread = 0;
 
