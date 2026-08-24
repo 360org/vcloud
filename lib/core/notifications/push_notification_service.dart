@@ -130,7 +130,9 @@ class PushNotificationService {
     });
 
     final token = await messaging.getToken();
-    if (token == null || token.isEmpty) return;
+    if (token == null || token.isEmpty) {
+      throw Exception('FCM Token trả về rỗng từ Firebase.');
+    }
 
     final installationId = await _installationId();
     final packageInfo = await PackageInfo.fromPlatform();

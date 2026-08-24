@@ -96,7 +96,7 @@ class WhatsNewSheet extends StatelessWidget {
                         Icon(LucideIcons.sparkles, size: 14, color: Color(0xFF00C83A)),
                         SizedBox(width: 6),
                         Text(
-                          'PHIÊN BẢN MỚI v2.5.0 (BUILD 85)',
+                          'PHIÊN BẢN MỚI v2.5.0 (BUILD 86)',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w800,

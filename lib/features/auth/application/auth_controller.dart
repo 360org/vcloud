@@ -7,6 +7,7 @@ import '../../../core/api/auth_user.dart';
 import '../../../core/notifications/push_notification_controller.dart';
 import '../../../core/notifications/push_notification_service.dart';
 import '../../chat_v2/application/chat_v2_channels_controller.dart';
+import '../../../shared/widgets/app_toast.dart';
 import '../data/auth_repository.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>((_) => AuthRepository());
@@ -117,6 +118,12 @@ class AuthController extends AsyncNotifier<AuthUser?> {
       await _pushNotifications.registerCurrentDevice();
     } catch (e) {
       debugPrint('Push registration skipped: $e');
+      AppToast.showGlobal(
+        type: AppToastType.error,
+        title: 'Lỗi đăng ký Push',
+        message: e.toString(),
+        duration: const Duration(seconds: 10),
+      );
     }
   }
 
