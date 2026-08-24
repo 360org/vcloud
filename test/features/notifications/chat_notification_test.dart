@@ -172,7 +172,6 @@ void main() {
 
         // Đợi 5 giây để Banner Timer (4s) hết hạn và tự đóng
         await tester.pump(const Duration(seconds: 5));
-        await tester.pumpAndSettle();
       },
     );
   });
