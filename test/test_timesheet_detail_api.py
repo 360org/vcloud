@@ -10,8 +10,8 @@ import os
 import re
 
 BASE_URL = os.environ.get("VCLOUD_ODOO_API_BASE_URL", "https://vuahethong.net")
-LOGIN_USER = os.environ.get("ODOO_USER", "tanmnn@360.org.vn")
-LOGIN_PASS = os.environ.get("ODOO_PASS", "@360.org.vn")
+LOGIN_USER = os.environ.get("ODOO_USER", "")
+LOGIN_PASS = os.environ.get("ODOO_PASS", "")
 
 def clean_html(text):
     if not text or text == "False" or text == "false":

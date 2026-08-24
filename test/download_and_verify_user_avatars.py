@@ -8,7 +8,7 @@ Script tải và lưu file ảnh đại diện thật từ Odoo Server cho các 
 - Bắc Đại Bàng (User 3518)
 - Hạnh Quyên (User 3339)
 - Chau, Le Ba (User 2)
-- Ma Nguyễn Nhật Tân (User 3514)
+- Nguyễn Văn A (User 3514)
 """
 
 import urllib.request
@@ -21,8 +21,8 @@ LOGIN_URL = f"{BASE_URL}/api/v1/mobile/auth/login"
 def main():
     print("\n🔑 1. Đang đăng nhập Odoo API...")
     payload = json.dumps({
-        "login": "tanmnn@360.org.vn",
-        "password": "@360.org.vn"
+        "login": os.environ.get("ODOO_USER", ""),
+        "password": os.environ.get("ODOO_PASS", "")
     }).encode("utf-8")
     
     req = urllib.request.Request(
@@ -47,7 +47,7 @@ def main():
         ("Bắc Đại Bàng", 3518, "bac_dai_bang.png"),
         ("Hạnh Quyên", 3339, "hanh_quyen.png"),
         ("Chau, Le Ba", 2, "chau_le_ba.png"),
-        ("Ma Nguyễn Nhật Tân", 3514, "nhat_tan.png"),
+        ("Nguyễn Văn A", 3514, "nhat_tan.png"),
     ]
 
     print("=" * 80)

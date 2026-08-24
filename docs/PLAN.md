@@ -1,8 +1,8 @@
-# implementation_plan.md - Odoo API Migration
+# PLAN.md - VCloud Mobile Delivery Plan
 
 ## /spec
-- [x] Capture OpenAPI-driven scope in `SPEC.md`.
-- [x] Capture architecture changes in `ARCH.md`.
+- [x] Capture OpenAPI-driven scope in `docs/SPEC.md`.
+- [x] Capture architecture changes in `docs/ARCH.md`.
 - [x] Document current Discuss/mobile chat API gaps from the attached OpenAPI
       contract.
 - [x] Capture ticket create/get/list requirement to use 360 Support mobile
@@ -14,7 +14,7 @@
 - [x] Capture Home bell notification-center behavior using unread chat and open
       ticket data until a notification-list API exists.
 - [x] Capture chat pin-message and historical media/file browsing behavior.
-- [x] Define a GitLab-connected macOS CI route for signed iOS TestFlight builds.
+- [x] Define the GitHub Actions + Fastlane tag build route for signed iOS TestFlight builds.
 
 ## /plan
 - [x] Replace Odoo API initialization with Odoo environment/session bootstrap.
@@ -23,14 +23,13 @@
 - [x] Convert attendance, ticket, chat, timesheet, task, profile, comments, and activity repositories to Odoo/mobile HTTP endpoints or safe local fallbacks.
 - [x] Remove direct Odoo API references from presentation/application layers.
 - [x] Update agent onboarding workflow in `AGENTS.md`.
-- [x] Add a product-improvement log (`IDEA_IMPROVE.md`) for user-sourced ideas
+- [x] Add a product-improvement log (`docs/IDEA_IMPROVE.md`) for user-sourced ideas
       and implemented UI/API refinements.
 - [x] Confirm the mobile chat group creation API is available and capture the
       UI integration requirement.
 - [x] Plan push registration as auth-adjacent infrastructure with Firebase
       setup isolated from presentation.
-- [x] Restrict automatic iOS TestFlight uploads to the `main` release branch
-      and keep App Store publishing as a separately approved action.
+- [x] Restrict automatic mobile release uploads to version tags matching `v*` and keep App Store publishing as a separately approved action.
 
 ## /build
 - [x] Exclude the ticket-create description echoed by Odoo chatter from the
@@ -80,7 +79,7 @@
       tap-through navigation to chat/ticket details.
 - [x] Add chat pin/unpin repository actions and long-press message controls.
 - [x] Rebuild chat info Media/File tabs from historical attachment metadata.
-- [x] Add a Codemagic workflow that signs an App Store IPA, injects release
+- [x] Add a GitHub Actions + Fastlane workflow that signs an App Store IPA, injects release
       `--dart-define` values from secrets, increments the App Store build number,
       and uploads to internal TestFlight.
 
@@ -105,7 +104,7 @@
 - [x] Add repository coverage for chat pin/unpin endpoint usage.
 - [x] Route direct-chat user lookup through the internal-user search endpoint
       and use the returned `partner_id` when creating a direct conversation.
-- [x] Validate the Codemagic workflow YAML and include `flutter analyze` and
+- [x] Validate the GitHub Actions workflow YAML and include `flutter analyze` and
       `flutter test` as required release gates.
 
 ## /review
@@ -126,10 +125,10 @@
       external/App Store publication.
 
 ## /ship
-- [x] Update `CHANGELOG.md`.
+- [x] Update `docs/CHANGELOGS.md`.
 - [x] Cleanup generated dependency files after replacing `odoo_api_client` with `http`.
-- [x] Update `SPEC.md`, `ARCH.md`, `implementation_plan.md`, `AGENTS.md`, and
-      `IDEA_IMPROVE.md` for ticket 360 Support/API/UI decisions.
+- [x] Update `docs/SPEC.md`, `docs/ARCH.md`, `docs/PLAN.md`, `AGENTS.md`, and
+      `docs/IDEA_IMPROVE.md` for ticket 360 Support/API/UI decisions.
 - [x] Update workflow docs for chat group creation UI integration.
 - [x] Add real mobile ticket attachment upload through
       `/api/v1/mobile/attachments/upload` after ticket creation.
@@ -144,7 +143,6 @@
 - [x] Update docs and changelog for Home bell notification loading.
 - [x] Update the chat direct-search contract, documentation, and tests for
       `/api/v1/mobile/users/search` and `partner_id` direct creation.
-- [ ] Push branches `19.0` and `19.0-dev` when credentials/remotes are available.
-- [ ] Connect the App Store Connect key, signing identity, and
-      `vcloud_ios_release` secret group in Codemagic, then verify the first
+- [ ] Push release source only to approved remotes when credentials are available.
+- [ ] Connect the App Store Connect key, signing identity, and CI secrets in GitHub Actions, then verify the first
       TestFlight upload.

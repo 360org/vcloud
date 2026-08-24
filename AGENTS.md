@@ -17,10 +17,10 @@ When an execution prompt is provided by NotebookLM:
 ---
 
 ## 0. 👤 User Identity & Interaction Protocol
-- **User Name**: Người dùng làm việc trực tiếp trong workspace này là **anh Tân** (gọi là **anh Tân** hoặc **Sếp Tân**).
-- **Addressing**: Luôn xưng "em" và gọi người dùng là **"anh Tân"** (hoặc **"Sếp Tân"** / **"anh"**).
-- **AIaC Core Context**: Bộ skill/rules AIaC gốc là của Sếp Châu/360org, nhưng người trực tiếp điều hành và làm việc tại dự án này là **anh Tân**.
-- **Hiển thị đường dẫn File & Báo cáo (BẮT BUỘC)**: Mọi đường dẫn file, báo cáo audit, deliverables khi thông báo cho anh Tân **BẮT BUỘC** trình bày dạng đường dẫn tuyệt đối đầy đủ từ Root Volume (VD: `<VCLOUD_ROOT>/SPEC.md`).
+- **User Name**: Người dùng làm việc trực tiếp trong workspace này là **Sếp** (gọi là **Sếp** hoặc **Sếp**).
+- **Addressing**: Luôn xưng "em" và gọi người dùng là **"Sếp"** (hoặc **"Sếp"** / **"anh"**).
+- **AIaC Core Context**: Bộ skill/rules AIaC gốc là của Sếp Châu/360org, nhưng người trực tiếp điều hành và làm việc tại dự án này là **Sếp**.
+- **Hiển thị đường dẫn File & Báo cáo (BẮT BUỘC)**: Mọi đường dẫn file, báo cáo audit, deliverables khi thông báo cho Sếp **BẮT BUỘC** trình bày dạng đường dẫn tuyệt đối đầy đủ từ Root Volume (VD: `<VCLOUD_ROOT>/docs/SPEC.md`).
 - **Git Commit Attribution**: Mọi commit git BẮT BUỘC sử dụng trailer: `Authored-By: 360org <support@360.org.vn>`.
 
 ---
@@ -62,13 +62,13 @@ Mọi task phát triển, sửa lỗi (Bug fix), cải tiến giao diện hoặc
 ```
 
 ### Chi tiết các Cổng Kiểm Soát Kỹ Thuật (Engineering Gates):
-1. **`/idea`**: Ghi nhận bài toán và phạm vi cốt lõi từ PO (`IDEA.md`).
-2. **`/req` (Gate A — PO Approval)**: Phân tích User Stories, Functional/Non-Functional Requirements và Tiêu chí nghiệm thu đo lường được (`REQUIREMENTS.md`). Chờ anh Tân duyệt mới sang bước tiếp theo.
+1. **`/idea`**: Ghi nhận bài toán và phạm vi cốt lõi từ PO (`docs/IDEA.md`).
+2. **`/req` (Gate A — PO Approval)**: Phân tích User Stories, Functional/Non-Functional Requirements và Tiêu chí nghiệm thu đo lường được (`docs/REQUIREMENTS.md`). Chờ Sếp duyệt mới sang bước tiếp theo.
 3. **`/spec` (Gate B — SOURCE OF TRUTH)**: 
-   - Khóa cứng JSON contract, API endpoints, Safe type parsing, UI constraints (`SPEC.md` & `ARCH.md`).
+   - Khóa cứng JSON contract, API endpoints, Safe type parsing, UI constraints (`docs/SPEC.md` & `docs/ARCH.md`).
    - Bắt buộc có phần **ROOT-CAUSE ANALYSIS** đối với bug: `Symptom ➔ Reproduction ➔ Affected Layer ➔ Trace ➔ Evidence ➔ Root Cause ➔ Fix Strategy`.
-   - Chờ anh Tân duyệt mới lập kế hoạch code.
-4. **`/plan` (Pre-Build Gate)**: Lập kế hoạch chi tiết (`implementation_plan.md` + `task.md`). **CẤM CODE TRƯỚC KHI CÓ PLAN**.
+   - Chờ Sếp duyệt mới lập kế hoạch code.
+4. **`/plan` (Pre-Build Gate)**: Lập kế hoạch chi tiết (`docs/PLAN.md` + `task.md`). **CẤM CODE TRƯỚC KHI CÓ PLAN**.
 5. **`/build` (Minimal Diff & Safe Coding)**:
    - Khóa cứng dependencies (`pubspec.yaml`), cấm tự ý thêm package.
    - Hủy sạch `Timer.periodic` tại `dispose()`.
@@ -155,20 +155,20 @@ Agent **BẮT BUỘC DỪNG NGAY** quy trình nếu phát hiện:
 - **RULE 18**: Không tự ý delete branch nếu chưa xác nhận merge.
 - **RULE 19**: Mọi thay đổi production phải có: CODE → TEST → MERGE → DEPLOY → VERIFY.
 - **RULE 20**: "Git push successful" KHÔNG đồng nghĩa với "task complete".
-- **RULE 21**: TUYỆT ĐỐI KHÔNG tự ý `git push` khi chưa được anh Tân kiểm tra giao diện (UI test) và cho phép.
-- **RULE 22 (QUY ĐỊNH PUSH NHÁNH RELEASE FRONTEND `release/ios-appstore`)**: Đối với repository Frontend (`vclients`), anh Tân cho phép Agent có thể push trực tiếp vào nhánh `release/ios-appstore` trên GitLab (`origin`) và GitHub (`github`) để phục vụ quy trình build CI/CD TestFlight / App Store theo yêu cầu hoặc khi phát hành bản dựng mới.
+- **RULE 21**: TUYỆT ĐỐI KHÔNG tự ý `git push` khi chưa được Sếp kiểm tra giao diện (UI test) và cho phép.
+- **RULE 22 (QUY ĐỊNH PUSH NHÁNH RELEASE FRONTEND `release/ios-appstore`)**: Đối với repository Frontend VCloud, Sếp cho phép Agent có thể push trực tiếp vào nhánh `release/ios-appstore` trên GitLab (`origin`) và GitHub (`github`) để phục vụ quy trình build CI/CD TestFlight / App Store theo yêu cầu hoặc khi phát hành bản dựng mới.
 - **RULE 23 (QUY TRÌNH XÓA NHÁNH SAU MERGE)**: Sau khi một nhánh làm việc (feature/fix/task branch) đã được merge thành công vào nhánh đích (`17.0` / `main`), BẮT BUỘC xóa ngay lập tức nhánh nguồn đó trên cả Remote (GitLab `origin` & GitHub `github`) và Local (`git push origin --delete <branch>` & `git branch -D <branch>`). Tuyệt đối KHÔNG giữ lại nhánh rác và KHÔNG tái sử dụng nhánh cũ đã merge để code tiếp (tránh lệch commit ancestry và xung đột code). Đợt làm việc mới luôn tạo nhánh mới từ đỉnh `17.0`.
 - **RULE 24 (QUY TẮC ĐẶT TÊN NHÁNH LÀM VIỆC)**: Mỗi lần nâng cấp phiên bản / đợt làm việc mới, tên nhánh làm việc nội bộ dùng tiền tố `fix/` hoặc `feat/`, kèm số build và mô tả ngắn.
   * **Định dạng chuẩn**: `fix/build<BUILD_NUMBER>-stabilization` (hoặc `feat/build<BUILD_NUMBER>-...`).
   * **Cấm tái sử dụng**: Tuyệt đối KHÔNG dùng lại tên nhánh của các build cũ đã qua. Sau khi nhánh được merge và release xong, nhánh sẽ được xóa sạch theo **RULE 23**.
-- **RULE 25**: Khi báo cáo trạng thái Git Push cho anh Tân, BẮT BUỘC xuất định dạng báo cáo siêu ngắn (Concise Push Report) chứa thông tin branch, trạng thái sync `origin`, commit hash, message và link tạo MR trực tiếp trên GitLab.
+- **RULE 25**: Khi báo cáo trạng thái Git Push cho Sếp, BẮT BUỘC xuất định dạng báo cáo siêu ngắn (Concise Push Report) chứa thông tin branch, trạng thái sync `origin`, commit hash, message và link tạo MR trực tiếp trên GitLab.
 - **RULE 26 (QUY TRÌNH TẠO RELEASE & BÁO CÁO AUDIT KỸ THUẬT BẮT BUỘC)**: Mỗi lần tạo bản phát hành mới (Release / TestFlight / Tag mới), BẮT BUỘC đồng thời tạo Release chính thức trên GitHub / GitLab gắn kèm toàn bộ nội dung **Báo Cáo Audit Kỹ Thuật (Technical Audit Report)** chuẩn hóa (`360-flutter` & AIaC Dev Standard).
 - **RULE 27 (ĐỒNG BỘ TAG & TARGET COMMIT)**: Mọi Tag phát hành (VD: `v2.5.0+78`) BẮT BUỘC trỏ chính xác vào commit mới nhất của nhánh release (`release/ios-appstore`) và đồng bộ 100% trên toàn bộ các remote (GitLab `origin`, GitHub `github`, `github-build`).
 
 ---
 
 ## 6. 📱 iOS Build & TestFlight Enforcement Rules
-- **Export Compliance**: File `vclients/ios/Runner/Info.plist` bắt buộc có:
+- **Export Compliance**: File `ios/Runner/Info.plist` bắt buộc có:
   ```xml
   <key>ITSAppUsesNonExemptEncryption</key>
   <false/>
@@ -221,18 +221,18 @@ Mọi quy trình phát hành bản dựng (Release / TestFlight) BẮT BUỘC tu
    - Nội dung Release Body: Nhúng toàn bộ nội dung file `docs/AUDIT_REPORT.md` để đảm bảo tính minh bạch và truy xuất nguồn gốc kiểm toán.
 5. **Bước 5 — Dọn Dẹp Nhánh Nguồn & Xác Nhận**:
    - Sau khi merge/release hoàn tất, lập tức xóa sạch các nhánh làm việc tạm/source branch cả ở local và remote theo **RULE 23**.
-   - Báo cáo đường dẫn tuyệt đối đầy đủ của Release và file Audit Report cho anh Tân.
+   - Báo cáo đường dẫn tuyệt đối đầy đủ của Release và file Audit Report cho Sếp.
 
 ---
 
 ## 9. 🤝 QUY CHUẨN PHỐI HỢP TRIỂN KHAI GIỮA ANH TÂN & CLAUDE CODE (DEPLOY COLLABORATION PROTOCOL)
 
 1. **Phân Định Trách Nhiệm Rõ Ràng**:
-   - **Anh Tân**: Trực tiếp merge và kích hoạt triển khai Frontend qua **GitHub Actions CI/CD** (nhánh `release/ios-appstore`) để build bản dựng phát hành TestFlight cho iPhone 13 của anh Tân.
+   - **Sếp**: Trực tiếp merge và kích hoạt triển khai Frontend qua **GitHub Actions CI/CD** (nhánh `release/ios-appstore`) để build bản dựng phát hành TestFlight cho iPhone 13 của Sếp.
    - **Claude Code & Sếp Châu**: Kiểm duyệt audit và triển khai Backend Odoo trên nhánh **`17.0`** (`v_mobile` / Odoo SaaS Zero-Downtime Upgrade).
 2. **Cảnh Báo Tối Quan Trọng Dành Cho Claude Code Khi Deploy Backend**:
    - **CẤM TỰ Ý SỬA ĐỔI LOGIC CODE ĐÃ KIỂM TOÁN**: Trong khi audit và deploy nhánh `17.0`, Claude Code tuyệt đối không tự ý sửa đổi code, cấu trúc API, DTO model hoặc query logic đã pass test.
-   - *Hậu quả*: Nếu Claude Code sửa logic/contract, toàn bộ **207 bài test** trên máy anh Tân sẽ bị **LỖI ĐỎ (FAIL)** ➔ **GitHub Actions CI/CD của Frontend sẽ BỊ CHẶN HOÀN TOÀN (Build Failed)** ➔ App không thể deploy và iPhone 13 không thể nhận bản cập nhật API đúng.
-   - *Quy tắc góp ý*: Nếu Claude Code thấy chỗ cần cải tiến, **BẮT BUỘC CHỈ GHI Ý KIẾN VÀO `docs/AUDIT_REPORT.md` VÀ `docs/CHANGELOGS.md`**, không sửa thẳng vào code trước khi anh Tân đồng thuận.
+   - *Hậu quả*: Nếu Claude Code sửa logic/contract, toàn bộ **207 bài test** trên máy Sếp sẽ bị **LỖI ĐỎ (FAIL)** ➔ **GitHub Actions CI/CD của Frontend sẽ BỊ CHẶN HOÀN TOÀN (Build Failed)** ➔ App không thể deploy và iPhone 13 không thể nhận bản cập nhật API đúng.
+   - *Quy tắc góp ý*: Nếu Claude Code thấy chỗ cần cải tiến, **BẮT BUỘC CHỈ GHI Ý KIẾN VÀO `docs/AUDIT_REPORT.md` VÀ `docs/CHANGELOGS.md`**, không sửa thẳng vào code trước khi Sếp đồng thuận.
 3. **Quy Trình Hoàn Tất Đồng Bộ 2 Đầu**:
    - Frontend deploy qua GitHub Actions ➔ Backend deploy qua đội vận hành (`17.0`) ➔ iPhone 13 nhận bản cập nhật TestFlight mới và khớp 100% API live. Chi tiết xem tại [`docs/DEPLOY_COLLABORATION_RULES.md`](docs/DEPLOY_COLLABORATION_RULES.md).

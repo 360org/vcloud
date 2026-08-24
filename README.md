@@ -13,12 +13,19 @@ Vietnamese UI, premium mobile design.
 ## Documentation
 | Doc | Purpose |
 |---|---|
-| [SPEC.md](SPEC.md) | Odoo API integration spec |
-| [ARCH.md](ARCH.md) | Current Odoo API architecture |
-| [implementation_plan.md](implementation_plan.md) | Delivery workflow checklist |
-| [docs/BUILD_ANDROID.md](docs/BUILD_ANDROID.md) | Build, install, verify, and release Android APKs |
+| [docs/IDEA.md](docs/IDEA.md) | Product idea and context |
+| [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) | Functional and non-functional requirements |
+| [docs/SPEC.md](docs/SPEC.md) | Odoo API integration spec |
+| [docs/ARCH.md](docs/ARCH.md) | Current Odoo API architecture |
+| [docs/PLAN.md](docs/PLAN.md) | Delivery workflow checklist |
+| [docs/DEPLOY_GUIDE.md](docs/DEPLOY_GUIDE.md) | Run, build, deploy, and verify commands |
+| [docs/BUILD_ANDROID.md](docs/BUILD_ANDROID.md) | Android APK build, install, and verification guide |
+| [docs/BUILD_ANDROID_PLAYSTORE.md](docs/BUILD_ANDROID_PLAYSTORE.md) | Android Play Store AAB release guide |
+| [docs/IOS_CI_TESTFLIGHT.md](docs/IOS_CI_TESTFLIGHT.md) | iOS TestFlight CI guide |
+| [docs/FASTLANE_CI_CD_GUIDE.md](docs/FASTLANE_CI_CD_GUIDE.md) | Fastlane CI/CD secret and lane guide |
+| [docs/AUDIT_ROADMAP.md](docs/AUDIT_ROADMAP.md) | Audit roadmap and handoff checklist |
+| [docs/CHANGELOGS.md](docs/CHANGELOGS.md) | Release history |
 | [AGENTS.md](AGENTS.md) | Onboarding for agents and devs |
-| [CHANGELOG.md](CHANGELOG.md) | Release history |
 
 ## Run
 

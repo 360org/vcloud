@@ -52,11 +52,11 @@ void main() {
     test('Task #16444 & #16435: ChatV2Channel distinguishes internal direct vs group vs channel', () {
       const directChannel = ChatV2Channel(
         id: '1',
-        name: 'Trần Văn A, Ma Nguyễn Nhật Tân',
+        name: 'Trần Văn A, Nguyễn Văn A',
         channelType: 'chat',
         members: [
           ChatV2Member(id: '1', name: 'Trần Văn A'),
-          ChatV2Member(id: '2', name: 'Ma Nguyễn Nhật Tân'),
+          ChatV2Member(id: '2', name: 'Nguyễn Văn A'),
         ],
       );
 
@@ -66,7 +66,7 @@ void main() {
         channelType: 'group',
         members: [
           ChatV2Member(id: '1', name: 'Trần Văn A'),
-          ChatV2Member(id: '2', name: 'Ma Nguyễn Nhật Tân'),
+          ChatV2Member(id: '2', name: 'Nguyễn Văn A'),
           ChatV2Member(id: '3', name: 'Nguyễn Văn C'),
         ],
       );
@@ -78,12 +78,12 @@ void main() {
         members: [],
       );
 
-      expect(directChannel.isInternalDirect('Ma Nguyễn Nhật Tân'), isTrue);
-      expect(directChannel.isGroupChat('Ma Nguyễn Nhật Tân'), isFalse);
+      expect(directChannel.isInternalDirect('Nguyễn Văn A'), isTrue);
+      expect(directChannel.isGroupChat('Nguyễn Văn A'), isFalse);
       expect(directChannel.isChannel, isFalse);
 
-      expect(groupChannel.isGroupChat('Ma Nguyễn Nhật Tân'), isTrue);
-      expect(groupChannel.isInternalDirect('Ma Nguyễn Nhật Tân'), isFalse);
+      expect(groupChannel.isGroupChat('Nguyễn Văn A'), isTrue);
+      expect(groupChannel.isInternalDirect('Nguyễn Văn A'), isFalse);
 
       expect(channelPub.isChannel, isTrue);
     });

@@ -115,31 +115,31 @@ void main() {
     test('6b. ChatV2Channel getCleanName parses names with internal commas like Chau, Le Ba correctly', () {
       const ch1 = ChatV2Channel(
         id: '1',
-        name: 'Ma Nguyễn Nhật Tân, Chau, Le Ba',
+        name: 'Nguyễn Văn A, Chau, Le Ba',
         channelType: 'chat',
         isGroup: false,
         unreadCount: 0,
       );
-      expect(ch1.getCleanName('Ma Nguyễn Nhật Tân'), 'Chau, Le Ba');
-      expect(ch1.getActualIsGroup('Ma Nguyễn Nhật Tân'), isFalse);
+      expect(ch1.getCleanName('Nguyễn Văn A'), 'Chau, Le Ba');
+      expect(ch1.getActualIsGroup('Nguyễn Văn A'), isFalse);
 
       const ch2 = ChatV2Channel(
         id: '2',
-        name: 'Chau, Le Ba, Ma Nguyễn Nhật Tân',
+        name: 'Chau, Le Ba, Nguyễn Văn A',
         channelType: 'chat',
         isGroup: false,
         unreadCount: 0,
       );
-      expect(ch2.getCleanName('Ma Nguyễn Nhật Tân'), 'Chau, Le Ba');
+      expect(ch2.getCleanName('Nguyễn Văn A'), 'Chau, Le Ba');
 
       const ch3 = ChatV2Channel(
         id: '3',
-        name: 'Ma Nguyễn Nhật Tân, Bùi Tuấn Kiệt',
+        name: 'Nguyễn Văn A, Bùi Tuấn Kiệt',
         channelType: 'chat',
         isGroup: false,
         unreadCount: 0,
       );
-      expect(ch3.getCleanName('Ma Nguyễn Nhật Tân'), 'Bùi Tuấn Kiệt');
+      expect(ch3.getCleanName('Nguyễn Văn A'), 'Bùi Tuấn Kiệt');
     });
 
     test('7. ChatV2Message parses Odoo chatter message JSON correctly with image attachments', () {
@@ -148,7 +148,7 @@ void main() {
         "id": 586640,
         "body": "<p>Check this image</p>",
         "author_id": 6713,
-        "author_name": "Tân",
+        "author_name": "An",
         "date": "2026-08-14T03:30:00",
         "attachments": [
           {
@@ -171,7 +171,7 @@ void main() {
 
       expect(msg.id, '586640');
       expect(msg.content, 'Check this image');
-      expect(msg.authorName, 'Tân');
+      expect(msg.authorName, 'An');
       expect(msg.hasImageAttachment, isTrue);
       expect(msg.attachments.length, 2);
       expect(msg.attachments[0].isImage, isTrue);
@@ -185,7 +185,7 @@ void main() {
         id: '1',
         channelId: '4255',
         content: 'Hello World',
-        authorName: 'Tân',
+        authorName: 'An',
         isMine: true,
       );
 
@@ -205,7 +205,7 @@ void main() {
         id: '2',
         channelId: '4255',
         content: '',
-        authorName: 'Tân',
+        authorName: 'An',
         isMine: false,
         attachments: [
           ChatV2Attachment(
@@ -234,7 +234,7 @@ void main() {
         id: '3',
         channelId: '4255',
         content: 'scaled_Screenshot-0405-094025.png',
-        authorName: 'Tân',
+        authorName: 'An',
         isMine: false,
       );
 
@@ -287,7 +287,7 @@ void main() {
         id: '4',
         channelId: '4255',
         content: 'Báo cáo tháng 8',
-        authorName: 'Tân',
+        authorName: 'An',
         isMine: false,
         attachments: [
           ChatV2Attachment(
@@ -320,13 +320,13 @@ void main() {
         channelType: 'chat',
         lastMessage: 'scaled_logo_Vcloud.png',
         lastMessageAuthorId: '3',
-        lastMessageAuthorName: 'Tân',
+        lastMessageAuthorName: 'An',
         lastMessageDate: DateTime.now(),
         unreadCount: 0,
       );
 
       final isMine = channel.isLastMessageFromMe(
-        currentUserName: 'Tân',
+        currentUserName: 'An',
         currentPartnerId: '3',
       );
 
@@ -346,7 +346,7 @@ void main() {
       );
 
       final isMine = channel.isLastMessageFromMe(
-        currentUserName: 'Tân',
+        currentUserName: 'An',
         currentPartnerId: '3',
       );
 
@@ -360,7 +360,7 @@ void main() {
         id: tempId,
         channelId: '1',
         content: 'test_image.png',
-        authorName: 'Tân',
+        authorName: 'An',
         createdAt: DateTime.now(),
         isMine: true,
         status: 'pending',
@@ -385,7 +385,7 @@ void main() {
         id: 'temp_att_fail',
         channelId: '1',
         content: 'test_fail.png',
-        authorName: 'Tân',
+        authorName: 'An',
         createdAt: DateTime.now(),
         isMine: true,
         status: 'pending',
@@ -585,7 +585,7 @@ void main() {
     testWidgets('26. ChatV2InfoSheet renders 1-1 direct chat with clean name and quick actions', (tester) async {
       const channel = ChatV2Channel(
         id: 'direct_123',
-        name: 'Ma Nguyễn Nhật Tân, Bùi Tuấn Kiệt',
+        name: 'Nguyễn Văn A, Bùi Tuấn Kiệt',
         channelType: 'chat',
         isGroup: false,
         lastMessage: 'Hello anh',
@@ -597,7 +597,7 @@ void main() {
           home: Scaffold(
             body: ChatV2InfoSheet(
               channel: channel,
-              currentUserName: 'Ma Nguyễn Nhật Tân',
+              currentUserName: 'Nguyễn Văn A',
             ),
           ),
         ),
@@ -624,7 +624,7 @@ void main() {
         channelType: 'channel',
         isGroup: true,
         memberCount: 7,
-        memberNames: ['Ma Nguyễn Nhật Tân', 'Bùi Tuấn Kiệt', 'Châu Lê Bá'],
+        memberNames: ['Nguyễn Văn A', 'Bùi Tuấn Kiệt', 'Châu Lê Bá'],
       );
 
       await tester.pumpWidget(
@@ -632,7 +632,7 @@ void main() {
           home: Scaffold(
             body: ChatV2InfoSheet(
               channel: channel,
-              currentUserName: 'Ma Nguyễn Nhật Tân',
+              currentUserName: 'Nguyễn Văn A',
             ),
           ),
         ),
@@ -645,7 +645,7 @@ void main() {
       expect(find.text('Danh sách thành viên (7)'), findsOneWidget);
       expect(find.text('Ảnh, file, link đã gửi'), findsOneWidget);
       expect(find.text('Thêm thành viên'), findsOneWidget);
-      expect(find.text('Ma Nguyễn Nhật Tân (Bạn)'), findsOneWidget);
+      expect(find.text('Nguyễn Văn A (Bạn)'), findsOneWidget);
       expect(find.text('Bùi Tuấn Kiệt'), findsOneWidget);
       expect(find.text('Châu Lê Bá'), findsOneWidget);
       expect(find.text('Rời nhóm', skipOffstage: false), findsOneWidget);
@@ -654,7 +654,7 @@ void main() {
     testWidgets('28. ChatV2InfoSheet comprehensively extracts images, documents and links', (tester) async {
       const channel = ChatV2Channel(
         id: 'direct_123',
-        name: 'Ma Nguyễn Nhật Tân, Bùi Tuấn Kiệt',
+        name: 'Nguyễn Văn A, Bùi Tuấn Kiệt',
         channelType: 'chat',
         isGroup: false,
       );
@@ -688,7 +688,7 @@ void main() {
           home: Scaffold(
             body: ChatV2InfoSheet(
               channel: channel,
-              currentUserName: 'Ma Nguyễn Nhật Tân',
+              currentUserName: 'Nguyễn Văn A',
               messages: messages,
             ),
           ),
@@ -751,7 +751,7 @@ void main() {
     testWidgets('32. ChatV2InfoSheet comprehensively extracts 3 mixed links including domain and protocols', (tester) async {
       const channel = ChatV2Channel(
         id: 'direct_123',
-        name: 'Ma Nguyễn Nhật Tân, Bùi Tuấn Kiệt',
+        name: 'Nguyễn Văn A, Bùi Tuấn Kiệt',
         channelType: 'chat',
         isGroup: false,
       );
@@ -785,7 +785,7 @@ void main() {
           home: Scaffold(
             body: ChatV2InfoSheet(
               channel: channel,
-              currentUserName: 'Ma Nguyễn Nhật Tân',
+              currentUserName: 'Nguyễn Văn A',
               messages: messages,
             ),
           ),
@@ -800,11 +800,11 @@ void main() {
         id: '100',
         channelId: 'ch1',
         content: 'Dạ em nhận được rồi ạ!',
-        authorName: 'Ma Nguyễn Nhật Tân',
+        authorName: 'Nguyễn Văn A',
         isMine: true,
         parentId: '99',
         parentAuthorName: 'Bùi Tuấn Kiệt',
-        parentBody: 'Anh Tân kiểm tra giúp em tính năng nhé',
+        parentBody: 'Sếp kiểm tra giúp em tính năng nhé',
       );
 
       await tester.pumpWidget(
@@ -817,7 +817,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Bùi Tuấn Kiệt'), findsOneWidget);
-      expect(find.text('Anh Tân kiểm tra giúp em tính năng nhé'), findsOneWidget);
+      expect(find.text('Sếp kiểm tra giúp em tính năng nhé'), findsOneWidget);
       expect(find.text('Dạ em nhận được rồi ạ!'), findsOneWidget);
     });
 
@@ -828,18 +828,18 @@ void main() {
         'body': 'OK sếp',
         'parent_id': 5000,
         'parent_body': 'Gửi báo cáo cho anh nhé',
-        'parent_author_name': 'Sếp Tân',
+        'parent_author_name': 'Sếp',
       };
 
       final msg = ChatV2Message.fromMap(map);
       expect(msg.id, '5001');
       expect(msg.parentId, '5000');
       expect(msg.parentBody, 'Gửi báo cáo cho anh nhé');
-      expect(msg.parentAuthorName, 'Sếp Tân');
+      expect(msg.parentAuthorName, 'Sếp');
 
       final copied = msg.copyWith(content: 'Đã gửi báo cáo');
       expect(copied.parentId, '5000');
-      expect(copied.parentAuthorName, 'Sếp Tân');
+      expect(copied.parentAuthorName, 'Sếp');
       expect(copied.content, 'Đã gửi báo cáo');
     });
 
@@ -849,11 +849,11 @@ void main() {
         id: '100',
         channelId: 'ch1',
         content: 'Dạ em nhận được rồi ạ!',
-        authorName: 'Ma Nguyễn Nhật Tân',
+        authorName: 'Nguyễn Văn A',
         isMine: true,
         parentId: '99',
         parentAuthorName: 'Bùi Tuấn Kiệt',
-        parentBody: 'Anh Tân kiểm tra giúp em tính năng nhé',
+        parentBody: 'Sếp kiểm tra giúp em tính năng nhé',
       );
 
       await tester.pumpWidget(
@@ -872,7 +872,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Tap on the Quote Card
-      await tester.tap(find.text('Anh Tân kiểm tra giúp em tính năng nhé'));
+      await tester.tap(find.text('Sếp kiểm tra giúp em tính năng nhé'));
       await tester.pumpAndSettle();
 
       expect(tappedParentId, equals('99'));

@@ -23,7 +23,7 @@ void main() {
         'channel_type': 'chat',
         'is_group': false,
         'members': [
-          {'id': '115', 'name': 'Ma Nguyễn Nhật Tân', 'is_me': true, 'avatar_url': 'https://vuahethong.net/cat.png'},
+          {'id': '115', 'name': 'Nguyễn Văn A', 'is_me': true, 'avatar_url': 'https://vuahethong.net/cat.png'},
           {'id': '120', 'name': 'Bùi Tuấn Kiệt', 'is_me': false, 'avatar_url': null},
         ],
       };
@@ -44,8 +44,8 @@ void main() {
         memberCount: 5,
       );
 
-      expect(groupChannel.isGroupChat('Ma Nguyễn Nhật Tân'), isTrue);
-      expect(groupChannel.isInternalDirect('Ma Nguyễn Nhật Tân'), isFalse);
+      expect(groupChannel.isGroupChat('Nguyễn Văn A'), isTrue);
+      expect(groupChannel.isInternalDirect('Nguyễn Văn A'), isFalse);
     });
 
     test('Channel with channel_type == "chat" is classified as Internal Direct', () {
@@ -59,8 +59,8 @@ void main() {
         directPartnerName: 'Bùi Tuấn Kiệt',
       );
 
-      expect(directChannel.isInternalDirect('Ma Nguyễn Nhật Tân'), isTrue);
-      expect(directChannel.isGroupChat('Ma Nguyễn Nhật Tân'), isFalse);
+      expect(directChannel.isInternalDirect('Nguyễn Văn A'), isTrue);
+      expect(directChannel.isGroupChat('Nguyễn Văn A'), isFalse);
     });
 
     test('General announcement channel is classified as isChannel', () {
@@ -151,12 +151,12 @@ void main() {
         'last_message': 'scaled_image_picker_123.jpg',
         'last_message_date': '2026-08-19 15:30:00',
         'last_message_author_id': 115,
-        'last_message_author_name': 'Ma Nguyễn Nhật Tân',
+        'last_message_author_name': 'Nguyễn Văn A',
       };
 
       final channel = ChatV2Channel.fromJson(json);
       expect(channel.lastMessage, '[Hình ảnh]');
-      expect(channel.isLastMessageFromMe(currentUserName: 'Ma Nguyễn Nhật Tân', currentPartnerId: '115'), isTrue);
+      expect(channel.isLastMessageFromMe(currentUserName: 'Nguyễn Văn A', currentPartnerId: '115'), isTrue);
     });
 
     test('ChatV2Channel parses last_message with HTML body cleanly', () {
@@ -173,7 +173,7 @@ void main() {
 
       final channel = ChatV2Channel.fromJson(json);
       expect(channel.lastMessage, 'Chào bạn, chúc một ngày tốt lành!');
-      expect(channel.isLastMessageFromMe(currentUserName: 'Ma Nguyễn Nhật Tân', currentPartnerId: '115'), isFalse);
+      expect(channel.isLastMessageFromMe(currentUserName: 'Nguyễn Văn A', currentPartnerId: '115'), isFalse);
     });
   });
 
@@ -186,12 +186,12 @@ void main() {
         isGroup: false,
         lastMessage: '[Hình ảnh]',
         lastMessageAuthorId: '115',
-        lastMessageAuthorName: 'Ma Nguyễn Nhật Tân',
+        lastMessageAuthorName: 'Nguyễn Văn A',
         unreadCount: 1, // Dù server vô tình trả 1
       );
 
       final isMine = channel.isLastMessageFromMe(
-        currentUserName: 'Ma Nguyễn Nhật Tân',
+        currentUserName: 'Nguyễn Văn A',
         currentPartnerId: '115',
         currentUserId: '2',
       );
@@ -210,7 +210,7 @@ void main() {
       );
 
       final isMine = channel.isLastMessageFromMe(
-        currentUserName: 'Ma Nguyễn Nhật Tân',
+        currentUserName: 'Nguyễn Văn A',
         currentPartnerId: '115',
       );
 

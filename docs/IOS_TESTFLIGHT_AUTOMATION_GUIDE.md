@@ -1,22 +1,22 @@
 # HƯỚNG DẪN TỰ ĐỘNG HÓA CI/CD & PHÁT HÀNH iOS APP STORE / TESTFLIGHT
-**Dự án:** V_Cloud Mobile App (W360S JOINT STOCK COMPANY)  
-**App ID:** `1365622472` (`com.vcloud.vcloud`)  
-**Tác giả:** App Manager (`tanmnn@360.org.vn`) & Antigravity AI  
-**Ngày phát hành thành công:** 29/07/2026  
+**Dự án:** V_Cloud Mobile App (W360S JOINT STOCK COMPANY)
+**App ID:** `1365622472` (`com.vcloud.vcloud`)
+**Tác giả:** App Manager (`<APPLE_ID>`) & 360org AI
+**Ngày phát hành thành công:** 29/07/2026
 
 ---
 
 ## 1. TỔNG QUAN & NGUYÊN NHÂN CÁC LỖI ĐÃ KHẮC PHỤC
 
-Trong quá trình xây dựng hệ thống CI/CD tự động phát hành lên Apple TestFlight từ máy Linux qua Codemagic, chúng ta đã giải quyết triệt để 2 lỗi cốt lõi:
+Trong quá trình xây dựng hệ thống CI/CD tự động phát hành lên Apple TestFlight từ máy Linux qua GitHub Actions/Fastlane, chúng ta đã giải quyết triệt để 2 lỗi cốt lõi:
 
-### 1.1. Lỗi xác thực `401 NOT_AUTHORIZED` (API Key `.p8` của Codemagic)
+### 1.1. Lỗi xác thực `401 NOT_AUTHORIZED` (API Key `.p8` của GitHub Actions/Fastlane)
 - **Nguyên nhân:** Khối cấu hình cũ `publishing: app_store_connect` sử dụng phương thức xác thực `auth: integration` (dựa trên API Key `.p8` mang ID `3J68D9JX79`). Key này bị Apple từ chối quyền truy cập do thay đổi chính sách bảo mật hoặc quyền hạn không đủ.
-- **Giải pháp tối ưu đã áp dụng:** **Loại bỏ hoàn toàn sự phụ thuộc vào API Key bên thứ ba**. Chuyển sang sử dụng công cụ chính chủ Apple **`xcrun altool --upload-app`** xác thực trực tiếp bằng quyền **App Manager (`tanmnn@360.org.vn`)** kết hợp với **Mật khẩu ứng dụng 16 ký tự (App-Specific Password)**.
+- **Giải pháp tối ưu đã áp dụng:** **Loại bỏ hoàn toàn sự phụ thuộc vào API Key bên thứ ba**. Chuyển sang sử dụng công cụ chính chủ Apple **`xcrun altool --upload-app`** xác thực trực tiếp bằng quyền **App Manager (`<APPLE_ID>`)** kết hợp với **Mật khẩu ứng dụng 16 ký tự (App-Specific Password)**.
 
 ### 1.2. Lỗi `CFBundleShortVersionString (90062)`
 - **Nguyên nhân:** Apple App Store Connect từ chối tiếp nhận bản build nếu số phiên bản (`version`) thấp hơn hoặc bằng số phiên bản cao nhất đã từng được duyệt trên App Store (trước đó là v2.3).
-- **Giải pháp:** Trong file `vclients/pubspec.yaml`, luôn quy ước tăng số phiên bản theo cấu trúc `MAJOR.MINOR.PATCH+BUILD` (Ví dụ: `version: 2.4.0+21`). Số build (`+21`, `+22`,...) luôn tăng sau mỗi lần chạy CI/CD.
+- **Giải pháp:** Trong file `pubspec.yaml`, luôn quy ước tăng số phiên bản theo cấu trúc `MAJOR.MINOR.PATCH+BUILD` (Ví dụ: `version: 2.4.0+21`). Số build (`+21`, `+22`,...) luôn tăng sau mỗi lần chạy CI/CD.
 
 ---
 
@@ -26,16 +26,16 @@ Trong quá trình xây dựng hệ thống CI/CD tự động phát hành lên A
 
 | Thông số | Giá trị chuẩn | Ghi chú |
 | :--- | :--- | :--- |
-| **Tài khoản Apple ID (App Manager)** | `tanmnn@360.org.vn` | Tài khoản có quyền quản trị và phát hành ứng dụng của W360S |
+| **Tài khoản Apple ID (App Manager)** | `<APPLE_ID>` | Tài khoản có quyền quản trị và phát hành ứng dụng của W360S |
 | **Mật khẩu ứng dụng (16 ký tự)** | Lưu trong `APPLE_APP_PASS` của CI Secrets | Tạo từ [account.apple.com](https://account.apple.com) -> Security -> App-Specific Passwords |
 | **Issuer ID (W360S CORP)** | `69a6de93-488c-47e3-e053-5b8c7c11a4d1` | Định danh tổ chức trên Apple Developer |
 
 > [!TIP]
-> **Không cần cài đặt Java hay iTMSTransporter phức tạp trên máy Linux cá nhân.** Toàn bộ tiến trình đóng gói IPA và upload lên máy chủ Apple được tự động hóa 100% trên máy Mac đám mây của Codemagic!
+> **Không cần cài đặt Java hay iTMSTransporter phức tạp trên máy Linux cá nhân.** Toàn bộ tiến trình đóng gói IPA và upload lên máy chủ Apple được tự động hóa 100% trên máy Mac đám mây của GitHub Actions/Fastlane!
 
 ---
 
-## 3. CẤU HÌNH YAML CHUẨN CHO CODEMAGIC (`codemagic.yaml`)
+## 3. CẤU HÌNH YAML CHUẨN CHO GITHUB ACTIONS / FASTLANE (`.github/workflows/deploy.yml`)
 
 Dưới đây là cấu hình chuẩn đã được kiểm chứng hoạt động thành công 100%. Khi cần áp dụng cho các dự án Flutter iOS khác, bạn chỉ cần copy đoạn script upload chính chủ Apple bên dưới:
 
@@ -50,14 +50,17 @@ Dưới đây là cấu hình chuẩn đã được kiểm chứng hoạt độn
 ```
 
 ### Quy trình thao tác phát hành bản build mới (Trong 3 bước):
-1. **Bước 1:** Cập nhật số build trong `vclients/pubspec.yaml` (Ví dụ: `version: 2.4.0+22`).
-2. **Bước 2:** Commit & push code lên nguồn `release/ios-appstore`:
+1. **Bước 1:** Cập nhật số build trong `pubspec.yaml` (Ví dụ: `version: 2.4.0+22`).
+2. **Bước 2:** Commit & push code lên nguồn release hoặc push tag `v*`:
    ```bash
-   git add pubspec.yaml codemagic.yaml
+   git add pubspec.yaml .github/workflows/deploy.yml
    git commit -m "chore(release): bump version to 2.4.0+22"
-   git push origin release/ios-appstore
+   git push origin HEAD:release/ios-appstore
+   git push github HEAD:release/ios-appstore
    ```
-3. **Bước 3:** Mở [codemagic.io](https://codemagic.io) -> Bấm **`Start new build`** -> Chọn nguồn `release/ios-appstore` -> Workflow `iOS to TestFlight` -> Chờ 5 phút là ứng dụng tự động xuất hiện trên Apple TestFlight!
+3. **Bước 3:** Mở [GitHub Actions](https://github.com/360org/vcloud/actions) -> Bấm **`Start new build`** -> Chọn workflow `Mobile CI/CD (Fastlane + Webhooks)` hoặc push tag `v*` -> Chờ 5 phút là ứng dụng tự động xuất hiện trên Apple TestFlight!
+
+> Push/merge vào `main` chỉ lưu lịch sử mã nguồn, không kích hoạt release. CI release chỉ chạy trên `release/*`, `release/ios-appstore`, `release/android-playstore` hoặc tag `v*`.
 
 ---
 
@@ -65,7 +68,7 @@ Dưới đây là cấu hình chuẩn đã được kiểm chứng hoạt độn
 
 ```mermaid
 graph TD
-    A[Codemagic Upload IPA Thành Công] --> B[Apple TestFlight: Trạng thái ✓ Complete]
+    A[GitHub Actions/Fastlane Upload IPA Thành Công] --> B[Apple TestFlight: Trạng thái ✓ Complete]
     B --> C[Bấm Save Export Compliance: None of the algorithms]
     C --> D[Add Group: 360 internal testing staff]
     D --> E[Nhận Email mời kèm Mã Quy Đổi 8 ký tự]
@@ -97,11 +100,11 @@ Nếu iPhone kiểm thử đang dùng Apple ID/iCloud cá nhân khác với emai
 | :--- | :--- | :--- |
 | **API Base URL** | `https://vuahethong.net` | Máy chủ Odoo 17 ERP sản xuất |
 | **Cơ sở dữ liệu (Database)** | `vuahethong` | Tự động kết nối |
-| **Tài khoản đăng nhập (Email)** | `tanmnn@360.org.vn` | Tài khoản App Manager / ERP User |
-| **Mật khẩu (Password)** | `@360.org.vn` | Gõ chính xác chữ còng `@` ở đầu |
+| **Tài khoản đăng nhập (Email)** | `<APPLE_ID>` | Tài khoản App Manager / ERP User |
+| **Mật khẩu (Password)** | `<ODOO_PASS>` | Gõ chính xác chữ còng `@` ở đầu |
 
 > [!IMPORTANT]
-> Khi mở ứng dụng V_Cloud trên iPhone, chỉ cần nhập đúng `tanmnn@360.org.vn` và mật khẩu `@360.org.vn`, bạn sẽ được đăng nhập thành công vào trang chủ với đầy đủ tính năng Chat, Chấm công và Quản lý doanh nghiệp W360S.
+> Khi mở ứng dụng V_Cloud trên iPhone, chỉ cần nhập đúng `<APPLE_ID>` và mật khẩu `<ODOO_PASS>`, bạn sẽ được đăng nhập thành công vào trang chủ với đầy đủ tính năng Chat, Chấm công và Quản lý doanh nghiệp W360S.
 
 ---
 *Tài liệu này được tạo tự động để lưu trữ vĩnh viễn quy trình chuẩn hóa TestFlight & Odoo ERP cho W360S CORP.*

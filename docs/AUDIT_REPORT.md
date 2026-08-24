@@ -1,8 +1,8 @@
 # 🛡️ BÁO CÁO AUDIT KỸ THUẬT TOÀN DIỆN (TECHNICAL AUDIT REPORT)
 ## Phiên bản: `v2.5.0+80` — Ngày kiểm toán: 2026-08-21
 
-> **Tiêu chuẩn kiểm toán**: `360-flutter` Mobile Standards & AIaC 3.0 Engineering Baseline.  
-> **Phạm vi kiểm toán**: Hệ thống Mobile App Flutter (`vclients`) & Odoo Backend Services (`v_mobile`).  
+> **Tiêu chuẩn kiểm toán**: `360-flutter` Mobile Standards & AIaC 3.0 Engineering Baseline.
+> **Phạm vi kiểm toán**: Hệ thống Mobile App Flutter (`VCloud`) & Odoo Backend Services (`v_mobile`).
 > **Người thực hiện**: Hệ thống AIaC Audit tự động.
 
 ---
@@ -12,8 +12,8 @@
 ### 1.1 Thống kê Quy mô Mã nguồn (Codebase Metrics)
 | Thành phần | Số lượng Files | Tổng số dòng Code | Trạng thái Kiểm tra Tĩnh | Độ bao phủ / Kết quả Test |
 | :--- | :---: | :---: | :---: | :---: |
-| **Frontend Mobile (`vclients/lib`)** | **134 files** | **50,150 dòng** | `flutter analyze` chưa chạy được trong môi trường hiện tại | Chưa chạy lại sau hotfix |
-| **Frontend Tests (`vclients/test`)** | **38 files** | **6,950 dòng** | Chưa chạy lại sau hotfix | Chưa chạy lại sau hotfix |
+| **Frontend Mobile (`lib`)** | **134 files** | **50,150 dòng** | `flutter analyze` chưa chạy được trong môi trường hiện tại | Chưa chạy lại sau hotfix |
+| **Frontend Tests (`test`)** | **38 files** | **6,950 dòng** | Chưa chạy lại sau hotfix | Chưa chạy lại sau hotfix |
 | **Backend Odoo (`v_mobile`)** | **110 files** | **16,180 dòng** | Python syntax check PASS | Contract tests chưa chạy lại |
 | **Tổng toàn hệ thống** | **282 files** | **73,280 dòng** | **ĐÃ HOTFIX, CHỜ FLUTTER TOOLCHAIN** | **BLOCKED — FLUTTER TOOLCHAIN MISSING** |
 
@@ -78,7 +78,7 @@
 ---
 
 ### 5. Tuân Thủ App Store Connect & CI/CD Release (Điểm: 100/100)
-- ✅ **Tuân thủ mã hóa iOS (Export Compliance)**: File `vclients/ios/Runner/Info.plist` đã có khai báo bắt buộc:
+- ✅ **Tuân thủ mã hóa iOS (Export Compliance)**: File `ios/Runner/Info.plist` đã có khai báo bắt buộc:
   ```xml
   <key>ITSAppUsesNonExemptEncryption</key>
   <false/>

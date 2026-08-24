@@ -3,7 +3,6 @@ name: Mobile CI/CD (Fastlane + Webhooks)
 on:
   push:
     branches:
-      - main
       - "release/*"
       - release/ios-appstore
       - release/android-playstore

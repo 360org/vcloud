@@ -1,6 +1,6 @@
 # Walkthrough: Fastlane + GitHub Actions / GitLab CI + Webhook Automation Setup
 
-Replaced Codemagic with an open, zero-cost CI/CD pipeline powered by **Fastlane** (`https://fastlane.tools/`), **GitHub Actions**, **GitLab CI/CD**, and **Automated Webhooks** for building, signing, and deploying Flutter iOS (TestFlight) and Android releases.
+Replaced the old CI route with an open CI/CD pipeline powered by **Fastlane** (`https://fastlane.tools/`), **GitHub Actions**, **GitLab CI/CD**, and **Automated Webhooks** for building, signing, and deploying Flutter iOS (TestFlight) and Android releases.
 
 ---
 
@@ -16,18 +16,18 @@ Replaced Codemagic with an open, zero-cost CI/CD pipeline powered by **Fastlane*
   - `android beta`: Builds universal `.apk` and `.aab`, uploads to Google Play Console, and dispatches real-time Webhook notifications.
   - `lane :bump`: Automatically increments the build number (`+1`) in `pubspec.yaml` (e.g. `2.4.0+40` -> `2.4.0+41`).
   - `send_webhook`: Custom Ruby helper supporting Discord, Slack, Telegram, and custom HTTP POST Webhook endpoints.
-- **[ios Appfile](ios/fastlane/Appfile)**: Configured Bundle Identifier (`com.w360s.wcloudapp`), Apple ID (`tanmnn@360.org.vn`), and Team IDs.
+- **[ios Appfile](ios/fastlane/Appfile)**: Configured Bundle Identifier (`com.w360s.wcloudapp`), Apple account and Team IDs from CI/local signing configuration.
 - **[android Appfile](android/fastlane/Appfile)**: Configured Android Package Name (`com.w360s.wcloudapp`).
 
 ### 3. **CI/CD Workflows**
 - **[.github/workflows/deploy.yml](.github/workflows/deploy.yml)**:
   - GitHub Actions pipeline running on `macos-latest` (iOS) and `ubuntu-latest` (Android).
-  - Triggers automatically on push to `main`, `release/*`, `release/ios-appstore`, `release/android-playstore`, manual `workflow_dispatch`, or HTTP POST `repository_dispatch`.
+  - Triggers automatically on push to `main`, version tags matching `v*`, manual `workflow_dispatch`, or HTTP POST `repository_dispatch`.
 - **[.gitlab-ci.yml](.gitlab-ci.yml)**:
-  - GitLab CI pipeline for native execution on GitLab repository `git@gitlab.com:360org_mobiles/vclients.git`.
+  - GitLab CI pipeline for native execution on the private VCloud repository.
 
 ### 4. **Documentation**
-- **[docs/FASTLANE_CI_CD_GUIDE.md](docs/FASTLANE_CI_CD_GUIDE.md)**: Complete guide covering Repository Secrets setup, Webhook triggers, App Store Connect API Key `.p8` usage, and local Fastlane CLI commands.
+- **[docs/FASTLANE_CI_CD_GUIDE.md](docs/FASTLANE_CI_CD_GUIDE.md)**: Complete guide covering Repository Secrets setup, Webhook triggers, App Store Connect API Key usage, and local Fastlane CLI commands.
 
 ---
 
@@ -35,7 +35,7 @@ Replaced Codemagic with an open, zero-cost CI/CD pipeline powered by **Fastlane*
 
 | Requirement | Status |
 | :--- | :--- |
-| Replace Codemagic with Fastlane + GitHub Actions / GitLab CI | ✅ `COMPLETE` |
+| Replace legacy CI with Fastlane + GitHub Actions / GitLab CI | ✅ `COMPLETE` |
 | Automated TestFlight Release Notes from Git Commit | ✅ `COMPLETE` |
 | Auto-Bump Build Number (`lane :bump`) | ✅ `COMPLETE` |
 | Webhook Notification Dispatch | ✅ `COMPLETE` |

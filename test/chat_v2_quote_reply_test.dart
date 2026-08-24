@@ -8,14 +8,14 @@ void main() {
         'id': 501,
         'channel_id': 10,
         'body': '<p>Xin chào mọi người</p>',
-        'author_id': {'id': 10, 'name': 'Anh Tân'},
+        'author_id': {'id': 10, 'name': 'Sếp'},
         'date': '2026-08-19 14:30:00',
         'message_type': 'comment',
       };
 
       final msg = ChatV2Message.fromMap(json);
       expect(msg.id, '501');
-      expect(msg.authorName, 'Anh Tân');
+      expect(msg.authorName, 'Sếp');
       expect(msg.content.contains('Xin chào mọi người'), isTrue);
     });
 
@@ -24,13 +24,13 @@ void main() {
         'id': 502,
         'channel_id': 10,
         'body': '<blockquote data-oe-model="mail.message" data-oe-id="501">'
-            '<p><strong>Anh Tân</strong>: Xin chào mọi người</p>'
+            '<p><strong>Sếp</strong>: Xin chào mọi người</p>'
             '</blockquote>'
-            '<p>Chào anh Tân nhé!</p>',
+            '<p>Chào anh A nhé!</p>',
         'author_id': {'id': 11, 'name': 'Sếp Châu'},
         'parent_id': 501,
         'parent_body': 'Xin chào mọi người',
-        'parent_author_name': 'Anh Tân',
+        'parent_author_name': 'Sếp',
         'date': '2026-08-19 14:32:00',
         'message_type': 'comment',
       };
@@ -39,9 +39,9 @@ void main() {
       expect(msg.id, '502');
       expect(msg.authorName, 'Sếp Châu');
       expect(msg.parentId, '501');
-      expect(msg.parentAuthorName, 'Anh Tân');
+      expect(msg.parentAuthorName, 'Sếp');
       expect(msg.parentBody, 'Xin chào mọi người');
-      expect(msg.content.contains('Chào anh Tân nhé!'), isTrue);
+      expect(msg.content.contains('Chào anh A nhé!'), isTrue);
     });
 
     test('ChatV2Message handles null parent and empty body safely', () {

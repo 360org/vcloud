@@ -1,4 +1,4 @@
-# SPEC.md - Odoo Mobile API Integration
+# SPEC.md - VCloud Mobile API Integration
 
 ## Objective
 Use the Odoo Mobile API Gateway from the provided OpenAPI 3.0.3 contract (`Odoo Mobile API Gateway`, version `19.0.2.7.0`) as the only backend for the Flutter client.
@@ -157,24 +157,23 @@ Runtime configuration is passed via `--dart-define`:
 If the Firebase defines are omitted, push registration is skipped client-side
 and the rest of the app continues to run.
 
-## iOS distribution
+## Mobile distribution
 
-- iOS release artifacts are built only on Codemagic macOS workers. A push to
-  the GitLab `main` branch runs the `ios-testflight` workflow, which must pass
-  `flutter analyze` and `flutter test` before building a signed IPA.
-- The workflow uploads an internal-testing-only IPA to TestFlight. It obtains
-  the next build number from App Store Connect, so every upload has a unique
-  iOS build number.
-- App Store credentials, signing files, the App Store numeric app ID, and Odoo
-  production configuration are stored as Codemagic secrets/integrations and
-  must never be committed to this repository.
+- Release artifacts are built by GitHub Actions on version tags matching `v*`.
+  The iOS job runs on macOS, passes `flutter analyze` and `flutter test`, then
+  executes Fastlane `ios beta` for TestFlight.
+- The Android job runs Fastlane `android beta` and uploads APK/AAB artifacts.
+- App Store, signing, Google Play, webhook, and Odoo production values are CI
+  secrets. They must never be committed to this repository or written into docs.
+- GitHub remains a clean build mirror. Do not push development branches or
+  internal handoff/local-machine details there.
 
 ## Acceptance Criteria
 - `flutter analyze` has 0 errors and 0 warnings.
 - Existing smoke/widget tests pass or skipped blockers are documented.
-- `AGENTS.md`, `ARCH.md`, `implementation_plan.md`, and `CHANGELOG.md` reflect the migration.
+- `AGENTS.md`, `docs/ARCH.md`, `docs/PLAN.md`, and `docs/CHANGELOGS.md` reflect the migration.
 - Ticket create/get/list tests assert mobile ticket endpoint usage and guard
   against accidental `helpdesk.ticket` calls.
-- Product UI changes should be reflected in `IDEA_IMPROVE.md` so later agents
+- Product UI changes should be reflected in `docs/IDEA_IMPROVE.md` so later agents
   understand which ideas came from user direction and which were implementation
   refinements.

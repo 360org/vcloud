@@ -4,7 +4,31 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 
 ---
 
+## [v2.5.0+81] — 2026-08-24
+
+### 🗂️ [DOCS] Chuẩn hóa tài liệu phát hành
+- Đồng bộ README, deploy guide, iOS/Fastlane docs và agent rules theo cấu trúc `docs/*`.
+- Gỡ hướng dẫn push release cũ trỏ nhầm `github main`; thay bằng push nguồn release đúng remote khi cần.
+- Bổ sung ghi chú `LOCAL_DEV_DIR`, `API_URL`, `APPLE_ID`, `APPLE_APP_PASS` không hard-code.
+
+### 🔒 [CI] Bảo vệ `main` khỏi build release tự động
+- Gỡ trigger branch `main` khỏi `.github/workflows/deploy.yml`.
+- CI release chỉ chạy khi push `release/*`, `release/ios-appstore`, `release/android-playstore`, tag `v*`, hoặc chạy thủ công.
+
+---
+
 ## [v2.5.0+80] — 2026-08-21
+
+### 🗂️ [DOCS] Chuẩn hóa kiến trúc tài liệu AIaC 360
+- Di chuyển tài liệu chi tiết khỏi root vào `docs/*`: `IDEA`, `REQUIREMENTS`, `SPEC`, `ARCH`, `PLAN`, `DEPLOY_GUIDE`, `CHANGELOGS`, `AUDIT_ROADMAP`.
+- Root chỉ giữ tài liệu điều phối ngắn: `README.md`, `AGENTS.md`, `CLAUDE.md` và cấu hình dự án.
+- Bổ sung index README cho Android APK, Android Play Store AAB, iOS TestFlight và Fastlane CI/CD.
+- Cập nhật `docs/DEPLOY_GUIDE.md` cho `LOCAL_DEV_DIR`, `API_URL`, `APPLE_ID`, `APPLE_APP_PASS`.
+- Dọn tên repo cũ, thông tin CI cũ, đường dẫn máy cá nhân và credential mẫu khỏi tài liệu/test/script public.
+
+### 🔒 [CI] Chặn release tự động khi push `main`
+- Gỡ trigger CI release trên branch `main`; release chỉ chạy qua `release/*`, `release/ios-appstore`, `release/android-playstore` hoặc tag `v*`.
+- Giữ đúng chính sách: merge/push code lên `main` chỉ lưu lịch sử mã nguồn, không tự động build TestFlight/Play Store.
 
 ### ⚡ [PERF HOTFIX] Giảm jank chat và giảm RAM avatar
 - Static hóa `DateFormat('HH:mm')` trong `ChatV2MessageItem` để tránh cấp phát lại formatter khi message list rebuild.
@@ -88,7 +112,7 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
   - **Tối ưu hóa `_get_unread_chat_count` (Dashboard Home)**: Chuyển đổi vòng lặp quét 899 câu `search_count` riêng lẻ thành **1 câu SQL duy nhất** `SELECT COUNT(m.id) ... JOIN discuss_channel_member`, giảm thời gian tính toán từ `1,300ms` xuống **`< 2ms`**.
   - **Triệt tiêu hoàn toàn N+1 queries**: Sử dụng 1 câu SQL Batch Prefetch gom nhóm toàn bộ `discuss_channel_member`, `res_partner`, `im_status` và `avatar`, giảm số lượng queries từ 2,700 queries xuống chỉ còn đúng **3 SQL queries** cho 899 kênh.
   - **Lắp ráp dữ liệu 100% trong RAM Python**: Loại bỏ các truy vấn ORM lặp trong vòng lặp `for`, giúp thời gian phản hồi Backend tăng tốc gấp 3 – 4 lần.
-- **Tối Ưu Hóa Mobile Client Flutter (`vclients`)**:
+- **Tối Ưu Hóa Mobile Client Flutter (`VCloud`)**:
   - **Tối ưu Thuật toán phát hiện biến động (`hasChannelsChanged`)**: Chuyển đổi thuật toán so sánh từ `O(n²)` sang **`O(1)` Map Lookup** (chỉ **899 phép tính**), giảm 99.9% CPU nghẽn trên Main UI Thread của điện thoại khi có polling chạy ngầm.
   - **Cách ly Canvas Đồ Họa bằng `RepaintBoundary`**: Bọc `RepaintBoundary` quanh từng thẻ hội thoại (`_ChannelListItem`), khi người dùng vuốt cuộn hoặc 1 kênh có tin nhắn mới, Flutter chỉ vẽ lại duy nhất item đó mà không phải vẽ lại toàn bộ 899 items, triệt tiêu triệt để hiện tượng giật khựng / Drop Frame.
   - **Kiến trúc Local Cache First (`ChatV2MessageLocalCache`)**: Tải và hiển thị danh sách hội thoại trong **`1.2ms`**, duy trì tần số quét màn hình **60fps - 120fps** độc lập với độ dao động của mạng Internet bên ngoài.
@@ -99,7 +123,7 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
     * 🟢 **API đơn lẻ (Chấm công, Ticket, Timesheet, Shift Config)**: `<= 1,000ms - 1,500ms` (Đạt chuẩn trải nghiệm di động).
     * 🟡 **API danh sách lớn (Chats 899 kênh, Tasks 100+ items)**: `<= 2,000ms` (Chấp nhận được).
     * 🔴 **Vi Phạm Ngưỡng Hiệu Năng (SLA Breach / Chậm)**: `> 3,000ms`.
-  - **Bộ Test Hiệu Năng Frontend (`vclients/test/performance/home_load_performance_benchmark_test.dart`)**:
+  - **Bộ Test Hiệu Năng Frontend (`test/performance/home_load_performance_benchmark_test.dart`)**:
     * Test nạp & parse 1,026 đối tượng JSON đồng thời (899 Channels + 107 Tasks + 20 Tickets) đạt `< 150ms`.
     * Test truy xuất Local Cache tức thì đạt `< 50ms` (`1.2ms`).
     * Test lọc & tìm kiếm trên 899 kênh đạt `< 30ms` (`4.5ms`).
@@ -136,18 +160,18 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
     - Xóa bỏ việc phụ thuộc vào cấu hình tĩnh; bổ sung hàm `_get_shift_config(employee, target_date)` tự động đọc lịch làm việc thực tế của nhân viên từ `employee.resource_calendar_id` (hoặc `company_id.resource_calendar_id`).
     - Bóc tách chính xác các mốc thời gian: Giờ bắt đầu/kết thúc ca sáng (`morning_target_minutes`, `morningTimeRange`), Giờ nghỉ trưa (`lunchTimeRange`), Giờ ca chiều (`afternoon_target_minutes`, `afternoonTimeRange`), Tổng mục tiêu ngày (`target_work_minutes`, `targetHoursFormatted`).
     - Trả về đối tượng `shift_config` trong endpoint `/api/v1/mobile/attendance/today` và cung cấp endpoint độc lập `/api/v1/mobile/attendance/config`.
-  - **Frontend (`vclients`)**:
+  - **Frontend VCloud**:
     - Nâng cấp model `ShiftConfig` (`shift_calculator.dart`): Bổ sung constructor `ShiftConfig.fromMap(Map<String, dynamic> map)`, `toMap()`, `copyWith(...)` để parse dữ liệu thời gian thực từ API backend, giữ fallback an toàn `ShiftConfig.forDate(...)`.
     - Thêm `shiftConfigProvider` và `currentShiftConfigProvider` trong `attendance_controller.dart` và cập nhật `AttendanceRepository` cache cấu hình ca làm việc.
     - Cập nhật Widget **`_DetailedShiftBreakdownCard`** (màn hình Chấm công) và **`_GreetingHeader`** (màn hình Trang chủ) đọc ca làm việc động từ Riverpod Provider, tự động hiển thị chính xác 100% khung giờ ca sáng, nghỉ trưa, ca chiều và thanh tiến độ theo dữ liệu Odoo.
     - Tính toán thời lượng nghỉ trưa linh hoạt (`lunchMinutes` và `lunchFormatted`) từ `config.lunchStart` và `config.lunchEnd` thay vì giá trị cố định.
   - **Unit Tests**:
-    - Thêm `vclients/test/features/attendance/shift_config_api_test.dart` (4 test cases).
+    - Thêm `test/features/attendance/shift_config_api_test.dart` (4 test cases).
     - Thêm `v_mobile/tests/test_attendance_shift_config_contract.py` (3 test cases).
     - Đạt **195/195 tests Flutter PASS 100%**, `flutter analyze` 0 errors, 0 warnings.
 - **Tối Ưu Độ Phủ Dữ Liệu Lịch Sử Chấm Công (Attendance History & Calendar Scope)**:
   - **Backend (`v_mobile/controllers/attendance.py`)**: Nâng trần tham số `limit` trong endpoint `/api/v1/mobile/attendance/history` từ `100` lên `500` bản ghi; đảm bảo trả về trọn vẹn toàn bộ lịch sử vào/ra ca của nhân viên cho các chu kỳ chấm công nhiều tháng/cả năm.
-  - **Frontend (`vclients`)**: Nâng default query `limit` trong `AttendanceRepository.watchRecent()` lên `500` bản ghi, giúp màn hình **Lịch sử chấm công** (`attendance_history_screen.dart`) và Calendar View luôn sẵn sàng dữ liệu đầy đủ khi lật qua lại giữa các tháng trước/sau mà không bị giới hạn cục bộ.
+  - **Frontend VCloud**: Nâng default query `limit` trong `AttendanceRepository.watchRecent()` lên `500` bản ghi, giúp màn hình **Lịch sử chấm công** (`attendance_history_screen.dart`) và Calendar View luôn sẵn sàng dữ liệu đầy đủ khi lật qua lại giữa các tháng trước/sau mà không bị giới hạn cục bộ.
 - **Hỗ Trợ Kênh Thảo Luận Công Khai / Kênh Internal & Tìm Kiếm Trực Tiếp Từ Server**:
   - **Backend (`v_mobile/controllers/chat.py`)**:
     - Tự động bao gồm tất cả các kênh công khai nội bộ (`channel_type = 'channel'`) cho toàn bộ nhân viên nội bộ (`not user.share`), cho phép hiển thị các kênh công ty như `#Internal` ngay cả khi user chưa được add thủ công vào member trước đó.
@@ -155,7 +179,7 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
     - Hỗ trợ tham số `search` trong `/api/v1/mobile/chat/channels` với domain `('name', 'ilike', search_term)` để quét toàn bộ cơ sở dữ liệu.
     - Bỏ giới hạn cứng `limit = 300/500`, cho phép tải linh hoạt toàn bộ kênh khi không truyền `limit` hoặc truyền `limit=0/all`.
     - Tự động thêm quyền và join member (`add_members`) cho nhân viên nội bộ khi truy cập `channel_messages` hoặc gửi tin nhắn `send_message`.
-  - **Frontend (`vclients`)**:
+  - **Frontend VCloud**:
     - Nâng cấp `ChatV2ChannelsNotifier` gọi `repo.getChannels()` tải toàn bộ danh sách kênh về máy.
     - Tích hợp **Server-Side Debounced Search (350ms)**: Khi gõ từ khóa vào thanh tìm kiếm, ứng dụng vừa lọc tức thì trên RAM vừa gửi query tìm kiếm trực tiếp lên Odoo Server để nạp bổ sung kênh ngay lập tức.
     - Chuẩn hóa tìm kiếm: Tự động normalize loại bỏ ký tự tiền tố `#`, không phân biệt hoa thường, tìm kiếm đa chiều theo tên kênh, tên thành viên (`memberNames`), đối tác trực tiếp (`directPartnerName`) và nội dung tin nhắn.
@@ -258,3 +282,67 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 ### 🚀 Phát Hành Bản Dựng TestFlight & Ổn Định Hệ Thống
 - Hoàn thiện bản dựng phát hành chính thức `v2.5.0+78` cho iOS TestFlight & App Store.
 - Đồng bộ toàn diện hệ thống mã nguồn giữa GitLab và GitHub.
+
+---
+
+## Lịch sử cũ đã hợp nhất từ root `docs/CHANGELOGS.md`
+
+## [2.4.0+76] - 2026-08-18
+### Added
+- **Tính Năng Tạo Bình Chọn Trong Chat V2 & Lưu Trữ Vĩnh Viễn Trên Odoo (Chat Poll / Voting System)**:
+  - Cho phép tạo cuộc bình chọn trực tiếp từ thanh đính kèm (`+` ➔ `Bình chọn`) với câu hỏi và từ 2 đến 10 phương án lựa chọn linh hoạt (`ChatV2CreatePollSheet`).
+  - Hỗ trợ chế độ bình chọn đơn (Single Choice) hoặc bình chọn nhiều phương án (Multiple Choice).
+  - Hiển thị thẻ bình chọn sống động chuẩn Zalo / Telegram trong luồng tin nhắn (`ChatV2PollCard`): thanh tiến trình % chạy mượt mà, đếm số phiếu, hiển thị danh sách người đã bầu, trạng thái tick chọn trực quan.
+  - Lưu trữ dữ liệu vĩnh viễn trên Odoo Backend (`POST /api/v1/mobile/chat/messages/<id>/poll/vote`): lưu toàn bộ lịch sử và trạng thái đã bình chọn vào `mail.message` trong cơ sở dữ liệu PostgreSQL.
+- **Hệ Thống Thông Báo Nổi Đa Tầng (`AppToast`)**:
+  - Xây dựng component `AppToast` dạng thẻ nổi bo cong 20px, đổ bóng phát sáng đa tầng, không dính đáy và không đè lên thanh điều hướng (Bottom Navigation Bar / FAB).
+  - 4 biến thể chuẩn hóa: `AppToast.success`, `AppToast.error`, `AppToast.warning`, `AppToast.info`.
+- **Kiểm Soát Dung Lượng Tệp Tải Lên (25MB File Size Limit Guard)**:
+  - Khóa trần dung lượng tệp tối đa 25MB ở cả Frontend (`MobileAttachmentRepository` & `CreateTicketScreen`) và Backend (`attachments.py` - HTTP 413).
+- **Làm Mới Danh Sách Ticket (Pull-to-Refresh & Newest-first ID Sorting)**:
+  - Tích hợp `RefreshIndicator` và sắp xếp ticket theo ID giảm dần (`id desc`) ở màn hình danh sách Ticket.
+- **Unit Tests**:
+  - Bổ sung bộ kiểm thử tự động toàn diện cho Poll parsing (`test/chat_v2_poll_test.dart`) và Avatar resolution (`test/chat_v2_avatar_resolution_test.dart`) (100% tests passed).
+
+### Changed
+- **Tối Ưu & Đồng Bộ Giao Diện Màn Hình Tạo Ticket (`CreateTicketScreen`)**:
+  - Loại bỏ hoàn toàn khối thẻ màu cam thừa (`_TicketSummary`), giải phóng hơn 100px không gian dọc giúp form vào thẳng các trường nhập liệu chính.
+  - Thiết kế lại thanh tiêu đề `_CreateTicketHeader` với nút Quay lại bo góc 16px và huy hiệu "Tạo ticket" đồng bộ 100% với toàn hệ thống.
+  - Đồng bộ nút bấm hành động chính "Gửi ticket" sang dải màu xanh ngọc thương hiệu (`AppColors.brand`).
+- **Cải Tiến Trải Nghiệm Màn Hình Đăng Nhập (`LoginScreen`)**:
+  - Tự động hạ bàn phím ảo (`FocusScope.unfocus()`) khi nhấn "Đăng nhập".
+  - Tự động bắt lỗi khi nhập thiếu thông tin hoặc sai tài khoản/mật khẩu (`invalid_credentials`), kích hoạt hiệu ứng rung thẻ (shake animation), viền đỏ cảnh báo trên ô nhập liệu và hiển thị thẻ lỗi nội tuyến (Inline Error Banner) kèm thông báo nổi `AppToast.error`.
+- **Tái Thiết Kế Phân Luồng Task Timesheet Chuẩn UI/UX (Segmented Filter Tabs)**:
+  - Xây dựng thanh chuyển đổi Segmented Tabs thông minh gồm `[ 📝 Cần làm (N) ]` và `[ ✅ Đã hoàn thành (N) ]` ngay trên đầu danh sách, hỗ trợ chuyển đổi 1-chạm (Zero Scrolling).
+  - Giới hạn hiển thị ban đầu 10 task kèm nút "Xem thêm" và "Thu gọn" thông minh.
+
+### Fixed
+- **Sửa Lỗi Khung Tin Nhắn Chat Bị Dài Vô Tận Với Chữ Ngắn**:
+  - Xây dựng cấu trúc `Wrap` thông minh giúp bong bóng tin nhắn ôm sát theo độ dài thực tế của chữ (Bubble Shrink-wrap), căn lề chữ bên trái chuẩn UI/UX, hiển thị thời gian và trạng thái đã gửi/đã nhận tinh tế (chuẩn Zalo/Telegram).
+- **Sửa Lỗi Dòng Xem Trước Ngoài Danh Sách Chat (Preview Formatting)**:
+  - Chuẩn hóa tin nhắn bình chọn ngoài danh sách hội thoại hiển thị thành `📊 [Bình chọn] <Câu hỏi>` thay vì in chuỗi JSON thô.
+  - Nhận diện đúng `[Hình ảnh]` ngoài danh sách chat khi tin nhắn mới nhất là tệp ảnh thuần không có chú thích.
+- **Sửa Lỗi Hiển Thị Ảnh Gửi Từ iPhone 13 (iOS `image_picker_`)**:
+  - Bổ sung nhận diện tiền tố `image_picker_...`, `.heic`, `.heif`, `.bmp` trong `ChatV2Message.fromMap` để không bị gán nhầm sang thẻ tệp tin thô (`application/octet-stream`).
+  - Tự động khởi tạo luồng tải ảnh qua mạng (`ChatV2AttachmentImage`) khi thiết bị nhận chưa có sẵn dữ liệu trong Local Cache, hiển thị khung ảnh thumbnail trực tiếp thay vì thẻ tệp màu xanh.
+- **Sửa Lỗi Tràn Màn Hình Lịch Sử Điểm Danh (`AttendanceHistoryScreen`)**:
+  - Khắc phục lỗi `BOTTOM OVERFLOWED BY 4.0 PIXELS` trên lưới lịch bằng cách điều chỉnh `childAspectRatio` từ 0.85 sang 0.72 và bọc `FittedBox` tự co giãn nhãn ngày.
+- **Sửa Lỗi Tự Động Giật Cuộn Màn Hình Chi Tiết Ticket (`TicketDetailScreen`)**:
+  - Ngăn chặn hàm `_scrollToComments()` kích hoạt ngoài ý muốn trong quá trình nạp dữ liệu ban đầu.
+- **Chuyển Cảnh Mượt Mà Giữa Các Màn Hình**:
+  - Tối ưu hiệu ứng chuyển cảnh `GoRoute` cho `/tickets/:id` và `/tickets/new` sang hiệu ứng trượt ngang tự nhiên (`SlideTransition`) kết hợp mờ dần (`FadeTransition`).
+- **Sửa Lỗi Thiếu Avatar Admin (ID 2) và OdooBot (ID 1)**:
+  - Chuẩn hóa URL ảnh đại diện tương đối `/web/image` và xây dựng kiến trúc fallback 3 tầng đảm bảo luôn hiển thị avatar hoặc chữ cái đại diện sắc nét.
+- **Sửa Lỗi Tràn Viền Thẻ Lịch Làm Việc iPhone 13 (`AttendanceScreen`)**:
+  - Tối ưu bố cục thẻ lịch làm việc ("Thứ ba - Thứ sáu") không bị tràn chữ trên màn hình nhỏ.
+
+---
+
+## [2.4.0+28] - 2026-08-03
+### Added
+- Success SnackBar notifications and automatic `context.pop()` navigation after ticket status updates.
+
+### Fixed
+- Fixed RenderFlex 3.9px overflow in `_TicketActionBar` by adding `maxLines: 1` and `TextOverflow.ellipsis`.
+- Safe parsing for system messages and `author_id == false` in `TicketComment.fromMap`.
+- Fixed `isDone` status mapping in `_ticketFromOdoo` using `close_date` and `stage_id`.

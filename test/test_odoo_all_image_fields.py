@@ -3,12 +3,13 @@
 """Inspect all avatar fields for user 3514 and partner 6713 on vuahethong.net
 """
 
+import os
 import urllib.request
 import json
 
 BASE_URL = "https://vuahethong.net"
-LOGIN_USER = "tanmnn@360.org.vn"
-LOGIN_PASS = "@360.org.vn"
+LOGIN_USER = os.environ.get("ODOO_USER", "")
+LOGIN_PASS = os.environ.get("ODOO_PASS", "")
 
 # Login
 url = f"{BASE_URL}/api/v1/mobile/auth/login"

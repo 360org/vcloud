@@ -124,7 +124,7 @@ void main() {
       final client = HttpClient();
       final req = await client.postUrl(Uri.parse('$baseUrl/api/v1/mobile/auth/login'));
       req.headers.contentType = ContentType.json;
-      req.write(jsonEncode({'login': 'tanmnn@360.org.vn', 'password': '@360.org.vn'}));
+      req.write(jsonEncode({'login': Platform.environment['ODOO_USER'] ?? '', 'password': Platform.environment['ODOO_PASS'] ?? ''}));
       final res = await req.close();
       final body = await res.transform(utf8.decoder).join();
       final data = jsonDecode(body) as Map<String, dynamic>;

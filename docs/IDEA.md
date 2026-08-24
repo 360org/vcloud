@@ -1,4 +1,4 @@
-# Idea & Architecture Notes - vclients
+# IDEA.md - VCloud Product Notes
 
 ## Ticket Module UX & State Management
 - **Repository**: `TicketRepository` maps Odoo Helpdesk data to `Ticket` models using `close_date` and `stage_id`.

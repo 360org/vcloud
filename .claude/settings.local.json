@@ -1,1 +1,10 @@
-{}
+{
+  "allowedWorkspaces": [
+    "/Volumes/DATA/DEV/flutter/*"
+  ],
+  "permissions": {
+    "additionalDirectories": [
+      "/Volumes/DATA/DEV/flutter"
+    ]
+  }
+}

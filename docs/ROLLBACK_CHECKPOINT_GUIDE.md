@@ -7,7 +7,7 @@
 
 ## 📌 1. THÔNG TIN ĐIỂM MỐC AN TOÀN (SAFE CHECKPOINT METADATA)
 
-* **Dự án:** VCloud Mobile App (`vclients`)
+* **Dự án:** VCloud Mobile App
 * **Mã doanh nghiệp:** W360S JOINT STOCK COMPANY (`ZC3H8887XS`)
 * **Bundle ID:** `com.w360s.wcloudapp`
 * **Nguồn điểm mốc ổn định:** cấu hình release mobile hiện hành

@@ -1,4 +1,4 @@
-# ARCH.md - Odoo API Architecture
+# ARCH.md - VCloud Mobile Architecture
 
 ## Backend Boundary
 The app now talks to Odoo through a single HTTP boundary:
@@ -13,17 +13,18 @@ presentation
 
 Presentation must never call HTTP, Odoo, or storage directly.
 
-## iOS Delivery Boundary
+## Mobile Delivery Boundary
 
-- GitLab remains the source repository. Codemagic connects to it directly and
-  supplies the macOS/Xcode worker required for iOS archive, signing, and
-  TestFlight upload.
-- `codemagic.yaml` references an App Store Connect integration and signing
-  identity managed in Codemagic; no Apple API key, `.p8`, certificate, or
-  provisioning profile is a source artifact.
-- The release workflow injects Odoo/Firebase configuration as `--dart-define`
-  values from the `vcloud_ios_release` secret group. The Flutter app continues
-  to read those values solely through `Env`.
+- GitLab is the private development source. GitHub `360org/vcloud` is the clean
+  build mirror and keeps only `main` for public build history.
+- GitHub Actions builds version tags matching `v*`. A release tag such as
+  `v2.5.0+80` must point at the exact source commit used for TestFlight/APK/AAB.
+- Fastlane runs iOS TestFlight and Android release lanes. App Store Connect,
+  signing, Google Play, webhook, and Odoo production values come only from CI
+  secrets or `--dart-define`; no key, password, certificate, profile, or local
+  path is a source artifact.
+- VCloud releases produce mobile artifacts only. Server deployment belongs to
+  the `v_mobile` Odoo backend repo and requires an explicit production request.
 
 ## Core API Layer
 - `Env.odooApiBaseUrl` points to the master mobile auth resolver.

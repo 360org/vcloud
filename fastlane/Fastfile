@@ -80,7 +80,7 @@ platform :ios do
       xcodeproj_path = File.expand_path("../ios/Runner.xcodeproj", __dir__)
       export_plist_path = File.expand_path("../ios/export_options.plist", __dir__)
       pubspec_path = File.expand_path("../pubspec.yaml", __dir__)
-      vclients_dir = File.expand_path("..", __dir__)
+      project_dir = File.expand_path("..", __dir__)
       ipa_dir = File.expand_path("../build/ios/ipa", __dir__)
 
       # 1. Setup App Store Connect API Key if valid key content is provided
@@ -193,7 +193,7 @@ platform :ios do
       end
 
       # 4. Build IPA using Flutter (using App Store export options)
-      sh("cd #{vclients_dir} && flutter build ipa --release --export-options-plist=ios/export_options.plist --build-name=#{build_name} --build-number=#{build_number} --dart-define=VCLOUD_ODOO_API_BASE_URL=#{api_base_url}")
+      sh("cd #{project_dir} && flutter build ipa --release --export-options-plist=ios/export_options.plist --build-name=#{build_name} --build-number=#{build_number} --dart-define=VCLOUD_ODOO_API_BASE_URL=#{api_base_url}")
 
       # Dynamically discover newly built IPA artifact
       ipa_candidates = Dir.glob(File.join(ipa_dir, "*.ipa"))
