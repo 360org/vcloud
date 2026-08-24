@@ -10,6 +10,7 @@ import 'core/theme/app_theme.dart';
 import 'features/attendance/application/attendance_controller.dart';
 import 'features/auth/application/auth_controller.dart';
 import 'features/chat_v2/application/chat_v2_channels_controller.dart';
+import 'features/chat_v2/presentation/widgets/chat_v2_call_listener.dart';
 import 'features/home/application/home_summary_controller.dart';
 import 'features/profile/application/theme_controller.dart';
 import 'features/ticket/application/ticket_controller.dart';
@@ -121,6 +122,7 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
         error: (e, st) => AppThemeMode.system.themeMode,
       ),
       routerConfig: router,
+      builder: (context, child) => ChatV2CallListener(child: child ?? const SizedBox.shrink()),
     );
   }
 }

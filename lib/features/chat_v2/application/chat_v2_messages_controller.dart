@@ -596,9 +596,22 @@ class ChatV2MessagesNotifier
       ChatV2MessageLocalCache.set(channelId, currentList);
       state = AsyncData(currentList);
 
+      final lowerName = filename.toLowerCase();
+      final isVoiceAtt = mimetype.startsWith('audio/') ||
+          lowerName.endsWith('.webm') ||
+          lowerName.endsWith('.mp3') ||
+          lowerName.endsWith('.m4a') ||
+          lowerName.endsWith('.wav') ||
+          lowerName.endsWith('.aac') ||
+          lowerName.endsWith('.ogg') ||
+          lowerName.startsWith('voice_') ||
+          lowerName.contains('voice_');
+
       final cleanForTracker = mimetype.startsWith('image/')
           ? ((caption != null && caption.isNotEmpty) ? caption : '[Hình ảnh]')
-          : bodyText;
+          : (isVoiceAtt
+              ? ((caption != null && caption.isNotEmpty) ? caption : '[Ghi âm]')
+              : bodyText);
       ref.read(chatV2LastSentTrackerProvider.notifier).recordSent(channelId, cleanForTracker);
       ref.read(chatV2ReadStateProvider.notifier).markChannelAsRead(channelId);
 

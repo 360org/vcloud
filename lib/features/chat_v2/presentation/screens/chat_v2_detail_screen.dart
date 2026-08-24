@@ -21,6 +21,8 @@ import '../widgets/chat_v2_input_bar.dart';
 import '../widgets/chat_v2_message_item.dart';
 import '../widgets/chat_v2_info_sheet.dart';
 import '../widgets/chat_v2_reaction_details_sheet.dart';
+import '../../application/chat_v2_call_controller.dart';
+import 'chat_v2_call_screen.dart';
 
 class ChatV2DetailScreen extends ConsumerStatefulWidget {
   const ChatV2DetailScreen({
@@ -425,6 +427,15 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
           },
           tooltip: 'Quay lại',
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(LucideIcons.phone, size: 21),
+            color: isDark ? Colors.white70 : const Color(0xFF475569),
+            tooltip: 'Gọi thoại',
+            onPressed: () => _handleVoiceCall(context, currentChannel, displayTitle, resolvedAvatarUrl),
+          ),
+          const SizedBox(width: 4),
+        ],
         titleSpacing: 0,
         title: InkWell(
           onTap: () => _handleHeaderTap(context, currentChannel, isDark),
@@ -1219,6 +1230,55 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
         ),
       ),
     );
+  }
+
+  void _handleVoiceCall(
+    BuildContext context,
+    ChatV2Channel? channel,
+    String displayTitle,
+    String? resolvedAvatarUrl,
+  ) async {
+    if (channel == null) return;
+    final currentUser = ref.read(authControllerProvider).valueOrNull;
+    final currentUserName = (currentUser?.userMetadata['name'] ??
+        currentUser?.userMetadata['display_name'] ??
+        currentUser?.userMetadata['login'] ??
+        'Tôi') as String;
+    final meta = currentUser?.userMetadata;
+    final currentUserAvatar = meta?['avatar_128_url']?.toString() ??
+        meta?['image_128_url']?.toString() ??
+        (currentUser != null ? '/web/image/res.users/${currentUser.id}/avatar_128' : null);
+    final channelIdInt = int.tryParse(widget.channelId) ?? 0;
+    
+    // Tìm receiverId chính xác nhất
+    int receiverId = int.tryParse(channel.directPartnerId ?? channel.partnerId ?? widget.initialPartnerId ?? '0') ?? 0;
+    if (receiverId == 0 && channel.members.isNotEmpty) {
+      final other = channel.members.firstWhereOrNull((m) => !m.isMe);
+      if (other != null && other.id.isNotEmpty) {
+        receiverId = int.tryParse(other.id) ?? 0;
+      }
+    }
+    
+    final receiverName = displayTitle.isNotEmpty ? displayTitle : 'Đồng nghiệp';
+    final receiverAvatar = resolvedAvatarUrl;
+
+    // 1. Mở Call Screen ngay lập tức
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => const ChatV2CallScreen(),
+      ),
+    );
+
+    // 2. Kích hoạt gọi qua controller
+    ref.read(chatV2CallControllerProvider.notifier).startCall(
+          channelId: channelIdInt,
+          callerName: currentUserName,
+          callerAvatar: currentUserAvatar,
+          receiverId: receiverId,
+          receiverName: receiverName,
+          receiverAvatar: receiverAvatar,
+        );
   }
 }
 

@@ -74,7 +74,6 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
   bool _isRecordCancelled = false;
   Duration _recordDuration = Duration.zero;
   Timer? _recordTimer;
-  String? _recordPath;
   AudioEncoder _currentEncoder = AudioEncoder.aacLc;
 
   @override
@@ -142,7 +141,6 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
       if (!kIsWeb) {
         final dir = await getTemporaryDirectory();
         savePath = '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
-        _recordPath = savePath;
       }
 
       // Tự động nhận diện encoder tương thích với platform

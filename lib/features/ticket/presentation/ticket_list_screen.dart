@@ -754,12 +754,20 @@ class _TicketFilterSheetState extends ConsumerState<_TicketFilterSheet> {
   @override
   Widget build(BuildContext context) {
     final teamsAsync = ref.watch(ticketTeamsProvider);
+    final isDark = context.isDarkMode;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: isDark
+            ? Border(
+                top: BorderSide(color: Colors.white.withValues(alpha: 0.1), width: 0.8),
+                left: BorderSide(color: Colors.white.withValues(alpha: 0.1), width: 0.8),
+                right: BorderSide(color: Colors.white.withValues(alpha: 0.1), width: 0.8),
+              )
+            : null,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -770,7 +778,7 @@ class _TicketFilterSheetState extends ConsumerState<_TicketFilterSheet> {
               width: 38,
               height: 4,
               decoration: BoxDecoration(
-                color: const Color(0xFFCBD5E1),
+                color: isDark ? Colors.white24 : const Color(0xFFCBD5E1),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -782,14 +790,18 @@ class _TicketFilterSheetState extends ConsumerState<_TicketFilterSheet> {
               Text(
                 'Bộ lọc Ticket',
                 style: TextStyle(
-                  color: context.textColor,
+                  color: isDark ? Colors.white : const Color(0xFF0F172A),
                   fontSize: 18,
                   fontWeight: FontWeight.w900,
                 ),
               ),
               IconButton(
                 onPressed: () => Navigator.pop(context),
-                icon: Icon(LucideIcons.x, size: 20, color: context.textColor),
+                icon: Icon(
+                  LucideIcons.x,
+                  size: 20,
+                  color: isDark ? Colors.white70 : const Color(0xFF475569),
+                ),
               ),
             ],
           ),
@@ -797,7 +809,7 @@ class _TicketFilterSheetState extends ConsumerState<_TicketFilterSheet> {
           Text(
             'Mức độ ưu tiên',
             style: TextStyle(
-              color: context.textSecondary,
+              color: isDark ? Colors.white70 : const Color(0xFF64748B),
               fontSize: 13,
               fontWeight: FontWeight.w800,
             ),
@@ -824,7 +836,7 @@ class _TicketFilterSheetState extends ConsumerState<_TicketFilterSheet> {
           Text(
             'Đội hỗ trợ',
             style: TextStyle(
-              color: context.textSecondary,
+              color: isDark ? Colors.white70 : const Color(0xFF64748B),
               fontSize: 13,
               fontWeight: FontWeight.w800,
             ),
@@ -854,7 +866,7 @@ class _TicketFilterSheetState extends ConsumerState<_TicketFilterSheet> {
             ),
             error: (_, _) => Text(
               'Không thể tải danh sách team',
-              style: TextStyle(color: context.textMuted, fontSize: 12),
+              style: TextStyle(color: isDark ? Colors.white38 : context.textMuted, fontSize: 12),
             ),
           ),
           const SizedBox(height: 20),
@@ -870,14 +882,14 @@ class _TicketFilterSheetState extends ConsumerState<_TicketFilterSheet> {
                   },
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 12),
-                    side: BorderSide(color: context.borderColor),
+                    side: BorderSide(color: isDark ? Colors.white24 : context.borderColor),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                     ),
                   ),
                   child: Text(
                     'Xóa bộ lọc',
-                    style: TextStyle(color: context.textSecondary),
+                    style: TextStyle(color: isDark ? Colors.white70 : context.textSecondary),
                   ),
                 ),
               ),
@@ -931,7 +943,7 @@ class _FilterChoiceChip extends StatelessWidget {
         style: TextStyle(
           color: selected
               ? Colors.white
-              : (isDark ? AppColors.darkTextPrimary : AppColors.textPrimary),
+              : (isDark ? Colors.white70 : const Color(0xFF334155)),
           fontSize: 12,
           fontWeight: FontWeight.w700,
         ),
@@ -939,7 +951,7 @@ class _FilterChoiceChip extends StatelessWidget {
       selected: selected,
       onSelected: onSelected,
       selectedColor: const Color(0xFF2563EB),
-      backgroundColor: isDark ? AppColors.darkSurface : const Color(0xFFF1F5F9),
+      backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
       showCheckmark: false,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       shape: RoundedRectangleBorder(
@@ -947,7 +959,7 @@ class _FilterChoiceChip extends StatelessWidget {
         side: BorderSide(
           color: selected
               ? const Color(0xFF2563EB)
-              : (isDark ? AppColors.darkBorder : const Color(0xFFE2E8F0)),
+              : (isDark ? Colors.white12 : const Color(0xFFE2E8F0)),
         ),
       ),
     );

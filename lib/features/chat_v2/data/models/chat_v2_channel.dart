@@ -485,6 +485,22 @@ class ChatV2Channel {
     if (isImg) {
       return '[Hình ảnh]';
     }
+    final isVoice = lower.endsWith('.webm') ||
+        lower.endsWith('.mp3') ||
+        lower.endsWith('.m4a') ||
+        lower.endsWith('.wav') ||
+        lower.endsWith('.aac') ||
+        lower.endsWith('.ogg') ||
+        lower.startsWith('voice_') ||
+        lower.contains('voice_') ||
+        lower.contains('audio_') ||
+        lower == 'ghi âm' ||
+        lower == '[ghi âm]' ||
+        lower == 'tin nhắn thoại' ||
+        lower == '[tin nhắn thoại]';
+    if (isVoice) {
+      return '[Ghi âm]';
+    }
     final isDoc = lower.endsWith('.docx') ||
         lower.endsWith('.pdf') ||
         lower.endsWith('.xlsx') ||

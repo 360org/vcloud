@@ -93,9 +93,20 @@ class ChatV2MessageItem extends StatelessWidget {
     final hasRealCaption = hasAnyImage && !isFileNameContent;
     final isPureImage = hasAnyImage && !hasRealCaption && !hasDocs;
 
+    final isCallMessage = cleanContent.startsWith('📞') ||
+        cleanContent.startsWith('❌') ||
+        cleanContent.startsWith('🚫') ||
+        cleanContent.startsWith('📵') ||
+        (cleanContent.contains('Cuộc gọi') &&
+            (cleanContent.contains('nhỡ') ||
+                cleanContent.contains('thoại') ||
+                cleanContent.contains('từ chối') ||
+                cleanContent.contains('hủy')));
+
     final isPureText = message.content.isNotEmpty &&
         (!message.isImageFilename || hasImages) &&
         !message.isDocumentFilename &&
+        !isCallMessage &&
         !hasImages &&
         !hasDocs &&
         !hasAudio &&
@@ -343,7 +354,9 @@ class ChatV2MessageItem extends StatelessWidget {
                             _buildDocumentFilenameCard(context, isMine),
                           ],
                           // 5. Render message text & time
-                          if (isPureText) ...[
+                          if (isCallMessage) ...[
+                            _buildCallMessageCard(context, isMine, isDark, timeStr, timeAndStatus),
+                          ] else if (isPureText) ...[
                             Wrap(
                               alignment: WrapAlignment.end,
                               crossAxisAlignment: WrapCrossAlignment.end,
@@ -529,6 +542,111 @@ class ChatV2MessageItem extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildCallMessageCard(
+    BuildContext context,
+    bool isMine,
+    bool isDark,
+    String timeStr,
+    Widget timeAndStatus,
+  ) {
+    final raw = message.content.trim();
+    final isMissed = raw.contains('nhỡ') || raw.startsWith('❌');
+    final isConnected = raw.contains('Cuộc gọi thoại') || raw.startsWith('📞');
+    final isRejected = raw.contains('từ chối') || raw.startsWith('🚫');
+    final isCancelled = raw.contains('hủy') || raw.startsWith('📵');
+
+    String title = 'Cuộc gọi thoại';
+    String subtitle = raw;
+    IconData icon = LucideIcons.phone;
+    Color iconColor = const Color(0xFF10B981);
+    Color iconBg = const Color(0xFF10B981).withValues(alpha: 0.15);
+
+    if (isMissed) {
+      title = isMine ? 'Cuộc gọi nhỡ đi' : 'Cuộc gọi nhỡ';
+      icon = LucideIcons.phoneMissed;
+      iconColor = const Color(0xFFEF4444);
+      iconBg = const Color(0xFFEF4444).withValues(alpha: 0.15);
+      subtitle = raw.replaceAll('❌', '').trim();
+    } else if (isConnected) {
+      title = isMine ? 'Cuộc gọi đi' : 'Cuộc gọi đến';
+      icon = LucideIcons.phone;
+      iconColor = const Color(0xFF10B981);
+      iconBg = const Color(0xFF10B981).withValues(alpha: 0.15);
+      subtitle = raw.replaceAll('📞', '').trim();
+    } else if (isRejected) {
+      title = 'Cuộc gọi bị từ chối';
+      icon = LucideIcons.phoneOff;
+      iconColor = const Color(0xFFF59E0B);
+      iconBg = const Color(0xFFF59E0B).withValues(alpha: 0.15);
+      subtitle = 'Đối phương bận';
+    } else if (isCancelled) {
+      title = 'Cuộc gọi đã hủy';
+      icon = LucideIcons.phoneOff;
+      iconColor = const Color(0xFF94A3B8);
+      iconBg = const Color(0xFF94A3B8).withValues(alpha: 0.15);
+      subtitle = 'Đã hủy cuộc gọi';
+    }
+
+    return Container(
+      constraints: const BoxConstraints(minWidth: 200, maxWidth: 280),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: iconBg,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: iconColor, size: 20),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w600,
+                        color: isMissed
+                            ? const Color(0xFFEF4444)
+                            : (isDark ? Colors.white : const Color(0xFF1E293B)),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Align(
+            alignment: Alignment.centerRight,
+            child: timeAndStatus,
+          ),
+        ],
       ),
     );
   }

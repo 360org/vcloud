@@ -79,6 +79,7 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
   void initState() {
     super.initState();
     _isPinned = ChatV2ChannelLocalCache.isUserPinned(widget.channel.id);
+    _isMuted = ChatV2ChannelLocalCache.isUserMuted(widget.channel.id);
     _initMembers();
     _extractMedia();
     _loadRemoteMembers();
@@ -137,6 +138,7 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
             members: remoteMembers,
             memberCount: remoteMembers.length,
           ),
+          addIfMissing: false,
         );
       }
     } catch (_) {
@@ -289,8 +291,9 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
 
   void _toggleMute() {
     HapticFeedback.lightImpact();
+    ChatV2ChannelLocalCache.toggleUserMute(widget.channel.id);
     setState(() {
-      _isMuted = !_isMuted;
+      _isMuted = ChatV2ChannelLocalCache.isUserMuted(widget.channel.id);
     });
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -437,6 +440,25 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
         ? _members.length
         : (_memberCount > 0 ? _memberCount : _members.length);
 
+    // Tự động phân giải avatar URL của đối phương nếu channel.avatarUrl chưa có
+    String? resolvedAvatarUrl = widget.channel.avatarUrl;
+    if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
+      if (!isGroup) {
+        if (widget.messages.isNotEmpty) {
+          final otherMsg = widget.messages.firstWhereOrNull((m) => !m.isMine && m.authorAvatar != null && m.authorAvatar!.isNotEmpty);
+          if (otherMsg != null) {
+            resolvedAvatarUrl = otherMsg.authorAvatar;
+          }
+        }
+        if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
+          final otherMember = _members.firstWhereOrNull((m) => !m.isMe && m.avatarUrl != null && m.avatarUrl!.isNotEmpty);
+          if (otherMember != null) {
+            resolvedAvatarUrl = otherMember.avatarUrl;
+          }
+        }
+      }
+    }
+
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0B1120) : const Color(0xFFF1F5F9),
       appBar: AppBar(
@@ -532,14 +554,15 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
                                     ),
                                   ),
                                 ),
-                                if (widget.channel.avatarUrl != null &&
-                                    widget.channel.avatarUrl!.isNotEmpty)
+                                if (resolvedAvatarUrl != null &&
+                                    resolvedAvatarUrl.isNotEmpty)
                                   Image.network(
-                                    widget.channel.avatarUrl!,
+                                    resolvedAvatarUrl,
                                     width: 84,
                                     height: 84,
                                     fit: BoxFit.cover,
                                     gaplessPlayback: true,
+                                    headers: odooApiClient.authHeaders,
                                     errorBuilder: (context, error, stackTrace) =>
                                         const SizedBox.shrink(),
                                   ),
@@ -1028,26 +1051,6 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
                       ),
                       title: const Text('Ghim trò chuyện', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
                     ),
-                    const Divider(height: 1, indent: 56),
-                    SwitchListTile.adaptive(
-                      value: _isMuted,
-                      onChanged: (val) => _toggleMute(),
-                      activeTrackColor: const Color(0xFFEF4444),
-                      secondary: Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Icon(
-                          _isMuted ? LucideIcons.bellOff : LucideIcons.bell,
-                          size: 18,
-                          color: _isMuted ? const Color(0xFFEF4444) : (isDark ? Colors.white70 : const Color(0xFF475569)),
-                        ),
-                      ),
-                      title: const Text('Thông báo cuộc trò chuyện', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                    ),
                   ],
                 ),
               ),
@@ -1092,52 +1095,6 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
                               ),
                             ],
                           ),
-                  ),
-                ),
-              ] else ...[
-                InkWell(
-                  onTap: () async {
-                    final repo = ref.read(chatV2RepositoryProvider);
-                    await repo.archiveChannel(widget.channel.id);
-                    if (context.mounted) {
-                      ref.invalidate(chatV2ChannelsProvider);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Đã ẩn cuộc trò chuyện'),
-                          duration: Duration(seconds: 2),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                      Navigator.of(context).pop();
-                      if (context.mounted) context.go('/chat');
-                    }
-                  },
-                  borderRadius: BorderRadius.circular(16),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF1E293B) : Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: const Color(0xFFEF4444).withValues(alpha: 0.3),
-                      ),
-                    ),
-                    alignment: Alignment.center,
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(LucideIcons.archive, color: Color(0xFFEF4444), size: 18),
-                        SizedBox(width: 8),
-                        Text(
-                          'Ẩn cuộc trò chuyện',
-                          style: TextStyle(
-                            color: Color(0xFFEF4444),
-                            fontWeight: FontWeight.w700,
-                            fontSize: 15,
-                          ),
-                        ),
-                      ],
-                    ),
                   ),
                 ),
               ],

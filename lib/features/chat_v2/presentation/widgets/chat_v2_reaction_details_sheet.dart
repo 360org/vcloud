@@ -39,7 +39,7 @@ class ChatV2ReactionDetailsSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
-    int totalCount = reactions.fold(0, (sum, r) => sum + r.count);
+    final totalCount = reactions.fold(0, (sum, r) => sum + r.count);
     
     final List<Map<String, dynamic>> allMembers = [];
     for (var r in reactions) {

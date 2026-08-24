@@ -33,12 +33,14 @@ class ChatV2Repository {
     int? offset,
     String? search,
     String? filter,
+    bool showArchived = false,
   }) async {
     final queryParams = <String, Object?>{};
     if (limit != null) queryParams['limit'] = limit.toString();
     if (offset != null) queryParams['offset'] = offset.toString();
     if (search != null && search.trim().isNotEmpty) queryParams['search'] = search.trim();
     if (filter != null && filter.trim().isNotEmpty) queryParams['filter'] = filter.trim();
+    if (showArchived) queryParams['show_archived'] = '1';
 
     final dynamic data = await _client.get(
       '/api/v1/mobile/chat/channels',
@@ -591,9 +593,11 @@ class ChatV2Repository {
   }
 
   Future<void> archiveChannel(String channelId) async {
-    try {
-      await _client.post('/api/v1/mobile/chat/channels/$channelId/archive');
-    } catch (_) {}
+    await _client.post('/api/v1/mobile/chat/channels/$channelId/archive');
+  }
+
+  Future<void> unarchiveChannel(String channelId) async {
+    await _client.post('/api/v1/mobile/chat/channels/$channelId/unarchive');
   }
 
   Future<List<ChatV2Member>> fetchChannelMembers(String channelId) async {

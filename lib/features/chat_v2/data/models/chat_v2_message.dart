@@ -231,6 +231,24 @@ class ChatV2Message {
         clean.startsWith('hopdong_');
   }
 
+  bool get isVoiceFilename {
+    final clean = content.trim().toLowerCase();
+    return clean.endsWith('.webm') ||
+        clean.endsWith('.mp3') ||
+        clean.endsWith('.m4a') ||
+        clean.endsWith('.wav') ||
+        clean.endsWith('.aac') ||
+        clean.endsWith('.ogg') ||
+        clean.startsWith('voice_') ||
+        clean.contains('voice_') ||
+        clean == '[ghi âm]' ||
+        clean == 'ghi âm' ||
+        clean == '[tin nhắn thoại]' ||
+        clean == 'tin nhắn thoại';
+  }
+
+  bool get hasAudio => attachments.any((a) => a.isAudio) || isVoiceFilename;
+
   bool get isPollMessage => poll != null;
 
   ChatV2Poll? get poll => ChatV2Poll.tryParseFromBody(rawBody ?? content);
