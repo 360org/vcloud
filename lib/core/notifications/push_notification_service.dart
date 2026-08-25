@@ -87,8 +87,8 @@ class PushNotificationService {
     return _messaging?.getInitialMessage();
   }
 
-  Future<void> registerCurrentDevice() async {
-    if (!await _ensureInitialized()) return;
+  Future<String?> registerCurrentDevice() async {
+    if (!await _ensureInitialized()) return null;
 
     final messaging = _messaging!;
     final permission = await messaging.requestPermission(
@@ -97,13 +97,13 @@ class PushNotificationService {
       sound: true,
     );
     if (permission.authorizationStatus == AuthorizationStatus.denied) {
-      return;
+      throw Exception('Quyền nhận thông báo bị từ chối trong Cài đặt của máy.');
     }
 
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
       String? apnsToken = await messaging.getAPNSToken();
       if (apnsToken == null) {
-        for (int i = 0; i < 6; i++) {
+        for (int i = 0; i < 15; i++) {
           await Future.delayed(const Duration(seconds: 1));
           apnsToken = await messaging.getAPNSToken();
           if (apnsToken != null) break;
@@ -129,7 +129,17 @@ class PushNotificationService {
       }
     });
 
-    final token = await messaging.getToken();
+    String? token;
+    for (int retry = 0; retry < 3; retry++) {
+      try {
+        token = await messaging.getToken();
+        if (token != null && token.isNotEmpty) break;
+      } catch (e) {
+        if (retry == 2) rethrow;
+        await Future.delayed(const Duration(seconds: 2));
+      }
+    }
+
     if (token == null || token.isEmpty) {
       throw Exception('FCM Token trả về rỗng từ Firebase.');
     }
@@ -154,6 +164,22 @@ class PushNotificationService {
       appVersion: '${packageInfo.version}+${packageInfo.buildNumber}',
     );
     await _storage.write(key: _deviceTokenKey, value: token);
+    return token;
+  }
+
+  Future<Map<String, String>> getDeviceInfo() async {
+    final installationId = await _installationId();
+    final packageInfo = await PackageInfo.fromPlatform();
+    final storedToken = await _storage.read(key: _deviceTokenKey);
+    final token = storedToken ?? await _currentTokenIfAvailable() ?? 'Chưa tạo token';
+
+    return {
+      'platform': _platformName,
+      'deviceName': _deviceName,
+      'installationId': installationId,
+      'appVersion': '${packageInfo.version}+${packageInfo.buildNumber}',
+      'token': token,
+    };
   }
 
   Future<void> unregisterCurrentDevice() async {

@@ -27,7 +27,7 @@ class FakePushNotificationService implements PushNotificationService {
   Future<RemoteMessage?> getInitialMessage() async => initialMessage;
 
   @override
-  Future<void> registerCurrentDevice() async {}
+  Future<String?> registerCurrentDevice() async => 'fake_token';
 
   @override
   Future<void> unregisterCurrentDevice() async {}

@@ -3,9 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
+import 'package:flutter/services.dart';
+import '../../../core/notifications/push_notification_controller.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/local_attachment_cache.dart';
 import '../../../shared/widgets/app_scaffold.dart';
+import '../../../shared/widgets/app_toast.dart';
 import '../../../shared/widgets/brand_logo.dart';
 import '../../../shared/widgets/ui_kit.dart';
 import '../../../shared/widgets/whats_new_sheet.dart';
@@ -71,6 +74,12 @@ class ProfileScreen extends ConsumerWidget {
                     onTap: () => WhatsNewSheet.show(context),
                   ),
                   _SettingsRow(
+                    icon: LucideIcons.bellRing,
+                    label: 'Thông báo đẩy & FCM Token',
+                    color: const Color(0xFF3B82F6),
+                    onTap: () => _showPushTokenDialog(context, ref),
+                  ),
+                  _SettingsRow(
                     icon: LucideIcons.info,
                     label: 'Thông tin ứng dụng',
                     color: AppColors.primary,
@@ -89,6 +98,15 @@ class ProfileScreen extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+
+  void _showPushTokenDialog(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _PushTokenSheet(ref: ref),
     );
   }
 
@@ -113,6 +131,264 @@ class ProfileScreen extends ConsumerWidget {
               ref.read(authControllerProvider.notifier).signOut();
             },
             child: const Text('Đăng xuất'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PushTokenSheet extends StatefulWidget {
+  const _PushTokenSheet({required this.ref});
+  final WidgetRef ref;
+
+  @override
+  State<_PushTokenSheet> createState() => _PushTokenSheetState();
+}
+
+class _PushTokenSheetState extends State<_PushTokenSheet> {
+  bool _loading = false;
+  String? _status;
+  Map<String, String>? _deviceInfo;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAndRegister();
+  }
+
+  Future<void> _loadAndRegister() async {
+    setState(() {
+      _loading = true;
+      _errorMessage = null;
+    });
+    try {
+      final service = widget.ref.read(pushNotificationServiceProvider);
+      await service.registerCurrentDevice();
+      final info = await service.getDeviceInfo();
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _deviceInfo = info;
+          _status = 'Đã đăng ký thành công lên Odoo Server!';
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        final service = widget.ref.read(pushNotificationServiceProvider);
+        final info = await service.getDeviceInfo();
+        setState(() {
+          _loading = false;
+          _deviceInfo = info;
+          _errorMessage = e.toString();
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final token = _deviceInfo?['token'] ?? '';
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(24, 16, 24, MediaQuery.of(context).viewInsets.bottom + 24),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E2024) : Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: isDark ? Colors.white24 : Colors.black12,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF3B82F6).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(LucideIcons.bellRing, color: Color(0xFF3B82F6), size: 22),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Thông Báo Đẩy (FCM Token)',
+                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                    ),
+                    Text(
+                      'Trạng thái thiết bị & Token nhận thông báo',
+                      style: TextStyle(fontSize: 13, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (_loading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(
+                child: Column(
+                  children: [
+                    CircularProgressIndicator(strokeWidth: 2.5),
+                    SizedBox(height: 12),
+                    Text('Đang đồng bộ thiết bị lên Odoo Server...'),
+                  ],
+                ),
+              ),
+            )
+          else ...[
+            if (_errorMessage != null)
+              Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(LucideIcons.alertTriangle, color: Colors.red, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _errorMessage!,
+                        style: const TextStyle(fontSize: 13, color: Colors.red),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
+              Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00C83A).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF00C83A).withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(LucideIcons.checkCircle, color: Color(0xFF00C83A), size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _status ?? 'Thiết bị đã kết nối',
+                        style: const TextStyle(fontSize: 13, color: Color(0xFF00C83A), fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                children: [
+                  _infoRow('Nền tảng (Platform)', _deviceInfo?['platform'] ?? ''),
+                  _infoRow('Tên thiết bị', _deviceInfo?['deviceName'] ?? ''),
+                  _infoRow('Installation ID', _deviceInfo?['installationId'] ?? ''),
+                  _infoRow('Phiên bản App', _deviceInfo?['appVersion'] ?? ''),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'FCM Registration Token (Dùng để test Firebase Console):',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.black38 : Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: isDark ? Colors.white12 : Colors.grey.shade300),
+              ),
+              child: SelectableText(
+                token,
+                style: const TextStyle(fontSize: 11, fontFamily: 'monospace'),
+                maxLines: 4,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _loadAndRegister,
+                    icon: const Icon(LucideIcons.refreshCw, size: 16),
+                    label: const Text('Đăng Ký Lại'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF3B82F6),
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: token.isNotEmpty && token != 'Chưa tạo token'
+                        ? () {
+                            Clipboard.setData(ClipboardData(text: token));
+                            AppToast.showGlobal(
+                              type: AppToastType.success,
+                              title: 'Đã sao chép FCM Token',
+                              message: 'Đã sao chép token vào bộ nhớ tạm!',
+                            );
+                          }
+                        : null,
+                    icon: const Icon(LucideIcons.copy, size: 16),
+                    label: const Text('Sao Chép Token'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _infoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              value,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+              textAlign: TextAlign.end,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ],
       ),
