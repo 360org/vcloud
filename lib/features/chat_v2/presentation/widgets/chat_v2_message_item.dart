@@ -867,6 +867,14 @@ class ChatV2MessageItem extends StatelessWidget {
           return;
         }
         if (downloadUrl != null && downloadUrl.isNotEmpty) {
+          try {
+            // Tải tệp tin qua API có gắn Bearer Token xác thực
+            final bytes = await odooApiClient.fetchBytes(downloadUrl);
+            if (bytes.isNotEmpty) {
+              await saveBytesToFile(bytes, cleanName);
+              return;
+            }
+          } catch (_) {}
           final full = odooApiClient.authenticatedUrl(downloadUrl);
           openDownloadUrl(full);
         }

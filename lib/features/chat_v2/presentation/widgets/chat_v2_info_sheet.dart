@@ -1371,18 +1371,25 @@ class _ChatV2MediaHubScreenState extends State<ChatV2MediaHubScreen>
                           return;
                         }
 
-                        String fullUrl = '';
-                        if (file.downloadUrl != null && file.downloadUrl!.isNotEmpty) {
-                          fullUrl = file.downloadUrl!.startsWith('http')
-                              ? file.downloadUrl!
-                              : odooApiClient.absoluteUrl(file.downloadUrl!);
-                        } else if (file.url != null && file.url!.isNotEmpty) {
-                          fullUrl = file.resolveFullUrl(odooApiClient.absoluteUrl(''));
-                        } else if (int.tryParse(file.id) != null && file.id.isNotEmpty) {
-                          fullUrl = odooApiClient.absoluteUrl('/web/content/${file.id}/${file.name}');
-                        }
+                        final targetPath = (file.downloadUrl != null && file.downloadUrl!.isNotEmpty)
+                            ? file.downloadUrl!
+                            : ((file.url != null && file.url!.isNotEmpty)
+                                ? file.url!
+                                : ((int.tryParse(file.id) != null && file.id.isNotEmpty)
+                                    ? '/web/content/${file.id}/${file.name}'
+                                    : ''));
 
-                        if (fullUrl.isNotEmpty) {
+                        if (targetPath.isNotEmpty) {
+                          try {
+                            final bytes = await odooApiClient.fetchBytes(targetPath);
+                            if (bytes.isNotEmpty) {
+                              await saveBytesToFile(bytes, file.name);
+                              return;
+                            }
+                          } catch (_) {}
+                          final fullUrl = targetPath.startsWith('http')
+                              ? targetPath
+                              : odooApiClient.authenticatedUrl(targetPath);
                           openDownloadUrl(fullUrl);
                         } else {
                           ScaffoldMessenger.of(context).showSnackBar(
