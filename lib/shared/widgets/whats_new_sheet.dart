@@ -8,7 +8,7 @@ class WhatsNewSheet extends StatelessWidget {
   static const String _storageKey = 'whats_new_seen_build_number';
 
   /// Kiểm tra và tự động hiển thị Sheet nếu người dùng chưa xem build [targetBuild]
-  static Future<void> showIfNeeded(BuildContext context, {int targetBuild = 91}) async {
+  static Future<void> showIfNeeded(BuildContext context, {int targetBuild = 92}) async {
     try {
       const storage = FlutterSecureStorage();
       final seenStr = await storage.read(key: _storageKey);
@@ -96,7 +96,7 @@ class WhatsNewSheet extends StatelessWidget {
                         Icon(LucideIcons.sparkles, size: 14, color: Color(0xFF00C83A)),
                         SizedBox(width: 6),
                         Text(
-                          'PHIÊN BẢN MỚI v2.5.0 (BUILD 91)',
+                          'PHIÊN BẢN MỚI v2.5.0 (BUILD 92)',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w800,
@@ -111,7 +111,7 @@ class WhatsNewSheet extends StatelessWidget {
 
                   // Tiêu đề chính
                   Text(
-                    'Thông Báo Đẩy APNs & Trải Nghiệm Mượt Mà',
+                    'Tải Tệp Tin Xác Thực & Thông Báo Đẩy APNs',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 19,
@@ -124,7 +124,7 @@ class WhatsNewSheet extends StatelessWidget {
 
                   // Phụ đề
                   Text(
-                    'Khám phá thông báo đẩy iOS thời gian thực, đồng bộ tin nhắn thoại & stream âm thanh siêu tốc cùng quyền truy cập ảnh tối ưu.',
+                    'Tải tệp tin đính kèm trực tiếp an toàn 100%, đồng bộ thông báo đẩy iOS thời gian thực cùng stream âm thanh & tin nhắn thoại siêu tốc.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 13,
@@ -144,6 +144,16 @@ class WhatsNewSheet extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 children: [
                   _FeatureCard(
+                    icon: LucideIcons.fileDown,
+                    iconColor: const Color(0xFF0284C7),
+                    tagText: 'TẬP TIN ĐÍNH KÈM',
+                    tagColor: const Color(0xFF0284C7),
+                    title: 'Tải Tệp Tin Trực Tiếp Với Xác Thực JWT',
+                    description: 'Tải và lưu trữ tệp đính kèm trực tiếp qua API an toàn với Token xác thực, khắc phục triệt để lỗi 403 Forbidden khi mở file trên Web và Mobile.',
+                    isDark: isDark,
+                  ),
+                  const SizedBox(height: 10),
+                  _FeatureCard(
                     icon: LucideIcons.bellRing,
                     iconColor: const Color(0xFF00C83A),
                     tagText: 'THÔNG BÁO ĐẨY',
@@ -160,16 +170,6 @@ class WhatsNewSheet extends StatelessWidget {
                     tagColor: const Color(0xFF10B981),
                     title: 'Đồng Bộ Trạng Thái Online & Tiêu Đề Chat 1-1',
                     description: 'Đồng bộ trạng thái trực tuyến giữa Header chat và danh sách thành viên. Chuẩn hóa tiêu đề thông báo chỉ hiển thị tên người gửi chuẩn Apple HIG.',
-                    isDark: isDark,
-                  ),
-                  const SizedBox(height: 10),
-                  _FeatureCard(
-                    icon: LucideIcons.smartphone,
-                    iconColor: const Color(0xFF0284C7),
-                    tagText: 'TỰ ĐỘNG HÓA',
-                    tagColor: const Color(0xFF0284C7),
-                    title: 'Tự Động Nạp Token & Đồng Bộ Thiết Bị',
-                    description: 'Tự động kích hoạt và đăng ký token thiết bị mỗi khi mở ứng dụng, gán chính xác danh tính người dùng và tối ưu cơ chế lưu trữ bảo mật.',
                     isDark: isDark,
                   ),
                   const SizedBox(height: 10),

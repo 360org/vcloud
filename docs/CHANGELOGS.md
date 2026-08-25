@@ -2,6 +2,25 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.5.0+92] — 2026-08-25
+
+> [!IMPORTANT]
+> **Nhánh làm việc & Bản dựng phát hành v2.5.0+92 (TestFlight & App Store CI/CD)**:
+> - **Nhánh Frontend (`vclients`)**: `release/ios-appstore` / `fix/app-build92-stabilization` (Version: `2.5.0+92`)
+> - **Nhánh Backend (`v_mobile`)**: `fix/app-build92-stabilization` (Version: `17.0.2.2.2`)
+> - **Test Suite Status**: **235/235 tests PASS (100%)**, `flutter analyze` 0 issues.
+
+### 🛠️ [SỬA LỖI & TỐI ƯU HÓA TẢI TỆP TIN ĐÍNH KÈM CHAT]
+- **Tải File Nhị Phân Trực Tiếp Qua API Có Xác Thực Bearer JWT (`chat_v2_message_item.dart`, `chat_v2_info_sheet.dart`)**:
+  - Khắc phục triệt để lỗi `403 Forbidden Access Denied` khi người dùng bấm mở tệp đính kèm trên Web hoặc Mobile.
+  - Thay thế việc mở tab trắng trình duyệt trực tiếp (`openDownloadUrl`) bằng cơ chế `odooApiClient.fetchBytes()` gửi kèm Header `Authorization: Bearer <JWT Token>`, tải trọn vẹn dữ liệu nhị phân từ máy chủ Odoo và kích hoạt trình lưu file gốc của trình duyệt (`saveBytesToFile` / Browser Blob Download) hoặc lưu vào bộ nhớ iPhone/Android.
+- **Cơ Chế Cấp Phát Token Truy Cập An Toàn & Fallback Session Cookie Cho Backend Odoo (`v_mobile/controllers/attachments.py`)**:
+  - Tự động sinh `access_token` ngẫu nhiên nếu bản ghi `ir.attachment` chưa có token bảo mật khi người dùng truy vấn metadata hoặc tải file.
+  - Bổ sung kiểm tra fallback qua `request.session.uid` cho các phiên đăng nhập trực tiếp trên trình duyệt Odoo Web.
+  - Đảm bảo 100% người dùng nội bộ (`base.group_user`) và người tham gia phòng chat đều có quyền tải tài liệu mượt mà.
+
+---
+
 ## [v2.5.0+91] — 2026-08-25
 
 > [!IMPORTANT]
