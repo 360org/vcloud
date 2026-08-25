@@ -10,10 +10,16 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 > - **Nhánh Backend (`v_mobile`)**: `fix/app-build92-stabilization` (Version: `17.0.2.2.2`)
 > - **Test Suite Status**: **235/235 tests PASS (100%)**, `flutter analyze` 0 issues.
 
-### 🛠️ [SỬA LỖI & TỐI ƯU HÓA TẢI TỆP TIN ĐÍNH KÈM CHAT]
+### 🛠️ [SỬA LỖI & TỐI ƯU HÓA TẢI TỆP TIN & GIAO DIỆN CHAT V2]
 - **Tải File Nhị Phân Trực Tiếp Qua API Có Xác Thực Bearer JWT (`chat_v2_message_item.dart`, `chat_v2_info_sheet.dart`)**:
   - Khắc phục triệt để lỗi `403 Forbidden Access Denied` khi người dùng bấm mở tệp đính kèm trên Web hoặc Mobile.
   - Thay thế việc mở tab trắng trình duyệt trực tiếp (`openDownloadUrl`) bằng cơ chế `odooApiClient.fetchBytes()` gửi kèm Header `Authorization: Bearer <JWT Token>`, tải trọn vẹn dữ liệu nhị phân từ máy chủ Odoo và kích hoạt trình lưu file gốc của trình duyệt (`saveBytesToFile` / Browser Blob Download) hoặc lưu vào bộ nhớ iPhone/Android.
+- **Mở Rộng Nhận Diện Toàn Diện Định Dạng Tệp Tin (`chat_v2_message.dart`)**:
+  - Mở rộng bộ lọc `isDocumentFilename` hỗ trợ đầy đủ các định dạng: `.md`, `.markdown`, `.csv`, `.json`, `.xml`, `.rar`, `.7z`, `.tar`, `.gz`, `.apk`, `.ipa`, `.sql`, `.log`.
+  - Khắc phục lỗi các tệp tin markdown `.md` gửi trước đó bị hiển thị sai thành text thường, tự động hiển thị đầy đủ icon tệp tin, dung lượng và nút tải về chuẩn Zalo.
+- **Triệt Tiêu Bong Bóng Tin Nhắn Rỗng / Tin Nhắn Ma (`chat_v2_message_item.dart`)**:
+  - Bổ sung cơ chế kiểm soát `isEmptyMessage`: Tự động ẩn hoàn toàn (`SizedBox.shrink()`) các tin nhắn không có text, không có ảnh, không có file và không có âm thanh.
+  - Loại bỏ triệt để các ô trắng rỗng/tràn viền không có nội dung trên dòng thời gian cuộc trò chuyện.
 - **Cơ Chế Cấp Phát Token Truy Cập An Toàn & Fallback Session Cookie Cho Backend Odoo (`v_mobile/controllers/attachments.py`)**:
   - Tự động sinh `access_token` ngẫu nhiên nếu bản ghi `ir.attachment` chưa có token bảo mật khi người dùng truy vấn metadata hoặc tải file.
   - Bổ sung kiểm tra fallback qua `request.session.uid` cho các phiên đăng nhập trực tiếp trên trình duyệt Odoo Web.
