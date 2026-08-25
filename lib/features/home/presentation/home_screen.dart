@@ -46,7 +46,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     HomePerformanceDiagnostics.runBenchmark(ref);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        WhatsNewSheet.showIfNeeded(context, targetBuild: 90);
+        WhatsNewSheet.showIfNeeded(context, targetBuild: 91);
         // Tự động đồng bộ và nạp Push Device Token lên Odoo Backend mỗi khi mở màn hình Home
         ref.read(pushNotificationServiceProvider).registerCurrentDevice().catchError((e) {
           debugPrint('Silent push registration error on home load: $e');

@@ -76,7 +76,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
     _scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        WhatsNewSheet.showIfNeeded(context, targetBuild: 90);
+        WhatsNewSheet.showIfNeeded(context, targetBuild: 91);
       }
     });
   }

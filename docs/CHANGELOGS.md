@@ -2,6 +2,26 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.5.0+91] — 2026-08-25
+
+> [!IMPORTANT]
+> **Nhánh làm việc & Bản dựng phát triển v2.5.0+91**:
+> - **Nhánh Tính Năng (`vclients`)**: `fix/app-build91-stabilization`
+> - **Test Suite Status**: **235/235 tests PASS (100%)**, `flutter analyze` 0 issues.
+
+### 🚀 [AUTOMATIC PUSH REGISTRATION & DEVICE SYNC] Nâng Cấp Bản Dựng Build 91 & Tự Động Nạp Token Zero-Manual
+- **Nâng Cấp Phiên Bản Ứng Dụng (`pubspec.yaml`)**:
+  - Nâng version lên `2.5.0+91`, chuẩn bị cho đợt kiểm thử ổn định mới.
+- **Tự Động Đăng Ký Token Mỗi Khi Mở Màn Hình Chính (`home_screen.dart`)**:
+  - Bổ sung lời gọi tự động đồng bộ hóa FCM Device Token lên máy chủ Odoo mỗi khi màn hình Home được tải, đảm bảo thiết bị luôn được duy trì trạng thái hoạt động mà người dùng không cần thao tác thủ công.
+- **Chuẩn Hóa Tên Thiết Bị iOS (`push_notification_service.dart`)**:
+  - Đặt tên thiết bị hiển thị chuẩn là `iPhone` (hoặc `Android device`) kèm `installation_id` định danh duy nhất.
+- **Backend Odoo Tìm Kiếm & Cập Nhật Thiết Bị Thông Minh (`v_mobile/controllers/notifications.py`)**:
+  - Cải tiến hàm `register_device` tìm kiếm theo `device_token` và `installation_id`, tránh xung đột ràng buộc SQL unique constraint.
+  - Tự động gán đúng `user_id`, `partner_id`, đặt lại `active = True`, `failure_count = 0` và cập nhật `last_seen_at`.
+
+---
+
 ## [v2.5.0+90] — 2026-08-25
 
 > [!IMPORTANT]
