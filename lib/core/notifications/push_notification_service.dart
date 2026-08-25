@@ -257,7 +257,7 @@ class PushNotificationService {
     if (kIsWeb) return 'Web Browser';
     return switch (defaultTargetPlatform) {
       TargetPlatform.android => 'Android device',
-      TargetPlatform.iOS => 'iOS device',
+      TargetPlatform.iOS => 'iPhone',
       TargetPlatform.macOS => 'macOS device',
       TargetPlatform.windows => 'Windows device',
       TargetPlatform.linux => 'Linux device',
