@@ -24,17 +24,17 @@ void main() {
       expect(find.text('PHIÊN BẢN MỚI v2.5.0 (BUILD 91)'), findsOneWidget);
       expect(find.text('Thông Báo Đẩy APNs & Trải Nghiệm Mượt Mà'), findsOneWidget);
 
-      // Check feature cards
-      expect(find.text('Thông Báo Đẩy APNs iOS & Firebase'), findsOneWidget);
-      expect(find.text('Tin Nhắn Thoại & Stream Âm Thanh'), findsOneWidget);
-      expect(find.text('Quyền Thư Viện Ảnh Toàn Diện'), findsOneWidget);
-      expect(find.text('Tối Ưu Service Worker & Token Log'), findsOneWidget);
+      // Check feature cards (Build 91)
+      expect(find.text('Thông Báo Đẩy APNs & Phát Sóng Toàn Bộ iOS'), findsOneWidget);
+      expect(find.text('Đồng Bộ Trạng Thái Online & Tiêu Đề Chat 1-1'), findsOneWidget);
+      expect(find.text('Tự Động Nạp Token & Đồng Bộ Thiết Bị'), findsOneWidget);
+      expect(find.text('Tin Nhắn Thoại & Stream Âm Thanh Mượt Mà'), findsOneWidget);
 
-      // Check tags
+      // Check tags (Build 91)
       expect(find.text('THÔNG BÁO ĐẨY'), findsOneWidget);
+      expect(find.text('TRẠNG THÁI & UI/UX'), findsOneWidget);
+      expect(find.text('TỰ ĐỘNG HÓA'), findsOneWidget);
       expect(find.text('ĐỒNG BỘ THOẠI'), findsOneWidget);
-      expect(find.text('QUYỀN RIÊNG TƯ'), findsOneWidget);
-      expect(find.text('HIỆU NĂNG'), findsOneWidget);
 
       // Check CTA button
       expect(find.text('KHÁM PHÁ & TRẢI NGHIỆM NGAY'), findsOneWidget);
