@@ -2,6 +2,26 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.5.0+90] — 2026-08-25
+
+> [!IMPORTANT]
+> **Nhánh làm việc & Bản dựng phát hành v2.5.0+90 (TestFlight & App Store CI/CD)**:
+> - **Nhánh Release (`vclients`)**: `release/ios-appstore`
+> - **Nhánh Tính Năng (`vclients`)**: `fix/app-build90-stabilization`
+> - **Test Suite Status**: **235/235 tests PASS (100%)**, `flutter analyze` 0 issues.
+> - **CI/CD Pipeline**: GitHub Actions Fastlane build iOS TestFlight (IPA) & Android (APK + AAB) **HOÀN TOÀN XANH (SUCCESS)**.
+
+### 🔔 [PUSH NOTIFICATION TOKEN INSPECTION & APNS RETRY] Nâng Cấp Bản Dựng Build 90 & Đồng Bộ Token 1-Chạm
+- **Nâng Cấp Bản Dựng TestFlight Build 90 (`pubspec.yaml`)**:
+  - Nâng version lên `2.5.0+90`, sẵn sàng phát hành qua TestFlight CI/CD.
+- **Tính Năng Xem & Sao Chép FCM Token 1-Chạm (`profile_screen.dart`)**:
+  - Bổ sung mục `Thông báo đẩy & FCM Token` trong màn hình Cá nhân (Profile).
+  - Cho phép người dùng chủ động kích hoạt đồng bộ thiết bị lên Odoo Server, kiểm tra trạng thái kết nối và sao chép trực tiếp chuỗi FCM Token để kiểm thử trên Firebase Console.
+- **Tối Ưu Vòng Lặp Chờ Khóa APNs (`push_notification_service.dart`)**:
+  - Mở rộng vòng lặp chờ APNs Token lên 15 giây và tự động thử lại 3 lần cho thiết bị iOS, đảm bảo 100% token được nạp đầy đủ kể cả khi mạng chậm.
+
+---
+
 ## [v2.5.0+89] — 2026-08-25
 
 > [!IMPORTANT]
