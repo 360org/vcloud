@@ -1,6 +1,14 @@
 # Báo cáo audit kỹ thuật VCloud
 
-## Phiên bản: `v2.5.0+81` — Ngày kiểm toán: 2026-08-24
+## Cập nhật sau audit — 2026-08-25
+
+- Đã đồng bộ số build trên `main` lên `2.5.0+92` theo tag mới nhất đã fetch.
+- Giữ iOS bundle `com.w360s.wcloudapp`; giữ Android package `com.vcloud.vcloud`.
+- Đã sửa default Firebase iOS bundle sang `com.w360s.wcloudapp` để giảm rủi ro Push Notification/APNs mismatch khi thiếu dart-define.
+- Đã ignore `.claude/aiac/sessions/` để cache phiên AIaC không lọt vào commit.
+- Chưa merge toàn bộ `github/release/ios-appstore` vào `main` vì dự báo có conflict; cần task riêng nếu muốn kéo đủ code Build 82–92.
+
+## Phiên bản audit gốc: `v2.5.0+81` — Ngày kiểm toán: 2026-08-24
 
 Phạm vi: Flutter mobile app, CI/CD GitHub/GitLab/Codemagic, Fastlane iOS/Android, tài liệu release và repo hygiene.
 

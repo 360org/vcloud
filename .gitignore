@@ -66,3 +66,6 @@ app.*.map.json
 
 # CodeGraph local index
 .codegraph/
+
+# AIaC local runtime session cache
+.claude/aiac/sessions/

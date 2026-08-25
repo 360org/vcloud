@@ -4,6 +4,18 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 
 ---
 
+## [v2.5.0+92] — 2026-08-25
+
+### 🧭 [VERSION] Đồng bộ số build mới nhất trên main
+- Tăng `pubspec.yaml` từ `2.5.0+81` lên `2.5.0+92` để khớp số tag mới nhất đã fetch.
+- Giữ đúng định danh native hiện tại: iOS bundle `com.w360s.wcloudapp`, Android package `com.vcloud.vcloud`.
+- Sửa `android/fastlane/Appfile` legacy từ package iOS sang package Android để tránh upload nhầm khi chạy Fastlane trong thư mục Android.
+- Sửa default `VCLOUD_FIREBASE_IOS_BUNDLE_ID` sang `com.w360s.wcloudapp` để Firebase/APNs iOS khớp bundle production khi CI không truyền dart-define.
+- Ignore `.claude/aiac/sessions/` để cache phiên AIaC không lọt vào commit.
+- Lưu ý: chưa merge toàn bộ code từ `github/release/ios-appstore` vì nhánh này đang conflict với `main`; phần sync feature Build 82–92 cần làm bằng task riêng.
+
+---
+
 ## [v2.5.0+81] — 2026-08-24
 
 ### 🗂️ [DOCS] Chuẩn hóa tài liệu phát hành

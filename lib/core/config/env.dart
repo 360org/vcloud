@@ -38,7 +38,7 @@ class Env {
 
   static const String firebaseIosBundleId = String.fromEnvironment(
     'VCLOUD_FIREBASE_IOS_BUNDLE_ID',
-    defaultValue: 'com.vcloud.vcloud',
+    defaultValue: 'com.w360s.wcloudapp',
   );
 
   static bool get firebasePushConfigured {
