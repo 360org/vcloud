@@ -87,32 +87,119 @@ class PushNotificationService {
     return _messaging?.getInitialMessage();
   }
 
-  Future<void> registerCurrentDevice() async {
-    if (!await _ensureInitialized()) return;
+  bool _isRegistering = false;
 
-    final messaging = _messaging!;
-    final permission = await messaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
-    if (permission.authorizationStatus == AuthorizationStatus.denied) {
-      return;
+  Future<String?> registerCurrentDevice() async {
+    if (_isRegistering) return _currentTokenIfAvailable();
+    _isRegistering = true;
+
+    try {
+      if (!await _ensureInitialized()) return null;
+
+      final messaging = _messaging!;
+      final permission = await messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+      if (permission.authorizationStatus == AuthorizationStatus.denied) {
+        throw Exception('Quyền nhận thông báo bị từ chối trong Cài đặt của máy.');
+      }
+
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+        String? apnsToken = await messaging.getAPNSToken();
+        if (apnsToken == null) {
+          for (int i = 0; i < 15; i++) {
+            await Future.delayed(const Duration(seconds: 1));
+            apnsToken = await messaging.getAPNSToken();
+            if (apnsToken != null) break;
+          }
+        }
+      }
+
+      if (!kIsWeb) {
+        try {
+          await messaging.subscribeToTopic('all_devices');
+          if (defaultTargetPlatform == TargetPlatform.iOS) {
+            await messaging.subscribeToTopic('all_ios');
+          } else if (defaultTargetPlatform == TargetPlatform.android) {
+            await messaging.subscribeToTopic('all_android');
+          }
+        } catch (_) {}
+      }
+
+      // Lắng nghe token refresh tự động
+      messaging.onTokenRefresh.listen((newToken) async {
+        if (newToken.isNotEmpty) {
+          try {
+            final installationId = await _installationId();
+            final packageInfo = await PackageInfo.fromPlatform();
+            await _repository.registerDevice(
+              deviceToken: newToken,
+              platform: _platformName,
+              deviceName: _deviceName,
+              installationId: installationId,
+              appVersion: '${packageInfo.version}+${packageInfo.buildNumber}',
+            );
+            await _storage.write(key: _deviceTokenKey, value: newToken);
+          } catch (_) {}
+        }
+      });
+
+      String? token;
+      for (int retry = 0; retry < 3; retry++) {
+        try {
+          token = await messaging.getToken();
+          if (token != null && token.isNotEmpty) break;
+        } catch (e) {
+          if (retry == 2) rethrow;
+          await Future.delayed(const Duration(seconds: 2));
+        }
+      }
+
+      if (token == null || token.isEmpty) {
+        throw Exception('FCM Token trả về rỗng từ Firebase.');
+      }
+
+      final installationId = await _installationId();
+      final packageInfo = await PackageInfo.fromPlatform();
+
+      debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      debugPrint('🔔 [PUSH NOTIFICATION TOKEN REGISTERED]');
+      debugPrint('📱 Platform       : $_platformName');
+      debugPrint('🏷️ Device Name    : $_deviceName');
+      debugPrint('🆔 Installation ID: $installationId');
+      debugPrint('📦 App Version    : ${packageInfo.version}+${packageInfo.buildNumber}');
+      debugPrint('🔑 FCM Token      :\n$token');
+      debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+      await _repository.registerDevice(
+        deviceToken: token,
+        platform: _platformName,
+        deviceName: _deviceName,
+        installationId: installationId,
+        appVersion: '${packageInfo.version}+${packageInfo.buildNumber}',
+      );
+      await _storage.write(key: _deviceTokenKey, value: token);
+      return token;
+    } finally {
+      _isRegistering = false;
     }
+  }
 
-    final token = await messaging.getToken();
-    if (token == null || token.isEmpty) return;
-
+  Future<Map<String, String>> getDeviceInfo() async {
     final installationId = await _installationId();
     final packageInfo = await PackageInfo.fromPlatform();
-    await _repository.registerDevice(
-      deviceToken: token,
-      platform: _platformName,
-      deviceName: _deviceName,
-      installationId: installationId,
-      appVersion: '${packageInfo.version}+${packageInfo.buildNumber}',
-    );
-    await _storage.write(key: _deviceTokenKey, value: token);
+    final storedToken = await _storage.read(key: _deviceTokenKey);
+    final token = storedToken ?? await _currentTokenIfAvailable() ?? 'Chưa tạo token';
+
+    return {
+      'platform': _platformName,
+      'deviceName': _deviceName,
+      'installationId': installationId,
+      'appVersion': '${packageInfo.version}+${packageInfo.buildNumber}',
+      'token': token,
+    };
   }
 
   Future<void> unregisterCurrentDevice() async {
@@ -190,7 +277,7 @@ class PushNotificationService {
     if (kIsWeb) return 'Web Browser';
     return switch (defaultTargetPlatform) {
       TargetPlatform.android => 'Android device',
-      TargetPlatform.iOS => 'iOS device',
+      TargetPlatform.iOS => 'iPhone',
       TargetPlatform.macOS => 'macOS device',
       TargetPlatform.windows => 'Windows device',
       TargetPlatform.linux => 'Linux device',

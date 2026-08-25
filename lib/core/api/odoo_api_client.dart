@@ -551,10 +551,9 @@ class OdooApiClient {
         'Cookie': 'session_id=${_session!.accessToken}',
     };
 
-    dev.log(
-      'HTTP $method $uri | Payload: ${body != null ? jsonEncode(body) : "none"}',
-      name: 'OdooApiClient',
-    );
+    if (kDebugMode) {
+      dev.log('HTTP $method ${uri.replace(query: '')}', name: 'OdooApiClient');
+    }
 
     const timeout = Duration(seconds: 30);
     final http.Response response;

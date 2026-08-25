@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
+import '../../../../core/api/odoo_api_client.dart';
 import '../../data/chat_v2_repository.dart';
 
 import '../../../../core/utils/date_format.dart';
@@ -74,7 +76,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
     _scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        WhatsNewSheet.showIfNeeded(context, targetBuild: 80);
+        WhatsNewSheet.showIfNeeded(context, targetBuild: 92);
       }
     });
   }
@@ -175,11 +177,12 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                     Expanded(
                       child: Container(
                         height: 42,
+                        clipBehavior: Clip.antiAlias,
                         decoration: BoxDecoration(
                           color: isDark
                               ? const Color(0xFF0F172A)
                               : const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: isDark ? Colors.white10 : const Color(0xFFE2E8F0),
                             width: 0.8,
@@ -188,11 +191,13 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                         child: TextField(
                           controller: _searchController,
                           onChanged: _onSearchChanged,
+                          textAlignVertical: TextAlignVertical.center,
                           style: TextStyle(
                             fontSize: 14,
                             color: isDark ? Colors.white : const Color(0xFF0F172A),
                           ),
                           decoration: InputDecoration(
+                            isDense: true,
                             hintText: 'Tìm kiếm cuộc trò chuyện...',
                             hintStyle: TextStyle(
                               fontSize: 14,
@@ -207,6 +212,10 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                                   ? Colors.white54
                                   : const Color(0xFF94A3B8),
                             ),
+                            prefixIconConstraints: const BoxConstraints(
+                              minWidth: 40,
+                              minHeight: 42,
+                            ),
                             suffixIcon: _searchQuery.isNotEmpty
                                 ? IconButton(
                                     icon: const Icon(LucideIcons.x, size: 16),
@@ -219,11 +228,17 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                                     },
                                   )
                                 : null,
+                            suffixIconConstraints: const BoxConstraints(
+                              minWidth: 36,
+                              minHeight: 42,
+                            ),
                             border: InputBorder.none,
                             enabledBorder: InputBorder.none,
                             focusedBorder: InputBorder.none,
-                            contentPadding:
-                                const EdgeInsets.symmetric(vertical: 10),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
                           ),
                         ),
                       ),
@@ -242,7 +257,8 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                         final channelCount = channels
                             .where((c) => c.isChannel)
                             .length;
-                        final counts = [unreadCount, internalCount, groupCount, channelCount];
+                        final archivedCount = ref.watch(chatV2ArchivedChannelsProvider).valueOrNull?.length ?? 0;
+                        final counts = [unreadCount, internalCount, groupCount, channelCount, archivedCount];
                         final isFilterActive = _selectedFilterIndex != null;
 
                         return Material(
@@ -251,9 +267,9 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                               : (isDark
                                   ? const Color(0xFF0F172A)
                                   : const Color(0xFFF1F5F9)),
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(12),
                           child: InkWell(
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(12),
                             onTap: () => _showFilterSheet(
                               context: context,
                               channels: channels,
@@ -264,7 +280,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                               width: 42,
                               height: 42,
                               decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(14),
+                                borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
                                   color: isFilterActive
                                       ? Colors.transparent
@@ -274,12 +290,13 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                                   width: 0.8,
                                 ),
                               ),
+                              alignment: Alignment.center,
                               child: Stack(
                                 alignment: Alignment.center,
                                 children: [
                                   Icon(
                                     LucideIcons.slidersHorizontal,
-                                    size: 19,
+                                    size: 18,
                                     color: isFilterActive
                                         ? Colors.white
                                         : (isDark
@@ -291,8 +308,8 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                                       top: 8,
                                       right: 8,
                                       child: Container(
-                                        width: 7,
-                                        height: 7,
+                                        width: 6,
+                                        height: 6,
                                         decoration: const BoxDecoration(
                                           color: Colors.white,
                                           shape: BoxShape.circle,
@@ -312,7 +329,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                           color: isDark
                               ? const Color(0xFF0F172A)
                               : const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: isDark
                                 ? Colors.white10
@@ -322,7 +339,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                         ),
                         child: Icon(
                           LucideIcons.slidersHorizontal,
-                          size: 19,
+                          size: 18,
                           color: isDark
                               ? Colors.white38
                               : const Color(0xFF94A3B8),
@@ -519,8 +536,20 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                     return true;
                   }).toList();
 
-                  // Sắp xếp các đoạn chat: Cuộc trò chuyện có hoạt động mới nhất lên đầu tiên
+                  // Sắp xếp các đoạn chat:
+                  // 1. Nhóm Ghim luôn cố định ở trên đầu theo đúng thứ tự ghim (1, 2, 3, 4, 5)
+                  // 2. Nhóm không ghim sắp xếp theo thời gian tin nhắn mới nhất
                   filtered.sort((a, b) {
+                    final aPinned = ChatV2ChannelLocalCache.isUserPinned(a.id);
+                    final bPinned = ChatV2ChannelLocalCache.isUserPinned(b.id);
+                    if (aPinned && !bPinned) return -1;
+                    if (!aPinned && bPinned) return 1;
+                    if (aPinned && bPinned) {
+                      final idxA = ChatV2ChannelLocalCache.getPinnedIndex(a.id);
+                      final idxB = ChatV2ChannelLocalCache.getPinnedIndex(b.id);
+                      return idxA.compareTo(idxB);
+                    }
+
                     if (a.lastMessageDate == null && b.lastMessageDate == null) {
                       final aId = int.tryParse(a.id) ?? 0;
                       final bId = int.tryParse(b.id) ?? 0;
@@ -685,7 +714,9 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (ctx) {
-        return Container(
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            return Container(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
           decoration: BoxDecoration(
             color: isDark ? const Color(0xFF1E293B) : Colors.white,
@@ -749,6 +780,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                     if (_selectedFilterIndex != null)
                       TextButton(
                         onPressed: () {
+                          setModalState(() => _selectedFilterIndex = null);
                           setState(() => _selectedFilterIndex = null);
                           Navigator.pop(ctx);
                         },
@@ -789,6 +821,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                   iconColor: const Color(0xFF3B82F6),
                   isSelected: _selectedFilterIndex == null,
                   onTap: () {
+                    setModalState(() => _selectedFilterIndex = null);
                     setState(() => _selectedFilterIndex = null);
                     Navigator.pop(ctx);
                   },
@@ -805,6 +838,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                   iconColor: const Color(0xFFEF4444),
                   isSelected: _selectedFilterIndex == 0,
                   onTap: () {
+                    setModalState(() => _selectedFilterIndex = 0);
                     setState(() => _selectedFilterIndex = 0);
                     Navigator.pop(ctx);
                   },
@@ -821,6 +855,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                   iconColor: const Color(0xFF10B981),
                   isSelected: _selectedFilterIndex == 1,
                   onTap: () {
+                    setModalState(() => _selectedFilterIndex = 1);
                     setState(() => _selectedFilterIndex = 1);
                     Navigator.pop(ctx);
                   },
@@ -837,6 +872,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                   iconColor: const Color(0xFF8B5CF6),
                   isSelected: _selectedFilterIndex == 2,
                   onTap: () {
+                    setModalState(() => _selectedFilterIndex = 2);
                     setState(() => _selectedFilterIndex = 2);
                     Navigator.pop(ctx);
                   },
@@ -853,6 +889,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                   iconColor: const Color(0xFFF59E0B),
                   isSelected: _selectedFilterIndex == 3,
                   onTap: () {
+                    setModalState(() => _selectedFilterIndex = 3);
                     setState(() => _selectedFilterIndex = 3);
                     Navigator.pop(ctx);
                   },
@@ -860,6 +897,8 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
               ],
             ),
           ),
+        );
+          },
         );
       },
     );
@@ -1062,6 +1101,25 @@ class _ChannelListItem extends ConsumerWidget {
           lastMessageDate: effectiveLastDate,
         );
 
+    // Tự động phân giải avatar URL của đối phương nếu channel.avatarUrl chưa có
+    String? resolvedAvatarUrl = channel.avatarUrl;
+    if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
+      if (!isGroup) {
+        if (cachedMsgs != null && cachedMsgs.isNotEmpty) {
+          final otherMsg = cachedMsgs.firstWhereOrNull((m) => !m.isMine && m.authorAvatar != null && m.authorAvatar!.isNotEmpty);
+          if (otherMsg != null) {
+            resolvedAvatarUrl = otherMsg.authorAvatar;
+          }
+        }
+        if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
+          final otherMember = channel.members.firstWhereOrNull((m) => !m.isMe && m.avatarUrl != null && m.avatarUrl!.isNotEmpty);
+          if (otherMember != null) {
+            resolvedAvatarUrl = otherMember.avatarUrl;
+          }
+        }
+      }
+    }
+
     return RepaintBoundary(
       child: Material(
         color: hasUnread
@@ -1129,16 +1187,17 @@ class _ChannelListItem extends ConsumerWidget {
                               ),
                             ),
                           ),
-                          if (channel.avatarUrl != null &&
-                              channel.avatarUrl!.isNotEmpty)
+                          if (resolvedAvatarUrl != null &&
+                              resolvedAvatarUrl.isNotEmpty)
                             Image.network(
-                              channel.avatarUrl!,
+                              resolvedAvatarUrl,
                               width: 50,
                               height: 50,
                               fit: BoxFit.cover,
                               cacheWidth: (50 * MediaQuery.devicePixelRatioOf(context)).round(),
                               cacheHeight: (50 * MediaQuery.devicePixelRatioOf(context)).round(),
                               gaplessPlayback: true,
+                              headers: odooApiClient.authHeaders,
                               errorBuilder: (context, error, stackTrace) =>
                                   const SizedBox.shrink(),
                             ),
@@ -1200,19 +1259,43 @@ class _ChannelListItem extends ConsumerWidget {
                     Row(
                       children: [
                         Expanded(
-                          child: Text(
-                            cleanName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 15.5,
-                              fontWeight:
-                                  hasUnread ? FontWeight.w800 : FontWeight.w600,
-                              color: isDark
-                                  ? Colors.white
-                                  : const Color(0xFF0F172A),
-                              letterSpacing: -0.2,
-                            ),
+                          child: Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  cleanName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 15.5,
+                                    fontWeight:
+                                        hasUnread ? FontWeight.w800 : FontWeight.w600,
+                                    color: isDark
+                                        ? Colors.white
+                                        : const Color(0xFF0F172A),
+                                    letterSpacing: -0.2,
+                                  ),
+                                ),
+                              ),
+                              if (ChatV2ChannelLocalCache.isUserPinned(channel.id))
+                                const Padding(
+                                  padding: EdgeInsets.only(left: 6),
+                                  child: Icon(
+                                    LucideIcons.pin,
+                                    size: 14,
+                                    color: Color(0xFF00C83A),
+                                  ),
+                                ),
+                              if (ChatV2ChannelLocalCache.isUserMuted(channel.id))
+                                const Padding(
+                                  padding: EdgeInsets.only(left: 6),
+                                  child: Icon(
+                                    LucideIcons.bellOff,
+                                    size: 14,
+                                    color: Color(0xFF94A3B8),
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
                         if (timeStr.isNotEmpty)
@@ -1369,6 +1452,20 @@ class _ChannelListItem extends ConsumerWidget {
         lower == '[hình ảnh]' ||
         lower.contains('ảnh chụp');
 
+    final isVoice = lower.endsWith('.webm') ||
+        lower.endsWith('.mp3') ||
+        lower.endsWith('.m4a') ||
+        lower.endsWith('.wav') ||
+        lower.endsWith('.aac') ||
+        lower.endsWith('.ogg') ||
+        lower.startsWith('voice_') ||
+        lower.contains('voice_') ||
+        lower.contains('audio_') ||
+        lower == 'ghi âm' ||
+        lower == '[ghi âm]' ||
+        lower == 'tin nhắn thoại' ||
+        lower == '[tin nhắn thoại]';
+
     final isDoc = lower.endsWith('.docx') ||
         lower.endsWith('.pdf') ||
         lower.endsWith('.xlsx') ||
@@ -1379,12 +1476,28 @@ class _ChannelListItem extends ConsumerWidget {
         lower.contains('tệp tin') ||
         lower.contains('tài liệu');
 
+    final isMissedCall = lower.contains('nhỡ') || lower.startsWith('❌') || lower.contains('cuộc gọi nhỡ');
+    final isVoiceCall = (lower.contains('cuộc gọi thoại') || lower.startsWith('📞')) && !isMissedCall;
+    final isRejectedCall = lower.contains('từ chối') || lower.startsWith('🚫');
+    final isCancelledCall = lower.contains('hủy') || lower.startsWith('📵');
+    final isAnyCall = isMissedCall || isVoiceCall || isRejectedCall || isCancelledCall;
+
     // Chuyển đổi tên file kỹ thuật sang text hiển thị chuyên nghiệp (chuẩn Zalo / Messenger)
     String displayText = msg;
     if (isImageFilename) {
       displayText = '[Hình ảnh]';
+    } else if (isVoice) {
+      displayText = '[Ghi âm]';
     } else if (isDoc && !msg.startsWith('[Tập tin]') && !msg.startsWith('[Tài liệu]')) {
       displayText = '[Tập tin]';
+    } else if (isMissedCall) {
+      displayText = isMine ? '[Cuộc gọi nhỡ đi]' : '[Cuộc gọi nhỡ]';
+    } else if (isVoiceCall) {
+      displayText = '[Cuộc gọi thoại]';
+    } else if (isRejectedCall) {
+      displayText = '[Cuộc gọi bị từ chối]';
+    } else if (isCancelledCall) {
+      displayText = '[Cuộc gọi đã hủy]';
     }
 
     // Lấy trạng thái tin nhắn cuối từ Local Cache (phần tử .first là tin mới nhất)
@@ -1397,7 +1510,7 @@ class _ChannelListItem extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         // Hiển thị trạng thái tin nhắn gửi đi đồng bộ với chi tiết (1 tích = đã gửi, 2 tích = đối phương đã xem)
-        if (isMine) ...[
+        if (isMine && !isAnyCall) ...[
           Icon(
             lastMsgStatus == 'read'
                 ? LucideIcons.checkCheck
@@ -1409,7 +1522,28 @@ class _ChannelListItem extends ConsumerWidget {
           ),
           const SizedBox(width: 4.5),
         ],
-        if (isDoc) ...[
+        if (isMissedCall) ...[
+          const Icon(
+            LucideIcons.phoneMissed,
+            size: 14,
+            color: Color(0xFFEF4444),
+          ),
+          const SizedBox(width: 4),
+        ] else if (isVoiceCall) ...[
+          const Icon(
+            LucideIcons.phone,
+            size: 14,
+            color: Color(0xFF10B981),
+          ),
+          const SizedBox(width: 4),
+        ] else if (isRejectedCall || isCancelledCall) ...[
+          Icon(
+            LucideIcons.phoneOff,
+            size: 14,
+            color: isDark ? Colors.white60 : const Color(0xFF94A3B8),
+          ),
+          const SizedBox(width: 4),
+        ] else if (isDoc) ...[
           Icon(
             LucideIcons.fileText,
             size: 14,
@@ -1423,6 +1557,13 @@ class _ChannelListItem extends ConsumerWidget {
             color: hasUnread ? const Color(0xFFEA580C) : const Color(0xFFFB923C),
           ),
           const SizedBox(width: 4),
+        ] else if (isVoice) ...[
+          Icon(
+            LucideIcons.mic,
+            size: 14,
+            color: hasUnread ? const Color(0xFF00C83A) : const Color(0xFF10B981),
+          ),
+          const SizedBox(width: 4),
         ],
         Expanded(
           child: Text(
@@ -1431,10 +1572,12 @@ class _ChannelListItem extends ConsumerWidget {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: 13.5,
-              color: hasUnread
-                  ? (isDark ? Colors.white : const Color(0xFF0F172A))
-                  : (isDark ? Colors.white60 : const Color(0xFF64748B)),
-              fontWeight: hasUnread ? FontWeight.w700 : FontWeight.normal,
+              fontWeight: isMissedCall && !isMine ? FontWeight.w600 : FontWeight.normal,
+              color: isMissedCall && !isMine
+                  ? const Color(0xFFEF4444)
+                  : (hasUnread
+                      ? (isDark ? Colors.white : const Color(0xFF1E293B))
+                      : (isDark ? const Color(0xFF8696A0) : const Color(0xFF667781))),
             ),
           ),
         ),

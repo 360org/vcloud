@@ -45,7 +45,9 @@ Future<void> main() async {
 
     // Override default Grey Screen in Release builds with a clear error UI & Copy Log feature
     ErrorWidget.builder = (FlutterErrorDetails details) {
-      final errorText = '${details.exception}\n\n${details.stack}';
+      final errorText = kDebugMode
+          ? '${details.exception}\n\n${details.stack}'
+          : 'VCloud UI error. Vui lòng gửi thời điểm lỗi cho bộ phận hỗ trợ.';
       return Material(
         color: Colors.white,
         child: Scaffold(
@@ -81,7 +83,9 @@ Future<void> main() async {
                       constraints: const BoxConstraints(maxHeight: 140),
                       child: SingleChildScrollView(
                         child: Text(
-                          details.exceptionAsString(),
+                          kDebugMode
+                              ? details.exceptionAsString()
+                              : 'Vui lòng thử lại hoặc gửi thời điểm lỗi cho bộ phận hỗ trợ.',
                           style: const TextStyle(
                             fontSize: 12,
                             fontFamily: 'monospace',

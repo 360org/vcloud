@@ -110,7 +110,55 @@ class AppToast {
   }) {
     final messenger = ScaffoldMessenger.maybeOf(context);
     if (messenger == null) return;
+    _showWithMessenger(
+      messenger,
+      type: type,
+      title: title,
+      message: message,
+      duration: duration,
+      onAction: onAction,
+      actionLabel: actionLabel,
+      bottomMargin: bottomMargin,
+    );
+  }
 
+  /// Hiển thị Toast toàn cục không cần BuildContext (yêu cầu rootScaffoldMessengerKey)
+  static void showGlobal({
+    required AppToastType type,
+    required String title,
+    String? message,
+    Duration duration = const Duration(seconds: 3),
+    VoidCallback? onAction,
+    String? actionLabel,
+    double bottomMargin = 20,
+  }) {
+    final messenger = rootScaffoldMessengerKey.currentState;
+    if (messenger == null) {
+      debugPrint('rootScaffoldMessengerKey is not attached. Cannot show toast: $title');
+      return;
+    }
+    _showWithMessenger(
+      messenger,
+      type: type,
+      title: title,
+      message: message,
+      duration: duration,
+      onAction: onAction,
+      actionLabel: actionLabel,
+      bottomMargin: bottomMargin,
+    );
+  }
+
+  static void _showWithMessenger(
+    ScaffoldMessengerState messenger, {
+    required AppToastType type,
+    required String title,
+    String? message,
+    Duration duration = const Duration(seconds: 3),
+    VoidCallback? onAction,
+    String? actionLabel,
+    double bottomMargin = 20,
+  }) {
     messenger.hideCurrentSnackBar();
     messenger.showSnackBar(
       SnackBar(
@@ -136,6 +184,9 @@ class AppToast {
     );
   }
 }
+
+/// Global key to access ScaffoldMessenger from anywhere
+final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
 class _ToastCard extends StatelessWidget {
   const _ToastCard({

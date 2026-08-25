@@ -304,7 +304,7 @@ class ChatV2Channel {
           map['avatar'],
     );
     final avatarUrl = odooApiClient.resolveAvatarUrl(rawAvatar);
-    final imStatus = _stringOr(map['im_status'] ?? map['user_status'], 'offline');
+    var imStatus = _stringOr(map['im_status'] ?? map['user_status'], 'offline');
 
     // Parse last message
     final rawLastMsg = map['last_message'];
@@ -387,6 +387,17 @@ class ChatV2Channel {
         _stringOrNull(rawDirectPartner['avatar_url'] ?? rawDirectPartner['image_128']),
       );
     }
+    final otherMember = memberObjs.firstWhereOrNull((m) => !m.isMe);
+    if (!isGroup && otherMember != null) {
+      directPartnerId ??= otherMember.id.isNotEmpty ? otherMember.id : null;
+      directPartnerName ??= otherMember.name.isNotEmpty ? otherMember.name : null;
+      if (otherMember.imStatus.isNotEmpty && otherMember.imStatus != 'offline') {
+        directPartnerStatus = otherMember.imStatus;
+        if (imStatus == 'offline') {
+          imStatus = otherMember.imStatus;
+        }
+      }
+    }
     directPartnerId ??= _stringOrNull(map['partner_id'] ?? map['other_partner_id']);
     directPartnerStatus ??= imStatus;
 
@@ -395,10 +406,7 @@ class ChatV2Channel {
       if (directPartnerAvatar != null && directPartnerAvatar.isNotEmpty) {
         finalAvatarUrl = directPartnerAvatar;
       } else if (memberObjs.isNotEmpty) {
-        final otherMember = memberObjs.firstWhereOrNull(
-          (m) => !m.isMe && m.avatarUrl != null && m.avatarUrl!.isNotEmpty,
-        );
-        if (otherMember != null) {
+        if (otherMember != null && otherMember.avatarUrl != null && otherMember.avatarUrl!.isNotEmpty) {
           finalAvatarUrl = otherMember.avatarUrl;
         }
       }
@@ -484,6 +492,22 @@ class ChatV2Channel {
         lower.startsWith('image_picker_');
     if (isImg) {
       return '[Hình ảnh]';
+    }
+    final isVoice = lower.endsWith('.webm') ||
+        lower.endsWith('.mp3') ||
+        lower.endsWith('.m4a') ||
+        lower.endsWith('.wav') ||
+        lower.endsWith('.aac') ||
+        lower.endsWith('.ogg') ||
+        lower.startsWith('voice_') ||
+        lower.contains('voice_') ||
+        lower.contains('audio_') ||
+        lower == 'ghi âm' ||
+        lower == '[ghi âm]' ||
+        lower == 'tin nhắn thoại' ||
+        lower == '[tin nhắn thoại]';
+    if (isVoice) {
+      return '[Ghi âm]';
     }
     final isDoc = lower.endsWith('.docx') ||
         lower.endsWith('.pdf') ||

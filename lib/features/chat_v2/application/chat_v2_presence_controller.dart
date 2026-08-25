@@ -30,6 +30,34 @@ class ChatV2PresenceNotifier extends StateNotifier<Map<String, String>> {
     });
   }
 
+  void updatePresence(String partnerId, String imStatus) {
+    if (partnerId.isNotEmpty && imStatus.isNotEmpty) {
+      if (state[partnerId] != imStatus) {
+        state = {
+          ...state,
+          partnerId: imStatus,
+        };
+      }
+    }
+  }
+
+  void updateMembersPresence(List<dynamic> members) {
+    final updates = <String, String>{};
+    for (final m in members) {
+      final id = m.id?.toString() ?? '';
+      final status = m.imStatus?.toString() ?? '';
+      if (id.isNotEmpty && status.isNotEmpty) {
+        updates[id] = status;
+      }
+    }
+    if (updates.isNotEmpty) {
+      state = {
+        ...state,
+        ...updates,
+      };
+    }
+  }
+
   @override
   void dispose() {
     _sub?.cancel();

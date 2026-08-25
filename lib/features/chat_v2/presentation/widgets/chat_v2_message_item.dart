@@ -13,6 +13,7 @@ import '../../data/models/chat_v2_message.dart';
 import '../screens/chat_v2_image_viewer_screen.dart';
 import 'chat_v2_location_card.dart';
 import 'chat_v2_poll_card.dart';
+import 'chat_v2_voice_message_player.dart';
 
 final RegExp _attachmentIdPattern =
     RegExp(r'/(?:attachments|image|content)/(\d+)');
@@ -26,6 +27,7 @@ class ChatV2MessageItem extends StatelessWidget {
     this.isGroup = false,
     this.onLongPress,
     this.onReplyTap,
+    this.onReactionBadgeTap,
     this.isHighlighted = false,
   });
 
@@ -35,6 +37,7 @@ class ChatV2MessageItem extends StatelessWidget {
   final bool isGroup;
   final VoidCallback? onLongPress;
   final ValueChanged<String?>? onReplyTap;
+  final VoidCallback? onReactionBadgeTap;
   final bool isHighlighted;
 
   static final DateFormat _timeFormatter = DateFormat('HH:mm');
@@ -69,8 +72,24 @@ class ChatV2MessageItem extends StatelessWidget {
         : '';
 
     final imageAttachments = message.attachments.where((a) => a.isImage).toList();
-    final docAttachments = message.attachments.where((a) => !a.isImage).toList();
+    final audioAttachments = message.attachments.where((a) => a.isAudio).toList();
+    if (audioAttachments.isEmpty && message.isVoiceFilename && message.content.isNotEmpty) {
+      final name = message.content.trim();
+      final cached = LocalAttachmentCache.get(null, altKey: name);
+      audioAttachments.add(
+        ChatV2Attachment(
+          id: message.attachments.isNotEmpty ? message.attachments.first.id : '',
+          name: name,
+          mimetype: name.toLowerCase().endsWith('.webm')
+              ? 'audio/webm'
+              : (name.toLowerCase().endsWith('.wav') ? 'audio/wav' : 'audio/m4a'),
+          bytes: cached,
+        ),
+      );
+    }
+    final docAttachments = message.attachments.where((a) => !a.isImage && !a.isAudio).toList();
     final hasImages = imageAttachments.isNotEmpty;
+    final hasAudio = audioAttachments.isNotEmpty;
     final hasDocs = docAttachments.isNotEmpty;
     final isHistoricalImage = message.isImageFilename && !hasImages;
     final hasAnyImage = hasImages || isHistoricalImage;
@@ -80,16 +99,31 @@ class ChatV2MessageItem extends StatelessWidget {
         cleanContent == 'Sent attachment' ||
         cleanContent == '[Hình ảnh]' ||
         cleanContent == '[Tập tin]' ||
-        imageAttachments.any((a) => a.name.trim() == cleanContent);
+        cleanContent == '[Tin nhắn thoại]' ||
+        cleanContent == '[Ghi âm]' ||
+        imageAttachments.any((a) => a.name.trim() == cleanContent) ||
+        audioAttachments.any((a) => a.name.trim() == cleanContent);
 
     final hasRealCaption = hasAnyImage && !isFileNameContent;
     final isPureImage = hasAnyImage && !hasRealCaption && !hasDocs;
 
+    final isCallMessage = cleanContent.startsWith('📞') ||
+        cleanContent.startsWith('❌') ||
+        cleanContent.startsWith('🚫') ||
+        cleanContent.startsWith('📵') ||
+        (cleanContent.contains('Cuộc gọi') &&
+            (cleanContent.contains('nhỡ') ||
+                cleanContent.contains('thoại') ||
+                cleanContent.contains('từ chối') ||
+                cleanContent.contains('hủy')));
+
     final isPureText = message.content.isNotEmpty &&
         (!message.isImageFilename || hasImages) &&
         !message.isDocumentFilename &&
+        !isCallMessage &&
         !hasImages &&
         !hasDocs &&
+        !hasAudio &&
         message.parentId == null &&
         message.parentBody == null;
 
@@ -112,6 +146,20 @@ class ChatV2MessageItem extends StatelessWidget {
         ],
       ],
     );
+
+    final isEmptyMessage = cleanContent.isEmpty &&
+        !hasAnyImage &&
+        !hasAudio &&
+        !hasDocs &&
+        !message.isImageFilename &&
+        !message.isDocumentFilename &&
+        !isCallMessage &&
+        message.parentId == null &&
+        message.parentBody == null;
+
+    if (isEmptyMessage) {
+      return const SizedBox.shrink();
+    }
 
     return GestureDetector(
       onLongPress: onLongPress,
@@ -195,44 +243,48 @@ class ChatV2MessageItem extends StatelessWidget {
               const SizedBox(width: 6),
             ],
             Flexible(
-              child: (message.isPollMessage && message.poll != null)
-                  ? ChatV2PollCard(
-                      message: message,
-                      poll: message.poll!,
-                      isMine: isMine,
-                      timeStr: timeStr,
-                    )
-                  : (message.isLocationMessage && message.locationCoordinates != null)
-                      ? Column(
-                          crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                          children: [
-                            if (!isMine && showSenderName) ...[
-                              Text(
-                                message.authorName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: authorColor,
-                                ),
-                              ),
-                              const SizedBox(height: 3),
-                            ],
-                            ChatV2LocationCard(
-                              message: message,
-                              isMine: isMine,
-                            ),
-                            const SizedBox(height: 2),
-                            timeAndStatus,
-                          ],
+              child: Column(
+                crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  (message.isPollMessage && message.poll != null)
+                      ? ChatV2PollCard(
+                          message: message,
+                          poll: message.poll!,
+                          isMine: isMine,
+                          timeStr: timeStr,
                         )
-                  : isPureImage
-                      ? _buildPureImageBubble(context, imageAttachments, isMine, timeStr)
-                      : Container(
-                      constraints: BoxConstraints(
-                        maxWidth: MediaQuery.of(context).size.width * 0.72,
-                      ),
+                      : (message.isLocationMessage && message.locationCoordinates != null)
+                          ? Column(
+                              crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                              children: [
+                                if (!isMine && showSenderName) ...[
+                                  Text(
+                                    message.authorName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: authorColor,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                ],
+                                ChatV2LocationCard(
+                                  message: message,
+                                  isMine: isMine,
+                                ),
+                                const SizedBox(height: 2),
+                                timeAndStatus,
+                              ],
+                            )
+                      : isPureImage
+                          ? _buildPureImageBubble(context, imageAttachments, isMine, timeStr)
+                          : Container(
+                          constraints: BoxConstraints(
+                            maxWidth: MediaQuery.of(context).size.width * 0.72,
+                          ),
                       decoration: BoxDecoration(
                         color: isMine
                             ? (isDark
@@ -292,7 +344,18 @@ class ChatV2MessageItem extends StatelessWidget {
                               // 0. Render Reply Quote Card if this message is a reply
                               if (message.parentId != null || message.parentBody != null)
                                 _buildReplyQuoteCard(context, isMine, isDark),
-                              // 1. Render actual image attachments with caption
+                              // 1. Render Audio Attachments
+                              if (hasAudio)
+                                for (final att in audioAttachments) ...[
+                                  ChatV2VoiceMessagePlayer(
+                                    attachment: att,
+                                    isMine: isMine,
+                                  ),
+                                  if (audioAttachments.length > 1 || hasImages || hasDocs)
+                                    const SizedBox(height: 2),
+                                ],
+
+                              // 2. Render actual image attachments with caption
                               if (hasImages) ...[
                                 for (final att in imageAttachments) ...[
                                   _buildImageAttachment(context, att, isMine),
@@ -302,7 +365,7 @@ class ChatV2MessageItem extends StatelessWidget {
                             // 2. Render image filename card for historical messages
                             _buildImageFilenameCard(context, isMine),
                           ],
-                          // 3. Render actual document attachments
+                          // 4. Render actual document attachments
                           if (hasDocs) ...[
                             Column(
                               mainAxisSize: MainAxisSize.min,
@@ -319,7 +382,9 @@ class ChatV2MessageItem extends StatelessWidget {
                             _buildDocumentFilenameCard(context, isMine),
                           ],
                           // 5. Render message text & time
-                          if (isPureText) ...[
+                          if (isCallMessage) ...[
+                            _buildCallMessageCard(context, isMine, isDark, timeStr, timeAndStatus),
+                          ] else if (isPureText) ...[
                             Wrap(
                               alignment: WrapAlignment.end,
                               crossAxisAlignment: WrapCrossAlignment.end,
@@ -343,10 +408,11 @@ class ChatV2MessageItem extends StatelessWidget {
                             if (message.content.isNotEmpty &&
                                 !message.isImageFilename &&
                                 !message.isDocumentFilename &&
-                                (!hasImages || !isFileNameContent))
+                                (!hasImages || !isFileNameContent) &&
+                                (!hasAudio || !isFileNameContent))
                               Padding(
-                                padding: hasAnyImage
-                                    ? const EdgeInsets.only(top: 8, left: 12, right: 12, bottom: 4)
+                                padding: (hasAnyImage || hasAudio)
+                                    ? const EdgeInsets.only(top: 4, left: 12, right: 12, bottom: 4)
                                     : EdgeInsets.zero,
                                 child: _buildParsedMessageText(
                                   context: context,
@@ -371,10 +437,15 @@ class ChatV2MessageItem extends StatelessWidget {
                     ),
                   ),
                 ),
-          ),
-        ],
+                  if (message.reactions.isNotEmpty)
+                    _buildReactionBadges(context, isMine),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
-    ));
+    );
   }
 
   Widget _buildPureImageBubble(
@@ -499,6 +570,111 @@ class ChatV2MessageItem extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildCallMessageCard(
+    BuildContext context,
+    bool isMine,
+    bool isDark,
+    String timeStr,
+    Widget timeAndStatus,
+  ) {
+    final raw = message.content.trim();
+    final isMissed = raw.contains('nhỡ') || raw.startsWith('❌');
+    final isConnected = raw.contains('Cuộc gọi thoại') || raw.startsWith('📞');
+    final isRejected = raw.contains('từ chối') || raw.startsWith('🚫');
+    final isCancelled = raw.contains('hủy') || raw.startsWith('📵');
+
+    String title = 'Cuộc gọi thoại';
+    String subtitle = raw;
+    IconData icon = LucideIcons.phone;
+    Color iconColor = const Color(0xFF10B981);
+    Color iconBg = const Color(0xFF10B981).withValues(alpha: 0.15);
+
+    if (isMissed) {
+      title = isMine ? 'Cuộc gọi nhỡ đi' : 'Cuộc gọi nhỡ';
+      icon = LucideIcons.phoneMissed;
+      iconColor = const Color(0xFFEF4444);
+      iconBg = const Color(0xFFEF4444).withValues(alpha: 0.15);
+      subtitle = raw.replaceAll('❌', '').trim();
+    } else if (isConnected) {
+      title = isMine ? 'Cuộc gọi đi' : 'Cuộc gọi đến';
+      icon = LucideIcons.phone;
+      iconColor = const Color(0xFF10B981);
+      iconBg = const Color(0xFF10B981).withValues(alpha: 0.15);
+      subtitle = raw.replaceAll('📞', '').trim();
+    } else if (isRejected) {
+      title = 'Cuộc gọi bị từ chối';
+      icon = LucideIcons.phoneOff;
+      iconColor = const Color(0xFFF59E0B);
+      iconBg = const Color(0xFFF59E0B).withValues(alpha: 0.15);
+      subtitle = 'Đối phương bận';
+    } else if (isCancelled) {
+      title = 'Cuộc gọi đã hủy';
+      icon = LucideIcons.phoneOff;
+      iconColor = const Color(0xFF94A3B8);
+      iconBg = const Color(0xFF94A3B8).withValues(alpha: 0.15);
+      subtitle = 'Đã hủy cuộc gọi';
+    }
+
+    return Container(
+      constraints: const BoxConstraints(minWidth: 200, maxWidth: 280),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: iconBg,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: iconColor, size: 20),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w600,
+                        color: isMissed
+                            ? const Color(0xFFEF4444)
+                            : (isDark ? Colors.white : const Color(0xFF1E293B)),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Align(
+            alignment: Alignment.centerRight,
+            child: timeAndStatus,
+          ),
+        ],
       ),
     );
   }
@@ -705,6 +881,14 @@ class ChatV2MessageItem extends StatelessWidget {
           return;
         }
         if (downloadUrl != null && downloadUrl.isNotEmpty) {
+          try {
+            // Tải tệp tin qua API có gắn Bearer Token xác thực
+            final bytes = await odooApiClient.fetchBytes(downloadUrl);
+            if (bytes.isNotEmpty) {
+              await saveBytesToFile(bytes, cleanName);
+              return;
+            }
+          } catch (_) {}
           final full = odooApiClient.authenticatedUrl(downloadUrl);
           openDownloadUrl(full);
         }
@@ -1051,6 +1235,66 @@ class ChatV2MessageItem extends StatelessWidget {
         ),
       );
     }
+  }
+
+  Widget _buildReactionBadges(BuildContext context, bool isMine) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Padding(
+      padding: EdgeInsets.only(
+        top: 2,
+        left: isMine ? 0 : 4,
+        right: isMine ? 4 : 0,
+      ),
+      child: Wrap(
+        spacing: 4,
+        runSpacing: 4,
+        alignment: isMine ? WrapAlignment.end : WrapAlignment.start,
+        children: message.reactions.map((reaction) {
+          return GestureDetector(
+            onTap: onReactionBadgeTap,
+            behavior: HitTestBehavior.opaque,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+              decoration: BoxDecoration(
+                color: reaction.hasMe
+                    ? (isDark ? const Color(0xFF005C4B) : const Color(0xFFD9FDD3))
+                    : (isDark ? const Color(0xFF202C33) : const Color(0xFFF0F2F5)),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: reaction.hasMe
+                      ? (isDark ? const Color(0xFF00C83A).withValues(alpha: 0.3) : const Color(0xFF00C83A).withValues(alpha: 0.3))
+                      : (isDark ? const Color(0xFF374151) : const Color(0xFFE5E7EB)),
+                  width: 0.5,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    reaction.content,
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  if (reaction.count > 1) ...[
+                    const SizedBox(width: 4),
+                    Text(
+                      '${reaction.count}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: reaction.hasMe
+                            ? (isDark ? const Color(0xFFE9EDEF) : const Color(0xFF111B21))
+                            : (isDark ? const Color(0xFF8696A0) : const Color(0xFF667781)),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
   }
 }
 

@@ -94,11 +94,11 @@ class FloatingChatHeader extends StatelessWidget {
                                 final imStatus = other?.imStatus ?? 'offline';
                                 switch (imStatus) {
                                   case 'online':
-                                    statusText = 'Đang hoạt động';
+                                    statusText = 'Đang trực tuyến';
                                     statusDotColor = const Color(0xFF22C55E);
                                     break;
                                   case 'away':
-                                    statusText = 'Vắng mặt';
+                                    statusText = 'Tạm vắng';
                                     statusDotColor = const Color(0xFFF59E0B);
                                     break;
                                   case 'offline':

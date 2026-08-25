@@ -10,9 +10,12 @@ import 'core/theme/app_theme.dart';
 import 'features/attendance/application/attendance_controller.dart';
 import 'features/auth/application/auth_controller.dart';
 import 'features/chat_v2/application/chat_v2_channels_controller.dart';
+import 'features/chat_v2/presentation/widgets/chat_v2_call_listener.dart';
+import 'features/chat_v2/presentation/widgets/chat_v2_in_app_banner.dart';
 import 'features/home/application/home_summary_controller.dart';
 import 'features/profile/application/theme_controller.dart';
 import 'features/ticket/application/ticket_controller.dart';
+import 'shared/widgets/app_toast.dart';
 
 class VCloudApp extends ConsumerStatefulWidget {
   const VCloudApp({super.key});
@@ -77,6 +80,16 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
     if (type.contains('chat') || type.contains('discuss') || data.containsKey('channel_id')) {
       ref.invalidate(chatV2ChannelsProvider);
       ref.invalidate(chatV2TotalUnreadProvider);
+
+      final notification = message.notification;
+      final channelId = (data['channel_id'] ?? data['discuss_channel_id'] ?? data['chat_id'] ?? '').toString();
+      if (notification != null && (notification.title != null || notification.body != null)) {
+        ref.read(inAppNotificationProvider.notifier).show(
+          title: notification.title ?? 'Tin nhắn mới',
+          body: notification.body ?? '',
+          channelId: channelId,
+        );
+      }
     }
 
     if (type.contains('attendance') || data.containsKey('attendance_id')) {
@@ -120,7 +133,9 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
         loading: () => AppThemeMode.system.themeMode,
         error: (e, st) => AppThemeMode.system.themeMode,
       ),
+      scaffoldMessengerKey: rootScaffoldMessengerKey,
       routerConfig: router,
+      builder: (context, child) => ChatV2CallListener(child: child ?? const SizedBox.shrink()),
     );
   }
 }

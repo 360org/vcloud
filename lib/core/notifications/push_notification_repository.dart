@@ -116,11 +116,26 @@ class PushNotificationRepository {
         'event_type': eventType,
       },
     );
-    if (response is! Map) {
-      throw Failure('Phản hồi danh sách thông báo không hợp lệ.');
+    if (response is List) {
+      return MobileNotificationList.fromMap({
+        'items': response,
+        'total': response.length,
+        'limit': limit,
+        'offset': offset,
+        'has_more': false,
+      });
     }
-    return MobileNotificationList.fromMap(
-      Map<String, dynamic>.from(response),
+    if (response is Map) {
+      return MobileNotificationList.fromMap(
+        Map<String, dynamic>.from(response),
+      );
+    }
+    return MobileNotificationList(
+      items: const [],
+      total: 0,
+      limit: limit,
+      offset: offset,
+      hasMore: false,
     );
   }
 

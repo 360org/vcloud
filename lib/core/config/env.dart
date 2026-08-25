@@ -18,22 +18,22 @@ class Env {
 
   static const String firebaseApiKey = String.fromEnvironment(
     'VCLOUD_FIREBASE_API_KEY',
-    defaultValue: '',
+    defaultValue: 'AIzaSyAFEPKxCmxL5dtKAZD1Xt4d7XiWoHDQ6UY',
   );
 
   static const String firebaseAppId = String.fromEnvironment(
     'VCLOUD_FIREBASE_APP_ID',
-    defaultValue: '',
+    defaultValue: '1:339448653254:web:1e9d9ec9460c30ce073ec7',
   );
 
   static const String firebaseMessagingSenderId = String.fromEnvironment(
     'VCLOUD_FIREBASE_MESSAGING_SENDER_ID',
-    defaultValue: '',
+    defaultValue: '339448653254',
   );
 
   static const String firebaseProjectId = String.fromEnvironment(
     'VCLOUD_FIREBASE_PROJECT_ID',
-    defaultValue: '',
+    defaultValue: 'vcloud-mobile',
   );
 
   static const String firebaseIosBundleId = String.fromEnvironment(

@@ -13,6 +13,7 @@ import '../domain/models/chat_v2_poll_model.dart';
 import '../data/chat_v2_realtime_service.dart';
 import '../data/chat_v2_repository.dart';
 import '../data/models/chat_v2_message.dart';
+import '../data/models/chat_v2_reaction.dart';
 import '../presentation/widgets/chat_v2_message_item.dart';
 import 'chat_v2_channels_controller.dart';
 import 'chat_v2_read_state_controller.dart';
@@ -49,8 +50,8 @@ class ChatV2MessageLocalCache {
           try {
             final content = await file.readAsString();
             final List<dynamic> jsonList = jsonDecode(content);
-            final messages = jsonList.map((e) => ChatV2Message.fromMap(e as Map<String, dynamic>, currentUserId: null)).toList(); 
-            
+            final messages = jsonList.map((e) => ChatV2Message.fromMap(e as Map<String, dynamic>, currentUserId: null)).toList();
+
             final map = <String, ChatV2Message>{};
             for (final m in messages) {
               map[m.id] = m;
@@ -213,7 +214,7 @@ class ChatV2MessagesNotifier
             currentUserId: userId,
           );
           debugPrint('🔴 [TRACE] ChatV2MessagesNotifier.build SWR getMessages() END');
-          
+
           final currentList = state.valueOrNull ?? cached;
           final merged = _mergeMessages(currentList, fresh);
 
@@ -310,7 +311,7 @@ class ChatV2MessagesNotifier
 
   Future<void> loadMore() async {
     if (_isLoadingMore) return;
-    
+
     final currentMessages = state.valueOrNull ?? [];
     if (currentMessages.isEmpty) return;
 
@@ -570,7 +571,7 @@ class ChatV2MessagesNotifier
       LocalAttachmentCache.save(filename, bytes);
 
       // 3. Gửi tin nhắn với attachment ID vào Odoo Chatter
-      final bodyText = (caption != null && caption.isNotEmpty) ? caption : filename;
+      final bodyText = (caption != null && caption.isNotEmpty) ? caption : '';
       final sentMsg = await repo.sendMessage(
         channelId,
         bodyText,
@@ -583,9 +584,8 @@ class ChatV2MessagesNotifier
       ChatV2AttachmentImage.cacheBytes(sentMsg.id.toString(), bytes);
       LocalAttachmentCache.save(sentMsg.id, bytes);
 
-      // Cập nhật trạng thái sent ngay lập tức cho tin nhắn tạm, bảo tồn nguyên vẹn byte nhị phân
-      final currentList = (state.valueOrNull ?? const []).toList();
-      currentList.removeWhere((m) => m.id == tempId || m.id == sentMsg.id);
+      // 4. Cập nhật state với tin nhắn đã gửi thành công
+      final currentList = (state.valueOrNull ?? []).where((m) => m.id != tempId).toList();
       currentList.insert(0, sentMsg.copyWith(
         isMine: true,
         status: 'sent',
@@ -595,9 +595,22 @@ class ChatV2MessagesNotifier
       ChatV2MessageLocalCache.set(channelId, currentList);
       state = AsyncData(currentList);
 
+      final lowerName = filename.toLowerCase();
+      final isVoiceAtt = mimetype.startsWith('audio/') ||
+          lowerName.endsWith('.webm') ||
+          lowerName.endsWith('.mp3') ||
+          lowerName.endsWith('.m4a') ||
+          lowerName.endsWith('.wav') ||
+          lowerName.endsWith('.aac') ||
+          lowerName.endsWith('.ogg') ||
+          lowerName.startsWith('voice_') ||
+          lowerName.contains('voice_');
+
       final cleanForTracker = mimetype.startsWith('image/')
           ? ((caption != null && caption.isNotEmpty) ? caption : '[Hình ảnh]')
-          : bodyText;
+          : (isVoiceAtt
+              ? ((caption != null && caption.isNotEmpty) ? caption : '[Ghi âm]')
+              : ((caption != null && caption.isNotEmpty) ? caption : '[Tệp tin]'));
       ref.read(chatV2LastSentTrackerProvider.notifier).recordSent(channelId, cleanForTracker);
       ref.read(chatV2ReadStateProvider.notifier).markChannelAsRead(channelId);
 
@@ -807,6 +820,77 @@ class ChatV2MessagesNotifier
     } catch (e) {
       if (kDebugMode) {
         debugPrint('Vote poll error: $e');
+      }
+    }
+  }
+
+  Future<void> toggleReaction(String messageId, String emoji) async {
+    final channelId = arg;
+    final repo = ref.read(chatV2RepositoryProvider);
+    final user = ref.read(authControllerProvider).valueOrNull;
+
+    final meta = user?.userMetadata;
+    final partnerIdStr = meta?['partner_id']?.toString() ??
+        meta?['partner']?['id']?.toString();
+    final partnerId = int.tryParse(partnerIdStr ?? '');
+    final partnerName = meta?['name']?.toString() ?? 'Tôi';
+
+    // 1. Optimistic Update locally
+    final currentList = state.valueOrNull ?? const [];
+    final targetMsg = currentList.firstWhereOrNull((m) => m.id == messageId);
+    if (targetMsg != null && partnerId != null) {
+      final currentReactions = List<ChatV2Reaction>.from(targetMsg.reactions);
+      final existingIndex = currentReactions.indexWhere((r) => r.content == emoji);
+
+      if (existingIndex >= 0) {
+        // Có reaction này rồi
+        final r = currentReactions[existingIndex];
+        if (r.hasMe) {
+          // Bỏ reaction
+          final newCount = r.count - 1;
+          if (newCount <= 0) {
+            currentReactions.removeAt(existingIndex);
+          } else {
+            final newPartners = List<dynamic>.from(r.partners)..removeWhere((p) => p['id'] == partnerId);
+            currentReactions[existingIndex] = r.copyWith(count: newCount, partners: newPartners, hasMe: false);
+          }
+        } else {
+          // Thêm reaction mình vào list đã có người thả
+          final newPartners = List<dynamic>.from(r.partners)..add({'id': partnerId, 'name': partnerName});
+          currentReactions[existingIndex] = r.copyWith(count: r.count + 1, partners: newPartners, hasMe: true);
+        }
+      } else {
+        // Chưa ai thả emoji này, tạo mới
+        currentReactions.add(ChatV2Reaction(
+          content: emoji,
+          count: 1,
+          partners: [{'id': partnerId, 'name': partnerName}],
+          hasMe: true,
+        ));
+      }
+
+      final updatedMsg = targetMsg.copyWith(reactions: currentReactions);
+      final optimisticList = currentList.map((m) => m.id == messageId ? updatedMsg : m).toList();
+      state = AsyncData(optimisticList);
+      ChatV2MessageLocalCache.set(channelId, optimisticList);
+    }
+
+    // 2. Network Call
+    try {
+      final updatedReactions = await repo.toggleReaction(messageId: messageId, content: emoji);
+      if (updatedReactions != null) {
+        final freshList = (state.valueOrNull ?? const []).map((m) {
+          if (m.id == messageId) {
+            return m.copyWith(reactions: updatedReactions);
+          }
+          return m;
+        }).toList();
+        state = AsyncData(freshList);
+        ChatV2MessageLocalCache.set(channelId, freshList);
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('Toggle reaction error: $e');
       }
     }
   }

@@ -69,3 +69,9 @@ app.*.map.json
 
 # AIaC local runtime session cache
 .claude/aiac/sessions/
+
+# Firebase credentials & configs (do not commit)
+google-services.json
+GoogleService-Info.plist
+*firebase-adminsdk*.json
+firebase_service_account.json

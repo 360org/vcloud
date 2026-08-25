@@ -7,6 +7,7 @@ import '../../../core/api/odoo_api_client.dart';
 import '../domain/models/chat_v2_poll_model.dart';
 import 'models/chat_v2_channel.dart';
 import 'models/chat_v2_message.dart';
+import 'models/chat_v2_reaction.dart';
 
 final chatV2RepositoryProvider = Provider<ChatV2Repository>((ref) {
   return ChatV2Repository(odooApiClient);
@@ -32,12 +33,14 @@ class ChatV2Repository {
     int? offset,
     String? search,
     String? filter,
+    bool showArchived = false,
   }) async {
     final queryParams = <String, Object?>{};
     if (limit != null) queryParams['limit'] = limit.toString();
     if (offset != null) queryParams['offset'] = offset.toString();
     if (search != null && search.trim().isNotEmpty) queryParams['search'] = search.trim();
     if (filter != null && filter.trim().isNotEmpty) queryParams['filter'] = filter.trim();
+    if (showArchived) queryParams['show_archived'] = '1';
 
     final dynamic data = await _client.get(
       '/api/v1/mobile/chat/channels',
@@ -590,9 +593,11 @@ class ChatV2Repository {
   }
 
   Future<void> archiveChannel(String channelId) async {
-    try {
-      await _client.post('/api/v1/mobile/chat/channels/$channelId/archive');
-    } catch (_) {}
+    await _client.post('/api/v1/mobile/chat/channels/$channelId/archive');
+  }
+
+  Future<void> unarchiveChannel(String channelId) async {
+    await _client.post('/api/v1/mobile/chat/channels/$channelId/unarchive');
   }
 
   Future<List<ChatV2Member>> fetchChannelMembers(String channelId) async {
@@ -600,19 +605,16 @@ class ChatV2Repository {
     if (chIdInt == null) return [];
     try {
       final res = await _client.get('/api/v1/mobile/chat/channels/$chIdInt/members');
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        if (data is Map && data['members'] is List) {
-          return (data['members'] as List)
-              .map((m) => ChatV2Member.fromJson(m))
-              .where((m) => m.name.isNotEmpty)
-              .toList();
-        } else if (data is List) {
-          return data
-              .map((m) => ChatV2Member.fromJson(m))
-              .where((m) => m.name.isNotEmpty)
-              .toList();
-        }
+      if (res is Map && res['members'] is List) {
+        return (res['members'] as List)
+            .map((m) => ChatV2Member.fromJson(m))
+            .where((m) => m.name.isNotEmpty)
+            .toList();
+      } else if (res is List) {
+        return res
+            .map((m) => ChatV2Member.fromJson(m))
+            .where((m) => m.name.isNotEmpty)
+            .toList();
       }
     } catch (e) {
       if (kDebugMode) {
@@ -620,6 +622,31 @@ class ChatV2Repository {
       }
     }
     return [];
+  }
+
+  Future<List<ChatV2Reaction>?> toggleReaction({
+    required String messageId,
+    required String content,
+  }) async {
+    try {
+      final dynamic data = await _client.post(
+        '/api/v1/mobile/chat/reaction',
+        body: {
+          'message_id': messageId,
+          'content': content,
+        },
+      );
+      if (data is Map && data['reactions'] is List) {
+        return (data['reactions'] as List)
+            .map((e) => ChatV2Reaction.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList();
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[ChatV2Repository] toggleReaction error for $messageId: $e');
+      }
+    }
+    return null;
   }
 }
 

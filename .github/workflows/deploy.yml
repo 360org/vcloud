@@ -159,6 +159,11 @@ jobs:
           flutter pub get
           bundle install
 
+      - name: Run Flutter Static Analysis & Unit Tests
+        run: |
+          flutter analyze
+          flutter test
+
       - name: Execute Fastlane Android Release Pipeline
         env:
           GCLOUD_SERVICE_ACCOUNT_CREDENTIALS: ${{ secrets.GCLOUD_SERVICE_ACCOUNT_CREDENTIALS }}

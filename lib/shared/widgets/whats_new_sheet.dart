@@ -8,7 +8,7 @@ class WhatsNewSheet extends StatelessWidget {
   static const String _storageKey = 'whats_new_seen_build_number';
 
   /// Kiểm tra và tự động hiển thị Sheet nếu người dùng chưa xem build [targetBuild]
-  static Future<void> showIfNeeded(BuildContext context, {int targetBuild = 80}) async {
+  static Future<void> showIfNeeded(BuildContext context, {int targetBuild = 92}) async {
     try {
       const storage = FlutterSecureStorage();
       final seenStr = await storage.read(key: _storageKey);
@@ -96,7 +96,7 @@ class WhatsNewSheet extends StatelessWidget {
                         Icon(LucideIcons.sparkles, size: 14, color: Color(0xFF00C83A)),
                         SizedBox(width: 6),
                         Text(
-                          'PHIÊN BẢN MỚI v2.5.0 (BUILD 80)',
+                          'PHIÊN BẢN MỚI v2.5.0 (BUILD 92)',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w800,
@@ -111,7 +111,7 @@ class WhatsNewSheet extends StatelessWidget {
 
                   // Tiêu đề chính
                   Text(
-                    'Hiệu Năng Vượt Trội & Trải Nghiệm Chat Mượt Mà',
+                    'Tải Tệp Tin Xác Thực & Thông Báo Đẩy APNs',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 19,
@@ -124,7 +124,7 @@ class WhatsNewSheet extends StatelessWidget {
 
                   // Phụ đề
                   Text(
-                    'Khám phá bộ nhớ đệm SWR RAM siêu tốc 16ms, tab Chat mặc định, giao diện tối ưu và chuẩn hoá Odoo 17 Native.',
+                    'Tải tệp tin đính kèm trực tiếp an toàn 100%, đồng bộ thông báo đẩy iOS thời gian thực cùng stream âm thanh & tin nhắn thoại siêu tốc.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 13,
@@ -144,52 +144,42 @@ class WhatsNewSheet extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 children: [
                   _FeatureCard(
-                    icon: LucideIcons.zap,
-                    iconColor: const Color(0xFF00C83A),
-                    tagText: 'HIỆU NĂNG',
-                    tagColor: const Color(0xFF00C83A),
-                    title: 'RAM Cache SWR Siêu Tốc 16ms',
-                    description: 'Mở tức thì Ticket, Task và Timesheet trong 16ms từ RAM, giảm >80% lưu lượng mạng và triệt tiêu giật lag.',
-                    isDark: isDark,
-                  ),
-                  const SizedBox(height: 10),
-                  _FeatureCard(
-                    icon: LucideIcons.messageSquare,
+                    icon: LucideIcons.fileDown,
                     iconColor: const Color(0xFF0284C7),
-                    tagText: 'TRẢI NGHIỆM',
+                    tagText: 'TẬP TIN ĐÍNH KÈM',
                     tagColor: const Color(0xFF0284C7),
-                    title: 'Tab Trò Chuyện & Nút Tạo Nổi FAB',
-                    description: 'Vào thẳng màn hình Chat ngay khi mở app, bổ sung nút tròn nổi FAB tạo cuộc trò chuyện mới nhanh chóng.',
+                    title: 'Tải Tệp Tin Trực Tiếp Với Xác Thực JWT',
+                    description: 'Tải và lưu trữ tệp đính kèm trực tiếp qua API an toàn với Token xác thực, khắc phục triệt để lỗi 403 Forbidden khi mở file trên Web và Mobile.',
                     isDark: isDark,
                   ),
                   const SizedBox(height: 10),
                   _FeatureCard(
-                    icon: LucideIcons.database,
-                    iconColor: const Color(0xFF7C3AED),
-                    tagText: 'ĐỒNG BỘ',
-                    tagColor: const Color(0xFF7C3AED),
-                    title: 'Chuẩn Hóa Odoo 17 Native & Index O(1)',
-                    description: 'Tối ưu truy vấn danh sách Chat từ 30s xuống <15ms, tương thích hoàn hảo trường dữ liệu Odoo 17 Native.',
+                    icon: LucideIcons.bellRing,
+                    iconColor: const Color(0xFF00C83A),
+                    tagText: 'THÔNG BÁO ĐẨY',
+                    tagColor: const Color(0xFF00C83A),
+                    title: 'Thông Báo Đẩy APNs & Phát Sóng Toàn Bộ iOS',
+                    description: 'Nhận thông báo đẩy thời gian thực trên iPhone và hỗ trợ phát sóng Broadcast đồng loạt tới toàn bộ thiết bị iOS trong doanh nghiệp qua FCM Topic.',
                     isDark: isDark,
                   ),
                   const SizedBox(height: 10),
                   _FeatureCard(
-                    icon: LucideIcons.moon,
-                    iconColor: const Color(0xFF0D9488),
-                    tagText: 'GIAO DIỆN',
-                    tagColor: const Color(0xFF0D9488),
-                    title: 'Auto Dark Mode & Splash Warm-up',
-                    description: 'Tự động chuyển Dark Mode Deep Forest Green ban đêm, nạp nhanh Token 300ms loại bỏ chớp sáng màn hình.',
+                    icon: LucideIcons.userCheck,
+                    iconColor: const Color(0xFF10B981),
+                    tagText: 'TRẠNG THÁI & UI/UX',
+                    tagColor: const Color(0xFF10B981),
+                    title: 'Đồng Bộ Trạng Thái Online & Tiêu Đề Chat 1-1',
+                    description: 'Đồng bộ trạng thái trực tuyến giữa Header chat và danh sách thành viên. Chuẩn hóa tiêu đề thông báo chỉ hiển thị tên người gửi chuẩn Apple HIG.',
                     isDark: isDark,
                   ),
                   const SizedBox(height: 10),
                   _FeatureCard(
-                    icon: LucideIcons.sparkles,
+                    icon: LucideIcons.mic,
                     iconColor: const Color(0xFFEA580C),
-                    tagText: 'THƯƠNG HIỆU',
+                    tagText: 'ĐỒNG BỘ THOẠI',
                     tagColor: const Color(0xFFEA580C),
-                    title: 'HTML Boot Loader Web Sắc Nét',
-                    description: 'Logo World360 sắc nét, 3D Orbit Loader phát sáng đồng bộ 100% nhận diện thương hiệu Vua Hệ Thống.',
+                    title: 'Tin Nhắn Thoại & Stream Âm Thanh Mượt Mà',
+                    description: 'Tối ưu stream âm thanh chuẩn inline, đồng bộ hiển thị Voice Player mượt mà giữa Mobile và Web Discuss, loại bỏ trùng lặp tin nhắn.',
                     isDark: isDark,
                   ),
                   const SizedBox(height: 12),

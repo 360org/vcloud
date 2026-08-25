@@ -7,6 +7,7 @@ import '../../../core/api/auth_user.dart';
 import '../../../core/notifications/push_notification_controller.dart';
 import '../../../core/notifications/push_notification_service.dart';
 import '../../chat_v2/application/chat_v2_channels_controller.dart';
+import '../../../shared/widgets/app_toast.dart';
 import '../data/auth_repository.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>((_) => AuthRepository());
@@ -114,9 +115,24 @@ class AuthController extends AsyncNotifier<AuthUser?> {
 
   Future<void> _registerPushDevice() async {
     try {
+      // CHẾ ĐỘ TEST LOCAL (Chỉ chạy ở máy anh Tân khi Debug):
+      // Giả lập lỗi Firebase Token rỗng để test tính năng UI Logging (Toast màu đỏ)
+      if (kDebugMode) {
+        // Uncomment dòng dưới đây để bật chế độ Test hiển thị lỗi Push Toast
+        // throw Exception('TEST LỖI LOCAL: Firebase không trả về Device Token!');
+      }
+
       await _pushNotifications.registerCurrentDevice();
     } catch (e) {
-      debugPrint('Push registration skipped: $e');
+      debugPrint('❌ [PUSH REGISTRATION FAILED]: $e');
+      if (!kIsWeb) {
+        AppToast.showGlobal(
+          type: AppToastType.error,
+          title: 'Lỗi đăng ký Push',
+          message: e.toString(),
+          duration: const Duration(seconds: 10),
+        );
+      }
     }
   }
 

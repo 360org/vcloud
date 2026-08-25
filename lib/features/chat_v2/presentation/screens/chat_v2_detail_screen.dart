@@ -20,6 +20,9 @@ import '../../../auth/application/auth_controller.dart';
 import '../widgets/chat_v2_input_bar.dart';
 import '../widgets/chat_v2_message_item.dart';
 import '../widgets/chat_v2_info_sheet.dart';
+import '../widgets/chat_v2_reaction_details_sheet.dart';
+import '../../application/chat_v2_call_controller.dart';
+import 'chat_v2_call_screen.dart';
 
 class ChatV2DetailScreen extends ConsumerStatefulWidget {
   const ChatV2DetailScreen({
@@ -57,7 +60,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
     _scrollController = ScrollController();
     _scrollController.addListener(_onScroll);
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       ref.read(chatV2ReadStateProvider.notifier).markChannelAsRead(widget.channelId);
       if (widget.title != null && widget.title!.isNotEmpty) {
         final existing = ChatV2ChannelLocalCache.getPinnedDirectChannel(widget.channelId);
@@ -86,6 +89,11 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
           ChatV2ChannelLocalCache.pinDirectChannel(directCh);
         }
       }
+
+      // Nạp danh sách thành viên kênh và đồng bộ presence live
+      try {
+        await ref.read(chatV2ChannelsProvider.notifier).fetchChannelMembers(widget.channelId);
+      } catch (_) {}
     });
   }
 
@@ -424,6 +432,15 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
           },
           tooltip: 'Quay lại',
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(LucideIcons.phone, size: 21),
+            color: isDark ? Colors.white70 : const Color(0xFF475569),
+            tooltip: 'Gọi thoại',
+            onPressed: () => _handleVoiceCall(context, currentChannel, displayTitle, resolvedAvatarUrl),
+          ),
+          const SizedBox(width: 4),
+        ],
         titleSpacing: 0,
         title: InkWell(
           onTap: () => _handleHeaderTap(context, currentChannel, isDark),
@@ -534,17 +551,31 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                             );
                           }
 
-                          final partnerId = currentChannel?.partnerId;
+                          final partnerId = currentChannel?.partnerId ??
+                              currentChannel?.directPartnerId ??
+                              widget.initialPartnerId;
                           final liveImStatus = partnerId != null
                               ? ref.watch(chatV2PresenceProvider.select((m) => m[partnerId]))
                               : null;
-                          final imStatus = liveImStatus ?? (currentChannel?.imStatus ?? 'offline');
+                          String imStatus = liveImStatus ??
+                              (currentChannel?.directPartnerStatus ??
+                                  currentChannel?.imStatus ??
+                                  'offline');
+
+                          // Fallback: Kiểm tra trong danh sách thành viên của kênh nếu imStatus vẫn là offline
+                          if (imStatus == 'offline' && currentChannel != null && currentChannel.members.isNotEmpty) {
+                            final otherMember = currentChannel.members.firstWhereOrNull((m) => !m.isMe);
+                            if (otherMember != null && otherMember.imStatus.isNotEmpty && otherMember.imStatus != 'offline') {
+                              imStatus = otherMember.imStatus;
+                            }
+                          }
+
                           final Color statusColor;
                           final String statusLabel;
 
                           if (imStatus == 'online') {
-                            statusColor = const Color(0xFF10B981);
-                            statusLabel = 'Trực tuyến';
+                            statusColor = const Color(0xFF22C55E);
+                            statusLabel = 'Đang trực tuyến';
                           } else if (imStatus == 'away' || imStatus == 'idle') {
                             statusColor = const Color(0xFFF59E0B);
                             statusLabel = 'Tạm vắng';
@@ -569,7 +600,9 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w500,
-                                  color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                  color: imStatus == 'online'
+                                      ? const Color(0xFF22C55E)
+                                      : (isDark ? Colors.white60 : const Color(0xFF64748B)),
                                 ),
                               ),
                             ],
@@ -700,20 +733,65 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                         _jumpToMessage(parentId);
                                       }
                                     },
+                                    onReactionBadgeTap: () {
+                                      if (message.reactions.isEmpty) return;
+                                      showModalBottomSheet(
+                                        context: context,
+                                        isScrollControlled: true,
+                                        backgroundColor: Colors.transparent,
+                                        builder: (_) => ChatV2ReactionDetailsSheet(
+                                          reactions: message.reactions,
+                                          currentUserName: currentUserName,
+                                        ),
+                                      );
+                                    },
                                     onLongPress: () {
-                                      if (message.content.isEmpty) return;
-                                    showModalBottomSheet(
-                                      context: context,
-                                      backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
-                                      shape: const RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-                                      ),
-                                      builder: (sheetContext) {
-                                        return SafeArea(
-                                          child: Column(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              ListTile(
+                                      if (message.content.isEmpty && message.attachments.isEmpty) return;
+
+                                      final emojis = ['👍', '❤️', '😂', '😮', '😢', '😡'];
+
+                                      showModalBottomSheet(
+                                        context: context,
+                                        backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+                                        shape: const RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                                        ),
+                                        builder: (sheetContext) {
+                                          return SafeArea(
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                // Reaction Picker
+                                                Padding(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                                  child: Row(
+                                                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                                    children: emojis.map((emoji) {
+                                                      final isSelected = message.reactions.any((r) => r.content == emoji && r.hasMe);
+                                                      return GestureDetector(
+                                                        onTap: () {
+                                                          Navigator.pop(sheetContext);
+                                                          ref.read(chatV2MessagesProvider(widget.channelId).notifier).toggleReaction(message.id, emoji);
+                                                        },
+                                                        child: Container(
+                                                          padding: const EdgeInsets.all(8),
+                                                          decoration: BoxDecoration(
+                                                            color: isSelected
+                                                              ? (isDark ? const Color(0xFF00C83A).withValues(alpha: 0.2) : const Color(0xFF00C83A).withValues(alpha: 0.15))
+                                                              : Colors.transparent,
+                                                            borderRadius: BorderRadius.circular(12),
+                                                          ),
+                                                          child: Text(
+                                                            emoji,
+                                                            style: const TextStyle(fontSize: 28),
+                                                          ),
+                                                        ),
+                                                      );
+                                                    }).toList(),
+                                                  ),
+                                                ),
+                                                const Divider(height: 1),
+                                                ListTile(
                                                 leading: Icon(LucideIcons.reply, color: isDark ? Colors.white : Colors.black),
                                                 title: Text('Trả lời', style: TextStyle(color: isDark ? Colors.white : Colors.black)),
                                                 onTap: () {
@@ -956,11 +1034,11 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                     builder: (context, ref, _) {
                       final typingUsers = ref.watch(chatV2TypingProvider(widget.channelId));
                       if (typingUsers.isEmpty) return const SizedBox.shrink();
-                      
+
                       final text = typingUsers.length == 1
                           ? '${typingUsers.first} đang gõ...'
                           : '${typingUsers.join(', ')} đang gõ...';
-                          
+
                       return Padding(
                         padding: const EdgeInsets.only(left: 16, bottom: 4, top: 4),
                         child: Row(
@@ -1173,6 +1251,55 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
         ),
       ),
     );
+  }
+
+  void _handleVoiceCall(
+    BuildContext context,
+    ChatV2Channel? channel,
+    String displayTitle,
+    String? resolvedAvatarUrl,
+  ) async {
+    if (channel == null) return;
+    final currentUser = ref.read(authControllerProvider).valueOrNull;
+    final currentUserName = (currentUser?.userMetadata['name'] ??
+        currentUser?.userMetadata['display_name'] ??
+        currentUser?.userMetadata['login'] ??
+        'Tôi') as String;
+    final meta = currentUser?.userMetadata;
+    final currentUserAvatar = meta?['avatar_128_url']?.toString() ??
+        meta?['image_128_url']?.toString() ??
+        (currentUser != null ? '/web/image/res.users/${currentUser.id}/avatar_128' : null);
+    final channelIdInt = int.tryParse(widget.channelId) ?? 0;
+
+    // Tìm receiverId chính xác nhất
+    int receiverId = int.tryParse(channel.directPartnerId ?? channel.partnerId ?? widget.initialPartnerId ?? '0') ?? 0;
+    if (receiverId == 0 && channel.members.isNotEmpty) {
+      final other = channel.members.firstWhereOrNull((m) => !m.isMe);
+      if (other != null && other.id.isNotEmpty) {
+        receiverId = int.tryParse(other.id) ?? 0;
+      }
+    }
+
+    final receiverName = displayTitle.isNotEmpty ? displayTitle : 'Đồng nghiệp';
+    final receiverAvatar = resolvedAvatarUrl;
+
+    // 1. Mở Call Screen ngay lập tức
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => const ChatV2CallScreen(),
+      ),
+    );
+
+    // 2. Kích hoạt gọi qua controller
+    ref.read(chatV2CallControllerProvider.notifier).startCall(
+          channelId: channelIdInt,
+          callerName: currentUserName,
+          callerAvatar: currentUserAvatar,
+          receiverId: receiverId,
+          receiverName: receiverName,
+          receiverAvatar: receiverAvatar,
+        );
   }
 }
 
