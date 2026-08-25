@@ -60,7 +60,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
     _scrollController = ScrollController();
     _scrollController.addListener(_onScroll);
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       ref.read(chatV2ReadStateProvider.notifier).markChannelAsRead(widget.channelId);
       if (widget.title != null && widget.title!.isNotEmpty) {
         final existing = ChatV2ChannelLocalCache.getPinnedDirectChannel(widget.channelId);
@@ -89,6 +89,11 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
           ChatV2ChannelLocalCache.pinDirectChannel(directCh);
         }
       }
+
+      // Nạp danh sách thành viên kênh và đồng bộ presence live
+      try {
+        await ref.read(chatV2ChannelsProvider.notifier).fetchChannelMembers(widget.channelId);
+      } catch (_) {}
     });
   }
 
@@ -546,17 +551,31 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                             );
                           }
 
-                          final partnerId = currentChannel?.partnerId;
+                          final partnerId = currentChannel?.partnerId ??
+                              currentChannel?.directPartnerId ??
+                              widget.initialPartnerId;
                           final liveImStatus = partnerId != null
                               ? ref.watch(chatV2PresenceProvider.select((m) => m[partnerId]))
                               : null;
-                          final imStatus = liveImStatus ?? (currentChannel?.imStatus ?? 'offline');
+                          String imStatus = liveImStatus ??
+                              (currentChannel?.directPartnerStatus ??
+                                  currentChannel?.imStatus ??
+                                  'offline');
+
+                          // Fallback: Kiểm tra trong danh sách thành viên của kênh nếu imStatus vẫn là offline
+                          if (imStatus == 'offline' && currentChannel != null && currentChannel.members.isNotEmpty) {
+                            final otherMember = currentChannel.members.firstWhereOrNull((m) => !m.isMe);
+                            if (otherMember != null && otherMember.imStatus.isNotEmpty && otherMember.imStatus != 'offline') {
+                              imStatus = otherMember.imStatus;
+                            }
+                          }
+
                           final Color statusColor;
                           final String statusLabel;
 
                           if (imStatus == 'online') {
-                            statusColor = const Color(0xFF10B981);
-                            statusLabel = 'Trực tuyến';
+                            statusColor = const Color(0xFF22C55E);
+                            statusLabel = 'Đang trực tuyến';
                           } else if (imStatus == 'away' || imStatus == 'idle') {
                             statusColor = const Color(0xFFF59E0B);
                             statusLabel = 'Tạm vắng';
@@ -581,7 +600,9 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w500,
-                                  color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                  color: imStatus == 'online'
+                                      ? const Color(0xFF22C55E)
+                                      : (isDark ? Colors.white60 : const Color(0xFF64748B)),
                                 ),
                               ),
                             ],
