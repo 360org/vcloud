@@ -117,6 +117,17 @@ class PushNotificationService {
         }
       }
 
+      if (!kIsWeb) {
+        try {
+          await messaging.subscribeToTopic('all_devices');
+          if (defaultTargetPlatform == TargetPlatform.iOS) {
+            await messaging.subscribeToTopic('all_ios');
+          } else if (defaultTargetPlatform == TargetPlatform.android) {
+            await messaging.subscribeToTopic('all_android');
+          }
+        } catch (_) {}
+      }
+
       // Lắng nghe token refresh tự động
       messaging.onTokenRefresh.listen((newToken) async {
         if (newToken.isNotEmpty) {
