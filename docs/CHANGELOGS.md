@@ -29,6 +29,9 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
   - Bổ sung phím **`[9]`** trong tool quản lý thông báo cho phép bắn broadcast đồng thời tới tất cả thiết bị iPhone/iPad (chuẩn Firebase Console Broadcast).
 - **Chuẩn Hóa Tiêu Đề Thông Báo Chat Trực Tiếp 1-1 Chuẩn Apple HIG (`v_mobile/models/mail_thread.py`)**:
   - Tự động phát hiện hội thoại 1-1 và đặt tiêu đề thông báo là **Tên người gửi (Sender Name — VD: `Nguyễn Hoàng Khang`)**, thay vì ghép toàn bộ chuỗi tên kênh dài `Ma Nguyễn Nhật Tân, Nguyễn Hoàng Khang` gây tràn viền và che khuất thông tin trên màn hình khóa iPhone.
+- **Đồng Bộ Trạng Thái Trực Tuyến Live Chuẩn Xác Giữa Header Chat 1-1 & Danh Sách Thành Viên (`chat_v2_detail_screen.dart`, `chat_v2_channels_controller.dart`, `chat_v2_presence_controller.dart`)**:
+  - Khắc phục triệt để hiện tượng lệch trạng thái khi danh sách thành viên (Ảnh 3) hiển thị `Đang trực tuyến` (🟢) nhưng tiêu đề header cuộc trò chuyện (Ảnh 1) lại báo `Ngoại tuyến`.
+  - Tự động fetch và cập nhật trạng thái `imStatus` của đối phương khi mở phòng chat, nạp vào `chatV2PresenceProvider` và hiển thị đồng bộ `🟢 Đang trực tuyến` trên toàn bộ các màn hình.
 
 ---
 
