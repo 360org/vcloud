@@ -339,6 +339,17 @@
   </div>
 
   <script>
+    // Pre-register Firebase Messaging Service Worker for web push notifications
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('firebase-messaging-sw.js')
+        .then(function (reg) {
+          console.log('[FCM Web] Service Worker registered successfully:', reg.scope);
+        })
+        .catch(function (err) {
+          console.warn('[FCM Web] Service Worker registration failed:', err);
+        });
+    }
+
     // Hide the loader after Flutter renders its first frame.
     window.addEventListener('flutter-first-frame', function () {
       var el = document.getElementById('boot-loader');
