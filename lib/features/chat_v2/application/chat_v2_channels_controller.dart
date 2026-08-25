@@ -5,7 +5,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:collection/collection.dart';
 import '../../auth/application/auth_controller.dart';
+import 'chat_v2_presence_controller.dart';
 import 'chat_v2_read_state_controller.dart';
 import '../data/chat_v2_realtime_service.dart';
 import '../data/chat_v2_repository.dart';
@@ -352,6 +354,19 @@ class ChatV2ChannelLocalCache {
     onCacheUpdated?.call();
   }
 
+  static void updateSingleChannel(ChatV2Channel updated) {
+    final list = _cached.toList();
+    final idx = list.indexWhere((c) => c.id == updated.id);
+    if (idx != -1) {
+      list[idx] = updated;
+    } else {
+      list.add(updated);
+    }
+    _cached = List.unmodifiable(list);
+    _saveCachedChannelsToStorage();
+    onCacheUpdated?.call();
+  }
+
   static void clear() {
     _pinnedDirectChannels.clear();
     _cached = const [];
@@ -613,6 +628,33 @@ class ChatV2ChannelsNotifier
       state = AsyncData(updated);
       ref.invalidate(chatV2ArchivedChannelsProvider);
     } catch (_) {}
+  }
+
+  void updateLocalChannel(ChatV2Channel updated) {
+    ChatV2ChannelLocalCache.updateSingleChannel(updated);
+    state = AsyncData(ChatV2ChannelLocalCache.cached);
+  }
+
+  Future<List<ChatV2Member>> fetchChannelMembers(String channelId) async {
+    final members = await ref.read(chatV2RepositoryProvider).fetchChannelMembers(channelId);
+    if (members.isNotEmpty) {
+      ref.read(chatV2PresenceProvider.notifier).updateMembersPresence(members);
+      final current = state.valueOrNull?.firstWhereOrNull((c) => c.id == channelId);
+      if (current != null) {
+        final otherMember = members.firstWhereOrNull((m) => !m.isMe);
+        final updatedCh = current.copyWith(
+          members: members,
+          memberCount: members.length,
+          partnerId: current.partnerId ?? otherMember?.id,
+          directPartnerId: current.directPartnerId ?? otherMember?.id,
+          directPartnerName: current.directPartnerName ?? otherMember?.name,
+          directPartnerStatus: otherMember?.imStatus ?? current.directPartnerStatus,
+          imStatus: otherMember?.imStatus ?? current.imStatus,
+        );
+        updateLocalChannel(updatedCh);
+      }
+    }
+    return members;
   }
 
   Future<void> unarchiveChannel(String channelId) async {

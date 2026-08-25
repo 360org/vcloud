@@ -304,7 +304,7 @@ class ChatV2Channel {
           map['avatar'],
     );
     final avatarUrl = odooApiClient.resolveAvatarUrl(rawAvatar);
-    final imStatus = _stringOr(map['im_status'] ?? map['user_status'], 'offline');
+    var imStatus = _stringOr(map['im_status'] ?? map['user_status'], 'offline');
 
     // Parse last message
     final rawLastMsg = map['last_message'];
@@ -387,6 +387,17 @@ class ChatV2Channel {
         _stringOrNull(rawDirectPartner['avatar_url'] ?? rawDirectPartner['image_128']),
       );
     }
+    final otherMember = memberObjs.firstWhereOrNull((m) => !m.isMe);
+    if (!isGroup && otherMember != null) {
+      directPartnerId ??= otherMember.id.isNotEmpty ? otherMember.id : null;
+      directPartnerName ??= otherMember.name.isNotEmpty ? otherMember.name : null;
+      if (otherMember.imStatus.isNotEmpty && otherMember.imStatus != 'offline') {
+        directPartnerStatus = otherMember.imStatus;
+        if (imStatus == 'offline') {
+          imStatus = otherMember.imStatus;
+        }
+      }
+    }
     directPartnerId ??= _stringOrNull(map['partner_id'] ?? map['other_partner_id']);
     directPartnerStatus ??= imStatus;
 
@@ -395,10 +406,7 @@ class ChatV2Channel {
       if (directPartnerAvatar != null && directPartnerAvatar.isNotEmpty) {
         finalAvatarUrl = directPartnerAvatar;
       } else if (memberObjs.isNotEmpty) {
-        final otherMember = memberObjs.firstWhereOrNull(
-          (m) => !m.isMe && m.avatarUrl != null && m.avatarUrl!.isNotEmpty,
-        );
-        if (otherMember != null) {
+        if (otherMember != null && otherMember.avatarUrl != null && otherMember.avatarUrl!.isNotEmpty) {
           finalAvatarUrl = otherMember.avatarUrl;
         }
       }

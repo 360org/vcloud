@@ -8,7 +8,7 @@ class WhatsNewSheet extends StatelessWidget {
   static const String _storageKey = 'whats_new_seen_build_number';
 
   /// Kiểm tra và tự động hiển thị Sheet nếu người dùng chưa xem build [targetBuild]
-  static Future<void> showIfNeeded(BuildContext context, {int targetBuild = 90}) async {
+  static Future<void> showIfNeeded(BuildContext context, {int targetBuild = 91}) async {
     try {
       const storage = FlutterSecureStorage();
       final seenStr = await storage.read(key: _storageKey);
@@ -96,7 +96,7 @@ class WhatsNewSheet extends StatelessWidget {
                         Icon(LucideIcons.sparkles, size: 14, color: Color(0xFF00C83A)),
                         SizedBox(width: 6),
                         Text(
-                          'PHIÊN BẢN MỚI v2.5.0 (BUILD 90)',
+                          'PHIÊN BẢN MỚI v2.5.0 (BUILD 91)',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w800,
@@ -148,38 +148,38 @@ class WhatsNewSheet extends StatelessWidget {
                     iconColor: const Color(0xFF00C83A),
                     tagText: 'THÔNG BÁO ĐẨY',
                     tagColor: const Color(0xFF00C83A),
-                    title: 'Thông Báo Đẩy APNs iOS & Firebase',
-                    description: 'Nhận thông báo đẩy thời gian thực trên iPhone 13 cho tin nhắn chat, ticket và phân công công việc ngay cả khi tắt app.',
+                    title: 'Thông Báo Đẩy APNs & Phát Sóng Toàn Bộ iOS',
+                    description: 'Nhận thông báo đẩy thời gian thực trên iPhone và hỗ trợ phát sóng Broadcast đồng loạt tới toàn bộ thiết bị iOS trong doanh nghiệp qua FCM Topic.',
+                    isDark: isDark,
+                  ),
+                  const SizedBox(height: 10),
+                  _FeatureCard(
+                    icon: LucideIcons.userCheck,
+                    iconColor: const Color(0xFF10B981),
+                    tagText: 'TRẠNG THÁI & UI/UX',
+                    tagColor: const Color(0xFF10B981),
+                    title: 'Đồng Bộ Trạng Thái Online & Tiêu Đề Chat 1-1',
+                    description: 'Đồng bộ trạng thái trực tuyến giữa Header chat và danh sách thành viên. Chuẩn hóa tiêu đề thông báo chỉ hiển thị tên người gửi chuẩn Apple HIG.',
+                    isDark: isDark,
+                  ),
+                  const SizedBox(height: 10),
+                  _FeatureCard(
+                    icon: LucideIcons.smartphone,
+                    iconColor: const Color(0xFF0284C7),
+                    tagText: 'TỰ ĐỘNG HÓA',
+                    tagColor: const Color(0xFF0284C7),
+                    title: 'Tự Động Nạp Token & Đồng Bộ Thiết Bị',
+                    description: 'Tự động kích hoạt và đăng ký token thiết bị mỗi khi mở ứng dụng, gán chính xác danh tính người dùng và tối ưu cơ chế lưu trữ bảo mật.',
                     isDark: isDark,
                   ),
                   const SizedBox(height: 10),
                   _FeatureCard(
                     icon: LucideIcons.mic,
-                    iconColor: const Color(0xFF0284C7),
-                    tagText: 'ĐỒNG BỘ THOẠI',
-                    tagColor: const Color(0xFF0284C7),
-                    title: 'Tin Nhắn Thoại & Stream Âm Thanh',
-                    description: 'Tối ưu stream âm thanh chuẩn inline, đồng bộ hiển thị Voice Player mượt mà giữa Mobile và Web Discuss, loại bỏ trùng lặp tin nhắn.',
-                    isDark: isDark,
-                  ),
-                  const SizedBox(height: 10),
-                  _FeatureCard(
-                    icon: LucideIcons.image,
                     iconColor: const Color(0xFFEA580C),
-                    tagText: 'QUYỀN RIÊNG TƯ',
+                    tagText: 'ĐỒNG BỘ THOẠI',
                     tagColor: const Color(0xFFEA580C),
-                    title: 'Quyền Thư Viện Ảnh Toàn Diện',
-                    description: 'Cải tiến quyền truy cập ảnh và lưu ảnh trực tiếp từ tin nhắn chat vào Thư viện ảnh iOS & Android nhanh chóng, an toàn.',
-                    isDark: isDark,
-                  ),
-                  const SizedBox(height: 10),
-                  _FeatureCard(
-                    icon: LucideIcons.zap,
-                    iconColor: const Color(0xFF7C3AED),
-                    tagText: 'HIỆU NĂNG',
-                    tagColor: const Color(0xFF7C3AED),
-                    title: 'Tối Ưu Service Worker & Token Log',
-                    description: 'Dập tắt lỗi Web Push Service Worker trên trình duyệt và bổ sung hiển thị trực quan Installation ID, FCM Token phục vụ quản lý thiết bị.',
+                    title: 'Tin Nhắn Thoại & Stream Âm Thanh Mượt Mà',
+                    description: 'Tối ưu stream âm thanh chuẩn inline, đồng bộ hiển thị Voice Player mượt mà giữa Mobile và Web Discuss, loại bỏ trùng lặp tin nhắn.',
                     isDark: isDark,
                   ),
                   const SizedBox(height: 12),

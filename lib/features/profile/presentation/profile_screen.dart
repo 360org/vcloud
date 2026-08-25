@@ -69,7 +69,7 @@ class ProfileScreen extends ConsumerWidget {
                   const _CacheRow(),
                   _SettingsRow(
                     icon: LucideIcons.sparkles,
-                    label: 'Có gì mới trong v2.5.0 (Build 90)',
+                    label: 'Có gì mới trong v2.5.0 (Build 91)',
                     color: const Color(0xFF00C83A),
                     onTap: () => WhatsNewSheet.show(context),
                   ),
