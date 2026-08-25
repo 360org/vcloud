@@ -6,7 +6,8 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 
 > [!IMPORTANT]
 > **Nhánh làm việc & Bản dựng phát triển v2.5.0+91**:
-> - **Nhánh Tính Năng (`vclients`)**: `fix/app-build91-stabilization`
+> - **Nhánh Frontend (`vclients`)**: `fix/app-build91-stabilization` (Version: `2.5.0+91`)
+> - **Nhánh Backend (`v_mobile`)**: `fix/app-build91-stabilization` (Version: `17.0.2.2.1`)
 > - **Test Suite Status**: **235/235 tests PASS (100%)**, `flutter analyze` 0 issues.
 
 ### 🚀 [AUTOMATIC PUSH REGISTRATION & DEVICE SYNC] Nâng Cấp Bản Dựng Build 91 & Tự Động Nạp Token Zero-Manual
