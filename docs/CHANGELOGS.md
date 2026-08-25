@@ -2,6 +2,25 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.5.0+89] — 2026-08-25
+
+> [!IMPORTANT]
+> **Nhánh làm việc & Bản dựng phát hành v2.5.0+89 (TestFlight & App Store CI/CD)**:
+> - **Nhánh Release (`vclients`)**: `release/ios-appstore`
+> - **Nhánh Tính Năng (`vclients`)**: `fix/app-build89-stabilization`
+> - **Test Suite Status**: **235/235 tests PASS (100%)**, `flutter analyze` 0 issues.
+> - **CI/CD Pipeline**: GitHub Actions Fastlane build iOS TestFlight (IPA) & Android (APK + AAB) **HOÀN TOÀN XANH (SUCCESS)**.
+
+### 🚀 [TESTFLIGHT BUILD INCREMENT & REALTIME CHAT PUSH] Nâng Cấp Bản Dựng Build 89 & Tối Ưu Thông Báo Đẩy
+- **Tăng Số Bản Dựng Apple TestFlight (`pubspec.yaml`)**:
+  - Nâng version lên `2.5.0+89`, vượt qua yêu cầu mã hóa duy nhất của App Store Connect (khắc phục lỗi `Redundant Binary Upload (Error 90189)`).
+- **Cập Nhật What's New & Profile Screen**:
+  - Hiển thị badge `PHIÊN BẢN MỚI v2.5.0 (BUILD 89)` và modal giới thiệu tính năng thông báo đẩy APNs, đồng bộ thoại, quyền thư viện ảnh.
+- **Đồng Bộ Backend Odoo Chat Push (`v_mobile v17.0.2.2.0`)**:
+  - Tích hợp gom danh sách thành viên kênh thảo luận (`discuss.channel.member`) và kích hoạt gửi Real-Time tức thì (0.5s) qua Firebase FCM.
+
+---
+
 ## [v2.5.0+88] — 2026-08-24
 
 > [!IMPORTANT]
