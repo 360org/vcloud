@@ -147,6 +147,20 @@ class ChatV2MessageItem extends StatelessWidget {
       ],
     );
 
+    final isEmptyMessage = cleanContent.isEmpty &&
+        !hasAnyImage &&
+        !hasAudio &&
+        !hasDocs &&
+        !message.isImageFilename &&
+        !message.isDocumentFilename &&
+        !isCallMessage &&
+        message.parentId == null &&
+        message.parentBody == null;
+
+    if (isEmptyMessage) {
+      return const SizedBox.shrink();
+    }
+
     return GestureDetector(
       onLongPress: onLongPress,
       child: AnimatedContainer(

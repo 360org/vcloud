@@ -226,6 +226,19 @@ class ChatV2Message {
         clean.endsWith('.pptx') ||
         clean.endsWith('.txt') ||
         clean.endsWith('.zip') ||
+        clean.endsWith('.rar') ||
+        clean.endsWith('.7z') ||
+        clean.endsWith('.tar') ||
+        clean.endsWith('.gz') ||
+        clean.endsWith('.md') ||
+        clean.endsWith('.markdown') ||
+        clean.endsWith('.csv') ||
+        clean.endsWith('.json') ||
+        clean.endsWith('.xml') ||
+        clean.endsWith('.apk') ||
+        clean.endsWith('.ipa') ||
+        clean.endsWith('.sql') ||
+        clean.endsWith('.log') ||
         clean.startsWith('báo giá') ||
         clean.startsWith('baocao_') ||
         clean.startsWith('hopdong_');
