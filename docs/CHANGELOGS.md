@@ -27,6 +27,8 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 - **Tính Năng Phát Sóng Broadcast Toàn Bộ iOS (`scripts/push_notification_manager.py` & `push_notification_service.dart`)**:
   - Tự động đăng ký các máy iOS vào Topic `all_ios` và `all_devices` khi mở app.
   - Bổ sung phím **`[9]`** trong tool quản lý thông báo cho phép bắn broadcast đồng thời tới tất cả thiết bị iPhone/iPad (chuẩn Firebase Console Broadcast).
+- **Chuẩn Hóa Tiêu Đề Thông Báo Chat Trực Tiếp 1-1 Chuẩn Apple HIG (`v_mobile/models/mail_thread.py`)**:
+  - Tự động phát hiện hội thoại 1-1 và đặt tiêu đề thông báo là **Tên người gửi (Sender Name — VD: `Nguyễn Hoàng Khang`)**, thay vì ghép toàn bộ chuỗi tên kênh dài `Ma Nguyễn Nhật Tân, Nguyễn Hoàng Khang` gây tràn viền và che khuất thông tin trên màn hình khóa iPhone.
 
 ---
 
