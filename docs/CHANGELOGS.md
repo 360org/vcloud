@@ -10,28 +10,25 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 > - **Nhánh Backend (`v_mobile`)**: `fix/app-build91-stabilization` (Version: `17.0.2.2.1`)
 > - **Test Suite Status**: **235/235 tests PASS (100%)**, `flutter analyze` 0 issues.
 
-### 🚀 [AUTOMATIC PUSH REGISTRATION & DEVICE SYNC] Nâng Cấp Bản Dựng Build 91 & Tự Động Nạp Token Zero-Manual
-- **Nâng Cấp Phiên Bản Ứng Dụng (`pubspec.yaml`)**:
-  - Nâng version lên `2.5.0+91`, chuẩn bị cho đợt kiểm thử ổn định mới.
-- **Tự Động Đăng Ký Token Mỗi Khi Mở Màn Hình Chính (`home_screen.dart`)**:
-  - Bổ sung lời gọi tự động đồng bộ hóa FCM Device Token lên máy chủ Odoo mỗi khi màn hình Home được tải, đảm bảo thiết bị luôn được duy trì trạng thái hoạt động mà người dùng không cần thao tác thủ công.
-- **Chuẩn Hóa Tên Thiết Bị iOS (`push_notification_service.dart`)**:
-  - Đặt tên thiết bị hiển thị chuẩn là `iPhone` (hoặc `Android device`) kèm `installation_id` định danh duy nhất.
-- **Backend Odoo Tìm Kiếm & Cập Nhật Thiết Bị Thông Minh (`v_mobile/controllers/notifications.py`)**:
-  - Cải tiến hàm `register_device` tìm kiếm theo `device_token` và `installation_id`, tránh xung đột ràng buộc SQL unique constraint.
-  - Tự động gán đúng `user_id`, `partner_id`, đặt lại `active = True`, `failure_count = 0` và cập nhật `last_seen_at`.
-  - Bổ sung `request.env.cr.commit()` đảm bảo các thao tác ghi thiết bị trên endpoint `auth="none"` được commit trực tiếp và vĩnh viễn vào cơ sở dữ liệu PostgreSQL.
-- **Tối Ưu Service Worker Web Push (`push_notification_service.dart` & `web/index.html`)**:
-  - Bổ sung cờ `_isRegistering` chống race condition gọi đè khi ứng dụng khởi chạy trên Web.
-  - Tự động tiền đăng ký `firebase-messaging-sw.js` ngay khi tải trang HTML.
-- **Tính Năng Phát Sóng Broadcast Toàn Bộ iOS (`scripts/push_notification_manager.py` & `push_notification_service.dart`)**:
-  - Tự động đăng ký các máy iOS vào Topic `all_ios` và `all_devices` khi mở app.
-  - Bổ sung phím **`[9]`** trong tool quản lý thông báo cho phép bắn broadcast đồng thời tới tất cả thiết bị iPhone/iPad (chuẩn Firebase Console Broadcast).
-- **Chuẩn Hóa Tiêu Đề Thông Báo Chat Trực Tiếp 1-1 Chuẩn Apple HIG (`v_mobile/models/mail_thread.py`)**:
-  - Tự động phát hiện hội thoại 1-1 và đặt tiêu đề thông báo là **Tên người gửi (Sender Name — VD: `Nguyễn Hoàng Khang`)**, thay vì ghép toàn bộ chuỗi tên kênh dài `Ma Nguyễn Nhật Tân, Nguyễn Hoàng Khang` gây tràn viền và che khuất thông tin trên màn hình khóa iPhone.
-- **Đồng Bộ Trạng Thái Trực Tuyến Live Chuẩn Xác Giữa Header Chat 1-1 & Danh Sách Thành Viên (`chat_v2_detail_screen.dart`, `chat_v2_channels_controller.dart`, `chat_v2_presence_controller.dart`)**:
-  - Khắc phục triệt để hiện tượng lệch trạng thái khi danh sách thành viên (Ảnh 3) hiển thị `Đang trực tuyến` (🟢) nhưng tiêu đề header cuộc trò chuyện (Ảnh 1) lại báo `Ngoại tuyến`.
-  - Tự động fetch và cập nhật trạng thái `imStatus` của đối phương khi mở phòng chat, nạp vào `chatV2PresenceProvider` và hiển thị đồng bộ `🟢 Đang trực tuyến` trên toàn bộ các màn hình.
+### 🌟 [TÍNH NĂNG MỚI]
+- **Phát Sóng Broadcast Toàn Bộ Thiết Bị iOS Qua Topic (`scripts/push_notification_manager.py` & `push_notification_service.dart`)**:
+  - Hỗ trợ tính năng phát sóng thông báo đồng loạt tới tất cả iPhone/iPad qua Topic `all_ios` và `all_devices` (chuẩn Firebase Console Broadcast).
+  - Tự động đăng ký thiết bị vào Topic tương ứng ngay khi khởi động ứng dụng.
+- **Tự Động Đăng Ký Token FCM & Đồng Bộ Danh Tính Người Dùng (`home_screen.dart` & `v_mobile/controllers/notifications.py`)**:
+  - Tự động kích hoạt cơ chế đăng ký và đồng bộ Token thiết bị lên máy chủ Odoo mỗi khi người dùng truy cập màn hình chính, không cần thao tác thủ công.
+  - Tự động liên kết chính xác `user_id` và `partner_id` tương ứng với tài khoản đăng nhập hiện tại.
+
+### 🛠️ [SỬA LỖI & TỐI ƯU HÓA GIAO DIỆN / TRẢI NGHIỆM]
+- **Đồng Bộ Trạng Thái Trực Tuyến Live Chuẩn Xác Giữa Header Chat 1-1 & Danh Sách Thành Viên (`chat_v2_detail_screen.dart`, `chat_v2_presence_controller.dart`)**:
+  - Khắc phục lỗi lệch trạng thái: Đồng bộ hiển thị `🟢 Đang trực tuyến` trên Header cuộc trò chuyện 1-1 khớp 100% với trạng thái trong danh sách thành viên nhóm và Web Odoo.
+  - Tự động nạp dữ liệu thành viên và cập nhật presence live ngay khi mở phòng chat.
+- **Chuẩn Hóa Tiêu Đề Thông Báo Đẩy Chat Trực Tiếp 1-1 Chuẩn Apple HIG (`v_mobile/models/mail_thread.py`)**:
+  - Khắc phục lỗi tiêu đề dài dòng: Hiển thị duy nhất **Tên người gửi (VD: `Nguyễn Hoàng Khang`)** thay vì ghép tên 2 người `Ma Nguyễn Nhật Tân, Nguyễn Hoàng Khang` gây tràn viền và cắt chữ trên màn hình khóa iPhone.
+- **Tối Ưu Giao Dịch Ghi Thiết Bị & Khắc Phục Lỗi Ghi Đè Token (`v_mobile/controllers/notifications.py`)**:
+  - Bổ sung `request.env.cr.commit()` đảm bảo việc lưu trữ thiết bị trên endpoint `auth="none"` được ghi nhận vĩnh viễn vào PostgreSQL.
+  - Tìm kiếm và cập nhật thiết bị thông minh theo `device_token` và `installation_id`, tránh xung đột khóa ràng buộc cơ sở dữ liệu.
+- **Tối Ưu Service Worker Web Push Chống Trùng Lặp Khởi Tạo (`push_notification_service.dart`)**:
+  - Bổ sung cờ `_isRegistering` chống race condition gọi đè khi ứng dụng khởi chạy trên trình duyệt Web.
 
 ---
 
