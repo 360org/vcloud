@@ -2,6 +2,26 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.5.0+93] — 2026-08-26
+
+> [!IMPORTANT]
+> **Nhánh làm việc & Bản dựng phát triển v2.5.0+93 (Build 93)**:
+> - **Nhánh Frontend (`vclients`)**: `fix/app-build93-stabilization` (Version: `2.5.0+93`)
+> - **Nhánh Backend (`v_mobile`)**: `fix/app-build93-stabilization` (Version: `17.0.2.2.3`)
+> - **Test Suite Status**: **235/235 tests PASS (100%)**, `flutter analyze` 0 issues.
+
+### 🧭 [QUY TRÌNH & HỆ THỐNG]
+- **Ban Hành Quy Chuẩn Quản Trị Git & CI/CD (`docs/RULE_GIT.md`)**:
+  - Chuyển toàn bộ GitHub Actions CI/CD (TestFlight) sang kích hoạt độc quyền khi merge vào nhánh `main`.
+  - Loại bỏ hoàn toàn action trên nhánh `release/ios-appstore` và trigger theo Tag để tránh build tự động ngoài ý muốn.
+  - Thiết lập quy trình làm việc chuẩn hóa theo số Build tịnh tiến (+1): hoàn thành Build 92 ➔ mở nhánh `fix/app-build93-stabilization`.
+  - Áp dụng nguyên tắc xóa sạch nhánh rác sau khi merge, giữ giao diện GitHub chỉ hiển thị duy nhất nhánh `main`.
+  - Ban hành chính sách chống lạm phát version trong changelog (giữ vững version hiện tại trong suốt chu kỳ phát triển của branch).
+
+---
+
+
+
 ## [v2.5.0+92] — 2026-08-25
 
 > [!IMPORTANT]
@@ -25,7 +45,10 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 - **Cơ Chế Cấp Phát Token Truy Cập An Toàn & Fallback Session Cookie Cho Backend Odoo (`v_mobile/controllers/attachments.py`)**:
   - Tự động sinh `access_token` ngẫu nhiên nếu bản ghi `ir.attachment` chưa có token bảo mật khi người dùng truy vấn metadata hoặc tải file.
   - Bổ sung kiểm tra fallback qua `request.session.uid` cho các phiên đăng nhập trực tiếp trên trình duyệt Odoo Web.
-  - Đảm bảo 100% người dùng nội bộ (`base.group_user`) và người tham gia phòng chat đều có quyền tải tài liệu mượt mà.
+- **Cập Nhật Quy Chuẩn Git & GitHub Actions CI/CD Theo RULE_GIT.md (`.github/workflows/deploy.yml`, `docs/RULE_GIT.md`)**:
+  - Chuyển toàn bộ trigger tự động của GitHub Actions sang chạy độc quyền khi push/merge vào nhánh **`main`**.
+  - Bỏ trigger tự động trên `release/ios-appstore`, bỏ trigger tự động trên `tags: - "v*"` để chống build tự động ngoài ý muốn.
+  - Ban hành quy chuẩn `RULE_GIT.md`: Cấm push trực tiếp vào `main` và `17.0`, quy tắc xóa nhánh sau merge, đặt tên nhánh theo build `+1`, và chính sách chống lạm phát version trong changelog.
 
 ---
 
