@@ -429,6 +429,18 @@ class ChatV2ChannelsNotifier
       try {
         final fresh = await repo.getChannels(limit: 80);
         if (isDisposed) return;
+        if (fresh.isNotEmpty) {
+          final presenceNotifier = ref.read(chatV2PresenceProvider.notifier);
+          for (final f in fresh) {
+            final pId = f.partnerId ?? f.directPartnerId;
+            if (pId != null && pId.isNotEmpty && f.imStatus.isNotEmpty) {
+              presenceNotifier.updatePresence(pId, f.imStatus);
+            }
+            if (f.members.isNotEmpty) {
+              presenceNotifier.updateMembersPresence(f.members);
+            }
+          }
+        }
         final current = state.valueOrNull ?? ChatV2ChannelLocalCache.cached;
         if (fresh.isNotEmpty && hasChannelsChanged(current, fresh)) {
           // Hiển thị in-app banner khi phát hiện có tin nhắn mới gửi đến

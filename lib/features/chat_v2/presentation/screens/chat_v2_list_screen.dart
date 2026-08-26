@@ -14,6 +14,7 @@ import '../../../../shared/widgets/whats_new_sheet.dart';
 import '../../../auth/application/auth_controller.dart';
 import '../../application/chat_v2_channels_controller.dart';
 import '../../application/chat_v2_messages_controller.dart';
+import '../../application/chat_v2_presence_controller.dart';
 import '../../application/chat_v2_read_state_controller.dart';
 import '../../data/models/chat_v2_channel.dart';
 
@@ -1229,7 +1230,12 @@ class _ChannelListItem extends ConsumerWidget {
                         ),
                       ),
                     )
-                  else if (channel.imStatus == 'online')
+                  else if (channel.imStatus == 'online' ||
+                      channel.directPartnerStatus == 'online' ||
+                      (channel.partnerId != null &&
+                          ref.watch(chatV2PresenceProvider.select((m) => m[channel.partnerId])) == 'online') ||
+                      (channel.directPartnerId != null &&
+                          ref.watch(chatV2PresenceProvider.select((m) => m[channel.directPartnerId])) == 'online'))
                     Positioned(
                       right: 0,
                       bottom: 0,
@@ -1237,7 +1243,7 @@ class _ChannelListItem extends ConsumerWidget {
                         width: 14,
                         height: 14,
                         decoration: BoxDecoration(
-                          color: const Color(0xFF10B981),
+                          color: const Color(0xFF22C55E),
                           shape: BoxShape.circle,
                           border: Border.all(
                             color: isDark ? const Color(0xFF1E293B) : Colors.white,
