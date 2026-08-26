@@ -336,7 +336,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                   Padding(
                     padding: const EdgeInsets.only(bottom: 20),
                     child: Text(
-                      'WORLD360 CORP • v2.5.0',
+                      '360 CORP • v2.5.0',
                       style: TextStyle(
                         color: footerTextColor,
                         fontSize: 10.5,
