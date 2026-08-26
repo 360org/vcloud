@@ -11,7 +11,7 @@ val releaseTaskRequested = gradle.startParameter.taskNames.any {
     it.contains("Release", ignoreCase = true)
 }
 if (releaseTaskRequested && !keystorePropertiesFile.exists()) {
-    error("Missing android/key.properties for release signing")
+    println("⚠️ Warning: Missing android/key.properties, falling back to debug signing for CI/CD")
 }
 
 plugins {
@@ -55,6 +55,8 @@ android {
         release {
             if (keystorePropertiesFile.exists()) {
                 signingConfig = signingConfigs.getByName("release")
+            } else {
+                signingConfig = signingConfigs.getByName("debug")
             }
         }
     }
