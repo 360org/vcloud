@@ -278,16 +278,95 @@ class ChatV2ChannelLocalCache {
               contentLower.endsWith('.mp3') ||
               contentLower.endsWith('.m4a') ||
               contentLower.endsWith('.wav') ||
+              contentLower.endsWith('.aac') ||
+              contentLower.endsWith('.ogg') ||
+              contentLower.endsWith('.opus') ||
+              contentLower.endsWith('.flac') ||
+              contentLower.endsWith('.amr') ||
               contentLower.startsWith('voice_') ||
               contentLower.contains('voice_') ||
+              contentLower.contains('audio_') ||
               contentLower == '[ghi âm]' ||
               contentLower == 'ghi âm';
+          final isImage = contentLower.endsWith('.png') ||
+              contentLower.endsWith('.jpg') ||
+              contentLower.endsWith('.jpeg') ||
+              contentLower.endsWith('.gif') ||
+              contentLower.endsWith('.webp') ||
+              contentLower.endsWith('.svg') ||
+              contentLower.endsWith('.bmp') ||
+              contentLower.endsWith('.ico') ||
+              contentLower.endsWith('.heic') ||
+              contentLower.endsWith('.heif') ||
+              contentLower.startsWith('scaled_') ||
+              contentLower.startsWith('image_picker_') ||
+              contentLower == '[hình ảnh]' ||
+              contentLower == 'hình ảnh';
+          final isDoc = contentLower.endsWith('.docx') ||
+              contentLower.endsWith('.pdf') ||
+              contentLower.endsWith('.xlsx') ||
+              contentLower.endsWith('.xls') ||
+              contentLower.endsWith('.doc') ||
+              contentLower.endsWith('.zip') ||
+              contentLower.endsWith('.txt') ||
+              contentLower.endsWith('.md') ||
+              contentLower.endsWith('.markdown') ||
+              contentLower.endsWith('.csv') ||
+              contentLower.endsWith('.json') ||
+              contentLower.endsWith('.xml') ||
+              contentLower.endsWith('.rar') ||
+              contentLower.endsWith('.7z') ||
+              contentLower.endsWith('.tar') ||
+              contentLower.endsWith('.gz') ||
+              contentLower.endsWith('.apk') ||
+              contentLower.endsWith('.ipa') ||
+              contentLower.endsWith('.sql') ||
+              contentLower.endsWith('.log') ||
+              contentLower.endsWith('.pptx') ||
+              contentLower.endsWith('.ppt') ||
+              contentLower == '[tập tin]' ||
+              contentLower == 'tệp tin' ||
+              contentLower == '[tài liệu]' ||
+              contentLower == 'tài liệu';
           if (cachedFirst.content.isNotEmpty) {
-            cachedContent = isVoice ? '[Ghi âm]' : cachedFirst.content;
+            if (isVoice) {
+              cachedContent = '[Ghi âm]';
+            } else if (isImage) {
+              cachedContent = '[Hình ảnh]';
+            } else if (isDoc) {
+              cachedContent = '[Tập tin]';
+            } else {
+              cachedContent = cachedFirst.content;
+            }
           } else if (cachedFirst.attachments.isNotEmpty) {
             final att = cachedFirst.attachments.first;
-            final isAudioAtt = att.isAudio || (att.mimetype != null && att.mimetype!.startsWith('audio/'));
-            cachedContent = isAudioAtt ? '[Ghi âm]' : '[Hình ảnh]';
+            final attNameLower = att.name.toLowerCase().trim();
+            final isAudioAtt = att.isAudio ||
+                (att.mimetype != null && att.mimetype!.startsWith('audio/')) ||
+                attNameLower.endsWith('.webm') ||
+                attNameLower.endsWith('.mp3') ||
+                attNameLower.endsWith('.m4a') ||
+                attNameLower.endsWith('.wav') ||
+                attNameLower.endsWith('.aac') ||
+                attNameLower.endsWith('.ogg') ||
+                attNameLower.endsWith('.opus') ||
+                attNameLower.startsWith('voice_');
+            final isImageAtt = att.isImage ||
+                (att.mimetype != null && att.mimetype!.startsWith('image/')) ||
+                attNameLower.endsWith('.png') ||
+                attNameLower.endsWith('.jpg') ||
+                attNameLower.endsWith('.jpeg') ||
+                attNameLower.endsWith('.gif') ||
+                attNameLower.endsWith('.webp') ||
+                attNameLower.endsWith('.svg') ||
+                attNameLower.endsWith('.bmp') ||
+                attNameLower.endsWith('.ico') ||
+                attNameLower.endsWith('.heic') ||
+                attNameLower.startsWith('scaled_') ||
+                attNameLower.startsWith('image_picker_');
+            cachedContent = isAudioAtt
+                ? '[Ghi âm]'
+                : (isImageAtt ? '[Hình ảnh]' : '[Tập tin]');
           }
         }
         map[c.id] = c.copyWith(
@@ -429,6 +508,18 @@ class ChatV2ChannelsNotifier
       try {
         final fresh = await repo.getChannels(limit: 80);
         if (isDisposed) return;
+        if (fresh.isNotEmpty) {
+          final presenceNotifier = ref.read(chatV2PresenceProvider.notifier);
+          for (final f in fresh) {
+            final pId = f.partnerId ?? f.directPartnerId;
+            if (pId != null && pId.isNotEmpty && f.imStatus.isNotEmpty) {
+              presenceNotifier.updatePresence(pId, f.imStatus);
+            }
+            if (f.members.isNotEmpty) {
+              presenceNotifier.updateMembersPresence(f.members);
+            }
+          }
+        }
         final current = state.valueOrNull ?? ChatV2ChannelLocalCache.cached;
         if (fresh.isNotEmpty && hasChannelsChanged(current, fresh)) {
           // Hiển thị in-app banner khi phát hiện có tin nhắn mới gửi đến

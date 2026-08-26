@@ -171,6 +171,17 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
     );
     final file = result?.files.single;
     if (file == null || file.bytes == null) return null;
+    if (file.size > maxAttachmentBytes) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Tệp tin vượt quá dung lượng cho phép (tối đa 25 MB).'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return null;
+    }
     return _TicketAttachmentDraft(
       name: file.name,
       bytes: file.bytes!,

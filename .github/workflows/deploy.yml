@@ -3,11 +3,7 @@ name: Mobile CI/CD (Fastlane + Webhooks)
 on:
   push:
     branches:
-      - "release/*"
-      - release/ios-appstore
-      - release/android-playstore
-    tags:
-      - "v*"
+      - main
   workflow_dispatch:
     inputs:
       target:

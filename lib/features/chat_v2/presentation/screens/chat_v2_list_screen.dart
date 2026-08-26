@@ -14,8 +14,10 @@ import '../../../../shared/widgets/whats_new_sheet.dart';
 import '../../../auth/application/auth_controller.dart';
 import '../../application/chat_v2_channels_controller.dart';
 import '../../application/chat_v2_messages_controller.dart';
+import '../../application/chat_v2_presence_controller.dart';
 import '../../application/chat_v2_read_state_controller.dart';
 import '../../data/models/chat_v2_channel.dart';
+import '../../data/models/chat_v2_message.dart';
 
 class ChatV2ListScreen extends ConsumerStatefulWidget {
   const ChatV2ListScreen({super.key, this.initialFilter});
@@ -1061,7 +1063,9 @@ class _ChannelListItem extends ConsumerWidget {
         : (cachedMsgs != null && cachedMsgs.isNotEmpty
             ? (cachedMsgs.first.content.isNotEmpty
                 ? cachedMsgs.first.content
-                : (cachedMsgs.first.attachments.isNotEmpty ? '[Hình ảnh]' : null))
+                : (cachedMsgs.first.attachments.isNotEmpty
+                    ? _getAttachmentFallbackText(cachedMsgs.first.attachments.first)
+                    : null))
             : null);
 
     // Ưu tiên thời gian của tin nhắn thực tế từ cache nếu có
@@ -1229,7 +1233,12 @@ class _ChannelListItem extends ConsumerWidget {
                         ),
                       ),
                     )
-                  else if (channel.imStatus == 'online')
+                  else if (channel.imStatus == 'online' ||
+                      channel.directPartnerStatus == 'online' ||
+                      (channel.partnerId != null &&
+                          ref.watch(chatV2PresenceProvider.select((m) => m[channel.partnerId])) == 'online') ||
+                      (channel.directPartnerId != null &&
+                          ref.watch(chatV2PresenceProvider.select((m) => m[channel.directPartnerId])) == 'online'))
                     Positioned(
                       right: 0,
                       bottom: 0,
@@ -1237,7 +1246,7 @@ class _ChannelListItem extends ConsumerWidget {
                         width: 14,
                         height: 14,
                         decoration: BoxDecoration(
-                          color: const Color(0xFF10B981),
+                          color: const Color(0xFF22C55E),
                           shape: BoxShape.circle,
                           border: Border.all(
                             color: isDark ? const Color(0xFF1E293B) : Colors.white,
@@ -1369,6 +1378,43 @@ class _ChannelListItem extends ConsumerWidget {
   );
 }
 
+  String _getAttachmentFallbackText(ChatV2Attachment att) {
+    final lower = att.name.toLowerCase().trim();
+    final isAudio = att.isAudio ||
+        (att.mimetype?.startsWith('audio/') ?? false) ||
+        lower.endsWith('.webm') ||
+        lower.endsWith('.mp3') ||
+        lower.endsWith('.m4a') ||
+        lower.endsWith('.wav') ||
+        lower.endsWith('.aac') ||
+        lower.endsWith('.ogg') ||
+        lower.endsWith('.opus') ||
+        lower.endsWith('.flac') ||
+        lower.endsWith('.amr') ||
+        lower.startsWith('voice_');
+    if (isAudio) return '[Ghi âm]';
+
+    final isImg = att.isImage ||
+        (att.mimetype?.startsWith('image/') ?? false) ||
+        lower.endsWith('.png') ||
+        lower.endsWith('.jpg') ||
+        lower.endsWith('.jpeg') ||
+        lower.endsWith('.gif') ||
+        lower.endsWith('.webp') ||
+        lower.endsWith('.svg') ||
+        lower.endsWith('.bmp') ||
+        lower.endsWith('.ico') ||
+        lower.endsWith('.heic') ||
+        lower.endsWith('.heif') ||
+        lower.endsWith('.tiff') ||
+        lower.endsWith('.tif') ||
+        lower.startsWith('scaled_') ||
+        lower.startsWith('image_picker_');
+    if (isImg) return '[Hình ảnh]';
+
+    return '[Tập tin]';
+  }
+
   Widget _buildLastMessageSnippet(
       WidgetRef ref, bool isDark, bool hasUnread, String cleanName) {
     final cachedMsgs = ChatV2MessageLocalCache.get(channel.id);
@@ -1377,7 +1423,9 @@ class _ChannelListItem extends ConsumerWidget {
         : (cachedMsgs != null && cachedMsgs.isNotEmpty
             ? (cachedMsgs.first.content.isNotEmpty
                 ? cachedMsgs.first.content
-                : (cachedMsgs.first.attachments.isNotEmpty ? '[Hình ảnh]' : null))
+                : (cachedMsgs.first.attachments.isNotEmpty
+                    ? _getAttachmentFallbackText(cachedMsgs.first.attachments.first)
+                    : null))
             : null);
 
     if (effectiveLastMsg == null || effectiveLastMsg.isEmpty) {
@@ -1446,6 +1494,8 @@ class _ChannelListItem extends ConsumerWidget {
         lower.endsWith('.ico') ||
         lower.endsWith('.heic') ||
         lower.endsWith('.heif') ||
+        lower.endsWith('.tiff') ||
+        lower.endsWith('.tif') ||
         lower.startsWith('scaled_') ||
         lower.startsWith('image_picker_') ||
         lower == 'hình ảnh' ||
@@ -1458,6 +1508,9 @@ class _ChannelListItem extends ConsumerWidget {
         lower.endsWith('.wav') ||
         lower.endsWith('.aac') ||
         lower.endsWith('.ogg') ||
+        lower.endsWith('.opus') ||
+        lower.endsWith('.flac') ||
+        lower.endsWith('.amr') ||
         lower.startsWith('voice_') ||
         lower.contains('voice_') ||
         lower.contains('audio_') ||
@@ -1473,6 +1526,29 @@ class _ChannelListItem extends ConsumerWidget {
         lower.endsWith('.doc') ||
         lower.endsWith('.zip') ||
         lower.endsWith('.txt') ||
+        lower.endsWith('.md') ||
+        lower.endsWith('.markdown') ||
+        lower.endsWith('.csv') ||
+        lower.endsWith('.json') ||
+        lower.endsWith('.xml') ||
+        lower.endsWith('.rar') ||
+        lower.endsWith('.7z') ||
+        lower.endsWith('.tar') ||
+        lower.endsWith('.gz') ||
+        lower.endsWith('.apk') ||
+        lower.endsWith('.ipa') ||
+        lower.endsWith('.sql') ||
+        lower.endsWith('.log') ||
+        lower.endsWith('.pptx') ||
+        lower.endsWith('.ppt') ||
+        lower.endsWith('.rtf') ||
+        lower.endsWith('.odt') ||
+        lower.endsWith('.ods') ||
+        lower.endsWith('.odp') ||
+        lower == 'tệp tin' ||
+        lower == '[tệp tin]' ||
+        lower == 'tài liệu' ||
+        lower == '[tài liệu]' ||
         lower.contains('tệp tin') ||
         lower.contains('tài liệu');
 

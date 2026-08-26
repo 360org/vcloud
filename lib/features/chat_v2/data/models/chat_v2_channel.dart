@@ -488,8 +488,12 @@ class ChatV2Channel {
         lower.endsWith('.ico') ||
         lower.endsWith('.heic') ||
         lower.endsWith('.heif') ||
+        lower.endsWith('.tiff') ||
+        lower.endsWith('.tif') ||
         lower.startsWith('scaled_') ||
-        lower.startsWith('image_picker_');
+        lower.startsWith('image_picker_') ||
+        lower == 'hình ảnh' ||
+        lower == '[hình ảnh]';
     if (isImg) {
       return '[Hình ảnh]';
     }
@@ -499,6 +503,9 @@ class ChatV2Channel {
         lower.endsWith('.wav') ||
         lower.endsWith('.aac') ||
         lower.endsWith('.ogg') ||
+        lower.endsWith('.opus') ||
+        lower.endsWith('.flac') ||
+        lower.endsWith('.amr') ||
         lower.startsWith('voice_') ||
         lower.contains('voice_') ||
         lower.contains('audio_') ||
@@ -515,7 +522,30 @@ class ChatV2Channel {
         lower.endsWith('.xls') ||
         lower.endsWith('.doc') ||
         lower.endsWith('.zip') ||
-        lower.endsWith('.txt');
+        lower.endsWith('.txt') ||
+        lower.endsWith('.md') ||
+        lower.endsWith('.markdown') ||
+        lower.endsWith('.csv') ||
+        lower.endsWith('.json') ||
+        lower.endsWith('.xml') ||
+        lower.endsWith('.rar') ||
+        lower.endsWith('.7z') ||
+        lower.endsWith('.tar') ||
+        lower.endsWith('.gz') ||
+        lower.endsWith('.apk') ||
+        lower.endsWith('.ipa') ||
+        lower.endsWith('.sql') ||
+        lower.endsWith('.log') ||
+        lower.endsWith('.pptx') ||
+        lower.endsWith('.ppt') ||
+        lower.endsWith('.rtf') ||
+        lower.endsWith('.odt') ||
+        lower.endsWith('.ods') ||
+        lower.endsWith('.odp') ||
+        lower == 'tệp tin' ||
+        lower == '[tệp tin]' ||
+        lower == 'tài liệu' ||
+        lower == '[tài liệu]';
     if (isDoc && !cleaned.startsWith('[Tập tin]') && !cleaned.startsWith('[Tài liệu]')) {
       return '[Tập tin]';
     }

@@ -357,6 +357,122 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
     await widget.onSend(text);
   }
 
+  static const int maxDocumentSizeBytes = 25 * 1024 * 1024; // 25 MB
+  static const int maxImageSizeBytes = 10 * 1024 * 1024; // 10 MB
+
+  void _showFileSizeExceededDialog({
+    required BuildContext context,
+    required String filename,
+    required int fileSizeBytes,
+    required int maxSizeBytes,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sizeFormatted = (fileSizeBytes / (1024 * 1024)).toStringAsFixed(1);
+    final maxFormatted = (maxSizeBytes / (1024 * 1024)).toInt();
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  LucideIcons.alertTriangle,
+                  color: Color(0xFFEF4444),
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Dung lượng tệp quá lớn',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Tệp "$filename" ($sizeFormatted MB) đã vượt quá giới hạn dung lượng tối đa ($maxFormatted MB) của hệ thống.',
+                style: TextStyle(
+                  fontSize: 14,
+                  height: 1.45,
+                  color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? const Color(0xFF0F172A)
+                      : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: isDark ? Colors.white10 : const Color(0xFFE2E8F0),
+                  ),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      LucideIcons.lightbulb,
+                      size: 16,
+                      color: Color(0xFFF59E0B),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Gợi ý: Vui lòng nén nhỏ tệp tin hoặc tải lên Google Drive / OneDrive rồi dán liên kết vào cuộc trò chuyện.',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          color: isDark ? Colors.white70 : const Color(0xFF64748B),
+                          height: 1.35,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              style: TextButton.styleFrom(
+                backgroundColor: const Color(0xFF2563EB),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              ),
+              child: const Text(
+                'Đã hiểu',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _handlePickImage(ImageSource source) async {
     if (widget.isSending || _isUploading) return;
 
@@ -369,6 +485,19 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
       );
 
       if (file == null) return;
+
+      final sizeInBytes = await file.length();
+      if (sizeInBytes > maxImageSizeBytes) {
+        if (mounted) {
+          _showFileSizeExceededDialog(
+            context: context,
+            filename: file.name.isNotEmpty ? file.name : 'image.jpg',
+            fileSizeBytes: sizeInBytes,
+            maxSizeBytes: maxImageSizeBytes,
+          );
+        }
+        return;
+      }
 
       final bytes = await file.readAsBytes();
       final filename = file.name.isNotEmpty
@@ -403,6 +532,20 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
       if (result == null || result.files.isEmpty) return;
 
       final file = result.files.first;
+      final sizeInBytes = file.size;
+
+      if (sizeInBytes > maxDocumentSizeBytes) {
+        if (mounted) {
+          _showFileSizeExceededDialog(
+            context: context,
+            filename: file.name,
+            fileSizeBytes: sizeInBytes,
+            maxSizeBytes: maxDocumentSizeBytes,
+          );
+        }
+        return;
+      }
+
       final bytes = file.bytes;
       if (bytes == null) {
         if (mounted) {

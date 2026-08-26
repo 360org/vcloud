@@ -36,7 +36,17 @@ export PATH="$PATH:$HOME/flutter/bin:/usr/local/bin"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MOBILE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 BACKEND_DIR="$MOBILE_ROOT/v_mobile"
-LOCAL_DEV_DIR="${LOCAL_DEV_DIR:-}"
+
+# Tự động nhận diện thư mục Odoo local dev_env nếu chưa được chỉ định
+if [[ -z "${LOCAL_DEV_DIR:-}" ]]; then
+    if [[ -d "$MOBILE_ROOT/../dev_env/17.0" ]]; then
+        LOCAL_DEV_DIR="$(cd "$MOBILE_ROOT/../dev_env/17.0" && pwd)"
+    elif [[ -d "/media/tanma/DATA/save/dev_env/17.0" ]]; then
+        LOCAL_DEV_DIR="/media/tanma/DATA/save/dev_env/17.0"
+    else
+        LOCAL_DEV_DIR=""
+    fi
+fi
 
 cd "$SCRIPT_DIR"
 

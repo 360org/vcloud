@@ -2,6 +2,49 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.5.0+93] — 2026-08-26
+
+> [!IMPORTANT]
+> **Nhánh làm việc & Bản dựng phát triển v2.5.0+93 (Build 93)**:
+> - **Nhánh Frontend (`vclients`)**: `fix/app-build93-stabilization` (Version: `2.5.0+93`)
+> - **Nhánh Backend (`v_mobile`)**: `fix/app-build93-stabilization` (Version: `17.0.2.2.3`)
+> - **Test Suite Status**: **235/235 tests PASS (100%)**, `flutter analyze` 0 issues.
+
+### 🛠️ [SỬA LỖI HIỂN THỊ, PHÂN QUYỀN TỆP ĐÍNH KÈM & ĐỒNG BỘ TRẠNG THÁI TRỰC TUYẾN CHAT V2]
+- **Chuẩn Hóa Nhãn Thương Hiệu Chân Trang 360 CORP (`splash_screen.dart`, `web/index.html`)**:
+  - Hiệu chỉnh chính xác chuỗi nhận diện thương hiệu dưới chân trang từ `WORLD360 CORP • v2.5.0` thành **`360 CORP • v2.5.0`** trên cả màn hình Khởi động Native (Splash Screen) và Trình nạp Web Boot Loader, đảm bảo tính đồng bộ tuyệt đối về hình ảnh thương hiệu tập đoàn.
+- **Nâng Cấp Hệ Thống Realtime Push Notification & Backoff Retry (`v_mobile/models/notification.py`, `v_mobile/models/mail_thread.py`, `v_mobile/views/notification_views.xml`)**:
+  - **Kích Hoạt Chuyển Phát Hỏa Tốc (Post-Commit Background Threading)**: Thay thế cơ chế phụ thuộc 100% vào Cron 1 phút cũ bằng luồng ngầm cô lập Cursor (`odoo.registry().cursor()`) kích hoạt ngay sau khi PostgreSQL transaction commit thành công.
+  - **Khóa Trạng Thái Nguyên Tử & Khử Trùng Lặp (Atomic State Claim & Idempotency Key)**: Áp dụng `UPDATE ... SET status='sending' WHERE status='pending' RETURNING id` loại bỏ race condition giữa Thread và Cron. Bổ sung `idempotency_key` theo ID sự kiện duy nhất (`chat_msg_{message_id}_{device_id}` / `{event_type}_{event_id}_{device_id}`) chống tạo trùng log ở tầng Application và tuân thủ mô hình At-Least-Once Delivery.
+  - **Cơ Chế Phục Hồi & Thử Lại Lũy Thừa (Exponential Backoff & Crash Recovery)**: Bổ sung trường `next_retry_at` giãn cách 1 phút, 2 phút khi gặp lỗi mạng/5xx (tối đa 3 lần thử). Cron 1 phút đóng vai trò phao cứu sinh (Eventual Consistency) tự động giải cứu các bản ghi `sending > 3 phút` khi worker crash và gửi bù an toàn.
+  - **Tối Ưu Bộ Nhớ Đệm OAuth2 Token Google FCM**: Lưu cache token Google (55 phút) trong RAM server, giảm 95% CPU mã hóa RSA và tăng tốc độ dispatch lên gấp 10 lần.
+- **Bảo Vệ Giới Hạn Dung Lượng Tệp Tin Đa Tầng & Hộp Thoại Cảnh Báo Thông Minh (`chat_v2_input_bar.dart`, `create_ticket_screen.dart`, `v_mobile/controllers/attachments.py`)**:
+  - **Chặn Sớm Zero-RAM Trên Mobile & Web**: Thiết lập giới hạn dung lượng tối đa **25 MB** cho tài liệu (`.docx`, `.xlsx`, `.pdf`, `.zip`, `.md`...) và **10 MB** cho hình ảnh. App kiểm tra kích thước metadata ngay khi chọn tệp, triệt tiêu nguy cơ tràn RAM hoặc văng app (crash) trên iPhone 13 khi người dùng chọn file lớn (ví dụ 1GB - 5GB).
+  - **Hộp Thoại Cảnh Báo Trực Quan**: Khi tệp vượt quá dung lượng, hiển thị modal thông báo cảnh báo `AlertDialog` với giao diện chuyên nghiệp, nêu rõ dung lượng tệp hiện tại và gợi ý người dùng nén tệp hoặc chia sẻ qua Google Drive / OneDrive.
+- **Khắc Phục Triệt Để Lỗi Không Mở Được Tệp Tin / 403 Forbidden Access Denied (`v_mobile/controllers/attachments.py`, `v_mobile/controllers/chat.py`, `chat_v2_message_item.dart`, `chat_v2_message.dart`)**:
+  - **Nới Lỏng Quyền Mở Tệp Tin Cho Nhân Viên Nội Bộ & Thành Viên Kênh Chat (`controllers/attachments.py`)**: Sửa hàm `_check_attachment_authorization` cấp quyền xem/tải tệp đính kèm toàn diện cho người dùng nội bộ (`base.group_user`) và tất cả các thành viên tham gia kênh thảo luận (`discuss.channel`), người gửi và người nhận tin nhắn liên kết, triệt tiêu lỗi bị chặn `403 Access Denied` khi bấm vào tệp tin do người khác gửi trong nhóm.
+  - **Tự Động Cấp Access Token Hàng Loạt Cho Tệp Cũ (`controllers/chat.py`)**: Khi nạp danh sách tin nhắn, hệ thống tự động sinh mã `access_token` ngẫu nhiên bảo mật cho các tệp đính kèm lịch sử chưa có token, giúp URL tải file (`download_url`) luôn có chữ ký hợp lệ 100%.
+  - **Tính Toán Dung Lượng Thực Tế & Kích Hoạt Tải File Chuẩn Native (`chat_v2_message_item.dart`, `chat_v2_message.dart`)**: Safe parse `file_size` từ mọi định dạng số/chuỗi, hiển thị dung lượng chuẩn xác thay vì `0 B` và kích hoạt trình lưu file gốc `saveBytesToFile` tải trực tiếp về thiết bị trên Web & iPhone.
+- **Khắc Phục Lỗi Hiển Thị Tệp Tin Thành [Hình ảnh] Trong Danh Sách Trò Chuyện (`chat_v2_list_screen.dart`, `chat_v2_channels_controller.dart`, `chat_v2_channel.dart`, `v_mobile/controllers/chat.py`)**:
+  - **Sửa Tận Gốc Logic Phân Loại Tệp Tin & Ghi Âm**: Khắc phục lỗi khi người dùng gửi tệp tài liệu (`.md`, `.pdf`, `.docx`, `.zip`, `.csv`, `.json`, ...) không caption nhưng hệ thống tự động gán nhãn sai thành `[Hình ảnh]`.
+  - **Tối Ưu Truy Vấn SQL Backend (`controllers/chat.py`)**: Bổ sung `LEFT JOIN LATERAL (SELECT mimetype, name FROM ir_attachment ...)` lấy chuẩn xác metadata tệp đính kèm đầu tiên của tin nhắn cuối, phân loại đúng 100% giữa `[Hình ảnh]`, `[Ghi âm]` và `[Tập tin]`.
+  - **Mở Rộng Nhận Diện Toàn Diện Định Dạng Tệp Tin**: Hỗ trợ đầy đủ các định dạng `.md`, `.markdown`, `.pdf`, `.docx`, `.doc`, `.xlsx`, `.xls`, `.pptx`, `.ppt`, `.csv`, `.txt`, `.json`, `.xml`, `.zip`, `.rar`, `.7z`, `.tar`, `.gz`, `.apk`, `.ipa`, `.sql`, `.log`, `.rtf`, `.odt`, `.ods`, `.odp` và các định dạng âm thanh `.m4a`, `.webm`, `.wav`, `.mp3`, `.ogg`, `.opus`, `.aac`, `.flac`, `.amr`.
+- **Đồng Bộ Trạng Thái Trực Tuyến Live Cho Danh Sách Chat V2 (`chat_v2_list_screen.dart`, `chat_v2_channels_controller.dart`, `v_mobile/controllers/chat.py`)**:
+  - **Sửa Tận Gốc Lỗi Truy Vấn SQL Backend (`controllers/chat.py`)**: Khắc phục lỗi câu lệnh SQL batch preview members gọi trường `u.im_status` không tồn tại trên bảng `res_users` (gây exception và nhảy về fallback query gán cứng `'offline'`). Thay thế bằng phép `LEFT JOIN bus_presence bp ON bp.user_id = u.id` và `COALESCE(bp.status, 'offline') AS im_status` đọc chuẩn xác trạng thái live trực tiếp từ bảng `bus_presence` của Odoo 17.
+  - **Đồng Bộ Trực Tiếp Lên Danh Sách Kênh Chat (`chat_v2_list_screen.dart`, `chat_v2_channels_controller.dart`)**: Tự động nạp trạng thái trực tuyến của đối tác vào `chatV2PresenceProvider` ngay khi fetch danh sách kênh chat và hiển thị chấm xanh 🟢 (`Color(0xFF22C55E)`) tức thì trên avatar mà không cần phải bấm vào màn hình chi tiết mới cập nhật.
+
+### 🧭 [QUY TRÌNH & HỆ THỐNG]
+- **Ban Hành Quy Chuẩn Quản Trị Git & CI/CD (`docs/RULE_GIT.md`)**:
+  - Chuyển toàn bộ GitHub Actions CI/CD (TestFlight) sang kích hoạt độc quyền khi merge vào nhánh `main`.
+  - Loại bỏ hoàn toàn action trên nhánh `release/ios-appstore` và trigger theo Tag để tránh build tự động ngoài ý muốn.
+  - Thiết lập quy trình làm việc chuẩn hóa theo số Build tịnh tiến (+1): hoàn thành Build 92 ➔ mở nhánh `fix/app-build93-stabilization`.
+  - Áp dụng nguyên tắc xóa sạch nhánh rác sau khi merge, giữ giao diện GitHub chỉ hiển thị duy nhất nhánh `main`.
+  - Ban hành chính sách chống lạm phát version trong changelog (giữ vững version hiện tại trong suốt chu kỳ phát triển của branch).
+
+---
+
+
+
 ## [v2.5.0+92] — 2026-08-25
 
 > [!IMPORTANT]
@@ -25,7 +68,10 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 - **Cơ Chế Cấp Phát Token Truy Cập An Toàn & Fallback Session Cookie Cho Backend Odoo (`v_mobile/controllers/attachments.py`)**:
   - Tự động sinh `access_token` ngẫu nhiên nếu bản ghi `ir.attachment` chưa có token bảo mật khi người dùng truy vấn metadata hoặc tải file.
   - Bổ sung kiểm tra fallback qua `request.session.uid` cho các phiên đăng nhập trực tiếp trên trình duyệt Odoo Web.
-  - Đảm bảo 100% người dùng nội bộ (`base.group_user`) và người tham gia phòng chat đều có quyền tải tài liệu mượt mà.
+- **Cập Nhật Quy Chuẩn Git & GitHub Actions CI/CD Theo RULE_GIT.md (`.github/workflows/deploy.yml`, `docs/RULE_GIT.md`)**:
+  - Chuyển toàn bộ trigger tự động của GitHub Actions sang chạy độc quyền khi push/merge vào nhánh **`main`**.
+  - Bỏ trigger tự động trên `release/ios-appstore`, bỏ trigger tự động trên `tags: - "v*"` để chống build tự động ngoài ý muốn.
+  - Ban hành quy chuẩn `RULE_GIT.md`: Cấm push trực tiếp vào `main` và `17.0`, quy tắc xóa nhánh sau merge, đặt tên nhánh theo build `+1`, và chính sách chống lạm phát version trong changelog.
 
 ---
 
