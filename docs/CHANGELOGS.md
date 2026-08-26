@@ -10,7 +10,11 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 > - **Nhánh Backend (`v_mobile`)**: `fix/app-build93-stabilization` (Version: `17.0.2.2.3`)
 > - **Test Suite Status**: **235/235 tests PASS (100%)**, `flutter analyze` 0 issues.
 
-### 🛠️ [SỬA LỖI & ĐỒNG BỘ TRẠNG THÁI TRỰC TUYẾN CHAT V2]
+### 🛠️ [SỬA LỖI HIỂN THỊ TỆP ĐÍNH KÈM & ĐỒNG BỘ TRẠNG THÁI TRỰC TUYẾN CHAT V2]
+- **Khắc Phục Lỗi Hiển Thị Tệp Tin Thành [Hình ảnh] Trong Danh Sách Trò Chuyện (`chat_v2_list_screen.dart`, `chat_v2_channels_controller.dart`, `chat_v2_channel.dart`, `v_mobile/controllers/chat.py`)**:
+  - **Sửa Tận Gốc Logic Phân Loại Tệp Tin & Ghi Âm**: Khắc phục lỗi khi người dùng gửi tệp tài liệu (`.md`, `.pdf`, `.docx`, `.zip`, `.csv`, `.json`, ...) không caption nhưng hệ thống tự động gán nhãn sai thành `[Hình ảnh]`.
+  - **Tối Ưu Truy Vấn SQL Backend (`controllers/chat.py`)**: Bổ sung `LEFT JOIN LATERAL (SELECT mimetype, name FROM ir_attachment ...)` lấy chuẩn xác metadata tệp đính kèm đầu tiên của tin nhắn cuối, phân loại đúng 100% giữa `[Hình ảnh]`, `[Ghi âm]` và `[Tập tin]`.
+  - **Mở Rộng Nhận Diện Toàn Diện Định Dạng Tệp Tin**: Hỗ trợ đầy đủ các định dạng `.md`, `.markdown`, `.pdf`, `.docx`, `.doc`, `.xlsx`, `.xls`, `.pptx`, `.ppt`, `.csv`, `.txt`, `.json`, `.xml`, `.zip`, `.rar`, `.7z`, `.tar`, `.gz`, `.apk`, `.ipa`, `.sql`, `.log`, `.rtf`, `.odt`, `.ods`, `.odp` và các định dạng âm thanh `.m4a`, `.webm`, `.wav`, `.mp3`, `.ogg`, `.opus`, `.aac`, `.flac`, `.amr`.
 - **Đồng Bộ Trạng Thái Trực Tuyến Live Cho Danh Sách Chat V2 (`chat_v2_list_screen.dart`, `chat_v2_channels_controller.dart`, `v_mobile/controllers/chat.py`)**:
   - **Sửa Tận Gốc Lỗi Truy Vấn SQL Backend (`controllers/chat.py`)**: Khắc phục lỗi câu lệnh SQL batch preview members gọi trường `u.im_status` không tồn tại trên bảng `res_users` (gây exception và nhảy về fallback query gán cứng `'offline'`). Thay thế bằng phép `LEFT JOIN bus_presence bp ON bp.user_id = u.id` và `COALESCE(bp.status, 'offline') AS im_status` đọc chuẩn xác trạng thái live trực tiếp từ bảng `bus_presence` của Odoo 17.
   - **Đồng Bộ Trực Tiếp Lên Danh Sách Kênh Chat (`chat_v2_list_screen.dart`, `chat_v2_channels_controller.dart`)**: Tự động nạp trạng thái trực tuyến của đối tác vào `chatV2PresenceProvider` ngay khi fetch danh sách kênh chat và hiển thị chấm xanh 🟢 (`Color(0xFF22C55E)`) tức thì trên avatar mà không cần phải bấm vào màn hình chi tiết mới cập nhật.
