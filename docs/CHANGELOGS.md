@@ -11,6 +11,8 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 > - **Test Suite Status**: **235/235 tests PASS (100%)**, `flutter analyze` 0 issues.
 
 ### 🛠️ [SỬA LỖI HIỂN THỊ, PHÂN QUYỀN TỆP ĐÍNH KÈM & ĐỒNG BỘ TRẠNG THÁI TRỰC TUYẾN CHAT V2]
+- **Chuẩn Hóa Nhãn Thương Hiệu Chân Trang 360 CORP (`splash_screen.dart`, `web/index.html`)**:
+  - Hiệu chỉnh chính xác chuỗi nhận diện thương hiệu dưới chân trang từ `WORLD360 CORP • v2.5.0` thành **`360 CORP • v2.5.0`** trên cả màn hình Khởi động Native (Splash Screen) và Trình nạp Web Boot Loader, đảm bảo tính đồng bộ tuyệt đối về hình ảnh thương hiệu tập đoàn.
 - **Nâng Cấp Hệ Thống Realtime Push Notification & Backoff Retry (`v_mobile/models/notification.py`, `v_mobile/models/mail_thread.py`, `v_mobile/views/notification_views.xml`)**:
   - **Kích Hoạt Chuyển Phát Hỏa Tốc (Post-Commit Background Threading)**: Thay thế cơ chế phụ thuộc 100% vào Cron 1 phút cũ bằng luồng ngầm cô lập Cursor (`odoo.registry().cursor()`) kích hoạt ngay sau khi PostgreSQL transaction commit thành công.
   - **Khóa Trạng Thái Nguyên Tử & Khử Trùng Lặp (Atomic State Claim & Idempotency Key)**: Áp dụng `UPDATE ... SET status='sending' WHERE status='pending' RETURNING id` loại bỏ race condition giữa Thread và Cron. Bổ sung `idempotency_key` theo ID sự kiện duy nhất (`chat_msg_{message_id}_{device_id}` / `{event_type}_{event_id}_{device_id}`) chống tạo trùng log ở tầng Application và tuân thủ mô hình At-Least-Once Delivery.
