@@ -69,7 +69,8 @@ class ChatV2Attachment {
   String resolveFullUrl(String baseUrl) {
     final cleanBase = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
     if (id.isNotEmpty && isImage) {
-      return '$cleanBase/api/v1/mobile/attachments/$id/image';
+      final tokParam = (accessToken != null && accessToken!.isNotEmpty) ? '?access_token=$accessToken' : '';
+      return '$cleanBase/api/v1/mobile/attachments/$id/image$tokParam';
     }
     final target = (url != null && url!.isNotEmpty) ? url! : (downloadUrl ?? '');
     if (target.startsWith('http://') || target.startsWith('https://')) {
@@ -83,9 +84,12 @@ class ChatV2Attachment {
     final id = _stringOr(map['id'] ?? map['attachment_id'], '');
     final rawName = _stringOr(map['name'] ?? map['filename'], 'attachment');
     final mimetype = _stringOrNull(map['mimetype']);
-    final fileSize = map['file_size'] is int ? map['file_size'] as int : null;
+    final rawSize = map['file_size'];
+    final fileSize = (rawSize is num)
+        ? rawSize.toInt()
+        : (rawSize != null ? int.tryParse(rawSize.toString()) : null);
     final url = _stringOrNull(map['url']);
-    final downloadUrl = _stringOrNull(map['download_url']);
+    final downloadUrl = _stringOrNull(map['download_url']) ?? url ?? (id.isNotEmpty ? '/api/v1/mobile/attachments/$id/download' : null);
     final accessToken = _stringOrNull(map['access_token']);
 
     return ChatV2Attachment(

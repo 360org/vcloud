@@ -888,9 +888,18 @@ class ChatV2MessageItem extends StatelessWidget {
               await saveBytesToFile(bytes, cleanName);
               return;
             }
-          } catch (_) {}
+          } catch (e) {
+            debugPrint('[ChatV2] Lỗi fetchBytes $downloadUrl: $e');
+          }
           final full = odooApiClient.authenticatedUrl(downloadUrl);
           openDownloadUrl(full);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Không tìm thấy đường dẫn tải tệp tin.'),
+              duration: Duration(seconds: 2),
+            ),
+          );
         }
       },
       borderRadius: BorderRadius.circular(8),
@@ -1016,6 +1025,7 @@ class ChatV2MessageItem extends StatelessWidget {
   }
 
   String _formatFileSize(int bytes) {
+    if (bytes <= 0) return 'Tài liệu';
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
     return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
