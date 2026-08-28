@@ -405,7 +405,7 @@ class TaskRepository {
 
 
 
-  Future<int> _projectIdForTask(String taskId) async {
+  Future<int?> _projectIdForTask(String taskId) async {
     final task = await _client.get('/api/v1/project.task/$taskId');
     final projectId = _idOrNull((task as Map)['project_id']);
     if (projectId != null) return int.parse(projectId);
@@ -422,7 +422,7 @@ class TaskRepository {
       );
       if (found) return (id as num).toInt();
     }
-    throw Failure('Không tìm thấy project của task.');
+    return null;
   }
 
   String? _idOrNull(Object? value) {

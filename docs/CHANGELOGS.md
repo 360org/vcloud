@@ -59,6 +59,11 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 - **Bộ Kiểm Thử Tự Động (`test/odoo_api_client_smart_routing_test.dart`)**:
   - Xây dựng 5 unit tests (TC-01 đến TC-05) kiểm chứng: Email nội bộ không fallback, Username ngắn probe demo trước, Fallback sang prod khi demo lỗi, Email ngoài probe tuần tự, và Logout giải phóng sạch session.
 
+### ⏱️ [SỬA LỖI BẢNG CÔNG (TIMESHEET BUG FIX)]
+- **Khắc phục lỗi "Không tìm thấy project của task" khi lưu Timesheet (`task_repository.dart`)**:
+  - Khi một task không có mapping `project_id` rõ ràng từ API, hoặc là subtask độc lập, hệ thống không còn ném ngoại lệ (`throw Failure`) gây gián đoạn và chặn người dùng lưu bảng công.
+  - Cho phép gửi giá trị `project_id: null` xuống backend Odoo. Backend 17 & 19 đã được thiết kế sẵn khả năng tự động nội suy `project_id` từ `task_id` (qua ORM) hoặc lấy dự án mặc định cho phép timesheet, đảm bảo quá trình ghi log mượt mà không bị văng lỗi.
+
 ### ⏱️ [BẢNG CHỈ TIÊU ĐO LƯỜNG HIỆU NĂNG CHAT & KHỞI ĐỘNG (SLA METRICS)]
 - **Khóa Cứng Thước Đo Hiệu Năng (SLA Baseline)**:
   - *Login ➔ Chat List First Render*: Mục tiêu SLA `≤ 2.0s` (Target defined — Sẽ đo số ms thực tế trên iPhone 13 của anh Tân).
