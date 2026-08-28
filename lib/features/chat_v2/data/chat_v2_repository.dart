@@ -74,6 +74,16 @@ class ChatV2Repository {
     return channels;
   }
 
+  Future<ChatV2Channel?> getChannel(String channelId) async {
+    try {
+      final dynamic data = await _client.get('/api/v1/mobile/chat/channels/$channelId');
+      if (data is Map) {
+        return ChatV2Channel.fromMap(Map<String, dynamic>.from(data));
+      }
+    } catch (_) {}
+    return null;
+  }
+
   Future<List<ChatV2Message>> getMessages(
     String channelId, {
     String? currentPartnerId,

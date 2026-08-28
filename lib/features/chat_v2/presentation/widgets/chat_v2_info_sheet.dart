@@ -440,18 +440,31 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
         ? _members.length
         : (_memberCount > 0 ? _memberCount : _members.length);
 
-    // Tự động phân giải avatar URL của đối phương nếu channel.avatarUrl chưa có
+    // Tự động phân giải avatar URL của đối phương nếu channel.avatarUrl chưa có và là chat 1-1
     String? resolvedAvatarUrl = widget.channel.avatarUrl;
     if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
-      if (!isGroup) {
+      if (!isGroup && !widget.channel.isChannel) {
+        final currentPartnerId = odooApiClient.session?.partnerId?.toString();
+        final currentUserId = odooApiClient.session?.uid.toString();
         if (widget.messages.isNotEmpty) {
-          final otherMsg = widget.messages.firstWhereOrNull((m) => !m.isMine && m.authorAvatar != null && m.authorAvatar!.isNotEmpty);
+          final otherMsg = widget.messages.firstWhereOrNull((m) =>
+              !m.isMine &&
+              (currentPartnerId == null || m.authorId?.toString() != currentPartnerId) &&
+              (currentUserId == null || m.authorId?.toString() != currentUserId) &&
+              m.authorAvatar != null &&
+              m.authorAvatar!.isNotEmpty);
           if (otherMsg != null) {
             resolvedAvatarUrl = otherMsg.authorAvatar;
           }
         }
         if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
-          final otherMember = _members.firstWhereOrNull((m) => !m.isMe && m.avatarUrl != null && m.avatarUrl!.isNotEmpty);
+          final otherMember = _members.firstWhereOrNull((m) =>
+              !m.isMe &&
+              (currentPartnerId == null || m.id != currentPartnerId) &&
+              (currentUserId == null || m.id != currentUserId) &&
+              (widget.currentUserName == null || !ChatV2Channel.matchesUser(m.name, widget.currentUserName!)) &&
+              m.avatarUrl != null &&
+              m.avatarUrl!.isNotEmpty);
           if (otherMember != null) {
             resolvedAvatarUrl = otherMember.avatarUrl;
           }

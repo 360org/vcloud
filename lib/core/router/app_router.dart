@@ -52,11 +52,14 @@ CustomTransitionPage<void> _buildFadePage({
   );
 }
 
+final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
+
 final routerProvider = Provider<GoRouter>((ref) {
   final listenable = _AuthListenable(ref);
   ref.onDispose(listenable.dispose);
 
   return GoRouter(
+    navigatorKey: rootNavigatorKey,
     initialLocation: '/splash',
     debugLogDiagnostics: false,
     refreshListenable: listenable,
@@ -74,7 +77,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         return isSplash ? null : '/splash';
       }
 
-      final user = sub.value;
+      final user = sub.valueOrNull;
 
       if (user == null) {
         if (isSplash || onAuthScreen) return null;

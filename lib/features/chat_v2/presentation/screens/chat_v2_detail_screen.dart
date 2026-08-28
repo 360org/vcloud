@@ -16,6 +16,7 @@ import '../../data/models/chat_v2_message.dart';
 import '../../application/chat_v2_typing_controller.dart';
 import '../../application/chat_v2_presence_controller.dart';
 import '../../data/chat_v2_realtime_service.dart';
+import '../../data/chat_v2_repository.dart';
 import '../../../auth/application/auth_controller.dart';
 import '../widgets/chat_v2_input_bar.dart';
 import '../widgets/chat_v2_message_item.dart';
@@ -88,6 +89,23 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
           );
           ChatV2ChannelLocalCache.pinDirectChannel(directCh);
         }
+      }
+
+      // Tự động kiểm tra và nạp thông tin kênh nếu chưa có trong cache
+      final currentChannel = ref.read(chatV2ChannelsProvider.select(
+        (async) => async.valueOrNull?.where((c) => c.id == widget.channelId).firstOrNull,
+      ));
+      if (currentChannel == null) {
+        try {
+          final ch = await ref.read(chatV2RepositoryProvider).getChannel(widget.channelId);
+          if (ch != null && mounted) {
+            ChatV2ChannelLocalCache.updateChannel(ch);
+            final pId = ch.partnerId ?? ch.directPartnerId;
+            if (pId != null && pId.isNotEmpty && ch.imStatus.isNotEmpty) {
+              ref.read(chatV2PresenceProvider.notifier).updatePresence(pId, ch.imStatus);
+            }
+          }
+        } catch (_) {}
       }
 
       // Nạp danh sách thành viên kênh và đồng bộ presence live

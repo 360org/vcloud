@@ -127,6 +127,18 @@ class ChatV2MessageLocalCache {
       } catch (_) {}
     }
   }
+
+  static void clear() {
+    _cache.clear();
+    if (_initialized && _cacheDir != null && !kIsWeb) {
+      try {
+        if (_cacheDir!.existsSync()) {
+          _cacheDir!.deleteSync(recursive: true);
+          _cacheDir!.createSync(recursive: true);
+        }
+      } catch (_) {}
+    }
+  }
 }
 
 class ChatV2MessagesNotifier

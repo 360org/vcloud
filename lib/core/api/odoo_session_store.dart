@@ -13,18 +13,29 @@ class OdooSessionStore {
   final FlutterSecureStorage _storage;
 
   Future<OdooSession?> read() async {
-    final raw = await _storage.read(key: _key);
-    if (raw == null || raw.isEmpty) return null;
-    return OdooSession.fromJson(
-      Map<String, dynamic>.from(jsonDecode(raw) as Map),
-    );
+    try {
+      final raw = await _storage.read(key: _key);
+      if (raw == null || raw.isEmpty) return null;
+      return OdooSession.fromJson(
+        Map<String, dynamic>.from(jsonDecode(raw) as Map),
+      );
+    } catch (_) {
+      try {
+        await _storage.delete(key: _key);
+      } catch (_) {}
+      return null;
+    }
   }
 
-  Future<void> write(OdooSession session) {
-    return _storage.write(key: _key, value: jsonEncode(session.toJson()));
+  Future<void> write(OdooSession session) async {
+    try {
+      await _storage.write(key: _key, value: jsonEncode(session.toJson()));
+    } catch (_) {}
   }
 
-  Future<void> clear() {
-    return _storage.delete(key: _key);
+  Future<void> clear() async {
+    try {
+      await _storage.delete(key: _key);
+    } catch (_) {}
   }
 }

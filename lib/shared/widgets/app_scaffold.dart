@@ -450,6 +450,7 @@ class UserAvatar extends StatelessWidget {
         : null;
     if (memoryImage != null) {
       return Image(
+        key: ValueKey(value),
         image: memoryImage,
         fit: BoxFit.cover,
         gaplessPlayback: true,

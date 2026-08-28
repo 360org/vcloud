@@ -10,7 +10,6 @@ import '../../data/chat_v2_repository.dart';
 
 import '../../../../core/utils/date_format.dart';
 import '../../../../shared/widgets/app_scaffold.dart';
-import '../../../../shared/widgets/whats_new_sheet.dart';
 import '../../../auth/application/auth_controller.dart';
 import '../../application/chat_v2_channels_controller.dart';
 import '../../application/chat_v2_messages_controller.dart';
@@ -76,11 +75,6 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
     super.initState();
     _selectedFilterIndex = _resolveFilterIndex(widget.initialFilter);
     _scrollController.addListener(_onScroll);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        WhatsNewSheet.showIfNeeded(context, targetBuild: 92);
-      }
-    });
   }
 
   @override
@@ -113,6 +107,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
   @override
   Widget build(BuildContext context) {
     final channelsAsync = ref.watch(chatV2ChannelsProvider);
+    final syncStatus = ref.watch(chatV2SyncStatusProvider);
     final currentUser = ref.watch(authControllerProvider).valueOrNull;
     final meta = currentUser?.userMetadata;
     final currentUserName = (meta?['name'] ??
@@ -417,55 +412,70 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
           Expanded(
             child: RefreshIndicator(
               color: const Color(0xFF00C83A),
-              onRefresh: () async => ref.refresh(chatV2ChannelsProvider.future),
-              child: channelsAsync.when(
-                skipLoadingOnReload: true,
-                loading: () => const Center(
-                  child: CircularProgressIndicator(color: Color(0xFF00C83A)),
-                ),
-                error: (error, _) => Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(LucideIcons.alertCircle,
-                            size: 44, color: Colors.redAccent),
-                        const SizedBox(height: 12),
-                        Text(
-                          'Không thể tải danh sách hội thoại',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color:
-                                isDark ? Colors.white : const Color(0xFF0F172A),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          error.toString(),
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                              fontSize: 13, color: Colors.grey),
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton.icon(
-                          onPressed: () => ref.refresh(chatV2ChannelsProvider),
-                          icon: const Icon(LucideIcons.rotateCw, size: 16),
-                          label: const Text('Thử lại'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF00C83A),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
+              onRefresh: () async =>
+                  ref.read(chatV2ChannelsProvider.notifier).refresh(),
+              child: Builder(
+                builder: (context) {
+                  final hasCachedOrData = (channelsAsync.valueOrNull?.isNotEmpty ?? false) ||
+                      ChatV2ChannelLocalCache.cached.isNotEmpty;
+
+                  if (!hasCachedOrData && (channelsAsync.isLoading || syncStatus == ChatV2SyncStatus.connecting)) {
+                    return const Center(
+                      child: CircularProgressIndicator(color: Color(0xFF00C83A)),
+                    );
+                  }
+
+                  if (!hasCachedOrData && channelsAsync.hasError) {
+                    final error = channelsAsync.error;
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(LucideIcons.alertCircle,
+                                size: 44, color: Colors.redAccent),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Không thể tải danh sách hội thoại',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color:
+                                    isDark ? Colors.white : const Color(0xFF0F172A),
+                              ),
                             ),
-                          ),
+                            const SizedBox(height: 6),
+                            Text(
+                              error.toString(),
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                  fontSize: 13, color: Colors.grey),
+                            ),
+                            const SizedBox(height: 16),
+                            ElevatedButton.icon(
+                              onPressed: () => ref
+                                  .read(chatV2ChannelsProvider.notifier)
+                                  .refresh(),
+                              icon: const Icon(LucideIcons.rotateCw, size: 16),
+                              label: const Text('Thử lại'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF00C83A),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
-                ),
-                data: (channels) {
+                      ),
+                    );
+                  }
+
+                  final channels = channelsAsync.valueOrNull ??
+                      ChatV2ChannelLocalCache.cached;
+
                   // Lọc theo search query và filter index
                   final filtered = channels.where((c) {
                     final cleanName = c.getCleanName(currentUserName);
@@ -485,22 +495,20 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                     if (_selectedFilterIndex == 0) {
                       // 0: Chưa đọc
                       final cachedMsgs = ChatV2MessageLocalCache.get(c.id);
-                      final isFirstMsgMine = cachedMsgs != null &&
-                          cachedMsgs.isNotEmpty &&
-                          cachedMsgs.first.isMine;
-                      final lastSentText = ref.watch(
-                          chatV2LastSentTrackerProvider.select((m) => m[c.id]));
-                      final isMineFromTracker = lastSentText != null &&
-                          (c.lastMessage != null &&
-                              c.lastMessage!.trim() == lastSentText.trim());
-
-                      final isMine = isFirstMsgMine ||
-                          isMineFromTracker ||
-                          c.isLastMessageFromMe(
-                            currentUserName: currentUserName,
-                            currentPartnerId: currentPartnerId,
-                            currentUserId: currentUserId,
-                          );
+                      final isMine = (c.lastMessageAuthorId != null && c.lastMessageAuthorId!.isNotEmpty)
+                          ? c.isLastMessageFromMe(
+                              currentUserName: currentUserName,
+                              currentPartnerId: currentPartnerId,
+                              currentUserId: currentUserId,
+                            )
+                          : ((cachedMsgs != null && cachedMsgs.isNotEmpty)
+                              ? ((currentPartnerId != null && cachedMsgs.first.authorId == currentPartnerId) ||
+                                 (currentUserId != null && cachedMsgs.first.authorId == currentUserId))
+                              : c.isLastMessageFromMe(
+                                  currentUserName: currentUserName,
+                                  currentPartnerId: currentPartnerId,
+                                  currentUserId: currentUserId,
+                                ));
 
                       // Nếu chưa có tin nhắn nào trong phòng -> Không hiển thị ở Chưa đọc
                       if (c.lastMessage == null || c.lastMessage!.trim().isEmpty) {
@@ -562,6 +570,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                     return b.lastMessageDate!.compareTo(a.lastMessageDate!);
                   });
 
+                  final Widget listContent;
                   if (filtered.isEmpty) {
                     final String emptyMessage;
                     if (_searchQuery.isNotEmpty) {
@@ -578,7 +587,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                       emptyMessage = 'Chưa có cuộc trò chuyện nào';
                     }
 
-                    return ListView(
+                    listContent = ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       children: [
                         SizedBox(
@@ -627,71 +636,84 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                         ],
                       ],
                     );
+                  } else {
+                    final channelsNotifier = ref.watch(chatV2ChannelsProvider.notifier);
+                    final hasMore = channelsNotifier.hasMore;
+                    final isLoadingMore = channelsNotifier.isLoadingMore;
+                    final isFiltered = _searchQuery.isNotEmpty || _selectedFilterIndex != null;
+
+                    listContent = ListView.separated(
+                      controller: _scrollController,
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      addRepaintBoundaries: true,
+                      addAutomaticKeepAlives: false,
+                      itemCount: filtered.length + ((!isFiltered && (isLoadingMore || (!hasMore && filtered.length >= 40))) ? 1 : 0),
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      separatorBuilder: (_, _) => Divider(
+                        height: 1,
+                        indent: 76,
+                        endIndent: 16,
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.06)
+                            : const Color(0xFFE2E8F0).withValues(alpha: 0.7),
+                      ),
+                      itemBuilder: (context, index) {
+                        if (index == filtered.length) {
+                          if (isLoadingMore) {
+                            return const Center(
+                              child: Padding(
+                                padding: EdgeInsets.symmetric(vertical: 16),
+                                child: SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00C83A)),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+                          if (!hasMore) {
+                            return Center(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                child: Text(
+                                  'Đã hiển thị tất cả cuộc trò chuyện (${filtered.length})',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+                          return const SizedBox.shrink();
+                        }
+
+                        final channel = filtered[index];
+                        return _ChannelListItem(
+                          key: ValueKey(channel.id),
+                          channel: channel,
+                          currentUserName: currentUserName,
+                          currentPartnerId: currentPartnerId,
+                          currentUserId: currentUserId,
+                        );
+                      },
+                    );
                   }
 
-                  final channelsNotifier = ref.watch(chatV2ChannelsProvider.notifier);
-                  final hasMore = channelsNotifier.hasMore;
-                  final isLoadingMore = channelsNotifier.isLoadingMore;
-                  final isFiltered = _searchQuery.isNotEmpty || _selectedFilterIndex != null;
-
-                  return ListView.separated(
-                    controller: _scrollController,
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    addRepaintBoundaries: true,
-                    addAutomaticKeepAlives: false,
-                    itemCount: filtered.length + ((!isFiltered && (isLoadingMore || (!hasMore && filtered.length >= 40))) ? 1 : 0),
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    separatorBuilder: (_, _) => Divider(
-                      height: 1,
-                      indent: 76,
-                      endIndent: 16,
-                      color: isDark
-                          ? Colors.white.withValues(alpha: 0.06)
-                          : const Color(0xFFE2E8F0).withValues(alpha: 0.7),
-                    ),
-                    itemBuilder: (context, index) {
-                      if (index == filtered.length) {
-                        if (isLoadingMore) {
-                          return const Center(
-                            child: Padding(
-                              padding: EdgeInsets.symmetric(vertical: 16),
-                              child: SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00C83A)),
-                                ),
-                              ),
-                            ),
-                          );
-                        }
-                        if (!hasMore) {
-                          return Center(
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              child: Text(
-                                'Đã hiển thị tất cả cuộc trò chuyện (${filtered.length})',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
-                                ),
-                              ),
-                            ),
-                          );
-                        }
-                        return const SizedBox.shrink();
-                      }
-
-                      final channel = filtered[index];
-                      return _ChannelListItem(
-                        key: ValueKey(channel.id),
-                        channel: channel,
-                        currentUserName: currentUserName,
-                        currentPartnerId: currentPartnerId,
-                        currentUserId: currentUserId,
-                      );
-                    },
+                  return Column(
+                    children: [
+                      _SyncStatusBanner(
+                        status: syncStatus,
+                        isDark: isDark,
+                        onRetry: () => ref
+                            .read(chatV2ChannelsProvider.notifier)
+                            .resumeRefresh(),
+                      ),
+                      Expanded(child: listContent),
+                    ],
                   );
                 },
               ),
@@ -1078,24 +1100,24 @@ class _ChannelListItem extends ConsumerWidget {
         : '';
     final avatarGrad = _getAvatarGradient(cleanName);
 
-    final isFirstMsgMine = cachedMsgs != null && cachedMsgs.isNotEmpty && cachedMsgs.first.isMine;
-
-    // Kiểm tra trạng thái chưa đọc từ ReadState Tracker với provider.select
-    final readNotifier = ref.watch(chatV2ReadStateProvider.notifier);
-    final lastSentText = ref.watch(chatV2LastSentTrackerProvider.select((m) => m[channel.id]));
-    final isMineFromTracker = lastSentText != null &&
-        effectiveLastMsg?.trim() == lastSentText.trim();
-
-    final isMine = isFirstMsgMine ||
-        isMineFromTracker ||
-        channel.isLastMessageFromMe(
-          currentUserName: currentUserName,
-          currentPartnerId: currentPartnerId,
-          currentUserId: currentUserId,
-        );
+    final isMine = (channel.lastMessageAuthorId != null && channel.lastMessageAuthorId!.isNotEmpty)
+        ? channel.isLastMessageFromMe(
+            currentUserName: currentUserName,
+            currentPartnerId: currentPartnerId,
+            currentUserId: currentUserId,
+          )
+        : ((cachedMsgs != null && cachedMsgs.isNotEmpty)
+            ? ((currentPartnerId != null && cachedMsgs.first.authorId == currentPartnerId) ||
+               (currentUserId != null && cachedMsgs.first.authorId == currentUserId))
+            : channel.isLastMessageFromMe(
+                currentUserName: currentUserName,
+                currentPartnerId: currentPartnerId,
+                currentUserId: currentUserId,
+              ));
 
     // Watch riêng trạng thái seen của channel này để tự động cập nhật khi có trạng thái đọc mới
     ref.watch(chatV2ReadStateProvider.select((m) => m[channel.id]));
+    final readNotifier = ref.watch(chatV2ReadStateProvider.notifier);
     final hasUnread = !isMine &&
         effectiveLastMsg != null &&
         effectiveLastMsg.trim().isNotEmpty &&
@@ -1105,18 +1127,31 @@ class _ChannelListItem extends ConsumerWidget {
           lastMessageDate: effectiveLastDate,
         );
 
-    // Tự động phân giải avatar URL của đối phương nếu channel.avatarUrl chưa có
+    // Tự động phân giải avatar URL của đối phương nếu channel.avatarUrl chưa có và là chat 1-1
     String? resolvedAvatarUrl = channel.avatarUrl;
     if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
-      if (!isGroup) {
+      if (!isGroup && !channel.isChannel) {
+        final currentPartnerId = odooApiClient.session?.partnerId?.toString();
+        final currentUserId = odooApiClient.session?.uid.toString();
         if (cachedMsgs != null && cachedMsgs.isNotEmpty) {
-          final otherMsg = cachedMsgs.firstWhereOrNull((m) => !m.isMine && m.authorAvatar != null && m.authorAvatar!.isNotEmpty);
+          final otherMsg = cachedMsgs.firstWhereOrNull((m) =>
+              !m.isMine &&
+              (currentPartnerId == null || m.authorId?.toString() != currentPartnerId) &&
+              (currentUserId == null || m.authorId?.toString() != currentUserId) &&
+              m.authorAvatar != null &&
+              m.authorAvatar!.isNotEmpty);
           if (otherMsg != null) {
             resolvedAvatarUrl = otherMsg.authorAvatar;
           }
         }
         if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
-          final otherMember = channel.members.firstWhereOrNull((m) => !m.isMe && m.avatarUrl != null && m.avatarUrl!.isNotEmpty);
+          final otherMember = channel.members.firstWhereOrNull((m) =>
+              !m.isMe &&
+              (currentPartnerId == null || m.id != currentPartnerId) &&
+              (currentUserId == null || m.id != currentUserId) &&
+              (currentUserName == null || !ChatV2Channel.matchesUser(m.name, currentUserName)) &&
+              m.avatarUrl != null &&
+              m.avatarUrl!.isNotEmpty);
           if (otherMember != null) {
             resolvedAvatarUrl = otherMember.avatarUrl;
           }
@@ -1442,20 +1477,20 @@ class _ChannelListItem extends ConsumerWidget {
     }
 
     final msg = effectiveLastMsg;
-    final isFirstMsgMine = cachedMsgs != null && cachedMsgs.isNotEmpty && cachedMsgs.first.isMine;
-
-    // Kiểm tra xem tin nhắn có phải do mình vừa gửi không với provider.select
-    final lastSentText = ref.watch(chatV2LastSentTrackerProvider.select((m) => m[channel.id]));
-    final isMineFromTracker =
-        lastSentText != null && msg.trim() == lastSentText.trim();
-
-    final isMine = isFirstMsgMine ||
-        isMineFromTracker ||
-        channel.isLastMessageFromMe(
-          currentUserName: currentUserName,
-          currentPartnerId: currentPartnerId,
-          currentUserId: currentUserId,
-        );
+    final isMine = (channel.lastMessageAuthorId != null && channel.lastMessageAuthorId!.isNotEmpty)
+        ? channel.isLastMessageFromMe(
+            currentUserName: currentUserName,
+            currentPartnerId: currentPartnerId,
+            currentUserId: currentUserId,
+          )
+        : ((cachedMsgs != null && cachedMsgs.isNotEmpty)
+            ? ((currentPartnerId != null && cachedMsgs.first.authorId == currentPartnerId) ||
+               (currentUserId != null && cachedMsgs.first.authorId == currentUserId))
+            : channel.isLastMessageFromMe(
+                currentUserName: currentUserName,
+                currentPartnerId: currentPartnerId,
+                currentUserId: currentUserId,
+              ));
 
     // Xác định tiền tố người gửi (Bạn: hoặc Tên người gửi trong nhóm)
     String prefix = '';
@@ -1484,7 +1519,13 @@ class _ChannelListItem extends ConsumerWidget {
     }
 
     final lower = msg.toLowerCase().trim();
-    final isImageFilename = lower.endsWith('.png') ||
+    final isUrl = lower.startsWith('http://') ||
+        lower.startsWith('https://') ||
+        lower.startsWith('www.') ||
+        lower.contains('://');
+
+    final isImageFilename = !isUrl &&
+        (lower.endsWith('.png') ||
         lower.endsWith('.jpg') ||
         lower.endsWith('.jpeg') ||
         lower.endsWith('.gif') ||
@@ -1498,11 +1539,12 @@ class _ChannelListItem extends ConsumerWidget {
         lower.endsWith('.tif') ||
         lower.startsWith('scaled_') ||
         lower.startsWith('image_picker_') ||
+        lower.startsWith('[hình ảnh]') ||
         lower == 'hình ảnh' ||
-        lower == '[hình ảnh]' ||
-        lower.contains('ảnh chụp');
+        lower == '[hình ảnh]');
 
-    final isVoice = lower.endsWith('.webm') ||
+    final isVoice = !isUrl &&
+        (lower.endsWith('.webm') ||
         lower.endsWith('.mp3') ||
         lower.endsWith('.m4a') ||
         lower.endsWith('.wav') ||
@@ -1514,12 +1556,15 @@ class _ChannelListItem extends ConsumerWidget {
         lower.startsWith('voice_') ||
         lower.contains('voice_') ||
         lower.contains('audio_') ||
+        lower.startsWith('[ghi âm]') ||
+        lower.startsWith('[tin nhắn thoại]') ||
         lower == 'ghi âm' ||
         lower == '[ghi âm]' ||
         lower == 'tin nhắn thoại' ||
-        lower == '[tin nhắn thoại]';
+        lower == '[tin nhắn thoại]');
 
-    final isDoc = lower.endsWith('.docx') ||
+    final isDoc = !isUrl &&
+        (lower.endsWith('.docx') ||
         lower.endsWith('.pdf') ||
         lower.endsWith('.xlsx') ||
         lower.endsWith('.xls') ||
@@ -1545,12 +1590,24 @@ class _ChannelListItem extends ConsumerWidget {
         lower.endsWith('.odt') ||
         lower.endsWith('.ods') ||
         lower.endsWith('.odp') ||
+        lower.endsWith('.p8') ||
+        lower.endsWith('.cer') ||
+        lower.endsWith('.key') ||
+        lower.endsWith('.bin') ||
+        lower.endsWith('.sh') ||
+        lower.endsWith('.py') ||
+        lower.endsWith('.dart') ||
+        lower.endsWith('.ts') ||
+        lower.endsWith('.js') ||
+        lower.endsWith('.yaml') ||
+        lower.endsWith('.yml') ||
+        lower.startsWith('[tập tin]') ||
+        lower.startsWith('[tài liệu]') ||
+        lower.startsWith('[tệp tin]') ||
         lower == 'tệp tin' ||
         lower == '[tệp tin]' ||
         lower == 'tài liệu' ||
-        lower == '[tài liệu]' ||
-        lower.contains('tệp tin') ||
-        lower.contains('tài liệu');
+        lower == '[tài liệu]');
 
     final isMissedCall = lower.contains('nhỡ') || lower.startsWith('❌') || lower.contains('cuộc gọi nhỡ');
     final isVoiceCall = (lower.contains('cuộc gọi thoại') || lower.startsWith('📞')) && !isMissedCall;
@@ -1564,7 +1621,7 @@ class _ChannelListItem extends ConsumerWidget {
       displayText = '[Hình ảnh]';
     } else if (isVoice) {
       displayText = '[Ghi âm]';
-    } else if (isDoc && !msg.startsWith('[Tập tin]') && !msg.startsWith('[Tài liệu]')) {
+    } else if (isDoc && !msg.startsWith('[Tập tin]') && !msg.startsWith('[Tài liệu]') && !msg.startsWith('[Tệp tin]')) {
       displayText = '[Tập tin]';
     } else if (isMissedCall) {
       displayText = isMine ? '[Cuộc gọi nhỡ đi]' : '[Cuộc gọi nhỡ]';
@@ -1582,6 +1639,8 @@ class _ChannelListItem extends ConsumerWidget {
       lastMsgStatus = cachedMsgs.first.status;
     }
 
+    final isAlertRed = !isMine && (isMissedCall || isRejectedCall || isCancelledCall);
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1598,11 +1657,14 @@ class _ChannelListItem extends ConsumerWidget {
           ),
           const SizedBox(width: 4.5),
         ],
+
         if (isMissedCall) ...[
-          const Icon(
-            LucideIcons.phoneMissed,
+          Icon(
+            isMine ? LucideIcons.phoneOutgoing : LucideIcons.phoneMissed,
             size: 14,
-            color: Color(0xFFEF4444),
+            color: isAlertRed
+                ? const Color(0xFFEF4444)
+                : (isDark ? const Color(0xFF8696A0) : const Color(0xFF667781)),
           ),
           const SizedBox(width: 4),
         ] else if (isVoiceCall) ...[
@@ -1614,9 +1676,11 @@ class _ChannelListItem extends ConsumerWidget {
           const SizedBox(width: 4),
         ] else if (isRejectedCall || isCancelledCall) ...[
           Icon(
-            LucideIcons.phoneOff,
+            isMine ? LucideIcons.phoneOff : LucideIcons.phoneMissed,
             size: 14,
-            color: isDark ? Colors.white60 : const Color(0xFF94A3B8),
+            color: isAlertRed
+                ? const Color(0xFFEF4444)
+                : (isDark ? const Color(0xFF8696A0) : const Color(0xFF667781)),
           ),
           const SizedBox(width: 4),
         ] else if (isDoc) ...[
@@ -1648,8 +1712,10 @@ class _ChannelListItem extends ConsumerWidget {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: 13.5,
-              fontWeight: isMissedCall && !isMine ? FontWeight.w600 : FontWeight.normal,
-              color: isMissedCall && !isMine
+              fontWeight: isAlertRed
+                  ? FontWeight.w600
+                  : (hasUnread ? FontWeight.w600 : FontWeight.normal),
+              color: isAlertRed
                   ? const Color(0xFFEF4444)
                   : (hasUnread
                       ? (isDark ? Colors.white : const Color(0xFF1E293B))
@@ -1665,4 +1731,94 @@ class _ChannelListItem extends ConsumerWidget {
     return Dates.chatTimestamp(dt);
   }
 }
+
+class _SyncStatusBanner extends StatelessWidget {
+  const _SyncStatusBanner({
+    required this.status,
+    required this.isDark,
+    required this.onRetry,
+  });
+
+  final ChatV2SyncStatus status;
+  final bool isDark;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    if (status == ChatV2SyncStatus.synced) {
+      return const SizedBox.shrink();
+    }
+
+    if (status == ChatV2SyncStatus.connecting) {
+      return Container(
+        width: double.infinity,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: isDark ? Colors.white70 : const Color(0xFF64748B),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Đang kết nối...',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: isDark ? Colors.white70 : const Color(0xFF64748B),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // ChatV2SyncStatus.offline
+    return GestureDetector(
+      onTap: onRetry,
+      child: Container(
+        width: double.infinity,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF451A03) : const Color(0xFFFEF3C7),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isDark ? const Color(0xFF78350F) : const Color(0xFFFDE68A),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              LucideIcons.alertTriangle,
+              size: 14,
+              color: isDark ? const Color(0xFFFBBF24) : const Color(0xFFD97706),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'Đang ngoại tuyến — Chạm để thử lại',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: isDark ? const Color(0xFFFBBF24) : const Color(0xFFB45309),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 

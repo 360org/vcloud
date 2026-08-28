@@ -15,6 +15,16 @@ import '../data/models/chat_v2_channel.dart';
 import '../presentation/widgets/chat_v2_in_app_banner.dart';
 import 'chat_v2_messages_controller.dart';
 
+enum ChatV2SyncStatus {
+  synced,
+  connecting,
+  offline,
+}
+
+final chatV2SyncStatusProvider = StateProvider<ChatV2SyncStatus>((ref) {
+  return ChatV2SyncStatus.synced;
+});
+
 final chatV2ChannelsProvider =
     AsyncNotifierProvider<ChatV2ChannelsNotifier, List<ChatV2Channel>>(
   ChatV2ChannelsNotifier.new,
@@ -461,6 +471,10 @@ class ChatV2ChannelsNotifier
   StreamSubscription? _wsUpdateSub;
   Timer? _pollingTimer;
   Timer? _debounceTimer;
+  Timer? _resumeRetryTimer;
+  int _resumeRetryAttempt = 0;
+  bool _isResumeRefreshing = false;
+  bool _isDisposed = false;
   bool _isFetching = false;
   bool _isLoadingMore = false;
   bool _hasMore = true;
@@ -472,14 +486,14 @@ class ChatV2ChannelsNotifier
   Future<List<ChatV2Channel>> build() async {
     ref.keepAlive();
     debugPrint('🟢 [LIFECYCLE] ChatV2ChannelsNotifier: BUILD (Provider created)');
+    _isDisposed = false;
     await ChatV2ChannelLocalCache.init();
     await ChatV2MessageLocalCache.init();
     final repo = ref.read(chatV2RepositoryProvider);
     final realtime = ref.read(chatV2RealtimeServiceProvider);
-    var isDisposed = false;
 
     ChatV2ChannelLocalCache.onCacheUpdated = () {
-      if (!isDisposed) {
+      if (!_isDisposed) {
         state = AsyncData(ChatV2ChannelLocalCache.cached);
       }
     };
@@ -503,11 +517,11 @@ class ChatV2ChannelsNotifier
     }
 
     Future<void> fetchFreshChannels() async {
-      if (_isFetching || isDisposed) return;
+      if (_isFetching || _isDisposed) return;
       _isFetching = true;
       try {
         final fresh = await repo.getChannels(limit: 80);
-        if (isDisposed) return;
+        if (_isDisposed) return;
         if (fresh.isNotEmpty) {
           final presenceNotifier = ref.read(chatV2PresenceProvider.notifier);
           for (final f in fresh) {
@@ -560,7 +574,7 @@ class ChatV2ChannelsNotifier
 
     _wsMessageSub?.cancel();
     _wsMessageSub = realtime.onMessageReceived.listen((msg) {
-      if (isDisposed || msg.channelId.isEmpty) return;
+      if (_isDisposed || msg.channelId.isEmpty) return;
 
       final current = state.valueOrNull ?? ChatV2ChannelLocalCache.cached;
       final chIndex = current.indexWhere((c) => c.id == msg.channelId);
@@ -617,20 +631,20 @@ class ChatV2ChannelsNotifier
 
     _wsUpdateSub?.cancel();
     _wsUpdateSub = realtime.onChannelUpdated.listen((chId) {
-      if (isDisposed) return;
+      if (_isDisposed) return;
       _debounceTimer?.cancel();
       _debounceTimer = Timer(const Duration(milliseconds: 900), fetchFreshChannels);
     });
 
     void scheduleNextPoll() {
-      if (isDisposed) return;
+      if (_isDisposed) return;
       _pollingTimer?.cancel();
       _pollingTimer = Timer(const Duration(seconds: 8), () async {
-        if (isDisposed) return;
+        if (_isDisposed) return;
         if (!state.isLoading && state.hasValue) {
           await fetchFreshChannels();
         }
-        if (!isDisposed) {
+        if (!_isDisposed) {
           scheduleNextPoll();
         }
       });
@@ -640,7 +654,8 @@ class ChatV2ChannelsNotifier
 
     ref.onDispose(() {
       ChatV2ChannelLocalCache.onCacheUpdated = null;
-      isDisposed = true;
+      _isDisposed = true;
+      _resumeRetryTimer?.cancel();
       _wsUpdateSub?.cancel();
       _wsMessageSub?.cancel();
       _pollingTimer?.cancel();
@@ -654,20 +669,134 @@ class ChatV2ChannelsNotifier
     }
 
     try {
+      ref.read(chatV2SyncStatusProvider.notifier).state = ChatV2SyncStatus.connecting;
       final fresh = await repo.getChannels(limit: 80, offset: 0);
+      if (fresh.isNotEmpty) {
+        final presenceNotifier = ref.read(chatV2PresenceProvider.notifier);
+        for (final f in fresh) {
+          final pId = f.partnerId ?? f.directPartnerId;
+          if (pId != null && pId.isNotEmpty && f.imStatus.isNotEmpty) {
+            presenceNotifier.updatePresence(pId, f.imStatus);
+          }
+          if (f.members.isNotEmpty) {
+            presenceNotifier.updateMembersPresence(f.members);
+          }
+        }
+      }
       ChatV2ChannelLocalCache.set(fresh);
+      ref.read(chatV2SyncStatusProvider.notifier).state = ChatV2SyncStatus.synced;
+      return ChatV2ChannelLocalCache.cached;
     } catch (e) {
-      debugPrint('ChatV2ChannelsNotifier: initial fetch error: $e');
+      ref.read(chatV2SyncStatusProvider.notifier).state = ChatV2SyncStatus.offline;
+      rethrow;
     }
-    return ChatV2ChannelLocalCache.cached;
+  }
+
+  bool _isTransientError(Object error) {
+    final errStr = error.toString().toLowerCase();
+
+    // 1. Non-transient errors (4xx client errors, auth failures, business validation) -> NO RETRY
+    if (errStr.contains('401') ||
+        errStr.contains('403') ||
+        errStr.contains('404') ||
+        errStr.contains('400') ||
+        errStr.contains('422') ||
+        errStr.contains('unauthorized') ||
+        errStr.contains('access_denied') ||
+        errStr.contains('multiple_tenants') ||
+        errStr.contains('tenant_not_found') ||
+        errStr.contains('invalid_credentials')) {
+      return false;
+    }
+
+    // 2. Transient network/server errors (SocketException, Timeout, 5xx, Network loss) -> RETRY
+    return true;
+  }
+
+  Future<void> resumeRefresh() async {
+    if (_isResumeRefreshing) {
+      // Single-flight lock: Tránh gọi chồng nhiều worker song song
+      return;
+    }
+    _resumeRetryTimer?.cancel();
+    _resumeRetryAttempt = 0;
+    await _executeResumeRefresh();
+  }
+
+  Future<void> _executeResumeRefresh() async {
+    if (_isDisposed) return;
+    _isResumeRefreshing = true;
+    try {
+      final repo = ref.read(chatV2RepositoryProvider);
+      final fresh = await repo.getChannels(limit: 80, offset: 0);
+
+      if (_isDisposed) return;
+
+      if (fresh.isNotEmpty) {
+        final presenceNotifier = ref.read(chatV2PresenceProvider.notifier);
+        for (final f in fresh) {
+          final pId = f.partnerId ?? f.directPartnerId;
+          if (pId != null && pId.isNotEmpty && f.imStatus.isNotEmpty) {
+            presenceNotifier.updatePresence(pId, f.imStatus);
+          }
+          if (f.members.isNotEmpty) {
+            presenceNotifier.updateMembersPresence(f.members);
+          }
+        }
+      }
+
+      ChatV2ChannelLocalCache.set(fresh);
+      state = AsyncData(ChatV2ChannelLocalCache.cached);
+      _resumeRetryAttempt = 0;
+      ref.read(chatV2SyncStatusProvider.notifier).state = ChatV2SyncStatus.synced;
+    } catch (e) {
+      if (_isDisposed) return;
+
+      if (!_isTransientError(e)) {
+        // Lỗi 4xx/Auth không retry tự động
+        ref.read(chatV2SyncStatusProvider.notifier).state = ChatV2SyncStatus.synced;
+        return;
+      }
+
+      // Giới hạn retry tối đa 3 lần theo Exponential Backoff: ~2s, ~4s, ~8s rồi dừng
+      if (_resumeRetryAttempt < 3) {
+        _resumeRetryAttempt++;
+        final delays = [2, 4, 8];
+        final delaySeconds = delays[(_resumeRetryAttempt - 1).clamp(0, delays.length - 1)];
+        ref.read(chatV2SyncStatusProvider.notifier).state = ChatV2SyncStatus.connecting;
+
+        _resumeRetryTimer?.cancel();
+        _resumeRetryTimer = Timer(Duration(seconds: delaySeconds), () {
+          _executeResumeRefresh();
+        });
+      } else {
+        ref.read(chatV2SyncStatusProvider.notifier).state = ChatV2SyncStatus.offline;
+      }
+    } finally {
+      _isResumeRefreshing = false;
+    }
   }
 
   Future<void> refresh() async {
     _hasMore = true;
-    final repo = ref.read(chatV2RepositoryProvider);
-    final fresh = await repo.getChannels(limit: 80, offset: 0);
-    ChatV2ChannelLocalCache.set(fresh);
-    state = AsyncData(ChatV2ChannelLocalCache.cached);
+    _resumeRetryTimer?.cancel();
+    _resumeRetryAttempt = 0;
+    ref.read(chatV2SyncStatusProvider.notifier).state = ChatV2SyncStatus.connecting;
+    try {
+      final repo = ref.read(chatV2RepositoryProvider);
+      final fresh = await repo.getChannels(limit: 80, offset: 0);
+      ChatV2ChannelLocalCache.set(fresh);
+      state = AsyncData(ChatV2ChannelLocalCache.cached);
+      ref.read(chatV2SyncStatusProvider.notifier).state = ChatV2SyncStatus.synced;
+    } catch (e) {
+      if (state.hasValue && (state.valueOrNull?.isNotEmpty ?? false)) {
+        // Đã có data trong bộ nhớ -> Giữ nguyên data cũ, chỉ bật banner offline
+        ref.read(chatV2SyncStatusProvider.notifier).state = ChatV2SyncStatus.offline;
+      } else {
+        ref.read(chatV2SyncStatusProvider.notifier).state = ChatV2SyncStatus.offline;
+        state = AsyncError(e, StackTrace.current);
+      }
+    }
   }
 
   Future<void> loadMore() async {

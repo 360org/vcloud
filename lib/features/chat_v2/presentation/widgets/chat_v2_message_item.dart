@@ -586,37 +586,50 @@ class ChatV2MessageItem extends StatelessWidget {
     final isConnected = raw.contains('Cuộc gọi thoại') || raw.startsWith('📞');
     final isRejected = raw.contains('từ chối') || raw.startsWith('🚫');
     final isCancelled = raw.contains('hủy') || raw.startsWith('📵');
+    final isAlertRed = !isMine && (isMissed || isRejected || isCancelled);
 
-    String title = 'Cuộc gọi thoại';
+    String title = isMine ? 'Cuộc gọi đi' : 'Cuộc gọi đến';
     String subtitle = raw;
-    IconData icon = LucideIcons.phone;
+    IconData icon = isMine ? LucideIcons.phoneOutgoing : LucideIcons.phoneIncoming;
     Color iconColor = const Color(0xFF10B981);
     Color iconBg = const Color(0xFF10B981).withValues(alpha: 0.15);
 
     if (isMissed) {
       title = isMine ? 'Cuộc gọi nhỡ đi' : 'Cuộc gọi nhỡ';
-      icon = LucideIcons.phoneMissed;
-      iconColor = const Color(0xFFEF4444);
-      iconBg = const Color(0xFFEF4444).withValues(alpha: 0.15);
-      subtitle = raw.replaceAll('❌', '').trim();
+      icon = isMine ? LucideIcons.phoneOutgoing : LucideIcons.phoneMissed;
+      iconColor = isAlertRed
+          ? const Color(0xFFEF4444)
+          : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B));
+      iconBg = isAlertRed
+          ? const Color(0xFFEF4444).withValues(alpha: 0.15)
+          : (isDark ? Colors.white10 : const Color(0xFFF1F5F9));
+      subtitle = isMine ? 'Không có phản hồi' : (raw.replaceAll('❌', '').trim().isEmpty ? 'Cuộc gọi nhỡ' : raw.replaceAll('❌', '').trim());
     } else if (isConnected) {
       title = isMine ? 'Cuộc gọi đi' : 'Cuộc gọi đến';
-      icon = LucideIcons.phone;
+      icon = isMine ? LucideIcons.phoneOutgoing : LucideIcons.phoneIncoming;
       iconColor = const Color(0xFF10B981);
       iconBg = const Color(0xFF10B981).withValues(alpha: 0.15);
       subtitle = raw.replaceAll('📞', '').trim();
     } else if (isRejected) {
-      title = 'Cuộc gọi bị từ chối';
+      title = isMine ? 'Cuộc gọi bị từ chối' : 'Đã từ chối cuộc gọi';
       icon = LucideIcons.phoneOff;
-      iconColor = const Color(0xFFF59E0B);
-      iconBg = const Color(0xFFF59E0B).withValues(alpha: 0.15);
-      subtitle = 'Đối phương bận';
+      iconColor = isAlertRed
+          ? const Color(0xFFEF4444)
+          : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B));
+      iconBg = isAlertRed
+          ? const Color(0xFFEF4444).withValues(alpha: 0.15)
+          : (isDark ? Colors.white10 : const Color(0xFFF1F5F9));
+      subtitle = isMine ? 'Đối phương bận' : 'Bạn đã từ chối';
     } else if (isCancelled) {
-      title = 'Cuộc gọi đã hủy';
-      icon = LucideIcons.phoneOff;
-      iconColor = const Color(0xFF94A3B8);
-      iconBg = const Color(0xFF94A3B8).withValues(alpha: 0.15);
-      subtitle = 'Đã hủy cuộc gọi';
+      title = isMine ? 'Cuộc gọi đã hủy' : 'Cuộc gọi nhỡ';
+      icon = isMine ? LucideIcons.phoneOff : LucideIcons.phoneMissed;
+      iconColor = isAlertRed
+          ? const Color(0xFFEF4444)
+          : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B));
+      iconBg = isAlertRed
+          ? const Color(0xFFEF4444).withValues(alpha: 0.15)
+          : (isDark ? Colors.white10 : const Color(0xFFF1F5F9));
+      subtitle = isMine ? 'Đã hủy cuộc gọi' : 'Cuộc gọi nhỡ';
     }
 
     return Container(
@@ -648,8 +661,8 @@ class ChatV2MessageItem extends StatelessWidget {
                       title,
                       style: TextStyle(
                         fontSize: 14.5,
-                        fontWeight: FontWeight.w600,
-                        color: isMissed
+                        fontWeight: FontWeight.w700,
+                        color: isAlertRed
                             ? const Color(0xFFEF4444)
                             : (isDark ? Colors.white : const Color(0xFF1E293B)),
                       ),
@@ -659,7 +672,10 @@ class ChatV2MessageItem extends StatelessWidget {
                       subtitle,
                       style: TextStyle(
                         fontSize: 12.5,
-                        color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                        fontWeight: isAlertRed ? FontWeight.w500 : FontWeight.w400,
+                        color: isAlertRed
+                            ? (isDark ? const Color(0xFFFCA5A5) : const Color(0xFFDC2626).withValues(alpha: 0.85))
+                            : (isDark ? Colors.white60 : const Color(0xFF64748B)),
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,

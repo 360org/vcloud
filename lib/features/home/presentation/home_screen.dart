@@ -28,7 +28,6 @@ import '../../ticket/application/ticket_controller.dart';
 import '../../../shared/models/ticket.dart';
 import '../application/home_summary_controller.dart';
 import '../application/home_performance_diagnostics.dart';
-import '../../../../shared/widgets/whats_new_sheet.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -46,7 +45,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     HomePerformanceDiagnostics.runBenchmark(ref);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        WhatsNewSheet.showIfNeeded(context, targetBuild: 92);
         // Tự động đồng bộ và nạp Push Device Token lên Odoo Backend mỗi khi mở màn hình Home
         ref.read(pushNotificationServiceProvider).registerCurrentDevice().catchError((e) {
           debugPrint('Silent push registration error on home load: $e');

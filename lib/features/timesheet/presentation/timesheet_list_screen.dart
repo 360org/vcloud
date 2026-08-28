@@ -179,6 +179,11 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
             duration: durationBucketForElapsed(result.duration),
             elapsed: result.duration,
           );
+      if (mounted) {
+        setState(() {
+          _taskStatusOverrides[taskId] = _TaskWorkflowStatus.done;
+        });
+      }
       ref.invalidate(timesheetStreamProvider);
     } catch (e, stackTrace) {
       if (mounted) {
@@ -311,13 +316,14 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
       state: task.state,
       accent: accent,
       icon: _categoryIcon(task.category),
-      workflowStatus:
-          _taskStatusOverrides[task.id] ??
-          _TaskWorkflowStatus.fromRaw(
-            isDone: done,
-            state: task.state,
-            stageName: task.stageName,
-          ),
+      workflowStatus: done
+          ? _TaskWorkflowStatus.done
+          : (_taskStatusOverrides[task.id] ??
+              _TaskWorkflowStatus.fromRaw(
+                isDone: done,
+                state: task.state,
+                stageName: task.stageName,
+              )),
       done: done,
       // Ưu tiên entry hôm nay -> log hoàn thành local -> lần log gần nhất từ Odoo backend
       logged: entry != null
@@ -2289,6 +2295,9 @@ enum _TaskWorkflowStatus {
   }) {
     if (isDone) return _TaskWorkflowStatus.done;
     final raw = '${state ?? ''} ${stageName ?? ''}'.toLowerCase();
+    if (raw.contains('done') || raw.contains('hoàn thành') || raw.contains('xong') || raw.contains('closed') || raw.contains('đã đóng')) {
+      return done;
+    }
     if (raw.contains('cancel') || raw.contains('hủy') || raw.contains('huỷ')) {
       return canceled;
     }

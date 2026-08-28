@@ -35,6 +35,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       final base64Str = base64Encode(bytes);
       await ref.read(authControllerProvider.notifier).uploadAvatar(base64Str);
       if (mounted) {
+        setState(() {});
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Đã cập nhật ảnh đại diện thành công!'),
