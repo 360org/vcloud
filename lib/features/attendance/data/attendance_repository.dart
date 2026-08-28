@@ -145,14 +145,54 @@ class AttendanceRepository {
     return Attendance.fromMap(_attendanceFromCheckOut(res));
   }
 
-  Stream<List<Attendance>> watchRecent({int limit = 500}) {
+  Future<Attendance> resolveStaleAttendance({
+    required String staleAttendanceId,
+    DateTime? staleCheckoutTime,
+    bool autoCheckInToday = true,
+  }) async {
+    Position? pos;
+    if (autoCheckInToday) {
+      try {
+        await ensurePermission();
+        pos = await currentPosition();
+      } catch (_) {}
+    }
+    final body = <String, dynamic>{
+      'stale_attendance_id': staleAttendanceId,
+      if (staleCheckoutTime != null) 'stale_checkout_time': staleCheckoutTime.toUtc().toIso8601String(),
+      'auto_check_in_today': autoCheckInToday,
+      'latitude': ?pos?.latitude,
+      'longitude': ?pos?.longitude,
+    };
+    final res = await _client.post('/api/v1/mobile/attendance/resolve-stale', body: body);
+    if (res is Map && res['new_attendance_id'] != null) {
+      return Attendance.fromMap(<String, dynamic>{
+        'id': res['new_attendance_id'].toString(),
+        'user_id': '',
+        'checkin_time': res['check_in'],
+        'checkout_time': null,
+        'created_at': res['check_in'] ?? DateTime.now().toIso8601String(),
+      });
+    }
+    return Attendance(
+      id: staleAttendanceId,
+      userId: '',
+      createdAt: DateTime.now(),
+    );
+  }
+
+  Stream<List<Attendance>> watchRecent({int limit = 500, String? month}) {
     final controller = StreamController<List<Attendance>>();
 
     Future<void> refresh() async {
       try {
+        final query = <String, Object?>{
+          'limit': limit,
+          'month': ?month,
+        };
         final res = await _client.get(
           '/api/v1/mobile/attendance/history',
-          query: <String, Object?>{'limit': limit},
+          query: query,
         );
         final list = (res as List)
             .cast<Map<String, dynamic>>()
@@ -187,20 +227,23 @@ class AttendanceRepository {
   }
 
   Attendance? _attendanceFromToday(dynamic raw) {
-    final map = Map<String, dynamic>.from(raw as Map);
+    if (raw == null || raw is! Map) return null;
+    final map = Map<String, dynamic>.from(raw);
     if (map['shift_config'] is Map) {
       try {
         cachedShiftConfig = ShiftConfig.fromMap(Map<String, dynamic>.from(map['shift_config'] as Map));
       } catch (_) {}
     }
+    final isStaleOpen = map['is_stale_open'] == true;
     final attendanceState = map['attendance_state']?.toString().toLowerCase();
     final isCheckedIn =
+        isStaleOpen ||
         map['is_checked_in'] == true ||
         map['checked_in'] == true ||
         attendanceState == 'checked_in' ||
         attendanceState == 'checked-in';
-    final attId = map['current_attendance_id'] ?? map['attendance_id'];
-    final checkIn = map['check_in'] ?? map['last_check_in'];
+    final attId = map['stale_attendance_id'] ?? map['current_attendance_id'] ?? map['attendance_id'];
+    final checkIn = map['stale_check_in'] ?? map['check_in'] ?? map['last_check_in'];
     if (!isCheckedIn || attId == null || checkIn == null) return null;
 
     return Attendance.fromMap(<String, dynamic>{
@@ -213,6 +256,10 @@ class AttendanceRepository {
       'latitude': null,
       'longitude': null,
       'created_at': checkIn,
+      'is_stale_open': isStaleOpen,
+      'stale_attendance_id': map['stale_attendance_id']?.toString(),
+      'stale_check_in_date': map['stale_check_in_date']?.toString(),
+      'suggested_checkout_time': map['suggested_checkout_time'],
     });
   }
 
@@ -259,3 +306,4 @@ class AttendanceRepository {
             normalized.contains('checked in'));
   }
 }
+

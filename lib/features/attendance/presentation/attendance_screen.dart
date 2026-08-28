@@ -12,6 +12,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../shared/models/attendance.dart';
 import '../../../shared/models/timesheet.dart';
 import '../../../shared/widgets/app_scaffold.dart';
+import '../../../shared/widgets/app_toast.dart';
 import '../../../shared/widgets/ui_kit.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../timesheet/application/task_controller.dart';
@@ -265,8 +266,15 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
           ),
           const SizedBox(height: 32),
 
+          // Hiển thị Banner xử lý ca cũ chưa Check-out
+          if (isCheckedIn && open.isStaleOpen)
+            _StaleAttendanceRecoveryBanner(
+              open: open,
+              onResolved: () => setState(() {}),
+            ).animate().fadeIn(duration: 400.ms),
+
           // Check-in status: show time if checked in, circle if not
-          if (isCheckedIn)
+          if (isCheckedIn && !open.isStaleOpen)
             Center(
               child: GlassCard(
                 child: Column(
@@ -297,10 +305,10 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
                 ),
               ).animate().fadeIn(duration: 400.ms),
             )
-          else
+          else if (!isCheckedIn || open.isStaleOpen)
             Center(
               child: _BigCircleButton(
-                enabled: !statusLoading && !isCheckedIn && !_busy,
+                enabled: !statusLoading && !_busy,
                 busy: _busy || statusLoading,
                 onTap: () => _handle(true),
               ),
@@ -1327,3 +1335,148 @@ class _PolicyItemRow extends StatelessWidget {
     );
   }
 }
+
+class _StaleAttendanceRecoveryBanner extends ConsumerStatefulWidget {
+  const _StaleAttendanceRecoveryBanner({
+    required this.open,
+    required this.onResolved,
+  });
+
+  final Attendance open;
+  final VoidCallback onResolved;
+
+  @override
+  ConsumerState<_StaleAttendanceRecoveryBanner> createState() => _StaleAttendanceRecoveryBannerState();
+}
+
+class _StaleAttendanceRecoveryBannerState extends ConsumerState<_StaleAttendanceRecoveryBanner> {
+  bool _busy = false;
+
+  Future<void> _resolve({bool autoCheckInToday = true, DateTime? customTime}) async {
+    setState(() => _busy = true);
+    try {
+      await ref.read(attendanceActionsProvider).resolveStale(
+        staleAttendanceId: widget.open.staleAttendanceId ?? widget.open.id,
+        staleCheckoutTime: customTime ?? widget.open.suggestedCheckoutTime,
+        autoCheckInToday: autoCheckInToday,
+      );
+      if (mounted) {
+        AppToast.success(
+          context,
+          title: autoCheckInToday ? 'Đã đóng ca cũ & bắt đầu ca hôm nay thành công!' : 'Đã đóng ca cũ thành công!',
+        );
+        widget.onResolved();
+      }
+    } catch (e) {
+      if (mounted) {
+        AppToast.error(context, title: 'Lỗi xử lý ca cũ: $e');
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _pickCustomTime() async {
+    final defaultDt = widget.open.suggestedCheckoutTime ?? (widget.open.checkinTime?.add(const Duration(hours: 8)) ?? DateTime.now());
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: defaultDt.hour, minute: defaultDt.minute),
+      helpText: 'CHỌN GIỜ CHECK-OUT CA NGÀY ${widget.open.staleCheckInDate ?? ""}',
+    );
+    if (pickedTime == null) return;
+
+    final checkinDt = widget.open.checkinTime ?? DateTime.now();
+    final customDt = DateTime(
+      checkinDt.year,
+      checkinDt.month,
+      checkinDt.day,
+      pickedTime.hour,
+      pickedTime.minute,
+    );
+
+    await _resolve(autoCheckInToday: true, customTime: customDt);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final checkinDateStr = widget.open.staleCheckInDate ?? (widget.open.checkinTime != null ? '${widget.open.checkinTime!.day}/${widget.open.checkinTime!.month}' : 'hôm trước');
+    final suggestedOut = widget.open.suggestedCheckoutTime != null
+        ? '${widget.open.suggestedCheckoutTime!.hour.toString().padLeft(2, "0")}:${widget.open.suggestedCheckoutTime!.minute.toString().padLeft(2, "0")}'
+        : '17:30';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.warning.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.warning.withValues(alpha: 0.4), width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(LucideIcons.alertTriangle, color: AppColors.warning, size: 20),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'Phát hiện ca chưa Check-out',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.warning,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Bạn có ca làm việc ngày $checkinDateStr chưa được check-out. Hệ thống gợi ý đóng ca lúc $suggestedOut để bạn bắt đầu ca hôm nay.',
+            style: const TextStyle(fontSize: 13, height: 1.4, color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: _busy ? null : () => _resolve(autoCheckInToday: true),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  icon: _busy
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Icon(LucideIcons.checkCheck, size: 16),
+                  label: const Text(
+                    'Đóng ca & Check-in ngay',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton(
+                onPressed: _busy ? null : _pickCustomTime,
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                child: const Icon(LucideIcons.clock, size: 16),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
