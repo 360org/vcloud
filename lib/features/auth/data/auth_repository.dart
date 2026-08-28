@@ -17,7 +17,19 @@ class AuthRepository {
 
   Future<AuthUser?> currentUser() async {
     final session = await _client.restoreSession();
-    return session == null ? null : _toUser(session);
+    if (session == null) return null;
+    try {
+      final profile = await _client.currentUserProfile();
+      if (profile == null) {
+        await _client.logout();
+        return null;
+      }
+    } catch (_) {
+      // Phiên không hợp lệ trên backend hiện tại (vd: chuyển đổi giữa Odoo 17 và 19)
+      await _client.logout();
+      return null;
+    }
+    return _toUser(session);
   }
 
   Future<AuthUser> signUp({
@@ -32,14 +44,20 @@ class AuthRepository {
   static const _savedEmailKey = 'saved_login_email';
 
   Future<void> saveLastLoginEmail(String email) async {
-    final trimmed = email.trim();
-    if (trimmed.isNotEmpty) {
-      await _storage.write(key: _savedEmailKey, value: trimmed);
-    }
+    try {
+      final trimmed = email.trim();
+      if (trimmed.isNotEmpty) {
+        await _storage.write(key: _savedEmailKey, value: trimmed);
+      }
+    } catch (_) {}
   }
 
   Future<String?> getLastLoginEmail() async {
-    return await _storage.read(key: _savedEmailKey);
+    try {
+      return await _storage.read(key: _savedEmailKey);
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<AuthUser> signIn({
@@ -107,7 +125,9 @@ class AuthRepository {
 
     final metadata = <String, dynamic>{
       'display_name': name ?? login.split('@').first,
+      'name': name ?? login.split('@').first,
       'db': session.db,
+      'uid': session.uid.toString(),
     };
     if (partnerId != null) metadata['partner_id'] = partnerId;
     if (companyName != null) metadata['company'] = companyName;

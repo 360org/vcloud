@@ -204,6 +204,15 @@ class ChatV2Message {
 
   bool get isImageFilename {
     final clean = content.trim().toLowerCase();
+    if (clean.isEmpty ||
+        clean.contains('\n') ||
+        clean.length > 250 ||
+        clean.startsWith('http://') ||
+        clean.startsWith('https://') ||
+        clean.startsWith('www.') ||
+        clean.contains('://')) {
+      return false;
+    }
     return clean.endsWith('.png') ||
         clean.endsWith('.jpg') ||
         clean.endsWith('.jpeg') ||
@@ -221,6 +230,16 @@ class ChatV2Message {
 
   bool get isDocumentFilename {
     final clean = content.trim().toLowerCase();
+    if (clean.isEmpty ||
+        clean.contains('\n') ||
+        clean.length > 250 ||
+        clean.startsWith('http://') ||
+        clean.startsWith('https://') ||
+        clean.startsWith('www.') ||
+        clean.contains('://')) {
+      return false;
+    }
+
     return clean.endsWith('.pdf') ||
         clean.endsWith('.doc') ||
         clean.endsWith('.docx') ||
@@ -243,6 +262,21 @@ class ChatV2Message {
         clean.endsWith('.ipa') ||
         clean.endsWith('.sql') ||
         clean.endsWith('.log') ||
+        clean.endsWith('.p8') ||
+        clean.endsWith('.cer') ||
+        clean.endsWith('.key') ||
+        clean.endsWith('.bin') ||
+        clean.endsWith('.sh') ||
+        clean.endsWith('.py') ||
+        clean.endsWith('.dart') ||
+        clean.endsWith('.ts') ||
+        clean.endsWith('.js') ||
+        clean.endsWith('.yaml') ||
+        clean.endsWith('.yml') ||
+        clean.endsWith('.rtf') ||
+        clean.endsWith('.odt') ||
+        clean.endsWith('.ods') ||
+        clean.endsWith('.odp') ||
         clean.startsWith('báo giá') ||
         clean.startsWith('baocao_') ||
         clean.startsWith('hopdong_');
@@ -250,6 +284,15 @@ class ChatV2Message {
 
   bool get isVoiceFilename {
     final clean = content.trim().toLowerCase();
+    if (clean.isEmpty ||
+        clean.contains('\n') ||
+        clean.length > 250 ||
+        clean.startsWith('http://') ||
+        clean.startsWith('https://') ||
+        clean.startsWith('www.') ||
+        clean.contains('://')) {
+      return false;
+    }
     return clean.endsWith('.webm') ||
         clean.endsWith('.mp3') ||
         clean.endsWith('.m4a') ||
@@ -258,10 +301,11 @@ class ChatV2Message {
         clean.endsWith('.ogg') ||
         clean.startsWith('voice_') ||
         clean.contains('voice_') ||
-        clean == '[ghi âm]' ||
+        clean.contains('audio_') ||
         clean == 'ghi âm' ||
-        clean == '[tin nhắn thoại]' ||
-        clean == 'tin nhắn thoại';
+        clean == '[ghi âm]' ||
+        clean == 'tin nhắn thoại' ||
+        clean == '[tin nhắn thoại]';
   }
 
   bool get hasAudio => attachments.any((a) => a.isAudio) || isVoiceFilename;

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +9,7 @@ import 'package:lucide_flutter/lucide_flutter.dart';
 import '../../../core/api/odoo_api_client.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../../../shared/widgets/brand_logo.dart';
+import '../../chat_v2/application/chat_v2_channels_controller.dart';
 import '../application/auth_controller.dart';
 import 'tenant_selection_sheet.dart';
 
@@ -108,12 +111,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             tenantId: tenantId,
           );
       if (!mounted) return;
+      // Pre-warm chat channels during transition
+      unawaited(ref.read(chatV2ChannelsProvider.notifier).refresh());
       // Trigger WhatsApp-style post-login sync transition in light mode
       setState(() {
         _submitting = false;
         _showSuccessTransition = true;
       });
-      await Future.delayed(const Duration(milliseconds: 1400));
+      await Future.delayed(const Duration(milliseconds: 700));
       if (mounted) context.go('/chat');
     } on MultipleTenantsFailure catch (e) {
       if (!mounted) return;

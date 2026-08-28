@@ -88,6 +88,8 @@ class TenantNotFoundFailure extends Failure {
 }
 
 class OdooApiClient {
+  static void Function()? onSessionExpired;
+
   OdooApiClient({
     http.Client? httpClient,
     OdooSessionStore? sessionStore,
@@ -177,6 +179,12 @@ class OdooApiClient {
       _session = null;
       return null;
     }
+    // Tự động vô hiệu hóa session khi chuyển đổi giữa các database khác nhau (vd: demo-17 vs demo-19)
+    if (Env.odooDb.isNotEmpty && stored.db.isNotEmpty && stored.db != Env.odooDb) {
+      await _sessionStore.clear();
+      _session = null;
+      return null;
+    }
     _session = stored;
     return stored;
   }
@@ -186,15 +194,124 @@ class OdooApiClient {
     required String password,
     int? tenantId,
   }) async {
-    final body = <String, dynamic>{'login': login, 'password': password};
-    if (Env.odooDb.isNotEmpty) body['db'] = Env.odooDb;
-    if (tenantId != null) body['tenant_id'] = tenantId;
-    Object? json;
+    final trimmedLogin = login.trim();
+    final primaryBaseUrl = _baseUrl.isNotEmpty ? _baseUrl : Env.odooApiBaseUrl;
+    const demoBaseUrl = 'https://demo.vuahethong.com';
+
+    // Rule 1: Nếu primaryBaseUrl không phải là Production mặc định (đã được chỉ định qua cờ)
+    // hoặc có tenantId cụ thể: Chỉ gọi duy nhất primaryBaseUrl.
+    if (primaryBaseUrl != 'https://vuahethong.net' || tenantId != null) {
+      final session = await _tryFullLoginAt(
+        targetBaseUrl: primaryBaseUrl,
+        login: trimmedLogin,
+        password: password,
+        tenantId: tenantId,
+      );
+      _session = session;
+      await _sessionStore.write(session);
+      return session;
+    }
+
+    // Rule 2 (Smart Format Hint - Email nội bộ):
+    // Email có đuôi công ty (@360.org.vn, @vuahethong.net): 100% Production.
+    final isCompanyEmail = trimmedLogin.contains('@360.org.vn') ||
+        trimmedLogin.contains('@vuahethong.net');
+    if (isCompanyEmail) {
+      final session = await _tryFullLoginAt(
+        targetBaseUrl: primaryBaseUrl,
+        login: trimmedLogin,
+        password: password,
+        tenantId: tenantId,
+      );
+      _session = session;
+      await _sessionStore.write(session);
+      return session;
+    }
+
+    // Rule 3 (Username ngắn không có '@'):
+    // Ví dụ: 'demo', 'morpheus', 'admin', 'guest'... Ưu tiên Demo trước, fallback Production.
+    final isShortUsername = !trimmedLogin.contains('@');
+    if (isShortUsername) {
+      try {
+        final session = await _tryFullLoginAt(
+          targetBaseUrl: demoBaseUrl,
+          login: trimmedLogin,
+          password: password,
+          targetDb: 'demo',
+          tenantId: tenantId,
+        );
+        _session = session;
+        await _sessionStore.write(session);
+        return session;
+      } catch (demoErr) {
+        if (demoErr is MultipleTenantsFailure) rethrow;
+        try {
+          final session = await _tryFullLoginAt(
+            targetBaseUrl: primaryBaseUrl,
+            login: trimmedLogin,
+            password: password,
+            tenantId: tenantId,
+          );
+          _session = session;
+          await _sessionStore.write(session);
+          return session;
+        } catch (_) {
+          throw demoErr;
+        }
+      }
+    }
+
+    // Rule 4 (Email thông thường khác, vd: client@gmail.com):
+    // Thăm dò Production trước -> nếu thất bại thì thử tiếp Demo.
     try {
-      json = await post(
-        '/api/v1/mobile/auth/login',
-        body: body,
-        auth: false,
+      final session = await _tryFullLoginAt(
+        targetBaseUrl: primaryBaseUrl,
+        login: trimmedLogin,
+        password: password,
+        tenantId: tenantId,
+      );
+      _session = session;
+      await _sessionStore.write(session);
+      return session;
+    } catch (prodErr) {
+      if (prodErr is MultipleTenantsFailure) rethrow;
+      try {
+        final session = await _tryFullLoginAt(
+          targetBaseUrl: demoBaseUrl,
+          login: trimmedLogin,
+          password: password,
+          targetDb: 'demo',
+          tenantId: tenantId,
+        );
+        _session = session;
+        await _sessionStore.write(session);
+        return session;
+      } catch (_) {
+        throw prodErr;
+      }
+    }
+  }
+
+  Future<OdooSession> _tryFullLoginAt({
+    required String targetBaseUrl,
+    required String login,
+    required String password,
+    String? targetDb,
+    int? tenantId,
+    Duration timeout = const Duration(seconds: 4),
+  }) async {
+    final dbName = targetDb ??
+        (targetBaseUrl.contains('demo')
+            ? 'demo'
+            : Env.odooDb);
+    try {
+      return await _attemptLoginAt(
+        targetBaseUrl: targetBaseUrl,
+        login: login,
+        password: password,
+        targetDb: dbName,
+        tenantId: tenantId,
+        timeout: timeout,
       );
     } on MultipleTenantsFailure {
       rethrow;
@@ -206,36 +323,105 @@ class OdooApiClient {
         throw e;
       }
     } catch (e) {
+      if (e.toString().toLowerCase().contains('database not found')) {
+        final isLocal = targetBaseUrl.contains('127.0.0.1') || targetBaseUrl.contains('localhost');
+        if (isLocal) {
+          final altDb = (dbName == 'demo-19') ? 'demo-17' : 'demo-19';
+          try {
+            return await _attemptLoginAt(
+              targetBaseUrl: targetBaseUrl,
+              login: login,
+              password: password,
+              targetDb: altDb,
+              tenantId: tenantId,
+              timeout: timeout,
+            );
+          } catch (_) {}
+        }
+      }
       try {
-        final dbName = Env.odooDb.isNotEmpty ? Env.odooDb : 'vuahethong';
-        return await _loginWithOdooSessionAndJwt(
+        final fallbackDb = dbName.isNotEmpty ? dbName : 'vuahethong';
+        return await _loginWithOdooSessionAndJwtAt(
+          targetBaseUrl: targetBaseUrl,
           login: login,
           password: password,
-          dbName: dbName,
+          dbName: fallbackDb,
           tenantId: tenantId,
+          timeout: timeout,
         );
       } catch (_) {
         rethrow;
       }
     }
-    final session = _sessionFromJson(
-      Map<String, dynamic>.from(json as Map),
-      fallbackLogin: login,
-      fallbackDb: Env.odooDb,
-      fallbackBaseUrl: _baseUrl,
-    );
-    _session = session;
-    await _sessionStore.write(session);
-    return session;
   }
 
-  Future<OdooSession> _loginWithOdooSessionAndJwt({
+  String get activeBaseUrl => _activeBaseUrl();
+
+  Future<OdooSession> _attemptLoginAt({
+    required String targetBaseUrl,
+    required String login,
+    required String password,
+    required String targetDb,
+    int? tenantId,
+    Duration timeout = const Duration(seconds: 4),
+  }) async {
+    final body = <String, dynamic>{'login': login, 'password': password};
+    if (targetDb.isNotEmpty) body['db'] = targetDb;
+    if (tenantId != null) body['tenant_id'] = tenantId;
+
+    final uri = Uri.parse('$targetBaseUrl/api/v1/mobile/auth/login');
+    final response = await _http
+        .post(
+          uri,
+          headers: const {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: jsonEncode(body),
+        )
+        .timeout(timeout);
+
+    final text = response.body;
+    Object? decoded;
+    if (text.isNotEmpty) {
+      try {
+        decoded = jsonDecode(text);
+      } catch (_) {
+        if (response.statusCode >= 400) {
+          throw Failure('Máy chủ phản hồi lỗi (${response.statusCode}).');
+        }
+        throw Failure('Dữ liệu từ máy chủ không đúng định dạng.');
+      }
+    }
+
+    final multiTenants = _tryMultipleTenants(decoded, response.statusCode);
+    if (multiTenants != null) throw multiTenants;
+    final tenantNotFound = _tryTenantNotFound(decoded, response.statusCode);
+    if (tenantNotFound != null) throw tenantNotFound;
+
+    if (response.statusCode >= 400 ||
+        decoded is! Map ||
+        decoded['error'] != null) {
+      throw Failure(_errorMessage(decoded, response.statusCode));
+    }
+
+    return _sessionFromJson(
+      Map<String, dynamic>.from(decoded),
+      fallbackLogin: login,
+      fallbackDb: targetDb,
+      fallbackBaseUrl: targetBaseUrl,
+    );
+  }
+
+  Future<OdooSession> _loginWithOdooSessionAndJwtAt({
+    required String targetBaseUrl,
     required String login,
     required String password,
     required String dbName,
     int? tenantId,
+    Duration timeout = const Duration(seconds: 4),
   }) async {
-    final authUri = Uri.parse('${_requestBaseUrl(auth: false)}/web/session/authenticate');
+    final authUri = Uri.parse('$targetBaseUrl/web/session/authenticate');
     final authPayload = {
       'jsonrpc': '2.0',
       'params': {
@@ -244,22 +430,30 @@ class OdooApiClient {
         'password': password,
       },
     };
-    final authResponse = await _http.post(
-      authUri,
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: jsonEncode(authPayload),
-    );
+    final authResponse = await _http
+        .post(
+          authUri,
+          headers: const {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: jsonEncode(authPayload),
+        )
+        .timeout(timeout);
+
     if (authResponse.statusCode != 200) {
-      throw Failure('Không thể kết nối đến máy chủ Odoo (${authResponse.statusCode})');
+      throw Failure(
+        'Không thể kết nối đến máy chủ Odoo (${authResponse.statusCode})',
+      );
     }
     final authDecoded = jsonDecode(authResponse.body);
     if (authDecoded is! Map || authDecoded['error'] != null) {
       final err = authDecoded is Map ? authDecoded['error'] : null;
-      final errMsg = err is Map ? (err['data']?['message'] ?? err['message']) : null;
-      throw Failure(errMsg?.toString() ?? 'Tài khoản hoặc mật khẩu không chính xác.');
+      final errMsg =
+          err is Map ? (err['data']?['message'] ?? err['message']) : null;
+      throw Failure(
+        errMsg?.toString() ?? 'Tài khoản hoặc mật khẩu không chính xác.',
+      );
     }
     final authResult = authDecoded['result'];
     if (authResult is! Map) {
@@ -281,7 +475,7 @@ class OdooApiClient {
     }
 
     // Step 2: Gửi request lấy JWT access_token có kèm session_id cookie
-    final jwtUri = Uri.parse('${_requestBaseUrl(auth: false)}/api/v1/mobile/auth/login');
+    final jwtUri = Uri.parse('$targetBaseUrl/api/v1/mobile/auth/login');
     final jwtHeaders = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
@@ -297,44 +491,40 @@ class OdooApiClient {
     }
 
     try {
-      final jwtResponse = await _http.post(
-        jwtUri,
-        headers: jwtHeaders,
-        body: jsonEncode(jwtBody),
-      );
+      final jwtResponse = await _http
+          .post(
+            jwtUri,
+            headers: jwtHeaders,
+            body: jsonEncode(jwtBody),
+          )
+          .timeout(timeout);
       if (jwtResponse.statusCode == 200) {
         final jwtDecoded = jsonDecode(jwtResponse.body);
         if (jwtDecoded is Map && jwtDecoded['access_token'] != null) {
-          final session = _sessionFromJson(
+          return _sessionFromJson(
             Map<String, dynamic>.from(jwtDecoded),
             fallbackLogin: login,
             fallbackDb: dbName,
-            fallbackBaseUrl: _baseUrl,
+            fallbackBaseUrl: targetBaseUrl,
             fallbackUid: uid,
             fallbackPartnerId: partnerId,
           );
-          _session = session;
-          await _sessionStore.write(session);
-          return session;
         }
       }
     } catch (_) {}
 
-    final session = OdooSession(
+    return OdooSession(
       accessToken: sessionId ?? 'session_$uid',
       refreshToken: null,
       uid: uid,
       db: dbName,
       login: login,
       expiresAt: DateTime.now().toUtc().add(const Duration(days: 30)),
-      baseUrl: _baseUrl,
+      baseUrl: targetBaseUrl,
       tenantId: null,
       scope: 'odoo_web_session',
       partnerId: partnerId,
     );
-    _session = session;
-    await _sessionStore.write(session);
-    return session;
   }
 
   Future<OdooSession> _loginMasterAdmin({
@@ -533,7 +723,10 @@ class OdooApiClient {
     if (auth && (_session == null || _session!.isExpired)) {
       await restoreSession();
     }
-    if (auth && _session == null) throw Failure('Not signed in');
+    if (auth && _session == null) {
+      onSessionExpired?.call();
+      throw Failure('Not signed in');
+    }
 
     final queryParameters = <String, String>{
       for (final entry in query.entries)
@@ -599,9 +792,10 @@ class OdooApiClient {
     }
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      if (auth && (response.statusCode == 401 || response.statusCode == 403)) {
+      if (auth && response.statusCode == 401) {
         await _sessionStore.clear();
         _session = null;
+        onSessionExpired?.call();
       }
       final multiTenants = _tryMultipleTenants(decoded, response.statusCode);
       if (multiTenants != null) throw multiTenants;

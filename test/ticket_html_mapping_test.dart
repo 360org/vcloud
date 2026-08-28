@@ -162,6 +162,41 @@ void main() {
     expect(client.postBodies[1], containsPair('datas', 'AQID'));
   });
 
+  test('TicketRepository uploads files with dynamic res_model project.task', () async {
+    final client = _FakeOdooApiClient(
+      <String, dynamic>{
+        'id': 99,
+        'name': 'Ticket Community',
+        'description': 'Loi Odoo Community',
+        'create_date': '2026-07-01T08:00:00Z',
+        'priority': '1',
+      },
+      postResponse: <String, dynamic>{'id': 99, 'res_model': 'project.task'},
+    );
+    final repo = TicketRepository(client: client);
+
+    await repo.create(
+      title: 'Ticket Community',
+      description: 'Loi Odoo Community',
+      attachments: <MobileAttachmentUpload>[
+        MobileAttachmentUpload(
+          filename: 'doc.pdf',
+          bytes: Uint8List.fromList(<int>[4, 5, 6]),
+          mimetype: 'application/pdf',
+        ),
+      ],
+    );
+
+    expect(client.calls, <String>[
+      'POST /api/v1/mobile/ticket/create',
+      'POST /api/v1/mobile/attachments/upload',
+      'GET /api/v1/mobile/ticket/99',
+    ]);
+    expect(client.postBodies[1], containsPair('res_model', 'project.task'));
+    expect(client.postBodies[1], containsPair('res_id', 99));
+    expect(client.postBodies[1], containsPair('filename', 'doc.pdf'));
+  });
+
   test('MobileAttachmentRepository reads metadata endpoint', () async {
     final repo = MobileAttachmentRepository(
       client: _FakeOdooApiClient(<String, dynamic>{

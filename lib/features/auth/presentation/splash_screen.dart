@@ -82,7 +82,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     ref.listen(authControllerProvider, (previous, next) {
-      final user = next.value;
+      final user = next.valueOrNull;
       if (user != null) {
         _warmupAndNavigate();
       } else if (!next.isLoading) {

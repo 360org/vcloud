@@ -58,9 +58,9 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
     // Returning from background → refresh live streams so unread badges
     // and notifications catch up immediately instead of waiting for next poll.
     if (state != AppLifecycleState.resumed) return;
-    final user = ref.read(authControllerProvider).value;
+    final user = ref.read(authControllerProvider).valueOrNull;
     if (user == null) return;
-    ref.invalidate(chatV2ChannelsProvider);
+    ref.read(chatV2ChannelsProvider.notifier).resumeRefresh();
     ref.invalidate(chatV2TotalUnreadProvider);
     ref.invalidate(mobileNotificationsProvider);
     ref.invalidate(attendanceTodayProvider);

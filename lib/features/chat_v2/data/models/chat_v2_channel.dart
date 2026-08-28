@@ -31,13 +31,18 @@ class ChatV2Member {
           json['avatar_128']?.toString() ??
           json['image_128']?.toString();
       final avatarUrl = odooApiClient.resolveAvatarUrl(rawAvatar);
+      final currentPartnerId = odooApiClient.session?.partnerId?.toString();
+      final currentUserId = odooApiClient.session?.uid.toString();
+      final isMeFlag = json['is_me'] == true ||
+          (currentPartnerId != null && currentPartnerId.isNotEmpty && id == currentPartnerId) ||
+          (currentUserId != null && currentUserId.isNotEmpty && id == currentUserId);
       return ChatV2Member(
         id: id,
         name: json['name']?.toString() ?? '',
         email: json['email']?.toString(),
         avatarUrl: avatarUrl,
         imStatus: json['im_status']?.toString() ?? 'offline',
-        isMe: json['is_me'] == true,
+        isMe: isMeFlag,
       );
     }
     return ChatV2Member(
@@ -145,16 +150,23 @@ class ChatV2Channel {
     String? currentPartnerId,
     String? currentUserName,
   }) {
-    if (lastMessageAuthorId != null) {
-      if (currentPartnerId != null && lastMessageAuthorId == currentPartnerId) return true;
-      if (currentUserId != null && lastMessageAuthorId == currentUserId) return true;
+    // 1. Ưu tiên tuyệt đối so sánh chính xác theo ID người gửi (partner_id / user_id)
+    if (lastMessageAuthorId != null && lastMessageAuthorId!.isNotEmpty) {
+      if (currentPartnerId != null && currentPartnerId.isNotEmpty) {
+        return lastMessageAuthorId == currentPartnerId;
+      }
+      if (currentUserId != null && currentUserId.isNotEmpty) {
+        return lastMessageAuthorId == currentUserId;
+      }
+      return false;
     }
-    if (lastMessageAuthorName != null) {
+    // 2. So sánh theo tên người gửi (chỉ so sánh chính xác 100% không dùng contains)
+    if (lastMessageAuthorName != null && lastMessageAuthorName!.isNotEmpty) {
       final aLower = lastMessageAuthorName!.trim().toLowerCase();
       if (aLower == 'tôi' || aLower == 'bạn' || aLower == 'me') return true;
       if (currentUserName != null && currentUserName.trim().isNotEmpty) {
         final uLower = currentUserName.trim().toLowerCase();
-        if (aLower == uLower || aLower.contains(uLower) || uLower.contains(aLower)) return true;
+        return aLower == uLower;
       }
     }
     return false;
@@ -178,7 +190,7 @@ class ChatV2Channel {
     'partner_id': partnerId,
   };
 
-  static bool _matchesUser(String part, String? currentUserName) {
+  static bool matchesUser(String part, String? currentUserName) {
     if (currentUserName == null || currentUserName.isEmpty) return false;
     final pLower = part.trim().toLowerCase();
     final uLower = currentUserName.trim().toLowerCase();
@@ -220,7 +232,7 @@ class ChatV2Channel {
 
       final parts = name.split(RegExp(r'\s*[,/|-]\s*|\s+và\s+|\s+&\s+'));
       if (parts.length >= 2) {
-        final otherParts = parts.where((p) => !_matchesUser(p, currentUserName)).toList();
+        final otherParts = parts.where((p) => !matchesUser(p, currentUserName)).toList();
         if (otherParts.isNotEmpty) {
           return otherParts.join(', ').trim();
         }
@@ -230,15 +242,14 @@ class ChatV2Channel {
   }
 
   bool getActualIsGroup(String? currentUserName) {
-    // 0. Ưu tiên cao nhất: channelType == 'chat' hoặc 'direct' là cá nhân
+    // 0. Kênh thảo luận Odoo (channelType == 'channel' hoặc 'group') luôn là nhóm/kênh
+    if (channelType == 'channel' || channelType == 'group') return true;
+
+    // 1. Ưu tiên: channelType == 'chat' hoặc 'direct' là cá nhân
     if (channelType == 'chat' || channelType == 'direct') return false;
 
-    // 1. Nếu có trên 2 thành viên -> Chắc chắn là Nhóm
-    if (memberCount > 2) return true;
-    if (members.length > 2) return true;
-
-    // 2. Nếu là loại nhóm tường minh (channel_type == 'group')
-    if (channelType == 'group') return true;
+    // 2. Nếu có trên 2 thành viên -> Chắc chắn là Nhóm
+    if (memberCount > 2 || members.length > 2) return true;
 
     // 3. Nếu tên chứa danh sách >= 3 người (VD: "A, B, C")
     final clean = getCleanName(currentUserName);
@@ -250,14 +261,10 @@ class ChatV2Channel {
     if (directPartnerName != null && directPartnerName!.isNotEmpty) return false;
     if (partnerId != null && partnerId!.isNotEmpty) return false;
 
-    // 5. Nếu memberCount là 1 hoặc 2 -> 1-1 Cá nhân
-    if (memberCount == 1 || memberCount == 2) return false;
-    if (members.length == 1 || members.length == 2) return false;
-
-    // 6. Nếu được đánh dấu isGroup = true
+    // 5. Nếu được đánh dấu isGroup = true
     if (isGroup) return true;
 
-    // 7. Mặc định là cá nhân 1-1
+    // 6. Mặc định là cá nhân 1-1
     return false;
   }
 
@@ -402,11 +409,11 @@ class ChatV2Channel {
     directPartnerStatus ??= imStatus;
 
     String? finalAvatarUrl = avatarUrl;
-    if (finalAvatarUrl == null && !isGroup) {
+    if (finalAvatarUrl == null && !isGroup && channelType != 'channel') {
       if (directPartnerAvatar != null && directPartnerAvatar.isNotEmpty) {
         finalAvatarUrl = directPartnerAvatar;
       } else if (memberObjs.isNotEmpty) {
-        if (otherMember != null && otherMember.avatarUrl != null && otherMember.avatarUrl!.isNotEmpty) {
+        if (otherMember != null && !otherMember.isMe && otherMember.avatarUrl != null && otherMember.avatarUrl!.isNotEmpty) {
           finalAvatarUrl = otherMember.avatarUrl;
         }
       }

@@ -124,13 +124,14 @@ class TicketRepository {
       },
     );
     final ticketId = (res['id'] as num).toInt();
+    final resModel = res['res_model']?.toString() ?? res['model']?.toString() ?? 'helpdesk.ticket';
     for (final attachment in attachments) {
       await _attachmentRepository.upload(
         MobileAttachmentUpload(
           filename: attachment.filename,
           bytes: attachment.bytes,
           mimetype: attachment.mimetype,
-          resModel: 'helpdesk.ticket',
+          resModel: resModel,
           resId: ticketId,
         ),
       );
@@ -152,7 +153,12 @@ class TicketRepository {
         '/api/v1/mobile/ticket/$id/workflow',
         body: <String, dynamic>{'status': odooStatus},
       );
-      return await one(id);
+      final updatedTicket = await one(id);
+      _cachedTickets = [
+        for (final t in _cachedTickets)
+          if (t.id == id) updatedTicket else t,
+      ];
+      return updatedTicket;
     } catch (e) {
       if (e is Failure) rethrow;
       throw Failure('Lỗi khi cập nhật trạng thái Ticket: $e');
@@ -190,16 +196,19 @@ class TicketRepository {
         : (stageRaw?.toString().toLowerCase() ?? '');
     
     final closeDate = map['close_date'] ?? map['date_done'];
-    final hasCloseDate = closeDate != null && closeDate != false && closeDate != 'false';
+    final hasCloseDate = closeDate != null && closeDate != false && closeDate != 'false' && closeDate != '';
     final state = map['state']?.toString();
+    final statusStr = map['status']?.toString();
     
     final isDone = hasCloseDate ||
         state == '1_done' ||
         state == '1_canceled' ||
+        statusStr == 'done' ||
         stageName.contains('done') ||
         stageName.contains('hoàn thành') ||
         stageName.contains('đã đóng') ||
-        stageName.contains('đã xong');
+        stageName.contains('đã xong') ||
+        stageName.contains('solved');
 
     final updatedAtStr = hasCloseDate ? closeDate.toString() : updated;
 

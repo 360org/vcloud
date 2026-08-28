@@ -217,4 +217,55 @@ void main() {
       expect(isMine, isTrue);
     });
   });
+
+  group('TASK #16452: Link URL vs Document Filename Discrimination', () {
+    test('ChatV2Message correctly classifies web links as plain text, NOT as document attachments', () {
+      const msg1 = ChatV2Message(
+        id: '1',
+        channelId: '10',
+        content: 'https://chatgpt.com/share/687a38fe-8ec4-8004-9a57-0b1a03e1e838',
+      );
+      expect(msg1.isDocumentFilename, isFalse);
+      expect(msg1.isImageFilename, isFalse);
+      expect(msg1.isVoiceFilename, isFalse);
+
+      const msg2 = ChatV2Message(
+        id: '2',
+        channelId: '10',
+        content: 'https://vuaoffice.vn',
+      );
+      expect(msg2.isDocumentFilename, isFalse);
+
+      const msg3 = ChatV2Message(
+        id: '3',
+        channelId: '10',
+        content: 'Chào anh. Em đã nhận được tin.',
+      );
+      expect(msg3.isDocumentFilename, isFalse);
+    });
+
+    test('ChatV2Message correctly identifies genuine document filenames', () {
+      const docMsg1 = ChatV2Message(
+        id: '4',
+        channelId: '10',
+        content: 'Bao_cao_tai_chinh_Q3.pdf',
+      );
+      expect(docMsg1.isDocumentFilename, isTrue);
+
+      const docMsg2 = ChatV2Message(
+        id: '5',
+        channelId: '10',
+        content: 'hopdong_laodong.docx',
+      );
+      expect(docMsg2.isDocumentFilename, isTrue);
+
+      const imgMsg = ChatV2Message(
+        id: '6',
+        channelId: '10',
+        content: 'scaled_image_picker_123.jpg',
+      );
+      expect(imgMsg.isImageFilename, isTrue);
+      expect(imgMsg.isDocumentFilename, isFalse);
+    });
+  });
 }

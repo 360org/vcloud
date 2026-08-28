@@ -329,8 +329,16 @@ class TaskRepository {
   }) {
     final dueDate = map['date_deadline'] as String? ?? _isoDate(fallbackDate);
     final now = DateTime.now().toIso8601String();
-    final state = (map['state'] ?? '').toString();
-    final isDone = completed || state == '1_done' || state == 'done';
+    final state = (map['state'] ?? '').toString().toLowerCase();
+    final stageName = (_many2OneName(map['stage_id']) ?? _stringOrNull(map['stage_name']) ?? _stringOrNull(map['stage']) ?? '').toLowerCase();
+    final isDone = completed ||
+        state == '1_done' ||
+        state == 'done' ||
+        stageName.contains('done') ||
+        stageName.contains('hoàn thành') ||
+        stageName.contains('xong') ||
+        stageName.contains('closed') ||
+        stageName.contains('đã đóng');
     return <String, dynamic>{
       'id': map['id'].toString(),
       'user_id': map['user_id']?.toString() ?? '',

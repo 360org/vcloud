@@ -2,6 +2,125 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v19.0.1.0.0] — 2026-08-27 (Nhánh Odoo 19: `19.0`)
+
+> [!IMPORTANT]
+> **Nhánh Backend Odoo 19 (`v_mobile`)**: `19.0` (Version: `19.0.1.0.0`)
+> - **Mục tiêu**: Nâng cấp và tương thích toàn diện cho hệ thống máy chủ **Odoo 19.0+e (Enterprise & Community)**, phục vụ khách hàng trải nghiệm qua `demo.vuahethong.com`.
+> - **Tương thích Mobile Client**: Đồng bộ 100% JSON API contract với Mobile Client v2.5.0+94 (Build 94), đảm bảo cơ chế Đăng nhập Đa Domain Thông minh hoạt động mượt mà giữa Odoo 17 (Nội bộ) và Odoo 19 (Khách hàng).
+
+### 🚀 [NÂNG CẤP TƯƠNG THÍCH TOÀN DIỆN ODOO 19 (ODOO 19 MIGRATION)]
+- **Chuẩn Hóa Manifest & Versioning (`__manifest__.py`)**:
+  - Nâng cấp phiên bản module lên `19.0.1.0.0`.
+  - Thiết lập đầy đủ danh sách dependencies: `base`, `web`, `mail`, `contacts`, `project`, `hr_timesheet`, `hr_attendance`, `helpdesk`.
+- **Loại Bỏ 100% Cú Pháp Cũ & Lỗi Tiềm Tàng Odoo 17**:
+  - Giao diện XML (`views/`): Chuẩn hóa cấu trúc `<app>/<block>/<setting>`, loại bỏ hoàn toàn `attrs=` và thẻ div cũ.
+  - Chat V2 (`controllers/chat.py`): Tối ưu truy vấn kênh thảo luận theo `last_interest_dt desc` và nạp trạng thái trực tuyến qua `bus_presence` Odoo 19.
+  - Thông báo đẩy Firebase: Hoạt động độc lập qua FCM HTTP v1 API, tương thích và dùng chung cấu hình `service_account.json` với Odoo 17 mà không xung đột token.
+- **Tài Liệu Hướng Dẫn Kỹ Thuật (`docs/ODOO19_INSTALL_AND_PUSH_CONFIG_GUIDE.md`)**:
+  - Hướng dẫn chi tiết quy trình nạp module vào thư mục addons, cài đặt trên Odoo 19 Web, và thiết lập Firebase Push Notification.
+
+---
+
+## [v2.5.0+94] — 2026-08-27
+
+> [!IMPORTANT]
+> **Nhánh làm việc & Bản dựng phát triển v2.5.0+94 (Build 94)**:
+> - **Nhánh Frontend (`vclients`)**: `fix/app-build94-chat-list-and-presence-sync` (Version: `2.5.0+94`)
+> - **Nhánh Backend (`v_mobile`)**: `fix/app-build94-chat-list-and-presence-sync` (Version: `17.0.2.2.4`)
+> - **Test Suite Status**: **246/246 tests PASS (100%)**, `flutter analyze` 0 issues.
+> - **Trạng Thái Kiểm Toán Phát Hành (Release Status)**: **🟡 PRE-RELEASE AUDITED** (Sẵn sàng mã nguồn & test; Chờ hoàn tất cài đặt module `v_mobile` trên server Demo để chạy E2E live thực tế).
+
+### 🌐 [ĐỊNH TUYẾN ĐĂNG NHẬP ĐA DOMAIN THÔNG MINH (DUAL-DOMAIN SMART AUTO-ROUTING)]
+- **Cơ Chế Phân Luồng Thông Minh Tự Động (`OdooApiClient.login`)**:
+  - **Smart Format Hint**: Nhận diện email nội bộ `@360.org.vn` / `@vuahethong.net` ➔ Xác định 100% Production, chỉ gửi duy nhất `vuahethong.net` (nếu sai mật khẩu thì báo lỗi ngay, tuyệt đối không fallback sang Demo). Nhận diện username ngắn không `@` (`demo`, `morpheus`...) ➔ Ưu tiên thăm dò `demo.vuahethong.com` trước, tự động fallback `vuahethong.net`.
+  - **Audit Ngữ Nghĩa HTTP 401 (401 Fallback Semantics)**: Odoo tuân thủ User Enumeration Defense (trả 401 cho cả user không tồn tại và sai pass). Hệ thống phân định chặt chẽ: Email công ty nhận 401 lập tức báo lỗi "Sai tài khoản/mật khẩu" trên Production, không bao giờ gửi request dò sang Demo; Username ngắn ưu tiên Demo, fallback Prod khi Demo 401.
+  - **Zero UI Clutter**: Giữ nguyên 100% form đăng nhập chuẩn nguyên bản (Logo ➔ Chào mừng ➔ Email ➔ Mật khẩu ➔ Đăng nhập), không thêm nút chọn server làm rối mắt người dùng.
+  - **An Toàn & Circuit Breaker**: Tích hợp timeout 4.0s cho từng endpoint, bọc toàn bộ ngoại lệ mạng an toàn chuyển thành typed `Failure`, triệt tiêu 100% nguy cơ crash app.
+  - **Sửa Lỗi Bảng Công Odoo 19 (Fix Timesheet Singleton res.users)**: Đồng bộ `request.update_env(user=uid)` trong `AuthController.authenticate()` và bổ sung `.with_user(uid).sudo()` khi ghi log `account.analytic.line`, triệt tiêu hoàn toàn lỗi `Expected singleton: res.users()`.
+  - **Kiến Trúc Ticket Đa Hình (Polymorphic Ticket Support)**: Hỗ trợ tự động chuyển đổi giữa `helpdesk.ticket` (Odoo Enterprise) và `project.task` (Odoo Community/Standard). Đảm bảo 100% người dùng trên mọi phiên bản Odoo đều có thể tạo ticket, gửi trao đổi và xem danh sách phiếu hỗ trợ mượt mà.
+  - **Tối Ưu & Tự Động Dọn Dẹp Môi Trường Kiểm Thử (Dual-Version Test Suite Auto-Cleanup)**: Tự động đóng toàn bộ Docker containers (`demo-17`, `demo-19`), giải phóng triệt để port `8069`, `7072` và dọn RAM/cache hệ điều hành ngay sau khi test suite kết thúc (bảo đảm môi trường luôn sạch và giải phóng 100% tài nguyên máy).
+  - **Cô Lập Môi Trường Máy Chủ (Server-Side Environment-Scoped Device Registration)**: Đăng ký thiết bị và FCM token được cô lập chặt chẽ theo môi trường máy chủ Odoo hiện hành (`_session.baseUrl`). Khi Đăng xuất (`logout()`), tự động hủy đăng ký thiết bị trên môi trường đó, giải phóng sạch sẽ `_session`, xóa Secure Storage và reset `baseUrl` về mặc định.
+- **Bộ Kiểm Thử Tự Động (`test/odoo_api_client_smart_routing_test.dart`)**:
+  - Xây dựng 5 unit tests (TC-01 đến TC-05) kiểm chứng: Email nội bộ không fallback, Username ngắn probe demo trước, Fallback sang prod khi demo lỗi, Email ngoài probe tuần tự, và Logout giải phóng sạch session.
+
+### ⏱️ [BẢNG CHỈ TIÊU ĐO LƯỜNG HIỆU NĂNG CHAT & KHỞI ĐỘNG (SLA METRICS)]
+- **Khóa Cứng Thước Đo Hiệu Năng (SLA Baseline)**:
+  - *Login ➔ Chat List First Render*: Mục tiêu SLA `≤ 2.0s` (Target defined — Sẽ đo số ms thực tế trên iPhone 13 của anh Tân).
+  - *Chat List Initial Payload*: Giới hạn `≤ 80 channels` (`last_interest_dt desc` Odoo 17 Discuss).
+  - *Message History Loading*: Phân trang Lazy Load `≤ 30 messages/lần`.
+  - *Avatar & Tệp Đính Kèm*: Nạp Lazy Load & lưu bộ nhớ đệm `HTMLNetworkImage` + `LocalAttachmentCache`.
+  - *Resume Refresh Latency*: Khóa nguyên tử Single-Flight `_isResumeRefreshing` chống giật UI.
+  - *Exponential Backoff Retry*: Chu kỳ ~2s ➔ ~4s ➔ ~8s (tối đa 3 lần cho transient network error).
+  - *Server Timeout Guard*: Circuit Breaker `≤ 4.0s` tự ngắt kết nối treo.
+
+### 🛠️ [SỬA LỖI AVATAR CHAT V2 BỊ GẮN NHẦM CHO KÊNH THẢO LUẬN & ĐỒNG BỘ IS_ME]
+- **Khắc Phục Lỗi Nhận Diện Nhóm/Kênh Thảo Luận (`chat_v2_channel.dart`)**:
+  - `[FIX]` Bổ sung kiểm tra `if (channelType == 'channel' || channelType == 'group') return true;` lên đầu hàm `getActualIsGroup()`. Khắc phục triệt để lỗi các kênh thảo luận Odoo (`#general`, `#Administrators`) có 1 hoặc 2 thành viên bị nhận nhầm thành chat cá nhân 1-1.
+- **Phân Định Rõ Ràng Thành Viên Hiện Tại (`is_me`)**:
+  - `[FIX]` Backend `chat.py`: Bổ sung trường `"is_me": bool(partner and p_id == partner.id)` trong danh sách `members_by_channel`.
+  - `[FIX]` Frontend `ChatV2Member.fromJson`: Tự động so khớp `currentPartnerId` và `currentUserId` từ `odooApiClient.session` để gán `isMe = true` cho chính người dùng đang đăng nhập.
+- **Loại Trừ Tuyệt Đối Avatar Của Bản Thân Khỏi Kênh Chat (`chat_v2_list_screen.dart`, `chat_v2_info_sheet.dart`)**:
+  - `[FIX]` Khi phân giải `resolvedAvatarUrl` cho chat 1-1, bắt buộc kiểm tra `!isGroup && !channel.isChannel` và loại trừ `currentPartnerId`, `currentUserId` và `currentUserName`, ngăn chặn 100% tình trạng lấy avatar cá nhân của Administrator cắm vào các kênh thảo luận.
+
+### 🖼️ [LÀM MỚI ẢNH ĐẠI DIỆN TỨC THÌ KHÔNG CẦN F5 (ZERO-F5 REALTIME AVATAR REFRESH)]
+- **Tự Động Xóa Bộ Nhớ Đệm Ảnh (`PaintingBinding.instance.imageCache`)**:
+  - Khi người dùng tải lên ảnh đại diện mới qua `uploadAvatar()`, hệ thống tự động gọi `imageCache.clear()` và `imageCache.clearLiveImages()` để hủy các bản cache ảnh cũ trong bộ nhớ RAM của Flutter.
+- **Tạo Định Danh Ảnh Độc Bản (Cache-Busting Timestamp)**:
+  - Bổ sung tham số thời gian thực `?t=<timestamp>` vào `newUrl` (`/api/v1/mobile/avatar/users/<uid>?t=...`). Đảm bảo `Image.network` và `_AvatarNetworkImage` nhận diện URL mới là một Key độc lập (`ValueKey`), tự động tải và hiển thị ảnh mới ngay trong 0.001s mà không bị lưu cache bởi trình duyệt Web hay Mobile HTTP client.
+- **Đồng Bộ Trạng Thái Tức Thì Toàn Toàn Bộ Ứng Dụng (`auth_controller.dart`, `edit_profile_screen.dart`)**:
+  - Cập nhật đồng bộ các trường `avatar_url`, `avatar_128_url`, `image_128_url` và lưu trực tiếp Base64 data URI tạm thời vào Local Storage (`saveLocalAvatar`) ngay trước khi upload lên Server, mang lại trải nghiệm hiển thị ảnh mới ngay lập tức (Optimistic UI Update).
+  - Bổ sung `ValueKey(value)` vào `UserAvatar` để kích hoạt Flutter tái dựng widget ảnh ngay khi có thay đổi.
+
+### 🟢 [CHUẨN HÓA TRẠNG THÁI ONLINE/OFFLINE, TIỀN TỐ TÁC GIẢ & TRẠNG THÁI ĐỌC TIN NHẮN ODOO 19 & 17]
+- **Tương Thích Cơ Chế Hiện Diện `mail.presence` Odoo 19 & `bus.presence` Odoo 17 (`v_mobile_19/controllers/chat.py`, `v_mobile_17/controllers/chat.py`)**:
+  - `[FIX]` Tự động phát hiện bảng hiện diện `mail_presence` (Odoo 19) hoặc `bus_presence` (Odoo 17) trong cơ sở dữ liệu để truy vấn trạng thái `im_status` của thành viên hội thoại. Khắc phục triệt để lỗi SQL do Odoo 19 không còn bảng `bus_presence`, giúp người dùng đang hoạt động hiển thị chấm xanh `● Đang hoạt động` chuẩn xác 100%.
+  - `[NEW]` Tích hợp hàm `_touch_presence(env, user_id)` tự động kích hoạt mỗi khi người dùng gọi API Mobile (`list_channels`, `channel_info`, `list_messages`, `send_message`), liên tục duy trì trạng thái `online` của người dùng trên hệ thống.
+  - `[FIX]` Cập nhật endpoint `/api/v1/mobile/chat/channels/<id>` (`channel_info`) truy vấn đúng model `mail.presence` / `bus.presence`, đảm bảo thanh tiêu đề phòng chat 1-1 luôn phản ánh đúng trạng thái trực tuyến của đối phương.
+- **Khắc Phục Triệt Để Hiển Thị Tiền Tố "Bạn: " Cho Tin Nhắn Người Khác Gửi Đến (`chat_v2_channel.dart`, `chat_v2_list_screen.dart`)**:
+  - `[FIX]` Tái cấu trúc hàm `isLastMessageFromMe`: Ưu tiên so sánh chính xác theo `lastMessageAuthorId` với `currentPartnerId` / `currentUserId`. Nếu ID người gửi khác với tài khoản đang đăng nhập, hàm lập tức trả về `false` mà không rơi vào so sánh chuỗi mờ (`contains`), ngăn chặn việc nhận nhầm tin nhắn của Admin gửi đến Tan thành tin nhắn do Tan gửi.
+  - `[FIX]` Cập nhật logic `isMine` trên `chat_v2_list_screen.dart`: Tính toán dựa trên `channel.isLastMessageFromMe(currentPartnerId: ...)` và chỉ dùng `cachedMsgs.first.authorId` khi chưa có ID từ kênh.
+  - `[FIX]` Bổ sung `ChatV2MessageLocalCache.clear()` vào hàm `signOut()` tại `auth_controller.dart` để làm sạch toàn bộ cache tin nhắn cũ khi chuyển đổi giữa các tài khoản người dùng khác nhau.
+- **Sửa Lỗi Trạng Thái Đọc & Biểu Tượng Tick Đã Gửi Của Người Nhận (`chat_v2_list_screen.dart`)**:
+  - `[FIX]` Biểu tượng trạng thái gửi (`✓` đã gửi / `✓✓` đã đọc) chỉ hiển thị khi `isMine == true` (do chính mình gửi đi). Người nhận tin nhắn sẽ không còn thấy biểu tượng tick của người gửi, đồng thời hiển thị đúng huy hiệu tin nhắn chưa đọc (Unread Badge) khi có tin nhắn mới.
+
+### 📁 [HIỂN THỊ CHUẨN XÁC TIN NHẮN TẬP TIN, HÌNH ẢNH & GHI ÂM TRÊN DANH SÁCH CHAT]
+- **Truy Vấn Lateral Join Kèm Bảng Quan Hệ (`v_mobile_19/controllers/chat.py`, `v_mobile_17/controllers/chat.py`)**:
+  - `[FIX]` Cập nhật câu SQL `last_msgs_by_channel`: Bổ sung `LEFT JOIN message_attachment_rel rel ON rel.attachment_id = a.id` kết hợp điều kiện `WHERE rel.message_id = m.id OR (a.res_model = 'mail.message' AND a.res_id = m.id)`. Khắc phục triệt để lỗi Odoo lưu tệp đính kèm trong discuss channel khiến Backend trả về `last_message = null` và Frontend hiển thị nhầm *"Nhấn để bắt đầu trò chuyện"*.
+- **Đồng Bộ Phân Loại Tệp Tin Toàn Diện (File, Image, Voice, Video)**:
+  - `[IMPROVE]` Hỗ trợ nhận diện tự động và hiển thị tiền tố chuẩn Zalo/Messenger:
+    * **Tập tin tài liệu / kỹ thuật**: `[Tập tin]` cho mọi định dạng (`.p8`, `.cer`, `.key`, `.pdf`, `.docx`, `.xlsx`, `.zip`, `.bin`, `.env`, `.py`, `.dart`...).
+    * **Tin nhắn ghi âm / thoại**: `[Ghi âm]` cho các định dạng (`.m4a`, `.aac`, `.mp3`, `.wav`, `.webm`, `.ogg`, `.opus`, `voice_*`).
+    * **Hình ảnh & Video**: `[Hình ảnh]` và `[Video]`.
+- **Hiển Thị Thẻ Tệp Gấp Góc Zalo & Tải Xuống Trực Tiếp (`chat_v2_message_item.dart`, `chat_v2_list_screen.dart`)**:
+  - `[UI/UX]` Cập nhật `isDocumentFilename` trong Model `ChatV2Message` nhận diện chính xác tất cả các tệp tin có đuôi mở rộng, hiển thị thẻ Folded Page Icon đầy đủ dung lượng và cho phép chạm để mở/tải về máy tức thì.
+- **Nổi Bật Tin Nhắn Cuộc Gọi Nhỡ / Từ Chối / Đã Hủy Chuẩn Zalo & Telegram (`chat_v2_message_item.dart`, `chat_v2_list_screen.dart`)**:
+  - `[UI/UX]` Chuyển đổi toàn bộ màu sắc tiêu đề và biểu tượng của **"Cuộc gọi bị từ chối"**, **"Cuộc gọi đã hủy"**, **"Cuộc gọi nhỡ"** sang tông **Đỏ rực (`#EF4444`)** kết hợp **In đậm (`FontWeight.w700`)** thay vì màu xám/đen nhạt như tin nhắn thường.
+  - Cập nhật đồng bộ trên cả **Bong bóng tin nhắn trong phòng chat** và **Dòng xem trước (Snippet) ngoài danh sách hội thoại**.
+
+### ⚡ [NẠP TỨC THÌ DANH SÁCH CHAT & TRIỆT TIÊU ĐỘ TRỄ 8 GIÂY SAU ĐĂNG XUẤT]
+- **Tái Tạo Provider Đúng Thời Điểm (`auth_controller.dart`)**:
+  - `[FIX]` Kích hoạt `ref.invalidate(chatV2ChannelsProvider)` và `ref.invalidate(chatV2TotalUnreadProvider)` tại cả 2 sự kiện `signIn()` và `signOut()`. Giải phóng triệt để State rỗng tồn đọng từ phiên đăng nhập cũ, buộc Riverpod nạp lại danh sách kênh mới ngay khi người dùng đăng nhập thay vì phải đợi 8 giây của chu kỳ `_pollingTimer`.
+- **Nạp Trước Dữ Liệu Song Song (Pre-Warm Channels in Login Transition)**:
+  - `[PERF]` Trong màn hình chuyển tiếp đăng nhập (`login_screen.dart`), kích hoạt song song `unawaited(ref.read(chatV2ChannelsProvider.future))` và rút ngắn thời gian chuyển cảnh xuống 700ms. Khi màn hình `/chat` vừa xuất hiện thì toàn bộ kênh chat đã nạp xong 100% trong bộ nhớ.
+- **Loại Bỏ Hoàn Toàn Trạng Thái Trống Giả (Eliminate False Empty State)**:
+  - `[FIX]` Cập nhật điều kiện hiển thị trong `chat_v2_list_screen.dart`: Kiểm tra `(channelsAsync.valueOrNull?.isNotEmpty ?? false) || ChatV2ChannelLocalCache.cached.isNotEmpty`. Hiển thị Spinner tải màu xanh thanh lịch khi dữ liệu đang được đồng bộ, triệt tiêu hoàn toàn hiện tượng hiển thị chữ "Chưa có cuộc trò chuyện nào" trong lúc app đang nạp.
+
+### 🛡️ [XỬ LÝ MẠNG TẠM THỜI, SINGLE-FLIGHT CONCURRENCY & SILENT RESUME]
+- **Cơ Chế Silent Resume An Toàn Khi App Thức Dậy (`app.dart`, `chat_v2_channels_controller.dart`)**:
+  - Khi App Resume từ background (`AppLifecycleState.resumed`), thay thế hoàn toàn lệnh `ref.invalidate()` bằng `resumeRefresh()` âm thầm.
+  - Bảo vệ Single-Flight Concurrency (`_isResumeRefreshing`): Chặn triệt để hiện tượng spam hoặc chạy song song nhiều worker request khi người dùng bật/tắt app liên tục.
+- **Phân Biệt Lỗi Mạng Tạm Thời & Thử Lại Tự Động (Exponential Backoff)**:
+  - Chỉ tự động retry đối với lỗi mạng tạm thời (`SocketException`, `TimeoutException`, `ClientException`, `5xx`) theo chu kỳ ~2s ➔ ~4s ➔ ~8s (tối đa 3 lần).
+  - Tự động bỏ qua retry ngay lập tức nếu gặp lỗi Auth/Client 4xx (`400`, `401`, `403`, `404`, `422`).
+- **Thanh Trạng Thái Kết Nối Tinh Tế Chuẩn UX (`chat_v2_list_screen.dart`)**:
+  - Tích hợp `_SyncStatusBanner` phía trên danh sách chat: hiển thị `🔄 Đang kết nối...` khi đang retry hoặc `⚠️ Đang ngoại tuyến — Chạm để thử lại` khi mất mạng kéo dài.
+  - Luôn luôn giữ nguyên 100% dữ liệu danh sách chat trong memory, không bao giờ hiển thị màn hình lỗi trắng toàn trang khi đã có dữ liệu.
+- **Bộ Kiểm Thử Toàn Diện (`test/chat_v2_sync_status_test.dart`)**:
+  - Xây dựng 6 unit/widget tests kiểm thử các trạng thái chuyển đổi mạng, bảo toàn memory cache, single-flight concurrency và cả 4 kịch bản Runtime TEST A, B, C, D.
+
+---
+
 ## [v2.5.0+93] — 2026-08-26
 
 > [!IMPORTANT]

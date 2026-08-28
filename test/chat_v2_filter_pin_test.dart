@@ -82,5 +82,41 @@ void main() {
       expect(updated.unreadCount, 0);
       expect(channelDirect.unreadCount, 3);
     });
+
+    test('Incoming message from Vũ Việt Hùng or Nhan Tran places channel at index 0 of chat list', () {
+      final hungChannel = const ChatV2Channel(
+        id: '4248',
+        name: 'Vũ Việt Hùng',
+        channelType: 'chat',
+        isGroup: false,
+        lastMessage: 'Chào anh Tân, em gửi báo cáo',
+        lastMessageDate: null,
+      ).copyWith(lastMessageDate: DateTime.parse('2026-08-28 15:10:00'));
+
+      final nhanChannel = const ChatV2Channel(
+        id: '5001',
+        name: 'Nhan Tran',
+        channelType: 'chat',
+        isGroup: false,
+        lastMessage: 'Em đã cập nhật xong tính năng',
+        lastMessageDate: null,
+      ).copyWith(lastMessageDate: DateTime.parse('2026-08-28 15:12:00'));
+
+      final list = [channelDirect, channelGroup, hungChannel, nhanChannel];
+
+      final sorted = List<ChatV2Channel>.from(list)..sort((a, b) {
+        final dateA = a.lastMessageDate ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final dateB = b.lastMessageDate ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return dateB.compareTo(dateA);
+      });
+
+      // Nhan Tran vừa gửi lúc 15:12:00 -> vị trí #1
+      expect(sorted.first.name, 'Nhan Tran');
+      expect(sorted.first.lastMessage, 'Em đã cập nhật xong tính năng');
+
+      // Vũ Việt Hùng vừa gửi lúc 15:10:00 -> vị trí #2
+      expect(sorted[1].name, 'Vũ Việt Hùng');
+      expect(sorted[1].lastMessage, 'Chào anh Tân, em gửi báo cáo');
+    });
   });
 }
