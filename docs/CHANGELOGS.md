@@ -22,14 +22,29 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 
 ---
 
-## [v2.5.0+94] — 2026-08-27
+## [v2.5.0+94] — 2026-08-28
 
 > [!IMPORTANT]
 > **Nhánh làm việc & Bản dựng phát triển v2.5.0+94 (Build 94)**:
 > - **Nhánh Frontend (`vclients`)**: `fix/app-build94-chat-list-and-presence-sync` (Version: `2.5.0+94`)
 > - **Nhánh Backend (`v_mobile`)**: `fix/app-build94-chat-list-and-presence-sync` (Version: `17.0.2.2.4`)
-> - **Test Suite Status**: **246/246 tests PASS (100%)**, `flutter analyze` 0 issues.
+> - **Test Suite Status**: **256/256 tests PASS (100%)**, `flutter analyze` 0 issues.
 > - **Trạng Thái Kiểm Toán Phát Hành (Release Status)**: **🟡 PRE-RELEASE AUDITED** (Sẵn sàng mã nguồn & test; Chờ hoàn tất cài đặt module `v_mobile` trên server Demo để chạy E2E live thực tế).
+
+### 💬 [TỐI ƯU & KHẮC PHỤC CHAT V2 (CHAT V2 STABILIZATION)]
+- **Khắc phục lỗi Link URL bị hiển thị nhầm thành dạng File đính kèm**:
+  - Loại bỏ heuristic kiểm tra độ dài đuôi `<= 6` sau dấu chấm.
+  - Bổ sung bộ lọc loại trừ các tiền tố URL (`http://`, `https://`, `www.`, `://`) khỏi `isDocumentFilename`, `isImageFilename`, `isVoiceFilename`.
+  - Hiển thị liên kết web dạng văn bản thuần có thể bấm mở trực tiếp trên trình duyệt.
+- **Khôi phục thứ tự sắp xếp danh sách kênh chuẩn 17.0 (Build 93)**:
+  - Revert truy vấn `Channel.search` trong `list_channels` về `order="write_date desc, id desc"`.
+  - Đảm bảo các kênh vừa nhận tin nhắn mới (Vũ Việt Hùng, Nhan Tran...) luôn nổi lên đầu danh sách trò chuyện.
+- **Phân định chính xác Kênh Khách Hàng vs Trò chuyện Nội bộ (Khớp 100% Web Odoo)**:
+  - Kênh khách hàng thực thụ (`channel_type: 'channel'`) của Vũ Việt Hùng (ID 1399), Nhan Tran (ID 1396)... nằm chuẩn trong tab **"Kênh"**.
+  - Cập nhật `isInternalDirect()`: Tự động loại trừ các phòng chat 1-1 rỗng (`lastMessage == null`) của đối tác/khách hàng ngoài (`@davita.vn`...) khỏi tab **"Nội bộ"**, giữ tab nội bộ sạch sẽ và khớp hoàn toàn với Web Odoo.
+- **Tối ưu đăng ký Push Notification**:
+  - Bổ sung cờ khoá `_isRegisteringPush` ngăn chặn gọi đăng ký trùng lặp song song.
+  - Backend xử lý Idempotent (trả 200 OK `already_registered` khi token đã có trong DB).
 
 ### 🌐 [ĐỊNH TUYẾN ĐĂNG NHẬP ĐA DOMAIN THÔNG MINH (DUAL-DOMAIN SMART AUTO-ROUTING)]
 - **Cơ Chế Phân Luồng Thông Minh Tự Động (`OdooApiClient.login`)**:

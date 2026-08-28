@@ -118,5 +118,57 @@ void main() {
       expect(sorted[1].name, 'Vũ Việt Hùng');
       expect(sorted[1].lastMessage, 'Chào anh Tân, em gửi báo cáo');
     });
+
+    test('TASK #16453: External customer empty 1-1 chat (hung@davita.vn) is excluded from isInternalDirect, while customer channel is under isChannel', () {
+      // 1. Kênh 1-1 rỗng của khách hàng ngoài Vũ Việt Hùng (hung@davita.vn)
+      const externalEmptyDirect = ChatV2Channel(
+        id: '4248',
+        name: 'Vũ Việt Hùng',
+        channelType: 'chat',
+        isGroup: false,
+        lastMessage: null,
+        members: [
+          ChatV2Member(id: '447', name: 'Vũ Việt Hùng', email: 'hung@davita.vn'),
+          ChatV2Member(id: '6713', name: 'Ma Nguyễn Nhật Tân', email: 'tanmnn@360.org.vn', isMe: true),
+        ],
+      );
+      expect(externalEmptyDirect.isInternalDirect('Ma Nguyễn Nhật Tân'), isFalse);
+
+      // 2. Kênh 1-1 của nhân viên nội bộ TRẦN THỊ HỒNG DƯƠNG (duongtth@360.org.vn)
+      const internalEmptyDirect = ChatV2Channel(
+        id: '4272',
+        name: 'TRẦN THỊ HỒNG DƯƠNG',
+        channelType: 'chat',
+        isGroup: false,
+        lastMessage: null,
+        members: [
+          ChatV2Member(id: '6769', name: 'TRẦN THỊ HỒNG DƯƠNG', email: 'duongtth@360.org.vn'),
+          ChatV2Member(id: '6713', name: 'Ma Nguyễn Nhật Tân', email: 'tanmnn@360.org.vn', isMe: true),
+        ],
+      );
+      expect(internalEmptyDirect.isInternalDirect('Ma Nguyễn Nhật Tân'), isTrue);
+
+      // 3. Kênh khách hàng Vũ Việt Hùng (ID 1399, channel_type == 'channel')
+      const customerChannelHung = ChatV2Channel(
+        id: '1399',
+        name: 'Vũ Việt Hùng',
+        channelType: 'channel',
+        isGroup: true,
+        lastMessage: 'Dạ vâng 360 nhận thông tin ạ',
+      );
+      expect(customerChannelHung.isChannel, isTrue);
+      expect(customerChannelHung.isInternalDirect('Ma Nguyễn Nhật Tân'), isFalse);
+
+      // 4. Kênh khách hàng Nhan Tran (ID 1396, channel_type == 'channel')
+      const customerChannelNhan = ChatV2Channel(
+        id: '1396',
+        name: 'Nhan Tran',
+        channelType: 'channel',
+        isGroup: true,
+        lastMessage: 'dạ chị',
+      );
+      expect(customerChannelNhan.isChannel, isTrue);
+      expect(customerChannelNhan.isInternalDirect('Ma Nguyễn Nhật Tân'), isFalse);
+    });
   });
 }

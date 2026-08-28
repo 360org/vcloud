@@ -274,7 +274,26 @@ class ChatV2Channel {
   /// Kiểm tra có phải hội thoại 1-1 nội bộ giữa 2 người hay không (loại trừ nhóm và kênh)
   bool isInternalDirect(String? currentUserName) {
     if (channelType == 'channel') return false;
-    return !getActualIsGroup(currentUserName);
+    if (getActualIsGroup(currentUserName)) return false;
+
+    // Nếu là kênh 1-1 nhưng chưa từng có tin nhắn trao đổi (lastMessage == null)
+    if (lastMessage == null || lastMessage!.trim().isEmpty) {
+      if (members.isNotEmpty) {
+        final other = members.firstWhereOrNull((m) => !m.isMe);
+        if (other != null && other.email != null && other.email!.isNotEmpty) {
+          final emailLower = other.email!.toLowerCase().trim();
+          final isInternalDomain = emailLower.endsWith('@360.org.vn') ||
+              emailLower.endsWith('@vuahethong.net') ||
+              emailLower.endsWith('@vuaoffice.vn') ||
+              emailLower.endsWith('@w360s.com') ||
+              emailLower.endsWith('@activesolution.vn');
+          if (!isInternalDomain) {
+            return false;
+          }
+        }
+      }
+    }
+    return true;
   }
 
   /// Kiểm tra có phải nhóm trò chuyện nhiều người hay không (loại trừ kênh chung)
