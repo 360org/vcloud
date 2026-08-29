@@ -2,6 +2,40 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.0+98] — 2026-08-29
+
+> [!IMPORTANT]
+> **Nhánh làm việc & Bản dựng phát hành v2.9.0+98 (Build 98)**:
+> - **Nhánh Frontend (`vclients`)**: `feat/app-build98-attendance-ui-and-saturday-shift` (Version: `2.9.0+98`)
+> - **Nhánh Backend Odoo 17 (`v_mobile_17`)**: `fix/17-app-build98-saturday-shift-standard` (Base: `17.0`)
+> - **Nhánh Backend Odoo 19 (`v_mobile_19`)**: `fix/19-app-build98-saturday-shift-standard` (Base: `19.0`)
+> - **Mục tiêu**:
+>   1. Ẩn hoàn toàn chỉ số "Đi muộn" khỏi Card Bảng đối soát công HR và popup Báo cáo Bảng công.
+>   2. Thiết kế lại toàn diện giao diện popup Báo cáo Bảng công theo phong cách Rich Visual Cards với chữ to, rõ nét, highlight các chỉ số quan trọng.
+>   3. Chuẩn hóa ca làm việc Thứ Bảy chuẩn công ty W360S: Sáng 4h (08:00 - 12:00) + Chiều 3h30 (13:00 - 16:30) = Tổng 7h30 (450 phút) cả ở Frontend và Backend Odoo 17 & 19.
+>   4. Nâng cấp bộ nhận diện App Icon Full-Bleed 100% không viền trắng cho iOS, Android và Web Favicon.
+>   5. Tối ưu giao diện Thông báo (Notification Sheet & Tiles) với độ tương phản cao, sáng rõ trên cả Dark Mode và Light Mode.
+> - **Test Suite Status**: **260/260 tests PASS (100%)**, `flutter analyze` 0 issues.
+
+### 🚀 [TÍNH NĂNG & CẢI TIẾN NỔI BẬT]
+- `[NEW]` **Làm mới giao diện Báo cáo Bảng công (`attendance_history_screen.dart`)**:
+  - Tái thiết kế dialog xuất báo cáo công thành hệ thống thẻ trực quan (Rich Visual Cards).
+  - Highlight nổi bật số ngày công thực tế kèm thanh tiến độ và huy hiệu đạt chuẩn.
+  - Lưới 2 cột chỉ số nổi bật: Tổng thời lượng làm việc (xanh lá) và Giờ làm thêm OT (xanh dương).
+  - Loại bỏ hoàn toàn trường thông tin "Đi muộn" trong cả giao diện và văn bản sao chép gửi Kế toán.
+- `[IMPROVE]` **Tối ưu thẻ Bảng đối soát công HR (`attendance_history_screen.dart`)**:
+  - Ẩn ô "Đi muộn", chuyển sang bố cục 3 ô cân đối: Tổng giờ công, Làm thêm (OT), Về sớm.
+  - Thêm tính năng Kéo xuống để làm mới (Pull-to-refresh) và Nút tải lại dữ liệu khi danh sách trống.
+- `[FIX]` **Chuẩn hóa ca làm việc Thứ Bảy 7h30 (`shift_calculator.dart`, `v_mobile_17/controllers/attendance.py`, `v_mobile_19/controllers/attendance.py`)**:
+  - Sửa lỗi ca Thứ Bảy bị tính 8h (4h sáng / 4h chiều) do lịch Odoo cấu hình 17:00.
+  - Chuẩn hóa ca Thứ Bảy: Ca sáng 4h (08:00 - 12:00), Nghỉ trưa 1h, Ca chiều 3h30 (13:00 - 16:30) ➔ Tổng ngày 7h30 (450 phút).
+- `[IMPROVE]` **Bộ nhận diện Icon Thương hiệu VCloud Mobile Full-Bleed (`assets/branding/`, `ios/`, `android/`, `web/`)**:
+  - Cập nhật bộ icon tràn viền 100% nền xanh công nghệ, không dính viền trắng trên iOS TestFlight / App Store, Android launcher và Web Favicon.
+- `[IMPROVE]` **Nâng cấp Giao diện Thông báo (`home_screen.dart`)**:
+  - Nâng cấp `_NotificationSheet`, `_NotificationTile` và `_NotificationEmptyState` với độ tương phản cao, chữ sáng rõ, sắc nét trong Dark mode và Light mode.
+
+---
+
 ## [v19.0.1.0.0] — 2026-08-27 (Nhánh Odoo 19: `19.0`)
 
 > [!IMPORTANT]

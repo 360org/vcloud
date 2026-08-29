@@ -722,6 +722,7 @@ class _NotificationSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final notifications = ref.watch(mobileNotificationsProvider);
     final dismissedIds = ref.watch(dismissedNotificationIdsProvider);
     final list = notifications.valueOrNull;
@@ -748,17 +749,19 @@ class _NotificationSheet extends ConsumerWidget {
             maxHeight: MediaQuery.sizeOf(context).height * 0.82,
           ),
           decoration: BoxDecoration(
-            color: Theme.of(context).cardColor,
+            color: isDark ? const Color(0xFF1E293B) : Colors.white,
             borderRadius: BorderRadius.circular(28),
-            boxShadow: const [
+            border: Border.all(
+              color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+            ),
+            boxShadow: [
               BoxShadow(
-                color: Color(0x260F172A),
+                color: isDark ? Colors.black.withValues(alpha: 0.5) : const Color(0x260F172A),
                 blurRadius: 28,
-                offset: Offset(0, 12),
+                offset: const Offset(0, 12),
               ),
             ],
           ),
-
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -767,7 +770,7 @@ class _NotificationSheet extends ConsumerWidget {
                 width: 44,
                 height: 5,
                 decoration: BoxDecoration(
-                  color: AppColors.border,
+                  color: isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1),
                   borderRadius: BorderRadius.circular(99),
                 ),
               ),
@@ -779,12 +782,15 @@ class _NotificationSheet extends ConsumerWidget {
                       width: 42,
                       height: 42,
                       decoration: BoxDecoration(
-                        color: AppColors.soft(AppColors.primary),
+                        color: const Color(0xFF00C83A).withValues(alpha: isDark ? 0.2 : 0.12),
                         borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: const Color(0xFF00C83A).withValues(alpha: isDark ? 0.35 : 0.2),
+                        ),
                       ),
                       child: const Icon(
                         LucideIcons.bell,
-                        color: AppColors.primary,
+                        color: Color(0xFF00C83A),
                         size: 21,
                       ),
                     ),
@@ -796,20 +802,21 @@ class _NotificationSheet extends ConsumerWidget {
                           Text(
                             'Thông báo',
                             style: TextStyle(
-                              color: Theme.of(context).colorScheme.onSurface,
-                              fontSize: 20,
+                              color: isDark ? Colors.white : const Color(0xFF0F172A),
+                              fontSize: 18,
                               fontWeight: FontWeight.w900,
+                              letterSpacing: -0.2,
                             ),
                           ),
-
                           const SizedBox(height: 2),
                           Text(
                             totalCount == 0
                                 ? 'Không có mục mới cần chú ý.'
                                 : '$totalCount mục cần chú ý',
-                            style: AppTextStyles.caption.copyWith(
-                              color: AppColors.textSecondary,
-                              fontWeight: FontWeight.w700,
+                            style: TextStyle(
+                              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ],
@@ -824,18 +831,21 @@ class _NotificationSheet extends ConsumerWidget {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                           decoration: BoxDecoration(
-                            color: AppColors.soft(AppColors.danger),
+                            color: const Color(0xFFEF4444).withValues(alpha: isDark ? 0.2 : 0.1),
                             borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: const Color(0xFFEF4444).withValues(alpha: isDark ? 0.35 : 0.2),
+                            ),
                           ),
                           child: const Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(LucideIcons.trash2, color: AppColors.danger, size: 14),
+                              Icon(LucideIcons.trash2, color: Color(0xFFEF4444), size: 14),
                               SizedBox(width: 4),
                               Text(
                                 'Xóa hết',
                                 style: TextStyle(
-                                  color: AppColors.danger,
+                                  color: Color(0xFFEF4444),
                                   fontSize: 12,
                                   fontWeight: FontWeight.w800,
                                 ),
@@ -849,23 +859,27 @@ class _NotificationSheet extends ConsumerWidget {
                       tooltip: 'Làm mới',
                       onPressed: () =>
                           ref.invalidate(mobileNotificationsProvider),
-                      icon: const Icon(LucideIcons.refreshCw, size: 18),
+                      icon: Icon(
+                        LucideIcons.refreshCw,
+                        size: 18,
+                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                      ),
                     ),
                   ],
                 ),
               ),
               if (notifications.isLoading)
-                const LinearProgressIndicator(
+                LinearProgressIndicator(
                   minHeight: 2,
-                  color: AppColors.primary,
-                  backgroundColor: AppColors.border,
+                  color: const Color(0xFF00C83A),
+                  backgroundColor: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
                 )
               else
                 const SizedBox(height: 2),
               Flexible(
                 child: ListView(
                   shrinkWrap: true,
-                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 18),
+                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 18),
                   children: [
                     for (final notification in items)
                       _NotificationItemTile(
@@ -970,7 +984,7 @@ class _NotificationItemTile extends ConsumerWidget {
   if (type.contains('task') || type.contains('timesheet')) {
     return (icon: LucideIcons.listTodo, accent: AppColors.timesheet);
   }
-  return (icon: LucideIcons.bell, accent: AppColors.primary);
+  return (icon: LucideIcons.bell, accent: const Color(0xFF00C83A));
 }
 
 /// Resolves a deep-link from the notification `data` payload — we support
@@ -1009,26 +1023,37 @@ class _NotificationTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return PressableScale(
       onTap: onTap,
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(13),
         decoration: BoxDecoration(
-          color: AppColors.soft(accent).withValues(alpha: 0.45),
+          color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: accent.withValues(alpha: 0.12)),
+          border: Border.all(
+            color: isDark
+                ? accent.withValues(alpha: 0.3)
+                : accent.withValues(alpha: 0.18),
+            width: 1.2,
+          ),
         ),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              width: 38,
-              height: 38,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
-                color: AppColors.soft(accent),
+                color: accent.withValues(alpha: isDark ? 0.22 : 0.12),
                 borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: accent.withValues(alpha: isDark ? 0.4 : 0.2),
+                ),
               ),
-              child: Icon(icon, color: accent, size: 19),
+              child: Icon(icon, color: accent, size: 20),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -1040,19 +1065,21 @@ class _NotificationTile extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: context.textColor,
-                      fontSize: 14,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      fontSize: 14.5,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(height: 4),
                   Text(
                     subtitle,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: AppTextStyles.caption.copyWith(
-                      color: context.textSecondary,
-                      height: 1.25,
+                    style: TextStyle(
+                      color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      height: 1.35,
                     ),
                   ),
                 ],
@@ -1061,32 +1088,34 @@ class _NotificationTile extends StatelessWidget {
             const SizedBox(width: 10),
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 GestureDetector(
                   onTap: onDelete,
                   behavior: HitTestBehavior.opaque,
                   child: Container(
-                    padding: const EdgeInsets.all(4),
+                    padding: const EdgeInsets.all(5),
                     decoration: BoxDecoration(
-                      color: context.textMuted.withValues(alpha: 0.12),
+                      color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
                       LucideIcons.x,
                       size: 13,
-                      color: context.textSecondary,
+                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                     ),
                   ),
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  time,
-                  style: AppTextStyles.caption.copyWith(
-                    color: context.textMuted,
-                    fontWeight: FontWeight.w800,
+                if (time.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    time,
+                    style: TextStyle(
+                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ],
@@ -1101,39 +1130,46 @@ class _NotificationEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 28),
+      padding: const EdgeInsets.symmetric(vertical: 32),
       child: Column(
         children: [
           Container(
-            width: 54,
-            height: 54,
+            width: 58,
+            height: 58,
             decoration: BoxDecoration(
-              color: context.softColor(AppColors.success),
-              borderRadius: BorderRadius.circular(18),
+              color: const Color(0xFF00C83A).withValues(alpha: isDark ? 0.2 : 0.12),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: const Color(0xFF00C83A).withValues(alpha: isDark ? 0.35 : 0.2),
+              ),
             ),
             child: const Icon(
               LucideIcons.checkCheck,
-              color: AppColors.success,
-              size: 25,
+              color: Color(0xFF00C83A),
+              size: 26,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           Text(
             'Bạn đã xử lý hết thông báo.',
             style: TextStyle(
-              color: context.textColor,
-              fontSize: 15,
+              color: isDark ? Colors.white : const Color(0xFF0F172A),
+              fontSize: 16,
               fontWeight: FontWeight.w900,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           Text(
             'Khi có thông báo mới, chúng sẽ xuất hiện tại đây.',
             textAlign: TextAlign.center,
-            style: AppTextStyles.caption.copyWith(
-              color: context.textSecondary,
-              height: 1.35,
+            style: TextStyle(
+              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+              fontSize: 13,
+              height: 1.4,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],
