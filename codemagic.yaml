@@ -34,7 +34,7 @@ workflows:
           echo "Validated VCLOUD_ODOO_API_BASE_URL=$VCLOUD_ODOO_API_BASE_URL"
       - name: Apply App Store signing profile
         script: |
-          xcode-project use-profiles --custom-export-options='{"testFlightInternalTestingOnly": true}'
+          xcode-project use-profiles --custom-export-options='{"testFlightInternalTestingOnly": false}'
       - name: Get Flutter packages
         script: flutter pub get
       - name: Analyze Flutter source

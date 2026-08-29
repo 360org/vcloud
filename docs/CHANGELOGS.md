@@ -22,6 +22,24 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 
 ---
 
+## [v2.9.0+97] — 2026-08-29
+
+> [!IMPORTANT]
+> **Nhánh làm việc & Bản dựng phát hành v2.9.0+97 (Build 97 — App Store Connect Submission Ready)**:
+> - **Nhánh Frontend (`vclients`)**: `fix/app-build97-enable-appstore-submission` (Version: `2.9.0+97`)
+> - **Mục tiêu**: Cho phép chọn bản build trên App Store Connect để gửi xét duyệt App Store Review (App Store Submission Ready).
+> - **Test Suite Status**: **260/260 tests PASS (100%)**, `flutter analyze` 0 issues.
+
+### 🚀 [MỞ KHÓA XÉT DUYỆT APP STORE (APP STORE CONNECT SUBMISSION ENABLED)]
+- `[FIX]` **Cập nhật cờ Export Options `testFlightInternalTestingOnly` thành `false` (`fastlane/Fastfile`, `ios/export_options.plist`, `codemagic.yaml`)**:
+  - Khắc phục triệt để lỗi các bản build 93-96 bị ẩn (radio button bị disabled và có icon vàng cảnh báo) trên App Store Connect khi chọn build để gửi duyệt App Store.
+  - Sau khi chuyển `testFlightInternalTestingOnly: false`, Apple App Store Connect sẽ cho phép chọn bản build trực tiếp trong mục "App Store" -> "Add Build".
+- `[SYNC]` **Đồng bộ hóa phiên bản `2.9.0+97` toàn hệ thống**:
+  - `pubspec.yaml`: Nâng version lên `2.9.0+97`.
+  - `about_screen.dart`: Cập nhật chuỗi phiên bản fallback `v2.9.0+97`.
+
+---
+
 ## [v2.9.0+96] — 2026-08-29
 
 > [!IMPORTANT]

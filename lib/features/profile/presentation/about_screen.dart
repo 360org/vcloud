@@ -29,7 +29,7 @@ class AboutScreen extends ConsumerWidget {
     final versionAsync = ref.watch(appVersionProvider);
     final versionText = versionAsync.maybeWhen(
       data: (v) => 'Phiên bản $v',
-      orElse: () => 'Phiên bản v2.9.0+96',
+      orElse: () => 'Phiên bản v2.9.0+97',
     );
 
     return AppScaffold(

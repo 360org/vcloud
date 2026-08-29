@@ -146,7 +146,7 @@ platform :ios do
           "teamID" => "ZC3H8887XS",
           "uploadSymbols" => true,
           "manageAppVersionAndBuildNumber" => false,
-          "testFlightInternalTestingOnly" => true,
+          "testFlightInternalTestingOnly" => false,
           "signingStyle" => "manual",
           "provisioningProfiles" => {
             "com.w360s.wcloudapp" => profile_name
