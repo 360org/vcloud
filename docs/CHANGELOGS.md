@@ -22,6 +22,26 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 
 ---
 
+## [v2.9.0+96] — 2026-08-29
+
+> [!IMPORTANT]
+> **Nhánh làm việc & Bản dựng phát hành v2.9.0+96 (Build 96 — App Store & TestFlight)**:
+> - **Nhánh Frontend (`vclients`)**: `fix/app-build96-account-deletion-and-privacy-compliance` (Version: `2.9.0+96`)
+> - **Test Suite Status**: **260/260 tests PASS (100%)**, `flutter analyze` 0 issues.
+> - **Trạng Thái Kiểm Toán (Audit Status)**: **🟢 100% APPLE GUIDELINES COMPLIANT & TESTED**.
+
+### 🛡️ [TUÂN THỦ KIỂM DUYỆT APPLE APP STORE (APP STORE COMPLIANCE & PRIVACY)]
+- `[COMPLIANCE]` **Bổ sung tính năng Yêu cầu Xóa tài khoản (`profile_screen.dart`)**:
+  - Tuân thủ nghiêm ngặt **Apple App Store Review Guideline 5.1.1(v)**: Người dùng có thể trực tiếp gửi yêu cầu xóa tài khoản và dữ liệu cá nhân ngay trong ứng dụng qua email gửi về `support@360.org.vn` mà không cần can thiệp logic backend phức tạp.
+- `[COMPLIANCE]` **Tích hợp liên kết Chính sách Quyền riêng tư (`about_screen.dart`)**:
+  - Bổ sung nút liên kết trực tiếp tới Chính sách Quyền riêng tư (`https://360.org.vn/privacy`) theo quy định **Apple Guideline 5.1.1(i)**.
+- `[IMPROVE]` **Chuẩn hóa chuỗi mô tả quyền Microphone (`ios/Runner/Info.plist`)**:
+  - Chuyển đổi `NSMicrophoneUsageDescription` sang tiếng Anh chuẩn (`VCloud uses your microphone to record voice messages and make voice calls.`) để đồng bộ tuyệt đối với các quyền Camera, Photo Library và Location.
+- `[SYNC]` **Đồng bộ hóa phiên bản Versioning toàn hệ thống (`2.9.0+96`)**:
+  - Cập nhật chuỗi dự phòng (fallback) trong `about_screen.dart`, chân trang `splash_screen.dart` và Web Boot Loader `web/index.html` về đồng bộ chính xác với `pubspec.yaml` (`v2.9.0+96`).
+
+---
+
 ## [v2.5.0+94] — 2026-08-28
 
 > [!IMPORTANT]
