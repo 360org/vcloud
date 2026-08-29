@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
@@ -79,6 +80,13 @@ class ProfileScreen extends ConsumerWidget {
                     onTap: () => context.push('/profile/about'),
                   ),
                   _SettingsRow(
+                    icon: LucideIcons.userX,
+                    label: 'Yêu cầu xóa tài khoản',
+                    color: AppColors.danger,
+                    danger: true,
+                    onTap: () => _confirmDeleteAccount(context, ref),
+                  ),
+                  _SettingsRow(
                     icon: LucideIcons.logOut,
                     label: 'Đăng xuất',
                     color: AppColors.danger,
@@ -100,6 +108,48 @@ class ProfileScreen extends ConsumerWidget {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => _PushTokenSheet(ref: ref),
+    );
+  }
+
+  void _confirmDeleteAccount(BuildContext context, WidgetRef ref) {
+    final user = ref.read(authControllerProvider).value;
+    final email = user?.email ?? '';
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Yêu cầu xóa tài khoản'),
+        content: const Text(
+          'Bạn muốn gửi yêu cầu xóa tài khoản? '
+          'Chúng tôi sẽ xử lý yêu cầu của bạn trong vòng 30 ngày '
+          'theo quy định bảo mật dữ liệu.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () {
+              Navigator.pop(ctx);
+              final subject = Uri.encodeComponent('Yêu cầu xóa tài khoản VCloud');
+              final body = Uri.encodeComponent(
+                'Tôi muốn yêu cầu xóa tài khoản VCloud của tôi.\n\n'
+                'Email đăng nhập: $email\n\n'
+                'Vui lòng xử lý yêu cầu này theo quy định bảo mật dữ liệu.',
+              );
+              launchUrl(
+                Uri.parse('mailto:support@360.org.vn?subject=$subject&body=$body'),
+              );
+            },
+            child: const Text('Gửi yêu cầu'),
+          ),
+        ],
+      ),
     );
   }
 

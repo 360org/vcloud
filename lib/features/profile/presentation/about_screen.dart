@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/app_scaffold.dart';
@@ -11,11 +12,11 @@ import '../../../shared/widgets/ui_kit.dart';
 final appVersionProvider = FutureProvider<String>((ref) async {
   try {
     final info = await PackageInfo.fromPlatform();
-    final version = info.version.isNotEmpty ? info.version : '2.5.0';
-    final build = info.buildNumber.isNotEmpty ? info.buildNumber : '80';
+    final version = info.version.isNotEmpty ? info.version : '2.9.0';
+    final build = info.buildNumber.isNotEmpty ? info.buildNumber : '96';
     return 'v$version+$build';
   } catch (_) {
-    return 'v2.5.0+80';
+    return 'v2.9.0+96';
   }
 });
 
@@ -28,7 +29,7 @@ class AboutScreen extends ConsumerWidget {
     final versionAsync = ref.watch(appVersionProvider);
     final versionText = versionAsync.maybeWhen(
       data: (v) => 'Phiên bản $v',
-      orElse: () => 'Phiên bản v2.5.0+80',
+      orElse: () => 'Phiên bản v2.9.0+96',
     );
 
     return AppScaffold(
@@ -129,6 +130,38 @@ class AboutScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 16),
+
+          // Privacy Policy & Terms of Service
+          GlassCard(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () => launchUrl(
+                Uri.parse('https://360.org.vn/privacy'),
+                mode: LaunchMode.externalApplication,
+              ),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  children: [
+                    Icon(LucideIcons.shieldCheck, color: AppColors.primary, size: 20),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Chính sách quyền riêng tư',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                    Icon(LucideIcons.externalLink, color: AppColors.textMuted, size: 16),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
 
           // Copyright
           Center(
