@@ -1,10 +1,12 @@
 {
   "allowedWorkspaces": [
-    "/Volumes/DATA/DEV/flutter/*"
+    "/Volumes/DATA/DEV/flutter/*",
+    "/Volumes/DATA/DEV/MOBILES/VCloud/*"
   ],
   "permissions": {
     "additionalDirectories": [
-      "/Volumes/DATA/DEV/flutter"
+      "/Volumes/DATA/DEV/flutter",
+      "/Volumes/DATA/DEV/MOBILES/VCloud"
     ]
   }
 }
