@@ -151,7 +151,29 @@ export_options_hash = {
 
 ---
 
-## 3. QUY TRÌNH KIỂM TRA & XUẤT BẢN BẢN DỰNG MỚI TỪNG BƯỚC (CHECKLIST)
+### LỖI 7: Từ chối theo Guideline 2.1.0 - Performance: App Completeness
+* **Triệu chứng Rejection**: Apple gửi thông báo: *"Guideline 2.1.0 - Performance - App Completeness: We were unable to review your app because we could not sign in or access full features."*
+* **Nguyên nhân**: Apple Reviewers cần một tài khoản kiểm thử hoạt động đầy đủ (Demo / Staging Account) để đăng nhập và kiểm tra toàn diện các module (Chat, Điểm danh, Timesheet, Ticket).
+* **Giải pháp khắc phục**:
+  1. Trong mục **App Review Information** trên App Store Connect:
+     - Tích chọn **"Sign-in required"**.
+     - Điền tài khoản demo (Username / Password).
+     - Trong mục **Notes**: Cung cấp hướng dẫn ngắn gọn cho Reviewer (ví dụ: *"Use domain demo.vuahethong.com with provided demo credentials. The app connects to Odoo 17 & 19 backend"*).
+  2. Đảm bảo server backend và các endpoint Odoo luôn trực tuyến trong suốt thời gian Apple tiến hành duyệt app.
+
+---
+
+## 3. BẰNG CHỨNG KIỂM CHỨNG THÀNH CÔNG (PASSED & SUBMISSION READY)
+
+### Trạng thái thực tế xác thực ngày 29/08/2026:
+* **Phiên bản & Bản build**: `iOS App 2.9.0 (97)`
+* **Màn hình Draft Submission**: Hiển thị thẻ *"Item Ready to Submit: iOS App 2.9.0 - 2.9.0 (97)"*.
+* **Nút hành động**: Nút xanh **"Submit for Review"** đã sáng và sẵn sàng kích hoạt để gửi bản build vào hàng đợi kiểm duyệt của Apple App Store Review Team.
+* **Kết luận**: Khắc phục 100% lỗi build bị ẩn/mờ của các bản build 93-96.
+
+---
+
+## 4. QUY TRÌNH KIỂM TRA & XUẤT BẢN BẢN DỰNG MỚI TỪNG BƯỚC (CHECKLIST)
 
 Trước khi gửi bản build mới cho Apple Review, hãy thực hiện theo đúng thứ tự:
 
@@ -160,10 +182,10 @@ Trước khi gửi bản build mới cho Apple Review, hãy thực hiện theo �
 | **1** | Kiểm tra `pubspec.yaml` | `version: X.Y.Z+BUILD` (Số BUILD phải tăng so với bản trước đó) |
 | **2** | Kiểm tra `testFlightInternalTestingOnly` | Bắt buộc là `false` trong `Fastfile` & `export_options.plist` |
 | **3** | Chạy Static Analysis | `flutter analyze` ➔ 0 errors, 0 warnings |
-| **4** | Chạy Unit/Widget Tests | `flutter test` ➔ 100% tests PASS |
-| **5** | Commit & Push Branch | Tuân thủ Git Trailer `Authored-By: 360org <support@360.org.vn>` |
-| **6** | Merge PR vào `main` | Kích hoạt GitHub Actions (`deploy.yml`) chạy đóng gói và upload |
-| **7** | Kiểm tra App Store Connect | Chờ 10-20 phút sau khi upload, vào `App Store` ➔ Chọn bản build ➔ Submit for Review |
+| **4** | Chạy Unit/Widget Tests | `flutter test` ➔ 100% tests PASS (260/260) |
+| **5** | Commit & Push Branch/Main | Tuân thủ Git Trailer `Authored-By: 360org <support@360.org.vn>` |
+| **6** | Merge vào `main` | Kích hoạt GitHub Actions (`deploy.yml`) chạy đóng gói và upload |
+| **7** | Kiểm tra App Store Connect | Vào `App Store` ➔ Chọn bản build ➔ Kiểm tra App Review Information ➔ Bấm **Submit for Review** |
 
 ---
 
