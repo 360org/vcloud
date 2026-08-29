@@ -45,7 +45,7 @@ jobs:
       - name: Setup Ruby & Fastlane Toolchain
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: "3.2"
+          ruby-version: "3.3"
           bundler-cache: true
 
       - name: Install Project Dependencies
@@ -147,7 +147,7 @@ jobs:
       - name: Setup Ruby & Fastlane Toolchain
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: "3.2"
+          ruby-version: "3.3"
           bundler-cache: true
 
       - name: Install Project Dependencies

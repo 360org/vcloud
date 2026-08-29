@@ -1,5 +1,5 @@
 # 🛡️ BÁO CÁO AUDIT KỸ THUẬT TOÀN DIỆN (TECHNICAL AUDIT REPORT)
-## Phiên bản: `v2.9.0+98` (Build 98) — Ngày kiểm toán: 2026-08-29
+## Phiên bản: `v2.9.1+99` (Build 99) — Ngày kiểm toán: 2026-08-29
 
 > **Tiêu chuẩn kiểm toán**: `360-flutter` Mobile Standards & AIaC 3.0 Engineering Baseline.
 > **Phạm vi kiểm toán**: Hệ thống Mobile App Flutter (`vclients`) & Odoo Backend Services (`v_mobile_17`, `v_mobile_19`).
@@ -15,7 +15,7 @@
 | **Frontend Mobile (`vclients/lib`)** | **140 files** | **52,200 dòng** | `flutter analyze` **0 errors, 0 warnings** | Đạt **260/260 tests PASS (100%)** |
 | **Frontend Tests (`vclients/test`)** | **45 files** | **9,050 dòng** | Hoàn thành 100% Suite Test | 8 Performance / SLA Benchmarks |
 | **Backend Odoo (`v_mobile_17` & `19`)** | **115 files** | **17,300 dòng** | Python AST & Linter Verified | **100% Contract Tests PASS** |
-| **CI/CD Pipeline** | GitHub Actions | Fastlane iOS & TestFlight | **Build IPA & TestFlight Tự Động** | **100% CI/CD TICK XANH** |
+| **CI/CD Pipeline** | GitHub Actions | Fastlane iOS & TestFlight | **Build IPA & TestFlight Tự Động** | **Build 99 đang chờ CI xác minh sau fix train 2.9.1** |
 
 ### 1.2 Kiến trúc Hệ thống
 * **Kiến trúc Tổng thể**: Clean Architecture 3 lớp phân tách triệt để (*Data Layer ➔ Domain Layer ➔ Presentation Layer*).

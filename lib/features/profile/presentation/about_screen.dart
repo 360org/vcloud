@@ -12,11 +12,11 @@ import '../../../shared/widgets/ui_kit.dart';
 final appVersionProvider = FutureProvider<String>((ref) async {
   try {
     final info = await PackageInfo.fromPlatform();
-    final version = info.version.isNotEmpty ? info.version : '2.9.0';
-    final build = info.buildNumber.isNotEmpty ? info.buildNumber : '96';
+    final version = info.version.isNotEmpty ? info.version : '2.9.1';
+    final build = info.buildNumber.isNotEmpty ? info.buildNumber : '99';
     return 'v$version+$build';
   } catch (_) {
-    return 'v2.9.0+96';
+    return 'v2.9.1+99';
   }
 });
 
@@ -29,7 +29,7 @@ class AboutScreen extends ConsumerWidget {
     final versionAsync = ref.watch(appVersionProvider);
     final versionText = versionAsync.maybeWhen(
       data: (v) => 'Phiên bản $v',
-      orElse: () => 'Phiên bản v2.9.0+97',
+      orElse: () => 'Phiên bản v2.9.1+99',
     );
 
     return AppScaffold(

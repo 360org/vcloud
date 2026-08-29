@@ -2,6 +2,22 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.1+99] — 2026-08-29
+
+> [!IMPORTANT]
+> **Bản dựng phát hành v2.9.1+99 (Build 99)**:
+> - **Mục tiêu**: mở pre-release train mới trên App Store Connect sau khi train `2.9.0` đã bị Apple đóng.
+> - **Lỗi build mới nhất đã xử lý**: iOS TestFlight upload fail với `CFBundleShortVersionString [2.9.0] must contain a higher version` và `Invalid Pre-Release Train. The train version '2.9.0' is closed for new build submissions`.
+
+### 🛠️ [SỬA LỖI CI/CD TESTFLIGHT]
+- `[FIX]` **Nâng version marketing iOS/App Store từ `2.9.0` lên `2.9.1` và build từ `98` lên `99` (`pubspec.yaml`)**:
+  - Đảm bảo `CFBundleShortVersionString` cao hơn bản đã approved trước đó trên App Store Connect.
+  - Mở train TestFlight mới `2.9.1` để Apple nhận build mới.
+- `[SYNC]` **Đồng bộ version hiển thị trong app và web boot loader**:
+  - Cập nhật fallback About screen, Splash footer và cache-busting web icon query về `2.9.1+99`.
+
+---
+
 ## [v2.9.0+98] — 2026-08-29
 
 > [!IMPORTANT]
