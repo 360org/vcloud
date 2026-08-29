@@ -34,20 +34,39 @@ class ShiftConfig {
   final String dayName;
 
   factory ShiftConfig.fromMap(Map<String, dynamic> map) {
+    final rawDayName = map['day_name']?.toString() ?? 'Ngày làm việc';
+    final isSaturday = rawDayName.contains('Bảy') || rawDayName.toLowerCase().contains('saturday');
+
+    var shiftEndH = (map['shift_end_hour'] as num?)?.toInt() ?? (isSaturday ? 16 : 17);
+    var shiftEndM = (map['shift_end_minute'] as num?)?.toInt() ?? (isSaturday ? 30 : 0);
+    final morningTarget = (map['morning_target_minutes'] as num?)?.toInt() ?? 240;
+    var afternoonTarget = (map['afternoon_target_minutes'] as num?)?.toInt() ?? (isSaturday ? 210 : 240);
+    var targetWork = (map['target_work_minutes'] as num?)?.toInt() ?? (isSaturday ? 450 : 480);
+
+    // Standardize Saturday shift according to company policy (08:00 - 16:30, Lunch 12:00 - 13:00 => 7h30)
+    if (isSaturday) {
+      if (afternoonTarget > 210) afternoonTarget = 210;
+      if (targetWork > 450) targetWork = 450;
+      if (shiftEndH >= 17) {
+        shiftEndH = 16;
+        shiftEndM = 30;
+      }
+    }
+
     return ShiftConfig(
       shiftStartHour: (map['shift_start_hour'] as num?)?.toInt() ?? 8,
       shiftStartMinute: (map['shift_start_minute'] as num?)?.toInt() ?? 0,
-      shiftEndHour: (map['shift_end_hour'] as num?)?.toInt() ?? 17,
-      shiftEndMinute: (map['shift_end_minute'] as num?)?.toInt() ?? 0,
+      shiftEndHour: shiftEndH,
+      shiftEndMinute: shiftEndM,
       lunchStartHour: (map['lunch_start_hour'] as num?)?.toInt() ?? 12,
       lunchStartMinute: (map['lunch_start_minute'] as num?)?.toInt() ?? 0,
       lunchEndHour: (map['lunch_end_hour'] as num?)?.toInt() ?? 13,
       lunchEndMinute: (map['lunch_end_minute'] as num?)?.toInt() ?? 0,
-      morningTargetMinutes: (map['morning_target_minutes'] as num?)?.toInt() ?? 240,
-      afternoonTargetMinutes: (map['afternoon_target_minutes'] as num?)?.toInt() ?? 240,
-      targetWorkMinutes: (map['target_work_minutes'] as num?)?.toInt() ?? 480,
+      morningTargetMinutes: morningTarget,
+      afternoonTargetMinutes: afternoonTarget,
+      targetWorkMinutes: targetWork,
       allowEarlyCheckinWorkHours: map['allow_early_checkin_work_hours'] == true,
-      dayName: map['day_name']?.toString() ?? 'Ngày làm việc',
+      dayName: rawDayName,
     );
   }
 

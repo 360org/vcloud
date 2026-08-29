@@ -10,7 +10,6 @@ import '../../../core/utils/vn_holidays.dart';
 import '../../../shared/models/attendance.dart';
 import '../../../shared/widgets/app_scaffold.dart';
 import '../../../shared/widgets/app_toast.dart';
-import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/loading_view.dart';
 import '../../auth/application/auth_controller.dart';
@@ -118,15 +117,62 @@ class _AttendanceHistoryScreenState extends ConsumerState<AttendanceHistoryScree
           tooltip: _isCalendarView ? 'Xem dạng danh sách' : 'Xem dạng lịch',
         ),
       ],
-      body: rows.when(
-        data: (list) {
-          if (list.isEmpty) {
-            return const EmptyState(
-              icon: LucideIcons.calendarOff,
-              title: 'Chưa có dữ liệu chấm công',
-              subtitle: 'Lịch sử vào/ra ca của bạn sẽ hiển thị chi tiết tại đây.',
-            );
-          }
+      body: RefreshIndicator(
+        onRefresh: () async {
+          ref.invalidate(attendanceStreamProvider);
+          ref.invalidate(attendanceTodayProvider);
+        },
+        child: rows.when(
+          data: (list) {
+            if (list.isEmpty) {
+              return ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 60),
+                children: [
+                  Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 80,
+                          height: 80,
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(LucideIcons.calendarOff, size: 36, color: Color(0xFF94A3B8)),
+                        ),
+                        const SizedBox(height: 20),
+                        const Text(
+                          'Chưa có dữ liệu chấm công',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Lịch sử vào/ra ca của bạn sẽ hiển thị chi tiết tại đây.',
+                          style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 20),
+                        FilledButton.icon(
+                          onPressed: () {
+                            ref.invalidate(attendanceStreamProvider);
+                            ref.invalidate(attendanceTodayProvider);
+                          },
+                          icon: const Icon(LucideIcons.refreshCw, size: 16),
+                          label: const Text('Tải lại dữ liệu'),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFF00C83A),
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            }
 
           final openCount = list.where((a) => a.isOpen).length;
 
@@ -260,8 +306,9 @@ class _AttendanceHistoryScreenState extends ConsumerState<AttendanceHistoryScree
         loading: () => const LoadingView(),
         error: (e, _) => ErrorView(error: e),
       ),
-    );
-  }
+    ),
+  );
+}
 
   int _totalMinutes(List<Attendance> list) {
     int total = 0;
@@ -1472,66 +1519,22 @@ class _HrAttendanceKpisCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          // 4 KPIs Grid (Interactive)
+          // 3 KPIs Grid (Ẩn Đi muộn theo yêu cầu)
           Row(
             children: [
               Expanded(
+                flex: 3,
                 child: _KpiMiniBox(
-                  icon: LucideIcons.alarmClockOff,
-                  label: 'Đi muộn',
-                  value: '${summary.lateCount} lần (${summary.lateMinutesTotal}p)',
-                  color: const Color(0xFFEAB308),
+                  icon: LucideIcons.clockCheck,
+                  label: 'Tổng giờ công',
+                  value: '${(summary.totalWorkedMinutes ~/ 60)}h ${(summary.totalWorkedMinutes % 60)}p',
+                  color: const Color(0xFF10B981),
                   isDark: isDark,
-                  showDetailHint: summary.lateCount > 0,
-                  onTap: () {
-                    showModalBottomSheet<void>(
-                      context: context,
-                      isScrollControlled: true,
-                      backgroundColor: Colors.transparent,
-                      builder: (ctx) => _HrEventDetailsBottomSheet(
-                        title: 'Chi tiết Đi muộn (${summary.lateCount} lần)',
-                        subtitle: 'Đối chiếu giờ vào ca chuẩn và giờ chấm công thực tế',
-                        items: summary.lateDetails,
-                        type: 'late',
-                        color: const Color(0xFFEAB308),
-                        onDateSelected: onDateSelected,
-                      ),
-                    );
-                  },
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: _KpiMiniBox(
-                  icon: LucideIcons.doorOpen,
-                  label: 'Về sớm',
-                  value: '${summary.earlyLeaveCount} lần (${summary.earlyMinutesTotal}p)',
-                  color: const Color(0xFFF97316),
-                  isDark: isDark,
-                  showDetailHint: summary.earlyLeaveCount > 0,
-                  onTap: () {
-                    showModalBottomSheet<void>(
-                      context: context,
-                      isScrollControlled: true,
-                      backgroundColor: Colors.transparent,
-                      builder: (ctx) => _HrEventDetailsBottomSheet(
-                        title: 'Chi tiết Về sớm (${summary.earlyLeaveCount} lần)',
-                        subtitle: 'Đối chiếu giờ tan ca chuẩn và giờ chấm công thực tế',
-                        items: summary.earlyDetails,
-                        type: 'early',
-                        color: const Color(0xFFF97316),
-                        onDateSelected: onDateSelected,
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
+                flex: 3,
                 child: _KpiMiniBox(
                   icon: LucideIcons.flame,
                   label: 'Làm thêm (OT)',
@@ -1558,12 +1561,29 @@ class _HrAttendanceKpisCard extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Expanded(
+                flex: 2,
                 child: _KpiMiniBox(
-                  icon: LucideIcons.clockCheck,
-                  label: 'Tổng giờ công',
-                  value: '${(summary.totalWorkedMinutes ~/ 60)}h ${(summary.totalWorkedMinutes % 60)}p',
-                  color: const Color(0xFF10B981),
+                  icon: LucideIcons.doorOpen,
+                  label: 'Về sớm',
+                  value: '${summary.earlyLeaveCount} lần (${summary.earlyMinutesTotal}p)',
+                  color: const Color(0xFFF97316),
                   isDark: isDark,
+                  showDetailHint: summary.earlyLeaveCount > 0,
+                  onTap: () {
+                    showModalBottomSheet<void>(
+                      context: context,
+                      isScrollControlled: true,
+                      backgroundColor: Colors.transparent,
+                      builder: (ctx) => _HrEventDetailsBottomSheet(
+                        title: 'Chi tiết Về sớm (${summary.earlyLeaveCount} lần)',
+                        subtitle: 'Đối chiếu giờ tan ca chuẩn và giờ chấm công thực tế',
+                        items: summary.earlyDetails,
+                        type: 'early',
+                        color: const Color(0xFFF97316),
+                        onDateSelected: onDateSelected,
+                      ),
+                    );
+                  },
                 ),
               ),
             ],
@@ -2104,22 +2124,13 @@ class _ExportAttendanceSummaryDialog extends StatelessWidget {
     buffer.writeln('👤 Nhân viên: $userName');
     buffer.writeln('📅 Tháng làm việc: ${month.month}/${month.year}');
     buffer.writeln('✅ Ngày công thực tế: ${summary.actualWorkdays} / ${summary.targetWorkdays.toStringAsFixed(0)} công');
-    buffer.writeln('⏰ Đi muộn: ${summary.lateCount} lần (${summary.lateMinutesTotal} phút)');
-    if (summary.lateDetails.isNotEmpty) {
-      for (final l in summary.lateDetails) {
-        final dStr = '${l.dayName}, ${l.date.day.toString().padLeft(2, '0')}/${l.date.month.toString().padLeft(2, '0')}';
-        buffer.writeln('   • $dStr: Chấm lúc ${l.actualTime} (Ca ${l.scheduledTime}) ➔ Muộn ${l.diffMinutes}p');
-      }
-    }
-    buffer.writeln('🏃 Về sớm: ${summary.earlyLeaveCount} lần (${summary.earlyMinutesTotal} phút)');
-    if (summary.earlyDetails.isNotEmpty) {
-      for (final e in summary.earlyDetails) {
-        final dStr = '${e.dayName}, ${e.date.day.toString().padLeft(2, '0')}/${e.date.month.toString().padLeft(2, '0')}';
-        buffer.writeln('   • $dStr: Ra lúc ${e.actualTime} (Ca ${e.scheduledTime}) ➔ Về sớm ${e.diffMinutes}p');
-      }
-    }
-    buffer.writeln('⚡ Giờ làm thêm (OT): ${(summary.overtimeMinutesTotal ~/ 60)}h ${(summary.overtimeMinutesTotal % 60)}p');
     buffer.writeln('📊 Tổng thời lượng công: ${(summary.totalWorkedMinutes ~/ 60)}h ${(summary.totalWorkedMinutes % 60)}p');
+    buffer.writeln('⚡ Giờ làm thêm (OT): ${(summary.overtimeMinutesTotal ~/ 60)}h ${(summary.overtimeMinutesTotal % 60)}p');
+    if (summary.earlyLeaveCount > 0) {
+      buffer.writeln('🏃 Về sớm: ${summary.earlyLeaveCount} lần (${summary.earlyMinutesTotal} phút)');
+    } else {
+      buffer.writeln('🏃 Về sớm: 0 lần (0 phút)');
+    }
     buffer.writeln('----------------------------------------');
     buffer.writeln('*Xuất tự động từ hệ thống chấm công VCloud Mobile*');
     return buffer.toString();
@@ -2129,25 +2140,31 @@ class _ExportAttendanceSummaryDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final exportText = _buildExportText();
+    final progress = summary.targetWorkdays > 0
+        ? (summary.actualWorkdays / summary.targetWorkdays).clamp(0.0, 1.0)
+        : 0.0;
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       backgroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
-      child: Padding(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 420),
         padding: const EdgeInsets.all(20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Header
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: const Color(0xFF00C83A).withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(14),
                   ),
-                  child: const Icon(LucideIcons.fileSpreadsheet, color: Color(0xFF00C83A), size: 22),
+                  child: const Icon(LucideIcons.fileSpreadsheet, color: Color(0xFF00C83A), size: 24),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -2156,11 +2173,18 @@ class _ExportAttendanceSummaryDialog extends StatelessWidget {
                     children: [
                       const Text(
                         'Báo cáo Bảng công',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                        style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, letterSpacing: -0.2),
                       ),
+                      const SizedBox(height: 2),
                       Text(
-                        'Tháng ${month.month}/${month.year}',
-                        style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        'Tháng ${month.month}/${month.year} • $userName',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
@@ -2168,25 +2192,241 @@ class _ExportAttendanceSummaryDialog extends StatelessWidget {
                 IconButton(
                   onPressed: () => Navigator.pop(context),
                   icon: const Icon(LucideIcons.x, size: 20),
+                  style: IconButton.styleFrom(
+                    backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
+
+            // Card 1: Ngày công thực tế (Hero Card with Progress)
             Container(
-              padding: const EdgeInsets.all(14),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: isDark
+                      ? [const Color(0xFF064E3B).withValues(alpha: 0.4), const Color(0xFF0F172A)]
+                      : [const Color(0xFFECFDF5), const Color(0xFFF0FDF4)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: isDark ? const Color(0xFF059669).withValues(alpha: 0.3) : const Color(0xFFA7F3D0),
+                  width: 1.2,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(LucideIcons.award, color: Color(0xFF059669), size: 18),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Ngày công thực tế',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: isDark ? const Color(0xFFA7F3D0) : const Color(0xFF065F46),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF00C83A).withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '${(progress * 100).toStringAsFixed(0)}% Đạt chuẩn',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF059669),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      Text(
+                        '${summary.actualWorkdays}',
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w900,
+                          color: isDark ? Colors.white : const Color(0xFF065F46),
+                          height: 1,
+                        ),
+                      ),
+                      Text(
+                        ' / ${summary.targetWorkdays.toStringAsFixed(0)} công',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF059669),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: LinearProgressIndicator(
+                      value: progress,
+                      minHeight: 7,
+                      backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFD1FAE5),
+                      valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF00C83A)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Card 2: Lưới 2 cột chỉ số nổi bật (Tổng giờ & OT)
+            Row(
+              children: [
+                // Tổng giờ công
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(LucideIcons.clockCheck, size: 15, color: Color(0xFF10B981)),
+                            ),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Tổng giờ làm',
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF64748B)),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '${(summary.totalWorkedMinutes ~/ 60)}h ${(summary.totalWorkedMinutes % 60)}p',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                // Làm thêm (OT)
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(LucideIcons.flame, size: 15, color: Color(0xFF3B82F6)),
+                            ),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Làm thêm (OT)',
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF64748B)),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '${(summary.overtimeMinutesTotal ~/ 60)}h ${(summary.overtimeMinutesTotal % 60)}p',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                            color: isDark ? const Color(0xFF60A5FA) : const Color(0xFF2563EB),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+
+            // Card 3: Trạng thái Về sớm (Thẻ thông tin gọn đẹp)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
                 color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
-              ),
-              child: SingleChildScrollView(
-                child: Text(
-                  exportText,
-                  style: const TextStyle(fontFamily: 'monospace', fontSize: 11, height: 1.5),
+                border: Border.all(
+                  color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
                 ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    summary.earlyLeaveCount > 0 ? LucideIcons.doorOpen : LucideIcons.checkCircle2,
+                    size: 16,
+                    color: summary.earlyLeaveCount > 0 ? const Color(0xFFF97316) : const Color(0xFF059669),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      summary.earlyLeaveCount > 0
+                          ? 'Về sớm: ${summary.earlyLeaveCount} lần (${summary.earlyMinutesTotal} phút)'
+                          : 'Về sớm: 0 lần (Tuân thủ chuẩn giờ ra ca)',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: summary.earlyLeaveCount > 0
+                            ? const Color(0xFFF97316)
+                            : (isDark ? const Color(0xFFA7F3D0) : const Color(0xFF065F46)),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 20),
+
+            // Action Buttons
             Row(
               children: [
                 Expanded(
@@ -2195,8 +2435,11 @@ class _ExportAttendanceSummaryDialog extends StatelessWidget {
                     icon: const Icon(LucideIcons.x, size: 16),
                     label: const Text('Đóng'),
                     style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      side: BorderSide(
+                        color: isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1),
+                      ),
                     ),
                   ),
                 ),
@@ -2210,11 +2453,16 @@ class _ExportAttendanceSummaryDialog extends StatelessWidget {
                       AppToast.success(context, title: 'Đã sao chép bảng công vào bộ nhớ tạm!');
                     },
                     icon: const Icon(LucideIcons.copy, size: 16),
-                    label: const Text('Sao chép gửi Kế toán'),
+                    label: const Text(
+                      'Sao chép gửi Kế toán',
+                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                    ),
                     style: FilledButton.styleFrom(
                       backgroundColor: const Color(0xFF00C83A),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     ),
                   ),
                 ),
