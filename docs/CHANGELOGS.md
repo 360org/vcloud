@@ -2,23 +2,23 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
-## [v2.9.1+99] — 2026-08-29
+## [v2.9.1+99] — 2026-08-30 (CI/CD Governance — Release-Gated Deployment)
 
 > [!IMPORTANT]
-> **Bản dựng phát hành v2.9.1+99 (Build 99)**:
-> - **Mục tiêu**: mở pre-release train mới trên App Store Connect sau khi train `2.9.0` đã bị Apple đóng.
-> - **Lỗi build mới nhất đã xử lý**: iOS TestFlight upload fail với `CFBundleShortVersionString [2.9.0] must contain a higher version` và `Invalid Pre-Release Train. The train version '2.9.0' is closed for new build submissions`.
+> **Thay đổi CI/CD Pipeline (Infra / DevOps)**:
+> - **Phạm vi**: `vclients` — GitHub Actions workflow (`deploy.yml`)
+> - **Mục tiêu**: Tách biệt hoàn toàn sự kiện merge code với sự kiện build & deploy, để anh Tân kiểm soát 100% thời điểm phát hành và cho phép rollback theo từng Release version.
 
-### 🛠️ [SỬA LỖI CI/CD TESTFLIGHT]
-- `[FIX]` **Nâng version marketing iOS/App Store từ `2.9.0` lên `2.9.1` và build từ `98` lên `99` (`pubspec.yaml`)**:
-  - Đảm bảo `CFBundleShortVersionString` cao hơn bản đã approved trước đó trên App Store Connect.
-  - Mở train TestFlight mới `2.9.1` để Apple nhận build mới.
-- `[SYNC]` **Đồng bộ version hiển thị trong app và web boot loader**:
-  - Cập nhật fallback About screen, Splash footer và cache-busting web icon query về `2.9.1+99`.
+### ⚙️ [CI/CD & INFRA]
+- `[IMPROVE]` **Cập nhật GitHub Actions trigger (`deploy.yml`)**:
+  - **Bỏ** trigger `push: branches: [main]` — commit vào `main` không còn tự động kích hoạt build & deploy TestFlight.
+  - **Thêm** trigger `release: types: [published]` — Action chỉ chạy khi một GitHub Release được publish chính thức.
+  - Giữ nguyên `workflow_dispatch` để anh Tân có thể kích hoạt build thủ công bất kỳ lúc nào.
+- `[IMPROVE]` **Cập nhật RULE_GIT.md (Mục 5)** — Đồng bộ lại tài liệu quy chuẩn CI/CD phản ánh đúng quy trình mới: `merge PR vào main ➔ tạo Release trên GitHub ➔ Action build & deploy`.
 
 ---
 
-## [v2.9.0+98] — 2026-08-29
+## [v2.9.1+99] — 2026-08-29
 
 > [!IMPORTANT]
 > **Nhánh làm việc & Bản dựng phát hành v2.9.0+98 (Build 98)**:
