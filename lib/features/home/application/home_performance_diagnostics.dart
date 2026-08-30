@@ -10,8 +10,11 @@ import 'home_summary_controller.dart';
 
 class HomePerformanceDiagnostics {
   static void runBenchmark(WidgetRef ref) {
+    // Guard: dùng closure bool thay vì giữ ref sau khi widget dispose
+    bool disposed = false;
+
     final sw = Stopwatch()..start();
-    
+
     int? timesheetMs;
     String timesheetStatus = 'Đang tải...';
     
@@ -34,32 +37,36 @@ class HomePerformanceDiagnostics {
       final allDone = timesheetMs != null && ticketMs != null && chatMs != null && unreadMs != null && taskMs != null;
       if (allDone || force) {
         printed = true;
-        
-        final localUnread = ref.read(chatV2TotalUnreadProvider);
-        final effectiveTickets = ref.read(effectiveTicketsProvider);
-        final doingTickets = effectiveTickets.where((t) => t.status != TicketStatus.done).length;
-        final dashboard = ref.read(mobileDashboardSummaryProvider).valueOrNull;
-        final chatCount = dashboard?.recentConversationCount ?? 1171;
-        final liveUnread = localUnread > 0 ? localUnread : (dashboard?.unreadMessageCount ?? localUnread);
-        final tasks = ref.read(todayTasksProvider).valueOrNull ?? [];
-        final openTasksCount = tasks.where((t) => !t.isCompleted).length;
 
-        debugPrint('\n'
-            '================================================================================\n'
-            '📊 [BÁO CÁO HIỆU NĂNG LOAD DATA TRANG CHỦ KHI F5]\n'
-            '--------------------------------------------------------------------------------\n'
-            '1. ⏱️  CHẤM CÔNG & TIMESHEET : [ ${(timesheetMs ?? sw.elapsedMilliseconds).toString().padLeft(3)}ms ] -> $timesheetStatus\n'
-            '2. 🎫 TICKETS (Đang xử lý)   : [ ${(ticketMs ?? sw.elapsedMilliseconds).toString().padLeft(3)}ms ] -> $ticketStatus\n'
-            '3. 💬 CHATS (Tổng kênh)      : [ ${(chatMs ?? sw.elapsedMilliseconds).toString().padLeft(3)}ms ] -> $chatStatus\n'
-            '4. 📬 CHƯA ĐỌC (Tin nhắn mới): [ ${(unreadMs ?? sw.elapsedMilliseconds).toString().padLeft(3)}ms ] -> $unreadStatus\n'
-            '5. 📋 CÔNG VIỆC HÔM NAY      : [ ${(taskMs ?? sw.elapsedMilliseconds).toString().padLeft(3)}ms ] -> $taskStatus\n'
-            '--------------------------------------------------------------------------------\n'
-            '📱 [TRẠNG THÁI HIỂN THỊ TRÊN 4 WIDGET TRANG CHỦ]:\n'
-            '   👉 Widget Ticket    : ${doingTickets > 0 ? doingTickets : (dashboard?.openTickets ?? 0)} (Cần xử lý)\n'
-            '   👉 Widget Chưa đọc  : $liveUnread (Cuộc trò chuyện)\n'
-            '   👉 Widget Chats     : $chatCount (Cuộc trò chuyện)\n'
-            '   👉 Widget Công việc : $openTasksCount (Đang mở)\n'
-            '================================================================================\n');
+        try {
+          final localUnread = ref.read(chatV2TotalUnreadProvider);
+          final effectiveTickets = ref.read(effectiveTicketsProvider);
+          final doingTickets = effectiveTickets.where((t) => t.status != TicketStatus.done).length;
+          final dashboard = ref.read(mobileDashboardSummaryProvider).valueOrNull;
+          final chatCount = dashboard?.recentConversationCount ?? 1171;
+          final liveUnread = localUnread > 0 ? localUnread : (dashboard?.unreadMessageCount ?? localUnread);
+          final tasks = ref.read(todayTasksProvider).valueOrNull ?? [];
+          final openTasksCount = tasks.where((t) => !t.isCompleted).length;
+
+          debugPrint('\n'
+              '================================================================================\n'
+              '📊 [BÁO CÁO HIỆU NĂNG LOAD DATA TRANG CHỦ KHI F5]\n'
+              '--------------------------------------------------------------------------------\n'
+              '1. ⏱️  CHẤM CÔNG & TIMESHEET : [ ${(timesheetMs ?? sw.elapsedMilliseconds).toString().padLeft(3)}ms ] -> $timesheetStatus\n'
+              '2. 🎫 TICKETS (Đang xử lý)   : [ ${(ticketMs ?? sw.elapsedMilliseconds).toString().padLeft(3)}ms ] -> $ticketStatus\n'
+              '3. 💬 CHATS (Tổng kênh)      : [ ${(chatMs ?? sw.elapsedMilliseconds).toString().padLeft(3)}ms ] -> $chatStatus\n'
+              '4. 📬 CHƯA ĐỌC (Tin nhắn mới): [ ${(unreadMs ?? sw.elapsedMilliseconds).toString().padLeft(3)}ms ] -> $unreadStatus\n'
+              '5. 📋 CÔNG VIỆC HÔM NAY      : [ ${(taskMs ?? sw.elapsedMilliseconds).toString().padLeft(3)}ms ] -> $taskStatus\n'
+              '--------------------------------------------------------------------------------\n'
+              '📱 [TRẠNG THÁI HIỂN THỊ TRÊN 4 WIDGET TRANG CHỦ]:\n'
+              '   👉 Widget Ticket    : ${doingTickets > 0 ? doingTickets : (dashboard?.openTickets ?? 0)} (Cần xử lý)\n'
+              '   👉 Widget Chưa đọc  : $liveUnread (Cuộc trò chuyện)\n'
+              '   👉 Widget Chats     : $chatCount (Cuộc trò chuyện)\n'
+              '   👉 Widget Công việc : $openTasksCount (Đang mở)\n'
+              '================================================================================\n');
+        } catch (e) {
+          // Widget đã bị dispose, skip print
+        }
       }
     }
 
