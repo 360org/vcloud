@@ -9,6 +9,7 @@ import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'features/attendance/application/attendance_controller.dart';
 import 'features/auth/application/auth_controller.dart';
+import 'features/chat_v2/application/chat_v2_call_watcher.dart';
 import 'features/chat_v2/application/chat_v2_channels_controller.dart';
 import 'features/chat_v2/presentation/widgets/chat_v2_call_listener.dart';
 import 'features/chat_v2/presentation/widgets/chat_v2_in_app_banner.dart';
@@ -55,17 +56,19 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Returning from background → refresh live streams so unread badges
-    // and notifications catch up immediately instead of waiting for next poll.
-    if (state != AppLifecycleState.resumed) return;
-    final user = ref.read(authControllerProvider).valueOrNull;
-    if (user == null) return;
-    ref.read(chatV2ChannelsProvider.notifier).resumeRefresh();
-    ref.invalidate(chatV2TotalUnreadProvider);
-    ref.invalidate(mobileNotificationsProvider);
-    ref.invalidate(attendanceTodayProvider);
-    ref.invalidate(attendanceStreamProvider);
-    ref.invalidate(mobileDashboardSummaryProvider);
+    if (state == AppLifecycleState.resumed) {
+      final user = ref.read(authControllerProvider).valueOrNull;
+      if (user == null) return;
+      ref.read(chatV2CallWatcherProvider).onAppResumed();
+      ref.read(chatV2ChannelsProvider.notifier).resumeRefresh();
+      ref.invalidate(chatV2TotalUnreadProvider);
+      ref.invalidate(mobileNotificationsProvider);
+      ref.invalidate(attendanceTodayProvider);
+      ref.invalidate(attendanceStreamProvider);
+      ref.invalidate(mobileDashboardSummaryProvider);
+    } else if (state == AppLifecycleState.paused) {
+      ref.read(chatV2CallWatcherProvider).onAppPaused();
+    }
   }
 
   void _onForegroundPush(RemoteMessage message) {

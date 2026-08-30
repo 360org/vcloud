@@ -11,6 +11,7 @@ import '../../../core/notifications/push_notification_service.dart';
 import '../../chat_v2/application/chat_v2_channels_controller.dart';
 import '../../chat_v2/application/chat_v2_messages_controller.dart';
 import '../../../shared/widgets/app_toast.dart';
+import '../../timesheet/data/timesheet_repository.dart';
 import '../data/auth_repository.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>((_) => AuthRepository());
@@ -86,6 +87,7 @@ class AuthController extends AsyncNotifier<AuthUser?> {
     await _unregisterPushDevice();
     ChatV2ChannelLocalCache.clear();
     ChatV2MessageLocalCache.clear();
+    TimesheetRepository.clearCache();
     await _repo.signOut();
     state = const AsyncData(null);
   }

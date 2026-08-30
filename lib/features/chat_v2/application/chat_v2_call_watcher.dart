@@ -37,15 +37,29 @@ class ChatV2CallWatcher {
   Timer? _watchTimer;
   bool _isDisposed = false;
   bool _isChecking = false;
+  bool _isAppForegrounded = true;
 
   void _startWatching() {
-    _scheduleNextCheck(const Duration(milliseconds: 1500));
+    _scheduleNextCheck(const Duration(seconds: 15));
   }
 
   void _scheduleNextCheck(Duration delay) {
-    if (_isDisposed || !isLoggedIn) return;
+    if (_isDisposed || !isLoggedIn || !_isAppForegrounded) return;
     _watchTimer?.cancel();
     _watchTimer = Timer(delay, _checkActiveCall);
+  }
+
+  /// Gọi khi app quay trở lại foreground
+  void onAppResumed() {
+    _isAppForegrounded = true;
+    _scheduleNextCheck(const Duration(seconds: 15));
+  }
+
+  /// Gọi khi app bị thu nhỏ / vào background
+  void onAppPaused() {
+    _isAppForegrounded = false;
+    _watchTimer?.cancel();
+    _watchTimer = null;
   }
 
   Future<void> _checkActiveCall() async {
@@ -104,7 +118,7 @@ class ChatV2CallWatcher {
       debugPrint('⚠️ [CALL_WATCHER] Error checking active call: $e');
     } finally {
       _isChecking = false;
-      _scheduleNextCheck(const Duration(milliseconds: 2000));
+      _scheduleNextCheck(const Duration(seconds: 30));
     }
   }
 

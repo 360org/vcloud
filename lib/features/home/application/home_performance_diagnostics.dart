@@ -10,9 +10,6 @@ import 'home_summary_controller.dart';
 
 class HomePerformanceDiagnostics {
   static void runBenchmark(WidgetRef ref) {
-    // Guard: dùng closure bool thay vì giữ ref sau khi widget dispose
-    bool disposed = false;
-
     final sw = Stopwatch()..start();
 
     int? timesheetMs;

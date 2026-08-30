@@ -24,6 +24,11 @@ class TimesheetRepository {
   static List<TimesheetEntry> _cachedEntries = const <TimesheetEntry>[];
   static List<dynamic>? _cachedProjects;
 
+  static void clearCache() {
+    _cachedEntries = const <TimesheetEntry>[];
+    _cachedProjects = null;
+  }
+
   Stream<List<TimesheetEntry>> watchRecent({int limit = 100}) {
     final controller = StreamController<List<TimesheetEntry>>.broadcast();
 
@@ -47,6 +52,11 @@ class TimesheetRepository {
     }
 
     controller.onListen = refresh;
+    controller.onCancel = () {
+      if (!controller.isClosed) {
+        controller.close();
+      }
+    };
     return controller.stream;
   }
 

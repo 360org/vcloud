@@ -185,13 +185,13 @@ class ChatV2MessagesNotifier
       }
     });
 
-    // Smart Sequential Polling (2.5s): Chạy tuần tự, chỉ poll khi người dùng đang ở trong phòng chat
+    // Smart Sequential Polling (8s): Chạy tuần tự, chỉ poll khi người dùng đang ở trong phòng chat
     bool isDisposed = false;
 
     void scheduleNextPoll() {
       if (isDisposed) return;
       _pollingTimer?.cancel();
-      _pollingTimer = Timer(const Duration(milliseconds: 2500), () async {
+      _pollingTimer = Timer(const Duration(seconds: 8), () async {
         if (isDisposed) return;
         if (!state.isLoading && state.hasValue) {
           try {

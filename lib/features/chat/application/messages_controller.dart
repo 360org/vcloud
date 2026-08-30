@@ -41,8 +41,9 @@ class MessagesNotifier extends AutoDisposeFamilyAsyncNotifier<MessagesState, Str
     // Subscribe to realtime updates (new messages)
     _sub = repo.watchMessages(arg).listen((newMessages) {
       if (!state.hasValue) return;
-      final current = state.value!;
-      
+      final current = state.valueOrNull;
+      if (current == null) return;
+
       // Merge logic: keep older loaded messages, update/add new ones.
       // Odoo realtime returns latest 35 by default.
       final oldMessagesMap = {for (final m in current.messages) m.id: m};
@@ -66,7 +67,8 @@ class MessagesNotifier extends AutoDisposeFamilyAsyncNotifier<MessagesState, Str
 
   Future<void> loadMore() async {
     if (!state.hasValue) return;
-    final current = state.value!;
+    final current = state.valueOrNull;
+    if (current == null) return;
     if (current.isLoadingMore || !current.hasMore || current.messages.isEmpty) return;
 
     state = AsyncValue.data(current.copyWith(isLoadingMore: true));

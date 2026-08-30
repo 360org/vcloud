@@ -74,7 +74,8 @@ class UnreadChatNotifier extends StateNotifier<UnreadChatState> {
       : _client = client ?? odooApiClient,
         super(const UnreadChatState()) {
     loadUnreadCount();
-    startRealtimeSync();
+    // Chat V2 (chatV2ChannelsController) is the SSOT for chat polling.
+    // Chat V1 periodic timer is disabled to prevent duplicate server hits.
   }
 
   final OdooApiClient _client;

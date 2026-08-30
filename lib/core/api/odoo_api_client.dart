@@ -753,8 +753,6 @@ class OdooApiClient {
       'Accept': 'application/json',
       if (body != null) 'Content-Type': 'application/json',
       if (auth) 'Authorization': 'Bearer ${_session!.accessToken}',
-      if (auth && _session?.scope == 'odoo_web_session')
-        'Cookie': 'session_id=${_session!.accessToken}',
     };
 
     if (kDebugMode) {
