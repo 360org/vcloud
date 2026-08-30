@@ -2,6 +2,24 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.1+99] — 2026-08-30 (Chat V2 In-App Invalidation & Auth Timeout Stabilization)
+
+> [!IMPORTANT]
+> **Khắc phục sự cố ổn định Chat V2, Tối ưu Network & Chấm công**:
+> - **Phạm vi**: `vclients` — Chat V2 UI, Auth Repository, Timesheet Repository
+> - **Mục tiêu**: Khắc phục hiện tượng bong bóng chat rỗng khi re-enter kênh, tối ưu timeout kết nối Odoo Server và hạn chế request trùng lặp.
+
+### 🐛 [BUG FIXES & OPTIMIZATION]
+- `[FIX]` **Chat V2 Message Fallback**: Khắc phục lỗi bong bóng chat bị rỗng khi thoát ra vào lại phòng chat do `_cleanHtml` và `content` parse chuỗi rỗng. Tự động fallback sang `rawBody` và unescape an toàn.
+- `[FIX]` **Chat V2 Reload Button**: Nút "Thử lại" tự động dọn sạch cache kênh trước khi invalidate để kéo dữ liệu mới từ máy chủ từ đầu.
+- `[PERF]` **Timesheet Project Caching**: Lưu bộ nhớ tạm RAM cho danh sách dự án `/api/v1/mobile/project/list` thay vì gọi lại trước mỗi lần log giờ chấm công.
+- `[IMPROVE]` **Network & Timeout Standardization**:
+  - Nâng timeout đăng nhập lên 15s để tránh `TimeoutException` sớm trên Flutter Web.
+  - Cấu hình timeout an toàn 25s cho tải danh sách kênh Chat V2 và 10s cho thành viên kênh ngầm.
+  - Bổ sung bắt ngoại lệ `TimeoutException` với thông báo tiếng Việt rõ ràng cho người dùng.
+
+---
+
 ## [v2.9.1+99] — 2026-08-30 (CI/CD Governance — Release-Gated Deployment)
 
 > [!IMPORTANT]

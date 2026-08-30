@@ -623,18 +623,25 @@ class ChatV2Message {
   static String _cleanHtml(String html) {
     if (html.isEmpty) return '';
     var text = html;
+    // Unescape HTML entities trước khi strip tags
+    text = text
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#39;', "'")
+        .replaceAll('&nbsp;', ' ');
+
     for (var i = 0; i < 3; i++) {
       text = text
           .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
           .replaceAll(RegExp(r'</p>', caseSensitive: false), '\n')
           .replaceAll(RegExp(r'<[^>]*>'), '')
-          .replaceAll('&nbsp;', ' ')
-          .replaceAll('&lt;', '<')
-          .replaceAll('&gt;', '>')
-          .replaceAll('&amp;', '&')
-          .replaceAll('&quot;', '"')
-          .replaceAll('&#39;', "'")
           .trim();
+    }
+    // Nếu vô tình bị rỗng do HTML bóc bẩn nhưng chuỗi gốc có chữ, trả về chuỗi gốc đã unescape
+    if (text.isEmpty && html.trim().isNotEmpty && !html.contains('<')) {
+      return html.trim();
     }
     return text;
   }

@@ -108,10 +108,10 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
         } catch (_) {}
       }
 
-      // Nạp danh sách thành viên kênh và đồng bộ presence live
-      try {
-        await ref.read(chatV2ChannelsProvider.notifier).fetchChannelMembers(widget.channelId);
-      } catch (_) {}
+      // Nạp danh sách thành viên kênh và đồng bộ presence live (tác vụ ngầm không block UI)
+      unawaited(
+        ref.read(chatV2ChannelsProvider.notifier).fetchChannelMembers(widget.channelId).catchError((_) => <ChatV2Member>[]),
+      );
     });
   }
 
@@ -1010,6 +1010,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                       else ...[
                                         ElevatedButton.icon(
                                           onPressed: () {
+                                            ChatV2MessageLocalCache.remove(widget.channelId);
                                             ref.invalidate(chatV2MessagesProvider(widget.channelId));
                                           },
                                           icon: const Icon(LucideIcons.rotateCw, size: 16),

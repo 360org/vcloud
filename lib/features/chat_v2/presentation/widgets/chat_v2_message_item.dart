@@ -94,7 +94,12 @@ class ChatV2MessageItem extends StatelessWidget {
     final isHistoricalImage = message.isImageFilename && !hasImages;
     final hasAnyImage = hasImages || isHistoricalImage;
 
-    final cleanContent = message.content.trim();
+    final effectiveText = message.content.trim().isNotEmpty
+        ? message.content.trim()
+        : (message.rawBody != null && message.rawBody!.trim().isNotEmpty
+            ? message.rawBody!.trim()
+            : '');
+    final cleanContent = effectiveText;
     final isFileNameContent = cleanContent.isEmpty ||
         cleanContent == 'Sent attachment' ||
         cleanContent == '[Hình ảnh]' ||
@@ -117,7 +122,7 @@ class ChatV2MessageItem extends StatelessWidget {
                 cleanContent.contains('từ chối') ||
                 cleanContent.contains('hủy')));
 
-    final isPureText = message.content.isNotEmpty &&
+    final isPureText = cleanContent.isNotEmpty &&
         (!message.isImageFilename || hasImages) &&
         !message.isDocumentFilename &&
         !isCallMessage &&
@@ -393,7 +398,7 @@ class ChatV2MessageItem extends StatelessWidget {
                               children: [
                                 _buildParsedMessageText(
                                   context: context,
-                                  rawText: message.content,
+                                  rawText: cleanContent,
                                   isMine: isMine,
                                   isDark: isDark,
                                   textColor: isDark ? const Color(0xFFE9EDEF) : const Color(0xFF111B21),
@@ -405,7 +410,7 @@ class ChatV2MessageItem extends StatelessWidget {
                               ],
                             ),
                           ] else ...[
-                            if (message.content.isNotEmpty &&
+                            if (cleanContent.isNotEmpty &&
                                 !message.isImageFilename &&
                                 !message.isDocumentFilename &&
                                 (!hasImages || !isFileNameContent) &&
@@ -416,7 +421,7 @@ class ChatV2MessageItem extends StatelessWidget {
                                     : EdgeInsets.zero,
                                 child: _buildParsedMessageText(
                                   context: context,
-                                  rawText: message.content,
+                                  rawText: cleanContent,
                                   isMine: isMine,
                                   isDark: isDark,
                                   textColor: isDark ? const Color(0xFFE9EDEF) : const Color(0xFF111B21),

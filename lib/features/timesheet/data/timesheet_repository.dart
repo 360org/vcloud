@@ -22,6 +22,7 @@ class TimesheetRepository {
   final OdooApiClient _client;
 
   static List<TimesheetEntry> _cachedEntries = const <TimesheetEntry>[];
+  static List<dynamic>? _cachedProjects;
 
   Stream<List<TimesheetEntry>> watchRecent({int limit = 100}) {
     final controller = StreamController<List<TimesheetEntry>>.broadcast();
@@ -95,22 +96,42 @@ class TimesheetRepository {
     required TimesheetDuration duration,
     DateTime? workedDate,
     String? taskId,
+    int? projectIdOverride,
   }) async {
     final hours = duration.duration.inMinutes / 60.0;
-    final projectId = int.tryParse(category.dbValue) ?? 1;
+    // Tìm project_id hợp lệ, tránh int.tryParse('ERP') trả về null rồi fallback 1 sai DB
+    int? targetProjectId = projectIdOverride;
+    if (targetProjectId == null) {
+      try {
+        final projRes = _cachedProjects ?? await _client.get('/api/v1/mobile/project/list');
+        if (projRes is List && projRes.isNotEmpty) {
+          _cachedProjects = projRes;
+          final first = projRes.first;
+          if (first is Map && first['id'] != null) {
+            targetProjectId = int.tryParse(first['id'].toString());
+          }
+        }
+      } catch (_) {}
+    }
+    final projectId = targetProjectId ?? 1;
+
+    final body = <String, dynamic>{
+      'project_id': projectId,
+      if (taskId != null && int.tryParse(taskId) != null)
+        'task_id': int.parse(taskId),
+      'unit_amount': hours,
+      'date': _isoDate(workedDate ?? DateTime.now()),
+      'name': taskName,
+    };
+
     final res = await _client.post(
       '/api/v1/mobile/timesheet/log',
-      body: <String, dynamic>{
-        'project_id': projectId,
-        if (taskId != null) 'task_id': int.tryParse(taskId),
-        'unit_amount': hours,
-        'date': _isoDate(workedDate ?? DateTime.now()),
-        'name': taskName,
-      },
+      body: body,
     );
-    return TimesheetEntry.fromMap(
-      _entryFromOdoo(Map<String, dynamic>.from(res as Map)),
-    );
+    final resMap = (res is Map)
+        ? Map<String, dynamic>.from(res)
+        : <String, dynamic>{};
+    return TimesheetEntry.fromMap(_entryFromOdoo(resMap));
   }
 
   Future<void> delete(String id) async {

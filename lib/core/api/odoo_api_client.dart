@@ -243,7 +243,8 @@ class OdooApiClient {
         _session = session;
         await _sessionStore.write(session);
         return session;
-      } catch (demoErr) {
+      } catch (demoErr, st) {
+        debugPrint('🚨 [_tryFullLoginAt.Rule3] Demo login failed: $demoErr\n$st');
         if (demoErr is MultipleTenantsFailure) rethrow;
         try {
           final session = await _tryFullLoginAt(
@@ -255,7 +256,8 @@ class OdooApiClient {
           _session = session;
           await _sessionStore.write(session);
           return session;
-        } catch (_) {
+        } catch (prodErr, prodSt) {
+          debugPrint('🚨 [_tryFullLoginAt.Rule3.Fallback] Prod login failed: $prodErr\n$prodSt');
           throw demoErr;
         }
       }
@@ -273,7 +275,8 @@ class OdooApiClient {
       _session = session;
       await _sessionStore.write(session);
       return session;
-    } catch (prodErr) {
+    } catch (prodErr, st) {
+      debugPrint('🚨 [_tryFullLoginAt.Rule4] Prod login failed: $prodErr\n$st');
       if (prodErr is MultipleTenantsFailure) rethrow;
       try {
         final session = await _tryFullLoginAt(
@@ -286,7 +289,8 @@ class OdooApiClient {
         _session = session;
         await _sessionStore.write(session);
         return session;
-      } catch (_) {
+      } catch (demoErr, demoSt) {
+        debugPrint('🚨 [_tryFullLoginAt.Rule4.Fallback] Demo login failed: $demoErr\n$demoSt');
         throw prodErr;
       }
     }
@@ -298,7 +302,7 @@ class OdooApiClient {
     required String password,
     String? targetDb,
     int? tenantId,
-    Duration timeout = const Duration(seconds: 4),
+    Duration timeout = const Duration(seconds: 15),
   }) async {
     final dbName = targetDb ??
         (targetBaseUrl.contains('demo')
@@ -319,10 +323,12 @@ class OdooApiClient {
       if (tenantId != null) rethrow;
       try {
         return await _loginMasterAdmin(login: login, password: password);
-      } catch (_) {
+      } catch (masterErr, masterSt) {
+        debugPrint('🚨 [_tryFullLoginAt] Master admin fallback failed: $masterErr\n$masterSt');
         throw e;
       }
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('🚨 [_tryFullLoginAt] Primary attempt failed for $targetBaseUrl: $e\n$st');
       if (e.toString().toLowerCase().contains('database not found')) {
         final isLocal = targetBaseUrl.contains('127.0.0.1') || targetBaseUrl.contains('localhost');
         if (isLocal) {
@@ -336,7 +342,9 @@ class OdooApiClient {
               tenantId: tenantId,
               timeout: timeout,
             );
-          } catch (_) {}
+          } catch (altErr, altSt) {
+            debugPrint('🚨 [_tryFullLoginAt] AltDb ($altDb) fallback failed: $altErr\n$altSt');
+          }
         }
       }
       try {
@@ -349,7 +357,8 @@ class OdooApiClient {
           tenantId: tenantId,
           timeout: timeout,
         );
-      } catch (_) {
+      } catch (fallbackErr, fallbackSt) {
+        debugPrint('🚨 [_tryFullLoginAt] JWT/Session fallback failed: $fallbackErr\n$fallbackSt');
         rethrow;
       }
     }
@@ -363,7 +372,7 @@ class OdooApiClient {
     required String password,
     required String targetDb,
     int? tenantId,
-    Duration timeout = const Duration(seconds: 4),
+    Duration timeout = const Duration(seconds: 15),
   }) async {
     final body = <String, dynamic>{'login': login, 'password': password};
     if (targetDb.isNotEmpty) body['db'] = targetDb;
@@ -386,7 +395,8 @@ class OdooApiClient {
     if (text.isNotEmpty) {
       try {
         decoded = jsonDecode(text);
-      } catch (_) {
+      } catch (e, st) {
+        debugPrint('🚨 [_attemptLoginAt] JSON parse failed. Status: ${response.statusCode}, Body: $text\n$e\n$st');
         if (response.statusCode >= 400) {
           throw Failure('Máy chủ phản hồi lỗi (${response.statusCode}).');
         }
@@ -419,7 +429,7 @@ class OdooApiClient {
     required String password,
     required String dbName,
     int? tenantId,
-    Duration timeout = const Duration(seconds: 4),
+    Duration timeout = const Duration(seconds: 15),
   }) async {
     final authUri = Uri.parse('$targetBaseUrl/web/session/authenticate');
     final authPayload = {
@@ -511,7 +521,10 @@ class OdooApiClient {
           );
         }
       }
-    } catch (_) {}
+      debugPrint('🚨 [_loginWithOdooSessionAndJwtAt] JWT step2 status=${jwtResponse.statusCode}, body=${jwtResponse.body.length > 500 ? jwtResponse.body.substring(0, 500) : jwtResponse.body}');
+    } catch (e, st) {
+      debugPrint('🚨 [_loginWithOdooSessionAndJwtAt] JWT step2 failed: $e\n$st');
+    }
 
     return OdooSession(
       accessToken: sessionId ?? 'session_$uid',
@@ -793,6 +806,11 @@ class OdooApiClient {
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       if (auth && response.statusCode == 401) {
+        // Thử refresh token trước khi logout — tránh bị đá vô login loop.
+        final refreshed = await _tryRefreshSession();
+        if (refreshed) {
+          return _send(method, path, body: body, query: query, auth: auth);
+        }
         await _sessionStore.clear();
         _session = null;
         onSessionExpired?.call();
@@ -804,6 +822,32 @@ class OdooApiClient {
       throw Failure(_errorMessage(decoded, response.statusCode));
     }
     return decoded;
+  }
+
+  /// Cố gắng refresh token silent. Trả về `true` nếu refresh thành công.
+  bool _isRefreshing = false;
+
+  Future<bool> _tryRefreshSession() async {
+    // Nếu đang có request khác refresh rồi thì đợi nó.
+    if (_isRefreshing) {
+      // Đơn giản: đợi rồi kiểm tra session mới hơn không.
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      return _session != null && !(_session?.isExpired ?? true);
+    }
+    _isRefreshing = true;
+    try {
+      final hasRefreshToken = _session?.refreshToken != null &&
+          _session!.refreshToken!.isNotEmpty;
+      if (!hasRefreshToken) return false;
+
+      final refreshed = await refreshSession();
+      return refreshed != null;
+    } catch (e) {
+      debugPrint('[AuthController] Silent refresh failed: $e');
+      return false;
+    } finally {
+      _isRefreshing = false;
+    }
   }
 
   /// When the master resolver returns `409 multiple_tenants` with a tenant

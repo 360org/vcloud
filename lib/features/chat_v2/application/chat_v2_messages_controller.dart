@@ -93,12 +93,23 @@ class ChatV2MessageLocalCache {
     }
   }
 
-  static void set(String channelId, List<ChatV2Message> messages, {bool persist = true}) {
+  static const int _maxMessagesPerChannel = 200;
+
+static void set(String channelId, List<ChatV2Message> messages, {bool persist = true}) {
     final map = <String, ChatV2Message>{};
     for (final m in messages) {
       map[m.id] = m;
     }
-    _cache[channelId] = map;
+    // Keep only the most recent _maxMessagesPerChannel messages (by createdAt descending)
+    final sorted = map.values.toList()
+      ..sort((a, b) => (b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0))
+          .compareTo(a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0)));
+    final trimmed = sorted.take(_maxMessagesPerChannel).toList();
+    final trimmedMap = <String, ChatV2Message>{};
+    for (final m in trimmed) {
+      trimmedMap[m.id] = m;
+    }
+    _cache[channelId] = trimmedMap;
     if (persist) _persist(channelId);
   }
 
@@ -211,7 +222,12 @@ class ChatV2MessagesNotifier
     ref.onDispose(() {
       isDisposed = true;
       _wsSub?.cancel();
+      _wsSub = null;
       _pollingTimer?.cancel();
+      _pollingTimer = null;
+      // ponet: Clear cache on dispose để lần build() tiếp theo fetch fresh.
+      // Nếu giữ cache → navigate vào channel khác sẽ nhầm stale data.
+      ChatV2MessageLocalCache.remove(channelId);
     });
 
     // SWR Cache: Nếu đã có tin nhắn trong Memory Cache -> Trả về tức thì 0.001s

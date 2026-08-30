@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../../../core/api/auth_user.dart';
@@ -21,11 +24,12 @@ class AuthRepository {
     try {
       final profile = await _client.currentUserProfile();
       if (profile == null) {
+        debugPrint('[AuthRepository.currentUser] Profile null → logout');
         await _client.logout();
         return null;
       }
-    } catch (_) {
-      // Phiên không hợp lệ trên backend hiện tại (vd: chuyển đổi giữa Odoo 17 và 19)
+    } catch (e, st) {
+      debugPrint('[AuthRepository.currentUser] Session invalid on backend: $e\n$st');
       await _client.logout();
       return null;
     }
@@ -49,13 +53,16 @@ class AuthRepository {
       if (trimmed.isNotEmpty) {
         await _storage.write(key: _savedEmailKey, value: trimmed);
       }
-    } catch (_) {}
+    } catch (e, st) {
+      debugPrint('[AuthRepository.saveLastLoginEmail] Error: $e\n$st');
+    }
   }
 
   Future<String?> getLastLoginEmail() async {
     try {
       return await _storage.read(key: _savedEmailKey);
-    } catch (_) {
+    } catch (e, st) {
+      debugPrint('[AuthRepository.getLastLoginEmail] Error: $e\n$st');
       return null;
     }
   }
@@ -75,7 +82,11 @@ class AuthRepository {
       return await _toUser(session);
     } on Failure {
       rethrow;
-    } catch (e) {
+    } on TimeoutException {
+      debugPrint('🚨 [AuthRepository.signIn] TIMEOUT');
+      throw Failure('Lỗi kết nối máy chủ (hết thời gian chờ). Vui lòng thử lại!');
+    } catch (e, st) {
+      debugPrint('🚨 [AuthRepository.signIn] UNEXPECTED EXCEPTION: $e\n$st');
       throw Failure('Login failed: ${e.toString()}');
     }
   }
@@ -101,7 +112,9 @@ class AuthRepository {
       if (res is Map && res['avatar_url'] != null) {
         return res['avatar_url'].toString();
       }
-    } catch (_) {}
+    } catch (e, st) {
+      debugPrint('[AuthRepository.uploadAvatar] Error: $e\n$st');
+    }
     return '';
   }
 
@@ -170,12 +183,14 @@ class AuthRepository {
     try {
       final res = await _client.currentUserProfile();
       if (res != null) return res;
-    } catch (_) {
+    } catch (e, st) {
+      debugPrint('[AuthRepository._currentUserProfile] /auth/me failed: $e\n$st');
       try {
         await _client.refreshSession();
         final res = await _client.currentUserProfile();
         if (res != null) return res;
-      } catch (_) {
+      } catch (e2, st2) {
+        debugPrint('[AuthRepository._currentUserProfile] refreshSession + retry failed: $e2\n$st2');
         // Fall through to model endpoints for older gateways.
       }
     }
@@ -185,7 +200,8 @@ class AuthRepository {
         query: const <String, Object?>{'fields': 'id,login,name,partner_id'},
       );
       if (res is Map) return Map<String, dynamic>.from(res);
-    } catch (_) {
+    } catch (e, st) {
+      debugPrint('[AuthRepository._currentUserProfile] /api/v1/res.users/$uid failed: $e\n$st');
       // Older gateways may not expose a single-record res.users endpoint.
     }
     try {
@@ -199,7 +215,8 @@ class AuthRepository {
       for (final user in users) {
         if (user['id']?.toString() == uid.toString()) return user;
       }
-    } catch (_) {
+    } catch (e, st) {
+      debugPrint('[AuthRepository._currentUserProfile] /api/v1/res.users list failed: $e\n$st');
       // Auth should still work even if metadata enrichment is unavailable.
     }
     return null;

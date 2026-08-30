@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -45,10 +46,7 @@ class ChatV2Repository {
     final dynamic data = await _client.get(
       '/api/v1/mobile/chat/channels',
       query: queryParams,
-    ).timeout(
-      const Duration(seconds: 10),
-      onTimeout: () => const <dynamic>[],
-    );
+    ).timeout(const Duration(seconds: 25));
 
     final List<dynamic> list;
     if (data is List) {
@@ -614,7 +612,9 @@ class ChatV2Repository {
     final chIdInt = int.tryParse(channelId);
     if (chIdInt == null) return [];
     try {
-      final res = await _client.get('/api/v1/mobile/chat/channels/$chIdInt/members');
+      final res = await _client
+          .get('/api/v1/mobile/chat/channels/$chIdInt/members')
+          .timeout(const Duration(seconds: 10));
       if (res is Map && res['members'] is List) {
         return (res['members'] as List)
             .map((m) => ChatV2Member.fromJson(m))

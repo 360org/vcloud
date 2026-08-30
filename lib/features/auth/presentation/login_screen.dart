@@ -127,8 +127,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (choice != null && mounted) {
         await _attemptSignIn(tenantId: choice.tenantId);
       }
-    } catch (e) {
+    } catch (e, st) {
       if (mounted) {
+        debugPrint('🚨 [LoginScreen._attemptSignIn] Full error: $e\n$st');
         String cleanMsg = e
             .toString()
             .replaceFirst('Failure: ', '')

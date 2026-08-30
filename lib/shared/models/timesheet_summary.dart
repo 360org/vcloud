@@ -11,12 +11,17 @@ class TimesheetSummary {
   final String? dateFrom;
   final String? dateTo;
 
-  factory TimesheetSummary.fromMap(Map<String, dynamic> m) {
-    final hours = (m['total_hours'] as num?)?.toDouble() ?? 0.0;
-    final cnt = (m['count'] as num?)?.toInt() ?? 0;
+  factory TimesheetSummary.fromMap(Map<String, dynamic> raw) {
+    final m = (raw['data'] is Map)
+        ? Map<String, dynamic>.from(raw['data'])
+        : (raw['result'] is Map)
+            ? Map<String, dynamic>.from(raw['result'])
+            : raw;
+    final hours = (m['total_hours'] ?? m['hours'] ?? m['total']) as num?;
+    final cnt = (m['count'] ?? m['total_count'] ?? m['length']) as num?;
     return TimesheetSummary(
-      totalHours: hours,
-      count: cnt,
+      totalHours: hours?.toDouble() ?? 0.0,
+      count: cnt?.toInt() ?? 0,
       dateFrom: m['date_from']?.toString(),
       dateTo: m['date_to']?.toString(),
     );
