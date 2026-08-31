@@ -111,14 +111,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             tenantId: tenantId,
           );
       if (!mounted) return;
-      // Pre-warm chat channels during transition
-      unawaited(ref.read(chatV2ChannelsProvider.notifier).refresh());
-      // Trigger WhatsApp-style post-login sync transition in light mode
+      // Pre-warm chat channels and essential providers during post-login transition
+      try {
+        await Future.wait([
+          ref.read(chatV2ChannelsProvider.notifier).refresh(),
+        ]).timeout(const Duration(milliseconds: 2500));
+      } catch (warmupErr) {
+        debugPrint('⚠️ [LoginScreen] Pre-warm data sync timed out or skipped: $warmupErr');
+      }
+
+      if (!mounted) return;
+
+      // Trigger post-login sync transition UI
       setState(() {
         _submitting = false;
         _showSuccessTransition = true;
       });
-      await Future.delayed(const Duration(milliseconds: 700));
+      await Future.delayed(const Duration(milliseconds: 300));
       if (mounted) context.go('/chat');
     } on MultipleTenantsFailure catch (e) {
       if (!mounted) return;

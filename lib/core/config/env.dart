@@ -42,9 +42,7 @@ class Env {
   );
 
   static bool get firebasePushConfigured {
-    return firebaseApiKey.isNotEmpty &&
-        firebaseAppId.isNotEmpty &&
-        firebaseMessagingSenderId.isNotEmpty &&
-        firebaseProjectId.isNotEmpty;
+    // Luôn bật vì cấu hình đã được cung cấp trực tiếp trong VCloudFirebaseOptions
+    return true;
   }
 }

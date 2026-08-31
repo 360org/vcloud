@@ -198,101 +198,45 @@ class OdooApiClient {
     final primaryBaseUrl = _baseUrl.isNotEmpty ? _baseUrl : Env.odooApiBaseUrl;
     const demoBaseUrl = 'https://demo.vuahethong.com';
 
-    // Rule 1: Nếu primaryBaseUrl không phải là Production mặc định (đã được chỉ định qua cờ)
-    // hoặc có tenantId cụ thể: Chỉ gọi duy nhất primaryBaseUrl.
-    if (primaryBaseUrl != 'https://vuahethong.net' || tenantId != null) {
-      final session = await _tryFullLoginAt(
-        targetBaseUrl: primaryBaseUrl,
-        login: trimmedLogin,
-        password: password,
-        tenantId: tenantId,
-      );
-      _session = session;
-      await _sessionStore.write(session);
-      return session;
-    }
-
-    // Rule 2 (Smart Format Hint - Email nội bộ):
-    // Email có đuôi công ty (@360.org.vn, @vuahethong.net): 100% Production.
-    final isCompanyEmail = trimmedLogin.contains('@360.org.vn') ||
-        trimmedLogin.contains('@vuahethong.net');
-    if (isCompanyEmail) {
-      final session = await _tryFullLoginAt(
-        targetBaseUrl: primaryBaseUrl,
-        login: trimmedLogin,
-        password: password,
-        tenantId: tenantId,
-      );
-      _session = session;
-      await _sessionStore.write(session);
-      return session;
-    }
-
-    // Rule 3 (Username ngắn không có '@'):
-    // Ví dụ: 'demo', 'morpheus', 'admin', 'guest'... Ưu tiên Demo trước, fallback Production.
-    final isShortUsername = !trimmedLogin.contains('@');
-    if (isShortUsername) {
-      try {
-        final session = await _tryFullLoginAt(
-          targetBaseUrl: demoBaseUrl,
-          login: trimmedLogin,
-          password: password,
-          targetDb: 'demo',
-          tenantId: tenantId,
-        );
-        _session = session;
-        await _sessionStore.write(session);
-        return session;
-      } catch (demoErr, st) {
-        debugPrint('🚨 [_tryFullLoginAt.Rule3] Demo login failed: $demoErr\n$st');
-        if (demoErr is MultipleTenantsFailure) rethrow;
-        try {
-          final session = await _tryFullLoginAt(
-            targetBaseUrl: primaryBaseUrl,
-            login: trimmedLogin,
-            password: password,
-            tenantId: tenantId,
-          );
-          _session = session;
-          await _sessionStore.write(session);
-          return session;
-        } catch (prodErr, prodSt) {
-          debugPrint('🚨 [_tryFullLoginAt.Rule3.Fallback] Prod login failed: $prodErr\n$prodSt');
-          throw demoErr;
-        }
-      }
-    }
-
-    // Rule 4 (Email thông thường khác, vd: client@gmail.com):
-    // Thăm dò Production trước -> nếu thất bại thì thử tiếp Demo.
+    // Priority Rule: Always attempt primaryBaseUrl first with 12s timeout.
+    // Fail Fast: Business errors (MultipleTenants, TenantNotFound, Invalid Credentials) abort immediately.
     try {
       final session = await _tryFullLoginAt(
         targetBaseUrl: primaryBaseUrl,
         login: trimmedLogin,
         password: password,
         tenantId: tenantId,
+        timeout: const Duration(seconds: 12),
       );
       _session = session;
       await _sessionStore.write(session);
       return session;
-    } catch (prodErr, st) {
-      debugPrint('🚨 [_tryFullLoginAt.Rule4] Prod login failed: $prodErr\n$st');
-      if (prodErr is MultipleTenantsFailure) rethrow;
-      try {
-        final session = await _tryFullLoginAt(
-          targetBaseUrl: demoBaseUrl,
-          login: trimmedLogin,
-          password: password,
-          targetDb: 'demo',
-          tenantId: tenantId,
-        );
-        _session = session;
-        await _sessionStore.write(session);
-        return session;
-      } catch (demoErr, demoSt) {
-        debugPrint('🚨 [_tryFullLoginAt.Rule4.Fallback] Demo login failed: $demoErr\n$demoSt');
-        throw prodErr;
+    } catch (err, st) {
+      debugPrint('🚨 [OdooApiClient.login] Primary login attempt failed: $err\n$st');
+      // Rethrow business failures immediately without fallback loops
+      if (err is MultipleTenantsFailure || err is TenantNotFoundFailure || err is Failure) {
+        rethrow;
       }
+      // Demo fallback only for explicitly short demo username ('demo')
+      if (trimmedLogin.toLowerCase() == 'demo') {
+        try {
+          final session = await _tryFullLoginAt(
+            targetBaseUrl: demoBaseUrl,
+            login: trimmedLogin,
+            password: password,
+            targetDb: 'demo',
+            tenantId: tenantId,
+            timeout: const Duration(seconds: 8),
+          );
+          _session = session;
+          await _sessionStore.write(session);
+          return session;
+        } catch (demoErr, demoSt) {
+          debugPrint('🚨 [OdooApiClient.login] Demo fallback failed: $demoErr\n$demoSt');
+          throw err;
+        }
+      }
+      rethrow;
     }
   }
 
