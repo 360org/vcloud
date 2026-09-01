@@ -50,12 +50,28 @@ class ChatV2Repository {
       onTimeout: () => const <dynamic>[],
     );
 
+    if (kDebugMode) {
+      if (data is List) {
+        debugPrint('✅ [ChatV2Repository.getChannels] Received ${data.length} channels (List)');
+      } else if (data is Map) {
+        debugPrint('⚠️ [ChatV2Repository.getChannels] Received Map: keys=${data.keys.toList()}');
+      } else {
+        debugPrint('🚨 [ChatV2Repository.getChannels] Unexpected type: ${data.runtimeType} = $data');
+      }
+    }
+
     final List<dynamic> list;
     if (data is List) {
       list = data;
     } else if (data is Map && data['channels'] is List) {
       list = data['channels'] as List;
+    } else if (data is Map && data['error'] != null) {
+      // ponytail: backend trả error payload với HTTP 200 (proxy/nginx ghi đè status) → bộc lộ lỗi rõ ràng
+      final errorMsg = data['message']?.toString() ?? data['error'].toString();
+      debugPrint('🚨 [ChatV2Repository.getChannels] Backend error: $errorMsg');
+      throw Exception('Lỗi tải danh sách chat: $errorMsg');
     } else {
+      debugPrint('⚠️ [ChatV2Repository.getChannels] Unexpected response type: ${data.runtimeType}');
       list = const [];
     }
 
