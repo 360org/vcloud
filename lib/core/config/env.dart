@@ -41,6 +41,11 @@ class Env {
     defaultValue: 'com.w360s.wcloudapp',
   );
 
+  static const String firebaseVapidKey = String.fromEnvironment(
+    'VCLOUD_FIREBASE_VAPID_KEY',
+    defaultValue: 'BIRf_ttFAM85aTMWm9uRC5Obn8P5xn1k6fH7kj7Kiev0y3WX3WXWe9YnGzcx24IwX3j1kGaqt7fSRIdI-dv-0_U',
+  );
+
   static bool get firebasePushConfigured {
     // Luôn bật vì cấu hình đã được cung cấp trực tiếp trong VCloudFirebaseOptions
     return true;

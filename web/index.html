@@ -341,9 +341,13 @@
   <script>
     // Pre-register Firebase Messaging Service Worker for web push notifications
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('firebase-messaging-sw.js')
+      navigator.serviceWorker.register('firebase-messaging-sw.js', { scope: '/' })
         .then(function (reg) {
           console.log('[FCM Web] Service Worker registered successfully:', reg.scope);
+          return navigator.serviceWorker.ready;
+        })
+        .then(function (reg) {
+          console.log('[FCM Web] Service Worker is active and ready:', reg);
         })
         .catch(function (err) {
           console.warn('[FCM Web] Service Worker registration failed:', err);

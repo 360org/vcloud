@@ -149,7 +149,9 @@ class PushNotificationService {
       String? token;
       for (int retry = 0; retry < 3; retry++) {
         try {
-          token = await messaging.getToken();
+          token = await messaging.getToken(
+            vapidKey: kIsWeb ? Env.firebaseVapidKey : null,
+          );
           if (token != null && token.isNotEmpty) break;
         } catch (e) {
           if (retry == 2) rethrow;
@@ -250,7 +252,9 @@ class PushNotificationService {
 
   Future<String?> _currentTokenIfAvailable() async {
     if (!await _ensureInitialized()) return null;
-    return _messaging!.getToken();
+    return _messaging!.getToken(
+      vapidKey: kIsWeb ? Env.firebaseVapidKey : null,
+    );
   }
 
   Future<String> _installationId() async {

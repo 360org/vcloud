@@ -283,7 +283,7 @@ void main() {
         final msg = messages.first as Map?;
         final content = msg?['body'] ?? msg?['content'] ?? msg?['message'] ?? '';
         // ignore: avoid_print
-        print('  📋 Tin đầu tiên: "${content.toString().length > 80 ? content.toString().substring(0, 80) + "..." : content}"');
+        print('  📋 Tin đầu tiên: "${content.toString().length > 80 ? '${content.toString().substring(0, 80)}...' : content}"');
         // Nội dung không được HOÀN TOÀN rỗng cho tất cả tin nhắn
         final allEmpty = messages
             .whereType<Map>()
@@ -410,7 +410,7 @@ void main() {
     // ─── 7. Tổng kết hiệu năng ──────────────────────────────────────────────
     test('7. Tổng kết & đánh giá hiệu năng', () async {
       // ignore: avoid_print
-      print('\n' + '=' * 70);
+      print('\n${'=' * 70}');
       // ignore: avoid_print
       print('📊 TỔNG KẾT KIỂM TRA LIVE SERVER');
       // ignore: avoid_print
@@ -428,7 +428,7 @@ void main() {
       // ignore: avoid_print
       print('    🟢 Tốt    : < ${_loginWarnMs}ms (login) / < ${_chatListWarnMs}ms (chat list)');
       // ignore: avoid_print
-      print('    🟡 Chậm   : ${_loginWarnMs}–${_loginFailMs}ms / ${_chatListWarnMs}–${_chatListFailMs}ms');
+      print('    🟡 Chậm   : $_loginWarnMs–${_loginFailMs}ms / $_chatListWarnMs–${_chatListFailMs}ms');
       // ignore: avoid_print
       print('    🔴 Nghiêm : > ${_loginFailMs}ms (timeout) → vấn đề hạ tầng server');
       // ignore: avoid_print
