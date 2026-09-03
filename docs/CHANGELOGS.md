@@ -2,20 +2,21 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
-## [v2.9.2+100] — 2026-09-03 (FCM Web Push & Dual-Odoo Parallel Development)
+## [v2.9.2+100] — 2026-09-03 (FCM Push Hardening & CI/CD Pipeline Build Fixes)
 
 > [!IMPORTANT]
-> **Nâng cấp Firebase Web Push & Công cụ phát triển đa phiên bản Backend**:
-> - **Phạm vi**: `vclients` — Web FCM Service Worker, Env Configuration, Dev Launchers
-> - **Mục tiêu**: Tối ưu khả năng nhận thông báo đẩy FCM trên Flutter Web qua VAPID Key và hỗ trợ dev song song Odoo 17 & 19.
+> **Nâng cấp Firebase Push & Tối ưu CI/CD Runner**:
+> - **Phạm vi**: `vclients` — Firebase Configs, CI/CD Actions, Test Suite Isolation
+> - **Mục tiêu**: Đóng gói cấu hình Firebase cho Android/iOS, cô lập test suite trên GitHub Actions và đảm bảo build release thành công.
 
 ### 🚀 [NEW FEATURES & IMPROVEMENTS]
+- `[FIX]` **CI/CD Test Isolation**: Gắn tag `@Tags(['live-server'])` và cập nhật workflow chạy `flutter test --exclude-tags=live-server` để không bị lỗi timeout khi GitHub Runner gọi mạng internet bên ngoài.
+- `[FIX]` **Android Google Services Config**: Đưa `google-services.json` vào repository với đầy đủ package name `com.vcloud.vcloud` và `com.w360s.wcloudapp` để Gradle Task `:app:processReleaseGoogleServices` build thành công APK/AAB.
 - `[NEW]` **FCM Web Push VAPID Key**: Bổ sung cấu hình `firebaseVapidKey` trong `lib/core/config/env.dart` và tích hợp `vapidKey` vào `PushNotificationService.getToken()` cho nền tảng Web (`kIsWeb`).
 - `[IMPROVE]` **Firebase Service Worker Registration**: Nâng cấp `web/index.html` đăng ký tường minh phạm vi `{ scope: '/' }` và kiểm tra trạng thái `navigator.serviceWorker.ready` của Service Worker.
 - `[NEW]` **Dual-Odoo Parallel Launchers**:
   - Cập nhật `launch_web.sh` hỗ trợ chạy song song Odoo 17 (:8088 ➔ :8069) và Odoo 19 (:8089 ➔ :8079) độc lập Chrome profile.
   - Bổ sung script `launch_web_19.sh` chuyên dụng cho Odoo 19.
-- `[FIX]` **Linter & Formatting Clean**: Làm sạch string interpolation trong các test suite.
 
 ---
 
