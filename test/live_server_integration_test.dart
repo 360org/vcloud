@@ -11,6 +11,7 @@
 ///   6. Out kênh → thông báo (badge unread) vẫn giữ nguyên
 ///   7. Rollback: khi lỗi mạng, cache cũ vẫn được dùng (không hiện danh sách rỗng)
 ///   8. Thông báo in-app: cấu trúc đúng khi có tin mới
+@Tags(['live-server'])
 library;
 
 import 'dart:async';

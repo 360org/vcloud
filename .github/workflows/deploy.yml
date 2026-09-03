@@ -55,7 +55,7 @@ jobs:
       - name: Run Flutter Static Analysis & Unit Tests
         run: |
           flutter analyze
-          flutter test
+          flutter test --exclude-tags=live-server
 
       - name: Install Apple Certificate and Provisioning Profile
         env:
@@ -157,7 +157,7 @@ jobs:
       - name: Run Flutter Static Analysis & Unit Tests
         run: |
           flutter analyze
-          flutter test
+          flutter test --exclude-tags=live-server
 
       - name: Execute Fastlane Android Release Pipeline
         env:
