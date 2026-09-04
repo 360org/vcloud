@@ -9,6 +9,25 @@
       "client_info": {
         "mobilesdk_app_id": "1:339448653254:android:de3ff342a41f4927073ec7",
         "android_client_info": {
+          "package_name": "com.mobile.vloud"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCoJkAiaYYSzSBNg_K3_9TQiafNZXaPt4c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:339448653254:android:de3ff342a41f4927073ec7",
+        "android_client_info": {
           "package_name": "com.vcloud.vcloud"
         }
       },

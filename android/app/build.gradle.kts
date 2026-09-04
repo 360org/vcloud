@@ -22,7 +22,7 @@ plugins {
 }
 
 android {
-    namespace = "com.vcloud.vcloud"
+    namespace = "com.mobile.vloud"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -32,10 +32,10 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.vcloud.vcloud"
+        applicationId = "com.mobile.vloud"
         // Fine-location runtime ask requires API 23+.
         minSdk = flutter.minSdkVersion
-        targetSdk = 34
+        targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         multiDexEnabled = true
