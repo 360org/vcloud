@@ -111,6 +111,7 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_PASS: ${{ secrets.APPLE_APP_PASS }}
           WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
+          BUILD_NUMBER: ${{ github.run_number }}
           VCLOUD_ODOO_API_BASE_URL: "https://vuahethong.net"
         run: |
           bundle exec fastlane ios beta
