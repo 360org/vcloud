@@ -214,13 +214,28 @@ class OdooApiClient {
       return session;
     }
 
-    // Nếu primaryBaseUrl vốn đã là demoBaseUrl thì chỉ gọi thẳng demoBaseUrl
-    if (primaryBaseUrl.contains('demo.vuahethong.com')) {
+    // Nếu primaryBaseUrl không phải là vuahethong.net (ví dụ: tenant URL, custom master hoặc demo)
+    if (primaryBaseUrl != 'https://vuahethong.net') {
       final session = await _tryFullLoginAt(
-        targetBaseUrl: demoBaseUrl,
+        targetBaseUrl: primaryBaseUrl,
         login: trimmedLogin,
         password: password,
-        targetDb: 'demo',
+        targetDb: primaryBaseUrl.contains('demo.vuahethong.com') ? 'demo' : null,
+        timeout: const Duration(seconds: 12),
+      );
+      _session = session;
+      await _sessionStore.write(session);
+      return session;
+    }
+
+    // Email nội bộ / công ty: Chỉ gọi thẳng primary (vuahethong.net) và fail fast
+    final isCompanyEmail = trimmedLogin.contains('@360.org.vn') ||
+        trimmedLogin.contains('@vuahethong.net');
+    if (isCompanyEmail) {
+      final session = await _tryFullLoginAt(
+        targetBaseUrl: primaryBaseUrl,
+        login: trimmedLogin,
+        password: password,
         timeout: const Duration(seconds: 12),
       );
       _session = session;

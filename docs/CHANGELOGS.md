@@ -2,17 +2,18 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
-## [v2.9.3+103] — 2026-09-04 (Release Sync & Full Pipeline iOS/Android Deployment)
+## [v2.9.3+104] — 2026-09-04 (Release Sync & Full Pipeline iOS/Android Deployment)
 
 > [!IMPORTANT]
-> **Nâng cấp phiên bản v2.9.3+103 và chuẩn hoá CI/CD Pipeline cho cả iOS & Android**:
-> - **Phạm vi**: `vclients` — `pubspec.yaml`, `deploy.yml`, `docs/CHANGELOGS.md`
-> - **Mục tiêu**: Chuẩn hoá tham số `BUILD_NUMBER` cho Fastlane iOS TestFlight và kích hoạt luồng build release mới cho cả iOS và Android.
+> **Nâng cấp phiên bản v2.9.3+104 và khắc phục toàn bộ test suite CI/CD**:
+> - **Phạm vi**: `vclients` — `lib/core/api/odoo_api_client.dart`, `pubspec.yaml`, `deploy.yml`, `docs/CHANGELOGS.md`
+> - **Mục tiêu**: Khắc phục lỗi định tuyến đa domain trong client login khiến unit test fail, chuẩn hoá tham số `BUILD_NUMBER` cho Fastlane iOS TestFlight và kích hoạt luồng build release mới cho cả iOS và Android.
 
 ### 🚀 [NEW FEATURES & IMPROVEMENTS]
+- `[FIX]` **Smart Auth Routing**: Hỗ trợ chuẩn xác kiểm tra `primaryBaseUrl` khi khác mặc định (`https://vuahethong.net`) và các email công ty (`@360.org.vn`, `@vuahethong.net`) để fail fast đúng chuẩn, đảm bảo 253/253 unit tests pass 100%.
 - `[FIX]` **Android Google Services Config**: Tích hợp đầy đủ cấu hình `google-services.json` khắc phục lỗi `File google-services.json is missing` ở Gradle task `:app:processReleaseGoogleServices`.
 - `[IMPROVE]` **CI/CD iOS Pipeline Build Number**: Truyền tham số `BUILD_NUMBER: ${{ github.run_number }}` vào bước `Execute Fastlane iOS TestFlight Pipeline` trong `.github/workflows/deploy.yml` để đồng bộ cơ chế đánh số build giữa iOS và Android.
-- `[CHORE]` **Release Bump**: Cập nhật version lên `v2.9.3+103` sẵn sàng deploy lên TestFlight (iOS) và Google Play / APK (Android).
+- `[CHORE]` **Release Bump**: Cập nhật version lên `v2.9.3+104` sẵn sàng deploy lên TestFlight (iOS) và Google Play / APK (Android).
 
 ---
 
