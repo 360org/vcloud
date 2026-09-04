@@ -198,46 +198,112 @@ class OdooApiClient {
     final primaryBaseUrl = _baseUrl.isNotEmpty ? _baseUrl : Env.odooApiBaseUrl;
     const demoBaseUrl = 'https://demo.vuahethong.com';
 
-    // Priority Rule: Always attempt primaryBaseUrl first with 12s timeout.
-    // Fail Fast: Business errors (MultipleTenants, TenantNotFound, Invalid Credentials) abort immediately.
-    try {
+    // Nếu người dùng đã chỉ định rõ tenantId (từ popup chọn tổ chức)
+    if (tenantId != null) {
+      final targetUrl = tenantId == 9999 ? demoBaseUrl : primaryBaseUrl;
       final session = await _tryFullLoginAt(
-        targetBaseUrl: primaryBaseUrl,
+        targetBaseUrl: targetUrl,
         login: trimmedLogin,
         password: password,
-        tenantId: tenantId,
+        targetDb: tenantId == 9999 ? 'demo' : null,
+        tenantId: tenantId == 9999 ? null : tenantId,
         timeout: const Duration(seconds: 12),
       );
       _session = session;
       await _sessionStore.write(session);
       return session;
-    } catch (err, st) {
-      debugPrint('🚨 [OdooApiClient.login] Primary login attempt failed: $err\n$st');
-      // Rethrow business failures immediately without fallback loops
-      if (err is MultipleTenantsFailure || err is TenantNotFoundFailure || err is Failure) {
-        rethrow;
-      }
-      // Demo fallback only for explicitly short demo username ('demo')
-      if (trimmedLogin.toLowerCase() == 'demo') {
-        try {
-          final session = await _tryFullLoginAt(
-            targetBaseUrl: demoBaseUrl,
-            login: trimmedLogin,
-            password: password,
-            targetDb: 'demo',
-            tenantId: tenantId,
-            timeout: const Duration(seconds: 8),
-          );
-          _session = session;
-          await _sessionStore.write(session);
-          return session;
-        } catch (demoErr, demoSt) {
-          debugPrint('🚨 [OdooApiClient.login] Demo fallback failed: $demoErr\n$demoSt');
-          throw err;
-        }
-      }
-      rethrow;
     }
+
+    // Nếu primaryBaseUrl vốn đã là demoBaseUrl thì chỉ gọi thẳng demoBaseUrl
+    if (primaryBaseUrl.contains('demo.vuahethong.com')) {
+      final session = await _tryFullLoginAt(
+        targetBaseUrl: demoBaseUrl,
+        login: trimmedLogin,
+        password: password,
+        targetDb: 'demo',
+        timeout: const Duration(seconds: 12),
+      );
+      _session = session;
+      await _sessionStore.write(session);
+      return session;
+    }
+
+    // Gửi đồng thời kiểm tra cả 2 domain (Parallel Multi-Domain Check)
+    OdooSession? primarySession;
+    Object? primaryErr;
+    OdooSession? demoSession;
+    Object? demoErr;
+
+    await Future.wait([
+      _tryFullLoginAt(
+        targetBaseUrl: primaryBaseUrl,
+        login: trimmedLogin,
+        password: password,
+        timeout: const Duration(seconds: 12),
+      ).then<void>(
+        (s) => primarySession = s,
+        onError: (e) => primaryErr = e,
+      ),
+      _tryFullLoginAt(
+        targetBaseUrl: demoBaseUrl,
+        login: trimmedLogin,
+        password: password,
+        targetDb: 'demo',
+        timeout: const Duration(seconds: 8),
+      ).then<void>(
+        (s) => demoSession = s,
+        onError: (e) => demoErr = e,
+      ),
+    ]);
+
+    // Trường hợp 1: CẢ 2 DOMAIN ĐỀU ĐĂNG NHẬP ĐƯỢC (Trùng tài khoản & mật khẩu)
+    if (primarySession != null && demoSession != null) {
+      final tenants = [
+        TenantChoice(
+          tenantId: 1,
+          name: 'Vua Hệ Thống (Chính thức)',
+          db: primarySession!.db,
+          baseUrl: primaryBaseUrl,
+        ),
+        const TenantChoice(
+          tenantId: 9999,
+          name: 'Trung tâm Trải nghiệm & Demo',
+          db: 'demo',
+          baseUrl: demoBaseUrl,
+        ),
+      ];
+      throw MultipleTenantsFailure(tenants);
+    }
+
+    // Trường hợp 2: Chỉ thành công ở Primary (vuahethong.net)
+    if (primarySession != null) {
+      _session = primarySession;
+      await _sessionStore.write(primarySession!);
+      return primarySession!;
+    }
+
+    // Trường hợp 3: Chỉ thành công ở Demo (demo.vuahethong.com)
+    if (demoSession != null) {
+      _session = demoSession;
+      await _sessionStore.write(demoSession!);
+      return demoSession!;
+    }
+
+    // Trường hợp 4: Cả 2 đều thất bại
+    if (primaryErr is MultipleTenantsFailure) {
+      throw primaryErr!;
+    }
+    if (primaryErr is TenantNotFoundFailure) {
+      throw primaryErr!;
+    }
+    if (primaryErr != null) {
+      throw primaryErr!;
+    }
+    if (demoErr != null) {
+      throw demoErr!;
+    }
+
+    throw Failure('Tài khoản hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại!');
   }
 
   Future<OdooSession> _tryFullLoginAt({
