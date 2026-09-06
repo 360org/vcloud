@@ -13,6 +13,7 @@ import '../../chat_v2/application/chat_v2_messages_controller.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../../timesheet/data/timesheet_repository.dart';
 import '../data/auth_repository.dart';
+import '../data/db_info.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>((_) => AuthRepository());
 
@@ -43,6 +44,32 @@ class AuthController extends AsyncNotifier<AuthUser?> {
     } catch (e, st) {
       debugPrint('[AuthController] build error: $e\n$st');
       return null;
+    }
+  }
+
+  /// Bước 2: Tra cứu danh sách DB từ Master (chỉ gửi login).
+  Future<List<DbInfo>> lookupDb(String login) {
+    return _repo.lookupDb(login);
+  }
+
+  /// Bước 4: Xác thực trực tiếp với Client DB (password gửi thẳng Client DB).
+  Future<void> authenticateOnClient({
+    required DbInfo db,
+    required String login,
+    required String password,
+  }) async {
+    state = const AsyncLoading();
+    try {
+      final user = await _repo.authenticateOnClient(
+        db: db,
+        login: login,
+        password: password,
+      );
+      unawaited(_registerPushDevice());
+      state = AsyncData(user);
+    } catch (e, st) {
+      state = AsyncError(e, st);
+      rethrow;
     }
   }
 

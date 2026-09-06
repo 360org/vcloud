@@ -7,6 +7,7 @@ import '../../../core/api/auth_user.dart';
 import '../../../core/api/odoo_api_client.dart';
 import '../../../core/api/odoo_session.dart';
 import '../../../core/error/failure.dart';
+import 'db_info.dart';
 
 /// Thin facade around Odoo auth. All auth flows in the app go
 /// through here so controllers do not talk to HTTP directly.
@@ -17,6 +18,57 @@ class AuthRepository {
 
   final OdooApiClient _client;
   final FlutterSecureStorage _storage;
+
+  // ---------------------------------------------------------------------------
+  // [P0/P1] Lookup-DB + Authenticate-On-Client (Directory Routing Architecture)
+  // ---------------------------------------------------------------------------
+
+  /// Bước 2 — Tra cứu danh sách Client DB từ Master.
+  /// CHỈ gửi [login]. Password KHÔNG được gửi lên Master.
+  Future<List<DbInfo>> lookupDb(String login) async {
+    try {
+      final rawList = await _client.lookupDb(login);
+      return rawList.map(DbInfo.fromJson).toList();
+    } on Failure {
+      rethrow;
+    } catch (e, st) {
+      debugPrint('[AuthRepository.lookupDb] Unexpected: $e\n$st');
+      throw Failure('Không thể tra cứu thông tin tài khoản. Vui lòng thử lại!');
+    }
+  }
+
+  /// Bước 4 — Xác thực TRỰC TIẾP với Client DB URL.
+  /// Password chỉ đến [db.databaseUrl], tuyệt đối không qua Master.
+  Future<AuthUser> authenticateOnClient({
+    required DbInfo db,
+    required String login,
+    required String password,
+  }) async {
+    try {
+      await saveLastLoginEmail(login);
+      final session = await _client.authenticateOnClient(
+        targetBaseUrl: db.databaseUrl,
+        dbName: db.databaseName,
+        login: login,
+        password: password,
+      );
+      return _toUser(session);
+    } on Failure {
+      rethrow;
+    } on TimeoutException {
+      debugPrint('🚨 [AuthRepository.authenticateOnClient] TIMEOUT');
+      throw Failure(
+          'Lỗi kết nối máy chủ (hết thời gian chờ). Vui lòng thử lại!');
+    } catch (e, st) {
+      debugPrint(
+          '🚨 [AuthRepository.authenticateOnClient] UNEXPECTED: $e\n$st');
+      throw Failure('Đăng nhập thất bại: ${e.toString()}');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Existing API — giữ nguyên để không phá vỡ các flow khác
+  // ---------------------------------------------------------------------------
 
   Future<AuthUser?> currentUser() async {
     final session = await _client.restoreSession();
@@ -29,7 +81,8 @@ class AuthRepository {
         return null;
       }
     } catch (e, st) {
-      debugPrint('[AuthRepository.currentUser] Session invalid on backend: $e\n$st');
+      debugPrint(
+          '[AuthRepository.currentUser] Session invalid on backend: $e\n$st');
       await _client.logout();
       return null;
     }
@@ -84,7 +137,8 @@ class AuthRepository {
       rethrow;
     } on TimeoutException {
       debugPrint('🚨 [AuthRepository.signIn] TIMEOUT');
-      throw Failure('Lỗi kết nối máy chủ (hết thời gian chờ). Vui lòng thử lại!');
+      throw Failure(
+          'Lỗi kết nối máy chủ (hết thời gian chờ). Vui lòng thử lại!');
     } catch (e, st) {
       debugPrint('🚨 [AuthRepository.signIn] UNEXPECTED EXCEPTION: $e\n$st');
       throw Failure('Login failed: ${e.toString()}');
@@ -120,16 +174,18 @@ class AuthRepository {
 
   Future<AuthUser> _toUser(OdooSession session) async {
     final profile = await _currentUserProfile(session.uid);
-    final partnerId = (session.partnerId ?? _many2OneId(profile?['partner_id']))
-        ?.toString();
+    final partnerId =
+        (session.partnerId ?? _many2OneId(profile?['partner_id']))?.toString();
     final name = _stringOrNull(profile?['name']);
     final login = _stringOrNull(profile?['login']) ?? session.login;
     final companyName = _stringOrNull(profile?['company_name']);
-    var function = _stringOrNull(profile?['job_title'] ?? profile?['function']);
+    var function =
+        _stringOrNull(profile?['job_title'] ?? profile?['function']);
 
     if ((function == null || function.isEmpty) && partnerId != null) {
       try {
-        final contactRes = await _client.get('/api/v1/mobile/contacts/$partnerId');
+        final contactRes =
+            await _client.get('/api/v1/mobile/contacts/$partnerId');
         if (contactRes is Map) {
           function = _stringOrNull(contactRes['function']);
         }
@@ -146,7 +202,6 @@ class AuthRepository {
     if (companyName != null) metadata['company'] = companyName;
     if (function != null && function.isNotEmpty) metadata['role'] = function;
 
-    // Check local storage for persistent custom avatar
     final localAvatar = await getLocalAvatar(session.uid.toString());
 
     final isValidLocal = localAvatar != null &&
@@ -158,7 +213,6 @@ class AuthRepository {
             localAvatar.startsWith('https://') ||
             localAvatar.startsWith('/'));
 
-    // Always use /users/ endpoint — /partners/ returns 405 on current server.
     var avatar = isValidLocal
         ? localAvatar
         : '/api/v1/mobile/avatar/users/${session.uid}';
@@ -184,14 +238,15 @@ class AuthRepository {
       final res = await _client.currentUserProfile();
       if (res != null) return res;
     } catch (e, st) {
-      debugPrint('[AuthRepository._currentUserProfile] /auth/me failed: $e\n$st');
+      debugPrint(
+          '[AuthRepository._currentUserProfile] /auth/me failed: $e\n$st');
       try {
         await _client.refreshSession();
         final res = await _client.currentUserProfile();
         if (res != null) return res;
       } catch (e2, st2) {
-        debugPrint('[AuthRepository._currentUserProfile] refreshSession + retry failed: $e2\n$st2');
-        // Fall through to model endpoints for older gateways.
+        debugPrint(
+            '[AuthRepository._currentUserProfile] refreshSession + retry failed: $e2\n$st2');
       }
     }
     try {
@@ -201,23 +256,23 @@ class AuthRepository {
       );
       if (res is Map) return Map<String, dynamic>.from(res);
     } catch (e, st) {
-      debugPrint('[AuthRepository._currentUserProfile] /api/v1/res.users/$uid failed: $e\n$st');
-      // Older gateways may not expose a single-record res.users endpoint.
+      debugPrint(
+          '[AuthRepository._currentUserProfile] /api/v1/res.users/$uid failed: $e\n$st');
     }
     try {
       final res = await _client.get(
         '/api/v1/res.users',
         query: const <String, Object?>{'fields': 'id,login,name,partner_id'},
       );
-      final users = (res as List? ?? const <dynamic>[]).whereType<Map>().map(
-        (user) => Map<String, dynamic>.from(user),
-      );
+      final users = (res as List? ?? const <dynamic>[])
+          .whereType<Map>()
+          .map((user) => Map<String, dynamic>.from(user));
       for (final user in users) {
         if (user['id']?.toString() == uid.toString()) return user;
       }
     } catch (e, st) {
-      debugPrint('[AuthRepository._currentUserProfile] /api/v1/res.users list failed: $e\n$st');
-      // Auth should still work even if metadata enrichment is unavailable.
+      debugPrint(
+          '[AuthRepository._currentUserProfile] /api/v1/res.users list failed: $e\n$st');
     }
     return null;
   }
