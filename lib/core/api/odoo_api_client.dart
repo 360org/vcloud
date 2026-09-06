@@ -391,6 +391,131 @@ class OdooApiClient {
 
   String get activeBaseUrl => _activeBaseUrl();
 
+  /// [P0 / Security]: Tra cứu danh sách Client DB từ Master (`https://vuahethong.net/api/v1/auth/lookup-db`).
+  /// CHỈ gửi duy nhất field `login`, tuyệt đối KHÔNG chứa password.
+  Future<List<Map<String, dynamic>>> lookupDb(String login) async {
+    final masterUrl = _baseUrl.isNotEmpty ? _baseUrl : 'https://vuahethong.net';
+    final uri = Uri.parse('$masterUrl/api/v1/auth/lookup-db');
+
+    final response = await _http.post(
+      uri,
+      headers: const {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: jsonEncode({'login': login.trim()}),
+    ).timeout(const Duration(seconds: 10));
+
+    if (response.statusCode != 200) {
+      throw Failure('Không thể tra cứu thông tin hệ thống (${response.statusCode})');
+    }
+
+    final decoded = jsonDecode(response.body);
+    if (decoded is Map && decoded['error'] != null) {
+      final err = decoded['error'];
+      final msg = err is Map ? (err['message'] ?? err['data']?['message']) : null;
+      throw Failure(msg?.toString() ?? 'Lỗi tra cứu thông tin tài khoản.');
+    }
+
+    List rawList = [];
+    if (decoded is Map && decoded['result'] is List) {
+      rawList = decoded['result'] as List;
+    } else if (decoded is List) {
+      rawList = decoded;
+    }
+
+    return rawList
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+  }
+
+  /// [P0 / Security]: Xác thực TRỰC TIẾP tới Client DB URL.
+  /// Password chỉ được gửi đến Client DB, KHÔNG đi qua Master.
+  Future<OdooSession> authenticateOnClient({
+    required String targetBaseUrl,
+    required String dbName,
+    required String login,
+    required String password,
+    Duration timeout = const Duration(seconds: 15),
+  }) async {
+    final cleanBaseUrl = targetBaseUrl.replaceFirst(RegExp(r'/$'), '');
+    final authUri = Uri.parse('$cleanBaseUrl/web/session/authenticate');
+
+    final authPayload = {
+      'jsonrpc': '2.0',
+      'params': {
+        'db': dbName,
+        'login': login.trim(),
+        'password': password,
+      },
+    };
+
+    final authResponse = await _http
+        .post(
+          authUri,
+          headers: const {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: jsonEncode(authPayload),
+        )
+        .timeout(timeout);
+
+    if (authResponse.statusCode != 200) {
+      throw Failure(
+        'Không thể kết nối đến máy chủ ($cleanBaseUrl) - mã lỗi ${authResponse.statusCode}',
+      );
+    }
+
+    final authDecoded = jsonDecode(authResponse.body);
+    if (authDecoded is! Map || authDecoded['error'] != null) {
+      final err = authDecoded is Map ? authDecoded['error'] : null;
+      final errMsg =
+          err is Map ? (err['data']?['message'] ?? err['message']) : null;
+      throw Failure(
+        errMsg?.toString() ?? 'Mật khẩu không chính xác. Vui lòng kiểm tra lại!',
+      );
+    }
+
+    final authResult = authDecoded['result'];
+    if (authResult is! Map) {
+      throw Failure('Tài khoản hoặc mật khẩu không chính xác.');
+    }
+
+    final uid = _intOrNull(authResult['uid']);
+    if (uid == null || uid == 0) {
+      throw Failure('Mật khẩu không chính xác.');
+    }
+    final partnerId = _intOrNull(authResult['partner_id']);
+
+    String? sessionId;
+    final rawCookies = authResponse.headers['set-cookie'];
+    if (rawCookies != null) {
+      final match = RegExp(r'session_id=([^;]+)').firstMatch(rawCookies);
+      if (match != null) {
+        sessionId = match.group(1);
+      }
+    }
+
+    final session = OdooSession(
+      accessToken: sessionId ?? 'session_$uid',
+      refreshToken: null,
+      uid: uid,
+      db: dbName,
+      login: login.trim(),
+      expiresAt: DateTime.now().toUtc().add(const Duration(days: 30)),
+      baseUrl: cleanBaseUrl,
+      tenantId: null,
+      scope: 'odoo_web_session',
+      partnerId: partnerId,
+    );
+
+    _session = session;
+    await _sessionStore.write(session);
+    return session;
+  }
+
   Future<OdooSession> _attemptLoginAt({
     required String targetBaseUrl,
     required String login,
