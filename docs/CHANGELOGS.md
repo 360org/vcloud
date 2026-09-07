@@ -2,17 +2,18 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
-## [v2.9.3+117] — 2026-09-04 (Frontend Hardening & Crashlytics Build Alignment)
+## [v2.9.3+118] — 2026-09-04 (Frontend Hardening & Analyze Fix)
 
 > [!IMPORTANT]
-> **Nâng cấp phiên bản v2.9.3+117 và tích hợp toàn bộ code Frontend mới nhất**:
-> - **Phạm vi**: `vclients` — `lib/app.dart`, `lib/core/notifications/push_notification_service.dart`, `android/app/build.gradle.kts`, `pubspec.yaml`
-> - **Mục tiêu**: Bổ sung Crashlytics Android, bảo vệ an toàn luồng Push Notification stream, đồng bộ định dạng tên APK và bump version lên `v2.9.3+117` đồng bộ chính xác với số build runner TestFlight.
+> **Nâng cấp phiên bản v2.9.3+118, sửa lỗi unawaited_return_in_try_block và tích hợp toàn bộ code Frontend mới nhất**:
+> - **Phạm vi**: `vclients` — `lib/features/auth/data/auth_repository.dart`, `pubspec.yaml`, `docs/CHANGELOGS.md`
+> - **Mục tiêu**: Bổ sung `await` cho `_toUser(session)` trong `authenticateOnClient` để pass 100% `flutter analyze` trên CI runner.
 
 ### 🚀 [NEW FEATURES & IMPROVEMENTS]
+- `[FIX]` **Static Analysis**: Thêm `await` trước `_toUser(session)` trong `AuthRepository.authenticateOnClient` giải quyết cảnh báo `unawaited_return_in_try_block`.
 - `[IMPROVE]` **Push Notification Resiliency**: Bọc try-catch và stream listener an toàn trong `lib/app.dart` và `PushNotificationService`, ngăn crash khi nhận initial message lúc app cold-start.
 - `[NEW]` **Android Crashlytics & Naming**: Tích hợp plugin `com.google.firebase.crashlytics` và cấu hình tự động đặt tên file APK chuẩn `Vcloud_v{versionName}_Build{versionCode}_{buildType}.apk`.
-- `[CHORE]` **Release Bump**: Cập nhật version lên `v2.9.3+117` đóng gói toàn bộ code frontend mới nhất.
+- `[CHORE]` **Release Bump**: Cập nhật version lên `v2.9.3+118`.
 
 ---
 

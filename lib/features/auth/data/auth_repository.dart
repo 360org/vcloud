@@ -52,7 +52,7 @@ class AuthRepository {
         login: login,
         password: password,
       );
-      return _toUser(session);
+      return await _toUser(session);
     } on Failure {
       rethrow;
     } on TimeoutException {
