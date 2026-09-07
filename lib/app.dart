@@ -27,28 +27,40 @@ class VCloudApp extends ConsumerStatefulWidget {
 
 class _VCloudAppState extends ConsumerState<VCloudApp>
     with WidgetsBindingObserver {
-  late final StreamSubscription<RemoteMessage> _foregroundPushSubscription;
+  StreamSubscription<RemoteMessage>? _foregroundPushSubscription;
   StreamSubscription<RemoteMessage>? _openedAppPushSubscription;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    final pushService = ref.read(pushNotificationServiceProvider);
-    _foregroundPushSubscription = pushService.onMessageStream.listen(_onForegroundPush);
-    _openedAppPushSubscription = pushService.onMessageOpenedAppStream.listen(_onPushNotificationOpened);
+    try {
+      final pushService = ref.read(pushNotificationServiceProvider);
+      _foregroundPushSubscription = pushService.onMessageStream.listen(
+        _onForegroundPush,
+        onError: (e) => debugPrint('Foreground push listen error: $e'),
+      );
+      _openedAppPushSubscription = pushService.onMessageOpenedAppStream.listen(
+        _onPushNotificationOpened,
+        onError: (e) => debugPrint('Opened app push listen error: $e'),
+      );
 
-    // Check cold start from push notification
-    pushService.getInitialMessage().then((initialMsg) {
-      if (initialMsg != null) {
-        _onPushNotificationOpened(initialMsg);
-      }
-    });
+      // Check cold start from push notification
+      pushService.getInitialMessage().then((initialMsg) {
+        if (initialMsg != null) {
+          _onPushNotificationOpened(initialMsg);
+        }
+      }).catchError((e) {
+        debugPrint('Get initial message error: $e');
+      });
+    } catch (e) {
+      debugPrint('Push notification listener setup failed: $e');
+    }
   }
 
   @override
   void dispose() {
-    _foregroundPushSubscription.cancel();
+    _foregroundPushSubscription?.cancel();
     _openedAppPushSubscription?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();

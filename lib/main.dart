@@ -16,7 +16,7 @@ import 'features/chat_v2/application/chat_v2_channels_controller.dart';
 
 void _logDetailedError(Object error, StackTrace? stack, {String context = 'FLUTTER'}) {
   final errStr = error.toString();
-  if (errStr.contains('ink_sparkle.frag')) return;
+  if (errStr.contains('ink_sparkle.frag') || errStr.contains('stretch_effect.frag')) return;
   debugPrint('=== LỖI FLUTTER NGHIÊM TRỌNG [$context] ===');
   debugPrint('Nội dung lỗi: $error');
   if (stack != null) {

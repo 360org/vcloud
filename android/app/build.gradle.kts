@@ -19,6 +19,7 @@ plugins {
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
     id("com.google.gms.google-services")
+    id("com.google.firebase.crashlytics")
 }
 
 android {
@@ -59,6 +60,18 @@ android {
             } else {
                 signingConfig = signingConfigs.getByName("debug")
             }
+        }
+    }
+
+    applicationVariants.all {
+        val variant = this
+        variant.outputs.all {
+            val output = this as? com.android.build.gradle.internal.api.BaseVariantOutputImpl
+            val vName = variant.versionName ?: "unknown"
+            val vCode = variant.versionCode
+            val bType = variant.buildType.name.replaceFirstChar { it.uppercase() }
+            val newApkName = "Vcloud_v${vName}_Build${vCode}_${bType}.apk"
+            output?.outputFileName = newApkName
         }
     }
 }

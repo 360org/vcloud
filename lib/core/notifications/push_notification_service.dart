@@ -19,7 +19,11 @@ Future<void> vcloudFirebaseMessagingBackgroundHandler(
   RemoteMessage message,
 ) async {
   if (!Env.firebasePushConfigured) return;
-  await Firebase.initializeApp(options: VCloudFirebaseOptions.currentPlatform);
+  try {
+    await Firebase.initializeApp(options: VCloudFirebaseOptions.currentPlatform);
+  } catch (e) {
+    debugPrint('Background handler Firebase init error: $e');
+  }
 }
 
 class PushNotificationService {
@@ -59,10 +63,19 @@ class PushNotificationService {
     _ensureInitialized().then((ok) {
       if (!ok || _onMessageWired) return;
       _onMessageWired = true;
-      _onMessageSubscription = FirebaseMessaging.onMessage.listen(
-        _onMessageController.add,
-        onError: _onMessageController.addError,
-      );
+      try {
+        _onMessageSubscription = FirebaseMessaging.onMessage.listen(
+          _onMessageController.add,
+          onError: (e) {
+            debugPrint('FCM onMessage error: $e');
+            _onMessageController.addError(e);
+          },
+        );
+      } catch (e) {
+        debugPrint('FCM onMessage listen exception: $e');
+      }
+    }).catchError((e) {
+      debugPrint('ensureInitialized error in onMessageStream: $e');
     });
     return _onMessageController.stream;
   }
@@ -74,17 +87,31 @@ class PushNotificationService {
     _ensureInitialized().then((ok) {
       if (!ok || _onMessageOpenedAppWired) return;
       _onMessageOpenedAppWired = true;
-      _onMessageOpenedAppSubscription = FirebaseMessaging.onMessageOpenedApp.listen(
-        _onMessageOpenedAppController.add,
-        onError: _onMessageOpenedAppController.addError,
-      );
+      try {
+        _onMessageOpenedAppSubscription = FirebaseMessaging.onMessageOpenedApp.listen(
+          _onMessageOpenedAppController.add,
+          onError: (e) {
+            debugPrint('FCM onMessageOpenedApp error: $e');
+            _onMessageOpenedAppController.addError(e);
+          },
+        );
+      } catch (e) {
+        debugPrint('FCM onMessageOpenedApp listen exception: $e');
+      }
+    }).catchError((e) {
+      debugPrint('ensureInitialized error in onMessageOpenedAppStream: $e');
     });
     return _onMessageOpenedAppController.stream;
   }
 
   Future<RemoteMessage?> getInitialMessage() async {
-    if (!await _ensureInitialized()) return null;
-    return _messaging?.getInitialMessage();
+    try {
+      if (!await _ensureInitialized()) return null;
+      return await _messaging?.getInitialMessage();
+    } catch (e) {
+      debugPrint('getInitialMessage error: $e');
+      return null;
+    }
   }
 
   bool _isRegistering = false;

@@ -1,6 +1,6 @@
-# SPECIFICATION: V_Cloud Chat V2 Voice Call & CallKit
+# SPECIFICATION: Vcloud Chat V2 Voice Call & CallKit
 
-> **Dự án**: V_Cloud Mobile (Flutter) & V_Mobile (Odoo 17)
+> **Dự án**: Vcloud Mobile (Flutter) & V_Mobile (Odoo 17)
 > **Mục tiêu**: Xây dựng tính năng VoIP Call 1-1 qua WebRTC kết nối với Odoo Discuss, tích hợp CallKit/ConnectionService để nhận cuộc gọi lúc tắt app.
 
 ---

@@ -1,5 +1,5 @@
 # HƯỚNG DẪN TỰ ĐỘNG HÓA CI/CD & PHÁT HÀNH iOS APP STORE / TESTFLIGHT
-**Dự án:** V_Cloud Mobile App (W360S JOINT STOCK COMPANY)
+**Dự án:** Vcloud Mobile App (W360S JOINT STOCK COMPANY)
 **App ID:** `1365622472` (`com.vcloud.vcloud`)
 **Tác giả:** App Manager (`<APPLE_ID>`) & 360org AI
 **Ngày phát hành thành công:** 29/07/2026

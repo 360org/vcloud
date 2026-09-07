@@ -310,11 +310,11 @@ void main() {
     });
 
     test('QA-CHAT-05: Create Chat Group Endpoint Pipeline', () async {
-      final channelId = await chatRepository.createGroup('Đội dự án V_Cloud', ['102', '103', '104']);
+      final channelId = await chatRepository.createGroup('Đội dự án Vcloud', ['102', '103', '104']);
 
       expect(channelId, equals('47'));
       expect(fakeClient.lastPostPayloads['/api/v1/mobile/chat/groups'], equals({
-        'name': 'Đội dự án V_Cloud',
+        'name': 'Đội dự án Vcloud',
         'partner_ids': [102, 103, 104],
       }));
     });
