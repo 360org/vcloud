@@ -2,17 +2,17 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
-## [v2.9.3+105] — 2026-09-04 (Frontend Hardening & Crashlytics Build Alignment)
+## [v2.9.3+117] — 2026-09-04 (Frontend Hardening & Crashlytics Build Alignment)
 
 > [!IMPORTANT]
-> **Nâng cấp phiên bản v2.9.3+105 và tích hợp toàn bộ code Frontend mới nhất**:
+> **Nâng cấp phiên bản v2.9.3+117 và tích hợp toàn bộ code Frontend mới nhất**:
 > - **Phạm vi**: `vclients` — `lib/app.dart`, `lib/core/notifications/push_notification_service.dart`, `android/app/build.gradle.kts`, `pubspec.yaml`
-> - **Mục tiêu**: Bổ sung Crashlytics Android, bảo vệ an toàn luồng Push Notification stream, đồng bộ định dạng tên APK và bump version lên `v2.9.3+105`.
+> - **Mục tiêu**: Bổ sung Crashlytics Android, bảo vệ an toàn luồng Push Notification stream, đồng bộ định dạng tên APK và bump version lên `v2.9.3+117` đồng bộ chính xác với số build runner TestFlight.
 
 ### 🚀 [NEW FEATURES & IMPROVEMENTS]
 - `[IMPROVE]` **Push Notification Resiliency**: Bọc try-catch và stream listener an toàn trong `lib/app.dart` và `PushNotificationService`, ngăn crash khi nhận initial message lúc app cold-start.
 - `[NEW]` **Android Crashlytics & Naming**: Tích hợp plugin `com.google.firebase.crashlytics` và cấu hình tự động đặt tên file APK chuẩn `Vcloud_v{versionName}_Build{versionCode}_{buildType}.apk`.
-- `[CHORE]` **Release Bump**: Cập nhật version lên `v2.9.3+105` đóng gói toàn bộ code frontend mới nhất.
+- `[CHORE]` **Release Bump**: Cập nhật version lên `v2.9.3+117` đóng gói toàn bộ code frontend mới nhất.
 
 ---
 
