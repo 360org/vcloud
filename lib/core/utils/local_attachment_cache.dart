@@ -85,8 +85,8 @@ class LocalAttachmentCache {
 
     if (kIsWeb) {
       saveToWebLocalStorage(clean, bytes);
-    } else {
-      // Mobile Environment (iOS/Android): Save physical file under app documents directory
+    } else if (_mobileDirPath != null) {
+      // Mobile Environment (iOS/Android): Save physical file under app documents directory.
       _saveMobileFile(clean, bytes);
     }
   }
@@ -129,11 +129,6 @@ class LocalAttachmentCache {
         // Synchronous file read (File.readAsBytesSync) on UI thread causes freezes.
         // Disk lookups must go through getAsync().
       }
-    }
-
-    // Trigger async initialization for mobile directory if not yet ready
-    if (!kIsWeb && _mobileDirPath == null) {
-      _getMobileDirPath();
     }
 
     return null;

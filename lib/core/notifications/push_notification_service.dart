@@ -53,6 +53,7 @@ class PushNotificationService {
       StreamController<RemoteMessage>.broadcast();
   StreamSubscription<RemoteMessage>? _onMessageSubscription;
   StreamSubscription<RemoteMessage>? _onMessageOpenedAppSubscription;
+  StreamSubscription<String>? _tokenRefreshSubscription;
   bool _onMessageWired = false;
   bool _onMessageOpenedAppWired = false;
 
@@ -155,22 +156,20 @@ class PushNotificationService {
         } catch (_) {}
       }
 
-      // Lắng nghe token refresh tự động
-      messaging.onTokenRefresh.listen((newToken) async {
-        if (newToken.isNotEmpty) {
-          try {
-            final installationId = await _installationId();
-            final packageInfo = await PackageInfo.fromPlatform();
-            await _repository.registerDevice(
-              deviceToken: newToken,
-              platform: _platformName,
-              deviceName: _deviceName,
-              installationId: installationId,
-              appVersion: '${packageInfo.version}+${packageInfo.buildNumber}',
-            );
-            await _storage.write(key: _deviceTokenKey, value: newToken);
-          } catch (_) {}
-        }
+      _tokenRefreshSubscription ??= messaging.onTokenRefresh.listen((newToken) async {
+        if (newToken.isEmpty) return;
+        try {
+          final installationId = await _installationId();
+          final packageInfo = await PackageInfo.fromPlatform();
+          await _repository.registerDevice(
+            deviceToken: newToken,
+            platform: _platformName,
+            deviceName: _deviceName,
+            installationId: installationId,
+            appVersion: '${packageInfo.version}+${packageInfo.buildNumber}',
+          );
+          await _storage.write(key: _deviceTokenKey, value: newToken);
+        } catch (_) {}
       });
 
       String? token;
@@ -193,14 +192,7 @@ class PushNotificationService {
       final installationId = await _installationId();
       final packageInfo = await PackageInfo.fromPlatform();
 
-      debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      debugPrint('🔔 [PUSH NOTIFICATION TOKEN REGISTERED]');
-      debugPrint('📱 Platform       : $_platformName');
-      debugPrint('🏷️ Device Name    : $_deviceName');
-      debugPrint('🆔 Installation ID: $installationId');
-      debugPrint('📦 App Version    : ${packageInfo.version}+${packageInfo.buildNumber}');
-      debugPrint('🔑 FCM Token      :\n$token');
-      debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      debugPrint('🔔 Push notification token registered ($_platformName, ${packageInfo.version}+${packageInfo.buildNumber}).');
 
       await _repository.registerDevice(
         deviceToken: token,
@@ -248,6 +240,8 @@ class PushNotificationService {
     _onMessageOpenedAppSubscription?.cancel();
     _onMessageOpenedAppSubscription = null;
     _onMessageOpenedAppWired = false;
+    _tokenRefreshSubscription?.cancel();
+    _tokenRefreshSubscription = null;
   }
 
   Future<bool> _ensureInitialized() async {
