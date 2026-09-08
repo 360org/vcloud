@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 
+import '../../../core/api/odoo_api_client.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../../core/utils/local_attachment_cache.dart';
 import '../domain/models/chat_v2_poll_model.dart';
@@ -27,9 +28,19 @@ class ChatV2MessageLocalCache {
   static final Map<String, Map<String, ChatV2Message>> _cache = {};
   static bool _initialized = false;
   static Directory? _cacheDir;
+  static String _activeScope = '';
 
-  static Future<void> init() async {
-    if (_initialized) return;
+  static Future<void> init({String? db, String? userId}) async {
+    final session = odooApiClient.session;
+    final currentDb = db ?? session?.db ?? '';
+    final currentUid = userId ?? session?.uid.toString() ?? '';
+    final newScope = currentDb.isNotEmpty ? '${currentDb}_$currentUid' : 'global';
+
+    if (_initialized && _activeScope == newScope) return;
+
+    _activeScope = newScope;
+    _cache.clear();
+
     if (kIsWeb) {
       _initialized = true;
       return;
@@ -37,7 +48,7 @@ class ChatV2MessageLocalCache {
     try {
       final stopwatch = Stopwatch()..start();
       final docDir = await getApplicationDocumentsDirectory();
-      _cacheDir = Directory('${docDir.path}/chat_v2_messages');
+      _cacheDir = Directory('${docDir.path}/chat_v2_messages/$_activeScope');
       if (!await _cacheDir!.exists()) {
         await _cacheDir!.create(recursive: true);
       }
@@ -64,7 +75,7 @@ class ChatV2MessageLocalCache {
         }
       }
       stopwatch.stop();
-      debugPrint('🕒 [PERF] ChatV2MessageLocalCache.init() loaded $totalMessagesLoaded messages in ${stopwatch.elapsedMilliseconds}ms');
+      debugPrint('🕒 [PERF] ChatV2MessageLocalCache.init() loaded $totalMessagesLoaded messages for $_activeScope in ${stopwatch.elapsedMilliseconds}ms');
       _initialized = true;
     } catch (e) {
       debugPrint('Error init ChatV2MessageLocalCache: $e');
@@ -141,11 +152,12 @@ static void set(String channelId, List<ChatV2Message> messages, {bool persist = 
 
   static void clear() {
     _cache.clear();
-    if (_initialized && _cacheDir != null && !kIsWeb) {
+    _initialized = false;
+    _activeScope = '';
+    if (_cacheDir != null && !kIsWeb) {
       try {
         if (_cacheDir!.existsSync()) {
           _cacheDir!.deleteSync(recursive: true);
-          _cacheDir!.createSync(recursive: true);
         }
       } catch (_) {}
     }
@@ -164,6 +176,10 @@ class ChatV2MessagesNotifier
     final repo = ref.watch(chatV2RepositoryProvider);
     final user = ref.watch(authControllerProvider).valueOrNull;
     final realtime = ref.watch(chatV2RealtimeServiceProvider);
+
+    final currentDb = odooApiClient.session?.db;
+    final currentUid = user?.id ?? odooApiClient.session?.uid.toString();
+    await ChatV2MessageLocalCache.init(db: currentDb, userId: currentUid);
 
     final meta = user?.userMetadata;
     final partnerId = meta?['partner_id']?.toString() ??

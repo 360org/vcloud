@@ -33,6 +33,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
   String _searchQuery = '';
   int? _selectedFilterIndex; // null: Mặc định (Tất cả), 0: Chưa đọc, 1: Nội bộ, 2: Nhóm, 3: Kênh
   Timer? _searchDebounceTimer;
+  bool _dismissedVMobileWarning = false;
 
   final List<String> _filters = ['Chưa đọc', 'Nội bộ', 'Nhóm', 'Kênh'];
 
@@ -117,6 +118,8 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
     final currentPartnerId = meta?['partner_id']?.toString() ??
         meta?['partner']?['id']?.toString();
     final currentUserId = currentUser?.id;
+    final currentDbName = (meta?['db'] as String?) ?? '';
+    final hasVMobile = (meta?['has_v_mobile'] as bool?) ?? true;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return AppScaffold(
@@ -408,6 +411,70 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
             ),
           ),
 
+          // ── Warning Banner: Cơ sở dữ liệu chưa cài module vmobile ───────
+          if (!hasVMobile && !_dismissedVMobileWarning)
+            Container(
+              margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF2F2),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: const Color(0xFFFCA5A5),
+                  width: 1.0,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEF4444).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(9),
+                    ),
+                    child: const Icon(
+                      LucideIcons.alertTriangle,
+                      color: Color(0xFFEF4444),
+                      size: 17,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Chưa cài đặt module vmobile',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF991B1B),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Cơ sở dữ liệu "$currentDbName" chưa cài module vmobile. Tất cả các tính năng không thể sử dụng được.',
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            color: Color(0xFFB91C1C),
+                            height: 1.25,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(LucideIcons.x, size: 16, color: Color(0xFF991B1B)),
+                    onPressed: () => setState(() => _dismissedVMobileWarning = true),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                    splashRadius: 16,
+                  ),
+                ],
+              ),
+            ),
+
           // ── 4. Channels List ────────────────────────────────────────────
           Expanded(
             child: RefreshIndicator(
@@ -418,6 +485,51 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                 builder: (context) {
                   final hasCachedOrData = (channelsAsync.valueOrNull?.isNotEmpty ?? false) ||
                       ChatV2ChannelLocalCache.cached.isNotEmpty;
+
+                  if (!hasVMobile && !hasCachedOrData) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 64,
+                              height: 64,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEF4444).withValues(alpha: 0.1),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                LucideIcons.slash,
+                                size: 32,
+                                color: Color(0xFFEF4444),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Tính năng chưa khả dụng',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: isDark ? Colors.white : const Color(0xFF0F172A),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Cơ sở dữ liệu "$currentDbName" chưa cài module vmobile nên tất cả các tính năng không thể sử dụng được.',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey,
+                                height: 1.4,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
 
                   if (!hasCachedOrData && (channelsAsync.isLoading || syncStatus == ChatV2SyncStatus.connecting)) {
                     return const Center(

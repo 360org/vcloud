@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Vcloud</string>
+	<string>Vua Hệ Thống</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -15,7 +15,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>Vcloud</string>
+	<string>Vua Hệ Thống</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -67,17 +67,17 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>VCloud uses your location to record check-in and check-out times</string>
+	<string>Vua Hệ Thống sử dụng vị trí của bạn để ghi nhận thời gian chấm công vào và ra ca.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>VCloud uses your location to record check-in and check-out times</string>
+	<string>Vua Hệ Thống sử dụng vị trí của bạn để ghi nhận thời gian chấm công vào và ra ca.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>VCloud uses the camera so you can capture and send photos in chat and support tickets.</string>
+	<string>Vua Hệ Thống sử dụng máy ảnh để bạn có thể chụp và gửi hình ảnh trong tin nhắn và phiếu hỗ trợ.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>VCloud uses your photo library so you can choose photos for chat and support tickets.</string>
+	<string>Vua Hệ Thống sử dụng thư viện ảnh để bạn có thể chọn hình ảnh gửi trong tin nhắn và phiếu hỗ trợ.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>VCloud uses your photo library so you can save photos from chat and support tickets.</string>
+	<string>Vua Hệ Thống sử dụng thư viện ảnh để bạn có thể lưu hình ảnh từ tin nhắn và phiếu hỗ trợ.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>VCloud uses your microphone to record voice messages and make voice calls.</string>
+	<string>Vua Hệ Thống sử dụng microphone để ghi âm tin nhắn thoại và thực hiện cuộc gọi thoại.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>

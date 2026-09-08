@@ -6,6 +6,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:collection/collection.dart';
+import '../../../core/api/odoo_api_client.dart';
 import '../../auth/application/auth_controller.dart';
 import 'chat_v2_presence_controller.dart';
 import 'chat_v2_read_state_controller.dart';
@@ -34,11 +35,15 @@ class ChatV2ChannelLocalCache {
   static List<ChatV2Channel> _cached = const [];
   static final Map<String, ChatV2Channel> _pinnedDirectChannels = {};
   static const _storage = FlutterSecureStorage();
-  static const _storageKey = 'pinned_direct_channels_v2';
-  static const _channelsCacheKey = 'cached_channels_v3';
-  static const _unreadCacheKey = 'cached_unread_count_v3';
-  static const _pinnedIdsKey = 'user_pinned_channel_ids';
-  static const _mutedIdsKey = 'user_muted_channel_ids';
+  static String _activeScope = '';
+
+  static String _key(String base) => _activeScope.isEmpty ? base : '${_activeScope}_$base';
+
+  static String get _storageKey => _key('pinned_direct_channels_v2');
+  static String get _channelsCacheKey => _key('cached_channels_v3');
+  static String get _unreadCacheKey => _key('cached_unread_count_v3');
+  static String get _pinnedIdsKey => _key('user_pinned_channel_ids');
+  static String get _mutedIdsKey => _key('user_muted_channel_ids');
   static bool _initialized = false;
   static List<String> _userPinnedOrder = [];
   static Set<String> _userPinnedIds = {};
@@ -78,8 +83,22 @@ class ChatV2ChannelLocalCache {
 
   static ChatV2Channel? getPinnedDirectChannel(String id) => _pinnedDirectChannels[id];
 
-  static Future<void> init() async {
-    if (_initialized) return;
+  static Future<void> init({String? db, String? userId}) async {
+    final session = odooApiClient.session;
+    final currentDb = db ?? session?.db ?? '';
+    final currentUid = userId ?? session?.uid.toString() ?? '';
+    final newScope = currentDb.isNotEmpty ? '${currentDb}_$currentUid' : '';
+
+    if (_initialized && _activeScope == newScope) return;
+
+    _activeScope = newScope;
+    _cached = const [];
+    _pinnedDirectChannels.clear();
+    _userPinnedOrder = [];
+    _userPinnedIds = {};
+    _userMutedIds = {};
+    _lastKnownUnread = 0;
+
     try {
       final data = await _storage.read(key: _storageKey);
       if (data != null && data.isNotEmpty) {
@@ -459,6 +478,8 @@ class ChatV2ChannelLocalCache {
   static void clear() {
     _pinnedDirectChannels.clear();
     _cached = const [];
+    _initialized = false;
+    _activeScope = '';
     _saveToStorage();
     _saveCachedChannelsToStorage();
     onCacheUpdated?.call();
@@ -485,10 +506,17 @@ class ChatV2ChannelsNotifier
   @override
   Future<List<ChatV2Channel>> build() async {
     ref.keepAlive();
-    debugPrint('🟢 [LIFECYCLE] ChatV2ChannelsNotifier: BUILD (Provider created)');
+    final authState = ref.watch(authControllerProvider);
+    final currentUser = authState.valueOrNull;
+    final meta = currentUser?.userMetadata;
+    final hasVMobile = (meta?['has_v_mobile'] as bool?) ?? true;
+    final currentDb = odooApiClient.session?.db;
+    final currentUid = currentUser?.id ?? odooApiClient.session?.uid.toString();
+
+    debugPrint('🟢 [LIFECYCLE] ChatV2ChannelsNotifier: BUILD (db=$currentDb, uid=$currentUid)');
     _isDisposed = false;
-    await ChatV2ChannelLocalCache.init();
-    await ChatV2MessageLocalCache.init();
+    await ChatV2ChannelLocalCache.init(db: currentDb, userId: currentUid);
+    await ChatV2MessageLocalCache.init(db: currentDb, userId: currentUid);
     final repo = ref.read(chatV2RepositoryProvider);
     final realtime = ref.read(chatV2RealtimeServiceProvider);
 
@@ -650,7 +678,9 @@ class ChatV2ChannelsNotifier
       });
     }
 
-    scheduleNextPoll();
+    if (hasVMobile) {
+      scheduleNextPoll();
+    }
 
     ref.onDispose(() {
       ChatV2ChannelLocalCache.onCacheUpdated = null;
@@ -664,8 +694,13 @@ class ChatV2ChannelsNotifier
 
     final cached = ChatV2ChannelLocalCache.cached;
     if (cached.isNotEmpty) {
-      unawaited(fetchFreshChannels());
+      if (hasVMobile) unawaited(fetchFreshChannels());
       return cached;
+    }
+
+    if (!hasVMobile) {
+      ref.read(chatV2SyncStatusProvider.notifier).state = ChatV2SyncStatus.synced;
+      return const [];
     }
 
     try {

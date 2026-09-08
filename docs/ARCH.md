@@ -26,6 +26,78 @@ Presentation must never call HTTP, Odoo, or storage directly.
 - VCloud releases produce mobile artifacts only. Server deployment belongs to
   the `v_mobile` Odoo backend repo and requires an explicit production request.
 
+## Multi-Tenant Authentication Architecture (1 + N Master Directory Routing)
+
+### 1. Tổng quan Mô hình 1 + N
+Hệ sinh thái xác thực VCloud hoạt động theo mô hình **1 Master Directory + N Client Databases**:
+- **1 Master Directory (`vuahethong.net`)**: Đóng vai trò danh bạ điều phối tập trung (Central Directory / Routing Node), lưu trữ bảng định tuyến người dùng (`databases.user` hoặc `mobile.api.tenant_user`). Master **KHÔNG** lưu mật khẩu, **KHÔNG** lưu dữ liệu nghiệp vụ của khách hàng.
+- **N Client Databases (`1 + N`)**: Gồm 1 DB nội bộ công ty và hàng chục/hàng trăm DB độc lập của từng khách hàng (`client_a`, `client_b`, `360.org.vn`...). Dữ liệu và người dùng hoàn toàn cô lập theo từng database/instance riêng biệt.
+
+```text
+                                  ┌──────────────────────────────┐
+                                  │   VCloud Mobile / Web App    │
+                                  └──────────────┬───────────────┘
+                                                 │
+                  [Bước 1: Lookup DB - CHỈ gửi 'login', KHÔNG gửi 'password']
+                                                 │
+                                                 ▼
+                              ┌──────────────────────────────────────┐
+                              │     vuahethong.net (Master DB)       │
+                              │  Central Directory Router (1 DB)     │
+                              │  Table: databases.user / tenant_user │
+                              └──────────────────┬───────────────────┘
+                                                 │
+                     Trả về metadata: Database Name & Target Database URL
+                                                 │
+                                                 ▼
+             ┌───────────────────────────────────┴───────────────────────────────────┐
+             │                                                                       │
+             ▼                                                                       ▼
+   [Trường hợp 1 DB duy nhất]                                            [Trường hợp > 1 DB (trùng username)]
+App tự động xác thực thẳng vào URL đích                                 App hiển thị Dropdown để User chọn DB đích
+             │                                                                       │
+             └───────────────────────────────────┬───────────────────────────────────┘
+                                                 │
+                      [Bước 2: Direct Authentication - Gửi password thẳng tới Client DB]
+                                                 │
+       ┌─────────────────────────────────────────┼─────────────────────────────────────────┐
+       ▼                                         ▼                                         ▼
+┌───────────────┐                         ┌───────────────┐                         ┌───────────────┐
+│ Client DB 1   │                         │ Client DB 2   │                         │ Client DB N   │
+│ (Nội bộ cty)  │                         │ (Khách A)     │                         │ (Khách B...)  │
+│ domain_1.com  │                         │ domain_2.com  │                         │ domain_n.com  │
+└───────┬───────┘                         └───────┬───────┘                         └───────┬───────┘
+        │                                         │                                         │
+        └─────────────────────────────────────────┼─────────────────────────────────────────┘
+                                                  │
+                 Cấp Odoo Web Session ID (Cookie) + JWT HS256 Access Token trực tiếp
+                                                  │
+                                                  ▼
+                                      ┌───────────────────────┐
+                                      │ Vào thẳng Dashboard   │
+                                      │ Client Instance       │
+                                      └───────────────────────┘
+```
+
+### 2. Ba Nguyên Tắc Bảo Mật Cốt Lõi
+1. **Zero-Knowledge Password tại Master**: Master `vuahethong.net` chỉ tiếp nhận duy nhất `{ "login": "..." }` qua endpoint `POST /api/v1/auth/lookup-db`. Mật khẩu của người dùng không bao giờ được gửi tới hoặc lưu vết trên Master.
+2. **Độc Lập Dữ Liệu Tuyệt Đối (Database Isolation)**: Mỗi tenant/khách hàng sở hữu database PostgreSQL riêng biệt. Không có rủi ro lẫn lộn dữ liệu giữa các công ty.
+3. **Phi Tập Trung Session (Decentralized Session)**: Session cookie và JWT token được cấp phát và xác thực độc lập tại từng Client Instance. Nếu Master gặp sự cố sau khi người dùng đã đăng nhập, phiên làm việc tại Client Instance vẫn hoạt động bình thường.
+
+### 3. Cơ Chế Mở Rộng Hệ Thống Zero-Config (N + 1)
+- Khi có thêm bất kỳ công ty/khách hàng mới nào ($N \to N+1$), quản trị viên chỉ cần thêm 1 record mapping trên Master.
+- Ứng dụng di động VCloud **không cần cập nhật mã nguồn**, **không cần build lại app**, tự động nhận diện và route thẳng tới instance mới dựa trên username của người dùng.
+
+### 4. Danh Mục Database Phục Vụ Kiểm Thử Tại Local (Local Test Matrix)
+Dùng để đối chiếu và mô phỏng môi trường đa database (Multi-Tenant) trên máy trạm:
+
+| Cụm / Phiên bản | Tên Database | Mục đích sử dụng | Tên Công ty trong DB | Backend API Port | Tài khoản Test có sẵn |
+| :---: | :--- | :--- | :--- | :---: | :--- |
+| **Odoo 17.0** | **`demo-17`** | 🏢 **DB Nội Bộ (Internal)** | `360 Nội Bộ (Internal Company)` | Port **`8069`** | `demo` / `demo`<br>`admin` / `admin`<br>`tester@vcloud.vn` |
+| **Odoo 17.0** | **`vcloud-17-client`** | 👥 **DB Khách Hàng (Customer)** | `360 Khách Hàng (Customer Company)` | Port **`8069`** | `demo` / `demo`<br>`admin` / `admin`<br>`tester@vcloud.vn` |
+| **Odoo 19.0** | **`demo-19`** | 🚀 **DB Odoo 19 Dev Local** | `360 CORP` | Port **`8079`** (`dev_env/19.0`) | `demo` / `demo`<br>`admin` / `admin`<br>`tan` / `admin`<br>`morpheus` |
+
+
 ## Core API Layer
 - `Env.odooApiBaseUrl` points to the master mobile auth resolver.
   `Env.odooDb` remains optional for compatibility, but the default mobile login

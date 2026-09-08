@@ -518,6 +518,7 @@ class _AvatarNetworkImage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Image.network(
       url,
+      headers: odooApiClient.authHeaders,
       key: ValueKey(url),
       fit: BoxFit.cover,
       cacheWidth: (size * MediaQuery.devicePixelRatioOf(context)).round(),

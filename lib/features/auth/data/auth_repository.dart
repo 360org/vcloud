@@ -23,11 +23,11 @@ class AuthRepository {
   // [P0/P1] Lookup-DB + Authenticate-On-Client (Directory Routing Architecture)
   // ---------------------------------------------------------------------------
 
-  /// Bước 2 — Tra cứu danh sách Client DB từ Master.
-  /// CHỈ gửi [login]. Password KHÔNG được gửi lên Master.
-  Future<List<DbInfo>> lookupDb(String login) async {
+  /// [Giải pháp 2 / Anti-DB Enumeration]: Tra cứu và xác thực với Master Router.
+  /// Gửi [login], [password] và [preferredDb] (DB gần nhất) để Master ưu tiên verify song song.
+  Future<List<DbInfo>> lookupDb(String login, String password, {String? preferredDb}) async {
     try {
-      final rawList = await _client.lookupDb(login);
+      final rawList = await _client.lookupDb(login, password, preferredDb: preferredDb);
       return rawList.map(DbInfo.fromJson).toList();
     } on Failure {
       rethrow;
@@ -46,6 +46,7 @@ class AuthRepository {
   }) async {
     try {
       await saveLastLoginEmail(login);
+      await saveLastSelectedDb(db.databaseName);
       final session = await _client.authenticateOnClient(
         targetBaseUrl: db.databaseUrl,
         dbName: db.databaseName,
@@ -99,6 +100,7 @@ class AuthRepository {
   }
 
   static const _savedEmailKey = 'saved_login_email';
+  static const _savedDbKey = 'saved_last_database';
 
   Future<void> saveLastLoginEmail(String email) async {
     try {
@@ -116,6 +118,26 @@ class AuthRepository {
       return await _storage.read(key: _savedEmailKey);
     } catch (e, st) {
       debugPrint('[AuthRepository.getLastLoginEmail] Error: $e\n$st');
+      return null;
+    }
+  }
+
+  Future<void> saveLastSelectedDb(String dbName) async {
+    try {
+      final trimmed = dbName.trim();
+      if (trimmed.isNotEmpty) {
+        await _storage.write(key: _savedDbKey, value: trimmed);
+      }
+    } catch (e, st) {
+      debugPrint('[AuthRepository.saveLastSelectedDb] Error: $e\n$st');
+    }
+  }
+
+  Future<String?> getLastSelectedDb() async {
+    try {
+      return await _storage.read(key: _savedDbKey);
+    } catch (e, st) {
+      debugPrint('[AuthRepository.getLastSelectedDb] Error: $e\n$st');
       return null;
     }
   }
@@ -149,12 +171,18 @@ class AuthRepository {
     return _client.logout();
   }
 
-  Future<void> saveLocalAvatar(String uid, String avatarData) async {
-    await _storage.write(key: 'custom_avatar_$uid', value: avatarData);
+  Future<void> saveLocalAvatar(String uid, String avatarData, {String? db}) async {
+    final key = (db != null && db.isNotEmpty)
+        ? 'custom_avatar_${db}_$uid'
+        : 'custom_avatar_${_client.session?.db ?? ""}_$uid';
+    await _storage.write(key: key, value: avatarData);
   }
 
-  Future<String?> getLocalAvatar(String uid) async {
-    return await _storage.read(key: 'custom_avatar_$uid');
+  Future<String?> getLocalAvatar(String uid, {String? db}) async {
+    final key = (db != null && db.isNotEmpty)
+        ? 'custom_avatar_${db}_$uid'
+        : 'custom_avatar_${_client.session?.db ?? ""}_$uid';
+    return await _storage.read(key: key);
   }
 
   Future<String> uploadAvatar(String base64Image) async {
@@ -173,7 +201,8 @@ class AuthRepository {
   }
 
   Future<AuthUser> _toUser(OdooSession session) async {
-    final profile = await _currentUserProfile(session.uid);
+    final hasVMobile = session.scope != 'odoo_web_session';
+    final profile = hasVMobile ? await _currentUserProfile(session.uid) : null;
     final partnerId =
         (session.partnerId ?? _many2OneId(profile?['partner_id']))?.toString();
     final name = _stringOrNull(profile?['name']);
@@ -182,7 +211,7 @@ class AuthRepository {
     var function =
         _stringOrNull(profile?['job_title'] ?? profile?['function']);
 
-    if ((function == null || function.isEmpty) && partnerId != null) {
+    if (hasVMobile && (function == null || function.isEmpty) && partnerId != null) {
       try {
         final contactRes =
             await _client.get('/api/v1/mobile/contacts/$partnerId');
@@ -197,12 +226,34 @@ class AuthRepository {
       'name': name ?? login.split('@').first,
       'db': session.db,
       'uid': session.uid.toString(),
+      'has_v_mobile': hasVMobile,
     };
     if (partnerId != null) metadata['partner_id'] = partnerId;
     if (companyName != null) metadata['company'] = companyName;
     if (function != null && function.isNotEmpty) metadata['role'] = function;
 
-    final localAvatar = await getLocalAvatar(session.uid.toString());
+    // Xác định phân loại Database & Version
+    final lowerDb = session.db.toLowerCase();
+    final lowerUrl = session.baseUrl.toLowerCase();
+    final is19 = lowerDb.contains('19') || lowerUrl.contains(':8079') || lowerUrl.contains('demo.vuahethong');
+    final isCustomer = lowerDb.contains('client') || lowerDb.contains('customer');
+    final dbTypeLabel = is19
+        ? '🚀 Odoo 19 (Prod/Demo)'
+        : (isCustomer ? '👥 Khách Hàng (Odoo 17)' : '🏢 Nội Bộ (Odoo 17)');
+
+    // In Terminal Log trực quan để Sếp theo dõi Database đang hoạt động
+    debugPrint('''
+╔══════════════════════════════════════════════════════════════════╗
+║ 🚀 [VCLOUD AUTH SUCCESS] ĐĂNG NHẬP THÀNH CÔNG                    ║
+╠══════════════════════════════════════════════════════════════════╣
+║ 👤 Tài khoản : $login (UID: ${session.uid})
+║ 🗄️ Database  : ${session.db} [$dbTypeLabel]
+║ 🏢 Công ty   : ${companyName ?? 'Mặc định'}
+║ 🌐 Server URL: ${session.baseUrl}
+║ 🔑 Auth Mode : ${session.scope != null && session.scope!.isNotEmpty ? session.scope : 'JWT/Session'}
+╚══════════════════════════════════════════════════════════════════╝''');
+
+    final localAvatar = await getLocalAvatar(session.uid.toString(), db: session.db);
 
     final isValidLocal = localAvatar != null &&
         localAvatar.trim().isNotEmpty &&
@@ -213,11 +264,20 @@ class AuthRepository {
             localAvatar.startsWith('https://') ||
             localAvatar.startsWith('/'));
 
+    // Ưu tiên:
+    // 1. Avatar local người dùng tự tải lên
+    // 2. avatar_url / avatar_128_url từ profile backend trả về (đối với DB có vmobile)
+    // 3. Fallback theo chuẩn Mobile API /api/v1/mobile/avatar/res.users/$uid
+    final serverAvatar = _stringOrNull(profile?['avatar_url'] ?? profile?['avatar_128_url'] ?? profile?['image_128_url']);
+
     var avatar = isValidLocal
         ? localAvatar
-        : '/api/v1/mobile/avatar/users/${session.uid}';
+        : (serverAvatar != null && serverAvatar.isNotEmpty
+            ? serverAvatar
+            : (hasVMobile ? '/api/v1/mobile/avatar/res.users/${session.uid}' : ''));
 
-    if (!avatar.startsWith('data:image') &&
+    if (avatar.isNotEmpty &&
+        !avatar.startsWith('data:image') &&
         !avatar.contains('access_token=') &&
         !avatar.contains('token=')) {
       final sep = avatar.contains('?') ? '&' : '?';

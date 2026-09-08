@@ -23,7 +23,7 @@ class BrandLogo extends StatelessWidget {
     this.height = 80,
     this.width,
     this.fit = BoxFit.contain,
-    this.semanticLabel = 'Vcloud',
+    this.semanticLabel = 'Vua Hệ Thống',
   });
 
   /// ★ SINGLE SOURCE OF TRUTH — only this constant references the logo asset.

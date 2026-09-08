@@ -2,6 +2,23 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.4+118] — 2026-09-08 (Multi-DB Auth & Zero-Touch Provisioning Notification)
+
+> [!IMPORTANT]
+> **Hiển thị toàn bộ Database trên Dropdown và Cảnh báo Trạng thái Module vmobile**:
+> - **Phạm vi**: `vclients` (`LoginScreen`, `DbInfo`), `v_mobile_17` (`auth.py`), `v_mobile_19` (`auth.py`)
+> - **Mục tiêu**: Hiển thị toàn bộ Database hợp lệ trên popup chọn tổ chức. Nếu DB chưa cài `vmobile`, người dùng vẫn đăng nhập bình thường và nhận thông báo cảnh báo rõ ràng `vmobile chưa được cài đặt`; DB đã cài `vmobile` đăng nhập mượt mà không hiển thị cảnh báo.
+
+### 🚀 [NEW FEATURES & IMPROVEMENTS]
+- `[NEW]` **Unrestricted DB Listing**: Master Directory (`lookup_db`) trả về đầy đủ tất cả database có tài khoản hợp lệ kèm metadata `has_v_mobile: bool` (thay vì ẩn các DB chưa cài module).
+- `[NEW]` **Non-blocking Auth for Legacy DBs**: Cập nhật endpoint `login` hỗ trợ đăng nhập bình thường vào các database Odoo chưa cài `vmobile` (trả access_token JWT hợp lệ, không crash `KeyError: mobile.api.refresh_token`).
+- `[IMPROVE]` **Contextual UI Badges & Notification**:
+  - Trên popup chọn DB: Gắn badge cảnh báo đỏ `Chưa cài vmobile` trực quan cho các database chưa sẵn sàng.
+  - Khi đăng nhập vào DB chưa cài: Đăng nhập bình thường, hiển thị banner nổi trên đỉnh `AppToast.warning` và thanh cảnh báo cố định trực quan trong màn hình Chat V2 (`ChatV2ListScreen`) báo hiệu *"Cơ sở dữ liệu chưa được cài đặt module vmobile"*.
+  - Khi đăng nhập vào DB đã cài: Đăng nhập bình thường, tuyệt đối không hiển thị cảnh báo lỗi.
+
+---
+
 ## [v2.9.3+117] — 2026-09-04 (Frontend Hardening & Analyze Fix)
 
 > [!IMPORTANT]

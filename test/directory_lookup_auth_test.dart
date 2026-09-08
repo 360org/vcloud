@@ -13,7 +13,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('1. Security: Master Directory Lookup (lookupDb)', () {
-    test('lookupDb chỉ gửi duy nhất login, TUYỆT ĐỐI KHÔNG có password trong request body', () async {
+    test('lookupDb gửi cả login và password lên Master để xác thực chống dò quét DB (Giải pháp 2)', () async {
       final requests = <http.Request>[];
       final client = OdooApiClient(
         baseUrl: 'https://vuahethong.net',
@@ -24,10 +24,11 @@ void main() {
           expect(request.method, 'POST');
 
           final body = jsonDecode(request.body) as Map<String, dynamic>;
-          // [SECURITY RULE]: Body CHỈ chứa 'login', KHÔNG có 'password'
+          // [GIẢI PHÁP 2]: Body chứa cả 'login' và 'password' để Master verify
           expect(body.containsKey('login'), isTrue);
           expect(body['login'], 'user@example.com');
-          expect(body.containsKey('password'), isFalse);
+          expect(body.containsKey('password'), isTrue);
+          expect(body['password'], 'secret_pwd');
 
           return http.Response.bytes(
             utf8.encode(jsonEncode({
@@ -46,7 +47,7 @@ void main() {
         }),
       );
 
-      final result = await client.lookupDb('user@example.com');
+      final result = await client.lookupDb('user@example.com', 'secret_pwd');
 
       expect(requests, hasLength(1));
       expect(result, hasLength(1));
@@ -63,7 +64,7 @@ void main() {
         }),
       );
 
-      final rawList = await client.lookupDb('nonexistent@example.com');
+      final rawList = await client.lookupDb('nonexistent@example.com', 'wrong_pwd');
       final dbs = rawList.map(DbInfo.fromJson).toList();
 
       expect(dbs, isEmpty);
@@ -97,7 +98,7 @@ void main() {
         }),
       );
 
-      final rawList = await client.lookupDb('alex@example.com');
+      final rawList = await client.lookupDb('alex@example.com', 'password123');
       final dbs = rawList.map(DbInfo.fromJson).toList();
 
       expect(dbs, hasLength(2));
@@ -116,34 +117,54 @@ void main() {
         sessionStore: _MemorySessionStore(),
         httpClient: MockClient((request) async {
           requests.add(request);
-          expect(request.url.toString(), 'https://client1.vuahethong.com/web/session/authenticate');
-          expect(request.method, 'POST');
 
-          final body = jsonDecode(request.body) as Map<String, dynamic>;
-          expect(body['jsonrpc'], '2.0');
+          if (request.url.path.contains('/web/session/authenticate')) {
+            expect(request.url.toString(), 'https://client1.vuahethong.com/web/session/authenticate');
+            expect(request.method, 'POST');
 
-          final params = body['params'] as Map<String, dynamic>;
-          expect(params['db'], 'client_db_1');
-          expect(params['login'], 'user@example.com');
-          expect(params['password'], 'secret_password_123');
+            final body = jsonDecode(request.body) as Map<String, dynamic>;
+            expect(body['jsonrpc'], '2.0');
 
-          return http.Response.bytes(
-            utf8.encode(jsonEncode({
-              'jsonrpc': '2.0',
-              'result': {
+            final params = body['params'] as Map<String, dynamic>;
+            expect(params['db'], 'client_db_1');
+            expect(params['login'], 'user@example.com');
+            expect(params['password'], 'secret_password_123');
+
+            return http.Response.bytes(
+              utf8.encode(jsonEncode({
+                'jsonrpc': '2.0',
+                'result': {
+                  'uid': 42,
+                  'partner_id': 99,
+                  'name': 'Nguyen Van A',
+                  'username': 'user@example.com',
+                  'db': 'client_db_1',
+                }
+              })),
+              200,
+              headers: {
+                'content-type': 'application/json; charset=utf-8',
+                'set-cookie': 'session_id=sess_abc123xyz; Path=/; HttpOnly',
+              },
+            );
+          }
+
+          if (request.url.path.contains('/api/v1/mobile/auth/login')) {
+            return http.Response.bytes(
+              utf8.encode(jsonEncode({
+                'access_token': 'jwt_access_token_123',
+                'refresh_token': 'jwt_refresh_token_123',
                 'uid': 42,
                 'partner_id': 99,
-                'name': 'Nguyen Van A',
-                'username': 'user@example.com',
                 'db': 'client_db_1',
-              }
-            })),
-            200,
-            headers: {
-              'content-type': 'application/json; charset=utf-8',
-              'set-cookie': 'session_id=sess_abc123xyz; Path=/; HttpOnly',
-            },
-          );
+                'login': 'user@example.com',
+              })),
+              200,
+              headers: {'content-type': 'application/json; charset=utf-8'},
+            );
+          }
+
+          return http.Response('{}', 200);
         }),
       );
 
@@ -160,11 +181,11 @@ void main() {
         password: 'secret_password_123',
       );
 
-      expect(requests, hasLength(1));
+      expect(requests, hasLength(2));
       expect(session.uid, 42);
       expect(session.partnerId, 99);
       expect(session.db, 'client_db_1');
-      expect(session.accessToken, 'sess_abc123xyz');
+      expect(session.accessToken, 'jwt_access_token_123');
       expect(session.baseUrl, 'https://client1.vuahethong.com');
     });
 
@@ -220,10 +241,10 @@ void main() {
         sessionStore: store,
         httpClient: MockClient((request) async {
           if (request.url.path.contains('/api/v1/auth/lookup-db')) {
-            // Verify: chỉ gửi login lên Master
+            // Verify: gửi login và password lên Master để verify
             final body = jsonDecode(request.body) as Map<String, dynamic>;
-            expect(body.containsKey('password'), isFalse,
-                reason: 'Password KHÔNG được gửi lên Master lookup-db endpoint');
+            expect(body['login'], 'single@example.com');
+            expect(body['password'], 'my_password');
 
             return http.Response.bytes(
               utf8.encode(jsonEncode({
@@ -272,8 +293,8 @@ void main() {
         }),
       );
 
-      // Bước 2: Lookup — chỉ gửi login
-      final rawDbs = await client.lookupDb('single@example.com');
+      // Bước 2: Lookup — gửi login và password
+      final rawDbs = await client.lookupDb('single@example.com', 'my_password');
       expect(rawDbs, hasLength(1));
 
       final db = DbInfo.fromJson(rawDbs.first);
@@ -310,7 +331,7 @@ void main() {
         }),
       );
 
-      final rawDbs = await client.lookupDb('ghost@example.com');
+      final rawDbs = await client.lookupDb('ghost@example.com', 'pwd');
       expect(rawDbs, isEmpty);
       expect(authenticateCalls, 0,
           reason: 'Không được gọi authenticate khi không tìm thấy DB');
@@ -334,7 +355,7 @@ void main() {
         }),
       );
 
-      final rawDbs = await client.lookupDb('multi@ex.com');
+      final rawDbs = await client.lookupDb('multi@ex.com', 'shared_pwd');
       final dbs = rawDbs.map(DbInfo.fromJson).toList();
 
       expect(dbs, hasLength(2));

@@ -139,7 +139,7 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
     final router = ref.watch(routerProvider);
     final themeMode = ref.watch(themeControllerProvider);
     return MaterialApp.router(
-      title: 'Vcloud',
+      title: 'Vua Hệ Thống',
       debugShowCheckedModeBanner: false,
       theme: buildLightTheme(),
       darkTheme: buildDarkTheme(),

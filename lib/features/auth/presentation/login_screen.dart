@@ -31,32 +31,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _emailFocus = FocusNode();
   final _passwordFocus = FocusNode();
 
-  // [P1] Quản lý state danh sách Database khi lookup trả về > 1 DB
-  List<DbInfo> _availableDbs = [];
-  DbInfo? _selectedDb;
-  String? _lastLookedUpEmail;
-
   @override
   void initState() {
     super.initState();
-    _email.addListener(_onEmailChanged);
+    _email.addListener(_onFieldChanged);
     _password.addListener(_onFieldChanged);
     _loadSavedEmail();
-  }
-
-  void _onEmailChanged() {
-    // Nếu user đổi email, reset danh sách DB đã lookup
-    if (_lastLookedUpEmail != null &&
-        _email.text.trim() != _lastLookedUpEmail) {
-      if (_availableDbs.isNotEmpty) {
-        setState(() {
-          _availableDbs = [];
-          _selectedDb = null;
-          _lastLookedUpEmail = null;
-        });
-      }
-    }
-    _onFieldChanged();
   }
 
   void _onFieldChanged() {
@@ -95,7 +75,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   void dispose() {
-    _email.removeListener(_onEmailChanged);
+    _email.removeListener(_onFieldChanged);
     _password.removeListener(_onFieldChanged);
     _email.dispose();
     _password.dispose();
@@ -105,7 +85,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   // ---------------------------------------------------------------------------
-  // [P1] Luồng đăng nhập 5 bước: Lookup -> Branch DB count -> Direct Auth
+  // [Giải pháp 2]: Xác thực Mật khẩu TRƯỚC rồi mới chọn Database
+  // 1. Gửi login + password lên Master Router
+  // 2. Master verify password qua các candidate DBs
+  // 3. Nếu 1 DB đúng -> Đăng nhập thẳng
+  // 4. Nếu > 1 DB đúng -> Hiện Dialog/Sheet chọn tổ chức
+  // 5. Nếu 0 DB đúng -> Báo lỗi "Tài khoản hoặc mật khẩu không chính xác" (chống dò quét DB)
   // ---------------------------------------------------------------------------
 
   Future<void> _submit() async {
@@ -127,52 +112,42 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final login = _email.text.trim();
     final password = _password.text;
 
-    // Nếu đã có > 1 DB và người dùng đã chọn DB từ Dropdown -> Thực hiện Bước 4
-    if (_availableDbs.length > 1 && _selectedDb != null) {
-      await _executeClientAuth(db: _selectedDb!, login: login, password: password);
-      return;
-    }
-
     setState(() => _submitting = true);
 
     try {
-      // -----------------------------------------------------------------------
-      // Bước 2: Tra cứu Routing (Lookup DB) - CHỈ GỬI login LÊN MASTER
-      // -----------------------------------------------------------------------
+      final preferredDb = await ref
+          .read(authControllerProvider.notifier)
+          .getLastSelectedDb();
+
+      debugPrint('🔐 [VCLOUD AUTH] Đang xác thực mật khẩu qua Master Router: $login (Preferred: $preferredDb)');
       final dbs = await ref
           .read(authControllerProvider.notifier)
-          .lookupDb(login);
+          .lookupDb(login, password, preferredDb: preferredDb);
+
+      debugPrint('📋 [VCLOUD AUTH RESULT] Mật khẩu đúng tại ${dbs.length} database:');
+      for (int i = 0; i < dbs.length; i++) {
+        debugPrint('   [$i] DB: ${dbs[i].databaseName} | URL: ${dbs[i].databaseUrl}');
+      }
 
       if (!mounted) return;
 
-      // -----------------------------------------------------------------------
-      // Bước 3a: 0 DB -> Báo lỗi "Tài khoản không tồn tại"
-      // -----------------------------------------------------------------------
+      // TH1: 0 DB khớp mật khẩu -> Báo lỗi chung (Không lộ thông tin tổ chức)
       if (dbs.isEmpty) {
         setState(() {
           _submitting = false;
-          _error = 'Tài khoản không tồn tại trên hệ thống.';
-          _availableDbs = [];
-          _selectedDb = null;
+          _error = 'Tài khoản hoặc mật khẩu không chính xác.';
         });
         AppToast.error(
           context,
           title: 'Đăng nhập thất bại',
-          message: 'Tài khoản không tồn tại trên hệ thống.',
+          message: 'Tài khoản hoặc mật khẩu không chính xác.',
         );
         return;
       }
 
-      // -----------------------------------------------------------------------
-      // Bước 3b: Đúng 1 DB -> Tự động xác thực thẳng tới Client DB URL
-      // -----------------------------------------------------------------------
+      // TH2: Đúng 1 DB -> Đăng nhập thẳng không cần hỏi
       if (dbs.length == 1) {
         final targetDb = dbs.first;
-        setState(() {
-          _availableDbs = dbs;
-          _selectedDb = targetDb;
-          _lastLookedUpEmail = login;
-        });
         await _executeClientAuth(
           db: targetDb,
           login: login,
@@ -181,25 +156,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         return;
       }
 
-      // -----------------------------------------------------------------------
-      // Bước 3c: > 1 DB (Trùng username) -> Render Dropdown để user chọn DB
-      // -----------------------------------------------------------------------
-      setState(() {
-        _submitting = false;
-        _availableDbs = dbs;
-        _selectedDb = dbs.first; // Mặc định chọn DB đầu tiên trong list
-        _lastLookedUpEmail = login;
-      });
-
-      AppToast.info(
-        context,
-        title: 'Chọn cơ sở dữ liệu',
-        message:
-            'Tài khoản thuộc nhiều hệ thống. Vui lòng chọn cơ sở dữ liệu và nhấn Đăng nhập.',
-      );
+      // TH3: Đúng trên nhiều DB -> Hiện Dialog cho user chọn tổ chức muốn vào
+      setState(() => _submitting = false);
+      final selected = await _showOrganizationPickerDialog(dbs);
+      if (selected != null && mounted) {
+        await _executeClientAuth(
+          db: selected,
+          login: login,
+          password: password,
+        );
+      }
     } catch (e, st) {
       if (!mounted) return;
-      debugPrint('🚨 [LoginScreen.lookupDb] Error: $e\n$st');
+      debugPrint('🚨 [LoginScreen.submit] Error: $e\n$st');
       final cleanMsg = _cleanErrorMessage(e);
       setState(() {
         _submitting = false;
@@ -207,10 +176,286 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       });
       AppToast.error(
         context,
-        title: 'Lỗi tra cứu tài khoản',
+        title: 'Đăng nhập thất bại',
         message: cleanMsg,
       );
     }
+  }
+
+  Future<DbInfo?> _showOrganizationPickerDialog(List<DbInfo> dbs) {
+    return showDialog<DbInfo>(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: const Color(0xFF0F172A).withValues(alpha: 0.65),
+      builder: (ctx) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          child: Center(
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 480),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF0F172A).withValues(alpha: 0.18),
+                    blurRadius: 36,
+                    offset: const Offset(0, 14),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Header sang trọng với Gradient Brand nhẹ
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(24, 22, 16, 18),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFF8FAFC),
+                        border: Border(
+                          bottom: BorderSide(color: Color(0xFFF1F5F9), width: 1.5),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF059669), Color(0xFF10B981)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(14),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF10B981).withValues(alpha: 0.25),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              LucideIcons.building2,
+                              color: Colors.white,
+                              size: 22,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Chọn tổ chức / cơ sở dữ liệu',
+                                  style: TextStyle(
+                                    fontSize: 16.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF0F172A),
+                                    letterSpacing: -0.2,
+                                  ),
+                                ),
+                                SizedBox(height: 3),
+                                Text(
+                                  'Tài khoản hợp lệ tại các đơn vị bên dưới:',
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => Navigator.of(ctx).pop(null),
+                            icon: const Icon(
+                              LucideIcons.x,
+                              size: 20,
+                              color: Color(0xFF94A3B8),
+                            ),
+                            splashRadius: 20,
+                            tooltip: 'Đóng',
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Danh sách Database Items dạng Card hiện đại
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxHeight: MediaQuery.of(context).size.height * 0.52,
+                        ),
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: dbs.length,
+                          separatorBuilder: (context, index) => const SizedBox(height: 10),
+                          itemBuilder: (context, index) {
+                            final item = dbs[index];
+                            final is19 = item.categoryLabel.contains('19');
+                            final isClient = item.categoryLabel.contains('Khách Hàng');
+                            final primaryColor = is19
+                                ? const Color(0xFF7C3AED)
+                                : (isClient
+                                    ? const Color(0xFF2563EB)
+                                    : const Color(0xFF059669));
+
+                            final lightBgColor = primaryColor.withValues(alpha: 0.08);
+
+                            return Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () => Navigator.of(ctx).pop(item),
+                                borderRadius: BorderRadius.circular(16),
+                                hoverColor: primaryColor.withValues(alpha: 0.05),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 14,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFAFAFA),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: const Color(0xFFE2E8F0),
+                                      width: 1.2,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 44,
+                                        height: 44,
+                                        decoration: BoxDecoration(
+                                          color: lightBgColor,
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: Icon(
+                                          is19 ? LucideIcons.server : LucideIcons.database,
+                                          color: primaryColor,
+                                          size: 22,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 14),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                Flexible(
+                                                  child: Text(
+                                                    item.databaseName,
+                                                    style: const TextStyle(
+                                                      fontSize: 15,
+                                                      fontWeight: FontWeight.w700,
+                                                      color: Color(0xFF0F172A),
+                                                      letterSpacing: -0.2,
+                                                    ),
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 2.5,
+                                                  ),
+                                                  decoration: BoxDecoration(
+                                                    color: primaryColor.withValues(alpha: 0.1),
+                                                    borderRadius: BorderRadius.circular(6),
+                                                    border: Border.all(
+                                                      color: primaryColor.withValues(alpha: 0.2),
+                                                      width: 0.8,
+                                                    ),
+                                                  ),
+                                                  child: Text(
+                                                    item.categoryLabel,
+                                                    style: TextStyle(
+                                                      fontSize: 10.5,
+                                                      fontWeight: FontWeight.w700,
+                                                      color: primaryColor,
+                                                    ),
+                                                  ),
+                                                ),
+                                                if (!item.hasVMobile) ...[
+                                                  const SizedBox(width: 6),
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(
+                                                      horizontal: 6,
+                                                      vertical: 2.5,
+                                                    ),
+                                                    decoration: BoxDecoration(
+                                                      color: const Color(0xFFEF4444).withValues(alpha: 0.1),
+                                                      borderRadius: BorderRadius.circular(6),
+                                                      border: Border.all(
+                                                        color: const Color(0xFFEF4444).withValues(alpha: 0.25),
+                                                        width: 0.8,
+                                                      ),
+                                                    ),
+                                                    child: const Text(
+                                                      'Chưa cài vmobile',
+                                                      style: TextStyle(
+                                                        fontSize: 10,
+                                                        fontWeight: FontWeight.w700,
+                                                        color: Color(0xFFDC2626),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              item.databaseUrl,
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                color: Color(0xFF64748B),
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Container(
+                                        width: 28,
+                                        height: 28,
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFF1F5F9),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: const Icon(
+                                          LucideIcons.arrowRight,
+                                          size: 15,
+                                          color: Color(0xFF64748B),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -223,6 +468,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     required String password,
   }) async {
     setState(() => _submitting = true);
+    debugPrint('''
+------------------------------------------------------------------
+👉 [VCLOUD AUTH INITIATED] BẮT ĐẦU XÁC THỰC
+👤 Login   : $login
+🗄️ Mục tiêu: ${db.databaseName}
+🌐 URL đích: ${db.databaseUrl}
+------------------------------------------------------------------''');
     try {
       await ref.read(authControllerProvider.notifier).authenticateOnClient(
             db: db,
@@ -232,13 +484,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
       if (!mounted) return;
 
-      // Pre-warm data
-      try {
-        await Future.wait([
-          ref.read(chatV2ChannelsProvider.notifier).refresh(),
-        ]).timeout(const Duration(milliseconds: 2500));
-      } catch (warmupErr) {
-        debugPrint('⚠️ [LoginScreen] Pre-warm data sync timed out: $warmupErr');
+      // Pre-warm data (chỉ thực hiện nếu database đã cài đặt vmobile)
+      if (db.hasVMobile) {
+        try {
+          await Future.wait([
+            ref.read(chatV2ChannelsProvider.notifier).refresh(),
+          ]).timeout(const Duration(milliseconds: 2500));
+        } catch (warmupErr) {
+          debugPrint('⚠️ [LoginScreen] Pre-warm data sync timed out: $warmupErr');
+        }
       }
 
       if (!mounted) return;
@@ -249,7 +503,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _showSuccessTransition = true;
       });
       await Future.delayed(const Duration(milliseconds: 300));
-      if (mounted) context.go('/chat');
+      if (mounted) {
+        context.go('/chat');
+
+        // Nếu database chưa được cài đặt module vmobile, hiển thị cảnh báo rõ ràng
+        if (!db.hasVMobile) {
+          Future.delayed(const Duration(milliseconds: 750), () {
+            AppToast.showGlobal(
+              type: AppToastType.warning,
+              title: 'Chưa cài đặt module vmobile',
+              message:
+                  'Cơ sở dữ liệu "${db.databaseName}" chưa cài module vmobile. Tất cả các tính năng không thể sử dụng được.',
+              duration: const Duration(seconds: 6),
+            );
+          });
+        }
+      }
     } catch (e, st) {
       if (!mounted) return;
       debugPrint('🚨 [LoginScreen._executeClientAuth] Error: $e\n$st');
@@ -274,6 +543,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         .replaceFirst('Failure(', '')
         .replaceFirst(')', '')
         .trim();
+    if (rawMsg.contains('does not exist') || rawMsg.contains('FATAL: database')) {
+      return 'Cơ sở dữ liệu không tồn tại hoặc đã bị xóa trên máy chủ.';
+    }
     if (rawMsg.isEmpty ||
         rawMsg == 'invalid_credentials' ||
         rawMsg.contains('invalid_credentials') ||
@@ -503,90 +775,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                     : null,
                               ),
 
-                              // -------------------------------------------------
-                              // [P1 / Bước 3c]: Dropdown chọn Database khi > 1 DB
-                              // -------------------------------------------------
-                              if (_availableDbs.length > 1) ...[
-                                const SizedBox(height: 16),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 14, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF0FDF4),
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(
-                                      color: const Color(0xFF86EFAC),
-                                      width: 1.2,
-                                    ),
-                                  ),
-                                  child: DropdownButtonHideUnderline(
-                                    child: DropdownButton<DbInfo>(
-                                      value: _selectedDb,
-                                      isExpanded: true,
-                                      icon: const Icon(
-                                        LucideIcons.chevronDown,
-                                        size: 20,
-                                        color: Color(0xFF10B981),
-                                      ),
-                                      dropdownColor: Colors.white,
-                                      borderRadius: BorderRadius.circular(16),
-                                      items: _availableDbs.map((db) {
-                                        return DropdownMenuItem<DbInfo>(
-                                          value: db,
-                                          child: Row(
-                                            children: [
-                                              const Icon(
-                                                LucideIcons.database,
-                                                size: 18,
-                                                color: Color(0xFF10B981),
-                                              ),
-                                              const SizedBox(width: 10),
-                                              Expanded(
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  mainAxisAlignment:
-                                                      MainAxisAlignment.center,
-                                                  children: [
-                                                    Text(
-                                                      db.databaseName,
-                                                      style: const TextStyle(
-                                                        fontWeight:
-                                                            FontWeight.w700,
-                                                        fontSize: 14,
-                                                        color: Color(0xFF0F172A),
-                                                      ),
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                    ),
-                                                    if (db.databaseUrl.isNotEmpty)
-                                                      Text(
-                                                        db.databaseUrl,
-                                                        style: const TextStyle(
-                                                          fontSize: 11,
-                                                          color: Color(0xFF64748B),
-                                                        ),
-                                                        overflow: TextOverflow
-                                                            .ellipsis,
-                                                      ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        );
-                                      }).toList(),
-                                      onChanged: (DbInfo? newDb) {
-                                        if (newDb != null) {
-                                          setState(() => _selectedDb = newDb);
-                                        }
-                                      },
-                                    ),
-                                  ),
-                                ).animate().fade(duration: 300.ms).slideY(begin: -0.1, end: 0),
-                              ],
-
-                              // Error Banner
                               if (_error != null) ...[
                                 const SizedBox(height: 16),
                                 Container(
@@ -669,22 +857,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                             color: Colors.white,
                                           ),
                                         )
-                                      : Row(
+                                      : const Row(
                                           mainAxisAlignment:
                                               MainAxisAlignment.center,
                                           children: [
                                             Text(
-                                              _availableDbs.length > 1
-                                                  ? 'Đăng nhập vào DB đã chọn'
-                                                  : 'Đăng nhập',
-                                              style: const TextStyle(
+                                              'Đăng nhập',
+                                              style: TextStyle(
                                                 fontSize: 16,
                                                 fontWeight: FontWeight.w800,
                                                 letterSpacing: 0.3,
                                               ),
                                             ),
-                                            const SizedBox(width: 8),
-                                            const Icon(LucideIcons.arrowRight,
+                                            SizedBox(width: 8),
+                                            Icon(LucideIcons.arrowRight,
                                                 size: 20),
                                           ],
                                         ),

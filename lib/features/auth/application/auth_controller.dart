@@ -47,9 +47,14 @@ class AuthController extends AsyncNotifier<AuthUser?> {
     }
   }
 
-  /// Bước 2: Tra cứu danh sách DB từ Master (chỉ gửi login).
-  Future<List<DbInfo>> lookupDb(String login) {
-    return _repo.lookupDb(login);
+  /// Bước 2: Xác thực và tra cứu danh sách DB từ Master Router (Giải pháp 2: gửi login + password + preferredDb).
+  Future<List<DbInfo>> lookupDb(String login, String password, {String? preferredDb}) {
+    return _repo.lookupDb(login, password, preferredDb: preferredDb);
+  }
+
+  /// Lấy database đã đăng nhập thành công gần nhất từ LocalStorage
+  Future<String?> getLastSelectedDb() {
+    return _repo.getLastSelectedDb();
   }
 
   /// Bước 4: Xác thực trực tiếp với Client DB (password gửi thẳng Client DB).
@@ -60,6 +65,9 @@ class AuthController extends AsyncNotifier<AuthUser?> {
   }) async {
     state = const AsyncLoading();
     try {
+      ChatV2ChannelLocalCache.clear();
+      ChatV2MessageLocalCache.clear();
+      TimesheetRepository.clearCache();
       final user = await _repo.authenticateOnClient(
         db: db,
         login: login,
@@ -76,6 +84,9 @@ class AuthController extends AsyncNotifier<AuthUser?> {
   Future<void> signIn(String email, String password, {int? tenantId}) async {
     state = const AsyncLoading();
     try {
+      ChatV2ChannelLocalCache.clear();
+      ChatV2MessageLocalCache.clear();
+      TimesheetRepository.clearCache();
       final user = await _repo.signIn(
         email: email,
         password: password,
@@ -127,8 +138,9 @@ class AuthController extends AsyncNotifier<AuthUser?> {
 
     final dataUri = 'data:image/png;base64,$base64Image';
     final current = state.value;
+    final currentDb = current?.userMetadata['db']?.toString();
     if (current != null) {
-      await _repo.saveLocalAvatar(current.id, dataUri);
+      await _repo.saveLocalAvatar(current.id, dataUri, db: currentDb);
       final updatedMetadata = <String, dynamic>{
         ...current.userMetadata,
         'avatar_url': dataUri,
@@ -153,7 +165,7 @@ class AuthController extends AsyncNotifier<AuthUser?> {
         final timestamp = DateTime.now().millisecondsSinceEpoch;
         final sep = newUrl.contains('?') ? '&' : '?';
         final cacheBustedUrl = '$newUrl${sep}t=$timestamp';
-        await _repo.saveLocalAvatar(current.id, cacheBustedUrl);
+        await _repo.saveLocalAvatar(current.id, cacheBustedUrl, db: currentDb);
         final updatedMetadata = <String, dynamic>{
           ...current.userMetadata,
           'avatar_url': cacheBustedUrl,
