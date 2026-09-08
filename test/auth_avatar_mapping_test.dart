@@ -28,7 +28,7 @@ void main() {
 
     expect(
       user.userMetadata['avatar_url'],
-      '/api/v1/mobile/avatar/users/2?access_token=token',
+      'http://localhost:8069/web/image/res.partner/3/avatar_128/128x128?access_token=abc',
     );
     expect(client.getPaths, isNot(contains('/api/v1/res.partner/3')));
   });
