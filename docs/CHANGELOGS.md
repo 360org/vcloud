@@ -2,6 +2,19 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.4+120] — 2026-09-08 (Parallel Multi-Domain Production & Demo Fallback)
+
+> [!IMPORTANT]
+> **Hỗ trợ đồng thời Production vuahethong.net & Demo demo.vuahethong.com khi Master Lookup chưa có**:
+> - **Phạm vi**: `vclients` (`OdooApiClient.lookupDb`, `OdooApiClient.authenticateOnClient`)
+> - **Mục tiêu**: Khi chạy với backend production hoặc demo, nếu endpoint `lookup-db` chưa triển khai (405), app tự động kiểm tra song song cả hai domain chính thức và demo, cho phép người dùng đăng nhập tài khoản ở cả 2 nơi hoặc chọn tổ chức nếu tài khoản tồn tại ở cả hai.
+
+### 🚀 [NEW FEATURES & IMPROVEMENTS]
+- `[NEW]` **Dual-Domain Fallback**: Khi Master trả về 405/404, client tự động quét tài khoản trên cả `https://vuahethong.net` và `https://demo.vuahethong.com`.
+- `[FIX]` **Auto-detect Demo DB**: Tự động gán `effectiveDb = 'demo'` khi authenticate trực tiếp tới `https://demo.vuahethong.com`.
+
+---
+
 ## [v2.9.4+119] — 2026-09-08 (Production Auth Fallback & Multi-DB Hardening)
 
 > [!IMPORTANT]
