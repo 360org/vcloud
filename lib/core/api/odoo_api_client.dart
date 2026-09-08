@@ -422,6 +422,47 @@ class OdooApiClient {
     ).timeout(const Duration(seconds: 10));
 
     if (response.statusCode != 200) {
+      // ponytail: Fallback khi Master Router chạy bản cũ chưa hỗ trợ endpoint lookup-db (404/405/500).
+      // Thử đăng nhập trực tiếp qua Master auth để lấy danh sách DB / Session cho production.
+      if (response.statusCode == 404 || response.statusCode == 405) {
+        debugPrint('⚠️ [lookupDb] Master ($masterUrl) trả về ${response.statusCode}, fallback sang login trực tiếp.');
+        try {
+          final directSession = await _attemptLoginAt(
+            targetBaseUrl: masterUrl,
+            login: login.trim(),
+            password: password,
+            targetDb: preferredDb ?? '',
+            timeout: const Duration(seconds: 10),
+          );
+          return [
+            {
+              'login': login.trim(),
+              'database_name': directSession.db,
+              'database_url': masterUrl,
+              'project_id': 1,
+              'has_v_mobile': true,
+              'category_label': 'Chính thức',
+            }
+          ];
+        } catch (loginErr) {
+          debugPrint('🚨 [lookupDb fallback] login error: $loginErr');
+          if (loginErr is MultipleTenantsFailure) {
+            return loginErr.tenants.map((t) => {
+              'login': login.trim(),
+              'database_name': t.db ?? t.name,
+              'database_url': t.baseUrl ?? masterUrl,
+              'project_id': t.tenantId,
+              'has_v_mobile': true,
+              'category_label': 'Chính thức',
+            }).toList();
+          }
+          if (loginErr.toString().contains('invalid_credentials') ||
+              loginErr.toString().contains('không chính xác')) {
+            return [];
+          }
+          rethrow;
+        }
+      }
       throw Failure('Không thể xác thực thông tin hệ thống (${response.statusCode})');
     }
 
@@ -455,11 +496,14 @@ class OdooApiClient {
     Duration timeout = const Duration(seconds: 15),
   }) async {
     final cleanBaseUrl = targetBaseUrl.replaceFirst(RegExp(r'/$'), '');
+    final effectiveDb = (dbName.isEmpty && cleanBaseUrl == 'https://vuahethong.net')
+        ? 'vuahethong'
+        : dbName;
     final session = await _loginWithOdooSessionAndJwtAt(
       targetBaseUrl: cleanBaseUrl,
       login: login.trim(),
       password: password,
-      dbName: dbName,
+      dbName: effectiveDb,
       timeout: timeout,
     );
 

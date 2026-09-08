@@ -2,6 +2,19 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.4+119] — 2026-09-08 (Production Auth Fallback & Multi-DB Hardening)
+
+> [!IMPORTANT]
+> **Khắc phục lỗi Đăng nhập trên Production Backend (vuahethong.net)**:
+> - **Phạm vi**: `vclients` (`OdooApiClient.lookupDb`, `OdooApiClient.authenticateOnClient`)
+> - **Mục tiêu**: Hỗ trợ fallback tự động sang login trực tiếp khi Master Router trả về 404/405 (trường hợp production chưa triển khai endpoint `lookup-db`), đảm bảo người dùng đăng nhập tài khoản chính thức `vuahethong.net` mượt mà 100%.
+
+### 🚀 [NEW FEATURES & IMPROVEMENTS]
+- `[FIX]` **Production Master Lookup Fallback**: Khi kết nối đến production `vuahethong.net` mà endpoint `/api/v1/auth/lookup-db` chưa khả dụng (405 Method Not Allowed / 404 Not Found), client tự động fallback sang `_attemptLoginAt` trực tiếp với `targetDb: vuahethong` để lấy session và trả về tổ chức chính thức.
+- `[FIX]` **Direct Production Client Auth**: Tự động gán default db `vuahethong` khi authenticate trực tiếp tới `https://vuahethong.net` nếu tên database để trống.
+
+---
+
 ## [v2.9.4+118] — 2026-09-08 (Multi-DB Auth & Zero-Touch Provisioning Notification)
 
 > [!IMPORTANT]
