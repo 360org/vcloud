@@ -911,6 +911,23 @@ class ChatV2MessageItem extends StatelessWidget {
             }
           } catch (e) {
             debugPrint('[ChatV2] Lỗi fetchBytes $downloadUrl: $e');
+            // Fallback: Thử tải qua MobileAttachmentRepository (hỗ trợ fallback /web/image và /web/content)
+            int? parsedId;
+            final match = RegExp(r'/attachments/(\d+)').firstMatch(downloadUrl);
+            if (match != null) {
+              parsedId = int.tryParse(match.group(1)!);
+            }
+            if (parsedId != null) {
+              try {
+                final fallbackBytes = await MobileAttachmentRepository().fetchBytes(parsedId);
+                if (fallbackBytes.isNotEmpty) {
+                  await saveBytesToFile(fallbackBytes, cleanName);
+                  return;
+                }
+              } catch (err) {
+                debugPrint('[ChatV2] Lỗi fallback MobileAttachmentRepository: $err');
+              }
+            }
           }
           final full = odooApiClient.authenticatedUrl(downloadUrl);
           openDownloadUrl(full);
