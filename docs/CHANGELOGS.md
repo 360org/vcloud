@@ -2,6 +2,25 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.5+123] — 2026-09-09 (Attachment Fallback, Auth Normalization & ReDoS Security Fixes)
+
+> [!IMPORTANT]
+> **Vá Lỗi Tải Attachment, Chuẩn Hóa Fallback Đăng Nhập & Gia Cố Regex An Ninh**:
+> - **Phạm vi**: `vclients` (`chat_v2_message_item.dart`, `odoo_api_client.dart`, `chat_bubbles.dart`, `chat_v2_info_sheet.dart`, `profile_edit_dialog.dart`)
+> - **Mục tiêu**:
+>   1. Bổ sung fallback tự động sang `MobileAttachmentRepository().fetchBytes(id)` khi tải document attachment trực tiếp gặp lỗi HTTP 404/mạng.
+>   2. Chuẩn hóa fallback cơ sở dữ liệu trên `vuahethong.net` (`preferredDb: 'vuahethong'`), phân định rõ ràng tài khoản demo/morpheus và tài khoản nội bộ công ty.
+>   3. Triệt tiêu 3 điểm ReDoS regex trong URL parser và file card extractor bằng regex linear backtracking và giới hạn độ dài ký tự input (<2000 chars).
+>   4. Bổ sung bộ kiểm thử `profile_edit_test.dart` (5/5 PASS) và `directory_lookup_auth_test.dart` (8/8 PASS).
+
+### 🚀 [NEW FEATURES & BUG FIXES]
+- `[FIX]` **Chat Attachment Download Fallback (`chat_v2_message_item.dart`)**: Fallback gọi `MobileAttachmentRepository().fetchBytes()` trước khi mở browser ngoài khi direct stream thất bại.
+- `[FIX]` **Auth Fallback Normalization (`odoo_api_client.dart`)**: Khắc phục lỗi fallback nhầm `preferredDb = 'demo'` sang `vuahethong.net`.
+- `[SECURITY]` **ReDoS Elimination**: Gia cố an toàn regex trong `chat_bubbles.dart`, `chat_v2_message_item.dart`, `chat_v2_info_sheet.dart`.
+- `[TEST]` **Widget & Unit Tests**: Đạt 100% test pass trên toàn bộ test offline.
+
+---
+
 ## [v2.9.4+122] — 2026-09-09 (Smart Login Multi-Database & Fallback Manual Mode)
 
 > [!IMPORTANT]
