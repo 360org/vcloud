@@ -406,6 +406,8 @@ class ChatV2MessagesNotifier
   Future<void> sendMessage(
     String text, {
     List<int>? attachmentIds,
+    List<int>? partnerIds,
+    List<Map<String, dynamic>>? mentionedPartners,
     String? parentId,
     String? parentBody,
     String? parentAuthorName,
@@ -439,6 +441,7 @@ class ChatV2MessagesNotifier
       parentId: parentId,
       parentBody: parentBody,
       parentAuthorName: parentAuthorName,
+      partnerIds: partnerIds ?? const [],
     );
 
     if (parentId != null) {
@@ -459,6 +462,8 @@ class ChatV2MessagesNotifier
         channelId,
         trimmed,
         attachmentIds: attachmentIds,
+        partnerIds: partnerIds,
+        mentionedPartners: mentionedPartners,
         currentPartnerId: partnerId,
         currentUserId: userId,
         authorName: userName,

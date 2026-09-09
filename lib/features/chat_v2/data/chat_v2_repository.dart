@@ -368,6 +368,8 @@ class ChatV2Repository {
     String channelId,
     String body, {
     List<int>? attachmentIds,
+    List<int>? partnerIds,
+    List<Map<String, dynamic>>? mentionedPartners,
     String? currentPartnerId,
     String? currentUserId,
     String authorName = 'Tôi',
@@ -398,6 +400,12 @@ class ChatV2Repository {
     };
     if (attachmentIds != null && attachmentIds.isNotEmpty) {
       payload['attachment_ids'] = attachmentIds;
+    }
+    if (partnerIds != null && partnerIds.isNotEmpty) {
+      payload['partner_ids'] = partnerIds;
+    }
+    if (mentionedPartners != null && mentionedPartners.isNotEmpty) {
+      payload['mentioned_partners'] = mentionedPartners;
     }
     if (parentId != null && parentId.isNotEmpty) {
       payload['parent_id'] = int.tryParse(parentId) ?? parentId;

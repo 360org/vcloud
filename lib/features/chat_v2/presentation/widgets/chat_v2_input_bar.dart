@@ -13,7 +13,27 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
+import '../../data/models/chat_v2_channel.dart';
 import 'chat_v2_create_poll_sheet.dart';
+
+String _removeVietnameseDiacritics(String str) {
+  var result = str;
+  result = result.replaceAll(RegExp(r'[àáạảãâầấậẩẫăằắặẳẵ]'), 'a');
+  result = result.replaceAll(RegExp(r'[ÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴ]'), 'A');
+  result = result.replaceAll(RegExp(r'[èéẹẻẽêềếệểễ]'), 'e');
+  result = result.replaceAll(RegExp(r'[ÈÉẸẺẼÊỀẾỆỂỄ]'), 'E');
+  result = result.replaceAll(RegExp(r'[ìíịỉĩ]'), 'i');
+  result = result.replaceAll(RegExp(r'[ÌÍỊỈĨ]'), 'I');
+  result = result.replaceAll(RegExp(r'[òóọỏõôồốộổỗơờớợởỡ]'), 'o');
+  result = result.replaceAll(RegExp(r'[ÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠ]'), 'O');
+  result = result.replaceAll(RegExp(r'[ùúụủũưừứựửữ]'), 'u');
+  result = result.replaceAll(RegExp(r'[ÙÚỤỦŨƯỪỨỰỬỮ]'), 'U');
+  result = result.replaceAll(RegExp(r'[ỳýỵỷỹ]'), 'y');
+  result = result.replaceAll(RegExp(r'[ỲÝỴỶỸ]'), 'Y');
+  result = result.replaceAll(RegExp(r'[đ]'), 'd');
+  result = result.replaceAll(RegExp(r'[Đ]'), 'D');
+  return result;
+}
 
 class ChatV2InputBar extends StatefulWidget {
   const ChatV2InputBar({
@@ -24,14 +44,20 @@ class ChatV2InputBar extends StatefulWidget {
     this.onTyping,
     this.onCreatePoll,
     this.channelId,
+    this.channelMembers = const [],
     this.isSending = false,
     this.controller,
     this.focusNode,
   });
 
   final String? channelId;
+  final List<ChatV2Member> channelMembers;
   final VoidCallback? onCreatePoll;
-  final Future<void> Function(String text) onSend;
+  final Future<void> Function(
+    String text, {
+    List<int>? partnerIds,
+    List<Map<String, dynamic>>? mentionedPartners,
+  }) onSend;
   final Future<void> Function({
     required Uint8List bytes,
     required String filename,
@@ -68,6 +94,11 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
   Timer? _typingDebounce;
   bool _isTyping = false;
 
+  // Tracked mentions
+  final Map<String, ChatV2Member> _trackedMentions = {};
+  List<ChatV2Member> _mentionSuggestions = [];
+  int _mentionQueryStartIndex = -1;
+
   // Voice recording state
   final AudioRecorder _audioRecorder = AudioRecorder();
   bool _isRecording = false;
@@ -92,7 +123,8 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
   }
 
   void _onTextChanged() {
-    final hasContent = _controller.text.trim().isNotEmpty;
+    final rawText = _controller.text;
+    final hasContent = rawText.trim().isNotEmpty;
     if (_hasText != hasContent) {
       setState(() => _hasText = hasContent);
     }
@@ -107,6 +139,86 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
         widget.onTyping!(false);
       });
     }
+
+    _checkMentionTrigger(rawText);
+  }
+
+  void _checkMentionTrigger(String text) {
+    final cursor = _controller.selection.baseOffset;
+    if (cursor < 0 || cursor > text.length || widget.channelMembers.isEmpty) {
+      if (_mentionSuggestions.isNotEmpty) {
+        setState(() {
+          _mentionSuggestions = [];
+          _mentionQueryStartIndex = -1;
+        });
+      }
+      return;
+    }
+
+    final textBeforeCursor = text.substring(0, cursor);
+    final lastAtIndex = textBeforeCursor.lastIndexOf('@');
+
+    if (lastAtIndex != -1) {
+      final isStart = lastAtIndex == 0 ||
+          textBeforeCursor[lastAtIndex - 1] == ' ' ||
+          textBeforeCursor[lastAtIndex - 1] == '\n';
+      final query = textBeforeCursor.substring(lastAtIndex + 1);
+
+      if (isStart && !query.contains('\n') && query.length <= 30) {
+        final qLower = query.toLowerCase().trim();
+        final qNormalized = _removeVietnameseDiacritics(qLower);
+        final matches = widget.channelMembers.where((m) {
+          if (m.isMe) return false;
+          if (qLower.isEmpty) return true;
+          final nLower = m.name.toLowerCase();
+          final nNormalized = _removeVietnameseDiacritics(nLower);
+          final eLower = (m.email ?? '').toLowerCase();
+          return nLower.contains(qLower) ||
+              nNormalized.contains(qNormalized) ||
+              eLower.contains(qLower);
+        }).toList();
+
+        if (matches.isNotEmpty) {
+          setState(() {
+            _mentionSuggestions = matches;
+            _mentionQueryStartIndex = lastAtIndex;
+          });
+          return;
+        }
+      }
+    }
+
+    if (_mentionSuggestions.isNotEmpty) {
+      setState(() {
+        _mentionSuggestions = [];
+        _mentionQueryStartIndex = -1;
+      });
+    }
+  }
+
+  void _selectMention(ChatV2Member member) {
+    if (_mentionQueryStartIndex < 0) return;
+    final text = _controller.text;
+    final cursor = _controller.selection.baseOffset;
+    final prefix = text.substring(0, _mentionQueryStartIndex);
+    final suffix = cursor >= _mentionQueryStartIndex && cursor <= text.length
+        ? text.substring(cursor)
+        : (text.length > _mentionQueryStartIndex ? text.substring(_mentionQueryStartIndex + 1) : '');
+
+    final insertText = '@${member.name} ';
+    final newText = '$prefix$insertText$suffix';
+    _trackedMentions[member.name] = member;
+
+    _controller.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: prefix.length + insertText.length),
+    );
+
+    setState(() {
+      _mentionSuggestions = [];
+      _mentionQueryStartIndex = -1;
+    });
+    _focusNode.requestFocus();
   }
 
   @override
@@ -352,9 +464,37 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
     // Nếu chỉ có văn bản
     if (text.isEmpty) return;
 
+    final validPartnerIds = <int>[];
+    final validMentionedPartners = <Map<String, dynamic>>[];
+
+    for (final entry in _trackedMentions.entries) {
+      final name = entry.key;
+      final member = entry.value;
+      if (text.contains('@$name')) {
+        final pid = int.tryParse(member.id);
+        if (pid != null && !validPartnerIds.contains(pid)) {
+          validPartnerIds.add(pid);
+          validMentionedPartners.add({
+            'id': pid,
+            'name': member.name,
+          });
+        }
+      }
+    }
+
+    _trackedMentions.clear();
     _controller.clear();
-    setState(() => _hasText = false);
-    await widget.onSend(text);
+    setState(() {
+      _hasText = false;
+      _mentionSuggestions = [];
+      _mentionQueryStartIndex = -1;
+    });
+
+    await widget.onSend(
+      text,
+      partnerIds: validPartnerIds.isNotEmpty ? validPartnerIds : null,
+      mentionedPartners: validMentionedPartners.isNotEmpty ? validMentionedPartners : null,
+    );
   }
 
   static const int maxDocumentSizeBytes = 25 * 1024 * 1024; // 25 MB
@@ -910,6 +1050,137 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
     );
   }
 
+  Widget _buildMentionSuggestionsBox(BuildContext context, bool isDark) {
+    return Container(
+      margin: const EdgeInsets.only(left: 4, right: 4, bottom: 8),
+      constraints: const BoxConstraints(maxHeight: 200),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? Colors.white12 : const Color(0xFFE2E8F0),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: ListView.separated(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          shrinkWrap: true,
+          itemCount: _mentionSuggestions.length,
+          separatorBuilder: (ctx, i) => Divider(
+            height: 1,
+            thickness: 0.5,
+            color: isDark ? Colors.white10 : const Color(0xFFF1F5F9),
+          ),
+          itemBuilder: (ctx, index) {
+            final member = _mentionSuggestions[index];
+            final initial = member.name.trim().isNotEmpty
+                ? member.name.trim()[0].toUpperCase()
+                : '?';
+            final avatarUrl = member.avatarUrl;
+            return InkWell(
+              onTap: () => _selectMention(member),
+              child: Padding(
+                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                 child: Row(
+                   children: [
+                     Container(
+                       width: 34,
+                       height: 34,
+                       decoration: BoxDecoration(
+                         shape: BoxShape.circle,
+                         color: const Color(0xFF00C83A).withValues(alpha: 0.15),
+                       ),
+                       clipBehavior: Clip.antiAlias,
+                       alignment: Alignment.center,
+                       child: avatarUrl != null && avatarUrl.isNotEmpty
+                           ? Image.network(
+                               avatarUrl,
+                               width: 34,
+                               height: 34,
+                               fit: BoxFit.cover,
+                               errorBuilder: (context, error, stackTrace) => Text(
+                                 initial,
+                                 style: const TextStyle(
+                                   fontSize: 14,
+                                   fontWeight: FontWeight.w700,
+                                   color: Color(0xFF00C83A),
+                                 ),
+                               ),
+                             )
+                           : Text(
+                               initial,
+                               style: const TextStyle(
+                                 fontSize: 14,
+                                 fontWeight: FontWeight.w700,
+                                 color: Color(0xFF00C83A),
+                               ),
+                             ),
+                     ),
+                     const SizedBox(width: 10),
+                     Expanded(
+                       child: Column(
+                         crossAxisAlignment: CrossAxisAlignment.start,
+                         mainAxisSize: MainAxisSize.min,
+                         children: [
+                           Text(
+                             member.name,
+                             style: TextStyle(
+                               fontSize: 14,
+                               fontWeight: FontWeight.w600,
+                               color: isDark ? Colors.white : const Color(0xFF0F172A),
+                             ),
+                             maxLines: 1,
+                             overflow: TextOverflow.ellipsis,
+                           ),
+                           if (member.email != null && member.email!.isNotEmpty) ...[
+                             const SizedBox(height: 1),
+                             Text(
+                               member.email!,
+                               style: TextStyle(
+                                 fontSize: 12,
+                                 color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                               ),
+                               maxLines: 1,
+                               overflow: TextOverflow.ellipsis,
+                             ),
+                           ],
+                         ],
+                       ),
+                     ),
+                     Container(
+                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                       decoration: BoxDecoration(
+                         color: const Color(0xFF00C83A).withValues(alpha: 0.1),
+                         borderRadius: BorderRadius.circular(10),
+                       ),
+                       child: const Text(
+                         '@tag',
+                         style: TextStyle(
+                           fontSize: 11,
+                           fontWeight: FontWeight.w600,
+                           color: Color(0xFF00C83A),
+                         ),
+                       ),
+                     ),
+                   ],
+                 ),
+               ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -936,6 +1207,9 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Danh sách gợi ý thành viên khi gõ @ Mention
+                  if (_mentionSuggestions.isNotEmpty)
+                    _buildMentionSuggestionsBox(context, isDark),
                   // Preview tệp/ảnh trước khi gửi nếu có tệp được chọn
                   if (_selectedBytes != null) ...[
                     Container(

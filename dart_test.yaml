@@ -1,0 +1,3 @@
+tags:
+  live-server:
+    description: "Tests that require a running live Odoo server at localhost or remote IP"

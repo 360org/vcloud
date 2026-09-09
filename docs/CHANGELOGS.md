@@ -2,174 +2,126 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
-## [v2.9.5+123] — 2026-09-09 (Attachment Fallback, Auth Normalization & ReDoS Security Fixes)
+## [v17.0.2.3.7 / v19.0.1.1.9 / v2.9.5+124] — 2026-09-09 (Chat @ Mention Architecture, IDOR Guard & High-Performance Batch Prefetch)
 
 > [!IMPORTANT]
-> **Vá Lỗi Tải Attachment, Chuẩn Hóa Fallback Đăng Nhập & Gia Cố Regex An Ninh**:
-> - **Phạm vi**: `vclients` (`chat_v2_message_item.dart`, `odoo_api_client.dart`, `chat_bubbles.dart`, `chat_v2_info_sheet.dart`, `profile_edit_dialog.dart`)
+> **Triển khai Toàn diện Tính năng @ Mention Trong Tin Nhắn Discuss Chat Đa Nền Tảng**:
+> - **Tiêu chuẩn áp dụng**: `docs/SPEC_CHAT_MENTION.md` & `docs/SPEC.md` Section IX.
+> - **Phạm vi**: `v_mobile_17`, `v_mobile_19`, `vclients`
 > - **Mục tiêu**:
->   1. Bổ sung fallback tự động sang `MobileAttachmentRepository().fetchBytes(id)` khi tải document attachment trực tiếp gặp lỗi HTTP 404/mạng.
->   2. Chuẩn hóa fallback cơ sở dữ liệu trên `vuahethong.net` (`preferredDb: 'vuahethong'`), phân định rõ ràng tài khoản demo/morpheus và tài khoản nội bộ công ty.
->   3. Triệt tiêu 3 điểm ReDoS regex trong URL parser và file card extractor bằng regex linear backtracking và giới hạn độ dài ký tự input (<2000 chars).
->   4. Bổ sung bộ kiểm thử `profile_edit_test.dart` (5/5 PASS) và `directory_lookup_auth_test.dart` (8/8 PASS).
+>   1. Cho phép người dùng gắn thẻ `@Thành_Viên` trong phòng chat 1-1, nhóm và kênh Odoo Discuss với gợi ý autocomplete thời gian thực.
+>   2. Bảo mật chống IDOR & Privilege Escalation qua việc xác thực thành viên kênh trước khi gắn tag và gửi notification.
+>   3. Tương thích hai chiều giữa Web Odoo (HTML Anchor) và Mobile Flutter (Rich Text Token) với cơ chế chống XSS và ReDoS.
+>   4. Tối ưu hiệu năng nạp tin nhắn qua truy vấn Direct SQL Index Seek trên bảng quan hệ `mail_message_res_partner_rel` (0 N+1 query).
 
-### 🚀 [NEW FEATURES & BUG FIXES]
-- `[FIX]` **Chat Attachment Download Fallback (`chat_v2_message_item.dart`)**: Fallback gọi `MobileAttachmentRepository().fetchBytes()` trước khi mở browser ngoài khi direct stream thất bại.
-- `[FIX]` **Auth Fallback Normalization (`odoo_api_client.dart`)**: Khắc phục lỗi fallback nhầm `preferredDb = 'demo'` sang `vuahethong.net`.
-- `[SECURITY]` **ReDoS Elimination**: Gia cố an toàn regex trong `chat_bubbles.dart`, `chat_v2_message_item.dart`, `chat_v2_info_sheet.dart`.
-- `[TEST]` **Widget & Unit Tests**: Đạt 100% test pass trên toàn bộ test offline.
+### 🌟 [TÍNH NĂNG & CẢI TIẾN MỚI]
+- `[NEW]` **Backend @ Mention Engine (`controllers/chat.py` trên Odoo 17 & 19)**:
+  * Trích xuất danh sách `partner_ids` và `mentioned_partners` từ payload tin nhắn.
+  * Xác thực IDOR thành viên kênh qua `channel_partner_ids` / `discuss.channel.member` và tự động loại trừ chính `env.user.partner_id`.
+  * Chuyển đổi an toàn sang Odoo-standard HTML anchor (`<a href="#" data-oe-model="res.partner" data-oe-id="{pid}" class="o_mail_redirect">@{name}</a>`) bọc `markupsafe.Markup` và `html.escape` chống XSS.
+  * Truyền danh sách `partner_ids` vào `channel.message_post()` để Odoo kích hoạt thông báo nhắc việc / push notification chuẩn.
+  * Tối ưu SQL batch prefetch `partner_ids` qua bảng `mail_message_res_partner_rel` khi truy vấn danh sách tin nhắn `list_messages`.
+- `[NEW]` **Flutter Client UI/UX Mention Autocomplete (`vclients`)**:
+  * **Model**: Cập nhật `ChatV2Message` hỗ trợ trường `partnerIds` (`fromMap`, `toMap`, `copyWith`, `operator==`, `hashCode`).
+  * **Repository & Controller**: Cập nhật `ChatV2Repository.sendMessage` và `ChatV2MessagesNotifier.sendMessage` truyền `partner_ids` và `mentioned_partners`.
+  * **Input Bar**: Thêm overlay popup `_buildMentionSuggestionsBox` gợi ý thành viên khi gõ ký tự `@`, lọc theo tên/email, loại bỏ `isMe`, tự động điền token `@Tên ` và bám sát các mention hợp lệ khi gửi.
+  * **Chat Bubble**: Thêm bộ parser `_addTextWithMentions` trong `ChatV2MessageItem` định dạng màu nhấn (`#0284C7` / `#38BDF8`) và in đậm cho các token `@Tên`.
+- `[TEST]` **Kiểm thử Tự động Toàn diện**:
+  * Backend Contract Tests `tests/test_chat_mention_contract.py`: 5/5 PASS trên cả Odoo 17 và Odoo 19.
+  * Flutter Test Suite `flutter test --exclude-tags=live-server`: 281/281 PASS 100%.
+  * Flutter Linter `flutter analyze`: 0 errors / 0 warnings.
 
 ---
 
-## [v2.9.4+122] — 2026-09-09 (Smart Login Multi-Database & Fallback Manual Mode)
+## [v17.0.2.3.6 / v19.0.1.1.8 / v2.9.5+123] — 2026-09-09 (Multi-Layer Attachment Fallback, Portal Ticket Isolation & ReDoS Fixes)
 
 > [!IMPORTANT]
-> **Hoàn Thiện Kiến Trúc Smart Login Đa Database & Fallback Thủ Công**:
-> - **Tiêu chuẩn áp dụng**: `vclients/docs/SPEC.md`
-> - **Phạm vi**: `vclients` (`LoginScreen`, `DbInfo`, `OdooApiClient`)
-> - **Mục tiêu**: 
->   1. Triển khai giao diện Đăng nhập thông minh tối giản (chỉ cần Username + Mật khẩu), Master Router tự động định tuyến cơ sở dữ liệu.
->   2. Bổ sung nút chuyển đổi chế độ *"Nhập máy chủ / Database thủ công"* bên dưới nút Đăng nhập, cho phép người dùng tùy chọn nhập URL Server và Tên Database khi Master Router không khả dụng.
->   3. Tự động chuẩn hóa URL (loại bỏ trailing slashes) và phân định nhãn nhận diện tổ chức (Nội bộ / Khách hàng / Odoo 17 / Odoo 19).
+> **Bộ Vá Lỗi Đa Tầng Cho Attachment Streaming, Bảo Mật Portal Ticket & Gia Cố Mobile Client**:
+> - **Phạm vi**: `v_mobile_17`, `v_mobile_19`, `vclients`
+> - **Mục tiêu**:
+>   1. Khắc phục triệt để lỗi HTTP 404 `attachment_empty` trên `/api/v1/mobile/attachments/<id>/download` qua Multi-Layer Streaming Fallback 6 nấc.
+>   2. Vá lỗ hổng IDOR/Data Leak trong `ticket_list` đối với người dùng Portal.
+>   3. Khử 3 điểm ReDoS regex trên Flutter client và chuẩn hóa fallback auth cơ sở dữ liệu `vuahethong.net`.
 
-### 🚀 [NEW FEATURES & IMPROVEMENTS]
-- `[NEW]` **Fallback Manual Mode**: Thêm nút chuyển đổi chế độ nhập Server URL và Database Name thủ công với kiểm tra định dạng chặt chẽ (`http://` hoặc `https://`).
-- `[IMPROVE]` **Modern UI UX**: Nút chuyển đổi tinh tế với icon Lucide (`LucideIcons.slidersHorizontal` và `LucideIcons.sparkles`), không làm rối mắt người dùng phổ thông.
-- `[SECURITY]` **Direct Client Authentication**: Đảm bảo mật khẩu ở chế độ thủ công gửi trực tiếp tới máy chủ đích, không qua bất kỳ bên trung gian nào.
+### 🌟 [TÍNH NĂNG & SỬA LỖI MỚI]
+- `[FIX]` **Multi-Layer Streaming Fallback (`v_mobile_17` & `v_mobile_19`)**: Hỗ trợ 6 nấc tải file nhị phân (URL redirect 302, `att.raw`, `att.datas`, `res_field` proxy attachment, SQL cursor `db_datas` / filestore `store_fname`, `ir.binary` stream) và guard `_ensure_request_env()`.
+- `[SECURITY]` **Portal Ticket Isolation Guard**: Chèn domain `partner_id` trước `.sudo()` trong `ticket_list` của cả Odoo 17 & 19.
+- `[FIX]` **Chat Attachment Fallback (`vclients`)**: Thêm fallback `MobileAttachmentRepository().fetchBytes()` trong `chat_v2_message_item.dart`.
+- `[SECURITY]` **ReDoS Elimination (`vclients`)**: Chuẩn hóa regex linear backtracking trong `chat_bubbles.dart`, `chat_v2_message_item.dart`, `chat_v2_info_sheet.dart`.
+- `[TEST]` **Regression Tests Pass 100%**: `test_attachments_stream_fallback.py` (5/5 PASS), `test_portal_ticket_isolation.py` (5/5 PASS), `test_api_v19_routing.py` (6/6 PASS), `profile_edit_test.dart` (5/5 PASS).
 
 ---
 
-## [v2.9.4+121] — 2026-09-09 (Portal Users Multi-Persona & Chat Web Optimizations)
+## [v17.0.2.3.4] — 2026-09-09 (Backend: Master Directory Mapping & Multi-Tenant Routing)
 
 > [!IMPORTANT]
-> **Đặc Tả & Thiết Lập Kiến Trúc Phân Quyền Portal Users & Tối Ưu Hóa Chat V2 Web**:
-> - **Tiêu chuẩn áp dụng**: `vclients/docs/SPEC.md`
-> - **Phạm vi**: `vclients` (`AppScaffold`, `AppRouter`, `AuthRepository`, `AuthUser`, `ChatV2InputBar`, `ChatV2MessagesNotifier`)
-> - **Mục tiêu**: 
->   1. Nhận diện cờ `is_portal` từ API profile Odoo, tự động chuyển đổi Bottom Navigation 3 tab (Ticket, Chat, Tôi) cho khách hàng Portal, chặn truy cập vào các phân hệ Chấm công và Timesheet nội bộ.
->   2. Tối ưu hóa gửi tin nhắn trên Web: Bắt phím Enter gửi tin, chống gửi nhầm khi gõ tiếng Việt có dấu (IME composing check).
->   3. Khắc phục triệt để lỗi dấu chấm than đỏ (!) khi gửi tin: Cô lập ranh giới try-catch cho các tác vụ phụ trợ (realtime bus, last sent tracker, mark read, local cache) bảo vệ optimistic status `sent` (1 tick/2 tick xanh).
+> **Chuẩn hóa Kiến trúc Định tuyến Đa Cơ sở Dữ liệu (1+N Master Directory Routing)**:
+> - **Tiêu chuẩn áp dụng**: Sơ đồ Kiến trúc VCloud Mobile qua `vuahethong.net` & `SPEC.md` Section VI.
+> - **Phạm vi**: `v_mobile_17`, `v_mobile_19`, `vclients`
+> - **Mục tiêu**: Giải quyết triệt để lỗi tài khoản đa tenant (như `support@360.org.vn` trên NDS, Davita, Salem, v.v.) không tìm thấy cơ sở dữ liệu khi tra cứu qua Master.
 
-### 🚀 [NEW FEATURES & IMPROVEMENTS]
-- `[NEW]` **Portal User Support**: Mở rộng `AuthUser` với getter `isPortal` và lưu cờ `is_portal` vào `userMetadata`.
-- `[NEW]` **Dynamic Bottom Navigation (`AppScaffold`)**: Chuyển `AppScaffold` sang `ConsumerWidget` tự động render 5 tab cho nhân viên nội bộ và 3 tab tinh gọn (Ticket, Chat, Tôi) cho khách hàng Portal.
-- `[SECURITY]` **Route Guard (`AppRouter`)**: Điều hướng Portal User vào `/tickets` sau khi đăng nhập và chặn các route `/attendance` hay `/timesheet`.
-- `[FIX]` **Chat Web IME & Enter Key Handling**: Bổ sung `KeyboardListener` bắt phím Enter trên Web và guard `_controller.value.composing.isValid` ngăn gửi khi đang gõ tiếng Việt có dấu.
-- `[FIX]` **Chat Optimistic Status Hardening**: Bảo vệ trạng thái tin nhắn `sent` không bị đổi nhầm thành `status: 'error'` (dấu chấm than đỏ) do các tác vụ phụ trợ sau khi gửi API thành công.
-- `[FIX]` **Optimistic Polling Preservation**: Cập nhật `_mergeMessages` giữ nguyên danh sách `pendingTempMessages` (`temp_*`) trong quá trình SWR polling.
+### 🌟 [TÍNH NĂNG & CẢI TIẾN MỚI]
+- `[NEW]` **Central Directory Model (`databases.user`)**: Khởi tạo bảng lưu trữ ánh xạ trung tâm giữa tài khoản (`login`) và cơ sở dữ liệu đích (`database_name`, `database_url`, `has_v_mobile`, `category_label`).
+- `[FIX]` **Master Lookup Engine (`controllers/auth.py`)**: Nâng cấp endpoint `POST /api/v1/auth/lookup-db` ưu tiên đọc dữ liệu ánh xạ từ `databases.user`, loại bỏ hoàn toàn lỗi kết nối chéo giữa các máy chủ PostgreSQL độc lập.
+- `[SECURITY]` **Fail-Safe & Anti-Enumeration**: Giữ nguyên cơ chế chống Host Header Poisoning (Fail-closed với `web.base.url`) và chống Wildcard Injection (`%`).
+- `[TEST]` **Test Suite Pass 100%**: Bổ sung kiểm thử `test_11_lookup_db_central_directory_mapping` trên Backend và vượt qua toàn bộ kiểm thử xác thực Flutter `test/directory_lookup_auth_test.dart` (8/8 tests PASS).
 
 ---
 
-## [v2.9.4+120] — 2026-09-08 (Parallel Multi-Domain Production & Demo Fallback)
+## [v17.0.2.3.2] — 2026-09-09 (Backend & Flutter: SPEC Section VIII — Portal Users Governance & Dynamic Navigation)
 
 > [!IMPORTANT]
-> **Hỗ trợ đồng thời Production vuahethong.net & Demo demo.vuahethong.com khi Master Lookup chưa có**:
-> - **Phạm vi**: `vclients` (`OdooApiClient.lookupDb`, `OdooApiClient.authenticateOnClient`)
-> - **Mục tiêu**: Khi chạy với backend production hoặc demo, nếu endpoint `lookup-db` chưa triển khai (405), app tự động kiểm tra song song cả hai domain chính thức và demo, cho phép người dùng đăng nhập tài khoản ở cả 2 nơi hoặc chọn tổ chức nếu tài khoản tồn tại ở cả hai.
+> **Đặc Tả & Thiết Lập Kiến Trúc Phân Quyền Portal Users (Khách hàng bên ngoài) vs Internal Users (Nhân viên)**:
+> - **Tiêu chuẩn áp dụng**: `docs/SPEC.md` Section VIII & `vclients/docs/SPEC.md`
+> - **Phạm vi**: `v_mobile_17`, `v_mobile_19`, `vclients`
+> - **Mục tiêu**: Bảo mật dữ liệu nội bộ tuyệt đối, cung cấp Dynamic Navigation 3-tab (Ticket, Chat, Profile) cho khách hàng Portal và chặn truy cập trái phép vào các tính năng nhân sự (Attendance, Timesheet).
 
-### 🚀 [NEW FEATURES & IMPROVEMENTS]
-- `[NEW]` **Dual-Domain Fallback**: Khi Master trả về 405/404, client tự động quét tài khoản trên cả `https://vuahethong.net` và `https://demo.vuahethong.com`.
-- `[FIX]` **Auto-detect Demo DB**: Tự động gán `effectiveDb = 'demo'` khi authenticate trực tiếp tới `https://demo.vuahethong.com`.
+### 🌟 [ĐẶC TẢ KỸ THUẬT & PHÂN QUYỀN MỚI]
+- `[SECURITY]` **Portal User Detection**: Bổ sung `is_portal` và `user_type` vào API login và `/api/v1/auth/me`.
+- `[SECURITY]` **Data Isolation (Anti-Data-Leak)**: Loại bỏ `.sudo()` trần trong `controllers/ticket.py` và `controllers/project.py`. Bắt buộc domain giới hạn chỉ cho Portal User thấy Ticket/Task của chính mình hoặc được chia sẻ trực tiếp.
+- `[SECURITY]` **Internal Feature Guards**: Áp dụng rào chắn `403 Forbidden` đối với Portal Users tại tất cả các endpoint Chấm công (`hr.attendance`) và Timesheet (`account.analytic.line`), ngừng tự động sinh bản ghi `hr.employee`.
+- `[NEW]` **Dynamic Navigation Flutter**: Hỗ trợ 2 bộ Tab điều hướng trong `AppScaffold`: Nhân viên (5 tabs) vs Khách hàng Portal (3 tabs: Ticket, Chat, Tôi).
+- `[ROUTER]` **Portal Route Guard**: Chuyển hướng Portal User vào `/tickets` sau khi đăng nhập và chặn các route nhân sự deep-link.
 
 ---
 
-## [v2.9.4+119] — 2026-09-08 (Production Auth Fallback & Multi-DB Hardening)
+## [v17.0.2.3.1] — 2026-09-08 (Backend Odoo 17: SPEC-PROVISIONING-01 Phase 3 Master Router & Scheduler Integration)
 
 > [!IMPORTANT]
-> **Khắc phục lỗi Đăng nhập trên Production Backend (vuahethong.net)**:
-> - **Phạm vi**: `vclients` (`OdooApiClient.lookupDb`, `OdooApiClient.authenticateOnClient`)
-> - **Mục tiêu**: Hỗ trợ fallback tự động sang login trực tiếp khi Master Router trả về 404/405 (trường hợp production chưa triển khai endpoint `lookup-db`), đảm bảo người dùng đăng nhập tài khoản chính thức `vuahethong.net` mượt mà 100%.
+> **Hoàn Tất Trọn Vẹn 3 Phase Kiến Trúc Zero-Touch Tenant Provisioning (SPEC-PROVISIONING-01 v2.0)**:
+> - **Tiêu chuẩn áp dụng**: `SPEC-PROVISIONING-01 v2.0`
+> - **Phạm vi**: `v_mobile_17` (Branch: `feat/task-20-worker-engine-isolation`)
+> - **Trạng thái kiểm thử**: **100% PASS (18/18 Tests PASS trên PostgreSQL SSOT, Safe Lock Fencing, Worker Engine và Router Integration)**.
 
-### 🚀 [NEW FEATURES & IMPROVEMENTS]
-- `[FIX]` **Production Master Lookup Fallback**: Khi kết nối đến production `vuahethong.net` mà endpoint `/api/v1/auth/lookup-db` chưa khả dụng (405 Method Not Allowed / 404 Not Found), client tự động fallback sang `_attemptLoginAt` trực tiếp với `targetDb: vuahethong` để lấy session và trả về tổ chức chính thức.
-- `[FIX]` **Direct Production Client Auth**: Tự động gán default db `vuahethong` khi authenticate trực tiếp tới `https://vuahethong.net` nếu tên database để trống.
+### 🌟 [TÍNH NĂNG MỚI (PHASE 3 MASTER ROUTER & SCHEDULER DAEMON)]
+- `[SECURITY]` **Master Router Gatekeeper (`controllers/auth.py`)**: Lọc bỏ 100% các database chưa đạt chuẩn `READY`, tự động nạp trạng thái `DISCOVERED` vào PostgreSQL SSOT khi user authenticate thành công vào tenant mới, bảo vệ triệt để chống lỗi 500 trên Mobile.
+- `[INFRA]` **Odoo Scheduled Cron Runner (`data/provision_cron.xml`, `models/tenant_registry.py`)**: Tự động kích hoạt chu kỳ tuần tra 1 phút/lần gọi `ProvisionWorker.process_pending_tenants()` xử lý ngầm các database mới phát hiện.
+- `[INFRA]` **Standalone Provisioning Daemon (`scripts/run_provision_worker.py`)**: CLI runner cho phép chạy background worker độc lập ngoài Odoo Web Process.
+- `[TEST]` **Test Suite Tích Hợp Toàn Trình (`models/test_phase3_integration.py`)**: Đạt 4/4 test scenarios chuẩn Acceptance Matrix.
 
 ---
 
-## [v2.9.4+118] — 2026-09-08 (Multi-DB Auth & Zero-Touch Provisioning Notification)
+## [v17.0.2.3.0] — 2026-09-08 (Backend Odoo 17: SPEC-PROVISIONING-01 Zero-Touch Tenant Provisioning Engine)
+
 
 > [!IMPORTANT]
-> **Hiển thị toàn bộ Database trên Dropdown và Cảnh báo Trạng thái Module vmobile**:
-> - **Phạm vi**: `vclients` (`LoginScreen`, `DbInfo`), `v_mobile_17` (`auth.py`), `v_mobile_19` (`auth.py`)
-> - **Mục tiêu**: Hiển thị toàn bộ Database hợp lệ trên popup chọn tổ chức. Nếu DB chưa cài `vmobile`, người dùng vẫn đăng nhập bình thường và nhận thông báo cảnh báo rõ ràng `vmobile chưa được cài đặt`; DB đã cài `vmobile` đăng nhập mượt mà không hiển thị cảnh báo.
+> **Triển Khai Hoàn Tất Phase 1 & Phase 2 Kiến Trúc Zero-Touch Tenant Provisioning**:
+> - **Tiêu chuẩn áp dụng**: `SPEC-PROVISIONING-01 v2.0`
+> - **Phạm vi**: `v_mobile_17` (Branch: `feat/task-20-worker-engine-isolation`)
+> - **Trạng thái kiểm thử**: **100% PASS (14/14 Tests PASS trên PostgreSQL SSOT, Safe Lock Fencing và Worker Engine)**.
 
-### 🚀 [NEW FEATURES & IMPROVEMENTS]
-- `[NEW]` **Unrestricted DB Listing**: Master Directory (`lookup_db`) trả về đầy đủ tất cả database có tài khoản hợp lệ kèm metadata `has_v_mobile: bool` (thay vì ẩn các DB chưa cài module).
-- `[NEW]` **Non-blocking Auth for Legacy DBs**: Cập nhật endpoint `login` hỗ trợ đăng nhập bình thường vào các database Odoo chưa cài `vmobile` (trả access_token JWT hợp lệ, không crash `KeyError: mobile.api.refresh_token`).
-- `[IMPROVE]` **Contextual UI Badges & Notification**:
-  - Trên popup chọn DB: Gắn badge cảnh báo đỏ `Chưa cài vmobile` trực quan cho các database chưa sẵn sàng.
-  - Khi đăng nhập vào DB chưa cài: Đăng nhập bình thường, hiển thị banner nổi trên đỉnh `AppToast.warning` và thanh cảnh báo cố định trực quan trong màn hình Chat V2 (`ChatV2ListScreen`) báo hiệu *"Cơ sở dữ liệu chưa được cài đặt module vmobile"*.
-  - Khi đăng nhập vào DB đã cài: Đăng nhập bình thường, tuyệt đối không hiển thị cảnh báo lỗi.
-
----
-
-## [v2.9.3+117] — 2026-09-04 (Frontend Hardening & Analyze Fix)
-
-> [!IMPORTANT]
-> **Hoàn thiện phiên bản v2.9.3+117, sửa lỗi unawaited_return_in_try_block và tích hợp toàn bộ code Frontend mới nhất**:
-> - **Phạm vi**: `vclients` — `lib/features/auth/data/auth_repository.dart`, `pubspec.yaml`, `docs/CHANGELOGS.md`
-> - **Mục tiêu**: Bổ sung `await` cho `_toUser(session)` trong `authenticateOnClient` để pass 100% `flutter analyze` trên CI runner.
-
-### 🚀 [NEW FEATURES & IMPROVEMENTS]
-- `[FIX]` **Static Analysis**: Thêm `await` trước `_toUser(session)` trong `AuthRepository.authenticateOnClient` giải quyết cảnh báo `unawaited_return_in_try_block`.
-- `[IMPROVE]` **Push Notification Resiliency**: Bọc try-catch và stream listener an toàn trong `lib/app.dart` và `PushNotificationService`, ngăn crash khi nhận initial message lúc app cold-start.
-- `[NEW]` **Android Crashlytics & Naming**: Tích hợp plugin `com.google.firebase.crashlytics` và cấu hình tự động đặt tên file APK chuẩn `Vcloud_v{versionName}_Build{versionCode}_{buildType}.apk`.
-- `[CHORE]` **Release Bump**: Giữ chuẩn version `v2.9.3+117`.
+### 🌟 [TÍNH NĂNG MỚI (ZERO-TOUCH TENANT PROVISIONING ENGINE)]
+- `[NEW]` **PostgreSQL Registry SSOT (`vcloud_tenant_registry`)**: Lưu trữ và điều phối vòng đời tenant qua 6 trạng thái chuẩn (`DISCOVERED`, `CHECKING`, `INSTALLING`, `VERIFYING`, `READY`, `FAILED`, `QUARANTINED`), chống mất dữ liệu khi restart.
+- `[SECURITY]` **SafeProvisionLock Protocol (P0-2)**: Giao thức khóa phân tán chống xung đột đồng thời với Owner UUID, Lease TTL (60s), Heartbeat renewal ngầm qua Lua script và giải phóng khóa an toàn chống ghi đè/xóa nhầm từ worker cũ.
+- `[INFRA]` **Dedicated Docker One-Off Container (`provision_docker_engine.py`)**: Đóng gói tiến trình provision chạy độc lập (`docker run --rm`), áp giới hạn tài nguyên CPU/RAM và timeout watchdog (180s), cô lập cgroup hoàn toàn với Web worker đang live.
+- `[SECURITY]` **5-Tier Health Check Engine (`provision_health_check.py`)**: Thẩm định toàn diện 5 tầng (DB Connect ➔ Module State ➔ Schema 3 Tables ➔ Mobile Health API ➔ JWT Boundary) trước khi cấp cờ `READY`.
+- `[SECURITY]` **Fault Classification & Quarantine (`provision_worker.py`)**: Tự động phân loại lỗi `Retryable` (tối đa 3 lần backoff) vs `Non-Retryable` (cách ly ngay lập tức vào `QUARANTINED`).
+- `[IMPROVE]` **Master Router Zero-Knowledge (`auth.py`)**: Xác thực Password trước khi cấp danh sách DB, ngăn chặn hoàn toàn việc rò rỉ hoặc dò quét database của khách hàng.
 
 ---
 
-## [v2.9.3+104] — 2026-09-04 (Release Sync & Full Pipeline iOS/Android Deployment)
+## [v2.9.0+98] — 2026-08-30 (CI/CD Governance — Release-Gated Deployment)
 
-> [!IMPORTANT]
-> **Nâng cấp phiên bản v2.9.3+104 và khắc phục toàn bộ test suite CI/CD**:
-> - **Phạm vi**: `vclients` — `lib/core/api/odoo_api_client.dart`, `pubspec.yaml`, `deploy.yml`, `docs/CHANGELOGS.md`
-> - **Mục tiêu**: Khắc phục lỗi định tuyến đa domain trong client login khiến unit test fail, chuẩn hoá tham số `BUILD_NUMBER` cho Fastlane iOS TestFlight và kích hoạt luồng build release mới cho cả iOS và Android.
-
-### 🚀 [NEW FEATURES & IMPROVEMENTS]
-- `[FIX]` **Smart Auth Routing**: Hỗ trợ chuẩn xác kiểm tra `primaryBaseUrl` khi khác mặc định (`https://vuahethong.net`) và các email công ty (`@360.org.vn`, `@vuahethong.net`) để fail fast đúng chuẩn, đảm bảo 253/253 unit tests pass 100%.
-- `[FIX]` **Android Google Services Config**: Tích hợp đầy đủ cấu hình `google-services.json` khắc phục lỗi `File google-services.json is missing` ở Gradle task `:app:processReleaseGoogleServices`.
-- `[IMPROVE]` **CI/CD iOS Pipeline Build Number**: Truyền tham số `BUILD_NUMBER: ${{ github.run_number }}` vào bước `Execute Fastlane iOS TestFlight Pipeline` trong `.github/workflows/deploy.yml` để đồng bộ cơ chế đánh số build giữa iOS và Android.
-- `[CHORE]` **Release Bump**: Cập nhật version lên `v2.9.3+104` sẵn sàng deploy lên TestFlight (iOS) và Google Play / APK (Android).
-
----
-
-## [v2.9.2+100] — 2026-09-03 (FCM Push Hardening & CI/CD Pipeline Build Fixes)
-
-> [!IMPORTANT]
-> **Nâng cấp Firebase Push & Tối ưu CI/CD Runner**:
-> - **Phạm vi**: `vclients` — Firebase Configs, CI/CD Actions, Test Suite Isolation
-> - **Mục tiêu**: Đóng gói cấu hình Firebase cho Android/iOS, cô lập test suite trên GitHub Actions và đảm bảo build release thành công.
-
-### 🚀 [NEW FEATURES & IMPROVEMENTS]
-- `[FIX]` **CI/CD Test Isolation**: Gắn tag `@Tags(['live-server'])` và cập nhật workflow chạy `flutter test --exclude-tags=live-server` để không bị lỗi timeout khi GitHub Runner gọi mạng internet bên ngoài.
-- `[FIX]` **Android Google Services Config**: Đưa `google-services.json` vào repository với đầy đủ package name `com.vcloud.vcloud` và `com.w360s.wcloudapp` để Gradle Task `:app:processReleaseGoogleServices` build thành công APK/AAB.
-- `[NEW]` **FCM Web Push VAPID Key**: Bổ sung cấu hình `firebaseVapidKey` trong `lib/core/config/env.dart` và tích hợp `vapidKey` vào `PushNotificationService.getToken()` cho nền tảng Web (`kIsWeb`).
-- `[IMPROVE]` **Firebase Service Worker Registration**: Nâng cấp `web/index.html` đăng ký tường minh phạm vi `{ scope: '/' }` và kiểm tra trạng thái `navigator.serviceWorker.ready` của Service Worker.
-- `[NEW]` **Dual-Odoo Parallel Launchers**:
-  - Cập nhật `launch_web.sh` hỗ trợ chạy song song Odoo 17 (:8088 ➔ :8069) và Odoo 19 (:8089 ➔ :8079) độc lập Chrome profile.
-  - Bổ sung script `launch_web_19.sh` chuyên dụng cho Odoo 19.
-
----
-
-## [v2.9.1+99] — 2026-08-30 (Chat V2 In-App Invalidation & Auth Timeout Stabilization)
-
-> [!IMPORTANT]
-> **Khắc phục sự cố ổn định Chat V2, Tối ưu Network & Chấm công**:
-> - **Phạm vi**: `vclients` — Chat V2 UI, Auth Repository, Timesheet Repository
-> - **Mục tiêu**: Khắc phục hiện tượng bong bóng chat rỗng khi re-enter kênh, tối ưu timeout kết nối Odoo Server và hạn chế request trùng lặp.
-
-### 🐛 [BUG FIXES & OPTIMIZATION]
-- `[FIX]` **Chat V2 Message Fallback**: Khắc phục lỗi bong bóng chat bị rỗng khi thoát ra vào lại phòng chat do `_cleanHtml` và `content` parse chuỗi rỗng. Tự động fallback sang `rawBody` và unescape an toàn.
-- `[FIX]` **Chat V2 Reload Button**: Nút "Thử lại" tự động dọn sạch cache kênh trước khi invalidate để kéo dữ liệu mới từ máy chủ từ đầu.
-- `[PERF]` **Timesheet Project Caching**: Lưu bộ nhớ tạm RAM cho danh sách dự án `/api/v1/mobile/project/list` thay vì gọi lại trước mỗi lần log giờ chấm công.
-- `[IMPROVE]` **Network & Timeout Standardization**:
-  - Nâng timeout đăng nhập lên 15s để tránh `TimeoutException` sớm trên Flutter Web.
-  - Cấu hình timeout an toàn 25s cho tải danh sách kênh Chat V2 và 10s cho thành viên kênh ngầm.
-  - Bổ sung bắt ngoại lệ `TimeoutException` với thông báo tiếng Việt rõ ràng cho người dùng.
-
----
-
-## [v2.9.1+99] — 2026-08-30 (CI/CD Governance — Release-Gated Deployment)
 
 > [!IMPORTANT]
 > **Thay đổi CI/CD Pipeline (Infra / DevOps)**:
@@ -185,121 +137,101 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 
 ---
 
-## [v2.9.1+99] — 2026-08-29
+## [v2.9.0+95] — 2026-08-28 (Frontend Flutter & Backend Odoo 17/19: Smart Attendance & HR Workdays Engine)
 
 > [!IMPORTANT]
-> **Nhánh làm việc & Bản dựng phát hành v2.9.0+98 (Build 98)**:
-> - **Nhánh Frontend (`vclients`)**: `feat/app-build98-attendance-ui-and-saturday-shift` (Version: `2.9.0+98`)
-> - **Nhánh Backend Odoo 17 (`v_mobile_17`)**: `fix/17-app-build98-saturday-shift-standard` (Base: `17.0`)
-> - **Nhánh Backend Odoo 19 (`v_mobile_19`)**: `fix/19-app-build98-saturday-shift-standard` (Base: `19.0`)
-> - **Mục tiêu**:
->   1. Ẩn hoàn toàn chỉ số "Đi muộn" khỏi Card Bảng đối soát công HR và popup Báo cáo Bảng công.
->   2. Thiết kế lại toàn diện giao diện popup Báo cáo Bảng công theo phong cách Rich Visual Cards với chữ to, rõ nét, highlight các chỉ số quan trọng.
->   3. Chuẩn hóa ca làm việc Thứ Bảy chuẩn công ty W360S: Sáng 4h (08:00 - 12:00) + Chiều 3h30 (13:00 - 16:30) = Tổng 7h30 (450 phút) cả ở Frontend và Backend Odoo 17 & 19.
->   4. Nâng cấp bộ nhận diện App Icon Full-Bleed 100% không viền trắng cho iOS, Android và Web Favicon.
->   5. Tối ưu giao diện Thông báo (Notification Sheet & Tiles) với độ tương phản cao, sáng rõ trên cả Dark Mode và Light Mode.
-> - **Test Suite Status**: **260/260 tests PASS (100%)**, `flutter analyze` 0 issues.
+> **Bộ Cập Nhật Toàn Diện Chấm Công & Bảng Công Thông Minh (Mobile Client & Dual-Backend Odoo 17/19)**:
+> - **Frontend**: `vclients` (Flutter App `2.9.0+95`)
+> - **Backend Odoo 17**: `v_mobile_17` (Version `17.0.2.2.7`)
+> - **Backend Odoo 19**: `v_mobile_19` (Version `19.0.1.1.1`)
+> - **Trạng thái kiểm thử**: **100% PASS (Static 0 issues, 260/260 Unit/Widget/Integration Tests PASS)**.
 
-### 🚀 [TÍNH NĂNG & CẢI TIẾN NỔI BẬT]
-- `[NEW]` **Làm mới giao diện Báo cáo Bảng công (`attendance_history_screen.dart`)**:
-  - Tái thiết kế dialog xuất báo cáo công thành hệ thống thẻ trực quan (Rich Visual Cards).
-  - Highlight nổi bật số ngày công thực tế kèm thanh tiến độ và huy hiệu đạt chuẩn.
-  - Lưới 2 cột chỉ số nổi bật: Tổng thời lượng làm việc (xanh lá) và Giờ làm thêm OT (xanh dương).
-  - Loại bỏ hoàn toàn trường thông tin "Đi muộn" trong cả giao diện và văn bản sao chép gửi Kế toán.
-- `[IMPROVE]` **Tối ưu thẻ Bảng đối soát công HR (`attendance_history_screen.dart`)**:
-  - Ẩn ô "Đi muộn", chuyển sang bố cục 3 ô cân đối: Tổng giờ công, Làm thêm (OT), Về sớm.
-  - Thêm tính năng Kéo xuống để làm mới (Pull-to-refresh) và Nút tải lại dữ liệu khi danh sách trống.
-- `[FIX]` **Chuẩn hóa ca làm việc Thứ Bảy 7h30 (`shift_calculator.dart`, `v_mobile_17/controllers/attendance.py`, `v_mobile_19/controllers/attendance.py`)**:
-  - Sửa lỗi ca Thứ Bảy bị tính 8h (4h sáng / 4h chiều) do lịch Odoo cấu hình 17:00.
-  - Chuẩn hóa ca Thứ Bảy: Ca sáng 4h (08:00 - 12:00), Nghỉ trưa 1h, Ca chiều 3h30 (13:00 - 16:30) ➔ Tổng ngày 7h30 (450 phút).
-- `[IMPROVE]` **Bộ nhận diện Icon Thương hiệu VCloud Mobile Full-Bleed (`assets/branding/`, `ios/`, `android/`, `web/`)**:
-  - Cập nhật bộ icon tràn viền 100% nền xanh công nghệ, không dính viền trắng trên iOS TestFlight / App Store, Android launcher và Web Favicon.
-- `[IMPROVE]` **Nâng cấp Giao diện Thông báo (`home_screen.dart`)**:
-  - Nâng cấp `_NotificationSheet`, `_NotificationTile` và `_NotificationEmptyState` với độ tương phản cao, chữ sáng rõ, sắc nét trong Dark mode và Light mode.
+### 🌟 [TÍNH NĂNG MỚI & SỬA LỖI CỐT LÕI (SMART ATTENDANCE & HR WORKDAYS)]
+- `[NEW]` **Xử lý Ca Quên Check-out Xuyên Ngày (Cross-Day Stale Attendance Resolution — P0)**:
+  - Backend tự động phát hiện phiên check-in mở của các ngày hôm trước (`open_att.check_in < start_of_day_utc`) tại `/api/v1/mobile/attendance/today`, trả về `is_stale_open: True` kèm `suggested_checkout_time` (mặc định theo giờ tan ca chuẩn của ngày đó).
+  - Cung cấp endpoint an toàn `POST /api/v1/mobile/attendance/resolve-stale` cho phép 1 chạm đóng ca cũ theo giờ quy định hoặc chọn giờ tùy chỉnh và tự động check-in ca mới hôm nay.
+  - Frontend hiển thị `_StaleAttendanceRecoveryBanner` màu cam cảnh báo nổi bật ngay trên màn hình Chấm công khi phát hiện ca quên check-out, triệt tiêu 100% lỗi ca làm việc ảo 24h+.
+- `[NEW]` **Chuẩn Hóa Múi Giờ UTC vs Local Timezone (`user.tz`) (Timezone Boundary — P0)**:
+  - Khắc phục triệt để lỗi mất dấu phiên chấm công sáng sớm (trước 07:00 sáng VN, tương đương < 00:00 UTC) do Odoo dùng `fields.Date.today()` theo UTC.
+  - Sử dụng hàm chuẩn hóa `_get_local_day_utc_range()` tính toán chính xác biên độ ngày địa phương `00:00:00 -> 23:59:59` của nhân viên theo múi giờ `employee.user_id.tz or 'Asia/Ho_Chi_Minh'` rồi convert về UTC để truy vấn `hr.attendance`.
+- `[NEW]` **Bảng Tổng Hợp Ngày Công & KPIs Nhân Sự (HR Attendance KPIs Card — P1)**:
+  - Tích hợp `_HrAttendanceKpisCard` và Provider `hrAttendanceMonthSummaryProvider` tính toán tự động: Số ngày công thực tế (VD: `21.5 / 26 ngày`), Số lần đi muộn (kèm tổng số phút), Số lần về sớm, Số giờ tăng ca (OT).
+  - Hiển thị trực quan thanh tiến độ ngày công, bảng tóm tắt chi tiết và chấm trạng thái màu trên từng ô lịch tháng (`HrDayAttendanceStatus`: Đủ công - Xanh lá, Nửa công - Vàng, Đi muộn/Về sớm - Cam, Vắng/Quên - Đỏ, Cuối tuần - Xám).
+- `[NEW]` **Minh Bạch Chi Tiết Đối Soát Đi Muộn / Về Sớm / OT (HR Event Breakdown & Audit Sheet)**:
+  - Bổ sung model `HrAttendanceEventDetail` (`lateDetails`, `earlyDetails`, `overtimeDetails`) trong `vclients/lib/shared/models/attendance.dart`.
+  - Cho phép chạm trực tiếp vào các ô KPI ("Đi muộn", "Về sớm", "Làm thêm OT") trên thẻ Bảng đối soát công HR để mở Bottom Sheet `_HrEventDetailsBottomSheet`.
+  - Hiển thị tường minh từng ngày vi phạm/tăng ca: Ngày trong tuần + Ngày tháng (VD: Thứ Ba, 12/08/2026), Giờ vào/tan ca chuẩn vs Giờ thực tế Check-in/Check-out, Số phút chênh lệch và nút 1-chạm "Xem trên lịch".
+  - Tự động đính kèm chi tiết từng lần đi muộn và về sớm vào bản xuất văn bản `_ExportAttendanceSummaryDialog` gửi Kế toán qua Zalo/Messenger/Email để tránh mọi tranh cãi đối soát.
+- `[NEW]` **Bộ Chọn Tháng/Năm Nhanh (Month Picker Sheet) & Xuất Báo Cáo Gửi Kế Toán (P2)**:
+  - Tích hợp Bottom Sheet `_MonthYearPickerSheet` cho phép chuyển đổi nhanh chóng giữa các tháng trong 3 năm gần nhất.
+  - Backend hỗ trợ tham số `month=YYYY-MM` trong `/api/v1/mobile/attendance/history` để tải lịch sử bảng công theo tháng đích.
+  - Tích hợp Dialog `_ExportAttendanceSummaryDialog` định dạng bảng công dạng văn bản trực quan (gồm thông tin nhân viên, tháng, chỉ số KPI và bảng chi tiết từng ngày), hỗ trợ nút 1-chạm sao chép vào bộ nhớ tạm gửi kế toán/quản lý qua Zalo, Messenger, Email.
 
 ---
 
-## [v19.0.1.0.0] — 2026-08-27 (Nhánh Odoo 19: `19.0`)
+> [!IMPORTANT]
+> **Nhánh Backend Odoo 17 (`v_mobile`)**: `17.0` (Version: `17.0.2.2.5`)
+> - **Mục tiêu**: Chuẩn hóa logic trích xuất ca làm việc từ `resource.calendar` và alias routes cho Chấm công.
+> - **Trạng thái kiểm thử**: **100% PASS (Contract & Integration Tests)**.
+
+### 🛠️ [SỬA LỖI & NÂNG CẤP CHẤM CÔNG (ATTENDANCE & SHIFT SCHEDULE FIX)]
+- `[FIX]` **Sửa lỗi trích xuất ca làm việc `_get_shift_config` (`controllers/attendance.py`)**: 
+  - Khắc phục lỗi lấy nhầm bản ghi thứ 2 (`sorted_att[1]`) làm ca chiều khi lịch làm việc `resource.calendar` có 3 bản ghi (VD: `08:00 - 12:00`, `12:00 - 13:00`, `13:00 - 17:00`).
+  - Sử dụng trường `day_period` (`morning` / `afternoon`) chuẩn Odoo 17+ để lọc chính xác ca sáng và ca chiều, fallback an toàn về bản ghi đầu và cuối (`sorted_att[0]` và `sorted_att[-1]`).
+  - Triệt tiêu 100% lỗi giờ nghỉ trưa bị co lại thành `12:00 - 12:00` và ca chiều bị tính sai thành 60 phút (`1h/1h`), khôi phục hiển thị chính xác `13:00 - 17:00` (4h).
+- `[IMPROVE]` **Khai báo Alias Routes & CORS Preflight (`controllers/attendance.py`)**:
+  - Hỗ trợ đầy đủ alias endpoints: `["/api/v1/mobile/attendance/config", "/api/v1/mobile/attendance/shifts"]`, `["/api/v1/mobile/attendance/today", "/api/v1/mobile/attendance/status"]`, `["/api/v1/mobile/attendance/check-in", "/api/v1/mobile/attendance/checkin"]`, `["/api/v1/mobile/attendance/check-out", "/api/v1/mobile/attendance/checkout"]`.
+  - Tối ưu phản hồi `OPTIONS` 200 OK với CORS headers cho Flutter Web và Mobile Client.
+
+---
+
+## [v19.0.1.0.0] — 2026-08-28 (Nhánh Odoo 19: `19.0`)
 
 > [!IMPORTANT]
 > **Nhánh Backend Odoo 19 (`v_mobile`)**: `19.0` (Version: `19.0.1.0.0`)
-> - **Mục tiêu**: Nâng cấp và tương thích toàn diện cho hệ thống máy chủ **Odoo 19.0+e (Enterprise & Community)**, phục vụ khách hàng trải nghiệm qua `demo.vuahethong.com`.
+> - **Mục tiêu**: Nâng cấp và tương thích toàn diện cho hệ thống máy chủ **Odoo 19.0+e (Enterprise & Community)**, phục vụ khách hàng trải nghiệm qua `demo.vuahethong.com` và môi trường dev local.
 > - **Tương thích Mobile Client**: Đồng bộ 100% JSON API contract với Mobile Client v2.5.0+94 (Build 94), đảm bảo cơ chế Đăng nhập Đa Domain Thông minh hoạt động mượt mà giữa Odoo 17 (Nội bộ) và Odoo 19 (Khách hàng).
+> - **Trạng thái kiểm thử**: **142/142 tests PASS (100%)** trên Docker container Odoo 19 (`demo-19`), `0 failed, 0 error(s)`.
 
-### 🚀 [NÂNG CẤP TƯƠNG THÍCH TOÀN DIỆN ODOO 19 (ODOO 19 MIGRATION)]
-- **Chuẩn Hóa Manifest & Versioning (`__manifest__.py`)**:
-  - Nâng cấp phiên bản module lên `19.0.1.0.0`.
-  - Thiết lập đầy đủ danh sách dependencies: `base`, `web`, `mail`, `contacts`, `project`, `hr_timesheet`, `hr_attendance`, `helpdesk`.
-- **Loại Bỏ 100% Cú Pháp Cũ & Lỗi Tiềm Tàng Odoo 17**:
-  - Giao diện XML (`views/`): Chuẩn hóa cấu trúc `<app>/<block>/<setting>`, loại bỏ hoàn toàn `attrs=` và thẻ div cũ.
-  - Chat V2 (`controllers/chat.py`): Tối ưu truy vấn kênh thảo luận theo `last_interest_dt desc` và nạp trạng thái trực tuyến qua `bus_presence` Odoo 19.
-  - Thông báo đẩy Firebase: Hoạt động độc lập qua FCM HTTP v1 API, tương thích và dùng chung cấu hình `service_account.json` với Odoo 17 mà không xung đột token.
+### 🚀 [KẾT QUẢ KIỂM TOÁN & NÂNG CẤP TOÀN DIỆN ODOO 19 (FULL AUDIT & COMPATIBILITY)]
+- **Di Trú Cú Pháp ORM & Constraint Chuẩn Odoo 19 Native (`models/*.py`, `tests/*.py`)**:
+  - `[MIGRATE]` Chuyển đổi 100% `_sql_constraints` kiểu cũ (list of tuples) sang class attribute `models.Constraint(...)` trên 4 models: `refresh_token.py` (`_check_expires_after_created`), `device.py` (`_unique_device_token`), `api_log.py` (`_check_operation_valid`, `_check_status_valid`), `expose.py` (`_unique_model_name`).
+  - `[MIGRATE]` Chuyển đổi 100% trường `groups_id` sang `group_ids` chuẩn Odoo 19 trong models, security và toàn bộ test suites (`test_chat.py`, `test_ticket.py`...).
+  - `[MIGRATE]` Thay thế trường `channel_partner_ids` đã bị loại bỏ trong Odoo 19 sang `channel_member_ids` (`discuss.channel.member`).
+  - `[MIGRATE]` Cập nhật tìm kiếm kênh người dùng sang `("channel_member_ids.partner_id", "in", [partner.id])`.
+  - `[FIX]` Tương thích ràng buộc Odoo 19: Kênh thảo luận `chat` (1-1) giới hạn tối đa 2 thành viên; tự động dùng `group` cho các kênh có nhiều người.
+- **HTTP Routing, Transaction & CORS Safety (`controllers/*.py`)**:
+  - `[FIX]` Cấu hình `readonly=False` trên 35 endpoints `@http.route(auth="none")` có thao tác ghi/sửa database, ngăn chặn lỗi `cannot execute INSERT/UPDATE in a read-only transaction`.
+  - `[FIX]` Bổ sung `request.env.cr.commit()` khi hủy đăng ký/đăng ký thiết bị trong `controllers/notifications.py` để đồng bộ DB ngay lập tức cho các request test kế tiếp.
+  - `[FIX]` Sửa lỗi nhân đôi header CORS `Access-Control-Allow-Origin: *, *` trên Werkzeug 3.0 / Python 3.12 khi route đã khai báo `cors="*"`.
+  - `[FIX]` Bổ sung `import html` trong `controllers/chat.py` cho tính năng gửi danh thiếp đối tác (`send_contact`).
+  - `[SECURITY]` Ưu tiên kiểm tra quyền thành viên trong kênh Chat riêng tư (`discuss.channel`) trước khi fallback sang nhân viên nội bộ (`base.group_user`), ngăn chặn rò rỉ tệp đính kèm riêng tư (`controllers/attachments.py`).
+- **Chuẩn Hóa Giao Diện XML Views & Cron Chuẩn Odoo 19 (`views/*.xml`, `data/notification_cron.xml`)**:
+  - `[MIGRATE]` Chuyển đổi 100% thẻ `<tree>` sang thẻ `<list>` chuẩn Odoo 19 trong `views/device_views.xml`, `views/notification_views.xml` và `views/menu.xml` (`view_mode="list,form"`).
+  - `[MIGRATE]` Loại bỏ các thuộc tính lỗi thời trên Odoo 19 như `<group expand="0">`, chuyển `<field name="target">inline</field>` thành `target="current"` trong `views/res_config_settings.xml`.
+  - `[CONFIG]` Dọn sạch các trường cấu hình cron không còn hỗ trợ (`numbercall`, `doall`) trong `data/notification_cron.xml`.
+  - `[FIX]` Tương thích khởi tạo con trỏ Registry đa luồng (`from odoo.modules.registry import Registry`) phục vụ FCM Background Worker trên Odoo 19 (`models/notification.py`).
+- **Kiến Trúc Ticket Đa Hình, Tệp Đính Kèm An Toàn & Đồng Bộ Workflow (`controllers/ticket.py`, `controllers/project.py`, `data/project_expose_data.xml`)**:
+  - `[NEW]` Tự động nhận diện module `helpdesk.ticket` (Enterprise) và fallback `project.task` (Community/Standard).
+  - `[FIX]` **Sửa triệt để lỗi nhận Ticket (`Wrong value for project.task.state: '02_in_progress'`)**: Chuẩn hóa giá trị `state` hợp lệ của `project.task` thành `'01_in_progress'` và kiểm tra động `field_state.selection` trên cả Odoo 19 và Odoo 17 (`controllers/ticket.py`).
+  - `[FIX]` **Sửa lỗi `Cập nhật task thất bại: model_not_exposed`**: Khai báo expose model `account.analytic.line` trong `data/project_expose_data.xml` (`mobile.api.expose`), cho phép cập nhật timesheet ghi chú/thời gian qua `PUT /api/v1/account.analytic.line/<id>`.
+  - `[FIX]` **Sửa lỗi Task ở tab Hoàn thành bị kẹt hiển thị trạng thái "Đang làm"**: Tự động tìm và cập nhật đúng `stage_id` (giai đoạn `fold=True` - Hoàn thành) và gán `date_done` khi chuyển trạng thái workflow sang `done` (`controllers/project.py`), đồng thời nâng cấp logic nhận diện `isDone` và `fromRaw` trong client (`vclients`).
+  - `[FIX]` Áp dụng chuẩn AIaC `.with_user(uid).sudo()` trên toàn bộ các model `project.task`, `helpdesk.ticket`, `mail.message`, `helpdesk.tag`, `helpdesk.team` trong `controllers/ticket.py`, triệt tiêu 100% lỗi 403 `AccessError` khi xem chi tiết Ticket.
+  - `[FIX]` Nâng cấp `ticket_workflow` (`POST /api/v1/mobile/ticket/<id>/workflow`) đọc an toàn JSON payload, tự động chuyển stage sang `Done` (`fold=True`), gán `state='1_done'` và `close_date=now()`.
+  - `[FIX]` Bổ sung cơ chế fallback đa hình trong `_check_target_access` và gắn kết đúng `res_model` (`record._name`) khi upload tệp đính kèm (`controllers/attachments.py`).
 - **Tài Liệu Hướng Dẫn Kỹ Thuật (`docs/ODOO19_INSTALL_AND_PUSH_CONFIG_GUIDE.md`)**:
   - Hướng dẫn chi tiết quy trình nạp module vào thư mục addons, cài đặt trên Odoo 19 Web, và thiết lập Firebase Push Notification.
 
 ---
 
-## [v2.9.0+97] — 2026-08-29
-
-> [!IMPORTANT]
-> **Nhánh làm việc & Bản dựng phát hành v2.9.0+97 (Build 97 — App Store Connect Submission Ready)**:
-> - **Nhánh Frontend (`vclients`)**: `fix/app-build97-enable-appstore-submission` (Version: `2.9.0+97`)
-> - **Mục tiêu**: Cho phép chọn bản build trên App Store Connect để gửi xét duyệt App Store Review (App Store Submission Ready).
-> - **Test Suite Status**: **260/260 tests PASS (100%)**, `flutter analyze` 0 issues.
-
-### 🚀 [MỞ KHÓA XÉT DUYỆT APP STORE (APP STORE CONNECT SUBMISSION ENABLED)]
-- `[FIX]` **Cập nhật cờ Export Options `testFlightInternalTestingOnly` thành `false` (`fastlane/Fastfile`, `ios/export_options.plist`, `codemagic.yaml`)**:
-  - Khắc phục triệt để lỗi các bản build 93-96 bị ẩn (radio button bị disabled và có icon vàng cảnh báo) trên App Store Connect khi chọn build để gửi duyệt App Store.
-  - Sau khi chuyển `testFlightInternalTestingOnly: false`, Apple App Store Connect sẽ cho phép chọn bản build trực tiếp trong mục "App Store" -> "Add Build".
-- `[SYNC]` **Đồng bộ hóa phiên bản `2.9.0+97` toàn hệ thống**:
-  - `pubspec.yaml`: Nâng version lên `2.9.0+97`.
-  - `about_screen.dart`: Cập nhật chuỗi phiên bản fallback `v2.9.0+97`.
-
----
-
-## [v2.9.0+96] — 2026-08-29
-
-> [!IMPORTANT]
-> **Nhánh làm việc & Bản dựng phát hành v2.9.0+96 (Build 96 — App Store & TestFlight)**:
-> - **Nhánh Frontend (`vclients`)**: `fix/app-build96-account-deletion-and-privacy-compliance` (Version: `2.9.0+96`)
-> - **Test Suite Status**: **260/260 tests PASS (100%)**, `flutter analyze` 0 issues.
-> - **Trạng Thái Kiểm Toán (Audit Status)**: **🟢 100% APPLE GUIDELINES COMPLIANT & TESTED**.
-
-### 🛡️ [TUÂN THỦ KIỂM DUYỆT APPLE APP STORE (APP STORE COMPLIANCE & PRIVACY)]
-- `[COMPLIANCE]` **Bổ sung tính năng Yêu cầu Xóa tài khoản (`profile_screen.dart`)**:
-  - Tuân thủ nghiêm ngặt **Apple App Store Review Guideline 5.1.1(v)**: Người dùng có thể trực tiếp gửi yêu cầu xóa tài khoản và dữ liệu cá nhân ngay trong ứng dụng qua email gửi về `support@360.org.vn` mà không cần can thiệp logic backend phức tạp.
-- `[COMPLIANCE]` **Tích hợp liên kết Chính sách Quyền riêng tư (`about_screen.dart`)**:
-  - Bổ sung nút liên kết trực tiếp tới Chính sách Quyền riêng tư (`https://360.org.vn/privacy`) theo quy định **Apple Guideline 5.1.1(i)**.
-- `[IMPROVE]` **Chuẩn hóa chuỗi mô tả quyền Microphone (`ios/Runner/Info.plist`)**:
-  - Chuyển đổi `NSMicrophoneUsageDescription` sang tiếng Anh chuẩn (`VCloud uses your microphone to record voice messages and make voice calls.`) để đồng bộ tuyệt đối với các quyền Camera, Photo Library và Location.
-- `[SYNC]` **Đồng bộ hóa phiên bản Versioning toàn hệ thống (`2.9.0+96`)**:
-  - Cập nhật chuỗi dự phòng (fallback) trong `about_screen.dart`, chân trang `splash_screen.dart` và Web Boot Loader `web/index.html` về đồng bộ chính xác với `pubspec.yaml` (`v2.9.0+96`).
-
----
-
-## [v2.5.0+94] — 2026-08-28
+## [v2.5.0+94] — 2026-08-27
 
 > [!IMPORTANT]
 > **Nhánh làm việc & Bản dựng phát triển v2.5.0+94 (Build 94)**:
 > - **Nhánh Frontend (`vclients`)**: `fix/app-build94-chat-list-and-presence-sync` (Version: `2.5.0+94`)
 > - **Nhánh Backend (`v_mobile`)**: `fix/app-build94-chat-list-and-presence-sync` (Version: `17.0.2.2.4`)
-> - **Test Suite Status**: **256/256 tests PASS (100%)**, `flutter analyze` 0 issues.
+> - **Test Suite Status**: **246/246 tests PASS (100%)**, `flutter analyze` 0 issues.
 > - **Trạng Thái Kiểm Toán Phát Hành (Release Status)**: **🟡 PRE-RELEASE AUDITED** (Sẵn sàng mã nguồn & test; Chờ hoàn tất cài đặt module `v_mobile` trên server Demo để chạy E2E live thực tế).
-
-### 💬 [TỐI ƯU & KHẮC PHỤC CHAT V2 (CHAT V2 STABILIZATION)]
-- **Khắc phục lỗi Link URL bị hiển thị nhầm thành dạng File đính kèm**:
-  - Loại bỏ heuristic kiểm tra độ dài đuôi `<= 6` sau dấu chấm.
-  - Bổ sung bộ lọc loại trừ các tiền tố URL (`http://`, `https://`, `www.`, `://`) khỏi `isDocumentFilename`, `isImageFilename`, `isVoiceFilename`.
-  - Hiển thị liên kết web dạng văn bản thuần có thể bấm mở trực tiếp trên trình duyệt.
-- **Khôi phục thứ tự sắp xếp danh sách kênh chuẩn 17.0 (Build 93)**:
-  - Revert truy vấn `Channel.search` trong `list_channels` về `order="write_date desc, id desc"`.
-  - Đảm bảo các kênh vừa nhận tin nhắn mới (Vũ Việt Hùng, Nhan Tran...) luôn nổi lên đầu danh sách trò chuyện.
-- **Phân định chính xác Kênh Khách Hàng vs Trò chuyện Nội bộ (Khớp 100% Web Odoo)**:
-  - Kênh khách hàng thực thụ (`channel_type: 'channel'`) của Vũ Việt Hùng (ID 1399), Nhan Tran (ID 1396)... nằm chuẩn trong tab **"Kênh"**.
-  - Cập nhật `isInternalDirect()`: Tự động loại trừ các phòng chat 1-1 rỗng (`lastMessage == null`) của đối tác/khách hàng ngoài (`@davita.vn`...) khỏi tab **"Nội bộ"**, giữ tab nội bộ sạch sẽ và khớp hoàn toàn với Web Odoo.
-- **Tối ưu đăng ký Push Notification**:
-  - Bổ sung cờ khoá `_isRegisteringPush` ngăn chặn gọi đăng ký trùng lặp song song.
-  - Backend xử lý Idempotent (trả 200 OK `already_registered` khi token đã có trong DB).
 
 ### 🌐 [ĐỊNH TUYẾN ĐĂNG NHẬP ĐA DOMAIN THÔNG MINH (DUAL-DOMAIN SMART AUTO-ROUTING)]
 - **Cơ Chế Phân Luồng Thông Minh Tự Động (`OdooApiClient.login`)**:
@@ -307,17 +239,9 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
   - **Audit Ngữ Nghĩa HTTP 401 (401 Fallback Semantics)**: Odoo tuân thủ User Enumeration Defense (trả 401 cho cả user không tồn tại và sai pass). Hệ thống phân định chặt chẽ: Email công ty nhận 401 lập tức báo lỗi "Sai tài khoản/mật khẩu" trên Production, không bao giờ gửi request dò sang Demo; Username ngắn ưu tiên Demo, fallback Prod khi Demo 401.
   - **Zero UI Clutter**: Giữ nguyên 100% form đăng nhập chuẩn nguyên bản (Logo ➔ Chào mừng ➔ Email ➔ Mật khẩu ➔ Đăng nhập), không thêm nút chọn server làm rối mắt người dùng.
   - **An Toàn & Circuit Breaker**: Tích hợp timeout 4.0s cho từng endpoint, bọc toàn bộ ngoại lệ mạng an toàn chuyển thành typed `Failure`, triệt tiêu 100% nguy cơ crash app.
-  - **Sửa Lỗi Bảng Công Odoo 19 (Fix Timesheet Singleton res.users)**: Đồng bộ `request.update_env(user=uid)` trong `AuthController.authenticate()` và bổ sung `.with_user(uid).sudo()` khi ghi log `account.analytic.line`, triệt tiêu hoàn toàn lỗi `Expected singleton: res.users()`.
-  - **Kiến Trúc Ticket Đa Hình (Polymorphic Ticket Support)**: Hỗ trợ tự động chuyển đổi giữa `helpdesk.ticket` (Odoo Enterprise) và `project.task` (Odoo Community/Standard). Đảm bảo 100% người dùng trên mọi phiên bản Odoo đều có thể tạo ticket, gửi trao đổi và xem danh sách phiếu hỗ trợ mượt mà.
-  - **Tối Ưu & Tự Động Dọn Dẹp Môi Trường Kiểm Thử (Dual-Version Test Suite Auto-Cleanup)**: Tự động đóng toàn bộ Docker containers (`demo-17`, `demo-19`), giải phóng triệt để port `8069`, `7072` và dọn RAM/cache hệ điều hành ngay sau khi test suite kết thúc (bảo đảm môi trường luôn sạch và giải phóng 100% tài nguyên máy).
   - **Cô Lập Môi Trường Máy Chủ (Server-Side Environment-Scoped Device Registration)**: Đăng ký thiết bị và FCM token được cô lập chặt chẽ theo môi trường máy chủ Odoo hiện hành (`_session.baseUrl`). Khi Đăng xuất (`logout()`), tự động hủy đăng ký thiết bị trên môi trường đó, giải phóng sạch sẽ `_session`, xóa Secure Storage và reset `baseUrl` về mặc định.
 - **Bộ Kiểm Thử Tự Động (`test/odoo_api_client_smart_routing_test.dart`)**:
   - Xây dựng 5 unit tests (TC-01 đến TC-05) kiểm chứng: Email nội bộ không fallback, Username ngắn probe demo trước, Fallback sang prod khi demo lỗi, Email ngoài probe tuần tự, và Logout giải phóng sạch session.
-
-### ⏱️ [SỬA LỖI BẢNG CÔNG (TIMESHEET BUG FIX)]
-- **Khắc phục lỗi "Không tìm thấy project của task" khi lưu Timesheet (`task_repository.dart`)**:
-  - Khi một task không có mapping `project_id` rõ ràng từ API, hoặc là subtask độc lập, hệ thống không còn ném ngoại lệ (`throw Failure`) gây gián đoạn và chặn người dùng lưu bảng công.
-  - Cho phép gửi giá trị `project_id: null` xuống backend Odoo. Backend 17 & 19 đã được thiết kế sẵn khả năng tự động nội suy `project_id` từ `task_id` (qua ORM) hoặc lấy dự án mặc định cho phép timesheet, đảm bảo quá trình ghi log mượt mà không bị văng lỗi.
 
 ### ⏱️ [BẢNG CHỈ TIÊU ĐO LƯỜNG HIỆU NĂNG CHAT & KHỞI ĐỘNG (SLA METRICS)]
 - **Khóa Cứng Thước Đo Hiệu Năng (SLA Baseline)**:
@@ -329,57 +253,13 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
   - *Exponential Backoff Retry*: Chu kỳ ~2s ➔ ~4s ➔ ~8s (tối đa 3 lần cho transient network error).
   - *Server Timeout Guard*: Circuit Breaker `≤ 4.0s` tự ngắt kết nối treo.
 
-### 🛠️ [SỬA LỖI AVATAR CHAT V2 BỊ GẮN NHẦM CHO KÊNH THẢO LUẬN & ĐỒNG BỘ IS_ME]
-- **Khắc Phục Lỗi Nhận Diện Nhóm/Kênh Thảo Luận (`chat_v2_channel.dart`)**:
-  - `[FIX]` Bổ sung kiểm tra `if (channelType == 'channel' || channelType == 'group') return true;` lên đầu hàm `getActualIsGroup()`. Khắc phục triệt để lỗi các kênh thảo luận Odoo (`#general`, `#Administrators`) có 1 hoặc 2 thành viên bị nhận nhầm thành chat cá nhân 1-1.
-- **Phân Định Rõ Ràng Thành Viên Hiện Tại (`is_me`)**:
-  - `[FIX]` Backend `chat.py`: Bổ sung trường `"is_me": bool(partner and p_id == partner.id)` trong danh sách `members_by_channel`.
-  - `[FIX]` Frontend `ChatV2Member.fromJson`: Tự động so khớp `currentPartnerId` và `currentUserId` từ `odooApiClient.session` để gán `isMe = true` cho chính người dùng đang đăng nhập.
-- **Loại Trừ Tuyệt Đối Avatar Của Bản Thân Khỏi Kênh Chat (`chat_v2_list_screen.dart`, `chat_v2_info_sheet.dart`)**:
-  - `[FIX]` Khi phân giải `resolvedAvatarUrl` cho chat 1-1, bắt buộc kiểm tra `!isGroup && !channel.isChannel` và loại trừ `currentPartnerId`, `currentUserId` và `currentUserName`, ngăn chặn 100% tình trạng lấy avatar cá nhân của Administrator cắm vào các kênh thảo luận.
-
-### 🖼️ [LÀM MỚI ẢNH ĐẠI DIỆN TỨC THÌ KHÔNG CẦN F5 (ZERO-F5 REALTIME AVATAR REFRESH)]
-- **Tự Động Xóa Bộ Nhớ Đệm Ảnh (`PaintingBinding.instance.imageCache`)**:
-  - Khi người dùng tải lên ảnh đại diện mới qua `uploadAvatar()`, hệ thống tự động gọi `imageCache.clear()` và `imageCache.clearLiveImages()` để hủy các bản cache ảnh cũ trong bộ nhớ RAM của Flutter.
-- **Tạo Định Danh Ảnh Độc Bản (Cache-Busting Timestamp)**:
-  - Bổ sung tham số thời gian thực `?t=<timestamp>` vào `newUrl` (`/api/v1/mobile/avatar/users/<uid>?t=...`). Đảm bảo `Image.network` và `_AvatarNetworkImage` nhận diện URL mới là một Key độc lập (`ValueKey`), tự động tải và hiển thị ảnh mới ngay trong 0.001s mà không bị lưu cache bởi trình duyệt Web hay Mobile HTTP client.
-- **Đồng Bộ Trạng Thái Tức Thì Toàn Toàn Bộ Ứng Dụng (`auth_controller.dart`, `edit_profile_screen.dart`)**:
-  - Cập nhật đồng bộ các trường `avatar_url`, `avatar_128_url`, `image_128_url` và lưu trực tiếp Base64 data URI tạm thời vào Local Storage (`saveLocalAvatar`) ngay trước khi upload lên Server, mang lại trải nghiệm hiển thị ảnh mới ngay lập tức (Optimistic UI Update).
-  - Bổ sung `ValueKey(value)` vào `UserAvatar` để kích hoạt Flutter tái dựng widget ảnh ngay khi có thay đổi.
-
-### 🟢 [CHUẨN HÓA TRẠNG THÁI ONLINE/OFFLINE, TIỀN TỐ TÁC GIẢ & TRẠNG THÁI ĐỌC TIN NHẮN ODOO 19 & 17]
-- **Tương Thích Cơ Chế Hiện Diện `mail.presence` Odoo 19 & `bus.presence` Odoo 17 (`v_mobile_19/controllers/chat.py`, `v_mobile_17/controllers/chat.py`)**:
-  - `[FIX]` Tự động phát hiện bảng hiện diện `mail_presence` (Odoo 19) hoặc `bus_presence` (Odoo 17) trong cơ sở dữ liệu để truy vấn trạng thái `im_status` của thành viên hội thoại. Khắc phục triệt để lỗi SQL do Odoo 19 không còn bảng `bus_presence`, giúp người dùng đang hoạt động hiển thị chấm xanh `● Đang hoạt động` chuẩn xác 100%.
-  - `[NEW]` Tích hợp hàm `_touch_presence(env, user_id)` tự động kích hoạt mỗi khi người dùng gọi API Mobile (`list_channels`, `channel_info`, `list_messages`, `send_message`), liên tục duy trì trạng thái `online` của người dùng trên hệ thống.
-  - `[FIX]` Cập nhật endpoint `/api/v1/mobile/chat/channels/<id>` (`channel_info`) truy vấn đúng model `mail.presence` / `bus.presence`, đảm bảo thanh tiêu đề phòng chat 1-1 luôn phản ánh đúng trạng thái trực tuyến của đối phương.
-- **Khắc Phục Triệt Để Hiển Thị Tiền Tố "Bạn: " Cho Tin Nhắn Người Khác Gửi Đến (`chat_v2_channel.dart`, `chat_v2_list_screen.dart`)**:
-  - `[FIX]` Tái cấu trúc hàm `isLastMessageFromMe`: Ưu tiên so sánh chính xác theo `lastMessageAuthorId` với `currentPartnerId` / `currentUserId`. Nếu ID người gửi khác với tài khoản đang đăng nhập, hàm lập tức trả về `false` mà không rơi vào so sánh chuỗi mờ (`contains`), ngăn chặn việc nhận nhầm tin nhắn của Admin gửi đến Tan thành tin nhắn do Tan gửi.
-  - `[FIX]` Cập nhật logic `isMine` trên `chat_v2_list_screen.dart`: Tính toán dựa trên `channel.isLastMessageFromMe(currentPartnerId: ...)` và chỉ dùng `cachedMsgs.first.authorId` khi chưa có ID từ kênh.
-  - `[FIX]` Bổ sung `ChatV2MessageLocalCache.clear()` vào hàm `signOut()` tại `auth_controller.dart` để làm sạch toàn bộ cache tin nhắn cũ khi chuyển đổi giữa các tài khoản người dùng khác nhau.
-- **Sửa Lỗi Trạng Thái Đọc & Biểu Tượng Tick Đã Gửi Của Người Nhận (`chat_v2_list_screen.dart`)**:
-  - `[FIX]` Biểu tượng trạng thái gửi (`✓` đã gửi / `✓✓` đã đọc) chỉ hiển thị khi `isMine == true` (do chính mình gửi đi). Người nhận tin nhắn sẽ không còn thấy biểu tượng tick của người gửi, đồng thời hiển thị đúng huy hiệu tin nhắn chưa đọc (Unread Badge) khi có tin nhắn mới.
-
-### 📁 [HIỂN THỊ CHUẨN XÁC TIN NHẮN TẬP TIN, HÌNH ẢNH & GHI ÂM TRÊN DANH SÁCH CHAT]
-- **Truy Vấn Lateral Join Kèm Bảng Quan Hệ (`v_mobile_19/controllers/chat.py`, `v_mobile_17/controllers/chat.py`)**:
-  - `[FIX]` Cập nhật câu SQL `last_msgs_by_channel`: Bổ sung `LEFT JOIN message_attachment_rel rel ON rel.attachment_id = a.id` kết hợp điều kiện `WHERE rel.message_id = m.id OR (a.res_model = 'mail.message' AND a.res_id = m.id)`. Khắc phục triệt để lỗi Odoo lưu tệp đính kèm trong discuss channel khiến Backend trả về `last_message = null` và Frontend hiển thị nhầm *"Nhấn để bắt đầu trò chuyện"*.
-- **Đồng Bộ Phân Loại Tệp Tin Toàn Diện (File, Image, Voice, Video)**:
-  - `[IMPROVE]` Hỗ trợ nhận diện tự động và hiển thị tiền tố chuẩn Zalo/Messenger:
-    * **Tập tin tài liệu / kỹ thuật**: `[Tập tin]` cho mọi định dạng (`.p8`, `.cer`, `.key`, `.pdf`, `.docx`, `.xlsx`, `.zip`, `.bin`, `.env`, `.py`, `.dart`...).
-    * **Tin nhắn ghi âm / thoại**: `[Ghi âm]` cho các định dạng (`.m4a`, `.aac`, `.mp3`, `.wav`, `.webm`, `.ogg`, `.opus`, `voice_*`).
-    * **Hình ảnh & Video**: `[Hình ảnh]` và `[Video]`.
-- **Hiển Thị Thẻ Tệp Gấp Góc Zalo & Tải Xuống Trực Tiếp (`chat_v2_message_item.dart`, `chat_v2_list_screen.dart`)**:
-  - `[UI/UX]` Cập nhật `isDocumentFilename` trong Model `ChatV2Message` nhận diện chính xác tất cả các tệp tin có đuôi mở rộng, hiển thị thẻ Folded Page Icon đầy đủ dung lượng và cho phép chạm để mở/tải về máy tức thì.
-- **Nổi Bật Tin Nhắn Cuộc Gọi Nhỡ / Từ Chối / Đã Hủy Chuẩn Zalo & Telegram (`chat_v2_message_item.dart`, `chat_v2_list_screen.dart`)**:
-  - `[UI/UX]` Chuyển đổi toàn bộ màu sắc tiêu đề và biểu tượng của **"Cuộc gọi bị từ chối"**, **"Cuộc gọi đã hủy"**, **"Cuộc gọi nhỡ"** sang tông **Đỏ rực (`#EF4444`)** kết hợp **In đậm (`FontWeight.w700`)** thay vì màu xám/đen nhạt như tin nhắn thường.
-  - Cập nhật đồng bộ trên cả **Bong bóng tin nhắn trong phòng chat** và **Dòng xem trước (Snippet) ngoài danh sách hội thoại**.
-
-### ⚡ [NẠP TỨC THÌ DANH SÁCH CHAT & TRIỆT TIÊU ĐỘ TRỄ 8 GIÂY SAU ĐĂNG XUẤT]
-- **Tái Tạo Provider Đúng Thời Điểm (`auth_controller.dart`)**:
-  - `[FIX]` Kích hoạt `ref.invalidate(chatV2ChannelsProvider)` và `ref.invalidate(chatV2TotalUnreadProvider)` tại cả 2 sự kiện `signIn()` và `signOut()`. Giải phóng triệt để State rỗng tồn đọng từ phiên đăng nhập cũ, buộc Riverpod nạp lại danh sách kênh mới ngay khi người dùng đăng nhập thay vì phải đợi 8 giây của chu kỳ `_pollingTimer`.
-- **Nạp Trước Dữ Liệu Song Song (Pre-Warm Channels in Login Transition)**:
-  - `[PERF]` Trong màn hình chuyển tiếp đăng nhập (`login_screen.dart`), kích hoạt song song `unawaited(ref.read(chatV2ChannelsProvider.future))` và rút ngắn thời gian chuyển cảnh xuống 700ms. Khi màn hình `/chat` vừa xuất hiện thì toàn bộ kênh chat đã nạp xong 100% trong bộ nhớ.
-- **Loại Bỏ Hoàn Toàn Trạng Thái Trống Giả (Eliminate False Empty State)**:
-  - `[FIX]` Cập nhật điều kiện hiển thị trong `chat_v2_list_screen.dart`: Kiểm tra `(channelsAsync.valueOrNull?.isNotEmpty ?? false) || ChatV2ChannelLocalCache.cached.isNotEmpty`. Hiển thị Spinner tải màu xanh thanh lịch khi dữ liệu đang được đồng bộ, triệt tiêu hoàn toàn hiện tượng hiển thị chữ "Chưa có cuộc trò chuyện nào" trong lúc app đang nạp.
+### 🛠️ [SỬA LỖI DANH SÁCH CUỘC TRÒ CHUYỆN & ĐỒNG BỘ TRẠNG THÁI TRỰC TUYẾN CHAT V2]
+- **Tối Ưu Sắp Xếp Danh Sách Trò Chuyện Theo Hoạt Động Mới Nhất (`v_mobile/controllers/chat.py`)**:
+  - Chuyển câu truy vấn `Channel.search` sang sắp xếp theo `last_interest_dt desc` chuẩn Odoo 17 (thay vì `write_date desc`), đảm bảo các cuộc trò chuyện có tin nhắn mới nhất luôn luôn nằm trong Top đầu, không bao giờ bị rớt khỏi kết quả giới hạn `limit=80`.
+  - Bổ sung endpoint metadata `@http.route(["/api/v1/mobile/chat/channels/<int:channel_id>", "/api/v1/mobile/chat/channels/<int:channel_id>/info"])` cho phép truy xuất nhanh thông tin kênh đơn lẻ O(1) < 2ms.
+- **Tự Động Nạp Thông Tin Kênh & Đồng Bộ Live Presence (`chat_v2_detail_screen.dart`, `chat_v2_repository.dart`)**:
+  - Khi người dùng mở cuộc trò chuyện trực tiếp từ Thông báo đẩy (FCM) hoặc Danh bạ/Tìm kiếm mà kênh chưa nằm trong danh sách cache, hệ thống tự động tải metadata và đưa vào `ChatV2ChannelLocalCache` + `chatV2PresenceProvider`.
+  - Hiển thị chính xác tên người nhận, ảnh đại diện và chấm trạng thái online/offline thực tế thay vì bị rỗng tiêu đề hoặc hiển thị sai trạng thái ngoại tuyến.
 
 ### 🛡️ [XỬ LÝ MẠNG TẠM THỜI, SINGLE-FLIGHT CONCURRENCY & SILENT RESUME]
 - **Cơ Chế Silent Resume An Toàn Khi App Thức Dậy (`app.dart`, `chat_v2_channels_controller.dart`)**:

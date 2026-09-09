@@ -256,7 +256,7 @@ void main() {
         MaterialApp(
           home: Scaffold(
             body: ChatV2InputBar(
-              onSend: (text) async {
+              onSend: (text, {partnerIds, mentionedPartners}) async {
                 sentText = text;
               },
               onSendImage: ({required bytes, required filename, mimetype, caption}) async {},
@@ -999,6 +999,78 @@ void main() {
       expect(merged.any((m) => m.id == 'temp_1788931234'), isTrue);
       expect(merged.first.id, equals('temp_1788931234'));
       expect(merged.first.content, equals('Tin nhắn đang gửi...'));
+    });
+
+    test('40. ChatV2Message parses partner_ids correctly from various formats', () {
+      final jsonMsg = {
+        'id': 7001,
+        'channel_id': 12,
+        'body': 'Xin chào @Admin và @Marc Demo',
+        'partner_ids': [1, 2, {'id': 3}, '4'],
+      };
+
+      final msg = ChatV2Message.fromMap(jsonMsg);
+      expect(msg.partnerIds, equals([1, 2, 3, 4]));
+
+      final map = msg.toMap();
+      expect(map['partner_ids'], equals([1, 2, 3, 4]));
+
+      final copied = msg.copyWith(partnerIds: [10, 20]);
+      expect(copied.partnerIds, equals([10, 20]));
+    });
+
+    testWidgets('41. ChatV2InputBar triggers mention suggestions overlay and passes partnerIds on send', (tester) async {
+      String? sentText;
+      List<int>? sentPartnerIds;
+      List<Map<String, dynamic>>? sentMentionedPartners;
+
+      final members = [
+        const ChatV2Member(id: '1', name: 'Admin User', email: 'admin@example.com', isMe: false),
+        const ChatV2Member(id: '2', name: 'Bùi Tuấn Kiệt', email: 'kiet@example.com', isMe: false),
+        const ChatV2Member(id: '3', name: 'Chính Tôi', email: 'me@example.com', isMe: true),
+      ];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(useMaterial3: false),
+          home: Scaffold(
+            body: ChatV2InputBar(
+              channelMembers: members,
+              onSend: (text, {partnerIds, mentionedPartners}) async {
+                sentText = text;
+                sentPartnerIds = partnerIds;
+                sentMentionedPartners = mentionedPartners;
+              },
+            ),
+          ),
+        ),
+      );
+
+      final textField = find.byType(TextField);
+      expect(textField, findsOneWidget);
+
+      // Nhập '@' để kích hoạt popup gợi ý thành viên
+      await tester.enterText(textField, 'Chào @');
+      await tester.pump();
+
+      // Kiểm tra thành viên 'isMe: true' bị loại trừ, các thành viên khác xuất hiện trong overlay
+      expect(find.text('Admin User'), findsOneWidget);
+      expect(find.text('Bùi Tuấn Kiệt'), findsOneWidget);
+      expect(find.text('Chính Tôi'), findsNothing);
+
+      // Chọn 'Bùi Tuấn Kiệt'
+      await tester.tap(find.text('Bùi Tuấn Kiệt'));
+      await tester.pump();
+
+      // Input controller tự động cập nhật text chứa token '@Bùi Tuấn Kiệt '
+      final sendBtn = find.byIcon(LucideIcons.send);
+      await tester.tap(sendBtn);
+      await tester.pump();
+
+      expect(sentText, equals('Chào @Bùi Tuấn Kiệt'));
+      expect(sentPartnerIds, equals([2]));
+      expect(sentMentionedPartners?.first['id'], equals(2));
+      expect(sentMentionedPartners?.first['name'], equals('Bùi Tuấn Kiệt'));
     });
   });
 }

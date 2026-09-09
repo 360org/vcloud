@@ -1111,6 +1111,7 @@ class ChatV2MessageItem extends StatelessWidget {
     required Color textColor,
   }) {
     final linkColor = isDark ? const Color(0xFF60A5FA) : const Color(0xFF2563EB);
+    final mentionColor = isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7);
 
     // ponytail: length guard trước regex để tránh ReDoS (backtrack bậc n²)
     // khi nhận tin nhắn bất thường dài; upgrade: atomic-group nếu Dart hỗ trợ
@@ -1131,7 +1132,7 @@ class ChatV2MessageItem extends StatelessWidget {
     );
 
     final matches = urlRegex.allMatches(rawText);
-    if (matches.isEmpty) {
+    if (matches.isEmpty && !rawText.contains('@')) {
       return Text(
         rawText,
         style: TextStyle(
@@ -1148,10 +1149,12 @@ class ChatV2MessageItem extends StatelessWidget {
 
     for (final match in matches) {
       if (match.start > lastMatchEnd) {
-        spans.add(TextSpan(
-          text: rawText.substring(lastMatchEnd, match.start),
-          style: TextStyle(color: textColor, fontSize: 15, height: 1.38),
-        ));
+        _addTextWithMentions(
+          spans,
+          rawText.substring(lastMatchEnd, match.start),
+          textColor,
+          mentionColor,
+        );
       }
 
       var rawLink = rawText.substring(match.start, match.end);
@@ -1201,16 +1204,97 @@ class ChatV2MessageItem extends StatelessWidget {
     }
 
     if (lastMatchEnd < rawText.length) {
-      spans.add(TextSpan(
-        text: rawText.substring(lastMatchEnd),
-        style: TextStyle(color: textColor, fontSize: 15, height: 1.38),
-      ));
+      _addTextWithMentions(
+        spans,
+        rawText.substring(lastMatchEnd),
+        textColor,
+        mentionColor,
+      );
     }
 
     return Text.rich(
       TextSpan(children: spans),
       overflow: TextOverflow.visible,
     );
+  }
+
+  void _addTextWithMentions(
+    List<InlineSpan> spans,
+    String segment,
+    Color textColor,
+    Color mentionColor,
+  ) {
+    if (!segment.contains('@')) {
+      spans.add(TextSpan(
+        text: segment,
+        style: TextStyle(color: textColor, fontSize: 15, height: 1.38),
+      ));
+      return;
+    }
+
+    // 1. Trích xuất danh sách mention chính xác từ thẻ HTML Odoo Discuss (<a class="o_mail_redirect">@Name</a>)
+    final explicitMentions = <String>[];
+    final raw = message.rawBody ?? '';
+    if (raw.contains('o_mail_redirect') || raw.contains('data-oe-model')) {
+      final tagRegex = RegExp(r'<a[^>]+(?:class=[\x27"]o_mail_redirect[\x27"]|data-oe-model=[\x27"]res\.partner[\x27"])[^>]*>(@?[^<]+)<\/a>', caseSensitive: false);
+      for (final tm in tagRegex.allMatches(raw)) {
+        final name = tm.group(1)?.trim();
+        if (name != null && name.isNotEmpty) {
+          final token = name.startsWith('@') ? name : '@$name';
+          if (!explicitMentions.contains(token)) {
+            explicitMentions.add(token);
+          }
+        }
+      }
+    }
+
+    // Sắp xếp các mention dài trước để tránh match substring ngắn hơn
+    explicitMentions.sort((a, b) => b.length.compareTo(a.length));
+
+    // Xây dựng Regex an toàn: Ưu tiên explicit mentions từ HTML Odoo nếu có, fallback về regex match @Tên lên tới 4 từ
+    final RegExp mentionRegex;
+    if (explicitMentions.isNotEmpty) {
+      final escaped = explicitMentions.map(RegExp.escape).join('|');
+      mentionRegex = RegExp('(?:^|(?<=[\\s\\n]))($escaped)(?=[\\s\\n,.:;!?()\\[\\]{}<>]|\$)', caseSensitive: false);
+    } else {
+      mentionRegex = RegExp(r'(?:^|(?<=[\s\n]))(@[^\s@,.:;!?()[\]{}<>]+(?:\s+[^\s@,.:;!?()[\]{}<>]+){0,3})', caseSensitive: false);
+    }
+
+    final mentionMatches = mentionRegex.allMatches(segment);
+    if (mentionMatches.isEmpty) {
+      spans.add(TextSpan(
+        text: segment,
+        style: TextStyle(color: textColor, fontSize: 15, height: 1.38),
+      ));
+      return;
+    }
+
+    int lastIdx = 0;
+    for (final m in mentionMatches) {
+      if (m.start > lastIdx) {
+        spans.add(TextSpan(
+          text: segment.substring(lastIdx, m.start),
+          style: TextStyle(color: textColor, fontSize: 15, height: 1.38),
+        ));
+      }
+      final mentionText = m.groupCount >= 1 ? (m.group(1) ?? m.group(0) ?? '') : (m.group(0) ?? '');
+      spans.add(TextSpan(
+        text: mentionText,
+        style: TextStyle(
+          color: mentionColor,
+          fontSize: 15,
+          height: 1.38,
+          fontWeight: FontWeight.w700,
+        ),
+      ));
+      lastIdx = m.end;
+    }
+    if (lastIdx < segment.length) {
+      spans.add(TextSpan(
+        text: segment.substring(lastIdx),
+        style: TextStyle(color: textColor, fontSize: 15, height: 1.38),
+      ));
+    }
   }
 
   void _handleLinkClick(BuildContext context, String targetUrl) async {

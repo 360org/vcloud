@@ -182,6 +182,7 @@ class ChatV2Message {
     this.parentBody,
     this.parentAuthorName,
     this.reactions = const [],
+    this.partnerIds = const [],
   });
 
   final String id;
@@ -199,6 +200,7 @@ class ChatV2Message {
   final String? parentBody;
   final String? parentAuthorName;
   final List<ChatV2Reaction> reactions;
+  final List<int> partnerIds;
 
   bool get hasImageAttachment => attachments.any((a) => a.isImage);
 
@@ -366,6 +368,7 @@ class ChatV2Message {
     String? parentBody,
     String? parentAuthorName,
     List<ChatV2Reaction>? reactions,
+    List<int>? partnerIds,
   }) {
     return ChatV2Message(
       id: id ?? this.id,
@@ -383,6 +386,7 @@ class ChatV2Message {
       parentBody: parentBody ?? this.parentBody,
       parentAuthorName: parentAuthorName ?? this.parentAuthorName,
       reactions: reactions ?? this.reactions,
+      partnerIds: partnerIds ?? this.partnerIds,
     );
   }
 
@@ -401,6 +405,7 @@ class ChatV2Message {
     'parent_body': parentBody,
     'parent_author_name': parentAuthorName,
     'reactions': reactions.map((r) => r.toJson()).toList(),
+    'partner_ids': partnerIds,
   };
 
   factory ChatV2Message.fromMap(
@@ -589,6 +594,21 @@ class ChatV2Message {
       }
     }
 
+    final parsedPartnerIds = <int>[];
+    final rawPartnerIds = map['partner_ids'] ?? map['partners'];
+    if (rawPartnerIds is List) {
+      for (final p in rawPartnerIds) {
+        if (p is int) {
+          parsedPartnerIds.add(p);
+        } else if (p is Map && p['id'] is int) {
+          parsedPartnerIds.add(p['id'] as int);
+        } else if (p != null) {
+          final parsed = int.tryParse(p.toString());
+          if (parsed != null) parsedPartnerIds.add(parsed);
+        }
+      }
+    }
+
     final rawAuthorAvatar = _stringOrNull(
       map['author_avatar'] ??
           map['avatar_url'] ??
@@ -617,6 +637,7 @@ class ChatV2Message {
       parentBody: cleanParentBody,
       parentAuthorName: extractedParentAuthor,
       reactions: parsedReactions,
+      partnerIds: parsedPartnerIds,
     );
   }
 
@@ -662,7 +683,8 @@ class ChatV2Message {
         other.parentId == parentId &&
         other.parentBody == parentBody &&
         other.parentAuthorName == parentAuthorName &&
-        const ListEquality().equals(other.reactions, reactions);
+        const ListEquality().equals(other.reactions, reactions) &&
+        const ListEquality().equals(other.partnerIds, partnerIds);
   }
 
   @override
@@ -681,6 +703,7 @@ class ChatV2Message {
       parentBody,
       parentAuthorName,
       const ListEquality().hash(reactions),
+      const ListEquality().hash(partnerIds),
     );
   }
 }

@@ -1,4 +1,6 @@
-// ignore_for_file: avoid_print, unused_import
+@Tags(['live-server'])
+library;
+
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';

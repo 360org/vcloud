@@ -193,7 +193,11 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
     }
   }
 
-  Future<void> _handleSendMessage(String text) async {
+  Future<void> _handleSendMessage(
+    String text, {
+    List<int>? partnerIds,
+    List<Map<String, dynamic>>? mentionedPartners,
+  }) async {
     if (text.trim().isEmpty) return;
 
     final replying = _replyingTo;
@@ -221,6 +225,8 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
             .read(chatV2MessagesProvider(widget.channelId).notifier)
             .sendMessage(
               text,
+              partnerIds: partnerIds,
+              mentionedPartners: mentionedPartners,
               parentId: replyingId,
               parentBody: replyingBody,
               parentAuthorName: replyingAuthor,
@@ -1128,6 +1134,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                     ),
                   ChatV2InputBar(
                     channelId: widget.channelId,
+                    channelMembers: currentChannel?.members ?? const [],
                     controller: _inputController,
                     focusNode: _inputFocusNode,
                     onSend: _handleSendMessage,
