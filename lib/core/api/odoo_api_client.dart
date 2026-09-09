@@ -445,15 +445,35 @@ class OdooApiClient {
       // Fallback khi Master Router chạy bản cũ chưa hỗ trợ endpoint lookup-db hoặc báo 400 (do backend live chưa deploy bản bỏ password)
       if (response.statusCode == 404 || response.statusCode == 405 || response.statusCode == 400) {
         debugPrint('⚠️ [lookupDb] Master ($masterUrl) trả về ${response.statusCode}, fallback sang cấu hình mặc định.');
+        final String effectiveDb;
+        final String effectiveUrl;
+        final String displayName;
+        final String categoryLabel;
+
+        final isDemoLogin = trimmedLogin == 'demo' || trimmedLogin == 'morpheus';
+        if (isDemoLogin || (preferredDb == 'demo' && trimmedLogin != 'tanmnn@360.org.vn' && !trimmedLogin.endsWith('@360.org.vn'))) {
+          effectiveDb = 'demo';
+          effectiveUrl = 'https://demo.vuahethong.com';
+          displayName = 'Trung tâm Trải nghiệm & Demo (Odoo 19)';
+          categoryLabel = '🏢 Nội Bộ (Odoo 19)';
+        } else {
+          effectiveDb = (preferredDb != null && preferredDb.isNotEmpty && preferredDb != 'demo')
+              ? preferredDb
+              : 'vuahethong';
+          effectiveUrl = masterUrl;
+          displayName = 'Vua Hệ Thống (Chính thức)';
+          categoryLabel = '🏢 Nội Bộ (Odoo 17)';
+        }
+
         return [
           {
             'login': trimmedLogin,
-            'database_name': preferredDb ?? 'vuahethong',
-            'database_url': masterUrl,
-            'display_name': 'Vua Hệ Thống (Chính thức)',
+            'database_name': effectiveDb,
+            'database_url': effectiveUrl,
+            'display_name': displayName,
             'project_id': 1,
             'has_v_mobile': true,
-            'category_label': '🏢 Nội Bộ (Odoo 17)',
+            'category_label': categoryLabel,
           }
         ];
       }
@@ -519,11 +539,16 @@ class OdooApiClient {
     Duration timeout = const Duration(seconds: 15),
   }) async {
     final cleanBaseUrl = targetBaseUrl.replaceFirst(RegExp(r'/$'), '');
-    final effectiveDb = (dbName.isEmpty && cleanBaseUrl == 'https://vuahethong.net')
-        ? 'vuahethong'
-        : (dbName.isEmpty && cleanBaseUrl == 'https://demo.vuahethong.com'
-            ? 'demo'
-            : dbName);
+    String effectiveDb = dbName.trim();
+    if (cleanBaseUrl == 'https://vuahethong.net') {
+      if (effectiveDb.isEmpty || effectiveDb == 'demo') {
+        effectiveDb = 'vuahethong';
+      }
+    } else if (cleanBaseUrl == 'https://demo.vuahethong.com') {
+      if (effectiveDb.isEmpty) {
+        effectiveDb = 'demo';
+      }
+    }
     final session = await _loginWithOdooSessionAndJwtAt(
       targetBaseUrl: cleanBaseUrl,
       login: login.trim(),
