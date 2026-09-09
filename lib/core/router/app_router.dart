@@ -94,12 +94,23 @@ final routerProvider = Provider<GoRouter>((ref) {
                 !decoded.startsWith('/login') &&
                 !decoded.startsWith('/signup') &&
                 !decoded.startsWith('/splash')) {
+              if (user.isPortal && (decoded.startsWith('/attendance') || decoded.startsWith('/timesheet'))) {
+                return '/tickets';
+              }
               return decoded;
             }
           } catch (_) {}
         }
-        return '/chat';
+        return user.isPortal ? '/tickets' : '/chat';
       }
+
+      // Guard cho Portal User: chặn truy cập vào tính năng nội bộ
+      if (user.isPortal) {
+        if (loc.startsWith('/attendance') || loc.startsWith('/timesheet')) {
+          return '/tickets';
+        }
+      }
+
       return null;
     },
     routes: [

@@ -2,6 +2,45 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.4+122] — 2026-09-09 (Smart Login Multi-Database & Fallback Manual Mode)
+
+> [!IMPORTANT]
+> **Hoàn Thiện Kiến Trúc Smart Login Đa Database & Fallback Thủ Công**:
+> - **Tiêu chuẩn áp dụng**: `vclients/docs/SPEC.md`
+> - **Phạm vi**: `vclients` (`LoginScreen`, `DbInfo`, `OdooApiClient`)
+> - **Mục tiêu**: 
+>   1. Triển khai giao diện Đăng nhập thông minh tối giản (chỉ cần Username + Mật khẩu), Master Router tự động định tuyến cơ sở dữ liệu.
+>   2. Bổ sung nút chuyển đổi chế độ *"Nhập máy chủ / Database thủ công"* bên dưới nút Đăng nhập, cho phép người dùng tùy chọn nhập URL Server và Tên Database khi Master Router không khả dụng.
+>   3. Tự động chuẩn hóa URL (loại bỏ trailing slashes) và phân định nhãn nhận diện tổ chức (Nội bộ / Khách hàng / Odoo 17 / Odoo 19).
+
+### 🚀 [NEW FEATURES & IMPROVEMENTS]
+- `[NEW]` **Fallback Manual Mode**: Thêm nút chuyển đổi chế độ nhập Server URL và Database Name thủ công với kiểm tra định dạng chặt chẽ (`http://` hoặc `https://`).
+- `[IMPROVE]` **Modern UI UX**: Nút chuyển đổi tinh tế với icon Lucide (`LucideIcons.slidersHorizontal` và `LucideIcons.sparkles`), không làm rối mắt người dùng phổ thông.
+- `[SECURITY]` **Direct Client Authentication**: Đảm bảo mật khẩu ở chế độ thủ công gửi trực tiếp tới máy chủ đích, không qua bất kỳ bên trung gian nào.
+
+---
+
+## [v2.9.4+121] — 2026-09-09 (Portal Users Multi-Persona & Chat Web Optimizations)
+
+> [!IMPORTANT]
+> **Đặc Tả & Thiết Lập Kiến Trúc Phân Quyền Portal Users & Tối Ưu Hóa Chat V2 Web**:
+> - **Tiêu chuẩn áp dụng**: `vclients/docs/SPEC.md`
+> - **Phạm vi**: `vclients` (`AppScaffold`, `AppRouter`, `AuthRepository`, `AuthUser`, `ChatV2InputBar`, `ChatV2MessagesNotifier`)
+> - **Mục tiêu**: 
+>   1. Nhận diện cờ `is_portal` từ API profile Odoo, tự động chuyển đổi Bottom Navigation 3 tab (Ticket, Chat, Tôi) cho khách hàng Portal, chặn truy cập vào các phân hệ Chấm công và Timesheet nội bộ.
+>   2. Tối ưu hóa gửi tin nhắn trên Web: Bắt phím Enter gửi tin, chống gửi nhầm khi gõ tiếng Việt có dấu (IME composing check).
+>   3. Khắc phục triệt để lỗi dấu chấm than đỏ (!) khi gửi tin: Cô lập ranh giới try-catch cho các tác vụ phụ trợ (realtime bus, last sent tracker, mark read, local cache) bảo vệ optimistic status `sent` (1 tick/2 tick xanh).
+
+### 🚀 [NEW FEATURES & IMPROVEMENTS]
+- `[NEW]` **Portal User Support**: Mở rộng `AuthUser` với getter `isPortal` và lưu cờ `is_portal` vào `userMetadata`.
+- `[NEW]` **Dynamic Bottom Navigation (`AppScaffold`)**: Chuyển `AppScaffold` sang `ConsumerWidget` tự động render 5 tab cho nhân viên nội bộ và 3 tab tinh gọn (Ticket, Chat, Tôi) cho khách hàng Portal.
+- `[SECURITY]` **Route Guard (`AppRouter`)**: Điều hướng Portal User vào `/tickets` sau khi đăng nhập và chặn các route `/attendance` hay `/timesheet`.
+- `[FIX]` **Chat Web IME & Enter Key Handling**: Bổ sung `KeyboardListener` bắt phím Enter trên Web và guard `_controller.value.composing.isValid` ngăn gửi khi đang gõ tiếng Việt có dấu.
+- `[FIX]` **Chat Optimistic Status Hardening**: Bảo vệ trạng thái tin nhắn `sent` không bị đổi nhầm thành `status: 'error'` (dấu chấm than đỏ) do các tác vụ phụ trợ sau khi gửi API thành công.
+- `[FIX]` **Optimistic Polling Preservation**: Cập nhật `_mergeMessages` giữ nguyên danh sách `pendingTempMessages` (`temp_*`) trong quá trình SWR polling.
+
+---
+
 ## [v2.9.4+120] — 2026-09-08 (Parallel Multi-Domain Production & Demo Fallback)
 
 > [!IMPORTANT]

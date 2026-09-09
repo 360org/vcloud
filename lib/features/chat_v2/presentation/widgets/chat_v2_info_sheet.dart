@@ -151,8 +151,9 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
   }
 
   void _extractMedia() {
+    // ponytail: nested-quantifier fix (ReDoS); matches cùng cấu trúc với chat_bubbles fix
     final linkRegex = RegExp(
-      r'((?:https?:\/\/|www\.)[^\s<]+|(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(?:\/[^\s<]*)?)',
+      r'((?:https?:\/\/|www\.)[^\s<]+|[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*\.[a-zA-Z]{2,}(?:\/[^\s<]*)?)',
       caseSensitive: false,
     );
     final imgTagRegex = RegExp(

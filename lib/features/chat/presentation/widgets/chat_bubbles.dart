@@ -778,8 +778,16 @@ class TextBubble extends StatelessWidget {
     final cleanText = stripHtml(rawText);
     final linkColor = mine ? Colors.white : const Color(0xFF1D4ED8);
 
+    // ponytail: length guard trước regex để tránh ReDoS (backtrack bậc n²)
+    // khi nhận tin nhắn bất thường dài; upgrade: atomic-group nếu Dart hỗ trợ
+    if (cleanText.length > 2000) {
+      return Text(
+        cleanText,
+        style: TextStyle(color: textColor, fontSize: 15, height: 1.35),
+      );
+    }
     final urlRegex = RegExp(
-      r'((?:https?:\/\/|vcloud:\/\/|www\.)[^\s<]+|(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(?:\/[^\s<]*)?)',
+      r'((?:https?:\/\/|vcloud:\/\/|www\.)[^\s<]+|[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*\.[a-zA-Z]{2,}(?:\/[^\s<]*)?)',
       caseSensitive: false,
     );
 

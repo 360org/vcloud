@@ -9,6 +9,7 @@ import 'package:lucide_flutter/lucide_flutter.dart';
 
 import '../../core/api/odoo_api_client.dart';
 import '../../core/theme/app_theme.dart';
+import '../../features/auth/application/auth_controller.dart';
 import '../../features/chat_v2/application/chat_v2_channels_controller.dart';
 
 /// Standard scaffold for top-level tabs (Home/Chat/...). Draws the
@@ -18,7 +19,7 @@ import '../../features/chat_v2/application/chat_v2_channels_controller.dart';
 ///
 /// Set [showAppBar] to false for screens that paint their own header
 /// (e.g. Home's light greeting header).
-class AppScaffold extends StatelessWidget {
+class AppScaffold extends ConsumerWidget {
   const AppScaffold({
     super.key,
     required this.title,
@@ -46,7 +47,7 @@ class AppScaffold extends StatelessWidget {
   final bool showAppBar;
   final bool wrapSafeArea;
 
-  static const _tabs = <_TabSpec>[
+  static const _employeeTabs = <_TabSpec>[
     _TabSpec(label: 'Home', path: '/home', icon: LucideIcons.home),
     _TabSpec(label: 'Chat', path: '/chat', icon: LucideIcons.messageCircle),
     _TabSpec(label: 'Timesheet', path: '/timesheet', icon: LucideIcons.clock),
@@ -54,12 +55,22 @@ class AppScaffold extends StatelessWidget {
     _TabSpec(label: 'Tôi', path: '/profile', icon: LucideIcons.user),
   ];
 
+  static const _portalTabs = <_TabSpec>[
+    _TabSpec(label: 'Ticket', path: '/tickets', icon: LucideIcons.ticket),
+    _TabSpec(label: 'Chat', path: '/chat', icon: LucideIcons.messageCircle),
+    _TabSpec(label: 'Tôi', path: '/profile', icon: LucideIcons.user),
+  ];
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final authUser = ref.watch(authControllerProvider).valueOrNull;
+    final isPortal = authUser?.isPortal == true;
+    final tabs = isPortal ? _portalTabs : _employeeTabs;
+
     final loc = GoRouterState.of(context).matchedLocation;
     final activeIndex = () {
-      for (var i = 0; i < _tabs.length; i++) {
-        final p = _tabs[i].path;
+      for (var i = 0; i < tabs.length; i++) {
+        final p = tabs[i].path;
         if (loc == p || loc.startsWith('$p/')) return i;
       }
       return null;
@@ -70,7 +81,7 @@ class AppScaffold extends StatelessWidget {
         (activeIndex == null
             ? null
             : _FloatingTabBar(
-                tabs: _tabs,
+                tabs: tabs,
                 activeIndex: activeIndex,
               ));
 
@@ -85,7 +96,7 @@ class AppScaffold extends StatelessWidget {
                       if (context.canPop()) {
                         context.pop();
                       } else {
-                        context.go('/home');
+                        context.go(isPortal ? '/tickets' : '/home');
                       }
                     },
               )

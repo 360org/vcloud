@@ -956,6 +956,50 @@ void main() {
       expect(members[1].name, equals('Marc Demo'));
       expect(members[1].imStatus, equals('offline'));
     });
+
+    test('39. ChatV2MessagesNotifier _mergeMessages preserves pending optimistic temp_* messages', () {
+      final currentList = [
+        ChatV2Message(
+          id: 'temp_1788931234',
+          channelId: '37',
+          content: 'Tin nhắn đang gửi...',
+          authorName: 'Khách Hàng',
+          isMine: true,
+          status: 'sent',
+          createdAt: DateTime.now(),
+        ),
+        ChatV2Message(
+          id: '1297',
+          channelId: '37',
+          content: 'Tin nhắn cũ 1',
+          authorName: 'Nhân Viên',
+          isMine: false,
+          status: 'sent',
+          createdAt: DateTime.now().subtract(const Duration(minutes: 5)),
+        ),
+      ];
+
+      // Giả lập response từ SWR polling server chỉ chứa tin nhắn đã commit
+      final freshList = [
+        ChatV2Message(
+          id: '1297',
+          channelId: '37',
+          content: 'Tin nhắn cũ 1',
+          authorName: 'Nhân Viên',
+          isMine: false,
+          status: 'sent',
+          createdAt: DateTime.now().subtract(const Duration(minutes: 5)),
+        ),
+      ];
+
+      final merged = ChatV2MessagesNotifier.mergeMessagesForTest(currentList, freshList);
+
+      // Đảm bảo tin nhắn temp_1788931234 không bị nuốt mất
+      expect(merged.length, equals(2));
+      expect(merged.any((m) => m.id == 'temp_1788931234'), isTrue);
+      expect(merged.first.id, equals('temp_1788931234'));
+      expect(merged.first.content, equals('Tin nhắn đang gửi...'));
+    });
   });
 }
 

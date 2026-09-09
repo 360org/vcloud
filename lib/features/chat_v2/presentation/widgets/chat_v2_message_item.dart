@@ -1095,8 +1095,21 @@ class ChatV2MessageItem extends StatelessWidget {
   }) {
     final linkColor = isDark ? const Color(0xFF60A5FA) : const Color(0xFF2563EB);
 
+    // ponytail: length guard trước regex để tránh ReDoS (backtrack bậc n²)
+    // khi nhận tin nhắn bất thường dài; upgrade: atomic-group nếu Dart hỗ trợ
+    if (rawText.length > 2000) {
+      return Text(
+        rawText,
+        style: TextStyle(
+          fontSize: 15,
+          height: 1.38,
+          color: textColor,
+        ),
+        overflow: TextOverflow.visible,
+      );
+    }
     final urlRegex = RegExp(
-      r'((?:https?:\/\/|www\.)[^\s<]+|(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(?:\/[^\s<]*)?)',
+      r'((?:https?:\/\/|www\.)[^\s<]+|[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*\.[a-zA-Z]{2,}(?:\/[^\s<]*)?)',
       caseSensitive: false,
     );
 

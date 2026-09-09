@@ -294,12 +294,21 @@ class ChatV2MessagesNotifier
     }
   }
 
+  @visibleForTesting
+  static List<ChatV2Message> mergeMessagesForTest(
+    List<ChatV2Message> currentList,
+    List<ChatV2Message> freshList,
+  ) => _mergeMessages(currentList, freshList);
+
   static List<ChatV2Message> _mergeMessages(
     List<ChatV2Message> currentList,
     List<ChatV2Message> freshList,
   ) {
     if (freshList.isEmpty) return currentList;
     if (currentList.isEmpty) return freshList;
+
+    // Bảo vệ optimistic updates: giữ lại các tin nhắn tạm (temp_*) chưa đồng bộ xong
+    final pendingTempMessages = currentList.where((m) => m.id.startsWith('temp_')).toList();
 
     final currentIds = currentList.map((m) => m.id).toSet();
     final freshById = {for (final m in freshList) m.id: m};
@@ -315,7 +324,7 @@ class ChatV2MessagesNotifier
     }).toList();
 
     // 2. Cập nhật các tin nhắn hiện có mà không làm mất các tin nhắn cũ đã loadMore
-    final updatedExisting = currentList.map((m) {
+    final updatedExisting = currentList.where((m) => !m.id.startsWith('temp_')).map((m) {
       final fresh = freshById[m.id];
       if (fresh != null) {
         final replyInfo = ChatV2ReplyCache.get(fresh.id);
@@ -332,7 +341,7 @@ class ChatV2MessagesNotifier
       return m; // Giữ nguyên các trang tin nhắn cũ đã tải về
     }).toList();
 
-    return [...brandNew, ...updatedExisting];
+    return [...pendingTempMessages, ...brandNew, ...updatedExisting];
   }
 
   static bool _hasDifferences(List<ChatV2Message> a, List<ChatV2Message> b) {
@@ -493,23 +502,34 @@ class ChatV2MessagesNotifier
       ChatV2MessageLocalCache.set(channelId, updatedList);
       state = AsyncData(updatedList);
 
-      // Báo sự kiện realtime
-      ref.read(chatV2RealtimeServiceProvider).notifyMessageSent(channelId, resolvedSentMsg);
-      ref.read(chatV2LastSentTrackerProvider.notifier).recordSent(channelId, trimmed);
-      ref.read(chatV2ReadStateProvider.notifier).markChannelAsRead(channelId);
+      // Báo sự kiện realtime an toàn
+      try {
+        ref.read(chatV2RealtimeServiceProvider).notifyMessageSent(channelId, resolvedSentMsg);
+      } catch (_) {}
 
-      ChatV2ChannelLocalCache.updateChannelLastMessage(
-        channelId,
-        lastMessage: trimmed,
-        lastMessageDate: DateTime.now(),
-        authorId: partnerId ?? userId,
-        authorName: userName,
-        unreadCount: 0,
-      );
+      try {
+        ref.read(chatV2LastSentTrackerProvider.notifier).recordSent(channelId, trimmed);
+      } catch (_) {}
+
+      try {
+        ref.read(chatV2ReadStateProvider.notifier).markChannelAsRead(channelId);
+      } catch (_) {}
+
+      try {
+        ChatV2ChannelLocalCache.updateChannelLastMessage(
+          channelId,
+          lastMessage: trimmed,
+          lastMessageDate: DateTime.now(),
+          authorId: partnerId ?? userId,
+          authorName: userName,
+          unreadCount: 0,
+        );
+      } catch (_) {}
 
       // Channel list will auto-update via WebSocket (onChannelUpdated / onMessageReceived)
       // ref.invalidate(chatV2ChannelsProvider);
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('❌ [ERROR] ChatV2MessagesNotifier.sendMessage failed: $e\n$st');
       // Đánh dấu tin nhắn lỗi
       final currentList = state.valueOrNull ?? const [];
       state = AsyncData(

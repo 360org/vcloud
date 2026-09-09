@@ -397,13 +397,34 @@ class OdooApiClient {
 
   String get activeBaseUrl => _activeBaseUrl();
 
-  /// [Giải pháp 2 / Anti-DB Enumeration]: Tra cứu và xác thực mật khẩu trên Master (`lookup-db`).
-  /// Gửi đồng thời `login`, `password` và `preferred_db` (nếu có) để Master tối ưu tốc độ.
+  /// [Bước 2 / Kiến trúc chuẩn 4 bước của Sếp Tân]:
+  /// Gửi API tra cứu DB lên Master: POST /api/v1/auth/lookup-db
+  /// PAYLOAD CHỈ CHỨA: `{"login": "client_db1_user"}`
+  /// ⚠️ TUYỆT ĐỐI KHÔNG BẮT GỬI PASSWORD LÊN MASTER!
   Future<List<Map<String, dynamic>>> lookupDb(
-    String login,
-    String password, {
+    String login, {
+    String? password,
     String? preferredDb,
   }) async {
+    final trimmedLogin = login.trim();
+    final lowerLogin = trimmedLogin.toLowerCase();
+
+    // Tài khoản trải nghiệm demo / morpheus: Định tuyến thẳng sang demo.vuahethong.com
+    if (lowerLogin == 'demo' || lowerLogin == 'morpheus') {
+      const demoUrl = 'https://demo.vuahethong.com';
+      return [
+        {
+          'login': trimmedLogin,
+          'database_name': 'demo',
+          'database_url': demoUrl,
+          'display_name': 'Trung tâm Trải nghiệm & Demo (Odoo 19)',
+          'project_id': 9999,
+          'has_v_mobile': true,
+          'category_label': '🏢 Nội Bộ (Odoo 19)',
+        }
+      ];
+    }
+
     final masterUrl = _baseUrl.isNotEmpty ? _baseUrl : 'https://vuahethong.net';
     final uri = Uri.parse('$masterUrl/api/v1/auth/lookup-db');
 
@@ -414,102 +435,78 @@ class OdooApiClient {
         'Accept': 'application/json',
       },
       body: jsonEncode({
-        'login': login.trim(),
-        'password': password,
+        'login': trimmedLogin,
         if (preferredDb != null && preferredDb.trim().isNotEmpty)
           'preferred_db': preferredDb.trim(),
       }),
     ).timeout(const Duration(seconds: 10));
 
     if (response.statusCode != 200) {
-      // ponytail: Fallback khi Master Router chạy bản cũ chưa hỗ trợ endpoint lookup-db (404/405/500).
-      // Thử đăng nhập song song qua Master (vuahethong.net) và Demo (demo.vuahethong.com).
-      if (response.statusCode == 404 || response.statusCode == 405) {
-        debugPrint('⚠️ [lookupDb] Master ($masterUrl) trả về ${response.statusCode}, fallback sang login trực tiếp.');
-        final candidates = <Map<String, dynamic>>[];
-        final isCompanyEmail = login.trim().contains('@360.org.vn') ||
-            login.trim().contains('@vuahethong.net');
-
-        // 1. Kiểm tra Primary (vuahethong.net)
-        try {
-          final directSession = await _attemptLoginAt(
-            targetBaseUrl: masterUrl,
-            login: login.trim(),
-            password: password,
-            targetDb: preferredDb ?? '',
-            timeout: const Duration(seconds: 10),
-          );
-          candidates.add({
-            'login': login.trim(),
-            'database_name': directSession.db,
+      // Fallback khi Master Router chạy bản cũ chưa hỗ trợ endpoint lookup-db hoặc báo 400 (do backend live chưa deploy bản bỏ password)
+      if (response.statusCode == 404 || response.statusCode == 405 || response.statusCode == 400) {
+        debugPrint('⚠️ [lookupDb] Master ($masterUrl) trả về ${response.statusCode}, fallback sang cấu hình mặc định.');
+        return [
+          {
+            'login': trimmedLogin,
+            'database_name': preferredDb ?? 'vuahethong',
             'database_url': masterUrl,
+            'display_name': 'Vua Hệ Thống (Chính thức)',
             'project_id': 1,
             'has_v_mobile': true,
-            'category_label': 'Chính thức',
-          });
-        } catch (loginErr) {
-          debugPrint('🚨 [lookupDb fallback primary] error: $loginErr');
-          if (loginErr is MultipleTenantsFailure) {
-            for (final t in loginErr.tenants) {
-              candidates.add({
-                'login': login.trim(),
-                'database_name': t.db ?? t.name,
-                'database_url': t.baseUrl ?? masterUrl,
-                'project_id': t.tenantId,
-                'has_v_mobile': true,
-                'category_label': 'Chính thức',
-              });
-            }
+            'category_label': '🏢 Nội Bộ (Odoo 17)',
           }
-        }
-
-        // 2. Nếu không phải email nội bộ công ty hoặc chưa tìm thấy, kiểm tra thêm Demo (demo.vuahethong.com)
-        if (!isCompanyEmail || candidates.isEmpty) {
-          try {
-            const demoUrl = 'https://demo.vuahethong.com';
-            final demoSession = await _attemptLoginAt(
-              targetBaseUrl: demoUrl,
-              login: login.trim(),
-              password: password,
-              targetDb: 'demo',
-              timeout: const Duration(seconds: 8),
-            );
-            candidates.add({
-              'login': login.trim(),
-              'database_name': demoSession.db.isNotEmpty ? demoSession.db : 'demo',
-              'database_url': demoUrl,
-              'project_id': 9999,
-              'has_v_mobile': true,
-              'category_label': 'Demo / Trải nghiệm',
-            });
-          } catch (demoErr) {
-            debugPrint('🚨 [lookupDb fallback demo] error: $demoErr');
-          }
-        }
-
-        return candidates;
+        ];
       }
-      throw Failure('Không thể xác thực thông tin hệ thống (${response.statusCode})');
+      throw Failure('Không thể tra cứu thông tin hệ thống (${response.statusCode})');
     }
 
     final decoded = jsonDecode(response.body);
     if (decoded is Map && decoded['error'] != null) {
       final err = decoded['error'];
       final msg = err is Map ? (err['message'] ?? err['data']?['message']) : null;
-      throw Failure(msg?.toString() ?? 'Lỗi xác thực thông tin tài khoản.');
+      throw Failure(msg?.toString() ?? 'Lỗi tra cứu thông tin tài khoản.');
     }
 
     List rawList = [];
-    if (decoded is Map && decoded['result'] is List) {
-      rawList = decoded['result'] as List;
+    if (decoded is Map) {
+      // Hỗ trợ format chuẩn: { "status": "success", "count": N, "databases": [...] }
+      if (decoded['databases'] is List) {
+        rawList = decoded['databases'] as List;
+      } else if (decoded['result'] is List) {
+        rawList = decoded['result'] as List;
+      }
     } else if (decoded is List) {
       rawList = decoded;
     }
 
-    return rawList
+    final parsedList = rawList
         .whereType<Map>()
         .map((e) => Map<String, dynamic>.from(e))
         .toList();
+
+    // -------------------------------------------------------------------------
+    // Nếu Master lookup trả về rỗng:
+    // User 'demo' hoặc 'morpheus' (trải nghiệm) -> định tuyến vào Demo server
+    // -------------------------------------------------------------------------
+    if (parsedList.isEmpty) {
+      final trimmedLogin = login.trim().toLowerCase();
+      if (trimmedLogin == 'demo' || trimmedLogin == 'morpheus') {
+        const demoUrl = 'https://demo.vuahethong.com';
+        return [
+          {
+            'login': login.trim(),
+            'database_name': 'demo',
+            'database_url': demoUrl,
+            'display_name': 'Trung tâm Trải nghiệm & Demo (Odoo 19)',
+            'project_id': 9999,
+            'has_v_mobile': true,
+            'category_label': '🏢 Nội Bộ (Odoo 19)',
+          }
+        ];
+      }
+    }
+
+    return parsedList;
   }
 
   /// [P0 / Security]: Xác thực TRỰC TIẾP tới Client DB URL.

@@ -8,4 +8,9 @@ class AuthUser {
   final String id;
   final String? email;
   final Map<String, dynamic> userMetadata;
+
+  bool get isPortal =>
+      userMetadata['is_portal'] == true ||
+      userMetadata['share'] == true ||
+      userMetadata['user_type'] == 'portal';
 }

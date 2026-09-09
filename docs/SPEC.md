@@ -136,6 +136,12 @@ All backend-facing feature work must follow:
     conversations and open tickets.
 - Avatar rendering uses `/api/v1/mobile/avatar/{users,partners,channels}/{id}`
   when list/detail payloads do not already include inline avatar data.
+- Portal Users Multi-Persona & Governance:
+  - Supports dual user personas on mobile: `Internal Users` (staff/employees) and `Portal Users` (external customers/partners with `share=true`).
+  - Auth contract returns `"is_portal": bool` and `"user_type": "portal" | "internal"`.
+  - Portal Users receive a tailored lightweight 3-tab navigation: `Ticket` (support request lifecycle), `Chat` (direct conversation with technical team), and `Tôi` (account profile).
+  - Internal features (`Attendance`, `Timesheet`, internal project tasks, and full company directory) are guarded both client-side (route redirects) and server-side (HTTP 403 Forbidden).
+  - Ticket and Project API queries strictly enforce isolation domains: Portal Users can only read and comment on tickets/tasks where they are the owner/partner or a registered follower, preventing cross-tenant and company-internal data leakage.
 
 ## Non-Goals
 - No alternate backend client initialization or direct backend calls in presentation/application layers.

@@ -1130,47 +1130,62 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
                                       )
                                     : Padding(
                                         padding: const EdgeInsets.only(left: 4, right: 14),
-                                        child: TextField(
-                                          controller: _controller,
-                                    focusNode: _focusNode,
-                                    textCapitalization: TextCapitalization.sentences,
-                                    minLines: 1,
-                                    maxLines: 5,
-                                    textAlignVertical: TextAlignVertical.center,
-                                    style: TextStyle(
-                                      fontSize: 15,
-                                      height: 1.35,
-                                      color: isDark
-                                          ? const Color(0xFFE9EDEF)
-                                          : const Color(0xFF111B21),
-                                    ),
-                                    cursorColor: const Color(0xFF00C83A),
-                                    cursorWidth: 2.0,
-                                    cursorRadius: const Radius.circular(2),
-                                    decoration: InputDecoration(
-                                      hintText: _selectedBytes != null
-                                          ? 'Thêm chú thích...'
-                                          : 'Nhập tin nhắn...',
-                                      hintStyle: TextStyle(
-                                        color: isDark
-                                            ? const Color(0xFF8696A0)
-                                            : const Color(0xFF8696A0),
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w400,
+                                        child: KeyboardListener(
+                                          focusNode: FocusNode(),
+                                          onKeyEvent: (event) {
+                                            if (kIsWeb &&
+                                                event is KeyDownEvent &&
+                                                event.logicalKey == LogicalKeyboardKey.enter &&
+                                                !HardwareKeyboard.instance.isShiftPressed) {
+                                              // Không gửi nhầm khi đang gõ bộ gõ IME tiếng Việt (chưa kết thúc từ)
+                                              if (_controller.value.composing.isValid) {
+                                                return;
+                                              }
+                                              _handleSend();
+                                            }
+                                          },
+                                          child: TextField(
+                                            controller: _controller,
+                                            focusNode: _focusNode,
+                                            textCapitalization: TextCapitalization.sentences,
+                                            minLines: 1,
+                                            maxLines: 5,
+                                            textAlignVertical: TextAlignVertical.center,
+                                            style: TextStyle(
+                                              fontSize: 15,
+                                              height: 1.35,
+                                              color: isDark
+                                                  ? const Color(0xFFE9EDEF)
+                                                  : const Color(0xFF111B21),
+                                            ),
+                                            cursorColor: const Color(0xFF00C83A),
+                                            cursorWidth: 2.0,
+                                            cursorRadius: const Radius.circular(2),
+                                            decoration: InputDecoration(
+                                              hintText: _selectedBytes != null
+                                                  ? 'Thêm chú thích...'
+                                                  : 'Nhập tin nhắn...',
+                                              hintStyle: TextStyle(
+                                                color: isDark
+                                                    ? const Color(0xFF8696A0)
+                                                    : const Color(0xFF8696A0),
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w400,
+                                              ),
+                                              border: InputBorder.none,
+                                              enabledBorder: InputBorder.none,
+                                              focusedBorder: InputBorder.none,
+                                              disabledBorder: InputBorder.none,
+                                              filled: false,
+                                              isDense: true,
+                                              contentPadding: const EdgeInsets.symmetric(
+                                                vertical: 12,
+                                              ),
+                                            ),
+                                            onSubmitted: (_) => _handleSend(),
+                                          ),
+                                        ),
                                       ),
-                                      border: InputBorder.none,
-                                      enabledBorder: InputBorder.none,
-                                      focusedBorder: InputBorder.none,
-                                      disabledBorder: InputBorder.none,
-                                      filled: false,
-                                      isDense: true,
-                                      contentPadding: const EdgeInsets.symmetric(
-                                        vertical: 12,
-                                      ),
-                                    ),
-                                    onSubmitted: (_) => _handleSend(),
-                                  ),
-                                ),
                               ),
                             ],
                           ),
