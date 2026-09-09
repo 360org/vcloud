@@ -538,7 +538,13 @@ class OdooApiClient {
     required String password,
     Duration timeout = const Duration(seconds: 15),
   }) async {
-    final cleanBaseUrl = targetBaseUrl.replaceFirst(RegExp(r'/$'), '');
+    var cleanBaseUrl = targetBaseUrl.replaceFirst(RegExp(r'/$'), '');
+    final fallbackUrl = _baseUrl.isNotEmpty ? _baseUrl : Env.odooApiBaseUrl;
+
+    if (cleanBaseUrl.isEmpty || cleanBaseUrl.contains('192.168.1.100')) {
+      cleanBaseUrl = fallbackUrl;
+    }
+
     String effectiveDb = dbName.trim();
     if (cleanBaseUrl == 'https://vuahethong.net') {
       if (effectiveDb.isEmpty || effectiveDb == 'demo') {
@@ -549,13 +555,30 @@ class OdooApiClient {
         effectiveDb = 'demo';
       }
     }
-    final session = await _loginWithOdooSessionAndJwtAt(
-      targetBaseUrl: cleanBaseUrl,
-      login: login.trim(),
-      password: password,
-      dbName: effectiveDb,
-      timeout: timeout,
-    );
+
+    OdooSession session;
+    try {
+      session = await _loginWithOdooSessionAndJwtAt(
+        targetBaseUrl: cleanBaseUrl,
+        login: login.trim(),
+        password: password,
+        dbName: effectiveDb,
+        timeout: timeout,
+      );
+    } catch (e) {
+      if (cleanBaseUrl != fallbackUrl) {
+        debugPrint('⚠️ [authenticateOnClient] Retrying with fallback $fallbackUrl due to error: $e');
+        session = await _loginWithOdooSessionAndJwtAt(
+          targetBaseUrl: fallbackUrl,
+          login: login.trim(),
+          password: password,
+          dbName: effectiveDb,
+          timeout: timeout,
+        );
+      } else {
+        rethrow;
+      }
+    }
 
     _session = session;
     await _sessionStore.write(session);
