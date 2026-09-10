@@ -185,12 +185,7 @@ class OdooApiClient {
       _session = null;
       return null;
     }
-    // Tự động vô hiệu hóa session khi chuyển đổi giữa các database khác nhau (vd: demo-17 vs demo-19)
-    if (Env.odooDb.isNotEmpty && stored.db.isNotEmpty && stored.db != Env.odooDb) {
-      await _sessionStore.clear();
-      _session = null;
-      return null;
-    }
+    // Giữ session hợp lệ cho mọi DB người dùng đã đăng nhập (demo, tenant khách hàng, vuahethong)
     _session = stored;
     return stored;
   }
@@ -457,9 +452,13 @@ class OdooApiClient {
           displayName = 'Trung tâm Trải nghiệm & Demo (Odoo 19)';
           categoryLabel = '🏢 Nội Bộ (Odoo 19)';
         } else {
-          effectiveDb = (preferredDb != null && preferredDb.isNotEmpty && preferredDb != 'demo')
-              ? preferredDb
-              : 'vuahethong';
+          // Trên Production vuahethong.net: DB chính thức là 'vuahethong'
+          final isProd = masterUrl.contains('vuahethong.net');
+          if (isProd) {
+            effectiveDb = 'vuahethong';
+          } else {
+            effectiveDb = (preferredDb != null && preferredDb.isNotEmpty) ? preferredDb : Env.odooDb;
+          }
           effectiveUrl = masterUrl;
           displayName = 'Vua Hệ Thống (Chính thức)';
           categoryLabel = '🏢 Nội Bộ (Odoo 17)';
@@ -546,14 +545,21 @@ class OdooApiClient {
     }
 
     String effectiveDb = dbName.trim();
-    if (cleanBaseUrl == 'https://vuahethong.net') {
+    final parsedUri = Uri.tryParse(cleanBaseUrl);
+    final host = parsedUri?.host.toLowerCase() ?? '';
+
+    if (host == 'vuahethong.net' || host == 'www.vuahethong.net') {
+      // Chỉ chuẩn hoá về 'vuahethong' nếu dbName rỗng hoặc bị gán nhầm 'demo' trên server chính
       if (effectiveDb.isEmpty || effectiveDb == 'demo') {
         effectiveDb = 'vuahethong';
       }
-    } else if (cleanBaseUrl == 'https://demo.vuahethong.com') {
+    } else if (host == 'demo.vuahethong.com') {
       if (effectiveDb.isEmpty) {
         effectiveDb = 'demo';
       }
+    } else if (effectiveDb.isEmpty) {
+      // Fallback môi trường local nếu không có dbName
+      effectiveDb = Env.odooDb;
     }
 
     OdooSession session;

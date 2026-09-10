@@ -506,17 +506,45 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     required String login,
     required String password,
   }) async {
+    // Đảm bảo đúng cơ sở dữ liệu theo môi trường mục tiêu (phân tích Host chuẩn)
+    var effectiveDb = db;
+    final host = Uri.tryParse(db.databaseUrl)?.host.toLowerCase() ?? '';
+    if (host == 'vuahethong.net' || host == 'www.vuahethong.net') {
+      if (db.databaseName.isEmpty || db.databaseName == 'demo') {
+        effectiveDb = DbInfo(
+          login: db.login,
+          databaseName: 'vuahethong',
+          databaseUrl: db.databaseUrl,
+          displayName: db.displayName,
+          hasVMobile: db.hasVMobile,
+          projectId: db.projectId,
+        );
+      }
+    } else if (host == 'demo.vuahethong.com') {
+      if (db.databaseName.isEmpty) {
+        effectiveDb = DbInfo(
+          login: db.login,
+          databaseName: 'demo',
+          databaseUrl: db.databaseUrl,
+          displayName: db.displayName,
+          hasVMobile: db.hasVMobile,
+          projectId: db.projectId,
+        );
+      }
+    }
+    // Đối với các domain khác (ví dụ: tenant khách hàng davita.vn, subdomains), giữ nguyên db do Master trả về!
+
     setState(() => _submitting = true);
     debugPrint('''
 ------------------------------------------------------------------
 👉 [VCLOUD AUTH INITIATED] BẮT ĐẦU XÁC THỰC
 👤 Login   : $login
-🗄️ Mục tiêu: ${db.databaseName}
-🌐 URL đích: ${db.databaseUrl}
+🗄️ Mục tiêu: ${effectiveDb.databaseName}
+🌐 URL đích: ${effectiveDb.databaseUrl}
 ------------------------------------------------------------------''');
     try {
       await ref.read(authControllerProvider.notifier).authenticateOnClient(
-            db: db,
+            db: effectiveDb,
             login: login,
             password: password,
           );
@@ -524,7 +552,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (!mounted) return;
 
       // Pre-warm data (chỉ thực hiện nếu database đã cài đặt vmobile)
-      if (db.hasVMobile) {
+      if (effectiveDb.hasVMobile) {
         try {
           await Future.wait([
             ref.read(chatV2ChannelsProvider.notifier).refresh(),
@@ -546,13 +574,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         context.go('/chat');
 
         // Nếu database chưa được cài đặt module vmobile, hiển thị cảnh báo rõ ràng
-        if (!db.hasVMobile) {
+        if (!effectiveDb.hasVMobile) {
           Future.delayed(const Duration(milliseconds: 750), () {
             AppToast.showGlobal(
               type: AppToastType.warning,
               title: 'Chưa cài đặt module vmobile',
               message:
-                  'Cơ sở dữ liệu "${db.databaseName}" chưa cài module vmobile. Tất cả các tính năng không thể sử dụng được.',
+                  'Cơ sở dữ liệu "${effectiveDb.databaseName}" chưa cài module vmobile. Tất cả các tính năng không thể sử dụng được.',
               duration: const Duration(seconds: 6),
             );
           });
@@ -699,6 +727,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                               // Email/Login Input
                               TextFormField(
+                                key: const ValueKey('login_email_input'),
                                 controller: _email,
                                 focusNode: _emailFocus,
                                 style: const TextStyle(
@@ -750,9 +779,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                               // Password Input
                               TextFormField(
+                                key: const ValueKey('login_password_input'),
                                 controller: _password,
                                 focusNode: _passwordFocus,
                                 obscureText: _obscurePassword,
+                                onFieldSubmitted: (_) {
+                                  if (!_submitting) _submit();
+                                },
                                 style: const TextStyle(
                                   color: Color(0xFF0F172A),
                                   fontWeight: FontWeight.w600,
@@ -979,6 +1012,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 width: double.infinity,
                                 height: 52,
                                 child: ElevatedButton(
+                                  key: const ValueKey('login_submit_btn'),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: const Color(0xFF10B981),
                                     foregroundColor: Colors.white,
