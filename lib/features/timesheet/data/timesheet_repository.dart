@@ -85,10 +85,12 @@ class TimesheetRepository {
   Future<TimesheetSummary> getSummary({
     String? dateFrom,
     String? dateTo,
+    String? projectId,
   }) async {
     final query = <String, Object?>{
       if (dateFrom != null && dateFrom.isNotEmpty) 'date_from': dateFrom,
       if (dateTo != null && dateTo.isNotEmpty) 'date_to': dateTo,
+      if (projectId != null && projectId.isNotEmpty) 'project_id': projectId,
     };
     final res = await _client.get(
       '/api/v1/mobile/timesheet/summary',

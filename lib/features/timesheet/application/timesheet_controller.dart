@@ -216,12 +216,16 @@ class TimesheetActions {
     required TimesheetCategory category,
     required TimesheetDuration duration,
     String? taskId,
+    int? projectIdOverride,
+    DateTime? workedDate,
   }) async {
     await _repo.add(
       taskName: taskName,
       category: category,
       duration: duration,
       taskId: taskId,
+      projectIdOverride: projectIdOverride,
+      workedDate: workedDate,
     );
     _ref.invalidate(timesheetStreamProvider);
   }
@@ -297,6 +301,7 @@ final timesheetSummaryProvider = FutureProvider<TimesheetSummary>((ref) async {
   return repo.getSummary(
     dateFrom: dateFromStr,
     dateTo: dateToStr,
+    projectId: filter.projectId,
   );
 });
 
