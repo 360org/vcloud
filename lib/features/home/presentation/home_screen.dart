@@ -930,7 +930,7 @@ class _NotificationItemTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final decoration = _notificationDecoration(item.eventType);
-    final route = _notificationRoute(item.data);
+    final route = _notificationRoute(item.data, title: item.title);
     return Dismissible(
       key: ValueKey('notif_dismiss_${item.id}'),
       direction: DismissDirection.endToStart,
@@ -990,13 +990,17 @@ class _NotificationItemTile extends ConsumerWidget {
 /// Resolves a deep-link from the notification `data` payload — we support
 /// the ticket and chat targets the backend emits today, and return null
 /// for anything else so the tap just dismisses the sheet.
-String? _notificationRoute(Map<String, dynamic> data) {
+String? _notificationRoute(Map<String, dynamic> data, {String? title}) {
   final ticketId = data['ticket_id'];
   if (ticketId != null && ticketId.toString().isNotEmpty) {
     return '/tickets/$ticketId';
   }
   final conversationId = data['conversation_id'] ?? data['channel_id'];
   if (conversationId != null && conversationId.toString().isNotEmpty) {
+    final cleanTitle = title != null ? _cleanNotificationText(title) : null;
+    if (cleanTitle != null && cleanTitle.isNotEmpty) {
+      return '/chat/$conversationId?name=${Uri.encodeComponent(cleanTitle)}';
+    }
     return '/chat/$conversationId';
   }
   return null;
@@ -1212,7 +1216,7 @@ class _QuickNavGrid extends ConsumerWidget {
         SectionHeader(
           title: 'Tổng quan hôm nay',
           trailing: 'Tạo ticket',
-          onTrailingTap: () => context.go('/tickets/new'),
+          onTrailingTap: () => context.push('/tickets/new'),
         ),
         const SizedBox(height: 10),
         GridView.count(

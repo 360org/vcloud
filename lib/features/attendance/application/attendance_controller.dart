@@ -9,7 +9,11 @@ final attendanceRepositoryProvider = Provider<AttendanceRepository>(
 );
 
 final attendanceStreamProvider = StreamProvider.autoDispose<List<Attendance>>(
-  (ref) => ref.read(attendanceRepositoryProvider).watchRecent(),
+  (ref) {
+    final selectedMonth = ref.watch(selectedAttendanceMonthProvider);
+    final monthStr = '${selectedMonth.year}-${selectedMonth.month.toString().padLeft(2, '0')}';
+    return ref.read(attendanceRepositoryProvider).watchRecent(month: monthStr);
+  },
 );
 
 final attendanceTodayProvider = StreamProvider.autoDispose<Attendance?>(
@@ -302,15 +306,17 @@ final dayAttendanceStatusMapProvider = Provider<Map<int, HrDayAttendanceStatus>>
 
     for (final a in dayList) {
       if (a.checkinTime != null) {
-        if (a.checkinTime!.isAfter(shiftStart.add(const Duration(minutes: 5)))) {
+        final localIn = a.checkinTime!.toLocal();
+        final localOut = a.checkoutTime?.toLocal();
+        if (localIn.isAfter(shiftStart.add(const Duration(minutes: 5)))) {
           hasLateOrEarly = true;
         }
-        if (a.checkoutTime != null && a.checkoutTime!.isBefore(shiftEnd.subtract(const Duration(minutes: 5)))) {
+        if (localOut != null && localOut.isBefore(shiftEnd.subtract(const Duration(minutes: 5)))) {
           hasLateOrEarly = true;
         }
         final calc = ShiftCalculator.calculate(
-          checkinTime: a.checkinTime,
-          now: a.checkoutTime,
+          checkinTime: localIn,
+          now: localOut,
           config: cfg,
         );
         dayWorkedMins += calc.workedMinutes;

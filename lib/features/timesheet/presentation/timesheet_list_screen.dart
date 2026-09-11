@@ -154,7 +154,12 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
     final result = await _openTimerSaveSheet(duration: elapsed);
     if (result == null) return;
 
-    await _logTimerTime(result.task, result.note, elapsed);
+    await _logTimerTime(
+      task: result.task,
+      note: result.note,
+      elapsed: elapsed,
+      projectIdOverride: result.projectId,
+    );
     _resetTimer();
   }
 
@@ -198,20 +203,41 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
     }
   }
 
-  Future<void> _logTimerTime(Task task, String note, Duration elapsed) async {
+  Future<void> _logTimerTime({
+    Task? task,
+    required String note,
+    required Duration elapsed,
+    int? projectIdOverride,
+  }) async {
     try {
-      await ref
-          .read(taskActionsProvider)
-          .log(
-            taskId: task.id,
-            summary: note,
-            duration: durationBucketForElapsed(elapsed),
-            elapsed: elapsed,
-          );
-      setState(() {
-        _taskStatusOverrides[task.id] = _TaskWorkflowStatus.inProgress;
-      });
+      final duration = durationBucketForElapsed(elapsed);
+      if (task != null) {
+        await ref
+            .read(taskActionsProvider)
+            .log(
+              taskId: task.id,
+              summary: note,
+              duration: duration,
+              elapsed: elapsed,
+            );
+        if (mounted) {
+          setState(() {
+            _taskStatusOverrides[task.id] = _TaskWorkflowStatus.inProgress;
+          });
+        }
+      } else {
+        // Free-form timesheet log: calls POST /api/v1/mobile/timesheet/log
+        await ref.read(timesheetActionsProvider).add(
+          taskName: note,
+          category: TimesheetCategory.erp,
+          duration: duration,
+          projectIdOverride: projectIdOverride,
+          workedDate: DateTime.now(),
+        );
+      }
       ref.invalidate(timesheetStreamProvider);
+      ref.invalidate(timesheetSummaryProvider);
+      ref.invalidate(todayTasksProvider);
     } catch (e, stackTrace) {
       if (mounted) {
         await showCopyableErrorDialog(
@@ -303,6 +329,7 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
       title: task.title,
       description: task.description,
       tag: task.category.label,
+      projectId: task.projectId,
       projectName: task.projectName,
       userName: task.userName,
       partnerName: task.partnerName,
@@ -316,6 +343,8 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
       state: task.state,
       accent: accent,
       icon: _categoryIcon(task.category),
+      dueDate: task.dueDate,
+      createdAt: task.createdAt,
       workflowStatus: done
           ? _TaskWorkflowStatus.done
           : (_taskStatusOverrides[task.id] ??
@@ -335,6 +364,8 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
                   : Duration.zero)),
       note: localLog?.summary ?? entry?.taskName ?? task.lastLogNote ?? '',
       completedAt: task.completedAt ?? localLog?.completedAt,
+      // Ngày phát sinh công thực tế từ entry gần nhất (dùng cho _matchesFilter theo workedDate)
+      lastLogDate: entry?.workedDate ?? localLog?.completedAt,
     );
   }
 
@@ -451,21 +482,112 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
         t.tags.any((tag) => tag.toLowerCase().contains(q));
   }
 
+  bool _matchesFilter(_TodayTask t, TimesheetFilterState filter) {
+    // 1. Lọc theo Dự án (Project) - Nếu có chọn dự án thì BẮT BUỘC task phải thuộc dự án đó
+    if (filter.projectId != null && filter.projectId!.trim().isNotEmpty) {
+      final targetProjectId = filter.projectId!.trim();
+      final taskProjectId = t.projectId?.trim();
+      final filterProjectName = filter.projectName?.trim().toLowerCase();
+      final taskProjectName = t.projectName?.trim().toLowerCase();
+
+      final matchesId = taskProjectId != null &&
+          (taskProjectId == targetProjectId ||
+              int.tryParse(taskProjectId) != null &&
+                  int.tryParse(taskProjectId) == int.tryParse(targetProjectId));
+
+      final matchesName = filterProjectName != null &&
+          filterProjectName.isNotEmpty &&
+          filterProjectName != 'tất cả dự án' &&
+          taskProjectName != null &&
+          taskProjectName == filterProjectName;
+
+      if (!matchesId && !matchesName) {
+        return false;
+      }
+    } else if (filter.projectName != null &&
+        filter.projectName!.trim().isNotEmpty &&
+        filter.projectName!.trim() != 'Tất cả dự án') {
+      final filterProjectName = filter.projectName!.trim().toLowerCase();
+      final taskProjectName = (t.projectName ?? '').trim().toLowerCase();
+      if (taskProjectName != filterProjectName) {
+        return false;
+      }
+    }
+
+    // 2. Lọc theo Khoảng thời gian (Date range)
+    // ponytail: Preset mặc định "Hôm nay" và "Tất cả" hiển thị toàn bộ task đang cần làm mà user chưa hoàn thành
+    // Khi user chọn khoảng ngày cụ thể (vd: "Tuần này", "Tháng này", "Tùy chọn"):
+    // - Đối với task đã có ghi nhận công (logged > Duration.zero), luôn giữ lại nếu log phát sinh trong khoảng ngày lọc
+    // - Với task đã hoàn thành (t.done): so khớp completedAt (hoặc fallback dueDate) nằm trong [dateFrom, dateTo]
+    // - Với task chưa hoàn thành (!t.done): ưu tiên so khớp dueDate; nếu không có dueDate thì kiểm tra dateAssign hoặc createdAt.
+    //   Nếu không có bất kỳ mốc thời gian nào thì không loại bỏ để task vẫn hiển thị ở tab "Cần làm".
+    final isCustomDateFilter = filter.presetName != 'Hôm nay' && filter.presetName != 'Tất cả';
+    if (isCustomDateFilter && (filter.dateFrom != null || filter.dateTo != null)) {
+      final fromDay = filter.dateFrom != null
+          ? DateTime(filter.dateFrom!.year, filter.dateFrom!.month, filter.dateFrom!.day)
+          : null;
+      final toDay = filter.dateTo != null
+          ? DateTime(filter.dateTo!.year, filter.dateTo!.month, filter.dateTo!.day)
+          : null;
+
+      // Nếu task đã ghi nhận công (có log timesheet gắn với task)
+      if (t.logged > Duration.zero) {
+        final logDate = t.lastLogDate ?? t.completedAt ?? t.dueDate ?? t.dateAssign ?? t.createdAt;
+        if (logDate != null) {
+          final logDay = DateTime(logDate.year, logDate.month, logDate.day);
+          final inRange = (fromDay == null || !logDay.isBefore(fromDay)) &&
+              (toDay == null || !logDay.isAfter(toDay));
+          if (inRange) return true;
+        }
+      }
+
+      if (t.done) {
+        final taskDate = t.completedAt ?? t.dueDate;
+        if (taskDate == null) return false;
+        final taskDay = DateTime(taskDate.year, taskDate.month, taskDate.day);
+        if (fromDay != null && taskDay.isBefore(fromDay)) return false;
+        if (toDay != null && taskDay.isAfter(toDay)) return false;
+      } else {
+        // Task đang mở (!t.done):
+        final openDate = t.dueDate ?? t.dateAssign ?? t.createdAt;
+        if (openDate != null) {
+          final openDay = DateTime(openDate.year, openDate.month, openDate.day);
+          if (toDay != null && openDay.isAfter(toDay)) return false;
+        }
+      }
+    }
+
+    return true;
+  }
+
   Widget _buildTaskSections() {
     final tasks = ref.watch(todayTasksProvider);
+    final filter = ref.watch(timesheetFilterProvider);
     return tasks.when(
       data: (_) {
         final split = ref.watch(todayTasksSplitProvider);
         final entryByTask = _entryByTaskId();
         final completedLogs = ref.watch(completedTaskLogsProvider);
-        final openTasks = split.open
+
+        // Map tất cả open và done tasks sang model _TodayTask
+        final allOpen = split.open
             .map((t) => _taskFromApi(t, entryByTaskMap: entryByTask, completedLogsMap: completedLogs))
-            .where(_matchesQuery)
             .toList();
-        final doneTasks = split.done
+        final allDone = split.done
             .map((t) => _taskFromApi(t, entryByTaskMap: entryByTask, completedLogsMap: completedLogs))
-            .where(_matchesQuery)
             .toList();
+
+        // ponytail: Lọc task thuần túy theo tiêu chí _matchesFilter, không dùng OR ép giữ lại khi đổi tiêu chí
+        final openTasks = allOpen
+            .where((t) => _matchesQuery(t) && _matchesFilter(t, filter))
+            .toList();
+        final doneTasks = allDone
+            .where((t) => _matchesQuery(t) && _matchesFilter(t, filter))
+            .toList();
+
+        final hasFilterOrSearch = _searchQuery.trim().isNotEmpty ||
+            filter.projectId != null ||
+            filter.presetName != 'Hôm nay';
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -480,29 +602,55 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
               child: _selectedTaskTab == 0
                   ? _TaskSection(
                       key: const ValueKey('open_tasks_section'),
-                      title: _searchQuery.trim().isNotEmpty
-                          ? 'Kết quả tìm kiếm (${openTasks.length})'
+                      title: hasFilterOrSearch
+                          ? 'Kết quả lọc (${openTasks.length})'
                           : 'Task cần làm hôm nay',
                       count: openTasks.length,
-                      emptyText: _searchQuery.trim().isNotEmpty
-                          ? 'Không tìm thấy task nào phù hợp.'
-                          : 'Tuyệt vời! Bạn đã hoàn thành hết task hôm nay 🎉',
+                      emptyText: hasFilterOrSearch
+                          ? 'Không tìm thấy task nào phù hợp bộ lọc.'
+                          : (doneTasks.isNotEmpty
+                              ? 'Bạn đã hoàn thành ${doneTasks.length} task hôm nay 🎉'
+                              : 'Tuyệt vời! Bạn đã hoàn thành hết task hôm nay 🎉'),
                       tasks: openTasks,
                       done: false,
                       onTap: _showTaskDetail,
                       onChecklist: _openTaskStatusPopup,
+                      emptyActionLabel: doneTasks.isNotEmpty
+                          ? 'Xem task đã hoàn thành (${doneTasks.length})'
+                          : 'Ghi nhận công việc ngay',
+                      onEmptyAction: () {
+                        if (doneTasks.isNotEmpty) {
+                          HapticFeedback.selectionClick();
+                          setState(() => _selectedTaskTab = 1);
+                        } else if (!_running && _elapsedBeforePause == Duration.zero) {
+                          _startTimer();
+                        } else {
+                          _saveTimer();
+                        }
+                      },
                     )
                   : _TaskSection(
                       key: const ValueKey('done_tasks_section'),
-                      title: _searchQuery.trim().isNotEmpty
+                      title: hasFilterOrSearch
                           ? 'Task đã xong phù hợp (${doneTasks.length})'
                           : 'Task đã hoàn thành',
                       count: doneTasks.length,
-                      emptyText: 'Chưa có task nào được hoàn thành hôm nay.',
+                      emptyText: hasFilterOrSearch
+                          ? 'Không có task hoàn thành nào phù hợp bộ lọc.'
+                          : 'Chưa có task nào được hoàn thành hôm nay.',
                       tasks: doneTasks,
                       done: true,
                       onTap: _showTaskDetail,
                       onChecklist: _openTaskStatusPopup,
+                      emptyActionLabel: openTasks.isNotEmpty
+                          ? 'Xem task cần làm (${openTasks.length})'
+                          : null,
+                      onEmptyAction: openTasks.isNotEmpty
+                          ? () {
+                              HapticFeedback.selectionClick();
+                              setState(() => _selectedTaskTab = 0);
+                            }
+                          : null,
                     ),
             ),
           ],
@@ -1132,7 +1280,11 @@ class _TimesheetSummaryCard extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Tổng giờ làm · ${filter.presetName}',
+                      filter.projectName != null && filter.projectName!.isNotEmpty && filter.projectName != 'Tất cả dự án'
+                          ? 'Tổng giờ · ${filter.presetName} · ${filter.projectName}'
+                          : 'Tổng giờ làm · ${filter.presetName}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: isDark ? Colors.white70 : AppColors.textSecondary,
                         fontSize: 12,
@@ -1202,6 +1354,8 @@ class _TaskSection extends StatefulWidget {
     required this.done,
     required this.onTap,
     required this.onChecklist,
+    this.onEmptyAction,
+    this.emptyActionLabel,
   });
 
   final String title;
@@ -1211,6 +1365,8 @@ class _TaskSection extends StatefulWidget {
   final bool done;
   final ValueChanged<_TodayTask> onTap;
   final ValueChanged<_TodayTask> onChecklist;
+  final VoidCallback? onEmptyAction;
+  final String? emptyActionLabel;
 
   @override
   State<_TaskSection> createState() => _TaskSectionState();
@@ -1262,13 +1418,57 @@ class _TaskSectionState extends State<_TaskSection> {
           if (tasks.isEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
-              child: Text(
-                widget.emptyText,
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.emptyText,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (widget.onEmptyAction != null && widget.emptyActionLabel != null) ...[
+                    const SizedBox(height: 12),
+                    PressableScale(
+                      onTap: widget.onEmptyAction!,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF00C83A), Color(0xFF009D2E)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF00C83A).withValues(alpha: 0.25),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(LucideIcons.timer, size: 16, color: Colors.white),
+                            const SizedBox(width: 8),
+                            Text(
+                              widget.emptyActionLabel!,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
             )
           else ...[
@@ -2409,8 +2609,10 @@ class _TimerSaveSheet extends ConsumerStatefulWidget {
 class _TimerSaveSheetState extends ConsumerState<_TimerSaveSheet> {
   final _note = TextEditingController();
   late Future<List<_TimerProjectTasks>> _projectTaskGroupsFuture;
+  late Future<List<TimesheetProjectOption>> _allProjectsFuture;
   String? _expandedProjectId;
   Task? _selectedTask;
+  TimesheetProjectOption? _selectedProject;
   String? _validationError;
   bool _noteError = false;
   bool _taskError = false;
@@ -2419,6 +2621,17 @@ class _TimerSaveSheetState extends ConsumerState<_TimerSaveSheet> {
   void initState() {
     super.initState();
     _projectTaskGroupsFuture = _loadProjectTaskGroups();
+    _allProjectsFuture = _loadAllProjects();
+  }
+
+  Future<List<TimesheetProjectOption>> _loadAllProjects() async {
+    try {
+      final projects = await ref.read(taskActionsProvider).listProjects();
+      if (projects.isNotEmpty) return projects;
+    } catch (_) {}
+    return const [
+      TimesheetProjectOption(id: '0', name: 'Công việc chung / Nội bộ'),
+    ];
   }
 
   @override
@@ -2486,21 +2699,18 @@ class _TimerSaveSheetState extends ConsumerState<_TimerSaveSheet> {
       return;
     }
     final task = _selectedTask;
-    if (task == null) {
-      HapticFeedback.mediumImpact();
-      setState(() {
-        _noteError = false;
-        _taskError = true;
-        _validationError = 'Vui lòng chọn project và task cần lưu.';
-      });
-      showTopNotification(
-        context,
-        message: 'Vui lòng chọn project và task cần lưu.',
-        isError: true,
-      );
-      return;
-    }
-    Navigator.pop(context, _TimerSaveResult(task: task, note: note));
+    final project = _selectedProject;
+    final int? projectIdInt = int.tryParse(project?.id ?? task?.projectId ?? '');
+
+    Navigator.pop(
+      context,
+      _TimerSaveResult(
+        task: task,
+        note: note,
+        projectId: projectIdInt,
+        projectName: project?.name ?? task?.projectName,
+      ),
+    );
   }
 
   @override
@@ -2718,10 +2928,133 @@ class _TimerSaveSheetState extends ConsumerState<_TimerSaveSheet> {
                     final groups =
                         snapshot.data ?? const <_TimerProjectTasks>[];
                     if (groups.isEmpty) {
-                      return const _TimerSheetStatus(
-                        icon: LucideIcons.folderOpen,
-                        message:
-                            'Bạn không có project nào còn task chưa hoàn thành.',
+                      return FutureBuilder<List<TimesheetProjectOption>>(
+                        future: _allProjectsFuture,
+                        builder: (context, projSnapshot) {
+                          final projects = projSnapshot.data ??
+                              const [
+                                TimesheetProjectOption(
+                                  id: '0',
+                                  name: 'Công việc chung / Nội bộ',
+                                ),
+                              ];
+                          final activeProject = _selectedProject ??
+                              (projects.isNotEmpty ? projects.first : null);
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? const Color(0xFF0F172A)
+                                  : const Color(0xFFF3F6FC),
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(
+                                color: isDark
+                                    ? Colors.white.withValues(alpha: 0.08)
+                                    : AppColors.border,
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      LucideIcons.sparkles,
+                                      color: Color(0xFF00C83A),
+                                      size: 18,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'Ghi nhận công việc tự do',
+                                        style: TextStyle(
+                                          color: isDark
+                                              ? Colors.white
+                                              : AppColors.textPrimary,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Bạn chưa có task được giao. Thời gian sẽ được lưu vào dự án bạn chọn:',
+                                  style: TextStyle(
+                                    color: isDark
+                                        ? Colors.white60
+                                        : AppColors.textSecondary,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isDark
+                                        ? const Color(0xFF1E293B)
+                                        : Colors.white,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: isDark
+                                          ? Colors.white.withValues(alpha: 0.1)
+                                          : AppColors.border,
+                                    ),
+                                  ),
+                                  child: DropdownButtonHideUnderline(
+                                    child: DropdownButton<String>(
+                                      value: activeProject?.id ??
+                                          (projects.isNotEmpty
+                                              ? projects.first.id
+                                              : '0'),
+                                      isExpanded: true,
+                                      icon: const Icon(
+                                        LucideIcons.chevronDown,
+                                        size: 18,
+                                      ),
+                                      dropdownColor: isDark
+                                          ? const Color(0xFF1E293B)
+                                          : Colors.white,
+                                      items: [
+                                        for (final p in projects)
+                                          DropdownMenuItem(
+                                            value: p.id,
+                                            child: Text(
+                                              p.name,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                color: isDark
+                                                    ? Colors.white
+                                                    : AppColors.textPrimary,
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                      onChanged: (val) {
+                                        if (val == null) return;
+                                        final matched = projects.firstWhere(
+                                          (p) => p.id == val,
+                                          orElse: () => projects.first,
+                                        );
+                                        setState(() {
+                                          _selectedProject = matched;
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
                       );
                     }
                     return Column(
@@ -2749,7 +3082,9 @@ class _TimerSaveSheetState extends ConsumerState<_TimerSaveSheet> {
                 SizedBox(
                   width: double.infinity,
                   child: GradientButton(
-                    label: 'Lưu vào task',
+                    label: _selectedTask != null
+                        ? 'Lưu vào task'
+                        : 'Lưu log công việc',
                     icon: LucideIcons.check,
                     gradient: const LinearGradient(
                       colors: [Color(0xFF00C83A), Color(0xFF009D2E)],
@@ -3396,6 +3731,7 @@ class _TodayTask {
     required this.title,
     this.description,
     required this.tag,
+    this.projectId,
     this.projectName,
     this.userName,
     this.partnerName,
@@ -3410,16 +3746,20 @@ class _TodayTask {
     required this.workflowStatus,
     required this.accent,
     required this.icon,
+    this.dueDate,
+    this.createdAt,
     this.done = false,
     this.logged = Duration.zero,
     this.note = '',
     this.completedAt,
+    this.lastLogDate,
   });
 
   final String id;
   final String title;
   final String? description;
   final String tag;
+  final String? projectId;
   final String? projectName;
   final String? userName;
   final String? partnerName;
@@ -3435,23 +3775,33 @@ class _TodayTask {
   final _TaskWorkflowStatus workflowStatus;
   final Color accent;
   final IconData icon;
+  final DateTime? dueDate;
+  final DateTime? createdAt;
   final bool done;
   final Duration logged;
   final String note;
   final DateTime? completedAt;
+  final DateTime? lastLogDate;
 
   _TodayTask copyWith({
     bool? done,
     Duration? logged,
     String? note,
     DateTime? completedAt,
+    DateTime? lastLogDate,
+    DateTime? dueDate,
+    DateTime? createdAt,
   }) {
     return _TodayTask(
       id: id,
       title: title,
       description: description,
       tag: tag,
+      projectId: projectId,
       projectName: projectName,
+      userName: userName,
+      partnerName: partnerName,
+      dateAssign: dateAssign,
       tags: tags,
       tagHexColors: tagHexColors,
       allocatedHours: allocatedHours,
@@ -3462,10 +3812,13 @@ class _TodayTask {
       workflowStatus: workflowStatus,
       accent: accent,
       icon: icon,
+      dueDate: dueDate ?? this.dueDate,
+      createdAt: createdAt ?? this.createdAt,
       done: done ?? this.done,
       logged: logged ?? this.logged,
       note: note ?? this.note,
       completedAt: completedAt ?? this.completedAt,
+      lastLogDate: lastLogDate ?? this.lastLogDate,
     );
   }
 }
@@ -3478,10 +3831,17 @@ class _TaskLogResult {
 }
 
 class _TimerSaveResult {
-  const _TimerSaveResult({required this.task, required this.note});
+  const _TimerSaveResult({
+    this.task,
+    required this.note,
+    this.projectId,
+    this.projectName,
+  });
 
-  final Task task;
+  final Task? task;
   final String note;
+  final int? projectId;
+  final String? projectName;
 }
 
 String _formatTaskDuration(Duration duration) {
@@ -4101,6 +4461,9 @@ class _TimesheetFilterSheetState extends ConsumerState<_TimesheetFilterSheet> {
                         projectName: _projectName,
                       );
                       ref.read(timesheetFilterProvider.notifier).state = newFilter;
+                      // Kích hoạt làm mới dữ liệu để cập nhật summary & task tương ứng filter mới
+                      ref.invalidate(timesheetSummaryProvider);
+                      ref.invalidate(todayTasksProvider);
                       Navigator.pop(context);
                     },
                     style: ElevatedButton.styleFrom(

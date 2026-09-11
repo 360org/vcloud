@@ -51,8 +51,9 @@ class ChatV2ChannelLocalCache {
 
   static List<ChatV2Channel> get cached => _cached;
   static String? _mergeLastMessage(ChatV2Channel local, ChatV2Channel api) {
-    if (local.lastMessage == null || local.lastMessage!.isEmpty) return api.lastMessage;
-    if (api.lastMessage == null || api.lastMessage!.isEmpty) return local.lastMessage;
+    // Nếu 1 trong 2 bên rỗng, lấy bên còn lại có dữ liệu
+    if (local.lastMessage == null || local.lastMessage!.trim().isEmpty) return api.lastMessage;
+    if (api.lastMessage == null || api.lastMessage!.trim().isEmpty) return local.lastMessage;
     if (local.lastMessageDate == null) return api.lastMessage;
     if (api.lastMessageDate == null) return local.lastMessage;
 
@@ -70,7 +71,8 @@ class ChatV2ChannelLocalCache {
     final cachedDate = (cachedMsgs != null && cachedMsgs.isNotEmpty) ? cachedMsgs.first.createdAt : null;
 
     final localDate = cachedDate ?? local.lastMessageDate;
-    if (local.lastMessage == null || local.lastMessage!.isEmpty) return api.lastMessageDate ?? localDate;
+    if (local.lastMessage == null || local.lastMessage!.trim().isEmpty) return api.lastMessageDate ?? localDate;
+    if (api.lastMessage == null || api.lastMessage!.trim().isEmpty) return localDate ?? api.lastMessageDate;
     if (localDate == null) return api.lastMessageDate;
     if (api.lastMessageDate == null) return localDate;
 
@@ -223,6 +225,7 @@ class ChatV2ChannelLocalCache {
     String? authorId,
     String? authorName,
     int? unreadCount,
+    bool addIfMissing = true,
   }) {
     if (_pinnedDirectChannels.containsKey(channelId)) {
       final old = _pinnedDirectChannels[channelId]!;
@@ -245,6 +248,22 @@ class ChatV2ChannelLocalCache {
         lastMessageAuthorName: authorName ?? old.lastMessageAuthorName,
         unreadCount: unreadCount ?? (authorId != null ? 0 : old.unreadCount),
       );
+      set(currentCached);
+    } else if (addIfMissing) {
+      final fallbackCh = _pinnedDirectChannels[channelId] ??
+          ChatV2Channel(
+            id: channelId,
+            name: authorName != null && authorName.isNotEmpty ? authorName : 'Trò chuyện',
+            channelType: 'chat',
+            isGroup: false,
+            memberCount: 2,
+            lastMessage: lastMessage,
+            lastMessageDate: lastMessageDate,
+            lastMessageAuthorId: authorId,
+            lastMessageAuthorName: authorName,
+            unreadCount: unreadCount ?? 0,
+          );
+      currentCached.insert(0, fallbackCh);
       set(currentCached);
     } else if (_pinnedDirectChannels.containsKey(channelId)) {
       set(_cached);

@@ -778,8 +778,16 @@ class TextBubble extends StatelessWidget {
     final cleanText = stripHtml(rawText);
     final linkColor = mine ? Colors.white : const Color(0xFF1D4ED8);
 
+    // ponytail: length guard trước regex để tránh ReDoS (backtrack bậc n²)
+    // khi nhận tin nhắn bất thường dài; upgrade: atomic-group nếu Dart hỗ trợ
+    if (cleanText.length > 2000) {
+      return Text(
+        cleanText,
+        style: TextStyle(color: textColor, fontSize: 15, height: 1.35),
+      );
+    }
     final urlRegex = RegExp(
-      r'((?:https?:\/\/|vcloud:\/\/|www\.)[^\s<]+|(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(?:\/[^\s<]*)?)',
+      r'((?:https?:\/\/|vcloud:\/\/|www\.)[^\s<]+|[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*\.[a-zA-Z]{2,}(?:\/[^\s<]*)?)',
       caseSensitive: false,
     );
 
@@ -972,6 +980,19 @@ class _AttachmentBubbleState extends ConsumerState<AttachmentBubble> {
               content: Text(
                 'Tải tệp thất bại. Vui lòng kiểm tra lại kết nối hoặc quyền truy cập.',
               ),
+            ),
+          );
+          return;
+        }
+
+        if (MagicBytesValidator.isMistakenImagePayloadForDocument(fileName, bytes)) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Tệp tin gốc không tồn tại hoặc bạn không có quyền truy cập trên máy chủ.',
+              ),
+              backgroundColor: Color(0xFFE11D48),
             ),
           );
           return;

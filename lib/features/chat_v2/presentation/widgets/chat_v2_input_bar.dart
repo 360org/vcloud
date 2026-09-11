@@ -13,7 +13,27 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
+import '../../data/models/chat_v2_channel.dart';
 import 'chat_v2_create_poll_sheet.dart';
+
+String _removeVietnameseDiacritics(String str) {
+  var result = str;
+  result = result.replaceAll(RegExp(r'[àáạảãâầấậẩẫăằắặẳẵ]'), 'a');
+  result = result.replaceAll(RegExp(r'[ÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴ]'), 'A');
+  result = result.replaceAll(RegExp(r'[èéẹẻẽêềếệểễ]'), 'e');
+  result = result.replaceAll(RegExp(r'[ÈÉẸẺẼÊỀẾỆỂỄ]'), 'E');
+  result = result.replaceAll(RegExp(r'[ìíịỉĩ]'), 'i');
+  result = result.replaceAll(RegExp(r'[ÌÍỊỈĨ]'), 'I');
+  result = result.replaceAll(RegExp(r'[òóọỏõôồốộổỗơờớợởỡ]'), 'o');
+  result = result.replaceAll(RegExp(r'[ÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠ]'), 'O');
+  result = result.replaceAll(RegExp(r'[ùúụủũưừứựửữ]'), 'u');
+  result = result.replaceAll(RegExp(r'[ÙÚỤỦŨƯỪỨỰỬỮ]'), 'U');
+  result = result.replaceAll(RegExp(r'[ỳýỵỷỹ]'), 'y');
+  result = result.replaceAll(RegExp(r'[ỲÝỴỶỸ]'), 'Y');
+  result = result.replaceAll(RegExp(r'[đ]'), 'd');
+  result = result.replaceAll(RegExp(r'[Đ]'), 'D');
+  return result;
+}
 
 class ChatV2InputBar extends StatefulWidget {
   const ChatV2InputBar({
@@ -24,14 +44,21 @@ class ChatV2InputBar extends StatefulWidget {
     this.onTyping,
     this.onCreatePoll,
     this.channelId,
+    this.channelMembers = const [],
     this.isSending = false,
+    this.isGroup = false,
     this.controller,
     this.focusNode,
   });
 
   final String? channelId;
+  final List<ChatV2Member> channelMembers;
   final VoidCallback? onCreatePoll;
-  final Future<void> Function(String text) onSend;
+  final Future<void> Function(
+    String text, {
+    List<int>? partnerIds,
+    List<Map<String, dynamic>>? mentionedPartners,
+  }) onSend;
   final Future<void> Function({
     required Uint8List bytes,
     required String filename,
@@ -45,6 +72,7 @@ class ChatV2InputBar extends StatefulWidget {
     String? caption,
   })? onSendFile;
   final void Function(bool isTyping)? onTyping;
+  final bool isGroup;
   final bool isSending;
   final TextEditingController? controller;
   final FocusNode? focusNode;
@@ -67,6 +95,13 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
   bool _isSelectedImage = false;
   Timer? _typingDebounce;
   bool _isTyping = false;
+
+  // Tracked mentions
+  final Map<String, ChatV2Member> _trackedMentions = {};
+  List<ChatV2Member> _mentionSuggestions = [];
+  int _mentionQueryStartIndex = -1;
+  int _selectedMentionIndex = 0;
+  final ScrollController _mentionScrollController = ScrollController();
 
   // Voice recording state
   final AudioRecorder _audioRecorder = AudioRecorder();
@@ -92,7 +127,8 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
   }
 
   void _onTextChanged() {
-    final hasContent = _controller.text.trim().isNotEmpty;
+    final rawText = _controller.text;
+    final hasContent = rawText.trim().isNotEmpty;
     if (_hasText != hasContent) {
       setState(() => _hasText = hasContent);
     }
@@ -107,6 +143,100 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
         widget.onTyping!(false);
       });
     }
+
+    _checkMentionTrigger(rawText);
+  }
+
+  void _checkMentionTrigger(String text) {
+    // Chỉ kích hoạt gợi ý @mention trong Chat Nhóm hoặc Kênh Thảo luận (loại trừ chat 1-1)
+    if (!widget.isGroup) {
+      if (_mentionSuggestions.isNotEmpty) {
+        setState(() {
+          _mentionSuggestions = [];
+          _mentionQueryStartIndex = -1;
+        });
+      }
+      return;
+    }
+
+    final cursor = _controller.selection.baseOffset;
+    if (cursor < 0 || cursor > text.length || widget.channelMembers.isEmpty) {
+      if (_mentionSuggestions.isNotEmpty) {
+        setState(() {
+          _mentionSuggestions = [];
+          _mentionQueryStartIndex = -1;
+        });
+      }
+      return;
+    }
+
+    final textBeforeCursor = text.substring(0, cursor);
+    final lastAtIndex = textBeforeCursor.lastIndexOf('@');
+
+    if (lastAtIndex != -1) {
+      final isStart = lastAtIndex == 0 ||
+          textBeforeCursor[lastAtIndex - 1] == ' ' ||
+          textBeforeCursor[lastAtIndex - 1] == '\n';
+      final query = textBeforeCursor.substring(lastAtIndex + 1);
+
+      if (isStart && !query.contains('\n') && query.length <= 30) {
+        final qLower = query.toLowerCase().trim();
+        final qNormalized = _removeVietnameseDiacritics(qLower);
+        final matches = widget.channelMembers.where((m) {
+          if (m.isMe) return false;
+          if (qLower.isEmpty) return true;
+          final nLower = m.name.toLowerCase();
+          final nNormalized = _removeVietnameseDiacritics(nLower);
+          final eLower = (m.email ?? '').toLowerCase();
+          return nLower.contains(qLower) ||
+              nNormalized.contains(qNormalized) ||
+              eLower.contains(qLower);
+        }).toList();
+
+        if (matches.isNotEmpty) {
+          setState(() {
+            _mentionSuggestions = matches;
+            _mentionQueryStartIndex = lastAtIndex;
+            _selectedMentionIndex = 0;
+          });
+          return;
+        }
+      }
+    }
+
+    if (_mentionSuggestions.isNotEmpty) {
+      setState(() {
+        _mentionSuggestions = [];
+        _mentionQueryStartIndex = -1;
+        _selectedMentionIndex = 0;
+      });
+    }
+  }
+
+  void _selectMention(ChatV2Member member) {
+    if (_mentionQueryStartIndex < 0) return;
+    final text = _controller.text;
+    final cursor = _controller.selection.baseOffset;
+    final prefix = text.substring(0, _mentionQueryStartIndex);
+    final suffix = cursor >= _mentionQueryStartIndex && cursor <= text.length
+        ? text.substring(cursor)
+        : (text.length > _mentionQueryStartIndex ? text.substring(_mentionQueryStartIndex + 1) : '');
+
+    final insertText = '@${member.name} ';
+    final newText = '$prefix$insertText$suffix';
+    _trackedMentions[member.name] = member;
+
+    _controller.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: prefix.length + insertText.length),
+    );
+
+    setState(() {
+      _mentionSuggestions = [];
+      _mentionQueryStartIndex = -1;
+      _selectedMentionIndex = 0;
+    });
+    _focusNode.requestFocus();
   }
 
   @override
@@ -114,6 +244,7 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
     _typingDebounce?.cancel();
     _recordTimer?.cancel();
     _audioRecorder.dispose();
+    _mentionScrollController.dispose();
     _controller.removeListener(_onTextChanged);
     _focusNode.removeListener(_onFocusChanged);
     if (widget.controller == null) _controller.dispose();
@@ -352,9 +483,38 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
     // Nếu chỉ có văn bản
     if (text.isEmpty) return;
 
+    final validPartnerIds = <int>[];
+    final validMentionedPartners = <Map<String, dynamic>>[];
+
+    for (final entry in _trackedMentions.entries) {
+      final name = entry.key;
+      final member = entry.value;
+      if (text.contains('@$name')) {
+        final pid = int.tryParse(member.id);
+        if (pid != null && !validPartnerIds.contains(pid)) {
+          validPartnerIds.add(pid);
+          validMentionedPartners.add({
+            'id': pid,
+            'name': member.name,
+          });
+        }
+      }
+    }
+
+    _trackedMentions.clear();
     _controller.clear();
-    setState(() => _hasText = false);
-    await widget.onSend(text);
+    setState(() {
+      _hasText = false;
+      _mentionSuggestions = [];
+      _mentionQueryStartIndex = -1;
+      _selectedMentionIndex = 0;
+    });
+
+    await widget.onSend(
+      text,
+      partnerIds: validPartnerIds.isNotEmpty ? validPartnerIds : null,
+      mentionedPartners: validMentionedPartners.isNotEmpty ? validMentionedPartners : null,
+    );
   }
 
   static const int maxDocumentSizeBytes = 25 * 1024 * 1024; // 25 MB
@@ -910,6 +1070,153 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
     );
   }
 
+  Widget _buildMentionSuggestionsBox(BuildContext context, bool isDark) {
+    return Container(
+      margin: const EdgeInsets.only(left: 4, right: 4, bottom: 8),
+      constraints: const BoxConstraints(maxHeight: 220),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? Colors.white12 : const Color(0xFFE2E8F0),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: ListView.separated(
+          controller: _mentionScrollController,
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          shrinkWrap: true,
+          itemCount: _mentionSuggestions.length,
+          separatorBuilder: (ctx, i) => Divider(
+            height: 1,
+            thickness: 0.5,
+            color: isDark ? Colors.white10 : const Color(0xFFF1F5F9),
+          ),
+          itemBuilder: (ctx, index) {
+            final member = _mentionSuggestions[index];
+            final isSelected = index == _selectedMentionIndex;
+            final initial = member.name.trim().isNotEmpty
+                ? member.name.trim()[0].toUpperCase()
+                : '?';
+            final avatarUrl = member.avatarUrl;
+            return Material(
+              color: isSelected
+                  ? (isDark
+                      ? const Color(0xFF00C83A).withValues(alpha: 0.22)
+                      : const Color(0xFF00C83A).withValues(alpha: 0.12))
+                  : Colors.transparent,
+              child: InkWell(
+                onTap: () => _selectMention(member),
+                hoverColor: isDark
+                    ? const Color(0xFF00C83A).withValues(alpha: 0.15)
+                    : const Color(0xFF00C83A).withValues(alpha: 0.08),
+                child: Padding(
+                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                   child: Row(
+                     children: [
+                       Container(
+                         width: 34,
+                         height: 34,
+                         decoration: BoxDecoration(
+                           shape: BoxShape.circle,
+                           color: const Color(0xFF00C83A).withValues(alpha: 0.15),
+                         ),
+                         clipBehavior: Clip.antiAlias,
+                         alignment: Alignment.center,
+                         child: avatarUrl != null && avatarUrl.isNotEmpty
+                             ? Image.network(
+                                 avatarUrl,
+                                 width: 34,
+                                 height: 34,
+                                 fit: BoxFit.cover,
+                                 errorBuilder: (context, error, stackTrace) => Text(
+                                   initial,
+                                   style: const TextStyle(
+                                     fontSize: 14,
+                                     fontWeight: FontWeight.w700,
+                                     color: Color(0xFF00C83A),
+                                   ),
+                                 ),
+                               )
+                             : Text(
+                                 initial,
+                                 style: const TextStyle(
+                                   fontSize: 14,
+                                   fontWeight: FontWeight.w700,
+                                   color: Color(0xFF00C83A),
+                                 ),
+                               ),
+                       ),
+                       const SizedBox(width: 10),
+                       Expanded(
+                         child: Column(
+                           crossAxisAlignment: CrossAxisAlignment.start,
+                           mainAxisSize: MainAxisSize.min,
+                           children: [
+                             Text(
+                               member.name,
+                               style: TextStyle(
+                                 fontSize: 14,
+                                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                                 color: isSelected
+                                     ? const Color(0xFF00C83A)
+                                     : (isDark ? Colors.white : const Color(0xFF0F172A)),
+                               ),
+                               maxLines: 1,
+                               overflow: TextOverflow.ellipsis,
+                             ),
+                             if (member.email != null && member.email!.isNotEmpty) ...[
+                               const SizedBox(height: 1),
+                               Text(
+                                 member.email!,
+                                 style: TextStyle(
+                                   fontSize: 12,
+                                   color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                 ),
+                                 maxLines: 1,
+                                 overflow: TextOverflow.ellipsis,
+                               ),
+                             ],
+                           ],
+                         ),
+                       ),
+                       Container(
+                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                         decoration: BoxDecoration(
+                           color: isSelected
+                               ? const Color(0xFF00C83A)
+                               : const Color(0xFF00C83A).withValues(alpha: 0.1),
+                           borderRadius: BorderRadius.circular(10),
+                         ),
+                         child: Text(
+                           '@tag',
+                           style: TextStyle(
+                             fontSize: 11,
+                             fontWeight: FontWeight.w600,
+                             color: isSelected ? Colors.white : const Color(0xFF00C83A),
+                           ),
+                         ),
+                       ),
+                     ],
+                   ),
+                 ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -936,6 +1243,9 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Danh sách gợi ý thành viên khi gõ @ Mention
+                  if (_mentionSuggestions.isNotEmpty)
+                    _buildMentionSuggestionsBox(context, isDark),
                   // Preview tệp/ảnh trước khi gửi nếu có tệp được chọn
                   if (_selectedBytes != null) ...[
                     Container(
@@ -1130,47 +1440,91 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
                                       )
                                     : Padding(
                                         padding: const EdgeInsets.only(left: 4, right: 14),
-                                        child: TextField(
-                                          controller: _controller,
-                                    focusNode: _focusNode,
-                                    textCapitalization: TextCapitalization.sentences,
-                                    minLines: 1,
-                                    maxLines: 5,
-                                    textAlignVertical: TextAlignVertical.center,
-                                    style: TextStyle(
-                                      fontSize: 15,
-                                      height: 1.35,
-                                      color: isDark
-                                          ? const Color(0xFFE9EDEF)
-                                          : const Color(0xFF111B21),
-                                    ),
-                                    cursorColor: const Color(0xFF00C83A),
-                                    cursorWidth: 2.0,
-                                    cursorRadius: const Radius.circular(2),
-                                    decoration: InputDecoration(
-                                      hintText: _selectedBytes != null
-                                          ? 'Thêm chú thích...'
-                                          : 'Nhập tin nhắn...',
-                                      hintStyle: TextStyle(
-                                        color: isDark
-                                            ? const Color(0xFF8696A0)
-                                            : const Color(0xFF8696A0),
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w400,
+                                        child: KeyboardListener(
+                                          focusNode: FocusNode(),
+                                          onKeyEvent: (event) {
+                                            if (event is KeyDownEvent) {
+                                              // Hỗ trợ phím điều hướng khi box gợi ý @mention đang mở
+                                              if (_mentionSuggestions.isNotEmpty) {
+                                                if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+                                                  setState(() {
+                                                    _selectedMentionIndex = (_selectedMentionIndex + 1) % _mentionSuggestions.length;
+                                                  });
+                                                  return;
+                                                } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+                                                  setState(() {
+                                                    _selectedMentionIndex = (_selectedMentionIndex - 1 + _mentionSuggestions.length) % _mentionSuggestions.length;
+                                                  });
+                                                  return;
+                                                } else if (event.logicalKey == LogicalKeyboardKey.enter || event.logicalKey == LogicalKeyboardKey.tab) {
+                                                  if (_selectedMentionIndex >= 0 && _selectedMentionIndex < _mentionSuggestions.length) {
+                                                    _selectMention(_mentionSuggestions[_selectedMentionIndex]);
+                                                    return;
+                                                  }
+                                                } else if (event.logicalKey == LogicalKeyboardKey.escape) {
+                                                  setState(() {
+                                                    _mentionSuggestions = [];
+                                                    _mentionQueryStartIndex = -1;
+                                                    _selectedMentionIndex = 0;
+                                                  });
+                                                  return;
+                                                }
+                                              }
+
+                                              // Gửi tin nhắn bằng Enter trên Web/Desktop (trừ khi nhấn Shift+Enter)
+                                              if (kIsWeb &&
+                                                  event.logicalKey == LogicalKeyboardKey.enter &&
+                                                  !HardwareKeyboard.instance.isShiftPressed) {
+                                                // Không gửi nhầm khi đang gõ bộ gõ IME tiếng Việt (chưa kết thúc từ)
+                                                if (_controller.value.composing.isValid) {
+                                                  return;
+                                                }
+                                                _handleSend();
+                                              }
+                                            }
+                                          },
+                                          child: TextField(
+                                            controller: _controller,
+                                            focusNode: _focusNode,
+                                            textCapitalization: TextCapitalization.sentences,
+                                            minLines: 1,
+                                            maxLines: 5,
+                                            textAlignVertical: TextAlignVertical.center,
+                                            style: TextStyle(
+                                              fontSize: 15,
+                                              height: 1.35,
+                                              color: isDark
+                                                  ? const Color(0xFFE9EDEF)
+                                                  : const Color(0xFF111B21),
+                                            ),
+                                            cursorColor: const Color(0xFF00C83A),
+                                            cursorWidth: 2.0,
+                                            cursorRadius: const Radius.circular(2),
+                                            decoration: InputDecoration(
+                                              hintText: _selectedBytes != null
+                                                  ? 'Thêm chú thích...'
+                                                  : 'Nhập tin nhắn...',
+                                              hintStyle: TextStyle(
+                                                color: isDark
+                                                    ? const Color(0xFF8696A0)
+                                                    : const Color(0xFF8696A0),
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w400,
+                                              ),
+                                              border: InputBorder.none,
+                                              enabledBorder: InputBorder.none,
+                                              focusedBorder: InputBorder.none,
+                                              disabledBorder: InputBorder.none,
+                                              filled: false,
+                                              isDense: true,
+                                              contentPadding: const EdgeInsets.symmetric(
+                                                vertical: 12,
+                                              ),
+                                            ),
+                                            onSubmitted: (_) => _handleSend(),
+                                          ),
+                                        ),
                                       ),
-                                      border: InputBorder.none,
-                                      enabledBorder: InputBorder.none,
-                                      focusedBorder: InputBorder.none,
-                                      disabledBorder: InputBorder.none,
-                                      filled: false,
-                                      isDense: true,
-                                      contentPadding: const EdgeInsets.symmetric(
-                                        vertical: 12,
-                                      ),
-                                    ),
-                                    onSubmitted: (_) => _handleSend(),
-                                  ),
-                                ),
                               ),
                             ],
                           ),

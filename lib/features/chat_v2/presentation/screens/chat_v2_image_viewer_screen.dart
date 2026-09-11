@@ -309,16 +309,24 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
 
   Widget _buildError() {
     return const Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(LucideIcons.imageOff, color: Colors.white54, size: 48),
-          SizedBox(height: 12),
-          Text(
-            'Không thể tải hình ảnh',
-            style: TextStyle(color: Colors.white70),
-          ),
-        ],
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(LucideIcons.imageOff, color: Colors.white54, size: 52),
+            SizedBox(height: 14),
+            Text(
+              'Hình ảnh rỗng hoặc không còn tồn tại trên máy chủ',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 14.5,
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }

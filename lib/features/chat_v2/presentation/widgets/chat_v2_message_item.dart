@@ -9,6 +9,7 @@ import '../../../../core/api/mobile_attachment_repository.dart';
 import '../../../../core/api/odoo_api_client.dart';
 import '../../../../core/utils/file_download.dart';
 import '../../../../core/utils/local_attachment_cache.dart';
+import '../../../../core/utils/magic_bytes_validator.dart';
 import '../../data/models/chat_v2_message.dart';
 import '../screens/chat_v2_image_viewer_screen.dart';
 import 'chat_v2_location_card.dart';
@@ -898,26 +899,134 @@ class ChatV2MessageItem extends StatelessWidget {
     return InkWell(
       onTap: () async {
         if (cachedBytes != null && cachedBytes.isNotEmpty) {
+          if (MagicBytesValidator.isMistakenImagePayloadForDocument(cleanName, cachedBytes)) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Tệp tin gốc không tồn tại hoặc bạn không có quyền truy cập trên máy chủ.'),
+                  duration: Duration(seconds: 3),
+                  backgroundColor: Color(0xFFE11D48),
+                ),
+              );
+            }
+            return;
+          }
           await saveBytesToFile(cachedBytes, cleanName);
           return;
         }
-        if (downloadUrl != null && downloadUrl.isNotEmpty) {
+
+        // Ưu tiên 1: Thử lấy id từ message.attachments nếu có
+        int? attachmentId;
+        if (message.attachments.isNotEmpty) {
+          attachmentId = int.tryParse(message.attachments.first.id);
+        }
+
+        // Ưu tiên 2: Trích xuất id từ downloadUrl
+        if (attachmentId == null && downloadUrl != null && downloadUrl.isNotEmpty) {
+          final match = RegExp(r'/(?:attachments|image|content)/(\d+)').firstMatch(downloadUrl);
+          if (match != null) {
+            attachmentId = int.tryParse(match.group(1)!);
+          }
+        }
+
+        // Chuẩn hóa downloadUrl hợp lệ
+        String? resolvedDownloadUrl = downloadUrl;
+        if (resolvedDownloadUrl != null &&
+            !resolvedDownloadUrl.startsWith('http://') &&
+            !resolvedDownloadUrl.startsWith('https://') &&
+            !resolvedDownloadUrl.startsWith('/')) {
+          // Tránh lỗi DNS_PROBE_FINISHED_NXDOMAIN: Chuỗi không phải URL (như "work.xlsx")
+          resolvedDownloadUrl = null;
+        }
+
+        if (resolvedDownloadUrl == null && attachmentId != null && attachmentId > 0) {
+          resolvedDownloadUrl = '/api/v1/mobile/attachments/$attachmentId/download';
+        }
+
+        if (resolvedDownloadUrl != null && resolvedDownloadUrl.isNotEmpty) {
+          bool isAttachmentEmptyError = false;
           try {
             // Tải tệp tin qua API có gắn Bearer Token xác thực
-            final bytes = await odooApiClient.fetchBytes(downloadUrl);
+            final bytes = await odooApiClient.fetchBytes(resolvedDownloadUrl);
             if (bytes.isNotEmpty) {
+              if (MagicBytesValidator.isMistakenImagePayloadForDocument(cleanName, bytes)) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Tệp tin gốc không tồn tại hoặc bạn không có quyền truy cập trên máy chủ.'),
+                      duration: Duration(seconds: 3),
+                      backgroundColor: Color(0xFFE11D48),
+                    ),
+                  );
+                }
+                return;
+              }
               await saveBytesToFile(bytes, cleanName);
               return;
             }
           } catch (e) {
-            debugPrint('[ChatV2] Lỗi fetchBytes $downloadUrl: $e');
+            debugPrint('[ChatV2] Lỗi fetchBytes $resolvedDownloadUrl: $e');
+            final errorStr = e.toString().toLowerCase();
+            if (errorStr.contains('attachment_empty') || errorStr.contains('rỗng') || errorStr.contains('404')) {
+              isAttachmentEmptyError = true;
+            }
+
+            // Fallback: Thử tải qua MobileAttachmentRepository
+            final targetId = attachmentId;
+            if (targetId != null && targetId > 0) {
+              try {
+                final fallbackBytes = await MobileAttachmentRepository().fetchBytes(targetId);
+                if (fallbackBytes.isNotEmpty) {
+                  if (MagicBytesValidator.isMistakenImagePayloadForDocument(cleanName, fallbackBytes)) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Tệp tin gốc không tồn tại hoặc bạn không có quyền truy cập trên máy chủ.'),
+                          duration: Duration(seconds: 3),
+                          backgroundColor: Color(0xFFE11D48),
+                        ),
+                      );
+                    }
+                    return;
+                  }
+                  await saveBytesToFile(fallbackBytes, cleanName);
+                  return;
+                }
+              } catch (err) {
+                debugPrint('[ChatV2] Lỗi fallback MobileAttachmentRepository: $err');
+                final fallbackErrStr = err.toString().toLowerCase();
+                if (fallbackErrStr.contains('attachment_empty') || fallbackErrStr.contains('rỗng') || fallbackErrStr.contains('404')) {
+                  isAttachmentEmptyError = true;
+                }
+              }
+            }
           }
-          final full = odooApiClient.authenticatedUrl(downloadUrl);
-          openDownloadUrl(full);
-        } else {
+
+          if (isAttachmentEmptyError) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Tệp tin rỗng hoặc không còn tồn tại trên máy chủ.'),
+                  duration: Duration(seconds: 3),
+                  backgroundColor: Color(0xFFE11D48),
+                ),
+              );
+            }
+            return;
+          }
+
+          // Fallback cuối cùng: Chỉ mở URL nếu là URL HTTP hợp lệ
+          final full = odooApiClient.authenticatedUrl(resolvedDownloadUrl);
+          if (full.startsWith('http://') || full.startsWith('https://')) {
+            openDownloadUrl(full);
+            return;
+          }
+        }
+
+        if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Không tìm thấy đường dẫn tải tệp tin.'),
+              content: Text('Không tìm thấy tệp tin hoặc tệp tin chưa sẵn sàng.'),
               duration: Duration(seconds: 2),
             ),
           );
@@ -1094,14 +1203,28 @@ class ChatV2MessageItem extends StatelessWidget {
     required Color textColor,
   }) {
     final linkColor = isDark ? const Color(0xFF60A5FA) : const Color(0xFF2563EB);
+    final mentionColor = isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7);
 
+    // ponytail: length guard trước regex để tránh ReDoS (backtrack bậc n²)
+    // khi nhận tin nhắn bất thường dài; upgrade: atomic-group nếu Dart hỗ trợ
+    if (rawText.length > 2000) {
+      return Text(
+        rawText,
+        style: TextStyle(
+          fontSize: 15,
+          height: 1.38,
+          color: textColor,
+        ),
+        overflow: TextOverflow.visible,
+      );
+    }
     final urlRegex = RegExp(
-      r'((?:https?:\/\/|www\.)[^\s<]+|(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(?:\/[^\s<]*)?)',
+      r'((?:https?:\/\/|www\.)[^\s<]+|[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*\.[a-zA-Z]{2,}(?:\/[^\s<]*)?)',
       caseSensitive: false,
     );
 
     final matches = urlRegex.allMatches(rawText);
-    if (matches.isEmpty) {
+    if (matches.isEmpty && !rawText.contains('@')) {
       return Text(
         rawText,
         style: TextStyle(
@@ -1118,10 +1241,12 @@ class ChatV2MessageItem extends StatelessWidget {
 
     for (final match in matches) {
       if (match.start > lastMatchEnd) {
-        spans.add(TextSpan(
-          text: rawText.substring(lastMatchEnd, match.start),
-          style: TextStyle(color: textColor, fontSize: 15, height: 1.38),
-        ));
+        _addTextWithMentions(
+          spans,
+          rawText.substring(lastMatchEnd, match.start),
+          textColor,
+          mentionColor,
+        );
       }
 
       var rawLink = rawText.substring(match.start, match.end);
@@ -1171,16 +1296,97 @@ class ChatV2MessageItem extends StatelessWidget {
     }
 
     if (lastMatchEnd < rawText.length) {
-      spans.add(TextSpan(
-        text: rawText.substring(lastMatchEnd),
-        style: TextStyle(color: textColor, fontSize: 15, height: 1.38),
-      ));
+      _addTextWithMentions(
+        spans,
+        rawText.substring(lastMatchEnd),
+        textColor,
+        mentionColor,
+      );
     }
 
     return Text.rich(
       TextSpan(children: spans),
       overflow: TextOverflow.visible,
     );
+  }
+
+  void _addTextWithMentions(
+    List<InlineSpan> spans,
+    String segment,
+    Color textColor,
+    Color mentionColor,
+  ) {
+    if (!segment.contains('@')) {
+      spans.add(TextSpan(
+        text: segment,
+        style: TextStyle(color: textColor, fontSize: 15, height: 1.38),
+      ));
+      return;
+    }
+
+    // 1. Trích xuất danh sách mention chính xác từ thẻ HTML Odoo Discuss (<a class="o_mail_redirect">@Name</a>)
+    final explicitMentions = <String>[];
+    final raw = message.rawBody ?? '';
+    if (raw.contains('o_mail_redirect') || raw.contains('data-oe-model')) {
+      final tagRegex = RegExp(r'<a[^>]+(?:class=[\x27"]o_mail_redirect[\x27"]|data-oe-model=[\x27"]res\.partner[\x27"])[^>]*>(@?[^<]+)<\/a>', caseSensitive: false);
+      for (final tm in tagRegex.allMatches(raw)) {
+        final name = tm.group(1)?.trim();
+        if (name != null && name.isNotEmpty) {
+          final token = name.startsWith('@') ? name : '@$name';
+          if (!explicitMentions.contains(token)) {
+            explicitMentions.add(token);
+          }
+        }
+      }
+    }
+
+    // Sắp xếp các mention dài trước để tránh match substring ngắn hơn
+    explicitMentions.sort((a, b) => b.length.compareTo(a.length));
+
+    // Xây dựng Regex an toàn: Ưu tiên explicit mentions từ HTML Odoo nếu có, fallback về regex match @Tên lên tới 4 từ
+    final RegExp mentionRegex;
+    if (explicitMentions.isNotEmpty) {
+      final escaped = explicitMentions.map(RegExp.escape).join('|');
+      mentionRegex = RegExp('(?:^|(?<=[\\s\\n]))($escaped)(?=[\\s\\n,.:;!?()\\[\\]{}<>]|\$)', caseSensitive: false);
+    } else {
+      mentionRegex = RegExp(r'(?:^|(?<=[\s\n]))(@[^\s@,.:;!?()[\]{}<>]+(?:\s+[^\s@,.:;!?()[\]{}<>]+){0,3})', caseSensitive: false);
+    }
+
+    final mentionMatches = mentionRegex.allMatches(segment);
+    if (mentionMatches.isEmpty) {
+      spans.add(TextSpan(
+        text: segment,
+        style: TextStyle(color: textColor, fontSize: 15, height: 1.38),
+      ));
+      return;
+    }
+
+    int lastIdx = 0;
+    for (final m in mentionMatches) {
+      if (m.start > lastIdx) {
+        spans.add(TextSpan(
+          text: segment.substring(lastIdx, m.start),
+          style: TextStyle(color: textColor, fontSize: 15, height: 1.38),
+        ));
+      }
+      final mentionText = m.groupCount >= 1 ? (m.group(1) ?? m.group(0) ?? '') : (m.group(0) ?? '');
+      spans.add(TextSpan(
+        text: mentionText,
+        style: TextStyle(
+          color: mentionColor,
+          fontSize: 15,
+          height: 1.38,
+          fontWeight: FontWeight.w700,
+        ),
+      ));
+      lastIdx = m.end;
+    }
+    if (lastIdx < segment.length) {
+      spans.add(TextSpan(
+        text: segment.substring(lastIdx),
+        style: TextStyle(color: textColor, fontSize: 15, height: 1.38),
+      ));
+    }
   }
 
   void _handleLinkClick(BuildContext context, String targetUrl) async {

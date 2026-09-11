@@ -24,18 +24,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _email = TextEditingController();
   final _password = TextEditingController();
+  final _serverUrl = TextEditingController();
+  final _databaseName = TextEditingController();
+  bool _isManualMode = false;
   bool _submitting = false;
   bool _showSuccessTransition = false;
   String? _error;
   bool _obscurePassword = true;
   final _emailFocus = FocusNode();
   final _passwordFocus = FocusNode();
+  final _serverUrlFocus = FocusNode();
+  final _databaseNameFocus = FocusNode();
 
   @override
   void initState() {
     super.initState();
     _email.addListener(_onFieldChanged);
     _password.addListener(_onFieldChanged);
+    _serverUrl.addListener(_onFieldChanged);
+    _databaseName.addListener(_onFieldChanged);
     _loadSavedEmail();
   }
 
@@ -77,10 +84,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   void dispose() {
     _email.removeListener(_onFieldChanged);
     _password.removeListener(_onFieldChanged);
+    _serverUrl.removeListener(_onFieldChanged);
+    _databaseName.removeListener(_onFieldChanged);
     _email.dispose();
     _password.dispose();
+    _serverUrl.dispose();
+    _databaseName.dispose();
     _emailFocus.dispose();
     _passwordFocus.dispose();
+    _serverUrlFocus.dispose();
+    _databaseNameFocus.dispose();
     super.dispose();
   }
 
@@ -115,37 +128,61 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     setState(() => _submitting = true);
 
     try {
+      // Chế độ nhập thủ công (Manual Mode Fallback)
+      if (_isManualMode) {
+        final serverUrl = _serverUrl.text.trim().replaceAll(RegExp(r'/+$'), '');
+        final databaseName = _databaseName.text.trim();
+        final manualDb = DbInfo(
+          login: login,
+          databaseName: databaseName,
+          databaseUrl: serverUrl,
+          hasVMobile: true,
+        );
+        await _executeClientAuth(
+          db: manualDb,
+          login: login,
+          password: password,
+        );
+        return;
+      }
+
       final preferredDb = await ref
           .read(authControllerProvider.notifier)
           .getLastSelectedDb();
 
-      debugPrint('🔐 [VCLOUD AUTH] Đang xác thực mật khẩu qua Master Router: $login (Preferred: $preferredDb)');
+      debugPrint('🔍 [VCLOUD AUTH] Đang tra cứu cơ sở dữ liệu trên Master: $login (Preferred: $preferredDb)');
+      // [Bước 2]: Gửi API tra cứu DB lên Master: POST /api/v1/auth/lookup-db
+      // PAYLOAD CHỈ CHỨA: {"login": "<login>"}
+      // ⚠️ TUYỆT ĐỐI KHÔNG BẮT GỬI PASSWORD LÊN MASTER!
       final dbs = await ref
           .read(authControllerProvider.notifier)
-          .lookupDb(login, password, preferredDb: preferredDb);
+          .lookupDb(login, preferredDb: preferredDb);
 
-      debugPrint('📋 [VCLOUD AUTH RESULT] Mật khẩu đúng tại ${dbs.length} database:');
+      debugPrint('📋 [VCLOUD AUTH RESULT] Tìm thấy ${dbs.length} database cho tài khoản $login:');
       for (int i = 0; i < dbs.length; i++) {
         debugPrint('   [$i] DB: ${dbs[i].databaseName} | URL: ${dbs[i].databaseUrl}');
       }
 
       if (!mounted) return;
 
-      // TH1: 0 DB khớp mật khẩu -> Báo lỗi chung (Không lộ thông tin tổ chức)
+      // [Bước 3 - Nhánh 3: KHÔNG TỒN TẠI (Master trả về rỗng [])]
+      // App thông báo ngay: "Tài khoản không tồn tại trên hệ thống".
       if (dbs.isEmpty) {
         setState(() {
           _submitting = false;
-          _error = 'Tài khoản hoặc mật khẩu không chính xác.';
+          _error = 'Tài khoản không tồn tại trên hệ thống.';
         });
         AppToast.error(
           context,
           title: 'Đăng nhập thất bại',
-          message: 'Tài khoản hoặc mật khẩu không chính xác.',
+          message: 'Tài khoản không tồn tại trên hệ thống.',
         );
         return;
       }
 
-      // TH2: Đúng 1 DB -> Đăng nhập thẳng không cần hỏi
+      // [Bước 3 - Nhánh 1: CHỈ CÓ 1 DATABASE]
+      // App tự động lấy DB đó và gửi thẳng request authenticate với user/pass vừa nhập.
+      // Người dùng vào thẳng app, KHÔNG CẦN CHỌN DB.
       if (dbs.length == 1) {
         final targetDb = dbs.first;
         await _executeClientAuth(
@@ -156,7 +193,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         return;
       }
 
-      // TH3: Đúng trên nhiều DB -> Hiện Dialog cho user chọn tổ chức muốn vào
+      // [Bước 3 - Nhánh 2: TRÙNG TẠI NHIỀU DATABASE]
+      // BẬT THÊM TRƯỜNG "DATABASE" (Dropdown hoặc Popup để User chọn DB muốn đăng nhập).
+      // User bấm chọn -> Bấm Login để vào đúng DB (xác thực trực tiếp tại Client DB).
       setState(() => _submitting = false);
       final selected = await _showOrganizationPickerDialog(dbs);
       if (selected != null && mounted) {
@@ -352,7 +391,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                               children: [
                                                 Flexible(
                                                   child: Text(
-                                                    item.databaseName,
+                                                    item.effectiveDisplayName,
                                                     style: const TextStyle(
                                                       fontSize: 15,
                                                       fontWeight: FontWeight.w700,
@@ -467,17 +506,45 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     required String login,
     required String password,
   }) async {
+    // Đảm bảo đúng cơ sở dữ liệu theo môi trường mục tiêu (phân tích Host chuẩn)
+    var effectiveDb = db;
+    final host = Uri.tryParse(db.databaseUrl)?.host.toLowerCase() ?? '';
+    if (host == 'vuahethong.net' || host == 'www.vuahethong.net') {
+      if (db.databaseName.isEmpty || db.databaseName == 'demo') {
+        effectiveDb = DbInfo(
+          login: db.login,
+          databaseName: 'vuahethong',
+          databaseUrl: db.databaseUrl,
+          displayName: db.displayName,
+          hasVMobile: db.hasVMobile,
+          projectId: db.projectId,
+        );
+      }
+    } else if (host == 'demo.vuahethong.com') {
+      if (db.databaseName.isEmpty) {
+        effectiveDb = DbInfo(
+          login: db.login,
+          databaseName: 'demo',
+          databaseUrl: db.databaseUrl,
+          displayName: db.displayName,
+          hasVMobile: db.hasVMobile,
+          projectId: db.projectId,
+        );
+      }
+    }
+    // Đối với các domain khác (ví dụ: tenant khách hàng davita.vn, subdomains), giữ nguyên db do Master trả về!
+
     setState(() => _submitting = true);
     debugPrint('''
 ------------------------------------------------------------------
 👉 [VCLOUD AUTH INITIATED] BẮT ĐẦU XÁC THỰC
 👤 Login   : $login
-🗄️ Mục tiêu: ${db.databaseName}
-🌐 URL đích: ${db.databaseUrl}
+🗄️ Mục tiêu: ${effectiveDb.databaseName}
+🌐 URL đích: ${effectiveDb.databaseUrl}
 ------------------------------------------------------------------''');
     try {
       await ref.read(authControllerProvider.notifier).authenticateOnClient(
-            db: db,
+            db: effectiveDb,
             login: login,
             password: password,
           );
@@ -485,7 +552,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (!mounted) return;
 
       // Pre-warm data (chỉ thực hiện nếu database đã cài đặt vmobile)
-      if (db.hasVMobile) {
+      if (effectiveDb.hasVMobile) {
         try {
           await Future.wait([
             ref.read(chatV2ChannelsProvider.notifier).refresh(),
@@ -507,13 +574,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         context.go('/chat');
 
         // Nếu database chưa được cài đặt module vmobile, hiển thị cảnh báo rõ ràng
-        if (!db.hasVMobile) {
+        if (!effectiveDb.hasVMobile) {
           Future.delayed(const Duration(milliseconds: 750), () {
             AppToast.showGlobal(
               type: AppToastType.warning,
               title: 'Chưa cài đặt module vmobile',
               message:
-                  'Cơ sở dữ liệu "${db.databaseName}" chưa cài module vmobile. Tất cả các tính năng không thể sử dụng được.',
+                  'Cơ sở dữ liệu "${effectiveDb.databaseName}" chưa cài module vmobile. Tất cả các tính năng không thể sử dụng được.',
               duration: const Duration(seconds: 6),
             );
           });
@@ -660,6 +727,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                               // Email/Login Input
                               TextFormField(
+                                key: const ValueKey('login_email_input'),
                                 controller: _email,
                                 focusNode: _emailFocus,
                                 style: const TextStyle(
@@ -711,9 +779,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                               // Password Input
                               TextFormField(
+                                key: const ValueKey('login_password_input'),
                                 controller: _password,
                                 focusNode: _passwordFocus,
                                 obscureText: _obscurePassword,
+                                onFieldSubmitted: (_) {
+                                  if (!_submitting) _submit();
+                                },
                                 style: const TextStyle(
                                   color: Color(0xFF0F172A),
                                   fontWeight: FontWeight.w600,
@@ -774,6 +846,109 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                     ? 'Vui lòng nhập mật khẩu'
                                     : null,
                               ),
+
+                              // Manual Mode Expandable Fields
+                              if (_isManualMode) ...[
+                                const SizedBox(height: 16),
+                                TextFormField(
+                                  controller: _serverUrl,
+                                  focusNode: _serverUrlFocus,
+                                  style: const TextStyle(
+                                    color: Color(0xFF0F172A),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  decoration: InputDecoration(
+                                    labelText: 'Địa chỉ máy chủ (URL)',
+                                    hintText: 'https://vuahethong.net hoặc http://localhost:8069',
+                                    hintStyle: const TextStyle(
+                                      color: Color(0xFF94A3B8),
+                                      fontSize: 12.5,
+                                    ),
+                                    labelStyle: const TextStyle(color: Color(0xFF64748B)),
+                                    prefixIcon: const Icon(
+                                      LucideIcons.globe,
+                                      size: 20,
+                                      color: Color(0xFF3B82F6),
+                                    ),
+                                    filled: true,
+                                    fillColor: const Color(0xFFF8FAFC),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                      borderSide: const BorderSide(
+                                        color: Color(0xFF3B82F6),
+                                        width: 1.5,
+                                      ),
+                                    ),
+                                  ),
+                                  keyboardType: TextInputType.url,
+                                  validator: (v) {
+                                    if (!_isManualMode) return null;
+                                    if (v == null || v.trim().isEmpty) {
+                                      return 'Vui lòng nhập địa chỉ máy chủ';
+                                    }
+                                    final trimmed = v.trim();
+                                    if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+                                      return 'URL phải bắt đầu bằng http:// hoặc https://';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                                const SizedBox(height: 16),
+                                TextFormField(
+                                  controller: _databaseName,
+                                  focusNode: _databaseNameFocus,
+                                  style: const TextStyle(
+                                    color: Color(0xFF0F172A),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  decoration: InputDecoration(
+                                    labelText: 'Tên Database (Cơ sở dữ liệu)',
+                                    hintText: 'demo-17, vuahethong...',
+                                    hintStyle: const TextStyle(
+                                      color: Color(0xFF94A3B8),
+                                      fontSize: 12.5,
+                                    ),
+                                    labelStyle: const TextStyle(color: Color(0xFF64748B)),
+                                    prefixIcon: const Icon(
+                                      LucideIcons.database,
+                                      size: 20,
+                                      color: Color(0xFF3B82F6),
+                                    ),
+                                    filled: true,
+                                    fillColor: const Color(0xFFF8FAFC),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                      borderSide: const BorderSide(
+                                        color: Color(0xFF3B82F6),
+                                        width: 1.5,
+                                      ),
+                                    ),
+                                  ),
+                                  validator: (v) {
+                                    if (!_isManualMode) return null;
+                                    if (v == null || v.trim().isEmpty) {
+                                      return 'Vui lòng nhập tên Database';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                              ],
 
                               if (_error != null) ...[
                                 const SizedBox(height: 16),
@@ -837,6 +1012,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 width: double.infinity,
                                 height: 52,
                                 child: ElevatedButton(
+                                  key: const ValueKey('login_submit_btn'),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: const Color(0xFF10B981),
                                     foregroundColor: Colors.white,
@@ -874,6 +1050,43 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                                 size: 20),
                                           ],
                                         ),
+                                ),
+                              ),
+
+                              const SizedBox(height: 14),
+
+                              // Toggle Manual Mode Button (Fallback)
+                              Center(
+                                child: TextButton.icon(
+                                  onPressed: () {
+                                    setState(() {
+                                      _isManualMode = !_isManualMode;
+                                      _error = null;
+                                    });
+                                  },
+                                  icon: Icon(
+                                    _isManualMode
+                                        ? LucideIcons.sparkles
+                                        : LucideIcons.slidersHorizontal,
+                                    size: 15,
+                                    color: const Color(0xFF64748B),
+                                  ),
+                                  label: Text(
+                                    _isManualMode
+                                        ? 'Chuyển sang Đăng nhập thông minh (Smart Login)'
+                                        : 'Nhập máy chủ / Database thủ công',
+                                    style: const TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF64748B),
+                                    ),
+                                  ),
+                                  style: TextButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ],

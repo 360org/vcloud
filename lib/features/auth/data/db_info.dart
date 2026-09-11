@@ -4,6 +4,7 @@ class DbInfo {
     required this.login,
     required this.databaseName,
     required this.databaseUrl,
+    this.displayName,
     this.projectId,
     this.hasVMobile = true,
   });
@@ -11,11 +12,16 @@ class DbInfo {
   final String login;
   final String databaseName;
   final String databaseUrl;
+  final String? displayName;
   final dynamic projectId;
   final bool hasVMobile;
 
-  String get displayName =>
-      databaseName.isNotEmpty ? databaseName : databaseUrl;
+  String get effectiveDisplayName {
+    if (displayName != null && displayName!.trim().isNotEmpty) {
+      return displayName!.trim();
+    }
+    return databaseName.isNotEmpty ? databaseName : databaseUrl;
+  }
 
   /// Nhãn phân biệt [Nội bộ / Khách hàng] và phiên bản Odoo [17 / 19]
   String get categoryLabel {
@@ -48,8 +54,12 @@ class DbInfo {
           (json['url'] as String?) ??
           (json['base_url'] as String?) ??
           '',
+      displayName: (json['display_name'] as String?) ??
+          (json['name'] as String?),
       projectId: json['project_id'],
-      hasVMobile: (json['has_v_mobile'] as bool?) ?? true,
+      hasVMobile: (json['has_v_mobile'] as bool?) ??
+          (json['has_vmobile'] as bool?) ??
+          true,
     );
   }
 
@@ -57,6 +67,7 @@ class DbInfo {
         'login': login,
         'database_name': databaseName,
         'database_url': databaseUrl,
+        if (displayName != null) 'display_name': displayName,
         if (projectId != null) 'project_id': projectId,
         'has_v_mobile': hasVMobile,
       };

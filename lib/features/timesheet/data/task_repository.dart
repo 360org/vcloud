@@ -329,16 +329,25 @@ class TaskRepository {
   }) {
     final dueDate = map['date_deadline'] as String? ?? _isoDate(fallbackDate);
     final now = DateTime.now().toIso8601String();
-    final state = (map['state'] ?? '').toString().toLowerCase();
-    final stageName = (_many2OneName(map['stage_id']) ?? _stringOrNull(map['stage_name']) ?? _stringOrNull(map['stage']) ?? '').toLowerCase();
+    final state = (map['state'] ?? '').toString().toLowerCase().trim();
+    final stageName = (_many2OneName(map['stage_id']) ?? _stringOrNull(map['stage_name']) ?? _stringOrNull(map['stage']) ?? '').toLowerCase().trim();
+    // ponytail: Chỉ nhận diện là Done khi task có flag completed, hoặc state 1_done / done chuẩn Odoo,
+    // hoặc stageName trùng khớp chính xác các từ khóa kết thúc (tuyệt đối không dùng .contains('xong') hay .contains('done')
+    // lỏng lẻo làm match nhầm các stage trung gian như "review xong", "chờ duyệt xong", "testing done"...)
     final isDone = completed ||
         state == '1_done' ||
         state == 'done' ||
-        stageName.contains('done') ||
-        stageName.contains('hoàn thành') ||
-        stageName.contains('xong') ||
-        stageName.contains('closed') ||
-        stageName.contains('đã đóng');
+        stageName == 'done' ||
+        stageName == 'hoàn thành' ||
+        stageName == 'đã hoàn thành' ||
+        stageName == 'xong' ||
+        stageName == 'đã xong' ||
+        stageName == 'closed' ||
+        stageName == 'đã đóng' ||
+        stageName == 'cancelled' ||
+        stageName == 'canceled' ||
+        stageName == 'đã hủy' ||
+        stageName == 'đã huỷ';
     return <String, dynamic>{
       'id': map['id'].toString(),
       'user_id': map['user_id']?.toString() ?? '',

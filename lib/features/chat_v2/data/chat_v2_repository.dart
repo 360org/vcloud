@@ -22,6 +22,8 @@ class ChatV2Repository {
   static final Set<String> _resolvedAttachmentMsgIds = <String>{};
   static final Set<String> _resolvedParentMsgIds = <String>{};
   static final Map<String, List<ChatV2Attachment>> _cachedAttachmentsByMsgId = <String, List<ChatV2Attachment>>{};
+  static int? _lastChannelsCount;
+  static String? _lastChannelsChecksum;
 
   String resolveUrl(String path, {String? accessToken}) =>
       _client.authenticatedUrl(path, accessToken: accessToken);
@@ -50,7 +52,15 @@ class ChatV2Repository {
 
     if (kDebugMode) {
       if (data is List) {
-        debugPrint('✅ [ChatV2Repository.getChannels] Received ${data.length} channels (List)');
+        // Chỉ in log khi số lượng hoặc kênh đầu tiên có sự thay đổi để chống spam terminal khi polling
+        final firstSummary = data.isNotEmpty && data.first is Map
+            ? '${data.first['id']}:${data.first['last_message_date']}'
+            : '';
+        if (_lastChannelsCount != data.length || _lastChannelsChecksum != firstSummary) {
+          _lastChannelsCount = data.length;
+          _lastChannelsChecksum = firstSummary;
+          debugPrint('✅ [ChatV2Repository.getChannels] Channels count: ${data.length} (updated)');
+        }
       } else if (data is Map) {
         debugPrint('⚠️ [ChatV2Repository.getChannels] Received Map: keys=${data.keys.toList()}');
       } else {
@@ -368,6 +378,8 @@ class ChatV2Repository {
     String channelId,
     String body, {
     List<int>? attachmentIds,
+    List<int>? partnerIds,
+    List<Map<String, dynamic>>? mentionedPartners,
     String? currentPartnerId,
     String? currentUserId,
     String authorName = 'Tôi',
@@ -398,6 +410,12 @@ class ChatV2Repository {
     };
     if (attachmentIds != null && attachmentIds.isNotEmpty) {
       payload['attachment_ids'] = attachmentIds;
+    }
+    if (partnerIds != null && partnerIds.isNotEmpty) {
+      payload['partner_ids'] = partnerIds;
+    }
+    if (mentionedPartners != null && mentionedPartners.isNotEmpty) {
+      payload['mentioned_partners'] = mentionedPartners;
     }
     if (parentId != null && parentId.isNotEmpty) {
       payload['parent_id'] = int.tryParse(parentId) ?? parentId;

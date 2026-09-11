@@ -150,13 +150,27 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
       if (checkIn) {
         await a.checkIn();
       } else {
+        // Calculate worked time before checkOut invalidates open session
+        final open = ref.read(openSessionProvider);
+        TimesheetDuration loggedDuration = TimesheetDuration.thirty;
+        Duration? elapsedDuration;
+        if (open?.checkinTime != null) {
+          final calc = ShiftCalculator.calculate(checkinTime: open!.checkinTime);
+          final workedMins = calc.workedMinutes;
+          if (workedMins > 0) {
+            elapsedDuration = Duration(minutes: workedMins);
+            loggedDuration = durationBucketForElapsed(elapsedDuration);
+          }
+        }
+
         await a.checkOut();
         if (checkoutData != null && checkoutData.workDescription.isNotEmpty) {
           try {
             await ref.read(taskActionsProvider).log(
               taskId: checkoutData.selectedTaskId ?? '',
               summary: checkoutData.workDescription,
-              duration: TimesheetDuration.thirty,
+              duration: loggedDuration,
+              elapsed: elapsedDuration,
             );
             ref.invalidate(timesheetStreamProvider);
           } catch (_) {

@@ -178,7 +178,7 @@ class _AttendanceHistoryScreenState extends ConsumerState<AttendanceHistoryScree
 
           if (_isCalendarView) {
             final monthList = list.where((a) {
-              final t = a.checkinTime ?? a.createdAt;
+              final t = (a.checkinTime ?? a.createdAt).toLocal();
               return t.year == _selectedMonth.year && t.month == _selectedMonth.month;
             }).toList();
             final calTotalSessions = monthList.length;
@@ -227,7 +227,7 @@ class _AttendanceHistoryScreenState extends ConsumerState<AttendanceHistoryScree
 
           // List View Scope: current month vs all-time
           final currentMonthList = list.where((a) {
-            final t = a.checkinTime ?? a.createdAt;
+            final t = (a.checkinTime ?? a.createdAt).toLocal();
             return t.year == now.year && t.month == now.month;
           }).toList();
 
@@ -944,7 +944,7 @@ class _AttendanceCalendarView extends ConsumerWidget {
     // Map date key "YYYY-MM-DD" to list of attendances
     final attendanceByDay = <String, List<Attendance>>{};
     for (final a in attendances) {
-      final t = a.checkinTime ?? a.createdAt;
+      final t = (a.checkinTime ?? a.createdAt).toLocal();
       final key = '${t.year}-${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')}';
       attendanceByDay.putIfAbsent(key, () => []).add(a);
     }
@@ -1075,8 +1075,8 @@ class _AttendanceCalendarView extends ConsumerWidget {
                   for (final a in dayAttendances) {
                     if (a.checkinTime != null) {
                       final calc = ShiftCalculator.calculate(
-                        checkinTime: a.checkinTime,
-                        now: a.checkoutTime,
+                        checkinTime: a.checkinTime!.toLocal(),
+                        now: a.checkoutTime?.toLocal(),
                       );
                       dayWorkedMins += calc.workedMinutes;
                     }

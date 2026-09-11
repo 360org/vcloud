@@ -3,12 +3,18 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 
+import 'magic_bytes_validator.dart';
+
 bool openDownloadUrl(String url) => false;
 
 /// Saves `bytes` to a user-chosen path via the native save dialog. Returns true
 /// on success, false if the user cancelled. [FilePicker.saveFile] must be called
 /// from a user gesture (the download button tap satisfies that).
 Future<bool> saveBytesToFile(Uint8List bytes, String suggestedName) async {
+  if (MagicBytesValidator.isMistakenImagePayloadForDocument(suggestedName, bytes)) {
+    return false;
+  }
+
   final path = await FilePicker.platform.saveFile(
     dialogTitle: 'Lưu tệp',
     fileName: suggestedName,

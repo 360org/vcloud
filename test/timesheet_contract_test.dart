@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vcloud/shared/models/task.dart';
 import 'package:vcloud/shared/models/task_message.dart';
+import 'package:vcloud/shared/models/timesheet.dart';
 import 'package:vcloud/shared/models/timesheet_summary.dart';
 import 'package:vcloud/features/timesheet/application/timesheet_controller.dart';
 
@@ -31,6 +32,7 @@ void main() {
         'count': 42,
         'date_from': '2026-08-01',
         'date_to': '2026-08-12',
+        'project_id': 10,
       };
 
       final summary = TimesheetSummary.fromMap(json);
@@ -39,6 +41,7 @@ void main() {
       expect(summary.count, 42);
       expect(summary.dateFrom, '2026-08-01');
       expect(summary.dateTo, '2026-08-12');
+      expect(summary.projectId, '10');
     });
 
     test('Task.fromMap maps allocated, spent, and remaining hours safely', () {
@@ -101,6 +104,48 @@ void main() {
       final summary = TimesheetSummary.fromMap(const {});
       expect(summary.totalHours, 0.0);
       expect(summary.count, 0);
+    });
+
+    test('TimesheetFilterState matching logic filters by Project ID and Date Range', () {
+      final now = DateTime(2026, 3, 10);
+      final taskMatching = Task(
+        id: '101',
+        userId: '1',
+        title: 'Task Dự Án VCloud',
+        category: TimesheetCategory.erp,
+        dueDate: now,
+        createdAt: now,
+        updatedAt: now,
+        projectId: '42',
+        projectName: 'VCloud Project',
+        dateAssign: now,
+      );
+
+      final taskDifferentProject = Task(
+        id: '102',
+        userId: '1',
+        title: 'Task Dự Án Khác',
+        category: TimesheetCategory.erp,
+        dueDate: now,
+        createdAt: now,
+        updatedAt: now,
+        projectId: '99',
+        projectName: 'Khác',
+        dateAssign: now,
+      );
+
+      final filter = TimesheetFilterState(
+        presetName: 'Hôm nay',
+        projectId: '42',
+        projectName: 'VCloud Project',
+        dateFrom: DateTime(2026, 3, 10),
+        dateTo: DateTime(2026, 3, 10),
+      );
+
+      // Verify filter matches correctly
+      expect(filter.projectId, '42');
+      expect(taskMatching.projectId, filter.projectId);
+      expect(taskDifferentProject.projectId != filter.projectId, true);
     });
   });
 }

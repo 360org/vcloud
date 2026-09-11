@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
+import 'magic_bytes_validator.dart';
 import 'web_storage_helper.dart';
 
 /// Zalo-style Local & Persistent Attachment Cache with Auto Platform Detection.
@@ -79,6 +80,11 @@ class LocalAttachmentCache {
     if (key.trim().isEmpty || bytes.isEmpty) return;
     if (isGenericKey(key)) return; // Cấm lưu key chung chung để tránh tráo ảnh giữa các kênh
 
+    // Cấm lưu nếu file tài liệu văn phòng (docx, xlsx, pdf...) bị nhận nhầm ảnh placeholder của Odoo
+    if (MagicBytesValidator.isMistakenImagePayloadForDocument(key, bytes)) {
+      return;
+    }
+
     final clean = _cleanKey(key);
     _memCache[clean] = bytes;
     _memCache[key.trim()] = bytes;
@@ -114,15 +120,28 @@ class LocalAttachmentCache {
     for (final k in keysToTry) {
       // 1. Check RAM memory cache first
       if (_memCache.containsKey(k)) {
-        return _memCache[k];
+        final cached = _memCache[k];
+        if (cached != null) {
+          final effectiveName = altKey ?? key ?? '';
+          if (MagicBytesValidator.isMistakenImagePayloadForDocument(effectiveName, cached)) {
+            _memCache.remove(k);
+          } else {
+            return cached;
+          }
+        }
       }
 
       // 2. Check platform persistent storage
       if (kIsWeb) {
         final bytes = getFromWebLocalStorage(k);
         if (bytes != null && bytes.isNotEmpty) {
-          _memCache[k] = bytes; // Populate RAM cache for future accesses
-          return bytes;
+          final effectiveName = altKey ?? key ?? '';
+          if (MagicBytesValidator.isMistakenImagePayloadForDocument(effectiveName, bytes)) {
+            removeFromWebLocalStorage(k);
+          } else {
+            _memCache[k] = bytes; // Populate RAM cache for future accesses
+            return bytes;
+          }
         }
       } else {
         // Mobile Environment: DO NOT check physical disk file synchronously here!
@@ -159,8 +178,15 @@ class LocalAttachmentCache {
         final file = File('$_mobileDirPath/$k.bin');
         if (await file.exists()) {
           final bytes = await file.readAsBytes();
-          _memCache[k] = bytes; // Populate RAM cache
-          return bytes;
+          final effectiveName = altKey ?? key ?? '';
+          if (MagicBytesValidator.isMistakenImagePayloadForDocument(effectiveName, bytes)) {
+            try {
+              await file.delete();
+            } catch (_) {}
+          } else {
+            _memCache[k] = bytes; // Populate RAM cache
+            return bytes;
+          }
         }
       } catch (_) {}
     }

@@ -13,6 +13,7 @@ class InAppNotificationPayload {
     required this.body,
     required this.channelId,
     this.avatarUrl,
+    this.isMention = false,
   });
 
   final String id;
@@ -20,6 +21,7 @@ class InAppNotificationPayload {
   final String body;
   final String channelId;
   final String? avatarUrl;
+  final bool isMention;
 }
 
 final inAppNotificationProvider =
@@ -37,6 +39,7 @@ class InAppNotificationNotifier extends StateNotifier<InAppNotificationPayload?>
     required String body,
     required String channelId,
     String? avatarUrl,
+    bool isMention = false,
   }) {
     _dismissTimer?.cancel();
     state = InAppNotificationPayload(
@@ -45,6 +48,7 @@ class InAppNotificationNotifier extends StateNotifier<InAppNotificationPayload?>
       body: body,
       channelId: channelId,
       avatarUrl: avatarUrl,
+      isMention: isMention,
     );
 
     _dismissTimer = Timer(const Duration(seconds: 4), () {
@@ -85,7 +89,11 @@ class InAppNotificationBanner extends ConsumerWidget {
         child: GestureDetector(
           onTap: () {
             ref.read(inAppNotificationProvider.notifier).dismiss();
-            ref.read(routerProvider).go('/chat/${payload.channelId}');
+            final uri = Uri(
+              path: '/chat/${payload.channelId}',
+              queryParameters: {'name': payload.title},
+            );
+            ref.read(routerProvider).go(uri.toString());
           },
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -95,12 +103,15 @@ class InAppNotificationBanner extends ConsumerWidget {
                   : Colors.white.withValues(alpha: 0.98),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: AppColors.primary.withValues(alpha: 0.3),
-                width: 1,
+                color: payload.isMention
+                    ? const Color(0xFFEF4444).withValues(alpha: 0.6)
+                    : AppColors.primary.withValues(alpha: 0.3),
+                width: payload.isMention ? 1.4 : 1,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.15),
+                  color: (payload.isMention ? const Color(0xFFEF4444) : Colors.black)
+                      .withValues(alpha: 0.15),
                   blurRadius: 20,
                   offset: const Offset(0, 8),
                 ),
@@ -112,12 +123,13 @@ class InAppNotificationBanner extends ConsumerWidget {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.15),
+                    color: (payload.isMention ? const Color(0xFFEF4444) : AppColors.primary)
+                        .withValues(alpha: 0.15),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
-                    LucideIcons.messageCircle,
-                    color: AppColors.primary,
+                  child: Icon(
+                    payload.isMention ? LucideIcons.atSign : LucideIcons.messageCircle,
+                    color: payload.isMention ? const Color(0xFFEF4444) : AppColors.primary,
                     size: 20,
                   ),
                 ),
@@ -129,6 +141,24 @@ class InAppNotificationBanner extends ConsumerWidget {
                     children: [
                       Row(
                         children: [
+                          if (payload.isMention) ...[
+                            Container(
+                              margin: const EdgeInsets.only(right: 6),
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEF4444),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text(
+                                '@Nhắc tên',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
                           Expanded(
                             child: Text(
                               payload.title,

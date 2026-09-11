@@ -5,6 +5,8 @@ void saveToWebLocalStorage(String key, Uint8List bytes) {}
 
 Uint8List? getFromWebLocalStorage(String key) => null;
 
+void removeFromWebLocalStorage(String key) {}
+
 int getWebCacheSizeInBytes() => 0;
 
 void clearWebLocalStorage() {}

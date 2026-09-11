@@ -20,14 +20,15 @@ class AuthRepository {
   final FlutterSecureStorage _storage;
 
   // ---------------------------------------------------------------------------
-  // [P0/P1] Lookup-DB + Authenticate-On-Client (Directory Routing Architecture)
+  // [Bước 2 Theo Kiến Trúc Chuẩn Của Sếp Tân]
+  // Tra cứu database của login trên Master: POST /api/v1/auth/lookup-db
+  // PAYLOAD CHỈ CHỨA: {"login": "<login>"}
+  // TUYỆT ĐỐI KHÔNG BẮT GỬI PASSWORD LÊN MASTER!
   // ---------------------------------------------------------------------------
 
-  /// [Giải pháp 2 / Anti-DB Enumeration]: Tra cứu và xác thực với Master Router.
-  /// Gửi [login], [password] và [preferredDb] (DB gần nhất) để Master ưu tiên verify song song.
-  Future<List<DbInfo>> lookupDb(String login, String password, {String? preferredDb}) async {
+  Future<List<DbInfo>> lookupDb(String login, {String? password, String? preferredDb}) async {
     try {
-      final rawList = await _client.lookupDb(login, password, preferredDb: preferredDb);
+      final rawList = await _client.lookupDb(login, password: password, preferredDb: preferredDb);
       return rawList.map(DbInfo.fromJson).toList();
     } on Failure {
       rethrow;
@@ -63,7 +64,11 @@ class AuthRepository {
     } catch (e, st) {
       debugPrint(
           '🚨 [AuthRepository.authenticateOnClient] UNEXPECTED: $e\n$st');
-      throw Failure('Đăng nhập thất bại: ${e.toString()}');
+      final errStr = e.toString();
+      if (errStr.contains('Failed to fetch') || errStr.contains('ClientException') || errStr.contains('SocketException')) {
+        throw Failure('Không thể kết nối đến máy chủ Odoo (${db.databaseUrl}). Vui lòng kiểm tra lại kết nối mạng hoặc địa chỉ máy chủ.');
+      }
+      throw Failure('Đăng nhập thất bại: $errStr');
     }
   }
 
@@ -221,12 +226,18 @@ class AuthRepository {
       } catch (_) {}
     }
 
+    final isPortal = profile?['is_portal'] == true ||
+        profile?['share'] == true ||
+        profile?['user_type'] == 'portal';
+
     final metadata = <String, dynamic>{
       'display_name': name ?? login.split('@').first,
       'name': name ?? login.split('@').first,
       'db': session.db,
       'uid': session.uid.toString(),
       'has_v_mobile': hasVMobile,
+      'is_portal': isPortal,
+      'user_type': isPortal ? 'portal' : 'internal',
     };
     if (partnerId != null) metadata['partner_id'] = partnerId;
     if (companyName != null) metadata['company'] = companyName;
