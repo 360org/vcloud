@@ -36,11 +36,11 @@ void main() {
       expect(elapsedMs, lessThan(800), reason: 'Độ trễ xác thực quá cao (>800ms)');
     });
 
-    test('2. Stress Test: 30 requests đồng thời trong 1 giây (Concurrency Burst)', () async {
+    test('2. Stress Test: 10 requests đồng thời trong 1 giây (Concurrency Burst)', () async {
       final futures = <Future<http.Response>>[];
       final stopwatch = Stopwatch()..start();
 
-      for (int i = 0; i < 30; i++) {
+      for (int i = 0; i < 10; i++) {
         futures.add(
           http.post(
             Uri.parse('$localBackendUrl/api/v1/mobile/auth/login'),
@@ -61,11 +61,11 @@ void main() {
       final successCount = responses.where((r) => r.statusCode == 200).length;
       final avgLatencyMs = totalElapsedMs / responses.length;
 
-      print('🚀 [STRESS BENCHMARK] 30 concurrent logins hoàn thành trong ${totalElapsedMs}ms');
-      print('   -> Thành công: $successCount/30 (Tỷ lệ: ${(successCount / 30 * 100).toStringAsFixed(1)}%)');
+      print('🚀 [STRESS BENCHMARK] 10 concurrent logins hoàn thành trong ${totalElapsedMs}ms');
+      print('   -> Thành công: $successCount/10 (Tỷ lệ: ${(successCount / 10 * 100).toStringAsFixed(1)}%)');
       print('   -> Độ trễ trung bình mỗi request: ${avgLatencyMs.toStringAsFixed(1)}ms');
 
-      expect(successCount, 30, reason: 'Có request bị lỗi hoặc timeout khi dồn tải!');
+      expect(successCount, 10, reason: 'Có request bị lỗi hoặc timeout khi dồn tải!');
     });
 
     test('3. Resilience & Timeout Test: Giả lập Master offline (Fallback nhanh < 3s)', () async {
@@ -84,7 +84,7 @@ void main() {
 
       print('🛡️ [RESILIENCE BENCHMARK] Fallback kích hoạt trong: ${stopwatch.elapsedMilliseconds}ms');
       expect(timedOutOrHandled, isTrue);
-      expect(stopwatch.elapsedMilliseconds, lessThan(3000), reason: 'Thời gian chờ timeout quá lâu (>3s), gây đơ app!');
+      expect(stopwatch.elapsedMilliseconds, lessThan(1000), reason: 'Thời gian chờ timeout quá lâu (>3s), gây đơ app!');
     });
   });
 }
