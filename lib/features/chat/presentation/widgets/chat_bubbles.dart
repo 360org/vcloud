@@ -27,8 +27,9 @@ import 'package:vcloud/shared/widgets/ui_kit.dart';
 import 'chat_helpers.dart';
 import 'chat_sheets.dart';
 
-final RegExp _attachmentIdPattern =
-    RegExp(r'/(?:attachments|image|content)/(\d+)');
+final RegExp _attachmentIdPattern = RegExp(
+  r'/(?:attachments|image|content)/(\d+)',
+);
 
 Color getIncomingBubbleColor(BuildContext context) =>
     context.isDarkMode ? AppColors.darkSurface : const Color(0xFFE7F8E7);
@@ -330,8 +331,8 @@ class Bubble extends ConsumerWidget {
                           displayName: (sender?.displayName.isNotEmpty == true)
                               ? sender!.displayName
                               : ((message.senderName?.isNotEmpty == true)
-                                  ? message.senderName!
-                                  : 'User'),
+                                    ? message.senderName!
+                                    : 'User'),
                           email: sender?.email,
                           avatarUrl:
                               sender?.avatarUrl ?? message.senderAvatarUrl,
@@ -346,39 +347,41 @@ class Bubble extends ConsumerWidget {
                     ? null
                     : () => _openImageViewer(context, imagePreviewUrl),
                 onLongPress: () => _showContextMenu(context, ref),
-                child: Builder(builder: (context) {
-                  final senderName = (sender?.displayName.isNotEmpty == true)
-                      ? sender!.displayName
-                      : ((message.senderName?.isNotEmpty == true)
-                          ? message.senderName
-                          : null);
-                  return hasAttachmentOrDocument(message)
-                      ? AttachmentBubble(
-                          message: message,
-                          mine: mine,
-                          maxWidth: maxWidth,
-                        )
-                      : isPollMessage(message)
-                          ? PollCardBubble(
-                              message: message,
-                              mine: mine,
-                              maxWidth: maxWidth,
-                              senderName: senderName,
-                            )
-                          : media == null
-                              ? TextBubble(
-                                  message: message,
-                                  mine: mine,
-                                  maxWidth: maxWidth,
-                                  senderName: senderName,
-                                )
-                              : MediaBubble(
-                                  message: message,
-                                  media: media,
-                                  mine: mine,
-                                  maxWidth: maxWidth,
-                                );
-                }),
+                child: Builder(
+                  builder: (context) {
+                    final senderName = (sender?.displayName.isNotEmpty == true)
+                        ? sender!.displayName
+                        : ((message.senderName?.isNotEmpty == true)
+                              ? message.senderName
+                              : null);
+                    return hasAttachmentOrDocument(message)
+                        ? AttachmentBubble(
+                            message: message,
+                            mine: mine,
+                            maxWidth: maxWidth,
+                          )
+                        : isPollMessage(message)
+                        ? PollCardBubble(
+                            message: message,
+                            mine: mine,
+                            maxWidth: maxWidth,
+                            senderName: senderName,
+                          )
+                        : media == null
+                        ? TextBubble(
+                            message: message,
+                            mine: mine,
+                            maxWidth: maxWidth,
+                            senderName: senderName,
+                          )
+                        : MediaBubble(
+                            message: message,
+                            media: media,
+                            mine: mine,
+                            maxWidth: maxWidth,
+                          );
+                  },
+                ),
               ),
             ],
           ),
@@ -422,7 +425,11 @@ class PollData {
 
   factory PollData.fromContent(String rawContent) {
     final text = stripHtml(rawContent).trim();
-    final lines = text.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
+    final lines = text
+        .split('\n')
+        .map((l) => l.trim())
+        .where((l) => l.isNotEmpty)
+        .toList();
 
     String question = '';
     final options = <String>[];
@@ -433,13 +440,19 @@ class PollData {
       if (line.contains('BÌNH CHỌN:')) {
         question = line.substring(line.indexOf('BÌNH CHỌN:') + 10).trim();
       } else if (line.startsWith('📊')) {
-        question = line.replaceAll('📊', '').replaceAll('BÌNH CHỌN:', '').trim();
+        question = line
+            .replaceAll('📊', '')
+            .replaceAll('BÌNH CHỌN:', '')
+            .trim();
       } else if (line.startsWith('(') && line.endsWith(')')) {
         if (line.contains('Nhiều đáp án')) isMultiple = true;
         if (line.contains('Ẩn danh')) isAnonymous = true;
       } else {
         final cleaned = line
-            .replaceAll(RegExp(r'^[0-9️⃣1️⃣2️⃣3️⃣4️⃣5️⃣6️⃣7️⃣8️⃣9️⃣\.\-\s]+'), '')
+            .replaceAll(
+              RegExp(r'^[0-9️⃣1️⃣2️⃣3️⃣4️⃣5️⃣6️⃣7️⃣8️⃣9️⃣\.\-\s]+'),
+              '',
+            )
             .trim();
         if (cleaned.isNotEmpty) {
           options.add(cleaned);
@@ -503,7 +516,9 @@ class _PollCardBubbleState extends State<PollCardBubble> {
   Widget build(BuildContext context) {
     final poll = PollData.fromContent(widget.message.content);
     final mine = widget.mine;
-    final bubbleColor = mine ? AppColors.primary : getIncomingBubbleColor(context);
+    final bubbleColor = mine
+        ? AppColors.primary
+        : getIncomingBubbleColor(context);
     final textColor = mine ? Colors.white : context.textColor;
     final mutedColor = textColor.withValues(alpha: mine ? 0.76 : 0.62);
     final totalVotes = _votedIndices.length;
@@ -515,7 +530,9 @@ class _PollCardBubbleState extends State<PollCardBubble> {
         color: bubbleColor,
         border: mine
             ? null
-            : Border.all(color: getIncomingBubbleBorder(context).withValues(alpha: 0.7)),
+            : Border.all(
+                color: getIncomingBubbleBorder(context).withValues(alpha: 0.7),
+              ),
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(mine ? 20 : 7),
           topRight: Radius.circular(mine ? 7 : 20),
@@ -582,82 +599,94 @@ class _PollCardBubbleState extends State<PollCardBubble> {
           ),
           const SizedBox(height: 12),
           for (var i = 0; i < poll.options.length; i++) ...[
-            Builder(builder: (context) {
-              final isSelected = _votedIndices.contains(i);
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: PressableScale(
-                  onTap: () => _toggleVote(i, poll.isMultiple),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? (mine
-                              ? Colors.white.withValues(alpha: 0.28)
-                              : AppColors.primary.withValues(alpha: 0.15))
-                          : (mine
-                              ? Colors.white.withValues(alpha: 0.12)
-                              : AppColors.surface),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: isSelected
-                            ? (mine ? Colors.white : AppColors.primary)
-                            : (mine
-                                ? Colors.white.withValues(alpha: 0.1)
-                                : AppColors.border),
-                        width: isSelected ? 1.5 : 1.0,
+            Builder(
+              builder: (context) {
+                final isSelected = _votedIndices.contains(i);
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: PressableScale(
+                    onTap: () => _toggleVote(i, poll.isMultiple),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
                       ),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          isSelected
-                              ? (poll.isMultiple
-                                  ? LucideIcons.checkSquare
-                                  : LucideIcons.checkCircle2)
-                              : (poll.isMultiple
-                                  ? LucideIcons.square
-                                  : LucideIcons.circle),
-                          size: 18,
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? (mine
+                                  ? Colors.white.withValues(alpha: 0.28)
+                                  : AppColors.primary.withValues(alpha: 0.15))
+                            : (mine
+                                  ? Colors.white.withValues(alpha: 0.12)
+                                  : AppColors.surface),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
                           color: isSelected
                               ? (mine ? Colors.white : AppColors.primary)
-                              : mutedColor,
+                              : (mine
+                                    ? Colors.white.withValues(alpha: 0.1)
+                                    : AppColors.border),
+                          width: isSelected ? 1.5 : 1.0,
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            poll.options[i],
-                            style: TextStyle(
-                              color: textColor,
-                              fontSize: 14,
-                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                            ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            isSelected
+                                ? (poll.isMultiple
+                                      ? LucideIcons.checkSquare
+                                      : LucideIcons.checkCircle2)
+                                : (poll.isMultiple
+                                      ? LucideIcons.square
+                                      : LucideIcons.circle),
+                            size: 18,
+                            color: isSelected
+                                ? (mine ? Colors.white : AppColors.primary)
+                                : mutedColor,
                           ),
-                        ),
-                        if (isSelected)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: mine
-                                  ? Colors.white.withValues(alpha: 0.25)
-                                  : AppColors.primary.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
+                          const SizedBox(width: 10),
+                          Expanded(
                             child: Text(
-                              'Đã chọn',
+                              poll.options[i],
                               style: TextStyle(
-                                color: mine ? Colors.white : AppColors.primary,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
+                                color: textColor,
+                                fontSize: 14,
+                                fontWeight: isSelected
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
                               ),
                             ),
                           ),
-                      ],
+                          if (isSelected)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: mine
+                                    ? Colors.white.withValues(alpha: 0.25)
+                                    : AppColors.primary.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                'Đã chọn',
+                                style: TextStyle(
+                                  color: mine
+                                      ? Colors.white
+                                      : AppColors.primary,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              );
-            }),
+                );
+              },
+            ),
           ],
           const SizedBox(height: 4),
           Row(
@@ -671,11 +700,7 @@ class _PollCardBubbleState extends State<PollCardBubble> {
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              Timestamp(
-                message: widget.message,
-                mine: mine,
-                color: mutedColor,
-              ),
+              Timestamp(message: widget.message, mine: mine, color: mutedColor),
             ],
           ),
         ],
@@ -700,7 +725,9 @@ class TextBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bubbleColor = mine ? AppColors.primary : getIncomingBubbleColor(context);
+    final bubbleColor = mine
+        ? AppColors.primary
+        : getIncomingBubbleColor(context);
     final textColor = mine ? Colors.white : context.textColor;
     final hasSenderName =
         !mine && senderName != null && senderName!.trim().isNotEmpty;
@@ -712,7 +739,9 @@ class TextBubble extends StatelessWidget {
         color: bubbleColor,
         border: mine
             ? null
-            : Border.all(color: getIncomingBubbleBorder(context).withValues(alpha: 0.7)),
+            : Border.all(
+                color: getIncomingBubbleBorder(context).withValues(alpha: 0.7),
+              ),
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(mine ? 18 : 6),
           topRight: Radius.circular(mine ? 6 : 18),
@@ -787,7 +816,7 @@ class TextBubble extends StatelessWidget {
       );
     }
     final urlRegex = RegExp(
-      r'((?:https?:\/\/|vcloud:\/\/|www\.)[^\s<]+|[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*\.[a-zA-Z]{2,}(?:\/[^\s<]*)?)',
+      r'(?:(?:https?:\/\/|vcloud:\/\/|www\.)[^\s<]+)|(?:[a-zA-Z0-9-]{1,63}\.)+[a-zA-Z]{2,63}(?:\/[^\s<]*)?',
       caseSensitive: false,
     );
 
@@ -804,10 +833,12 @@ class TextBubble extends StatelessWidget {
 
     for (final match in matches) {
       if (match.start > lastMatchEnd) {
-        spans.add(TextSpan(
-          text: cleanText.substring(lastMatchEnd, match.start),
-          style: TextStyle(color: textColor, fontSize: 15, height: 1.35),
-        ));
+        spans.add(
+          TextSpan(
+            text: cleanText.substring(lastMatchEnd, match.start),
+            style: TextStyle(color: textColor, fontSize: 15, height: 1.35),
+          ),
+        );
       }
 
       final linkText = cleanText.substring(match.start, match.end);
@@ -842,16 +873,15 @@ class TextBubble extends StatelessWidget {
     }
 
     if (lastMatchEnd < cleanText.length) {
-      spans.add(TextSpan(
-        text: cleanText.substring(lastMatchEnd),
-        style: TextStyle(color: textColor, fontSize: 15, height: 1.35),
-      ));
+      spans.add(
+        TextSpan(
+          text: cleanText.substring(lastMatchEnd),
+          style: TextStyle(color: textColor, fontSize: 15, height: 1.35),
+        ),
+      );
     }
 
-    return Text.rich(
-      TextSpan(children: spans),
-      overflow: TextOverflow.visible,
-    );
+    return Text.rich(TextSpan(children: spans), overflow: TextOverflow.visible);
   }
 
   void _handleLinkClick(BuildContext context, String rawUrl) async {
@@ -864,7 +894,8 @@ class TextBubble extends StatelessWidget {
     final pathSegments = uri.pathSegments;
 
     // Kênh chat nội bộ: e.g. vuahethong.net/chat/4128, /chat/4128, vcloud://chat/4128
-    if ((uri.scheme == 'vcloud' && uri.host == 'chat') || uri.path.contains('/chat/')) {
+    if ((uri.scheme == 'vcloud' && uri.host == 'chat') ||
+        uri.path.contains('/chat/')) {
       String? channelId;
       if (uri.scheme == 'vcloud' && uri.host == 'chat') {
         channelId = pathSegments.isNotEmpty ? pathSegments.first : null;
@@ -903,12 +934,12 @@ class TextBubble extends StatelessWidget {
     // 2. Mở liên kết Web bên ngoài an toàn với In-App Browser (có sẵn nút Xong/Done để đóng)
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final launched = await launchUrl(
-        uri,
-        mode: LaunchMode.inAppBrowserView,
-      );
+      final launched = await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
       if (!launched) {
-        final fallbackLaunched = await launchUrl(uri, mode: LaunchMode.platformDefault);
+        final fallbackLaunched = await launchUrl(
+          uri,
+          mode: LaunchMode.platformDefault,
+        );
         if (!fallbackLaunched) {
           await Clipboard.setData(ClipboardData(text: url));
           messenger.showSnackBar(
@@ -960,10 +991,7 @@ class _AttachmentBubbleState extends ConsumerState<AttachmentBubble> {
     final fileName = attachmentFileName(widget.message);
     final ext = fileExtension(fileName).toLowerCase();
 
-    Uint8List? bytes = LocalAttachmentCache.get(
-      attachmentId,
-      altKey: fileName,
-    );
+    Uint8List? bytes = LocalAttachmentCache.get(attachmentId, altKey: fileName);
 
     if (bytes == null || bytes.isEmpty) {
       if (attachmentId == null) return;
@@ -985,7 +1013,10 @@ class _AttachmentBubbleState extends ConsumerState<AttachmentBubble> {
           return;
         }
 
-        if (MagicBytesValidator.isMistakenImagePayloadForDocument(fileName, bytes)) {
+        if (MagicBytesValidator.isMistakenImagePayloadForDocument(
+          fileName,
+          bytes,
+        )) {
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -1057,7 +1088,9 @@ class _AttachmentBubbleState extends ConsumerState<AttachmentBubble> {
         ext: ext,
         bytes: nonNullBytes,
         previewUrl: attachmentId != null
-            ? odooApiClient.authenticatedUrl('/api/v1/mobile/attachments/$attachmentId/download')
+            ? odooApiClient.authenticatedUrl(
+                '/api/v1/mobile/attachments/$attachmentId/download',
+              )
             : widget.message.attachmentUrl,
       ),
     );
@@ -1067,7 +1100,9 @@ class _AttachmentBubbleState extends ConsumerState<AttachmentBubble> {
   Widget build(BuildContext context) {
     final mine = widget.mine;
     final message = widget.message;
-    final bubbleColor = mine ? AppColors.primary : getIncomingBubbleColor(context);
+    final bubbleColor = mine
+        ? AppColors.primary
+        : getIncomingBubbleColor(context);
     final textColor = mine ? Colors.white : context.textColor;
     final mutedColor = textColor.withValues(alpha: mine ? 0.76 : 0.62);
     final fileName = attachmentFileName(message);
@@ -1081,8 +1116,8 @@ class _AttachmentBubbleState extends ConsumerState<AttachmentBubble> {
         : message.attachmentIds.first;
     final previewUrl = attachmentId == null
         ? (message.attachmentUrl != null && message.attachmentUrl!.isNotEmpty
-            ? odooApiClient.authenticatedUrl(message.attachmentUrl!)
-            : null)
+              ? odooApiClient.authenticatedUrl(message.attachmentUrl!)
+              : null)
         : ref
               .read(downloadAttachmentActionProvider)
               .contentUrl(attachmentId, url: message.attachmentUrl);
@@ -1103,7 +1138,9 @@ class _AttachmentBubbleState extends ConsumerState<AttachmentBubble> {
         color: bubbleColor,
         border: mine
             ? null
-            : Border.all(color: getIncomingBubbleBorder(context).withValues(alpha: 0.7)),
+            : Border.all(
+                color: getIncomingBubbleBorder(context).withValues(alpha: 0.7),
+              ),
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(mine ? 20 : 7),
           topRight: Radius.circular(mine ? 7 : 20),
@@ -1242,7 +1279,11 @@ class ImageAttachmentBubble extends StatelessWidget {
           color: mine ? AppColors.primary : getIncomingBubbleColor(context),
           border: mine
               ? null
-              : Border.all(color: getIncomingBubbleBorder(context).withValues(alpha: 0.7)),
+              : Border.all(
+                  color: getIncomingBubbleBorder(
+                    context,
+                  ).withValues(alpha: 0.7),
+                ),
           borderRadius: BorderRadius.only(
             topLeft: Radius.circular(mine ? 20 : 7),
             topRight: Radius.circular(mine ? 7 : 20),
@@ -1357,11 +1398,19 @@ class ImageAttachmentError extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(LucideIcons.refreshCw, size: 12, color: AppColors.primary),
+                    Icon(
+                      LucideIcons.refreshCw,
+                      size: 12,
+                      color: AppColors.primary,
+                    ),
                     SizedBox(width: 4),
                     Text(
                       'Thử lại',
-                      style: TextStyle(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ],
                 ),
@@ -1414,7 +1463,9 @@ class _NetworkPreviewImageState extends ConsumerState<NetworkPreviewImage> {
 
     // 1. Tự động tìm attachmentId nếu có trong widget hoặc URL
     String? resolvedId = widget.attachmentId;
-    if (resolvedId == null || resolvedId.isEmpty || int.tryParse(resolvedId) == null) {
+    if (resolvedId == null ||
+        resolvedId.isEmpty ||
+        int.tryParse(resolvedId) == null) {
       final match = _attachmentIdPattern.firstMatch(widget.url);
       if (match != null) {
         resolvedId = match.group(1);
@@ -1439,7 +1490,9 @@ class _NetworkPreviewImageState extends ConsumerState<NetworkPreviewImage> {
               pageBuilder: (_, _, _) => ImageViewerScreen(
                 imageUrl: widget.url,
                 fileName: fileName ?? 'Image',
-                attachmentId: resolvedId == null ? null : int.tryParse(resolvedId),
+                attachmentId: resolvedId == null
+                    ? null
+                    : int.tryParse(resolvedId),
               ),
             ),
           );
@@ -1457,7 +1510,9 @@ class _NetworkPreviewImageState extends ConsumerState<NetworkPreviewImage> {
     }
 
     // 2. Tải qua Authenticated Byte Stream nếu có attachment ID
-    if (resolvedId != null && resolvedId.trim().isNotEmpty && int.tryParse(resolvedId) != null) {
+    if (resolvedId != null &&
+        resolvedId.trim().isNotEmpty &&
+        int.tryParse(resolvedId) != null) {
       return FutureBuilder<Uint8List>(
         future: ref.read(downloadAttachmentActionProvider).bytes(resolvedId),
         builder: (context, snapshot) {
@@ -1488,10 +1543,7 @@ class _NetworkPreviewImageState extends ConsumerState<NetworkPreviewImage> {
             );
           }
           if (snapshot.hasError) {
-            return GestureDetector(
-              onTap: _retry,
-              child: widget.fallback,
-            );
+            return GestureDetector(onTap: _retry, child: widget.fallback);
           }
           return Center(
             child: SizedBox(
@@ -1509,18 +1561,24 @@ class _NetworkPreviewImageState extends ConsumerState<NetworkPreviewImage> {
 
     // 3. Fallback cho URL trực tiếp
     final rawUrl = widget.url.trim();
-    if (rawUrl.isEmpty || (!rawUrl.startsWith('http://') && !rawUrl.startsWith('https://') && !rawUrl.startsWith('/'))) {
+    if (rawUrl.isEmpty ||
+        (!rawUrl.startsWith('http://') &&
+            !rawUrl.startsWith('https://') &&
+            !rawUrl.startsWith('/'))) {
       return widget.fallback;
     }
 
     final authUrl = odooApiClient.authenticatedUrl(
-      _retryCount > 0 ? '$rawUrl${rawUrl.contains('?') ? '&' : '?'}retry=$_retryCount' : rawUrl,
+      _retryCount > 0
+          ? '$rawUrl${rawUrl.contains('?') ? '&' : '?'}retry=$_retryCount'
+          : rawUrl,
     );
 
     Widget imageWidget;
     if (kIsWeb) {
       final htmlWidget = buildHtmlNetworkImage(url: authUrl, fit: widget.fit);
-      imageWidget = htmlWidget ??
+      imageWidget =
+          htmlWidget ??
           Image.network(
             authUrl,
             fit: widget.fit,
@@ -1560,10 +1618,7 @@ class _NetworkPreviewImageState extends ConsumerState<NetworkPreviewImage> {
           ),
         );
       },
-      child: Hero(
-        tag: heroTag,
-        child: imageWidget,
-      ),
+      child: Hero(tag: heroTag, child: imageWidget),
     );
   }
 }
@@ -1650,7 +1705,11 @@ class DocumentPreviewLines extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(width: 42, height: 5, color: color.withValues(alpha: 0.22)),
+              Container(
+                width: 42,
+                height: 5,
+                color: color.withValues(alpha: 0.22),
+              ),
               const SizedBox(height: 7),
               for (final width in const [64.0, 58.0, 68.0, 52.0, 61.0]) ...[
                 Container(
@@ -1702,7 +1761,9 @@ class MediaBubble extends StatelessWidget {
         color: mine ? AppColors.primary : getIncomingBubbleColor(context),
         border: mine
             ? null
-            : Border.all(color: getIncomingBubbleBorder(context).withValues(alpha: 0.7)),
+            : Border.all(
+                color: getIncomingBubbleBorder(context).withValues(alpha: 0.7),
+              ),
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(mine ? 18 : 6),
           topRight: Radius.circular(mine ? 6 : 18),
@@ -1752,11 +1813,7 @@ class MediaBubble extends StatelessWidget {
               color: Colors.black.withValues(alpha: 0.48),
               borderRadius: BorderRadius.circular(999),
             ),
-            child: Timestamp(
-              message: message,
-              mine: mine,
-              color: Colors.white,
-            ),
+            child: Timestamp(message: message, mine: mine, color: Colors.white),
           ),
         ],
       ),
@@ -1898,7 +1955,10 @@ class MediaInfo {
     final seen = <String>{};
 
     // 1. Trích xuất từ thẻ <img src="..."> trong nội dung HTML của Odoo
-    final imgTagRegex = RegExp(r'''<img[^>]+src=["']([^"']+)["']''', caseSensitive: false);
+    final imgTagRegex = RegExp(
+      r'''<img[^>]+src=["']([^"']+)["']''',
+      caseSensitive: false,
+    );
     for (final match in imgTagRegex.allMatches(content)) {
       final src = match.group(1)?.trim();
       if (src != null && src.isNotEmpty && seen.add(src)) {
@@ -1907,7 +1967,14 @@ class MediaInfo {
         if (attMatch != null) {
           attachmentId = attMatch.group(1);
         }
-        results.add(MediaInfo(url: src, isImage: true, isVideo: false, attachmentId: attachmentId));
+        results.add(
+          MediaInfo(
+            url: src,
+            isImage: true,
+            isVideo: false,
+            attachmentId: attachmentId,
+          ),
+        );
       }
     }
 
@@ -1922,7 +1989,11 @@ class MediaInfo {
     final matches = pattern.allMatches(content);
     for (final match in matches) {
       var url = match.group(0)!;
-      while (url.endsWith('.') || url.endsWith(',') || url.endsWith(')') || url.endsWith(';') || url.endsWith('>')) {
+      while (url.endsWith('.') ||
+          url.endsWith(',') ||
+          url.endsWith(')') ||
+          url.endsWith(';') ||
+          url.endsWith('>')) {
         url = url.substring(0, url.length - 1);
       }
       final media = fromContent(url);

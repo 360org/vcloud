@@ -255,7 +255,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: ChatV2InputBar(
+            body: ChatV2InputBar(isGroup: true,
               onSend: (text, {partnerIds, mentionedPartners}) async {
                 sentText = text;
               },
@@ -1034,7 +1034,7 @@ void main() {
         MaterialApp(
           theme: ThemeData(useMaterial3: false),
           home: Scaffold(
-            body: ChatV2InputBar(
+            body: ChatV2InputBar(isGroup: true,
               channelMembers: members,
               onSend: (text, {partnerIds, mentionedPartners}) async {
                 sentText = text;
