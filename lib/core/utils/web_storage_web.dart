@@ -27,6 +27,12 @@ Uint8List? getFromWebLocalStorage(String key) {
   return null;
 }
 
+void removeFromWebLocalStorage(String key) {
+  try {
+    web.window.localStorage.removeItem('vcloud_att_$key');
+  } catch (_) {}
+}
+
 int getWebCacheSizeInBytes() {
   int totalBytes = 0;
   try {

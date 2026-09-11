@@ -241,9 +241,6 @@ class ChatV2MessagesNotifier
       _wsSub = null;
       _pollingTimer?.cancel();
       _pollingTimer = null;
-      // ponet: Clear cache on dispose để lần build() tiếp theo fetch fresh.
-      // Nếu giữ cache → navigate vào channel khác sẽ nhầm stale data.
-      ChatV2MessageLocalCache.remove(channelId);
     });
 
     // SWR Cache: Nếu đã có tin nhắn trong Memory Cache -> Trả về tức thì 0.001s
@@ -265,6 +262,20 @@ class ChatV2MessagesNotifier
           if (_hasDifferences(currentList, merged)) {
             ChatV2MessageLocalCache.set(channelId, merged);
             state = AsyncData(merged);
+            if (merged.isNotEmpty) {
+              final topMsg = merged.first;
+              ChatV2ChannelLocalCache.updateChannelLastMessage(
+                channelId,
+                lastMessage: topMsg.content.isNotEmpty
+                    ? topMsg.content
+                    : (topMsg.attachments.isNotEmpty ? '[Đính kèm]' : ''),
+                lastMessageDate: topMsg.createdAt ?? DateTime.now(),
+                authorId: topMsg.authorId,
+                authorName: topMsg.authorName,
+                unreadCount: 0,
+                addIfMissing: true,
+              );
+            }
           }
         } catch (e, st) {
           debugPrint('❌ [ERROR] ChatV2MessagesNotifier.build SWR: $e\n$st');
@@ -283,6 +294,20 @@ class ChatV2MessagesNotifier
       );
       debugPrint('🔴 [TRACE] ChatV2MessagesNotifier.build Initial getMessages() END');
       ChatV2MessageLocalCache.set(channelId, fresh);
+      if (fresh.isNotEmpty) {
+        final topMsg = fresh.first;
+        ChatV2ChannelLocalCache.updateChannelLastMessage(
+          channelId,
+          lastMessage: topMsg.content.isNotEmpty
+              ? topMsg.content
+              : (topMsg.attachments.isNotEmpty ? '[Đính kèm]' : ''),
+          lastMessageDate: topMsg.createdAt ?? DateTime.now(),
+          authorId: topMsg.authorId,
+          authorName: topMsg.authorName,
+          unreadCount: 0,
+          addIfMissing: true,
+        );
+      }
       debugPrint('🔴 [TRACE] ChatV2MessagesNotifier.build() END (Returned Fresh)');
       return fresh;
     } catch (e) {

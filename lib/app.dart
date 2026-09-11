@@ -92,17 +92,32 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
     ref.invalidate(mobileNotificationsProvider);
     ref.invalidate(mobileDashboardSummaryProvider);
 
-    if (type.contains('chat') || type.contains('discuss') || data.containsKey('channel_id')) {
+    if (type.contains('chat') || type.contains('discuss') || data.containsKey('channel_id') || data.containsKey('res_id')) {
       ref.invalidate(chatV2ChannelsProvider);
       ref.invalidate(chatV2TotalUnreadProvider);
 
       final notification = message.notification;
-      final channelId = (data['channel_id'] ?? data['discuss_channel_id'] ?? data['chat_id'] ?? '').toString();
+      final channelId = (data['res_id'] ?? data['channel_id'] ?? data['discuss_channel_id'] ?? data['chat_id'] ?? '').toString();
       if (notification != null && (notification.title != null || notification.body != null)) {
+        final bodyText = notification.body ?? '';
+        final currentUser = ref.read(authControllerProvider).valueOrNull;
+        final currentUserName = (currentUser?.userMetadata['name'] ??
+            currentUser?.userMetadata['display_name'] ??
+            currentUser?.userMetadata['login'] ??
+            '') as String?;
+
+        final bodyLower = bodyText.toLowerCase();
+        final isMention = currentUserName != null &&
+            currentUserName.isNotEmpty &&
+            (bodyLower.contains('@${currentUserName.toLowerCase()}') ||
+                bodyLower.contains('@all') ||
+                bodyLower.contains('@everyone'));
+
         ref.read(inAppNotificationProvider.notifier).show(
           title: notification.title ?? 'Tin nhắn mới',
-          body: notification.body ?? '',
+          body: bodyText,
           channelId: channelId,
+          isMention: isMention,
         );
       }
     }
@@ -119,13 +134,17 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
 
   void _onPushNotificationOpened(RemoteMessage message) {
     final data = message.data;
-    final channelId = data['channel_id'] ?? data['discuss_channel_id'] ?? data['chat_id'];
+    final resId = data['res_id'] ?? data['channel_id'] ?? data['discuss_channel_id'] ?? data['chat_id'];
+    final model = (data['model'] ?? data['type'] ?? '').toString().toLowerCase();
     final ticketId = data['ticket_id'] ?? data['helpdesk_ticket_id'];
 
-    if (channelId != null && channelId.toString().isNotEmpty) {
-      final channelName = data['channel_name'] ?? data['name'] ?? '';
+    if ((model.contains('discuss') || model.contains('chat') || data.containsKey('channel_id')) &&
+        resId != null &&
+        resId.toString().isNotEmpty &&
+        resId.toString() != '0') {
+      final channelName = data['channel_name'] ?? data['name'] ?? message.notification?.title ?? '';
       ref.read(routerProvider).go(
-            '/chat/$channelId?name=${Uri.encodeComponent(channelName.toString())}',
+            '/chat/$resId?name=${Uri.encodeComponent(channelName.toString())}',
           );
     } else if (ticketId != null && ticketId.toString().isNotEmpty) {
       ref.read(routerProvider).go('/tickets/$ticketId');

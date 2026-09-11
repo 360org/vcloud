@@ -5,16 +5,28 @@ import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'magic_bytes_validator.dart';
+
 /// Opens `url` in external application or mobile browser.
 bool openDownloadUrl(String url) {
-  final uri = Uri.tryParse(url.contains('://') ? url : 'https://$url');
-  if (uri == null) return false;
+  final clean = url.trim();
+  // Chỉ mở nếu chuỗi thực sự là URL HTTP/HTTPS hợp lệ (tránh mở nhầm tên file như work.xlsx)
+  if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+    return false;
+  }
+  final uri = Uri.tryParse(clean);
+  if (uri == null || uri.host.isEmpty) return false;
   launchUrl(uri, mode: LaunchMode.externalApplication);
   return true;
 }
 
 /// Saves `bytes` to device storage and opens with native app viewer.
 Future<bool> saveBytesToFile(Uint8List bytes, String suggestedName) async {
+  // Chặn lưu tệp nếu tài liệu văn phòng bị nhận nhầm ảnh placeholder của Odoo
+  if (MagicBytesValidator.isMistakenImagePayloadForDocument(suggestedName, bytes)) {
+    return false;
+  }
+
   try {
     // First try user-chosen path via FilePicker if supported
     String? path;

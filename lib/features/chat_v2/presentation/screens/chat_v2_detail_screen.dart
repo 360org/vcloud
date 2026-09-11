@@ -65,12 +65,15 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
       ref.read(chatV2ReadStateProvider.notifier).markChannelAsRead(widget.channelId);
       if (widget.title != null && widget.title!.isNotEmpty) {
         final existing = ChatV2ChannelLocalCache.getPinnedDirectChannel(widget.channelId);
-        // Nếu đã có channel (vd: vừa tạo group), giữ nguyên loại channel
+        // Nếu đã có channel, cập nhật thông tin và GIỮ NGUYÊN lastMessage nếu có
         if (existing != null) {
           final updatedCh = existing.copyWith(
             name: widget.title!,
             avatarUrl: widget.initialAvatarUrl ?? existing.avatarUrl,
+            lastMessage: existing.lastMessage,
             lastMessageDate: existing.lastMessageDate ?? DateTime.now(),
+            lastMessageAuthorId: existing.lastMessageAuthorId,
+            lastMessageAuthorName: existing.lastMessageAuthorName,
             unreadCount: 0,
           );
           ChatV2ChannelLocalCache.pinDirectChannel(updatedCh);
@@ -91,21 +94,48 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
         }
       }
 
-      // Tự động kiểm tra và nạp thông tin kênh nếu chưa có trong cache
+      // Tự động kiểm tra và nạp thông tin kênh để luôn có channel metadata chuẩn
       final currentChannel = ref.read(chatV2ChannelsProvider.select(
         (async) => async.valueOrNull?.where((c) => c.id == widget.channelId).firstOrNull,
       ));
-      if (currentChannel == null) {
+      if (currentChannel == null || currentChannel.name == 'Trò chuyện' || currentChannel.name.isEmpty) {
         try {
           final ch = await ref.read(chatV2RepositoryProvider).getChannel(widget.channelId);
           if (ch != null && mounted) {
-            ChatV2ChannelLocalCache.updateChannel(ch);
+            ChatV2ChannelLocalCache.updateChannel(ch, addIfMissing: true);
+            ChatV2ChannelLocalCache.pinDirectChannel(ch);
             final pId = ch.partnerId ?? ch.directPartnerId;
             if (pId != null && pId.isNotEmpty && ch.imStatus.isNotEmpty) {
               ref.read(chatV2PresenceProvider.notifier).updatePresence(pId, ch.imStatus);
             }
           }
         } catch (_) {}
+      } else {
+        // Luôn bảo đảm kênh này được lưu trữ trong danh sách pinned direct channels
+        ChatV2ChannelLocalCache.pinDirectChannel(currentChannel);
+      }
+
+      // Kích hoạt nạp messages sớm nếu kênh chưa có lastMessage để cập nhật ngay vào Chat List
+      if (currentChannel?.lastMessage == null || currentChannel!.lastMessage!.isEmpty) {
+        unawaited(() async {
+          try {
+            final msgs = await ref.read(chatV2RepositoryProvider).getMessages(widget.channelId, limit: 10);
+            if (msgs.isNotEmpty) {
+              final topMsg = msgs.first;
+              ChatV2ChannelLocalCache.updateChannelLastMessage(
+                widget.channelId,
+                lastMessage: topMsg.content.isNotEmpty
+                    ? topMsg.content
+                    : (topMsg.attachments.isNotEmpty ? '[Đính kèm]' : ''),
+                lastMessageDate: topMsg.createdAt ?? DateTime.now(),
+                authorId: topMsg.authorId,
+                authorName: topMsg.authorName,
+                unreadCount: 0,
+                addIfMissing: true,
+              );
+            }
+          } catch (_) {}
+        }());
       }
 
       // Nạp danh sách thành viên kênh và đồng bộ presence live (tác vụ ngầm không block UI)
@@ -410,13 +440,31 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
       }
     }
 
+    void ensureRetainedInCache() {
+      final latestMsgs = messagesAsync.valueOrNull ?? ChatV2MessageLocalCache.get(widget.channelId);
+      final lastMsg = latestMsgs?.isNotEmpty == true ? latestMsgs!.first : null;
+      if (lastMsg != null) {
+        ChatV2ChannelLocalCache.updateChannelLastMessage(
+          widget.channelId,
+          lastMessage: lastMsg.content.isNotEmpty ? lastMsg.content : (lastMsg.attachments.isNotEmpty ? '[Đính kèm]' : ''),
+          lastMessageDate: lastMsg.createdAt ?? DateTime.now(),
+          authorId: lastMsg.authorId,
+          authorName: lastMsg.authorName,
+          unreadCount: 0,
+          addIfMissing: true,
+        );
+      }
+      final chToPin = currentChannel ?? ChatV2ChannelLocalCache.getPinnedDirectChannel(widget.channelId);
+      if (chToPin != null) {
+        ChatV2ChannelLocalCache.pinDirectChannel(chToPin);
+      }
+    }
+
     return PopScope(
       canPop: context.canPop(),
       onPopInvokedWithResult: (didPop, result) {
-        if (didPop) {
-          // ref.invalidate(chatV2ChannelsProvider);
-        } else {
-          // ref.invalidate(chatV2ChannelsProvider);
+        ensureRetainedInCache();
+        if (!didPop) {
           context.go('/chat');
         }
       },
@@ -447,7 +495,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
             color: headerTextColor,
           ),
           onPressed: () {
-            // ref.invalidate(chatV2ChannelsProvider);
+            ensureRetainedInCache();
             if (context.canPop()) {
               context.pop();
             } else {
@@ -1135,6 +1183,9 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                   ChatV2InputBar(
                     channelId: widget.channelId,
                     channelMembers: currentChannel?.members ?? const [],
+                    isGroup: currentChannel?.isGroup == true ||
+                        (currentChannel != null &&
+                            currentChannel.getActualIsGroup(currentUserName)),
                     controller: _inputController,
                     focusNode: _inputFocusNode,
                     onSend: _handleSendMessage,

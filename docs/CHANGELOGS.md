@@ -2,6 +2,20 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.5+125] — 2026-09-11 (Document Download Defense, Placeholder Interception & Web/Mobile Error Fixes)
+
+> [!IMPORTANT]
+> **Vá Lỗi Toàn Diện Cơ Chế Mở Tệp Tài Liệu & Chống Nhận Nhầm Ảnh Placeholder Của Odoo**:
+> - **Phạm vi**: `vclients` (Flutter Web & Mobile)
+> - **Chi tiết thay đổi**:
+>   1. **Chặn lỗi DNS NXDOMAIN trên Web**: Chuẩn hóa `resolvedDownloadUrl`, kiểm tra tiền tố HTTP/HTTPS/API trước khi gọi trình duyệt, triệt tiêu lỗi Chrome phân giải nhầm tên tệp (`work.xlsx`) thành domain.
+>   2. **Chặn lỗi 500 Internal Server Error trên Safari iOS**: Luôn tải tệp qua Bearer Token authenticated API nội bộ (`odooApiClient.fetchBytes`) thay vì bắn link ra trình duyệt ngoài thiếu database session.
+>   3. **Chặn nhận nhầm ảnh Placeholder Odoo**: Bổ sung `MagicBytesValidator.isMistakenImagePayloadForDocument()` nhận diện chữ ký PNG và kích thước chuẩn 6078 bytes của Odoo `placeholder.png`. Tự động ngăn lưu đè ảnh máy ảnh rỗng thành file `.docx` / `.xlsx`.
+>   4. **Tự làm sạch Cache**: `LocalAttachmentCache` từ chối lưu và tự xóa bỏ các bản ghi cache tệp văn phòng bị dính ảnh placeholder.
+>   5. **Cải tiến UI/UX**: Thông báo SnackBar màu đỏ rõ ràng khi tệp không tồn tại hoặc tài khoản thiếu quyền hạn trên máy chủ Odoo.
+
+---
+
 ## [v17.0.2.3.7 / v19.0.1.1.9 / v2.9.5+124] — 2026-09-09 (Chat @ Mention Architecture, IDOR Guard & High-Performance Batch Prefetch)
 
 > [!IMPORTANT]

@@ -2,15 +2,26 @@ import 'dart:js_interop';
 import 'dart:typed_data';
 
 import 'package:web/web.dart' as web;
+import 'magic_bytes_validator.dart';
 
 bool openDownloadUrl(String url) {
-  return web.window.open(url, '_blank') != null;
+  final clean = url.trim();
+  // Chặn mở URL không phải HTTP/HTTPS (ngăn Web mở tab http://work.xlsx/ gây lỗi DNS)
+  if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+    return false;
+  }
+  return web.window.open(clean, '_blank') != null;
 }
 
 /// Saves `bytes` as a browser download named `suggestedName`. Returns true once
 /// the download anchor has been clicked. (The browser owns the actual download
 /// progress; we can't observe completion.)
 Future<bool> saveBytesToFile(Uint8List bytes, String suggestedName) async {
+  // Chặn lưu tệp nếu tài liệu văn phòng bị nhận nhầm ảnh placeholder của Odoo
+  if (MagicBytesValidator.isMistakenImagePayloadForDocument(suggestedName, bytes)) {
+    return false;
+  }
+
   final ext = suggestedName.contains('.') ? suggestedName.split('.').last.toLowerCase() : '';
   final mimeType = switch (ext) {
     'pdf' => 'application/pdf',

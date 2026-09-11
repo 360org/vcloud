@@ -9,6 +9,7 @@ import '../../../../core/api/mobile_attachment_repository.dart';
 import '../../../../core/api/odoo_api_client.dart';
 import '../../../../core/utils/file_download.dart';
 import '../../../../core/utils/local_attachment_cache.dart';
+import '../../../../core/utils/magic_bytes_validator.dart';
 import '../../data/models/chat_v2_message.dart';
 import '../screens/chat_v2_image_viewer_screen.dart';
 import 'chat_v2_location_card.dart';
@@ -898,43 +899,134 @@ class ChatV2MessageItem extends StatelessWidget {
     return InkWell(
       onTap: () async {
         if (cachedBytes != null && cachedBytes.isNotEmpty) {
+          if (MagicBytesValidator.isMistakenImagePayloadForDocument(cleanName, cachedBytes)) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Tệp tin gốc không tồn tại hoặc bạn không có quyền truy cập trên máy chủ.'),
+                  duration: Duration(seconds: 3),
+                  backgroundColor: Color(0xFFE11D48),
+                ),
+              );
+            }
+            return;
+          }
           await saveBytesToFile(cachedBytes, cleanName);
           return;
         }
-        if (downloadUrl != null && downloadUrl.isNotEmpty) {
+
+        // Ưu tiên 1: Thử lấy id từ message.attachments nếu có
+        int? attachmentId;
+        if (message.attachments.isNotEmpty) {
+          attachmentId = int.tryParse(message.attachments.first.id);
+        }
+
+        // Ưu tiên 2: Trích xuất id từ downloadUrl
+        if (attachmentId == null && downloadUrl != null && downloadUrl.isNotEmpty) {
+          final match = RegExp(r'/(?:attachments|image|content)/(\d+)').firstMatch(downloadUrl);
+          if (match != null) {
+            attachmentId = int.tryParse(match.group(1)!);
+          }
+        }
+
+        // Chuẩn hóa downloadUrl hợp lệ
+        String? resolvedDownloadUrl = downloadUrl;
+        if (resolvedDownloadUrl != null &&
+            !resolvedDownloadUrl.startsWith('http://') &&
+            !resolvedDownloadUrl.startsWith('https://') &&
+            !resolvedDownloadUrl.startsWith('/')) {
+          // Tránh lỗi DNS_PROBE_FINISHED_NXDOMAIN: Chuỗi không phải URL (như "work.xlsx")
+          resolvedDownloadUrl = null;
+        }
+
+        if (resolvedDownloadUrl == null && attachmentId != null && attachmentId > 0) {
+          resolvedDownloadUrl = '/api/v1/mobile/attachments/$attachmentId/download';
+        }
+
+        if (resolvedDownloadUrl != null && resolvedDownloadUrl.isNotEmpty) {
+          bool isAttachmentEmptyError = false;
           try {
             // Tải tệp tin qua API có gắn Bearer Token xác thực
-            final bytes = await odooApiClient.fetchBytes(downloadUrl);
+            final bytes = await odooApiClient.fetchBytes(resolvedDownloadUrl);
             if (bytes.isNotEmpty) {
+              if (MagicBytesValidator.isMistakenImagePayloadForDocument(cleanName, bytes)) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Tệp tin gốc không tồn tại hoặc bạn không có quyền truy cập trên máy chủ.'),
+                      duration: Duration(seconds: 3),
+                      backgroundColor: Color(0xFFE11D48),
+                    ),
+                  );
+                }
+                return;
+              }
               await saveBytesToFile(bytes, cleanName);
               return;
             }
           } catch (e) {
-            debugPrint('[ChatV2] Lỗi fetchBytes $downloadUrl: $e');
-            // Fallback: Thử tải qua MobileAttachmentRepository (hỗ trợ fallback /web/image và /web/content)
-            int? parsedId;
-            final match = RegExp(r'/attachments/(\d+)').firstMatch(downloadUrl);
-            if (match != null) {
-              parsedId = int.tryParse(match.group(1)!);
+            debugPrint('[ChatV2] Lỗi fetchBytes $resolvedDownloadUrl: $e');
+            final errorStr = e.toString().toLowerCase();
+            if (errorStr.contains('attachment_empty') || errorStr.contains('rỗng') || errorStr.contains('404')) {
+              isAttachmentEmptyError = true;
             }
-            if (parsedId != null) {
+
+            // Fallback: Thử tải qua MobileAttachmentRepository
+            final targetId = attachmentId;
+            if (targetId != null && targetId > 0) {
               try {
-                final fallbackBytes = await MobileAttachmentRepository().fetchBytes(parsedId);
+                final fallbackBytes = await MobileAttachmentRepository().fetchBytes(targetId);
                 if (fallbackBytes.isNotEmpty) {
+                  if (MagicBytesValidator.isMistakenImagePayloadForDocument(cleanName, fallbackBytes)) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Tệp tin gốc không tồn tại hoặc bạn không có quyền truy cập trên máy chủ.'),
+                          duration: Duration(seconds: 3),
+                          backgroundColor: Color(0xFFE11D48),
+                        ),
+                      );
+                    }
+                    return;
+                  }
                   await saveBytesToFile(fallbackBytes, cleanName);
                   return;
                 }
               } catch (err) {
                 debugPrint('[ChatV2] Lỗi fallback MobileAttachmentRepository: $err');
+                final fallbackErrStr = err.toString().toLowerCase();
+                if (fallbackErrStr.contains('attachment_empty') || fallbackErrStr.contains('rỗng') || fallbackErrStr.contains('404')) {
+                  isAttachmentEmptyError = true;
+                }
               }
             }
           }
-          final full = odooApiClient.authenticatedUrl(downloadUrl);
-          openDownloadUrl(full);
-        } else {
+
+          if (isAttachmentEmptyError) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Tệp tin rỗng hoặc không còn tồn tại trên máy chủ.'),
+                  duration: Duration(seconds: 3),
+                  backgroundColor: Color(0xFFE11D48),
+                ),
+              );
+            }
+            return;
+          }
+
+          // Fallback cuối cùng: Chỉ mở URL nếu là URL HTTP hợp lệ
+          final full = odooApiClient.authenticatedUrl(resolvedDownloadUrl);
+          if (full.startsWith('http://') || full.startsWith('https://')) {
+            openDownloadUrl(full);
+            return;
+          }
+        }
+
+        if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Không tìm thấy đường dẫn tải tệp tin.'),
+              content: Text('Không tìm thấy tệp tin hoặc tệp tin chưa sẵn sàng.'),
               duration: Duration(seconds: 2),
             ),
           );

@@ -56,6 +56,7 @@ void main() {
       await tester.pumpWidget(
         _wrapWidget(
           ChatV2InputBar(
+            isGroup: true,
             controller: controller,
             channelMembers: mockMembers,
             onSend: (text, {partnerIds, mentionedPartners}) async {
@@ -100,6 +101,7 @@ void main() {
       await tester.pumpWidget(
         _wrapWidget(
           ChatV2InputBar(
+            isGroup: true,
             controller: controller,
             channelMembers: mockMembers,
             onSend: (text, {partnerIds, mentionedPartners}) async {},
@@ -160,6 +162,7 @@ void main() {
       await tester.pumpWidget(
         _wrapWidget(
           ChatV2InputBar(
+            isGroup: true,
             controller: controller,
             channelMembers: mockMembers,
             onSend: (text, {partnerIds, mentionedPartners}) async {
@@ -210,6 +213,7 @@ void main() {
       await tester.pumpWidget(
         _wrapWidget(
           ChatV2InputBar(
+            isGroup: true,
             controller: controller,
             channelMembers: mockMembers,
             onSend: (text, {partnerIds, mentionedPartners}) async {
@@ -272,6 +276,7 @@ void main() {
       await tester.pumpWidget(
         _wrapWidget(
           ChatV2InputBar(
+            isGroup: true,
             controller: controller,
             channelMembers: mockMembers,
             onSend: (text, {partnerIds, mentionedPartners}) async {
@@ -333,6 +338,7 @@ void main() {
       await tester.pumpWidget(
         _wrapWidget(
           ChatV2InputBar(
+            isGroup: true,
             controller: controller,
             channelMembers: mockMembers,
             onSend: (text, {partnerIds, mentionedPartners}) async {},

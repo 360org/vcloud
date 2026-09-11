@@ -377,7 +377,13 @@ class _CreateTicketHeader extends StatelessWidget {
     return Row(
       children: [
         PressableScale(
-          onTap: () => Navigator.maybePop(context),
+          onTap: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/tickets');
+            }
+          },
           child: Container(
             width: 44,
             height: 44,

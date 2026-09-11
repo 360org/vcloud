@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/api/odoo_api_client.dart';
 import '../../../../core/utils/file_download.dart';
 import '../../../../core/utils/local_attachment_cache.dart';
+import '../../../../core/utils/magic_bytes_validator.dart';
 import '../../application/chat_v2_channels_controller.dart';
 import '../../data/chat_v2_repository.dart';
 import '../../data/models/chat_v2_channel.dart';
@@ -1380,7 +1381,18 @@ class _ChatV2MediaHubScreenState extends State<ChatV2MediaHubScreen>
 
                     return InkWell(
                       onTap: () async {
+                        final messenger = ScaffoldMessenger.of(context);
                         if (cachedBytes != null && cachedBytes.isNotEmpty) {
+                          if (MagicBytesValidator.isMistakenImagePayloadForDocument(file.name, cachedBytes)) {
+                            messenger.showSnackBar(
+                              const SnackBar(
+                                content: Text('Tệp tin gốc không tồn tại hoặc bạn không có quyền truy cập trên máy chủ.'),
+                                duration: Duration(seconds: 3),
+                                backgroundColor: Color(0xFFE11D48),
+                              ),
+                            );
+                            return;
+                          }
                           await saveBytesToFile(cachedBytes, file.name);
                           return;
                         }
@@ -1397,6 +1409,16 @@ class _ChatV2MediaHubScreenState extends State<ChatV2MediaHubScreen>
                           try {
                             final bytes = await odooApiClient.fetchBytes(targetPath);
                             if (bytes.isNotEmpty) {
+                              if (MagicBytesValidator.isMistakenImagePayloadForDocument(file.name, bytes)) {
+                                messenger.showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Tệp tin gốc không tồn tại hoặc bạn không có quyền truy cập trên máy chủ.'),
+                                    duration: Duration(seconds: 3),
+                                    backgroundColor: Color(0xFFE11D48),
+                                  ),
+                                );
+                                return;
+                              }
                               await saveBytesToFile(bytes, file.name);
                               return;
                             }
@@ -1406,7 +1428,7 @@ class _ChatV2MediaHubScreenState extends State<ChatV2MediaHubScreen>
                               : odooApiClient.authenticatedUrl(targetPath);
                           openDownloadUrl(fullUrl);
                         } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
+                          messenger.showSnackBar(
                             const SnackBar(
                               content: Text('Tệp đính kèm chưa sẵn sàng để tải về.'),
                               duration: Duration(seconds: 2),

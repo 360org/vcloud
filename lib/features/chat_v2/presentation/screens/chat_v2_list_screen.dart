@@ -1753,9 +1753,53 @@ class _ChannelListItem extends ConsumerWidget {
 
     final isAlertRed = !isMine && (isMissedCall || isRejectedCall || isCancelledCall);
 
+    // Kiểm tra xem tin nhắn cuối có @tag nhắc đến tôi không (chỉ áp dụng trong nhóm/kênh)
+    final isMentionedMe = isGroup &&
+        !isMine &&
+        hasUnread &&
+        currentUserName != null &&
+        currentUserName!.isNotEmpty &&
+        (lower.contains('@${currentUserName!.toLowerCase()}') ||
+         lower.contains('@all') ||
+         lower.contains('@everyone'));
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (isMentionedMe) ...[
+          Container(
+            margin: const EdgeInsets.only(right: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEF4444).withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: const Color(0xFFEF4444).withValues(alpha: 0.35),
+                width: 0.8,
+              ),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  LucideIcons.atSign,
+                  size: 11,
+                  color: Color(0xFFEF4444),
+                ),
+                SizedBox(width: 2),
+                Text(
+                  'Nhắc đến bạn',
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFFEF4444),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+
         // Hiển thị trạng thái tin nhắn gửi đi đồng bộ với chi tiết (1 tích = đã gửi, 2 tích = đối phương đã xem)
         if (isMine && !isAnyCall) ...[
           Icon(

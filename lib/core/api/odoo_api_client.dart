@@ -440,6 +440,20 @@ class OdooApiClient {
       // Fallback khi Master Router chạy bản cũ chưa hỗ trợ endpoint lookup-db hoặc báo 400 (do backend live chưa deploy bản bỏ password)
       if (response.statusCode == 404 || response.statusCode == 405 || response.statusCode == 400) {
         debugPrint('⚠️ [lookupDb] Master ($masterUrl) trả về ${response.statusCode}, fallback sang cấu hình mặc định.');
+        if (lowerLogin == 'support@360.org.vn') {
+          return [
+            {
+              'login': trimmedLogin,
+              'database_name': 'nds',
+              'database_url': 'https://ndsgroup.vn',
+              'display_name': 'NDS Group',
+              'project_id': 7790,
+              'has_v_mobile': true,
+              'category_label': '🏢 Khách Hàng',
+            }
+          ];
+        }
+
         final String effectiveDb;
         final String effectiveUrl;
         final String displayName;
@@ -481,6 +495,38 @@ class OdooApiClient {
 
     final decoded = jsonDecode(response.body);
     if (decoded is Map && decoded['error'] != null) {
+      // Nếu Master báo missing_password hoặc lỗi tra cứu:
+      // Fallback kiểm tra các tài khoản đặc biệt (như NDS Group hoặc nội bộ vuahethong) trước khi báo lỗi
+      if (lowerLogin == 'support@360.org.vn') {
+        return [
+          {
+            'login': trimmedLogin,
+            'database_name': 'nds',
+            'database_url': 'https://ndsgroup.vn',
+            'display_name': 'NDS Group',
+            'project_id': 7790,
+            'has_v_mobile': true,
+            'category_label': '🏢 Khách Hàng',
+          }
+        ];
+      }
+
+      // Fallback cho tài khoản chính thức Vua Hệ Thống khi server trả về 200 {"error": "missing_password"}
+      final isProd = masterUrl.contains('vuahethong.net');
+      if (isProd) {
+        return [
+          {
+            'login': trimmedLogin,
+            'database_name': 'vuahethong',
+            'database_url': masterUrl,
+            'display_name': 'Vua Hệ Thống (Chính thức)',
+            'project_id': 1,
+            'has_v_mobile': true,
+            'category_label': '🏢 Nội Bộ (Odoo 17)',
+          }
+        ];
+      }
+
       final err = decoded['error'];
       final msg = err is Map ? (err['message'] ?? err['data']?['message']) : null;
       throw Failure(msg?.toString() ?? 'Lỗi tra cứu thông tin tài khoản.');
@@ -504,12 +550,11 @@ class OdooApiClient {
         .toList();
 
     // -------------------------------------------------------------------------
-    // Nếu Master lookup trả về rỗng:
-    // User 'demo' hoặc 'morpheus' (trải nghiệm) -> định tuyến vào Demo server
+    // Fallback: Xử lý các tài khoản đặc biệt khi Master Directory chưa sync
     // -------------------------------------------------------------------------
     if (parsedList.isEmpty) {
-      final trimmedLogin = login.trim().toLowerCase();
-      if (trimmedLogin == 'demo' || trimmedLogin == 'morpheus') {
+      final trimmedLower = login.trim().toLowerCase();
+      if (trimmedLower == 'demo' || trimmedLower == 'morpheus') {
         const demoUrl = 'https://demo.vuahethong.com';
         return [
           {
@@ -520,6 +565,21 @@ class OdooApiClient {
             'project_id': 9999,
             'has_v_mobile': true,
             'category_label': '🏢 Nội Bộ (Odoo 19)',
+          }
+        ];
+      }
+
+      // ponytail: Fallback danh bạ client NDS Group khi Master vuahethong.net chưa sync databases.user
+      if (trimmedLower == 'support@360.org.vn') {
+        return [
+          {
+            'login': login.trim(),
+            'database_name': 'nds',
+            'database_url': 'https://ndsgroup.vn',
+            'display_name': 'NDS Group',
+            'project_id': 7790,
+            'has_v_mobile': true,
+            'category_label': '🏢 Khách Hàng',
           }
         ];
       }
@@ -904,6 +964,17 @@ class OdooApiClient {
       }
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
+        if (response.statusCode == 404) {
+          try {
+            final decoded = jsonDecode(response.body);
+            if (decoded is Map && (decoded['error'] == 'attachment_empty' || decoded['error'] == 'attachment_not_found')) {
+              throw Failure('Tệp tin rỗng hoặc không còn tồn tại trên máy chủ.');
+            }
+          } catch (e) {
+            if (e is Failure) rethrow;
+          }
+          throw Failure('Tệp tin không tìm thấy (404).');
+        }
         throw Failure('Request failed (${response.statusCode}).');
       }
 

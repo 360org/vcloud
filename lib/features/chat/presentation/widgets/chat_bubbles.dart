@@ -985,6 +985,19 @@ class _AttachmentBubbleState extends ConsumerState<AttachmentBubble> {
           return;
         }
 
+        if (MagicBytesValidator.isMistakenImagePayloadForDocument(fileName, bytes)) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Tệp tin gốc không tồn tại hoặc bạn không có quyền truy cập trên máy chủ.',
+              ),
+              backgroundColor: Color(0xFFE11D48),
+            ),
+          );
+          return;
+        }
+
         if (ext == 'zip' && !MagicBytesValidator.isValidZipBytes(bytes)) {
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
