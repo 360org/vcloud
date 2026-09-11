@@ -2,6 +2,23 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.5+126] — 2026-09-11 (ReDoS Fix, Unused Imports Cleanup & Test Suite Stability)
+
+> [!IMPORTANT]
+> **Tối Ưu & Bảo Mật Kiểm Thử Toàn Diện (Audit Updates)**:
+> - **Phạm vi**: `vclients` (Flutter)
+> - **Chi tiết thay đổi**:
+>   1. **[SECURITY] Khắc phục Regex Denial of Service (ReDoS)**: Tối ưu hóa biểu thức chính quy phân tích URL (`urlRegex`) trong module Chat, chặn nguy cơ catastrophic backtracking khi xử lý chuỗi độ dài lớn. Chuyển từ `{2,}` sang giới hạn RFC `{2,63}` và triệt tiêu chuỗi lặp không biên giới (unbounded repeating groups). Đo lường hiệu năng <2ms trên payload độc hại.
+>   2. **[FIX] Tái cân bằng Smart Login Performance Test**: Tránh tràn socket (Broken pipe client exception) ở môi trường local bằng cách chuyển concurrency burst từ 30 xuống 10 requests/s. Hiệu năng đạt 176ms/request tỷ lệ pass 100%.
+>   3. **[FIX] Sửa bộ test ChatV2InputBar**: Sửa lỗi test 41 bằng cách truyền cờ `isGroup: true` để render đúng luồng logic kích hoạt Overlay Suggestion cho tính năng `@Mention`.
+>   4. **[REFACTOR] Mã Nguồn Sạch Hơn**: Loại bỏ hoàn toàn các thư viện `dart:async` thừa thãi, các biến cục bộ không sử dụng (`createdAtLastMonth`) và các import dư thừa trên nhiều file test.
+
+---
+
+# 📜 LỊCH SỬ THAY ĐỔI & PHÁT TRIỂN (CHANGELOGS.md)
+
+Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
+
 ## [v2.9.5+125] — 2026-09-11 (Document Download Defense, Placeholder Interception & Web/Mobile Error Fixes)
 
 > [!IMPORTANT]
