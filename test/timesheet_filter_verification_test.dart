@@ -86,7 +86,7 @@ void main() {
 
     test('Task created in past month with workedDate log in current range matches filter via lastLogDate', () {
       final workedDateInThisWeek = wednesday;
-      final createdAtLastMonth = DateTime(2026, 8, 15);
+      // Removed unused variable
 
       final fromDay = DateTime(weekFilter.dateFrom!.year, weekFilter.dateFrom!.month, weekFilter.dateFrom!.day);
       final toDay = DateTime(weekFilter.dateTo!.year, weekFilter.dateTo!.month, weekFilter.dateTo!.day);

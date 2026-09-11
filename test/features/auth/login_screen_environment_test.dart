@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:vcloud/core/api/odoo_api_client.dart';
+
 import 'package:vcloud/features/auth/data/db_info.dart';
 
 void main() {
