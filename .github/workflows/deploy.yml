@@ -160,9 +160,32 @@ jobs:
           flutter analyze
           flutter test --exclude-tags=live-server
 
+      - name: Setup Android Release Keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "📦 Decoding Android Release Keystore..."
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/upload-keystore.jks
+            cat <<EOF > android/key.properties
+          storePassword=${ANDROID_KEYSTORE_PASSWORD:-123456}
+          keyPassword=${ANDROID_KEY_PASSWORD:-123456}
+          keyAlias=${ANDROID_KEY_ALIAS:-upload}
+          storeFile=../upload-keystore.jks
+          EOF
+            echo "✅ Android signing configuration configured successfully."
+          else
+            echo "ℹ️ ANDROID_KEYSTORE_BASE64 secret not found. Using local signing if available or debug fallback."
+          fi
+
       - name: Execute Fastlane Android Release Pipeline
         env:
           GCLOUD_SERVICE_ACCOUNT_CREDENTIALS: ${{ secrets.GCLOUD_SERVICE_ACCOUNT_CREDENTIALS }}
+          GOOGLE_PLAY_TRACK: ${{ vars.GOOGLE_PLAY_TRACK || secrets.GOOGLE_PLAY_TRACK || 'internal' }}
+          ANDROID_PACKAGE_NAME: "com.mobile.vloud"
           WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
           BUILD_NUMBER: ${{ github.run_number }}
           VCLOUD_ODOO_API_BASE_URL: "https://vuahethong.net"
