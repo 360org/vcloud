@@ -16,7 +16,8 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 >      - Chủ Nhật: Nghỉ làm việc, tự động hủy toàn bộ lịch thông báo.
 >   3. **[NEW] Đồng bộ phản ứng theo thời gian thực (Reactive Riverpod Sync)**: `attendanceReminderSyncProvider` tự động giám sát phiên chấm công để lên lịch hoặc hủy thông báo tương ứng.
 >   4. **[NEW] One-Tap Deep Linking**: Mở app từ thông báo tự động điều hướng `/attendance?action=checkout` và bật ngay `CheckoutDialog`.
->   5. **[CLEANUP] Profile Screen**: Loại bỏ hoàn toàn mục "Thông báo đẩy & FCM Token" khỏi giao diện người dùng, chỉ in log an toàn ra terminal trong chế độ debug.
+>   5. **[FIX] CI/CD Unit Test Platform Isolation**: Thêm unit test guards (`Platform.environment['FLUTTER_TEST']`) trong `AttendanceLocalReminderService` và `AttendanceRepository.watchCurrentOpenAttendance()` nhằm ngăn chặn lỗi `LateInitializationError` do native method channel và triệt tiêu pending polling timers trong `FakeAsync`.
+>   6. **[CLEANUP] Profile Screen**: Loại bỏ hoàn toàn mục "Thông báo đẩy & FCM Token" khỏi giao diện người dùng, chỉ in log an toàn ra terminal trong chế độ debug.
 
 ---
 

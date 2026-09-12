@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
+import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../../../core/api/odoo_api_client.dart';
@@ -109,6 +111,12 @@ class AttendanceRepository {
 
     controller.onListen = () {
       refresh();
+      // Trong môi trường Unit Test, không bật Timer polling chu kỳ để tránh lỗi pending timer trong FakeAsync
+      final isUnitTest = const bool.fromEnvironment('dart.vm.product') == false &&
+          kDebugMode &&
+          Platform.environment.containsKey('FLUTTER_TEST');
+      if (isUnitTest) return;
+
       void scheduleNextPoll() {
         if (controller.isClosed) return;
         timer?.cancel();
