@@ -172,7 +172,7 @@ platform :ios do
       pubspec = YAML.load_file(pubspec_path)
       version_parts = pubspec["version"].to_s.split("+")
       build_name = version_parts[0] || "2.4.0"
-      build_number = ENV["BUILD_NUMBER"] || version_parts[1] || "40"
+      build_number = version_parts[1] || ENV["BUILD_NUMBER"] || "40"
       api_base_url = ENV["VCLOUD_ODOO_API_BASE_URL"] || "https://vuahethong.net"
 
       # Extract latest git commit message for TestFlight "What to Test"
@@ -291,7 +291,7 @@ platform :android do
       pubspec = YAML.load_file("../pubspec.yaml")
       version_parts = pubspec["version"].to_s.split("+")
       build_name = version_parts[0] || "2.4.0"
-      build_number = ENV["BUILD_NUMBER"] || version_parts[1] || "40"
+      build_number = version_parts[1] || ENV["BUILD_NUMBER"] || "40"
       api_base_url = ENV["VCLOUD_ODOO_API_BASE_URL"] || "https://vuahethong.net"
 
       UI.message("📱 Target App Version: #{build_name}+#{build_number}")

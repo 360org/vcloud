@@ -208,7 +208,9 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/attendance',
         pageBuilder: (context, state) => _buildFadePage(
           state: state,
-          child: const AttendanceScreen(),
+          child: AttendanceScreen(
+            autoCheckout: state.uri.queryParameters['action'] == 'checkout',
+          ),
         ),
       ),
       GoRoute(

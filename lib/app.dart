@@ -137,8 +137,16 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
     final resId = data['res_id'] ?? data['channel_id'] ?? data['discuss_channel_id'] ?? data['chat_id'];
     final model = (data['model'] ?? data['type'] ?? '').toString().toLowerCase();
     final ticketId = data['ticket_id'] ?? data['helpdesk_ticket_id'];
+    final eventType = (data['event_type'] ?? '').toString().toLowerCase();
+    final action = (data['action'] ?? '').toString().toLowerCase();
 
-    if ((model.contains('discuss') || model.contains('chat') || data.containsKey('channel_id')) &&
+    if (eventType.contains('attendance') || action == 'checkin' || action == 'checkout') {
+      if (action == 'checkout') {
+        ref.read(routerProvider).go('/attendance?action=checkout');
+      } else {
+        ref.read(routerProvider).go('/attendance');
+      }
+    } else if ((model.contains('discuss') || model.contains('chat') || data.containsKey('channel_id')) &&
         resId != null &&
         resId.toString().isNotEmpty &&
         resId.toString() != '0') {
@@ -155,6 +163,9 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
 
   @override
   Widget build(BuildContext context) {
+    // Tự động đồng bộ lịch nhắc nhở chấm công theo trạng thái thực tế
+    ref.watch(attendanceReminderSyncProvider);
+
     final router = ref.watch(routerProvider);
     final themeMode = ref.watch(themeControllerProvider);
     return MaterialApp.router(

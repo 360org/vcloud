@@ -2,6 +2,24 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.6+128] — 2026-09-12 (Smart Attendance Reminders & Local Scheduled Notifications)
+
+> [!IMPORTANT]
+> **Triển khai Toàn diện Hệ thống Nhắc nhở Chấm công Thông minh (Smart Attendance Reminders)**:
+> - **Phạm vi**: `vclients` (Flutter Mobile & Web)
+> - **Chi tiết thay đổi**:
+>   1. **[NEW] Local Scheduled Notifications Offline-first**: Tích hợp `flutter_local_notifications: ^22.3.0` và `timezone: ^0.11.1` với `AndroidScheduleMode.exactAllowWhileIdle`. Lập lịch báo thức chính xác trên hệ điều hành ngay cả khi tắt mạng.
+>   2. **[NEW] Lập lịch linh hoạt theo Ca làm việc (`ShiftConfig`)**:
+>      - Thứ Hai: Ca 07:30 - 17:00 ➔ Nhắc Check-in lúc 07:35, nhắc Check-out lúc 17:05.
+>      - Thứ Ba - Thứ Sáu: Ca 08:00 - 17:00 ➔ Nhắc Check-in lúc 08:05, nhắc Check-out lúc 17:05.
+>      - Thứ Bảy: Ca 08:00 - 16:30 ➔ Nhắc Check-in lúc 08:05, nhắc Check-out lúc 16:35.
+>      - Chủ Nhật: Nghỉ làm việc, tự động hủy toàn bộ lịch thông báo.
+>   3. **[NEW] Đồng bộ phản ứng theo thời gian thực (Reactive Riverpod Sync)**: `attendanceReminderSyncProvider` tự động giám sát phiên chấm công để lên lịch hoặc hủy thông báo tương ứng.
+>   4. **[NEW] One-Tap Deep Linking**: Mở app từ thông báo tự động điều hướng `/attendance?action=checkout` và bật ngay `CheckoutDialog`.
+>   5. **[CLEANUP] Profile Screen**: Loại bỏ hoàn toàn mục "Thông báo đẩy & FCM Token" khỏi giao diện người dùng, chỉ in log an toàn ra terminal trong chế độ debug.
+
+---
+
 ## [v2.9.5+126] — 2026-09-11 (ReDoS Fix, Unused Imports Cleanup & Test Suite Stability)
 
 > [!IMPORTANT]

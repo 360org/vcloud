@@ -160,5 +160,19 @@ void main() {
         expect(t.day, equals(localCheckin.day));
       },
     );
+
+    test('ShiftConfig provides appropriate start and end hours for reminder calculation', () {
+      final tuesdayDate = DateTime(2026, 9, 8); // Tuesday
+      final cfgTuesday = ShiftConfig.forDate(tuesdayDate);
+      expect(cfgTuesday.shiftStartHour, equals(8));
+      expect(cfgTuesday.shiftStartMinute, equals(0));
+      expect(cfgTuesday.shiftEndHour, equals(17));
+      expect(cfgTuesday.shiftEndMinute, equals(0));
+
+      final mondayDate = DateTime(2026, 9, 7); // Monday (07:30 start)
+      final cfgMonday = ShiftConfig.forDate(mondayDate);
+      expect(cfgMonday.shiftStartHour, equals(7));
+      expect(cfgMonday.shiftStartMinute, equals(30));
+    });
   });
 }
