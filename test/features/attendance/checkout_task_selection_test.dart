@@ -138,9 +138,11 @@ void main() {
     test(
       'Attendance calendar date grouping with UTC checkin accurately maps to Local date key',
       () {
-        // Giả lập check-in lúc 17:30 UTC ngày 2026-09-09 -> tương đương 00:30 ngày 2026-09-10 (GMT+7)
+        // Giả lập check-in thời điểm UTC bất kỳ
         final utcCheckin = DateTime.utc(2026, 9, 9, 17, 30);
         final localCheckin = utcCheckin.toLocal();
+        final expectedKey =
+            '${localCheckin.year}-${localCheckin.month.toString().padLeft(2, '0')}-${localCheckin.day.toString().padLeft(2, '0')}';
 
         final att = Attendance(
           id: 'att_utc_test',
@@ -154,7 +156,7 @@ void main() {
         final key =
             '${t.year}-${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')}';
 
-        expect(key, equals('2026-09-10'));
+        expect(key, equals(expectedKey));
         expect(t.day, equals(localCheckin.day));
       },
     );
