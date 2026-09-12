@@ -194,13 +194,22 @@ class PushNotificationService {
 
       debugPrint('🔔 Push notification token registered ($_platformName, ${packageInfo.version}+${packageInfo.buildNumber}).');
 
-      await _repository.registerDevice(
+      final regResult = await _repository.registerDevice(
         deviceToken: token,
         platform: _platformName,
         deviceName: _deviceName,
         installationId: installationId,
         appVersion: '${packageInfo.version}+${packageInfo.buildNumber}',
       );
+
+      debugPrint('╔══════════════════════════════════════════════════════════════════╗');
+      debugPrint('║ 🔔 [FCM PUSH TOKEN] ĐĂNG KÝ THIẾT BỊ LÊN BACKEND THÀNH CÔNG      ║');
+      debugPrint('╠══════════════════════════════════════════════════════════════════╣');
+      debugPrint('║ 📱 Nền tảng : $_platformName ($_deviceName)');
+      debugPrint('║ 🆔 Device ID: ${regResult.deviceId} (Status: ${regResult.status})');
+      debugPrint('║ 🔑 FCM Token: $token');
+      debugPrint('╚══════════════════════════════════════════════════════════════════╝');
+
       await _storage.write(key: _deviceTokenKey, value: token);
       return token;
     } finally {

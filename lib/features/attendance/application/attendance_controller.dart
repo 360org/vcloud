@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/notifications/attendance_local_reminder_service.dart';
 import '../../../shared/models/attendance.dart';
 import '../data/attendance_repository.dart';
 import '../domain/shift_calculator.dart';
@@ -27,12 +28,14 @@ class AttendanceActions {
 
   Future<void> checkIn() async {
     await _repo.checkIn();
+    await _ref.read(attendanceReminderServiceProvider).cancelCheckInReminder();
     _ref.invalidate(attendanceTodayProvider);
     _ref.invalidate(attendanceStreamProvider);
   }
 
   Future<void> checkOut() async {
     await _repo.checkOut();
+    await _ref.read(attendanceReminderServiceProvider).cancelAllAttendanceReminders();
     _ref.invalidate(attendanceTodayProvider);
     _ref.invalidate(attendanceStreamProvider);
   }
@@ -334,4 +337,24 @@ final dayAttendanceStatusMapProvider = Provider<Map<int, HrDayAttendanceStatus>>
 
   return statusMap;
 });
+
+/// Đồng bộ nhắc nhở Chấm công cục bộ khi có thay đổi trạng thái attendance
+final attendanceReminderSyncProvider = Provider.autoDispose<void>((ref) {
+  final open = ref.watch(openSessionProvider);
+  final attendances = ref.watch(attendanceStreamProvider).valueOrNull ?? const <Attendance>[];
+  final config = ref.watch(currentShiftConfigProvider);
+
+  final now = DateTime.now();
+  final todayAttendances = attendances.where((a) {
+    final t = (a.checkinTime ?? a.createdAt).toLocal();
+    return t.year == now.year && t.month == now.month && t.day == now.day;
+  }).toList();
+
+  ref.read(attendanceReminderServiceProvider).syncAttendanceReminders(
+        openAttendance: open,
+        todayAttendances: todayAttendances,
+        shiftConfig: config,
+      );
+});
+
 

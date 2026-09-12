@@ -24,7 +24,9 @@ import 'widgets/checkout_dialog.dart';
 
 /// Check-in screen — live clock, big check-in/out circle, location, history.
 class AttendanceScreen extends ConsumerStatefulWidget {
-  const AttendanceScreen({super.key});
+  const AttendanceScreen({super.key, this.autoCheckout = false});
+
+  final bool autoCheckout;
 
   @override
   ConsumerState<AttendanceScreen> createState() => _AttendanceScreenState();
@@ -96,6 +98,14 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
       const Duration(seconds: 1),
       (_) => setState(() => _now = DateTime.now()),
     );
+    if (widget.autoCheckout) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final open = ref.read(openSessionProvider);
+        if (open != null && open.checkoutTime == null) {
+          _handle(false);
+        }
+      });
+    }
   }
 
   @override

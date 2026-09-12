@@ -10,6 +10,7 @@ import 'package:intl/date_symbol_data_local.dart';
 
 import 'app.dart';
 import 'core/config/env.dart';
+import 'core/notifications/attendance_local_reminder_service.dart';
 import 'core/notifications/firebase_push_options.dart';
 import 'core/utils/local_attachment_cache.dart';
 import 'features/chat_v2/application/chat_v2_channels_controller.dart';
@@ -31,6 +32,7 @@ Future<void> main() async {
     await initializeDateFormatting();
     await LocalAttachmentCache.ensureInitialized();
     await ChatV2ChannelLocalCache.init();
+    await AttendanceLocalReminderService.instance.initialize();
 
     // Safely initialize Firebase if configured
     if (!kIsWeb && Env.firebasePushConfigured) {
