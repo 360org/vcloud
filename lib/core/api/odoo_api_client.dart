@@ -433,6 +433,8 @@ class OdooApiClient {
       },
       body: jsonEncode({
         'login': trimmedLogin,
+        if (password != null && password.isNotEmpty)
+          'password': password,
         if (preferredDb != null && preferredDb.trim().isNotEmpty)
           'preferred_db': preferredDb.trim(),
       }),

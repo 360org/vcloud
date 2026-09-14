@@ -2,6 +2,18 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.6+129] — 2026-09-14 (Zero-Knowledge Master DB Lookup & Automation Authentication)
+
+> [!IMPORTANT]
+> **Đồng bộ Định tuyến Xác thực Master Hub Không Cần Cấu hình (Zero-Settings / Zero-Knowledge DB Lookup)**:
+> - **Phạm vi**: `vclients` (Flutter Mobile & Web)
+> - **Chi tiết thay đổi**:
+>   1. **[SECURITY/AUTH] Zero-Knowledge Master DB Lookup**: Cập nhật `OdooApiClient.lookupDb` và `LoginScreen` truyền tham số `password` lên `POST /api/v1/auth/lookup-db`.
+>   2. **[FIX] Khắc phục lỗi 400 missing_password**: Đảm bảo Master Hub xác thực hai chiều trực tiếp với Tenant Backend, ngăn chặn rò rỉ danh bạ (anti-enumeration) và tự động trả về tenant database chuẩn xác cho cả tài khoản Internal lẫn Portal.
+>   3. **[IMPROVE] Trải nghiệm Đăng nhập Tự động**: Loại bỏ hoàn toàn yêu cầu nhập hoặc chọn Database thủ công, hỗ trợ người dùng đăng nhập tức thì sau khi tài khoản được tạo trên cơ sở dữ liệu khách hàng.
+
+---
+
 ## [v2.9.6+128] — 2026-09-12 (Smart Attendance Reminders & Local Scheduled Notifications)
 
 > [!IMPORTANT]

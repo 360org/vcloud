@@ -152,11 +152,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
       debugPrint('🔍 [VCLOUD AUTH] Đang tra cứu cơ sở dữ liệu trên Master: $login (Preferred: $preferredDb)');
       // [Bước 2]: Gửi API tra cứu DB lên Master: POST /api/v1/auth/lookup-db
-      // PAYLOAD CHỈ CHỨA: {"login": "<login>"}
-      // ⚠️ TUYỆT ĐỐI KHÔNG BẮT GỬI PASSWORD LÊN MASTER!
       final dbs = await ref
           .read(authControllerProvider.notifier)
-          .lookupDb(login, preferredDb: preferredDb);
+          .lookupDb(login, password: password, preferredDb: preferredDb);
 
       debugPrint('📋 [VCLOUD AUTH RESULT] Tìm thấy ${dbs.length} database cho tài khoản $login:');
       for (int i = 0; i < dbs.length; i++) {
