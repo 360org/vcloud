@@ -1,132 +1,169 @@
 # 🚀 SƠ ĐỒ & QUY TRÌNH TỰ ĐỘNG HÓA CI/CD DEPLOYMENT (VCLOUD)
 > **Tài liệu chuẩn hóa:** `docs/CICD_AUTO_DEPLOY_PIPELINE.md`  
 > **Áp dụng cho:** Hệ sinh thái **VCloud Mobile (`vclients`)** — iOS (Apple TestFlight) & Android (Google Play Console)  
-> **Tiêu chuẩn:** `360-vcloud` & AIaC 2026 — Phê duyệt bởi: **Sếp Tân**
+> **Mô hình phát hành:** **1 Giai đoạn trực tiếp (Direct to Production)** — Phê duyệt bởi: **Sếp Tân**
 
 ---
 
-## 1. 🏛️ TỔNG QUAN KIẾN TRÚC TỰ ĐỘNG HÓA (ZERO-TOUCH DEPLOY)
+## 1. 🏛️ TỔNG QUAN KIẾN TRÚC TỰ ĐỘNG HÓA (1 GIAI ĐOẠN — DIRECT TO PRODUCTION)
 
-Hệ thống CI/CD của VCloud được thiết kế theo nguyên lý **Zero-Touch Automation**:
-- Khi kích hoạt GitHub Actions (`workflow_dispatch` hoặc `release: [published]`), toàn bộ chuỗi tác vụ từ phân tích linter, chạy kiểm thử 336+ tests, ký số bảo mật, đóng gói bản dựng đến xuất bản trực tiếp lên **Apple App Store Connect (TestFlight)** và **Google Play Console** đều được thực thi tự động 100%.
-- Không cần tải file về máy, không cần đăng nhập console để kéo-thả thủ công.
+Theo định hướng tối ưu hóa và tinh gọn quy trình của Sếp Tân (phát triển và vận hành trực tiếp, không qua đội tester trung gian):
+- **1 Giai đoạn duy nhất (Zero-Intermediary)**: Bản dựng Android `.aab` được đẩy **thẳng trực tiếp lên Kênh Sản Xuất (Production Track)** trên Google Play Console. Không đi qua kênh thử nghiệm nội bộ (Internal Testing) gây chậm trễ.
+- **Tự động hóa hoàn toàn (Zero-Touch)**: Kích hoạt qua `workflow_dispatch` hoặc Git Release Tag. Hệ thống tự chạy linter, 336+ unit tests, ký số tự động, tự trích xuất "Có gì mới" từ `CHANGELOGS.md` và tải lên Store.
+- **Vòng lặp phản hồi nhanh (Fail-Fast & Fix)**: Khi Google Review duyệt đạt, bản cập nhật lên thẳng CH Play. Nếu có bất kỳ lý do từ chối nào (chính sách, form giải trình hoặc crash bot), Sếp Tân kiểm tra log, fix lỗi và kích hoạt lại pipeline.
 
 ---
 
-## 2. 📊 SƠ ĐỒ LUỒNG HOẠT ĐỘNG (END-TO-END WORKFLOW)
+## 2. 🎭 SƠ ĐỒ USE CASE HỆ THỐNG PHÁT HÀNH (USE CASE DIAGRAM)
 
 ```text
-                                 [ Sếp Tân / Developer ]
-                                            │
-                                            ▼
-                           Kích hoạt Workflow trên GitHub
-                    (Thủ công: workflow_dispatch HOẶC Release Tag)
-                                            │
-               ┌────────────────────────────┴────────────────────────────┐
-               │                                                         │
-               ▼                                                         ▼
-    ┌──────────────────────┐                                  ┌──────────────────────┐
-    │   JOB 1: iOS Build   │                                  │  JOB 2: Android Build│
-    │   (macOS Runner)     │                                  │   (Ubuntu Runner)    │
-    └──────────┬───────────┘                                  └──────────┬───────────┘
-               │                                                         │
-               ├─► [1] Checkout Code & Setup Flutter Engine              ├─► [1] Checkout Code & Setup Flutter & Java 17
-               ├─► [2] Static Analysis (flutter analyze - 0 errors)      ├─► [2] Static Analysis (flutter analyze - 0 errors)
-               ├─► [3] Automated Testing (336 tests PASS 100%)           ├─► [3] Automated Testing (336 tests PASS 100%)
-               ├─► [4] Ký số iOS (Apple Distribution Certificate + .p12) ├─► [4] Ký số Android:
-               │                                                         │    ├─ Giải mã `ANDROID_KEYSTORE_BASE64`
-               │                                                         │    ├─ Tạo `upload-keystore.jks`
-               │                                                         │    └─ Cấu hình `android/key.properties`
-               ├─► [5] Trích xuất Version & Build Number từ              ├─► [5] Trích xuất Version & Build Number từ
-               │       `pubspec.yaml` (SSOT: ví dụ 2.9.6+128)            │       `pubspec.yaml` (SSOT: ví dụ 2.9.6+128)
-               ├─► [6] Tự động trích xuất Changelog từ                   ├─► [6] Tự động trích xuất Changelog từ
-               │       `docs/CHANGELOGS.md` chuẩn hóa <=480 ký tự        │       `docs/CHANGELOGS.md` chuẩn hóa <=480 ký tự
-               ├─► [7] Biên dịch IPA:                                    ├─► [7] Biên dịch AAB & APK:
-               │       `flutter build ipa --release`                     │       ├─ `flutter build apk --release`
-               │                                                         │       └─ `flutter build appbundle --release`
-               │                                                         ├─► [8] Sinh file Metadata Changelog (vi-VN & en-US)
-               │                                                         │       `fastlane/metadata/android/vi-VN/changelogs/<build>.txt`
-               ▼                                                         ▼
-    ┌──────────────────────┐                                  ┌──────────────────────┐
-    │   Apple TestFlight   │                                  │ Google Play Console  │
-    │      Deployment      │                                  │      Deployment      │
-    └──────────┬───────────┘                                  └──────────┬───────────┘
-               │                                                         │
-               ├─► Xác thực App Store Connect API Key                    ├─► Xác thực Google Play Developer API
-               │   (hoặc App-Specific Password fallback)                 │   qua `GCLOUD_SERVICE_ACCOUNT_CREDENTIALS`
-               ├─► Fastlane upload IPA lên App Store Connect             ├─► Fastlane (`upload_to_play_store`) đẩy file
-               │   Bundle ID: `com.w360s.wcloudapp`                      │   `.aab` lên Package: `com.mobile.vloud`
-               ├─► Gán Release Notes "What to Test" từ Changelog         ├─► Nạp mục "Có gì mới / What's new" từ Changelog
-               │                                                         ├─► Đưa vào Track: `internal` (hoặc `production`)
-               │                                                         │
-               ▼                                                         ▼
-    ┌──────────────────────┐                         ┌──────────────────────────────────────────────┐
-    │ 🍏 Apple TestFlight  │                         │            🤖 Google Play Console            │
-    │ Ứng dụng sẵn sàng    │                         └──────────────────────┬───────────────────────┘
-    │ cho nội bộ test      │                                                │
-    └──────────────────────┘                                 ┌──────────────┴──────────────┐
-               │                                             ▼                             ▼
-               │                              [ Kênh Thử Nghiệm Nội Bộ ]      [ Kênh Sản Xuất (Production) ]
-               │                              (Track: internal - Tự động)     (Track: production - Công chúng)
-               │                                             │                             │
-               │                              ├─ Google xử lý trong vài phút  ├─ Google Review duyệt chính sách
-               │                              └─ Máy Tester trong danh sách   │  (Từ vài giờ đến 1-2 ngày)
-               │                                 tự động thấy nút Cập nhật    └─ Tự động phát hành đến toàn bộ
-               │                                 trên CH Play                    người dùng trên Google Play Store
-               │                                             │                             ▲
-               │                                             └───── [ Quảng bá Release ] ──┘
-               │                                                    (Promote Release 1-click)
-               └────────────────────────────┬──────────────────────────────────────────────┘
-                                            │
-                                            ▼
-                           Gửi thông báo hoàn tất qua Webhook
-                                 (Thành công / Thất bại)
+========================================================================================================================
+                                     VCLOUD MOBILE CI/CD & DEPLOYMENT SYSTEM
+========================================================================================================================
+
+           [ ACTORS ]                                                                     [ ACTORS ]
+
+         ┌─────────────┐                                                                ┌────────────────┐
+         │             │                                                                │                │
+         │   Sếp Tân   │                                                                │  Google Play   │
+         │ (Developer) │                                                                │    Reviewer    │
+         │             │                                                                │   & Store Bot  │
+         └──────┬──────┘                                                                └───────┬────────┘
+                │                                                                               │
+                │ 1. Kích hoạt phát hành                                                        │
+                ├──────────────────────────────────────────────────────┐                        │
+                │                                                      │                        │
+                │                                                      ▼                        │
+                │                                       ┌─────────────────────────────┐         │
+                │                                       │ UC1: Kích hoạt Pipeline CI  │         │
+                │                                       └──────────────┬──────────────┘         │
+                │                                                      │                        │
+                │                                          <<include>> ├────────────────────────┤
+                │                                                      ▼                        │
+                │                                       ┌─────────────────────────────┐         │
+                │                                       │ UC2: Kiểm thử & Phân tích   │         │
+                │                                       │  (flutter analyze & 336 test│         │
+                │                                       └──────────────┬──────────────┘         │
+                │                                                      │                        │
+                │                                          <<include>> ├────────────────────────┤
+                │                                                      ▼                        │
+                │                                       ┌─────────────────────────────┐         │
+                │                                       │ UC3: Trích xuất Changelog   │         │
+                │                                       │  (Auto extract từ docs/...) │         │
+                │                                       └──────────────┬──────────────┘         │
+                │                                                      │                        │
+                │                                          <<include>> ├────────────────────────┤
+                │                                                      ▼                        │
+                │                                       ┌─────────────────────────────┐         │
+                │                                       │ UC4: Ký số & Đóng gói .AAB  │         │
+                │                                       │ (Keystore & Release Bundle) │         │
+                │                                       └──────────────┬──────────────┘         │
+                │                                                      │                        │
+                │                                          <<include>> ├────────────────────────┤
+                │                                                      ▼                        │
+                │                                       ┌─────────────────────────────┐         │
+                │                                       │ UC5: Deploy Thẳng Production│         │
+                │                                       │ (1 Giai đoạn - Direct Track)│◄────────┤ 2. Thẩm định AAB &
+                │                                       └──────────────┬──────────────┘         │    kiểm tra chính sách
+                │                                                      │                        │
+                │                                                      ▼                        │
+                │                                       ┌─────────────────────────────┐         │
+                │                                       │ UC6: Đánh giá & Kiểm duyệt  │◄────────┘
+                │                                       └──────────────┬──────────────┘
+                │                                                      │
+                │                         ┌────────────────────────────┴────────────────────────────┐
+                │                         │ [Kết quả: PASS]                                         │ [Kết quả: REJECT]
+                │                         ▼                                                         ▼
+                │          ┌─────────────────────────────┐                           ┌─────────────────────────────┐
+                │          │ UC7: Phát hành lên CH Play  │                           │ UC8: Nhận thông báo từ chối │
+                │          │   (Công chúng tải về)       │                           │  (Google Play Console/Mail) │
+                │          └──────────────┬──────────────┘                           └──────────────┬──────────────┘
+                │                         │                                                         │
+                │                         │                                                         │ 3. Sửa lỗi & Deploy lại
+                │                         │                                                         ▼
+                │                         │                                          ┌─────────────────────────────┐
+                │                         │                                          │ UC9: Khắc phục & Tái nạp    │
+                │                         │                                          │  (Fix root cause & Redeploy)│
+                │                         │                                          └──────────────┬──────────────┘
+                │                         │                                                         │
+                │                         │                                                         └───────► (Quay lại UC1)
+                │                         │
+                ▼                         ▼
+         ┌──────────────┐          ┌──────────────┐
+         │  Apple App   │          │  Người Dùng  │
+         │Store Connect │          │ (Nhân viên / │
+         │ (TestFlight) │          │  Khách hàng) │
+         └──────────────┘          └──────────────┘
 ```
 
 ---
 
-## 3. 🔐 CẤU HÌNH BẢO MẬT & QUẢN LÝ SECRETS (GITHUB SECRETS)
+## 3. 📋 MA TRẬN ĐẶC TẢ USE CASE (USE CASE SPECIFICATIONS)
 
-Toàn bộ quy trình được bảo mật qua các GitHub Repository Secrets tại `360org/vcloud`:
-
-| Tên Secret | Mục Đích | Nền Tảng |
-| :--- | :--- | :---: |
-| `GCLOUD_SERVICE_ACCOUNT_CREDENTIALS` | Chứa toàn bộ nội dung file JSON của Service Account (`github-actions-play-store@...`) có quyền phát hành trên Google Play Console. | Android |
-| `ANDROID_KEYSTORE_BASE64` | Chuỗi mã hóa Base64 của tệp ký số `upload-keystore.jks` (Key Alias: `upload`). | Android |
-| `ANDROID_KEYSTORE_PASSWORD` | Mật khẩu mở Keystore (mặc định: `123456`). | Android |
-| `ANDROID_KEY_PASSWORD` | Mật khẩu của Key Alias (mặc định: `123456`). | Android |
-| `GOOGLE_PLAY_TRACK` *(Tùy chọn)* | Kênh phát hành Google Play: `internal` (mặc định), `alpha`, `beta`, `production`. | Android |
-| `APP_STORE_CONNECT_KEY_ID` | Key ID xác thực App Store Connect API. | iOS |
-| `APP_STORE_CONNECT_ISSUER_ID` | Issuer ID xác thực App Store Connect. | iOS |
-| `APP_STORE_CONNECT_KEY_CONTENT` | Nội dung file khóa `.p8` phân phối ứng dụng iOS. | iOS |
-| `BUILD_CERTIFICATE_BASE64` | Chứng chỉ phân phối iOS Distribution Certificate dạng Base64. | iOS |
-| `BUILD_PROVISION_PROFILE_BASE64`| Hồ sơ phân phối Provisioning Profile dạng Base64. | iOS |
-| `WEBHOOK_URL` | Webhook thông báo kết quả phát hành bản dựng về kênh liên lạc nội bộ. | Toàn hệ thống |
+| Mã Use Case | Tên Use Case | Tác nhân chính (Actor) | Mô tả chi tiết hành động | Điều kiện kích hoạt & Kết quả |
+| :--- | :--- | :--- | :--- | :--- |
+| **UC1** | Kích hoạt Pipeline CI/CD | Sếp Tân | Bấm `Run workflow` trên GitHub Actions hoặc tạo Git Release Tag `v*`. | **Input:** Branch `main` + Build target (`android`, `ios`, `all`). |
+| **UC2** | Kiểm thử & Phân tích Tự động | GitHub Actions | Chạy `flutter analyze` (yêu cầu 0 errors/warnings) và chạy bộ 336 bài test tự động. | **Rule:** Bất kỳ lỗi nào sẽ dừng ngay lập tức (Fail-fast). |
+| **UC3** | Tự động Trích xuất "Có gì mới" | Fastlane Engine | Đọc phiên bản từ `pubspec.yaml`, quét đúng mục trong `docs/CHANGELOGS.md`, làm sạch và chuẩn hóa `<= 480 ký tự`. | **Artifact:** File `metadata/android/{vi-VN,en-US}/changelogs/<build>.txt`. |
+| **UC4** | Ký số Bảo mật & Biên dịch | GitHub Actions | Giải mã `upload-keystore.jks` từ Secret Base64, thiết lập `key.properties`, biên dịch APK và AAB. | **Artifact:** `app-release.aab` và `app-release.apk`. |
+| **UC5** | Deploy 1 Giai Đoạn Thẳng Production | Fastlane `upload_to_play_store` | Tải trực tiếp file `.aab` vào **Kênh Sản Xuất (Production Track)** với `skip_upload_changelogs: false`. Không qua Internal Test. | **Target:** Package `com.mobile.vloud`, Track: `production`. |
+| **UC6** | Kiểm duyệt Chính sách Google | Google Play Reviewer / Bot | Google quét phân tích mã nguồn (Pre-launch report), kiểm tra quyền (Permissions), kiểm tra crash khi khởi động. | Thời gian duyệt: Thường từ vài giờ đến 1 ngày đối với bản cập nhật. |
+| **UC7** | Phát hành Công khai lên CH Play | Google Play Console | Bản phát hành được phê duyệt, ứng dụng tự động hiển thị nút Cập nhật trên CH Play cho tất cả người dùng. | **End User:** Nhân viên mở CH Play và nhận bản mới. |
+| **UC8** | Xử lý Từ chối Phát hành (Reject) | Google Review ➔ Sếp Tân | Google gửi thông báo lý do từ chối (ví dụ: vi phạm chính sách quyền, crash bot test, thiếu khai báo form). | Sếp Tân xem chi tiết trong Google Play Console mục Hộp thư đến / Bản phát hành. |
+| **UC9** | Khắc phục & Tái nạp Bản Dựng | Sếp Tân | Sếp Tân fix lỗi ở mã nguồn, tăng `build_number` trong `pubspec.yaml`, cập nhật `CHANGELOGS.md` và kích hoạt lại UC1. | Tạo bản dựng mới thay thế bản cũ bị từ chối. |
 
 ---
 
-## 4. 📋 THÔNG TIN ĐỊNH DANH ỨNG DỤNG (APP METADATA)
+## 4. 🔄 BIỂU ĐỒ TRÌNH TỰ (SEQUENCE DIAGRAM - 1 GIAI ĐOẠN THẲNG PRODUCTION)
 
-### Phía Android (Google Play Console):
-* **Tên ứng dụng:** Vua Hệ Thống (VCloud)
-* **Package Name (Application ID):** `com.mobile.vloud`
-* **Keystore Alias:** `upload`
-* **Đường dẫn Keystore gốc:** `/media/tanma/DATA/save/mobile_versions/vclients/android/upload-keystore.jks`
-* **Đường dẫn Backup:** `/media/tanma/TheNho/thongbao_firebase/` và `/media/tanma/DATA/thongbao_firebase/`
-* **Service Account Google Cloud:** `github-actions-play-store@pivotal-pursuit-508402-r8.iam.gserviceaccount.com`
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Boss as 🧑‍💻 Sếp Tân (Developer/PO)
+    participant CI as ⚙️ GitHub Actions Runner
+    participant FL as 🚀 Fastlane & Flutter
+    participant GP as 🤖 Google Play Console (Production)
+    participant Store as 🏬 CH Play Store
+    participant User as 📱 Người dùng / Nhân viên
 
-### Phía iOS (Apple App Store Connect):
-* **Tên ứng dụng:** Vua Hệ Thống (VCloud)
-* **Bundle Identifier:** `com.w360s.wcloudapp`
-* **Team ID:** `ZC3H8887XS` (W360S JOINT STOCK COMPANY)
+    Boss->>CI: Kích hoạt Deploy (workflow_dispatch hoặc Release Tag)
+    activate CI
+    CI->>FL: Chạy kiểm thử & Phân tích tĩnh (336 tests PASS)
+    CI->>FL: Trích xuất "Có gì mới" từ docs/CHANGELOGS.md
+    FL-->>CI: Chuẩn hóa metadata changelog (<= 480 ký tự)
+    CI->>FL: Ký số với upload-keystore.jks & Build AAB
+    FL-->>CI: app-release.aab hoàn tất
+
+    rect rgb(240, 248, 255)
+        note right of CI: 🚀 1 GIAI ĐOẠN DUY NHẤT: ĐẨY THẲNG PRODUCTION
+        CI->>GP: Upload trực tiếp AAB vào Track: PRODUCTION kèm Changelog
+    end
+    deactivate CI
+
+    activate GP
+    GP->>GP: Chạy Pre-launch Report & Thẩm định chính sách
+    
+    alt Trường hợp 1: Phê Duyệt Thành Công (Approved)
+        GP->>Store: Xuất bản ứng dụng công khai
+        Store-->>User: Hiển thị bản cập nhật trên CH Play
+        User->>Store: Cập nhật ứng dụng về máy
+    else Trường hợp 2: Bị Từ Chối (Rejected / Policy Violation)
+        GP-->>Boss: Gửi thông báo từ chối qua Email & Console
+        Boss->>Boss: Phân tích nguyên nhân (Crash / Form / Permission)
+        Boss->>CI: Sửa code, tăng build number & Kích hoạt lại Pipeline
+    end
+    deactivate GP
+```
 
 ---
 
-## 5. 🎯 QUY TẮC PHÁT HÀNH BẢN DỰNG (RELEASE RULES)
+## 5. 🎯 CÁC ĐIỂM CỐT LÕI CỦA MÔ HÌNH 1 GIAI ĐOẠN
 
-1. **Single Source of Truth cho Version & Build Number:**
-   - Số phiên bản và số build **BẮT BUỘC** quản lý tại file `pubspec.yaml` (ví dụ: `version: 2.9.6+128`).
-   - Pipeline tự động đọc số build `128` trực tiếp từ `pubspec.yaml`, tuyệt đối không dùng `github.run_number` để tránh làm lệch số build trên store.
-2. **Kênh phát hành an toàn:**
-   - Android mặc định được upload vào kênh **Internal Testing (Thử nghiệm nội bộ)**.
-   - Khi cần phát hành chính thức cho toàn bộ người dùng, chỉ cần chuyển biến `GOOGLE_PLAY_TRACK` thành `production` hoặc bấm nút *Thúc đẩy bản phát hành* (Promote Release) trực tiếp trên Google Play Console.
+1. **Không có độ trễ thử nghiệm nội bộ**:
+   - Tiết kiệm thời gian và thao tác so với quy trình cũ phải upload vào `internal` rồi vào web console bấm nút *Quảng bá bản phát hành (Promote release)* sang `production`.
+2. **Khai báo cấu hình đồng bộ**:
+   - `Fastfile`: `play_track = ENV["GOOGLE_PLAY_TRACK"] || "production"`
+   - GitHub Workflow: `GOOGLE_PLAY_TRACK: ${{ vars.GOOGLE_PLAY_TRACK || secrets.GOOGLE_PLAY_TRACK || 'production' }}`
+3. **Chiến lược an toàn khi bị từ chối**:
+   - Google Play cho phép nạp bản sửa lỗi với mã phiên bản mới (`build_number` mới) mà không ảnh hưởng đến bản ứng dụng hiện tại đang hoạt động của người dùng.
+   - Luôn tuân thủ quy tắc tăng mã phiên bản trong `pubspec.yaml` trước khi kích hoạt build lại.

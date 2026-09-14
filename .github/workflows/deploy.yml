@@ -184,7 +184,7 @@ jobs:
       - name: Execute Fastlane Android Release Pipeline
         env:
           GCLOUD_SERVICE_ACCOUNT_CREDENTIALS: ${{ secrets.GCLOUD_SERVICE_ACCOUNT_CREDENTIALS }}
-          GOOGLE_PLAY_TRACK: ${{ vars.GOOGLE_PLAY_TRACK || secrets.GOOGLE_PLAY_TRACK || 'internal' }}
+          GOOGLE_PLAY_TRACK: ${{ vars.GOOGLE_PLAY_TRACK || secrets.GOOGLE_PLAY_TRACK || 'production' }}
           ANDROID_PACKAGE_NAME: "com.mobile.vloud"
           WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
           BUILD_NUMBER: ${{ github.run_number }}
