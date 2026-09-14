@@ -392,7 +392,7 @@ platform :android do
 
         if aab_path
           package_id = ENV["ANDROID_PACKAGE_NAME"] || "com.mobile.vloud"
-          play_track = ENV["GOOGLE_PLAY_TRACK"] || "internal"
+          play_track = ENV["GOOGLE_PLAY_TRACK"] || "production"
           UI.message("📦 Uploading AAB (#{aab_path}) to Google Play Console for #{package_id} (Track: #{play_track})...")
           upload_to_play_store(
             track: play_track,

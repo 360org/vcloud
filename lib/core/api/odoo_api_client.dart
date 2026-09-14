@@ -404,8 +404,11 @@ class OdooApiClient {
     final trimmedLogin = login.trim();
     final lowerLogin = trimmedLogin.toLowerCase();
 
-    // Tài khoản trải nghiệm demo / morpheus: Định tuyến thẳng sang demo.vuahethong.com
-    if (lowerLogin == 'demo' || lowerLogin == 'morpheus') {
+    // Tài khoản trải nghiệm demo / morpheus: Chỉ ép sang demo.vuahethong.com nếu ĐANG KẾT NỐI production vuahethong.net
+    final masterUrl = _baseUrl.isNotEmpty ? _baseUrl : 'https://vuahethong.net';
+    final isProdMaster = masterUrl.contains('vuahethong.net');
+
+    if ((lowerLogin == 'demo' || lowerLogin == 'morpheus') && isProdMaster) {
       const demoUrl = 'https://demo.vuahethong.com';
       return [
         {
@@ -420,7 +423,6 @@ class OdooApiClient {
       ];
     }
 
-    final masterUrl = _baseUrl.isNotEmpty ? _baseUrl : 'https://vuahethong.net';
     final uri = Uri.parse('$masterUrl/api/v1/auth/lookup-db');
 
     final response = await _http.post(
@@ -440,7 +442,7 @@ class OdooApiClient {
       // Fallback khi Master Router chạy bản cũ chưa hỗ trợ endpoint lookup-db hoặc báo 400 (do backend live chưa deploy bản bỏ password)
       if (response.statusCode == 404 || response.statusCode == 405 || response.statusCode == 400) {
         debugPrint('⚠️ [lookupDb] Master ($masterUrl) trả về ${response.statusCode}, fallback sang cấu hình mặc định.');
-        if (lowerLogin == 'support@360.org.vn') {
+        if ((lowerLogin == 'support@360.org.vn' || lowerLogin == 'portal@360.org.vn') && isProdMaster) {
           return [
             {
               'login': trimmedLogin,
@@ -460,22 +462,21 @@ class OdooApiClient {
         final String categoryLabel;
 
         final isDemoLogin = trimmedLogin == 'demo' || trimmedLogin == 'morpheus';
-        if (isDemoLogin || (preferredDb == 'demo' && trimmedLogin != 'tanmnn@360.org.vn' && !trimmedLogin.endsWith('@360.org.vn'))) {
+        if (isDemoLogin && isProdMaster) {
           effectiveDb = 'demo';
           effectiveUrl = 'https://demo.vuahethong.com';
           displayName = 'Trung tâm Trải nghiệm & Demo (Odoo 19)';
           categoryLabel = '🏢 Nội Bộ (Odoo 19)';
         } else {
           // Trên Production vuahethong.net: DB chính thức là 'vuahethong'
-          final isProd = masterUrl.contains('vuahethong.net');
-          if (isProd) {
+          if (isProdMaster) {
             effectiveDb = 'vuahethong';
           } else {
             effectiveDb = (preferredDb != null && preferredDb.isNotEmpty) ? preferredDb : Env.odooDb;
           }
           effectiveUrl = masterUrl;
-          displayName = 'Vua Hệ Thống (Chính thức)';
-          categoryLabel = '🏢 Nội Bộ (Odoo 17)';
+          displayName = isProdMaster ? 'Vua Hệ Thống (Chính thức)' : 'Local Server ($effectiveDb)';
+          categoryLabel = isProdMaster ? '🏢 Nội Bộ (Odoo 17)' : '💻 Máy Chủ Nội Bộ';
         }
 
         return [
@@ -497,7 +498,7 @@ class OdooApiClient {
     if (decoded is Map && decoded['error'] != null) {
       // Nếu Master báo missing_password hoặc lỗi tra cứu:
       // Fallback kiểm tra các tài khoản đặc biệt (như NDS Group hoặc nội bộ vuahethong) trước khi báo lỗi
-      if (lowerLogin == 'support@360.org.vn') {
+      if (lowerLogin == 'support@360.org.vn' || lowerLogin == 'portal@360.org.vn') {
         return [
           {
             'login': trimmedLogin,
@@ -554,7 +555,7 @@ class OdooApiClient {
     // -------------------------------------------------------------------------
     if (parsedList.isEmpty) {
       final trimmedLower = login.trim().toLowerCase();
-      if (trimmedLower == 'demo' || trimmedLower == 'morpheus') {
+      if ((trimmedLower == 'demo' || trimmedLower == 'morpheus') && isProdMaster) {
         const demoUrl = 'https://demo.vuahethong.com';
         return [
           {
@@ -570,7 +571,7 @@ class OdooApiClient {
       }
 
       // ponytail: Fallback danh bạ client NDS Group khi Master vuahethong.net chưa sync databases.user
-      if (trimmedLower == 'support@360.org.vn') {
+      if ((trimmedLower == 'support@360.org.vn' || trimmedLower == 'portal@360.org.vn') && isProdMaster) {
         return [
           {
             'login': login.trim(),
@@ -580,6 +581,22 @@ class OdooApiClient {
             'project_id': 7790,
             'has_v_mobile': true,
             'category_label': '🏢 Khách Hàng',
+          }
+        ];
+      }
+
+      // Khi chạy Local Server (không phải Prod Master) và không tìm thấy DB nào khớp:
+      if (!isProdMaster) {
+        final fallbackDb = Env.odooDb.isNotEmpty ? Env.odooDb : 'demo-17';
+        return [
+          {
+            'login': login.trim(),
+            'database_name': fallbackDb,
+            'database_url': masterUrl,
+            'display_name': 'Local Server ($fallbackDb)',
+            'project_id': 1,
+            'has_v_mobile': true,
+            'category_label': '💻 Máy Chủ Nội Bộ',
           }
         ];
       }
@@ -600,7 +617,7 @@ class OdooApiClient {
     var cleanBaseUrl = targetBaseUrl.replaceFirst(RegExp(r'/$'), '');
     final fallbackUrl = _baseUrl.isNotEmpty ? _baseUrl : Env.odooApiBaseUrl;
 
-    if (cleanBaseUrl.isEmpty || cleanBaseUrl.contains('192.168.1.100')) {
+    if (cleanBaseUrl.isEmpty) {
       cleanBaseUrl = fallbackUrl;
     }
 
@@ -617,32 +634,58 @@ class OdooApiClient {
       if (effectiveDb.isEmpty) {
         effectiveDb = 'demo';
       }
-    } else if (effectiveDb.isEmpty) {
-      // Fallback môi trường local nếu không có dbName
-      effectiveDb = Env.odooDb;
+    } else {
+      // Môi trường Local Server hoặc IP nội bộ:
+      // Nếu dbName rỗng HOẶC bị truyền nhầm là 'demo', tự động chuẩn hóa về Env.odooDb hoặc 'demo-17'
+      if (effectiveDb.isEmpty || effectiveDb == 'demo') {
+        effectiveDb = Env.odooDb.isNotEmpty ? Env.odooDb : 'demo-17';
+      }
     }
 
     OdooSession session;
-    try {
-      session = await _loginWithOdooSessionAndJwtAt(
-        targetBaseUrl: cleanBaseUrl,
-        login: login.trim(),
-        password: password,
-        dbName: effectiveDb,
-        timeout: timeout,
-      );
-    } catch (e) {
-      if (cleanBaseUrl != fallbackUrl) {
-        debugPrint('⚠️ [authenticateOnClient] Retrying with fallback $fallbackUrl due to error: $e');
+    if (kIsWeb) {
+      try {
+        // Trên Web (Chrome): Ưu tiên Mobile API endpoint (/api/v1/mobile/auth/login) hỗ trợ full CORS
+        session = await _attemptLoginAt(
+          targetBaseUrl: cleanBaseUrl,
+          login: login.trim(),
+          password: password,
+          targetDb: effectiveDb,
+          timeout: timeout,
+        );
+      } catch (e) {
+        debugPrint('⚠️ [authenticateOnClient] Web _attemptLoginAt failed ($e), trying Odoo session fallback...');
         session = await _loginWithOdooSessionAndJwtAt(
-          targetBaseUrl: fallbackUrl,
+          targetBaseUrl: cleanBaseUrl,
           login: login.trim(),
           password: password,
           dbName: effectiveDb,
           timeout: timeout,
         );
-      } else {
-        rethrow;
+      }
+    } else {
+      // Môi trường Mobile (iOS / Android) & Test: Chuẩn Odoo JSON-RPC trực tiếp tới Client DB
+      try {
+        session = await _loginWithOdooSessionAndJwtAt(
+          targetBaseUrl: cleanBaseUrl,
+          login: login.trim(),
+          password: password,
+          dbName: effectiveDb,
+          timeout: timeout,
+        );
+      } catch (e) {
+        if (cleanBaseUrl != fallbackUrl) {
+          debugPrint('⚠️ [authenticateOnClient] Retrying with fallback $fallbackUrl due to error: $e');
+          session = await _loginWithOdooSessionAndJwtAt(
+            targetBaseUrl: fallbackUrl,
+            login: login.trim(),
+            password: password,
+            dbName: effectiveDb,
+            timeout: timeout,
+          );
+        } else {
+          rethrow;
+        }
       }
     }
 
@@ -695,9 +738,12 @@ class OdooApiClient {
     final tenantNotFound = _tryTenantNotFound(decoded, response.statusCode);
     if (tenantNotFound != null) throw tenantNotFound;
 
+    final uid = decoded is Map ? _intOrNull(decoded['uid']) : null;
     if (response.statusCode >= 400 ||
         decoded is! Map ||
-        decoded['error'] != null) {
+        decoded['error'] != null ||
+        uid == null ||
+        uid == 0) {
       throw Failure(_errorMessage(decoded, response.statusCode));
     }
 

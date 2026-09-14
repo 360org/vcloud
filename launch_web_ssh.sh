@@ -110,12 +110,9 @@ echo "🔄 [1/3] Kiểm tra & Tự động đồng bộ mã nguồn Backend lên
 PARENT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 SYNC_ERROR=0
 
-# A. Đồng bộ Odoo 17
+# A. Đồng bộ Odoo 17 (Nguồn chuẩn duy nhất: /mnt/DATA/work/17.0/extra/v_mobile)
 if [[ -d "$PARENT_DIR/v_mobile_17" ]]; then
-    echo "   📦 Đang đồng bộ v_mobile_17 -> Server Local ($SERVER_HOST)..."
-    rsync -aq --delete \
-        --exclude='.git' --exclude='__pycache__' --exclude='*.pyc' --exclude='.claude' --exclude='.codegraph' \
-        "$PARENT_DIR/v_mobile_17/" "$SSH_ALIAS:/home/corp360/DATA/save/mobile/work_test_auth/v_mobile_17/" 2>/dev/null || SYNC_ERROR=1
+    echo "   📦 Đang đồng bộ v_mobile_17 -> Server Local ($SERVER_HOST:/mnt/DATA/work/17.0/extra/v_mobile)..."
     rsync -aq --delete \
         --exclude='.git' --exclude='__pycache__' --exclude='*.pyc' --exclude='.claude' --exclude='.codegraph' \
         "$PARENT_DIR/v_mobile_17/" "$SSH_ALIAS:/mnt/DATA/work/17.0/extra/v_mobile/" 2>/dev/null || SYNC_ERROR=1
@@ -191,6 +188,7 @@ cd "$SCRIPT_DIR"
 
 echo "   [CMD] flutter run -d chrome --no-pub --web-port=$WEB_PORT (đang build, chờ ~20s)..."
 echo "   💡 Khi Chrome mở, đợi trang nạp xong rồi đăng nhập."
+echo "   🌐 Sếp có thể copy link http://localhost:$WEB_PORT mở trên bất kỳ cửa sổ Chrome nào khác đều đăng nhập được bình thường!"
 echo
 
 exec flutter run \

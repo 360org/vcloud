@@ -28,10 +28,15 @@ class AttendanceLocalReminderService {
       _notificationsPlugin ??= FlutterLocalNotificationsPlugin();
 
   bool _initialized = false;
+  bool get _isUnitTest =>
+      !kIsWeb &&
+      const bool.fromEnvironment('dart.vm.product') == false &&
+      kDebugMode &&
+      Platform.environment.containsKey('FLUTTER_TEST');
 
   /// Khởi tạo local notification plugin và timezone
   Future<void> initialize() async {
-    if (_initialized) return;
+    if (kIsWeb || _initialized) return;
 
     try {
       tz.initializeTimeZones();
@@ -62,10 +67,7 @@ class AttendanceLocalReminderService {
 
     try {
       // Trong môi trường Unit Test, không gọi plugin native để tránh lỗi Platform Interface
-      final isUnitTest = const bool.fromEnvironment('dart.vm.product') == false &&
-          kDebugMode &&
-          Platform.environment.containsKey('FLUTTER_TEST');
-      if (!isUnitTest) {
+      if (!_isUnitTest) {
         await _plugin.initialize(
           settings: initSettings,
           onDidReceiveNotificationResponse: _onNotificationTapped,
@@ -104,10 +106,7 @@ class AttendanceLocalReminderService {
 
   /// Yêu cầu cấp quyền thông báo trên Android 13+ và iOS
   Future<bool> requestPermissions() async {
-    final isUnitTest = const bool.fromEnvironment('dart.vm.product') == false &&
-        kDebugMode &&
-        Platform.environment.containsKey('FLUTTER_TEST');
-    if (isUnitTest) return true;
+    if (kIsWeb || _isUnitTest) return true;
 
     if (!_initialized) await initialize();
     try {
@@ -143,10 +142,7 @@ class AttendanceLocalReminderService {
     required List<Attendance> todayAttendances,
     ShiftConfig? shiftConfig,
   }) async {
-    final isUnitTest = const bool.fromEnvironment('dart.vm.product') == false &&
-        kDebugMode &&
-        Platform.environment.containsKey('FLUTTER_TEST');
-    if (isUnitTest) return;
+    if (kIsWeb || _isUnitTest) return;
 
     if (!_initialized) await initialize();
 
@@ -188,10 +184,7 @@ class AttendanceLocalReminderService {
     required int targetHour,
     required int targetMinute,
   }) async {
-    final isUnitTest = const bool.fromEnvironment('dart.vm.product') == false &&
-        kDebugMode &&
-        Platform.environment.containsKey('FLUTTER_TEST');
-    if (isUnitTest) return;
+    if (kIsWeb || _isUnitTest) return;
 
     try {
       final now = tz.TZDateTime.now(tz.local);
@@ -254,10 +247,7 @@ class AttendanceLocalReminderService {
     required int targetHour,
     required int targetMinute,
   }) async {
-    final isUnitTest = const bool.fromEnvironment('dart.vm.product') == false &&
-        kDebugMode &&
-        Platform.environment.containsKey('FLUTTER_TEST');
-    if (isUnitTest) return;
+    if (kIsWeb || _isUnitTest) return;
 
     try {
       final now = tz.TZDateTime.now(tz.local);
@@ -317,10 +307,7 @@ class AttendanceLocalReminderService {
 
   /// Hủy thông báo nhắc Check-in
   Future<void> cancelCheckInReminder() async {
-    final isUnitTest = const bool.fromEnvironment('dart.vm.product') == false &&
-        kDebugMode &&
-        Platform.environment.containsKey('FLUTTER_TEST');
-    if (isUnitTest) return;
+    if (kIsWeb || _isUnitTest) return;
 
     try {
       await _plugin.cancel(id: kAttendanceCheckInReminderNotifId);
@@ -332,10 +319,7 @@ class AttendanceLocalReminderService {
 
   /// Hủy thông báo nhắc Check-out
   Future<void> cancelCheckOutReminder() async {
-    final isUnitTest = const bool.fromEnvironment('dart.vm.product') == false &&
-        kDebugMode &&
-        Platform.environment.containsKey('FLUTTER_TEST');
-    if (isUnitTest) return;
+    if (kIsWeb || _isUnitTest) return;
 
     try {
       await _plugin.cancel(id: kAttendanceCheckOutReminderNotifId);
