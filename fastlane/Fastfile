@@ -49,6 +49,69 @@ rescue => e
   UI.important("⚠️ Could not send webhook alert: #{e.message}")
 end
 
+# Helper method to extract clean changelog for current version from docs/CHANGELOGS.md
+def extract_changelog(build_name, build_number)
+  changelog_candidates = [
+    File.expand_path("../docs/CHANGELOGS.md", __dir__),
+    File.expand_path("../../docs/CHANGELOGS.md", __dir__),
+    File.expand_path("docs/CHANGELOGS.md", Dir.pwd)
+  ]
+  changelog_path = changelog_candidates.find { |p| File.exist?(p) }
+
+  if changelog_path
+    content = File.read(changelog_path, encoding: "UTF-8") rescue ""
+    patterns = [
+      /##\s*\[v?#{Regexp.escape("#{build_name}+#{build_number}")}[^\]]*\][^\n]*\n(.*?)(?=\n---\s*\n|\n##|\z)/m,
+      /##\s*\[v?#{Regexp.escape(build_name)}[^\]]*\][^\n]*\n(.*?)(?=\n---\s*\n|\n##|\z)/m
+    ]
+
+    section = nil
+    patterns.each do |pat|
+      match = content.match(pat)
+      if match
+        section = match[1]
+        break
+      end
+    end
+
+    if section
+      clean_lines = []
+      section.each_line do |line|
+        clean = line.strip.gsub(/^>\s*/, "").strip
+        next if clean.empty? || clean.start_with?("[!IMPORTANT]") || clean.start_with?("---") || clean.include?("Phạm vi") || clean.include?("Chi tiết thay đổi")
+        # Strip bold & inline code
+        clean = clean.gsub(/\*\*([^*]+)\*\*/, '\1')
+        clean = clean.gsub(/`([^`]+)`/, '\1')
+        clean = clean.gsub(/^\s*[-*]\s*/, "• ")
+        clean_lines << clean
+      end
+
+      # Assemble clean release notes under 480 chars for Google Play / TestFlight limits
+      result_lines = []
+      total_len = 0
+      clean_lines.each do |l|
+        if total_len + l.length + 1 <= 480
+          result_lines << l
+          total_len += l.length + 1
+        else
+          break
+        end
+      end
+
+      result = result_lines.join("\n").strip
+      return result unless result.empty?
+    end
+  end
+
+  # Fallback: latest git commit message
+  git_msg = (sh("git log -1 --pretty=%B") rescue "").strip
+  fallback = git_msg.empty? ? "Vua Hệ Thống v#{build_name}+#{build_number} cập nhật và tối ưu hóa tính năng." : git_msg
+  fallback[0..480]
+rescue => ex
+  UI.important("⚠️ extract_changelog encountered an issue: #{ex.message}")
+  "Vua Hệ Thống v#{build_name}+#{build_number} cập nhật tính năng mới."
+end
+
 # Lane to automatically increment build number in pubspec.yaml
 desc "Increment build number (+1) in pubspec.yaml"
 lane :bump do |options|
@@ -175,13 +238,12 @@ platform :ios do
       build_number = version_parts[1] || ENV["BUILD_NUMBER"] || "40"
       api_base_url = ENV["VCLOUD_ODOO_API_BASE_URL"] || "https://vuahethong.net"
 
-      # Extract latest git commit message for TestFlight "What to Test"
-      latest_commit_msg = sh("git log -1 --pretty=%B").strip rescue "VCloud Mobile iOS Build v#{build_name}+#{build_number}"
-      changelog_text = latest_commit_msg.empty? ? "VCloud Mobile iOS Release v#{build_name}+#{build_number}" : latest_commit_msg[0..490]
+      # Extract changelog from docs/CHANGELOGS.md for TestFlight "What to Test"
+      changelog_text = extract_changelog(build_name, build_number)
 
       UI.message("📱 Target App Version: #{build_name}+#{build_number}")
       UI.message("🌐 Target API Base URL: #{api_base_url}")
-      UI.message("📝 TestFlight Release Notes: #{changelog_text}")
+      UI.message("📝 TestFlight Release Notes (#{changelog_text.length} chars):\n#{changelog_text}")
 
       # 3. Clean stale IPA artifacts before building
       require 'fileutils'
@@ -303,7 +365,22 @@ platform :android do
       # 2. Build App Bundle (AAB) for Google Play
       sh("cd .. && flutter build appbundle --release --build-name=#{build_name} --build-number=#{build_number} --dart-define=VCLOUD_ODOO_API_BASE_URL=#{api_base_url}")
 
-      # 3. Optional Google Play Internal Track Upload (Only if credentials provided)
+      # 3. Extract release notes from CHANGELOGS.md & prepare metadata for Google Play
+      changelog_text = extract_changelog(build_name, build_number)
+      UI.message("📝 Google Play Release Notes (#{changelog_text.length} chars):\n#{changelog_text}")
+
+      # Fastlane supply automatically picks up changelogs from metadata/android/<locale>/changelogs/<build_number>.txt
+      metadata_base = File.expand_path("metadata/android", __dir__)
+      require 'fileutils'
+      ["vi-VN", "en-US", "default"].each do |locale|
+        changelog_dir = File.join(metadata_base, locale, "changelogs")
+        FileUtils.mkdir_p(changelog_dir)
+        File.write(File.join(changelog_dir, "#{build_number}.txt"), changelog_text)
+        File.write(File.join(changelog_dir, "default.txt"), changelog_text)
+      end
+      UI.success("📝 Prepared Google Play changelog files for build #{build_number} in #{metadata_base}")
+
+      # 4. Optional Google Play Track Upload (Only if credentials provided)
       gcloud_creds = ENV["GCLOUD_SERVICE_ACCOUNT_CREDENTIALS"]
       if gcloud_creds && !gcloud_creds.strip.empty?
         candidates = [
@@ -315,13 +392,19 @@ platform :android do
 
         if aab_path
           package_id = ENV["ANDROID_PACKAGE_NAME"] || "com.mobile.vloud"
-          UI.message("📦 Uploading AAB (#{aab_path}) to Google Play Console for #{package_id}...")
+          play_track = ENV["GOOGLE_PLAY_TRACK"] || "internal"
+          UI.message("📦 Uploading AAB (#{aab_path}) to Google Play Console for #{package_id} (Track: #{play_track})...")
           upload_to_play_store(
-            track: ENV["GOOGLE_PLAY_TRACK"] || "internal",
+            track: play_track,
             aab: aab_path,
             json_key_data: gcloud_creds,
-            package_name: package_id
+            package_name: package_id,
+            skip_upload_metadata: true,
+            skip_upload_images: true,
+            skip_upload_screenshots: true,
+            skip_upload_changelogs: false
           )
+          UI.success("🎉 Successfully uploaded AAB v#{build_name}+#{build_number} to Google Play #{play_track.upcase} track with changelogs!")
         else
           UI.important("⚠️ AAB build complete. Skipping Google Play upload (AAB path not found in candidates: #{candidates.join(', ')}).")
         end
@@ -329,7 +412,7 @@ platform :android do
         UI.message("ℹ️ Android APK & AAB build completed successfully (No Google Play Console credentials provided).")
       end
 
-      # 4. Dispatch Webhook Success Alert
+      # 5. Dispatch Webhook Success Alert
       send_webhook(
         "🤖 Android Release Successful!",
         "VCloud Mobile Android **v#{build_name}+#{build_number}** APK and AAB build completed!\n• API: #{api_base_url}\n• APK Output: `build/app/outputs/flutter-apk/app-release.apk`",
