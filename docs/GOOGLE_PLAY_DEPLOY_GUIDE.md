@@ -93,6 +93,10 @@ Toàn bộ hình ảnh đã được chuẩn hóa đúng từng pixel theo tiêu
 | Lỗi khai báo quyền truy cập ảnh/video | Thiếu form giải trình `READ_MEDIA_IMAGES` | Hoàn thành form khai báo: ảnh dùng cho Ticket, Chat, Avatar |
 | Lỗi Google từ chối: Quyền truy cập ảnh/video | App không phải thư viện ảnh, Google yêu cầu dùng Photo Picker hệ thống | Gỡ bỏ hoàn toàn `READ_MEDIA_IMAGES`, `READ_MEDIA_VISUAL_USER_SELECTED`, `READ_EXTERNAL_STORAGE` khỏi `AndroidManifest.xml` (dùng `image_picker` native Photo Picker 0 quyền) |
 | Lỗi Google từ chối: Chức năng bị hỏng (Crash startup) | Firebase Messaging stream listener bị lỗi khi chạy cold start kiểm thử tự động của Google bot | Bọc toàn bộ `onMessageStream`, `onMessageOpenedAppStream`, `getInitialMessage` và background handler trong try-catch phòng thủ, nullable subscription |
+| Lỗi CI/CD Build: Java 8 Desugaring | `flutter_local_notifications` v22+ dùng API `java.time` | Bật `isCoreLibraryDesugaringEnabled = true` và `coreLibraryDesugaring("...desugar_jdk_libs:2.1.4")` trong `build.gradle.kts` |
+| Lỗi Fastlane: `Could not find aab file` | Đường dẫn relative `../build/.../app-release.aab` bị lệch context | Dùng mảng ứng viên `File.expand_path` tuyệt đối trong Fastfile |
+| Lỗi Google Play API: `default - Invalid request` | Google Play Developer API không có mã locale nào tên `default` | Xóa thư mục `default` và file `default.txt`, chỉ giữ các mã ngôn ngữ BCP-47 hợp lệ |
+| Lỗi Google Play API: `vi-VN - Invalid request` | Google Play API & Fastlane Supply chỉ chấp nhận mã 2 ký tự `vi` cho Tiếng Việt, không có `vi-VN` | Đặt `locales = ["vi", "en-US"]`, đường dẫn changelog là `metadata/android/vi/changelogs/<build>.txt` |
 
 ---
 
