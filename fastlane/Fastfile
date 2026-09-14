@@ -372,13 +372,15 @@ platform :android do
       # Fastlane supply automatically picks up changelogs from metadata/android/<locale>/changelogs/<build_number>.txt
       metadata_base = File.expand_path("metadata/android", __dir__)
       require 'fileutils'
-      ["vi-VN", "en-US", "default"].each do |locale|
+      FileUtils.rm_rf(metadata_base) if File.exist?(metadata_base)
+
+      locales = (ENV["PLAY_STORE_LOCALES"] || "vi-VN,en-US").split(",").map(&:strip)
+      locales.each do |locale|
         changelog_dir = File.join(metadata_base, locale, "changelogs")
         FileUtils.mkdir_p(changelog_dir)
         File.write(File.join(changelog_dir, "#{build_number}.txt"), changelog_text)
-        File.write(File.join(changelog_dir, "default.txt"), changelog_text)
       end
-      UI.success("📝 Prepared Google Play changelog files for build #{build_number} in #{metadata_base}")
+      UI.success("📝 Prepared Google Play changelog files for build #{build_number} in #{metadata_base} (locales: #{locales.join(', ')})")
 
       # 4. Optional Google Play Track Upload (Only if credentials provided)
       gcloud_creds = ENV["GCLOUD_SERVICE_ACCOUNT_CREDENTIALS"]
