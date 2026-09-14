@@ -104,7 +104,7 @@ Theo định hướng tối ưu hóa và tinh gọn quy trình của Sếp Tân 
 | :--- | :--- | :--- | :--- | :--- |
 | **UC1** | Kích hoạt Pipeline CI/CD | Sếp Tân | Bấm `Run workflow` trên GitHub Actions hoặc tạo Git Release Tag `v*`. | **Input:** Branch `main` + Build target (`android`, `ios`, `all`). |
 | **UC2** | Kiểm thử & Phân tích Tự động | GitHub Actions | Chạy `flutter analyze` (yêu cầu 0 errors/warnings) và chạy bộ 336 bài test tự động. | **Rule:** Bất kỳ lỗi nào sẽ dừng ngay lập tức (Fail-fast). |
-| **UC3** | Tự động Trích xuất "Có gì mới" | Fastlane Engine | Đọc phiên bản từ `pubspec.yaml`, quét đúng mục trong `docs/CHANGELOGS.md`, làm sạch và chuẩn hóa `<= 480 ký tự`. | **Artifact:** File `metadata/android/{vi-VN,en-US}/changelogs/<build>.txt`. |
+| **UC3** | Tự động Trích xuất "Có gì mới" | Fastlane Engine | Đọc phiên bản từ `pubspec.yaml`, quét đúng mục trong `docs/CHANGELOGS.md`, làm sạch và chuẩn hóa `<= 480 ký tự`. | **Artifact:** File `metadata/android/{vi,en-US}/changelogs/<build>.txt`. |
 | **UC4** | Ký số Bảo mật & Biên dịch | GitHub Actions | Giải mã `upload-keystore.jks` từ Secret Base64, thiết lập `key.properties`, biên dịch APK và AAB. | **Artifact:** `app-release.aab` và `app-release.apk`. |
 | **UC5** | Deploy 1 Giai Đoạn Thẳng Production | Fastlane `upload_to_play_store` | Tải trực tiếp file `.aab` vào **Kênh Sản Xuất (Production Track)** với `skip_upload_changelogs: false`. Không qua Internal Test. | **Target:** Package `com.mobile.vloud`, Track: `production`. |
 | **UC6** | Kiểm duyệt Chính sách Google | Google Play Reviewer / Bot | Google quét phân tích mã nguồn (Pre-launch report), kiểm tra quyền (Permissions), kiểm tra crash khi khởi động. | Thời gian duyệt: Thường từ vài giờ đến 1 ngày đối với bản cập nhật. |

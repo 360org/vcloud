@@ -143,7 +143,7 @@ Khi kích hoạt workflow GitHub Actions, toàn bộ quy trình phát hành lên
 1. Fastlane tự động đọc file `docs/CHANGELOGS.md` tại mục phiên bản tương ứng trong `pubspec.yaml` (ví dụ `## [v2.9.6+128]`).
 2. Làm sạch định dạng markdown và cắt gọn an toàn `<= 480 ký tự` (chuẩn giới hạn của Google Play API là 500 ký tự).
 3. Tự động ghi vào các file metadata:
-   - `fastlane/metadata/android/vi-VN/changelogs/<build_number>.txt` (Tiếng Việt)
+   - `fastlane/metadata/android/vi/changelogs/<build_number>.txt` (Tiếng Việt - chuẩn Fastlane/Google Play là mã 'vi')
    - `fastlane/metadata/android/en-US/changelogs/<build_number>.txt` (Tiếng Anh)
 4. Fastlane `upload_to_play_store` với:
    - `track: 'production'` (Mặc định nạp thẳng vào Kênh Sản Xuất)

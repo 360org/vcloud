@@ -374,7 +374,7 @@ platform :android do
       require 'fileutils'
       FileUtils.rm_rf(metadata_base) if File.exist?(metadata_base)
 
-      locales = (ENV["PLAY_STORE_LOCALES"] || "vi-VN,en-US").split(",").map(&:strip)
+      locales = (ENV["PLAY_STORE_LOCALES"] || "vi,en-US").split(",").map(&:strip)
       locales.each do |locale|
         changelog_dir = File.join(metadata_base, locale, "changelogs")
         FileUtils.mkdir_p(changelog_dir)
