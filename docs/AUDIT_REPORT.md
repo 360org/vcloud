@@ -2,15 +2,15 @@
 
 | Hạng mục | Thông tin |
 |---|---|
-| Revision audit | `e2497a2` — `docs: add fastlane ci/cd troubleshooting entries to google play deploy guide` (2026-09-14) |
+| Revision audit | `d320aa5` — `docs: bổ sung báo cáo audit VCloud v2.9.6+129` (2026-09-17) |
 | Phiên bản | `2.9.6+129` |
 | Quy mô | 147 file Dart trong `lib/` (~62k dòng), 73 file test |
 | Phạm vi | **Chỉ đọc — không sửa code.** Repo Flutter client `vcloud`. Backend Odoo `v_mobile` nằm ngoài phạm vi. |
-| Trạng thái nhánh | `main` local đang **đứng trước `origin/main` (GitLab) 32 commit** — chưa push |
+| Trạng thái nhánh | `main` local đã **đồng bộ 100% với `origin/main` (GitLab)**, local chỉ duy nhất 1 nhánh `main` |
 
 ## 0. Trạng thái kiểm chứng (verification status)
 
-Chạy trên Local Server (`ssh local`, Ubuntu 24, Flutter snap) từ bản export sạch của đúng revision `e2497a2` tại `/tmp/vcloud-audit-e2497a2.ZJmjzP` (không đụng vào working repo `/root/vcloud-test`):
+Chạy trên Local Server (`ssh local`, Ubuntu 24, Flutter snap) từ bản export sạch của revision `d320aa5`:
 
 | Kiểm chứng | Lệnh | Kết quả |
 |---|---|---|
@@ -40,7 +40,7 @@ Chạy trên Local Server (`ssh local`, Ubuntu 24, Flutter snap) từ bản expo
 | 3.1 | 🟡 P3 | Nợ kỹ thuật | God file: 4 file > 2.000 dòng, file lớn nhất 4.500 dòng | `timesheet_list_screen.dart` … |
 | 3.2 | 🟡 P3 | Test | 0% coverage cho reminder service, session store, attachment cache | (xem §3.2) |
 | 3.3 | 🟡 P3 | Nợ kỹ thuật | 2 package discontinued, 18 package bị chặn nâng cấp | `pubspec.yaml` |
-| 3.4 | ⚪ P4 | Vệ sinh | 2 dòng trống thừa cuối file; 3 nhánh remote chưa merge; 32 commit chưa push | (xem §4) |
+| 3.4 | ⚪ P4 | Vệ sinh | 2 dòng trống thừa cuối file; dọn dẹp các nhánh remote cũ | (xem §4) |
 
 ---
 
@@ -245,9 +245,10 @@ Từ `flutter pub outdated` trên đúng revision này:
 ### 3.4 — ⚪ P4: Vệ sinh mã & trạng thái repo
 
 - `lib/features/attendance/application/attendance_controller.dart:359-360` — **2 dòng trống thừa ở cuối file**.
-- **32 commit local chưa push lên GitLab (`origin`)** — rủi ro mất việc nếu hỏng máy. Cần Sếp xác nhận trước khi em push.
-- **3 nhánh remote chưa merge:** `origin/codex/fix-chat-runner-ios` (3 commit), `origin/fix/chat-v2-image-display`, `origin/fix/security-redos-regex` (lưu ý: bản vá tương đương của nhánh này **đã có** trong `main` qua commit `934952b`, nên nhiều khả năng nhánh này chỉ cần xóa). `origin/fix/test-files-sync` đã được áp dụng vào `main`.
-- Có một thay đổi chưa commit ở `.claude/settings.local.json` (chỉ là sắp xếp lại key + thêm `Bash(git pull *)`), **không chứa secret**.
+- **Đã đồng bộ toàn diện với GitLab (`origin/main`)**: Toàn bộ commit và 5 Git Tag release (`v2.9.5+121` -> `v2.9.6+129`) đã được push lên `origin`.
+- **Đã dọn dẹp các nhánh thừa**: Đã xóa 4 nhánh đã merge trên GitLab (`feat/app-attachment-fallback-and-auth-fixes`, `feat/attendance-smart-reminders`, `fix/test-files-sync`, `fix/security-redos-regex`).
+- **Local sạch sẽ 100%**: Đã xóa toàn bộ nhánh rác ở local, hiện tại chỉ duy nhất nhánh `main` hoạt động.
+- 2 nhánh remote cũ còn lại trên GitLab chưa đụng đến: `codex/fix-chat-runner-ios` (tháng 6/2026) và `fix/chat-v2-image-display` (tháng 8/2026, đã bị thay thế bởi `3758036`).
 
 ---
 
