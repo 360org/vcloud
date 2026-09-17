@@ -1,12 +1,18 @@
 {
-  "allowedWorkspaces": [
-    "/Volumes/DATA/DEV/flutter/*",
-    "/Volumes/DATA/DEV/MOBILES/VCloud/*"
-  ],
   "permissions": {
     "additionalDirectories": [
       "/Volumes/DATA/DEV/flutter",
       "/Volumes/DATA/DEV/MOBILES/VCloud"
+    ],
+    "allow": [
+      "Bash(git pull *)"
     ]
+  },
+  "allowedWorkspaces": [
+    "/Volumes/DATA/DEV/flutter/*",
+    "/Volumes/DATA/DEV/MOBILES/VCloud/*"
+  ],
+  "env": {
+    "CLAUDE_CODE_MAX_CONTEXT_TOKENS": "200000"
   }
 }
