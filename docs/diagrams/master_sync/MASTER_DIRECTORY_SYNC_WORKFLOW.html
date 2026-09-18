@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cơ Chế Hoạt Động Master Hub & databases.user — VCloud Ecosystem</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'default',
+      themeVariables: {
+        fontSize: '15px',
+        fontFamily: 'system-ui, -apple-system, sans-serif'
+      },
+      flowchart: {
+        curve: 'linear',
+        useMaxWidth: false,
+        htmlLabels: true,
+        nodeSpacing: 40,
+        rankSpacing: 45
+      }
+    });
+  </script>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: #f8fafc;
+      color: #0f172a;
+    }
+    .diagram-scroll-pane {
+      overflow-x: auto;
+      overflow-y: visible;
+      padding: 30px 16px;
+      width: 100%;
+      text-align: center;
+      background-color: #ffffff;
+      border-radius: 16px;
+      border: 1px solid #cbd5e1;
+      box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05);
+    }
+    .diagram-inner {
+      display: inline-block;
+      text-align: left;
+      margin: 0 auto;
+      padding: 10px 20px;
+      min-width: 700px;
+    }
+    .mermaid svg {
+      height: auto !important;
+      overflow: visible !important;
+    }
+    .mermaid .nodeLabel {
+      font-size: 15px !important;
+      font-weight: 600 !important;
+      line-height: 1.45 !important;
+    }
+    .mermaid .edgeLabel {
+      font-size: 13px !important;
+      font-weight: 700 !important;
+      color: #0369a1 !important;
+      background-color: #ffffff !important;
+      padding: 3px 8px !important;
+      border: 1px solid #93c5fd !important;
+      border-radius: 6px !important;
+    }
+  </style>
+</head>
+<body class="p-4 md:p-8 max-w-6xl mx-auto space-y-6">
+
+  <!-- HEADER -->
+  <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+    <div class="flex flex-col md:flex-row md:items-center justify-between border-b border-slate-100 pb-4 mb-4 gap-4">
+      <div class="flex items-center space-x-3">
+        <span class="w-12 h-12 rounded-xl bg-sky-600 text-white font-black flex items-center justify-center text-2xl shadow">M</span>
+        <div>
+          <h1 class="text-xl md:text-2xl font-black text-slate-900 leading-tight">
+            KIẾN TRÚC MASTER HUB &amp; SỔ DANH BẠ <code>databases.user</code>
+          </h1>
+          <p class="text-xs md:text-sm text-slate-500 font-medium">
+            Giải mã bản chất vì sao phải nạp tài khoản lên Master và quy trình vận hành Zero-Touch khi tạo User mới
+          </p>
+        </div>
+      </div>
+      <!-- ZOOM BUTTONS -->
+      <div class="flex items-center space-x-2">
+        <button onclick="changeZoom(-0.1)" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold rounded-lg transition">
+          <i class="fa-solid fa-magnifying-glass-minus"></i>
+        </button>
+        <button onclick="resetZoom()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold rounded-lg transition">
+          100%
+        </button>
+        <button onclick="changeZoom(0.1)" class="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-sm font-bold rounded-lg transition">
+          <i class="fa-solid fa-magnifying-glass-plus"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- BẢNG SO SÁNH GIẢI ĐÁP THẮC MẮC CỦA SẾP TÂN -->
+    <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs md:text-sm text-amber-950 mb-4">
+      <div class="font-bold text-amber-900 text-base mb-2 flex items-center gap-2">
+        <i class="fa-solid fa-circle-question text-amber-600 text-lg"></i>
+        Câu hỏi của Sếp: "Tại sao DB khách hàng đã có tài khoản rồi mà vẫn phải nạp lên Master.users? Có bị vòng không?"
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+        <div class="bg-white p-3 rounded-lg border border-red-200">
+          <div class="font-bold text-red-700 flex items-center gap-1.5 mb-1.5">
+            <i class="fa-solid fa-triangle-exclamation"></i> Kịch bản NẾU KHÔNG CÓ Master Hub (Kiểu Odoo gốc)
+          </div>
+          <ul class="list-disc list-inside space-y-1 text-slate-600">
+            <li>Người dùng mở app di động <b>phải tự gõ URL</b>: <code>https://nds.vuahethong.net</code> và tự chọn Database.</li>
+            <li>Nhân viên &amp; khách hàng <b>không thể nhớ nổi domain/DB</b> của công ty mình ➔ 90% bỏ không dùng app.</li>
+            <li>Nếu 1 người làm ở 2 công ty (dùng chung email), app không có cách nào biết họ có tài khoản ở công ty thứ 2.</li>
+          </ul>
+        </div>
+        <div class="bg-white p-3 rounded-lg border border-emerald-200">
+          <div class="font-bold text-emerald-700 flex items-center gap-1.5 mb-1.5">
+            <i class="fa-solid fa-circle-check"></i> Kịch bản CÓ Master Hub &amp; databases.user (VCloud Chuẩn)
+          </div>
+          <ul class="list-disc list-inside space-y-1 text-slate-600">
+            <li>Người dùng chỉ cần nhập <b>Email &amp; Mật khẩu</b> (như Slack, Telegram, Discord).</li>
+            <li>Master Hub đóng vai trò <b>"Tổng đài danh bạ DNS"</b>: Chỉ nhớ <code>Login ➔ Thuộc Database nào</code> (Hoàn toàn KHÔNG lưu mật khẩu - Zero Knowledge).</li>
+            <li><b>Không hề làm tay</b>: Admin tạo user ở DB khách hàng, hệ thống <b>tự động bắn webhook ngầm</b> lên Master trong 0ms. Admin không tốn thêm 1 thao tác nào!</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SƠ ĐỒ 1: SƠ ĐỒ HOẠT ĐỘNG (ACTIVITY DIAGRAM) QUY TRÌNH TẠO USER & SYNC -->
+  <div class="diagram-scroll-pane">
+    <div class="text-left font-bold text-slate-800 text-lg mb-4 flex items-center gap-2">
+      <span class="w-7 h-7 rounded-lg bg-sky-600 text-white flex items-center justify-center text-sm font-black">1</span>
+      Sơ Đồ Hoạt Động (Activity Diagram): Vòng Đời Cấp Phát &amp; Đồng Bộ Danh Bạ Tự Động
+    </div>
+    <div id="diagram-container" class="diagram-inner">
+      <div class="mermaid">
+flowchart TD
+    %% ==========================================
+    %% KHỞI TẠO
+    %% ==========================================
+    START((●))
+    PRE["<b>Pre-condition</b>:<br/>Khách hàng sở hữu Database Odoo Tenant riêng biệt<br/>(Ví dụ: NDS Group, Davita, Salem)"]
+
+    %% ==========================================
+    %% BƯỚC 1: THAO TÁC ADMIN TẠI CLIENT DB
+    %% ==========================================
+    subgraph SG_CLIENT["🏢 PHÂN VÙNG 1: ODOO CLIENT WEB (DB KHÁCH HÀNG)"]
+        ACT_INPUT["<b>1. Admin tạo User mới</b><br/>Admin khách hàng vào Odoo Web ➔ Settings ➔ Users<br/>• Nhập Email/Login &amp; Password<br/>• Bấm 'LƯU' (Save)"]
+        ORM_CREATE["<b>2. Odoo ORM thực thi res.users.create()</b><br/>Lưu thông tin User &amp; Hash mật khẩu<br/>vào Database PostgreSQL của riêng khách hàng"]
+        DB_COMMIT["<b>3. Commit Transaction an toàn</b><br/>env.cr.commit() thành công 100%<br/>➔ Giao diện Web lưu ngay, phản hồi 0ms delay"]
+        HOOK_POST["<b>4. Hook res.users bắt sự kiện qua postcommit</b><br/>Kiểm tra trigger: login mới hoặc active thay đổi<br/>➔ Lên lịch dispatch gửi webhook nền"]
+    end
+
+    %% ==========================================
+    %% BƯỚC 2: CẦU NỐI WEBHOOK BẤT ĐỒNG BỘ
+    %% ==========================================
+    subgraph SG_DAEMON["⚡ PHÂN VÙNG 2: DAEMON BACKGROUND THREAD (BẤT ĐỒNG BỘ)"]
+        SPAWN_THREAD["<b>5. Kích hoạt Thread nền riêng biệt</b><br/>Khởi chạy threading.Thread(daemon=True)<br/>Không làm đơ / không nghẽn luồng Odoo Web của khách"]
+        PREPARE_PAYLOAD["<b>6. Đóng gói Payload &amp; Tạo Signature Bảo mật</b><br/>• Database Name: 'client_db'<br/>• Login: 'user@gmail.com'<br/>• Action: 'upsert'<br/>• Header Authorization: Bearer HMAC-SHA256 Token"]
+        SEND_HTTP["<b>7. Bắn HTTP POST sang Master Hub</b><br/>POST https://vuahethong.net/api/v1/mobile/master/sync-tenant-user<br/><i>(Timeout 4s fail-safe: Nếu Master bận, ghi log cảnh báo, không làm hỏng DB khách)</i>"]
+    end
+
+    %% ==========================================
+    %% BƯỚC 3: XỬ LÝ TẠI MASTER HUB
+    %% ==========================================
+    subgraph SG_MASTER["🌐 PHÂN VÙNG 3: MASTER HUB (vuahethong.net)"]
+        RECV_WEBHOOK["<b>8. Master tiếp nhận Webhook</b><br/>Endpoint master_sync_tenant_user kiểm tra request"]
+        VERIFY_TOKEN{"Token Bearer / HMAC<br/>có hợp lệ không?"}
+        REJECT_403["<b>Từ chối request (403 Forbidden)</b><br/>Chặn truy cập giả mạo"]
+        END_REJECT((⨂))
+
+        FIND_PROJECT{"Tìm project.project<br/>khớp database_name?"}
+        REJECT_404["<b>Báo lỗi không tìm thấy Tenant (404)</b><br/>Tenant chưa đăng ký trên Master"]
+        END_404((⨂))
+
+        CHECK_EXISTS{"User đã có trong<br/>bảng databases.user chưa?"}
+        ACT_UPDATE["<b>Cập nhật bản ghi hiện hữu</b><br/>Mở khóa is_blocked = False<br/>(Trường hợp unarchive tài khoản)"]
+        ACT_INSERT["<b>Tạo mới bản ghi databases.user</b><br/>• login = 'user@gmail.com'<br/>• project_id = project.id<br/>• is_blocked = False<br/><i>(LƯU Ý: Master KHÔNG lưu mật khẩu!)</i>"]
+        COMMIT_MASTER["<b>9. Commit Sổ danh bạ databases.user</b><br/>Hoàn tất đồng bộ danh bạ 100%!"]
+    end
+
+    %% ==========================================
+    %% BƯỚC 4: NGƯỜI DÙNG ĐĂNG NHẬP TRÊN APP
+    %% ==========================================
+    subgraph SG_MOBILE["📱 PHÂN VÙNG 4: VCLOUD MOBILE APP (HƯỞNG LỢI)"]
+        USER_LOGIN["<b>10. Người dùng mở App &amp; Đăng nhập</b><br/>Người dùng mở VCloud App, chỉ nhập Email &amp; Pass<br/>➔ App hỏi Master: 'Email này ở DB nào?'"]
+        MASTER_ANSWER["<b>11. Master tra cứu databases.user trả về ngay DB</b><br/>Master tìm ra đúng Tenant DB của khách hàng<br/>➔ App kết nối thẳng vào DB khách hàng để đăng nhập!"]
+        END_APP(((◎)))
+    end
+
+    %% LIÊN KẾT LUỒNG DỌC
+    START --> PRE
+    PRE --> ACT_INPUT
+    ACT_INPUT --> ORM_CREATE
+    ORM_CREATE --> DB_COMMIT
+    DB_COMMIT --> HOOK_POST
+
+    HOOK_POST --> SPAWN_THREAD
+    SPAWN_THREAD --> PREPARE_PAYLOAD
+    PREPARE_PAYLOAD --> SEND_HTTP
+
+    SEND_HTTP --> RECV_WEBHOOK
+    RECV_WEBHOOK --> VERIFY_TOKEN
+
+    VERIFY_TOKEN -- "[ Sai Token ]" --> REJECT_403
+    REJECT_403 --> END_REJECT
+
+    VERIFY_TOKEN -- "[ Token Hợp lệ ]" --> FIND_PROJECT
+
+    FIND_PROJECT -- "[ Không tìm thấy ]" --> REJECT_404
+    REJECT_404 --> END_404
+
+    FIND_PROJECT -- "[ Tìm thấy Project ]" --> CHECK_EXISTS
+
+    CHECK_EXISTS -- "[ Đã có trong danh bạ ]" --> ACT_UPDATE
+    CHECK_EXISTS -- "[ Chưa có trong danh bạ ]" --> ACT_INSERT
+
+    ACT_UPDATE --> COMMIT_MASTER
+    ACT_INSERT --> COMMIT_MASTER
+
+    COMMIT_MASTER -. "⚡ Danh bạ sẵn sàng" .-> USER_LOGIN
+    USER_LOGIN --> MASTER_ANSWER
+    MASTER_ANSWER --> END_APP
+
+    %% ĐỊNH DẠNG MÀU SẮC
+    classDef clientStyle fill:#e0f2fe,stroke:#0284c7,stroke-width:2px,color:#0369a1;
+    classDef daemonStyle fill:#fef3c7,stroke:#f59e0b,stroke-width:2px,color:#78350f;
+    classDef masterStyle fill:#f0fdf4,stroke:#16a34a,stroke-width:2px,color:#14532d;
+    classDef mobileStyle fill:#ede9fe,stroke:#8b5cf6,stroke-width:2px,color:#5b21b6;
+    classDef failStyle fill:#fee2e2,stroke:#ef4444,stroke-width:2px,color:#991b1b;
+    classDef startStyle fill:#0f172a,stroke:#0f172a,stroke-width:3px,color:#ffffff;
+    classDef endStyle fill:#15803d,stroke:#15803d,stroke-width:3px,color:#ffffff;
+
+    class START startStyle;
+    class END_APP endStyle;
+    class REJECT_403,REJECT_404,END_REJECT,END_404 failStyle;
+    class ACT_INPUT,ORM_CREATE,DB_COMMIT,HOOK_POST clientStyle;
+    class SPAWN_THREAD,PREPARE_PAYLOAD,SEND_HTTP daemonStyle;
+    class RECV_WEBHOOK,COMMIT_MASTER,ACT_UPDATE,ACT_INSERT masterStyle;
+    class USER_LOGIN,MASTER_ANSWER mobileStyle;
+      </div>
+    </div>
+  </div>
+
+  <!-- SƠ ĐỒ 2: BIỂU ĐỒ TRÌNH TỰ (SEQUENCE DIAGRAM) TRỰC QUAN -->
+  <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+    <div class="text-left font-bold text-slate-800 text-lg mb-4 flex items-center gap-2">
+      <span class="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center text-sm font-black">2</span>
+      Biểu Đồ Trình Tự Thời Gian (Sequence Diagram): Tương Tác Giữa Các Hệ Thống
+    </div>
+    <div class="overflow-x-auto p-4 bg-slate-50 rounded-xl border border-slate-200">
+      <div class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Admin as 👨‍💼 Admin Khách Hàng
+    participant ClientWeb as 💻 Odoo Web (Client DB)
+    participant ClientHook as ⚙️ Hook res.users (Daemon)
+    participant Master as 🌐 Master Hub (vuahethong.net)
+    participant DBUser as 🗄️ Bảng databases.user
+    actor User as 📱 Người Dùng Mobile
+    participant App as 📲 VCloud Mobile App
+
+    %% GIAI ĐOẠN TẠO USER
+    Note over Admin, ClientWeb: GIAI ĐOẠN 1: CẤP PHÁT TÀI KHOẢN TẠI DB KHÁCH HÀNG
+    Admin->>ClientWeb: 1. Tạo User (Email, Password, Nhóm quyền)
+    ClientWeb->>ClientWeb: 2. Lưu vào PostgreSQL Client (res.users)
+    ClientWeb->>ClientWeb: 3. Commit Database an toàn 100%
+    ClientWeb-->>Admin: 4. Giao diện Web báo thành công (0ms delay!)
+
+    %% BẮN WEBHOOK NGẦM
+    Note over ClientHook, Master: GIAI ĐOẠN 2: ĐỒNG BỘ WEBHOOK CHẠY NGẦM (BACKGROUND)
+    ClientWeb->>ClientHook: 5. postcommit kích hoạt Thread nền daemon
+    ClientHook->>Master: 6. POST /api/v1/mobile/master/sync-tenant-user<br/>{ database_name: "nds_db", login: "a@gmail.com", action: "upsert" }
+    Master->>Master: 7. Xác thực Token Bearer HMAC-SHA256
+    Master->>DBUser: 8. Upsert: Ghi cặp (login: "a@gmail.com", project_id: NDS)
+    DBUser-->>Master: 9. Xác nhận đã lưu vào Sổ danh bạ
+    Master-->>ClientHook: 10. HTTP 200 OK: { status: "ok", count: 1 }
+
+    %% GIAI ĐOẠN NGƯỜI DÙNG ĐĂNG NHẬP
+    Note over User, App: GIAI ĐOẠN 3: NGƯỜI DÙNG ĐĂNG NHẬP TRÊN MOBILE
+    User->>App: 11. Mở App VCloud, nhập "a@gmail.com" & Mật khẩu
+    App->>Master: 12. POST /api/v1/auth/lookup-db { login: "a@gmail.com" }
+    Master->>DBUser: 13. Tìm kiếm "a@gmail.com" thuộc database nào?
+    DBUser-->>Master: 14. Trả về: project_id NDS ➔ Database "nds_db"
+    Master-->>App: 15. Trả về thông tin: DB "nds_db", URL "https://nds.vuahethong.net"
+    App->>ClientWeb: 16. Gửi xác thực trực tiếp tới DB NDS:<br/>POST /web/session/authenticate { db, login, pass }
+    ClientWeb-->>App: 17. Đăng nhập thành công! Cấp JWT Token & Session ID
+    App-->>User: 18. Vào màn hình chính, làm việc ngay!
+      </div>
+    </div>
+  </div>
+
+  <!-- TỔNG KẾT 4 ĐIỂM CỐT LÕI -->
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs md:text-sm">
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+      <div class="font-bold text-sky-700 flex items-center gap-2 mb-1.5">
+        <i class="fa-solid fa-bolt"></i> 1. Zero-Delay Web UI
+      </div>
+      <p class="text-slate-600">
+        Admin tạo tài khoản trên web lưu ngay lập tức. Webhook chạy trong daemon thread ở <code>postcommit</code> nên không ảnh hưởng tốc độ Odoo Web.
+      </p>
+    </div>
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+      <div class="font-bold text-emerald-700 flex items-center gap-2 mb-1.5">
+        <i class="fa-solid fa-shield-halved"></i> 2. Zero-Knowledge Bảo Mật
+      </div>
+      <p class="text-slate-600">
+        Master Hub và <code>databases.user</code> <b>tuyệt đối không lưu mật khẩu</b>. Mật khẩu chỉ nằm tại PostgreSQL cô lập của riêng từng khách hàng.
+      </p>
+    </div>
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+      <div class="font-bold text-purple-700 flex items-center gap-2 mb-1.5">
+        <i class="fa-solid fa-compass"></i> 3. Smart Routing Định Tuyến
+      </div>
+      <p class="text-slate-600">
+        Người dùng không cần nhớ domain hay tên database. Nhập email là Master Hub tự điều hướng chuẩn xác tới đúng database của công ty.
+      </p>
+    </div>
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+      <div class="font-bold text-amber-700 flex items-center gap-2 mb-1.5">
+        <i class="fa-solid fa-building-user"></i> 4. Hỗ Trợ Đa Công Ty (Multi-DB)
+      </div>
+      <p class="text-slate-600">
+        Nếu một email làm việc cho 2 công ty (ví dụ: Sếp Tân hay Kế toán), Master Hub phát hiện ngay và bật Dropdown chọn công ty trên App.
+      </p>
+    </div>
+  </div>
+
+  <script>
+    let currentZoom = 1.0;
+    function changeZoom(delta) {
+      currentZoom = Math.max(0.7, Math.min(2.0, currentZoom + delta));
+      const el = document.getElementById('diagram-container');
+      el.style.zoom = currentZoom;
+    }
+    function resetZoom() {
+      currentZoom = 1.0;
+      const el = document.getElementById('diagram-container');
+      el.style.zoom = 1.0;
+    }
+  </script>
+</body>
+</html>

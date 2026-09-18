@@ -1,0 +1,372 @@
+<mxfile host="app.diagrams.net" modified="2026-09-15T12:00:00.000Z" agent="AIaC 3.0" version="21.0.0" type="device">
+  <diagram id="activity-diagram-comprehensive" name="UML Activity Diagram End-to-End">
+    <mxGraphModel dx="1200" dy="1800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="900" pageHeight="1750" background="#FFFFFF" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- TIÊU ĐỀ HỆ THỐNG -->
+        <mxCell id="title" value="UML ACTIVITY DIAGRAM TOÀN DIỆN (END-TO-END)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1;fontColor=#0F172A;" vertex="1" parent="1">
+          <mxGeometry x="150" y="20" width="600" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" value="Quy trình 3 Giai đoạn: Cấp phát / Sync Danh bạ ➔ Đăng nhập VCloud Mobile ➔ Phân quyền Nghiệp vụ" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontColor=#64748B;" vertex="1" parent="1">
+          <mxGeometry x="150" y="50" width="600" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- Pre-condition & Khởi tạo -->
+        <mxCell id="start_node" value="" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#000000;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="435" y="85" width="30" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="lbl_pre" value="Pre-condition: Khách hàng sử dụng Odoo &amp; VCloud Mobile" style="text;html=1;strokeColor=none;fillColor=none;align=right;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;fontColor=#64748B;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="110" y="90" width="310" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- Decision 0: Đã có tài khoản chưa? (Phân nhánh User Cũ vs User Mới) -->
+        <mxCell id="dec_account" value="Kiểm tra trạng thái:&#xa;Đã có tài khoản chưa?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#E0F2FE;strokeColor=#0284C7;fontColor=#0369A1;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="375" y="130" width="150" height="65" as="geometry" />
+        </mxCell>
+
+        <!-- ========================================== -->
+        <!-- GIAI ĐOẠN 1: CẤP PHÁT & SYNC (USER MỚI)  -->
+        <!-- ========================================== -->
+        <mxCell id="box_g1" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#CBD5E1;strokeWidth=1;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="70" y="215" width="510" height="245" as="geometry" />
+        </mxCell>
+        <mxCell id="lbl_g1_tag" value="GIAI ĐOẠN 1: CẤP PHÁT &amp; SYNC DANH BẠ (DÀNH CHO USER MỚI)" style="text;html=1;strokeColor=none;fillColor=#0284C7;fontColor=#FFFFFF;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontSize=11;fontStyle=1;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="80" y="225" width="450" height="22" as="geometry" />
+        </mxCell>
+
+        <!-- Bước 1.1: Admin tạo user hoặc batch sync -->
+        <mxCell id="step_1_1" value="Bước 1.1 (Actor Input): Admin khách hàng tạo User trên Odoo Web&#xa;(Hoặc chạy Batch Sync danh bạ hàng loạt khi mới triển khai hệ thống)&#xa;• Nhập Email, Mật khẩu • Chọn nhóm: Internal hoặc Portal" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#38BDF8;strokeColor=#0284C7;fontColor=#FFFFFF;fontSize=11;fontStyle=1;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="90" y="255" width="470" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Bước 1.2: Postcommit safe -->
+        <mxCell id="step_1_2" value="Bước 1.2 (System Step): Odoo Client Commit Database an toàn 100%&#xa;➔ Hook res.users bắt sự kiện qua env.cr.postcommit (0ms delay UI)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#38BDF8;strokeColor=#0284C7;fontColor=#FFFFFF;fontSize=11;fontStyle=1;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="90" y="318" width="470" height="42" as="geometry" />
+        </mxCell>
+
+        <!-- Bước 1.3: Webhook sang Master -->
+        <mxCell id="step_1_3" value="Bước 1.3 (System Step): Daemon Thread tự bắn Webhook sang Master Hub&#xa;POST /api/v1/mobile/master/sync-tenant-user ➔ Ghi vào [databases.user]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#38BDF8;strokeColor=#0284C7;fontColor=#FFFFFF;fontSize=11;fontStyle=1;arcSize=20;" vertex="1" parent="1">
+          <mxGeometry x="90" y="373" width="470" height="42" as="geometry" />
+        </mxCell>
+
+        <!-- Merge Node Ready (Hội tụ trước khi vào App) -->
+        <mxCell id="merge_ready" value="" style="rhombus;whiteSpace=wrap;html=1;fillColor=#E0F2FE;strokeColor=#0284C7;" vertex="1" parent="1">
+          <mxGeometry x="435" y="480" width="30" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- ========================================== -->
+        <!-- GIAI ĐOẠN 2: MOBILE ĐĂNG NHẬP (HÀNG NGÀY) -->
+        <!-- ========================================== -->
+        <mxCell id="box_g2" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0F9FF;strokeColor=#BAE6FD;strokeWidth=1;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="70" y="535" width="760" height="735" as="geometry" />
+        </mxCell>
+        <mxCell id="lbl_g2_tag" value="GIAI ĐOẠN 2: NGƯỜI DÙNG ĐĂNG NHẬP TRÊN VCLOUD MOBILE APP" style="text;html=1;strokeColor=none;fillColor=#0284C7;fontColor=#FFFFFF;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontSize=11;fontStyle=1;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="80" y="545" width="450" height="25" as="geometry" />
+        </mxCell>
+
+        <!-- Bước 2.1: Mở app & nhập creds -->
+        <mxCell id="step_2_1" value="Bước 2.1 (Actor Input): Người dùng mở VCloud Mobile App&#xa;Nhập Username &amp; Password (chưa hiện ô DB) ➔ Bấm &quot;ĐĂNG NHẬP&quot;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#38BDF8;strokeColor=#0284C7;fontColor=#FFFFFF;fontSize=12;fontStyle=1;arcSize=25;" vertex="1" parent="1">
+          <mxGeometry x="235" y="585" width="430" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Bước 2.2: Tra cứu Master -->
+        <mxCell id="step_2_2" value="Bước 2.2 (System Step): App gửi API tra cứu danh bạ Master Hub&#xa;POST /api/v1/auth/lookup-db { login: &quot;...&quot; }" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#38BDF8;strokeColor=#0284C7;fontColor=#FFFFFF;fontSize=12;fontStyle=1;arcSize=25;" vertex="1" parent="1">
+          <mxGeometry x="235" y="655" width="430" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Decision 1: Có tài khoản không? -->
+        <mxCell id="dec_exist" value="Tài khoản&#xa;có trong&#xa;danh bạ?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#E0F2FE;strokeColor=#0284C7;fontColor=#0369A1;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="405" y="725" width="90" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- Nhánh không tồn tại -->
+        <mxCell id="act_err_exist" value="Báo lỗi: Tài khoản không tồn tại trên hệ thống" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEE2E2;strokeColor=#EF4444;fontColor=#991B1B;fontSize=11;fontStyle=1;arcSize=25;" vertex="1" parent="1">
+          <mxGeometry x="540" y="735" width="230" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="end_fail1" value="" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#EF4444;strokeColor=#991B1B;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="810" y="747" width="26" height="26" as="geometry" />
+        </mxCell>
+
+        <!-- Decision 2: 1 hay nhiều DB? -->
+        <mxCell id="dec_multi" value="Thuộc &gt;= 2&#xa;Database?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#E0F2FE;strokeColor=#0284C7;fontColor=#0369A1;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="405" y="825" width="90" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- Alternative Flow: Nhiều DB -->
+        <mxCell id="step_pick_db" value="Alternative Flow: Form bật thêm Dropdown Database&#xa;➔ Người dùng chọn Công ty mong muốn" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#F59E0B;fontColor=#78350F;fontSize=11;fontStyle=1;arcSize=25;" vertex="1" parent="1">
+          <mxGeometry x="540" y="835" width="230" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Merge Point DB -->
+        <mxCell id="merge_db" value="" style="rhombus;whiteSpace=wrap;html=1;fillColor=#E0F2FE;strokeColor=#0284C7;" vertex="1" parent="1">
+          <mxGeometry x="435" y="925" width="30" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="lbl_basic_flow" value="Basic Flow (1 DB: Tự động chọn)" style="text;html=1;strokeColor=none;fillColor=none;align=right;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;fontColor=#0284C7;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="240" y="850" width="160" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- Bước 2.3: Xác thực tại Client DB -->
+        <mxCell id="step_2_3" value="Bước 2.3 (System Step): App gửi xác thực trực tiếp tới Client DB&#xa;POST /web/session/authenticate { db, login, password } (Zero-Knowledge)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#38BDF8;strokeColor=#0284C7;fontColor=#FFFFFF;fontSize=12;fontStyle=1;arcSize=25;" vertex="1" parent="1">
+          <mxGeometry x="230" y="980" width="440" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Decision 3: Mật khẩu chính xác? -->
+        <mxCell id="dec_pass" value="Mật khẩu&#xa;chính xác?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#E0F2FE;strokeColor=#0284C7;fontColor=#0369A1;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="405" y="1055" width="90" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- Nhánh sai mật khẩu -->
+        <mxCell id="act_err_pass" value="Báo lỗi: Mật khẩu không chính xác" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEE2E2;strokeColor=#EF4444;fontColor=#991B1B;fontSize=11;fontStyle=1;arcSize=25;" vertex="1" parent="1">
+          <mxGeometry x="540" y="1065" width="230" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Fork Bar (Parallel Activities) -->
+        <mxCell id="fork_bar" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#000000;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="325" y="1155" width="250" height="8" as="geometry" />
+        </mxCell>
+        <mxCell id="lbl_parallel" value="Parallel Activities" style="text;html=1;strokeColor=none;fillColor=none;align=right;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;fontColor=#64748B;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="180" y="1150" width="130" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- Bước 2.4a & 2.4b Song song -->
+        <mxCell id="step_2_4a" value="Bước 2.4a: Lưu Token / Session&#xa;vào Secure Storage" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#38BDF8;strokeColor=#0284C7;fontColor=#FFFFFF;fontSize=11;fontStyle=1;arcSize=25;" vertex="1" parent="1">
+          <mxGeometry x="250" y="1190" width="180" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="step_2_4b" value="Bước 2.4b: Tải Hồ sơ User&#xa;&amp; Khởi tạo State Riverpod" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#38BDF8;strokeColor=#0284C7;fontColor=#FFFFFF;fontSize=11;fontStyle=1;arcSize=25;" vertex="1" parent="1">
+          <mxGeometry x="470" y="1190" width="180" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- Join Bar -->
+        <mxCell id="join_bar" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#000000;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="325" y="1260" width="250" height="8" as="geometry" />
+        </mxCell>
+
+
+        <!-- ========================================== -->
+        <!-- GIAI ĐOẠN 3: PHÂN QUYỀN VÀ MỞ NGHIỆP VỤ -->
+        <!-- ========================================== -->
+        <mxCell id="box_g3" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0FDF4;strokeColor=#BBF7D0;strokeWidth=1;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="70" y="1295" width="760" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="lbl_g3_tag" value="GIAI ĐOẠN 3: PHÂN LOẠI QUYỀN HẠN &amp; MỞ GIAO DIỆN NGHIỆP VỤ" style="text;html=1;strokeColor=none;fillColor=#16A34A;fontColor=#FFFFFF;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontSize=11;fontStyle=1;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="80" y="1305" width="450" height="25" as="geometry" />
+        </mxCell>
+
+        <!-- Decision 4: Loại tài khoản? -->
+        <mxCell id="dec_role" value="Loại tài khoản&#xa;(user_type)?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#DCFCE7;strokeColor=#16A34A;fontColor=#14532D;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="395" y="1350" width="110" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- Nhánh Internal User -->
+        <mxCell id="role_internal" value="Giao diện Nhân viên (Internal User):&#xa;Mở toàn bộ: Chấm công GPS, Bảng chấm công (Timesheet),&#xa;Quản lý công việc (Task), Kênh Chat, Quản lý Vé (Ticket)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCFCE7;strokeColor=#16A34A;fontColor=#14532D;fontSize=11;fontStyle=1;arcSize=25;" vertex="1" parent="1">
+          <mxGeometry x="120" y="1450" width="320" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Nhánh Portal User -->
+        <mxCell id="role_portal" value="Giao diện Khách hàng (Portal User):&#xa;Kích hoạt decorator [deny_portal] (Chặn route nội bộ 403),&#xa;Chỉ mở Kênh Chat &amp; Gửi Vé hỗ trợ" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF9C3;strokeColor=#CA8A04;fontColor=#713F12;fontSize=11;fontStyle=1;arcSize=25;" vertex="1" parent="1">
+          <mxGeometry x="470" y="1450" width="330" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Merge View Node -->
+        <mxCell id="merge_view" value="" style="rhombus;whiteSpace=wrap;html=1;fillColor=#E2E8F0;strokeColor=#94A3B8;" vertex="1" parent="1">
+          <mxGeometry x="435" y="1540" width="30" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Post-condition Final Node -->
+        <mxCell id="end_node" value="" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#000000;strokeColor=#000000;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="438" y="1600" width="24" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="end_outer" value="" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=none;strokeColor=#000000;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="433" y="1595" width="34" height="34" as="geometry" />
+        </mxCell>
+        <mxCell id="lbl_post" value="Post-condition: Người dùng sẵn sàng làm việc đúng quyền hạn" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;fontColor=#16A34A;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="270" y="1640" width="360" height="20" as="geometry" />
+        </mxCell>
+
+
+        <!-- ========================================== -->
+        <!-- CONTROL FLOW EDGES (CÁC MŨI TÊN ĐIỀU KHIỂN) -->
+        <!-- ========================================== -->
+        <mxCell id="e0" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0284C7;strokeWidth=1.5;" edge="1" parent="1" source="start_node" target="dec_account">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Nhánh 1: Người dùng MỚI -> Cấp phát -->
+        <mxCell id="e_dec_new" value="[Người dùng Mới / Chưa có TK]&#xa;Cần cấp phát tài khoản" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0284C7;strokeWidth=1.5;fontColor=#0284C7;fontSize=10;" edge="1" parent="1" source="dec_account" target="step_1_1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="325" y="163" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0284C7;strokeWidth=1.5;" edge="1" parent="1" source="step_1_1" target="step_1_2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0284C7;strokeWidth=1.5;" edge="1" parent="1" source="step_1_2" target="step_1_3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Webhook sync xong hội tụ về merge_ready -->
+        <mxCell id="e_sync_to_ready" value="⚡ Danh bạ đã nạp vào Master Hub" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0284C7;strokeWidth=1.5;dashed=1;fontColor=#0284C7;fontSize=10;" edge="1" parent="1" source="step_1_3" target="merge_ready">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="325" y="495" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Nhánh 2: Người dùng ĐÃ CÓ TÀI KHOẢN RỒI -> Bỏ qua Giai đoạn 1 -->
+        <mxCell id="e_dec_exist_user" value="[ĐÃ CÓ TÀI KHOẢN RỒI]&#xa;(Tài khoản &amp; Danh bạ đã sẵn sàng)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16A34A;strokeWidth=2;fontColor=#15803D;fontSize=10;" edge="1" parent="1" source="dec_account" target="merge_ready">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="680" y="163" />
+              <mxPoint x="680" y="495" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Từ merge_ready vào Bước 2.1 -->
+        <mxCell id="e_ready_to_step21" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0284C7;strokeWidth=2;" edge="1" parent="1" source="merge_ready" target="step_2_1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0284C7;strokeWidth=1.5;" edge="1" parent="1" source="step_2_1" target="step_2_2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0284C7;strokeWidth=1.5;" edge="1" parent="1" source="step_2_2" target="dec_exist">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Rẽ nhánh Decision 1 -->
+        <mxCell id="e_dec1_no" value="[Không]" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#EF4444;strokeWidth=1.5;fontColor=#DC2626;fontSize=10;" edge="1" parent="1" source="dec_exist" target="act_err_exist">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_fail1_end" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#EF4444;strokeWidth=1.5;" edge="1" parent="1" source="act_err_exist" target="end_fail1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_dec1_yes" value="[Có]" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0284C7;strokeWidth=1.5;fontColor=#0284C7;fontSize=10;" edge="1" parent="1" source="dec_exist" target="dec_multi">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Rẽ nhánh Decision 2 -->
+        <mxCell id="e_dec2_multi" value="[&gt;= 2 DB]" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#F59E0B;strokeWidth=1.5;fontColor=#D97706;fontSize=10;" edge="1" parent="1" source="dec_multi" target="step_pick_db">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_pick_to_merge" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#F59E0B;strokeWidth=1.5;" edge="1" parent="1" source="step_pick_db" target="merge_db">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="655" y="940" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_dec2_single" value="[1 DB]" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0284C7;strokeWidth=1.5;fontColor=#0284C7;fontSize=10;" edge="1" parent="1" source="dec_multi" target="merge_db">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Merge 1 sang Xác thực -->
+        <mxCell id="e_merge_to_step_2_3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0284C7;strokeWidth=1.5;" edge="1" parent="1" source="merge_db" target="step_2_3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0284C7;strokeWidth=1.5;" edge="1" parent="1" source="step_2_3" target="dec_pass">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Rẽ nhánh Decision 3: Mật khẩu -->
+        <mxCell id="e_dec3_wrong" value="[Sai]" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#EF4444;strokeWidth=1.5;fontColor=#DC2626;fontSize=10;" edge="1" parent="1" source="dec_pass" target="act_err_pass">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_loop_back" value="Quay lại nhập lại" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#EF4444;strokeWidth=1.5;dashed=1;fontColor=#DC2626;fontSize=10;" edge="1" parent="1" source="act_err_pass" target="step_2_1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="790" y="1090" />
+              <mxPoint x="790" y="610" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_dec3_right" value="[Đúng]" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16A34A;strokeWidth=1.5;fontColor=#16A34A;fontSize=10;" edge="1" parent="1" source="dec_pass" target="fork_bar">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Fork Bar ra 2 nhánh -->
+        <mxCell id="e_fork_a" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0284C7;strokeWidth=1.5;" edge="1" parent="1" source="fork_bar" target="step_2_4a">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="340" y="1175" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_fork_b" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0284C7;strokeWidth=1.5;" edge="1" parent="1" source="fork_bar" target="step_2_4b">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="560" y="1175" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- 2 nhánh hội tụ về Join Bar -->
+        <mxCell id="e_join_a" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0284C7;strokeWidth=1.5;" edge="1" parent="1" source="step_2_4a" target="join_bar">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="340" y="1245" />
+              <mxPoint x="380" y="1245" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_join_b" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0284C7;strokeWidth=1.5;" edge="1" parent="1" source="step_2_4b" target="join_bar">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="560" y="1245" />
+              <mxPoint x="520" y="1245" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Join Bar nối sang Giai đoạn 3 (Phân quyền) -->
+        <mxCell id="e_join_to_g3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16A34A;strokeWidth=1.5;" edge="1" parent="1" source="join_bar" target="dec_role">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Rẽ nhánh Decision 4: Phân quyền -->
+        <mxCell id="e_role_internal" value="[Internal User]" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16A34A;strokeWidth=1.5;fontColor=#16A34A;fontSize=10;" edge="1" parent="1" source="dec_role" target="role_internal">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="280" y="1385" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_role_portal" value="[Portal User]" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#CA8A04;strokeWidth=1.5;fontColor=#A16207;fontSize=10;" edge="1" parent="1" source="dec_role" target="role_portal">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="635" y="1385" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Hội tụ giao diện -->
+        <mxCell id="e_merge_internal" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16A34A;strokeWidth=1.5;" edge="1" parent="1" source="role_internal" target="merge_view">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="280" y="1555" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_merge_portal" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#CA8A04;strokeWidth=1.5;" edge="1" parent="1" source="role_portal" target="merge_view">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="635" y="1555" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Merge View ra Post-condition -->
+        <mxCell id="e_final" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16A34A;strokeWidth=1.5;" edge="1" parent="1" source="merge_view" target="end_outer">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

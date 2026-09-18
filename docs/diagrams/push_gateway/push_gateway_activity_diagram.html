@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sơ đồ Activity Diagram — Push Gateway API v1</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        :root {
+            --primary: #0077cd;
+            --accent: #00ce2c;
+            --bg-page: #0b0f19;
+            --card-bg: #111827;
+            --border: #1f2937;
+            --border-highlight: #374151;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --canvas-bg: #0b1120;
+            --grid-color: rgba(56, 189, 248, 0.08);
+            --edge-bg: #1e293b;
+            --edge-text: #f1f5f9;
+            --edge-border: #475569;
+        }
+
+        /* Light Canvas Theme */
+        body.light-theme {
+            --bg-page: #f1f5f9;
+            --card-bg: #ffffff;
+            --border: #cbd5e1;
+            --border-highlight: #94a3b8;
+            --text-main: #0f172a;
+            --text-muted: #475569;
+            --canvas-bg: #f8fafc;
+            --grid-color: rgba(0, 119, 205, 0.08);
+            --edge-bg: #ffffff;
+            --edge-text: #0f172a;
+            --edge-border: #cbd5e1;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-page);
+            color: var(--text-main);
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: background 0.3s ease;
+        }
+
+        /* App Header */
+        header {
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+            gap: 16px;
+            z-index: 20;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .header-title {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .header-title h1 {
+            color: #38bdf8;
+            font-size: 20px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        body.light-theme .header-title h1 {
+            color: var(--primary);
+        }
+
+        .header-title .subtitle {
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+
+        /* Toolbar Controls */
+        .toolbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(15, 23, 42, 0.6);
+            padding: 6px 12px;
+            border-radius: 10px;
+            border: 1px solid var(--border-highlight);
+            backdrop-filter: blur(8px);
+        }
+
+        body.light-theme .toolbar {
+            background: rgba(241, 245, 249, 0.8);
+        }
+
+        .btn {
+            background: #1e293b;
+            color: #f8fafc;
+            border: 1px solid #334155;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+            user-select: none;
+        }
+
+        body.light-theme .btn {
+            background: #ffffff;
+            color: #0f172a;
+            border-color: #cbd5e1;
+        }
+
+        .btn:hover {
+            background: #334155;
+            border-color: #475569;
+            transform: translateY(-1px);
+        }
+
+        body.light-theme .btn:hover {
+            background: #f1f5f9;
+            border-color: #94a3b8;
+        }
+
+        .btn-primary {
+            background: #0077cd;
+            color: #ffffff;
+            border-color: #0284c7;
+        }
+
+        .btn-primary:hover {
+            background: #0284c7;
+            border-color: #38bdf8;
+        }
+
+        .btn-success {
+            background: #059669;
+            color: #ffffff;
+            border-color: #10b981;
+        }
+
+        .btn-success:hover {
+            background: #10b981;
+        }
+
+        .zoom-slider-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0 4px;
+        }
+
+        .zoom-slider {
+            width: 90px;
+            accent-color: #38bdf8;
+            cursor: pointer;
+        }
+
+        .zoom-level-text {
+            font-size: 13px;
+            font-weight: 700;
+            color: #38bdf8;
+            min-width: 48px;
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        body.light-theme .zoom-level-text {
+            color: var(--primary);
+        }
+
+        .divider {
+            width: 1px;
+            height: 22px;
+            background: var(--border-highlight);
+            margin: 0 4px;
+        }
+
+        /* Canvas Viewport */
+        .viewport-container {
+            position: relative;
+            flex: 1;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--canvas-bg);
+            background-image:
+                radial-gradient(var(--grid-color) 1.5px, transparent 1.5px),
+                radial-gradient(var(--grid-color) 1.5px, var(--canvas-bg) 1.5px);
+            background-size: 28px 28px;
+            background-position: 0 0, 14px 14px;
+            cursor: grab;
+        }
+
+        .viewport-container:active {
+            cursor: grabbing;
+        }
+
+        #diagram-stage {
+            position: absolute;
+            top: 0;
+            left: 0;
+            transform-origin: 0 0;
+            will-change: transform;
+            user-select: none;
+        }
+
+        /* Floating HUD Controls */
+        .hud-overlay {
+            position: absolute;
+            bottom: 24px;
+            right: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 10;
+        }
+
+        .hud-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            background: rgba(17, 24, 39, 0.85);
+            border: 1px solid var(--border-highlight);
+            color: #f8fafc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+            transition: all 0.2s ease;
+        }
+
+        body.light-theme .hud-btn {
+            background: rgba(255, 255, 255, 0.9);
+            color: #0f172a;
+            border-color: #cbd5e1;
+        }
+
+        .hud-btn:hover {
+            background: #0077cd;
+            color: #ffffff;
+            border-color: #38bdf8;
+            transform: scale(1.08);
+        }
+
+        /* Helper Badge / Tips */
+        .help-badge {
+            position: absolute;
+            bottom: 24px;
+            left: 24px;
+            background: rgba(17, 24, 39, 0.85);
+            border: 1px solid var(--border-highlight);
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 12px;
+            color: var(--text-muted);
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        body.light-theme .help-badge {
+            background: rgba(255, 255, 255, 0.9);
+            border-color: #cbd5e1;
+            color: #475569;
+        }
+
+        .help-badge kbd {
+            background: #1e293b;
+            color: #38bdf8;
+            padding: 2px 6px;
+            border-radius: 4px;
+            border: 1px solid #475569;
+            font-family: inherit;
+            font-weight: 700;
+        }
+
+        body.light-theme .help-badge kbd {
+            background: #e2e8f0;
+            color: #0077cd;
+            border-color: #cbd5e1;
+        }
+
+        /* Bottom Legend Drawer */
+        .legend-bar {
+            background: var(--card-bg);
+            border-top: 1px solid var(--border);
+            padding: 10px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 20px;
+            font-size: 12.5px;
+            flex-shrink: 0;
+            z-index: 20;
+        }
+
+        .legend-pill {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-main);
+        }
+
+        .pill-box {
+            width: 14px;
+            height: 14px;
+            border-radius: 4px;
+            flex-shrink: 0;
+        }
+
+        /* =================================================== */
+        /* MERMAID DIAGRAM OVERRIDES & TEXT CONTRAST FIXES     */
+        /* =================================================== */
+        .mermaid {
+            user-select: none;
+        }
+
+        /* Ép nhãn cạnh (Edge Labels) luôn có nền tương phản cao, chữ không bị trùng */
+        .edgeLabel {
+            background-color: var(--edge-bg) !important;
+            color: var(--edge-text) !important;
+            border: 1.5px solid var(--edge-border) !important;
+            border-radius: 6px !important;
+            padding: 4px 8px !important;
+            font-weight: 700 !important;
+            font-size: 13px !important;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25) !important;
+            text-align: center !important;
+        }
+
+        .edgeLabel p, .edgeLabel span {
+            color: var(--edge-text) !important;
+            font-weight: 700 !important;
+            line-height: 1.3 !important;
+        }
+
+        /* Subgraph Titles & Cluster Styling */
+        .cluster rect {
+            fill: rgba(30, 41, 59, 0.45) !important;
+            stroke: #0284c7 !important;
+            stroke-width: 1.5px !important;
+            stroke-dasharray: 6 4 !important;
+            rx: 14px !important;
+            ry: 14px !important;
+        }
+
+        body.light-theme .cluster rect {
+            fill: rgba(241, 245, 249, 0.7) !important;
+            stroke: #0077cd !important;
+        }
+
+        .cluster .nodeLabel, .cluster text {
+            fill: #38bdf8 !important;
+            color: #38bdf8 !important;
+            font-weight: 800 !important;
+            font-size: 15px !important;
+            letter-spacing: 0.3px !important;
+        }
+
+        body.light-theme .cluster .nodeLabel, body.light-theme .cluster text {
+            fill: #0077cd !important;
+            color: #0077cd !important;
+        }
+
+        /* Đường nối (Edge Path) sắc nét */
+        .edgePath path {
+            stroke: #38bdf8 !important;
+            stroke-width: 2.2px !important;
+        }
+
+        body.light-theme .edgePath path {
+            stroke: #0077cd !important;
+            stroke-width: 2.2px !important;
+        }
+
+        .marker {
+            fill: #38bdf8 !important;
+            stroke: #38bdf8 !important;
+        }
+
+        body.light-theme .marker {
+            fill: #0077cd !important;
+            stroke: #0077cd !important;
+        }
+
+        /* Loading Overlay */
+        #loading-overlay {
+            position: absolute;
+            inset: 0;
+            background: var(--bg-page);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            z-index: 100;
+            transition: opacity 0.3s ease;
+        }
+
+        .spinner {
+            width: 44px;
+            height: 44px;
+            border: 4px solid #1e293b;
+            border-top-color: #38bdf8;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+
+<div id="loading-overlay">
+    <div class="spinner"></div>
+    <div style="font-size: 15px; font-weight: 600; color: #38bdf8;">Đang tối ưu & căn chỉnh sơ đồ...</div>
+</div>
+
+<header>
+    <div class="header-title">
+        <h1>⚡ Sơ đồ Activity Diagram — Push Gateway API v1</h1>
+        <p class="subtitle">Đặc tả luồng xử lý Push Notification Odoo 19 (Tenant) ➔ Odoo 17 Master Gateway ➔ FCM ➔ Flutter Vcloud</p>
+    </div>
+
+    <div class="toolbar">
+        <button class="btn btn-primary" onclick="fitToScreen()" title="Tự động thu phóng vừa vặn toàn bộ màn hình (Phím F)">
+            📐 Toàn cảnh (Fit Screen)
+        </button>
+        <button class="btn" onclick="resetZoom()" title="Kích thước gốc 100% (Phím 0 hoặc R)">
+            ⟲ 100%
+        </button>
+
+        <div class="divider"></div>
+
+        <button class="btn" onclick="zoomIn()" title="Phóng to (Phím +)">
+            🔍 +
+        </button>
+
+        <div class="zoom-slider-container">
+            <input type="range" id="zoom-slider" class="zoom-slider" min="15" max="250" value="100" oninput="onSliderZoom(this.value)">
+            <span id="zoom-text" class="zoom-level-text">100%</span>
+        </div>
+
+        <button class="btn" onclick="zoomOut()" title="Thu nhỏ (Phím -)">
+            🔎 -
+        </button>
+
+        <div class="divider"></div>
+
+        <button class="btn" onclick="toggleTheme()" id="theme-btn" title="Chuyển đổi giao diện Sáng / Tối">
+            🌙 Đổi nền
+        </button>
+
+        <button class="btn" onclick="toggleFullscreen()" title="Bật / Tắt Toàn màn hình">
+            ⛶ Toàn màn hình
+        </button>
+    </div>
+</header>
+
+<div class="viewport-container" id="viewport">
+    <div id="diagram-stage">
+        <div class="mermaid" id="mermaid-code">
+flowchart TD
+    %% ==========================================
+    %% CLASS DEFINITIONS CHO NODE RÕ NÉT, TƯƠNG PHẢN CAO
+    %% ==========================================
+    classDef startEnd fill:#0f172a,stroke:#38bdf8,stroke-width:2.5px,color:#ffffff,font-size:16px,font-weight:bold;
+    classDef action fill:#0077cd,stroke:#38bdf8,stroke-width:2px,color:#ffffff,font-size:15px,font-weight:bold,rx:10,ry:10;
+    classDef decision fill:#d97706,stroke:#fbbf24,stroke-width:2px,color:#ffffff,font-size:14px,font-weight:bold;
+    classDef forkJoin fill:#0f172a,stroke:#38bdf8,stroke-width:5px,color:#ffffff,font-size:14px,font-weight:bold;
+    classDef success fill:#059669,stroke:#34d399,stroke-width:2px,color:#ffffff,font-size:15px,font-weight:bold,rx:10,ry:10;
+    classDef cancel fill:#dc2626,stroke:#f87171,stroke-width:2px,color:#ffffff,font-size:15px,font-weight:bold,rx:10,ry:10;
+
+    %% ==========================================
+    %% PHÂN VÙNG 1: TENANT ODOO 19
+    %% ==========================================
+    subgraph TENANT[" 🏢 PHÂN VÙNG: TENANT ODOO 19 (Client / Nguồn Sự Kiện) "]
+        node_start((● BẮT ĐẦU)):::startEnd
+        act_receive["📥 Nhận sự kiện có tin nhắn chat mới<br/>(Business Chat Message)"]:::action
+
+        fork_trans["━ FORK BAR: Tách luồng Transaction Nghiệp vụ ━"]:::forkJoin
+
+        act_save_msg["💾 1. Lưu bản ghi tin nhắn chat<br/>vào Database (mail.message)"]:::action
+        act_create_outbox["📝 2. Tạo bản ghi Hàng đợi Outbox<br/>- Model: vmobile.push.outbox<br/>- Sinh event_id chuẩn hóa<br/>- expire_at = now + 5 phút<br/>- state = pending"]:::action
+
+        join_trans["━ JOIN BAR: Đồng bộ cam kết giao dịch ━"]:::forkJoin
+
+        act_commit["✅ COMMIT Transaction DB thành công<br/>(Dữ liệu nghiệp vụ an toàn 100%)"]:::action
+
+        act_worker["⚙️ Outbox Worker / Cron Job định kỳ<br/>quét các bản ghi pending hợp lệ"]:::action
+
+        dec_expire{"❓ Đã quá hạn<br/>expire_at (5 phút)?"}:::decision
+
+        act_mark_expired["⛔ Chuyển state = expired<br/>(Hủy bỏ, chống bắn tin rác cũ)"]:::cancel
+
+        act_send_http["🚀 Bắn POST /api/v1/sso/push/send<br/>qua HTTPS + Bearer Tenant Secret"]:::action
+
+        dec_retry{"❓ Lỗi mạng / 503 / 504<br/>Số lần thử lại &lt; 3?"}:::decision
+
+        act_calc_backoff["⏳ Lùi thời gian thử lại (+30s / +60s / +120s)<br/>Cập nhật next_retry_at &amp; state = pending"]:::action
+        act_mark_failed["❌ Chuyển state = failed<br/>(Dừng retry, ghi log báo cáo)"]:::cancel
+        act_mark_sent["🎉 Chuyển state = sent<br/>(Hoàn tất nghiệp vụ Outbox)"]:::success
+    end
+
+    %% ==========================================
+    %% PHÂN VÙNG 2: MASTER ODOO 17 GATEWAY
+    %% ==========================================
+    subgraph MASTER[" 🏰 PHÂN VÙNG: MASTER ODOO 17 (vuahethong.net - Push Gateway Hub) "]
+        act_recv_req["📥 Tiếp nhận request từ Tenant Odoo 19"]:::action
+
+        dec_auth{"❓ Bearer Secret hợp lệ &amp;<br/>Tenant đang active?"}:::decision
+        act_err_401["🚫 Phản hồi HTTP 401 Unauthorized / 403 Forbidden"]:::cancel
+
+        dec_idempotent{"❓ event_id đã tồn tại trong<br/>vmobile.push.event (Idempotency)?"}:::decision
+        act_dup_200["🔁 Phản hồi HTTP 200 OK<br/>status = duplicate (Bỏ qua gửi trùng)"]:::action
+
+        act_create_event["📋 Ghi nhận event_id vào vmobile.push.event<br/>(Đánh dấu trạng thái: received)"]:::action
+
+        fork_resp["━ FORK BAR: Tách luồng phản hồi tức thì &amp; Dispatch FCM ━"]:::forkJoin
+
+        act_ret_200["⚡ Phản hồi HTTP 200 OK ngay lập tức<br/>status = accepted + details.unresolved"]:::action
+
+        act_resolve_device["🔍 Tra cứu danh bạ thiết bị mobile.api.device<br/>Khóa tìm: (tenant_id, user_login, active = True)"]:::action
+
+        dec_has_device{"❓ Tìm thấy thiết bị<br/>đang hoạt động?"}:::decision
+
+        act_log_unresolved["⚠️ Ghi log unresolved: User chưa cài app / chưa có token"]:::action
+
+        act_build_fcm["📦 Đóng gói payload FCM v1 &amp;<br/>Lấy Google OAuth2 Access Token (google-auth)"]:::action
+
+        act_dispatch_fcm["📡 Đẩy lệnh sang Google FCM API v1<br/>(Giao thức HTTP/2 ngầm, độ trễ 0ms)"]:::action
+    end
+
+    %% ==========================================
+    %% PHÂN VÙNG 3: FCM & FLUTTER VCLOUD APP
+    %% ==========================================
+    subgraph FCM_APP[" 📱 PHÂN VÙNG: GOOGLE FCM & FLUTTER VCLOUD APP "]
+        act_fcm_route["🛰️ Hạ tầng Google FCM định tuyến sóng<br/>đến đúng thiết bị người nhận"]:::action
+
+        act_show_notif["🔔 Điện thoại hiển thị Push Notification Banner<br/>(Tiêu đề: Tên người gửi, Nội dung: Tóm tắt chat)"]:::action
+
+        act_user_tap["👆 Người dùng bấm (Tap) vào thông báo"]:::action
+
+        act_open_chat["🚀 App Vcloud mở và Deep Link trực tiếp<br/>vào đúng phòng chat (channel_id &amp; message_id)"]:::success
+
+        node_end(((◉ KẾT THÚC))):::startEnd
+    end
+
+    %% ==========================================
+    %% CÁC ĐƯỜNG KẾT NỐI ĐIỀU HƯỚNG
+    %% ==========================================
+    node_start --> act_receive
+    act_receive --> fork_trans
+
+    fork_trans --> act_save_msg
+    fork_trans --> act_create_outbox
+
+    act_save_msg --> join_trans
+    act_create_outbox --> join_trans
+    join_trans --> act_commit
+
+    act_commit --> act_worker
+    act_worker --> dec_expire
+
+    dec_expire -- "⛔ Đúng: Đã quá 5 phút" --> act_mark_expired
+    dec_expire -- "✅ Sai: Tin còn mới" --> act_send_http
+
+    act_send_http --> act_recv_req
+    act_recv_req --> dec_auth
+
+    dec_auth -- "❌ Sai Secret" --> act_err_401
+    act_err_401 --> act_mark_failed
+
+    dec_auth -- "✅ Hợp lệ" --> dec_idempotent
+
+    dec_idempotent -- "🔁 Đã gửi rồi (Duplicate)" --> act_dup_200
+    act_dup_200 --> act_mark_sent
+
+    dec_idempotent -- "🆕 Sự kiện mới" --> act_create_event
+    act_create_event --> fork_resp
+
+    %% Nhánh phản hồi nhanh về cho Tenant
+    fork_resp --> act_ret_200
+    act_ret_200 --> act_mark_sent
+
+    %% Nhánh gửi ngầm qua Google FCM
+    fork_resp --> act_resolve_device
+    act_resolve_device --> dec_has_device
+
+    dec_has_device -- "❌ Không có máy" --> act_log_unresolved
+    act_log_unresolved --> node_end
+
+    dec_has_device -- "✅ Có máy nhận" --> act_build_fcm
+    act_build_fcm --> act_dispatch_fcm
+
+    act_dispatch_fcm --> act_fcm_route
+    act_fcm_route --> act_show_notif
+    act_show_notif --> act_user_tap
+    act_user_tap --> act_open_chat
+    act_open_chat --> node_end
+
+    %% Luồng xử lý Retry khi gặp sự cố mạng
+    act_send_http -.->|"⚠️ Lỗi mạng / Timeout"| dec_retry
+    dec_retry -- "✅ Còn lượt (&lt; 3 lần)" --> act_calc_backoff
+    act_calc_backoff --> act_worker
+    dec_retry -- "❌ Hết lượt (≥ 3 lần)" --> act_mark_failed
+    act_mark_failed --> node_end
+    act_mark_expired --> node_end
+        </div>
+    </div>
+
+    <!-- Nút hỗ trợ nhanh góc dưới -->
+    <div class="hud-overlay">
+        <button class="hud-btn" onclick="fitToScreen()" title="Xem toàn cảnh (Fit Screen)">📐</button>
+        <button class="hud-btn" onclick="zoomIn()" title="Phóng to">+</button>
+        <button class="hud-btn" onclick="zoomOut()" title="Thu nhỏ">−</button>
+        <button class="hud-btn" onclick="resetZoom()" title="Kích thước chuẩn (100%)">⟲</button>
+    </div>
+
+    <div class="help-badge">
+        <span>💡 <strong>Thao tác chuột:</strong> Bấm giữ & kéo chuột để <strong>Di chuyển (Pan)</strong> • Lăn con lăn chuột để <strong>Thu phóng (Zoom)</strong></span>
+        <span>• Phím tắt: <kbd>F</kbd> Toàn cảnh, <kbd>R</kbd> 100%, <kbd>+</kbd>/<kbd>-</kbd> Zoom</span>
+    </div>
+</div>
+
+<div class="legend-bar">
+    <div class="legend-pill">
+        <div class="pill-box" style="background:#0f172a; border: 2px solid #38bdf8; border-radius: 50%;"></div>
+        <span><strong>Khởi đầu / Kết thúc</strong></span>
+    </div>
+    <div class="legend-pill">
+        <div class="pill-box" style="background:#0077cd; border: 1px solid #38bdf8;"></div>
+        <span><strong>Hành động Xử lý (Action)</strong></span>
+    </div>
+    <div class="legend-pill">
+        <div class="pill-box" style="background:#d97706; border: 1px solid #fbbf24; transform: rotate(45deg); width: 11px; height: 11px;"></div>
+        <span><strong>Rẽ nhánh Điều kiện (Decision)</strong></span>
+    </div>
+    <div class="legend-pill">
+        <div class="pill-box" style="background:#0f172a; border: 2px solid #38bdf8; height: 6px;"></div>
+        <span><strong>Phân luồng / Hội tụ (Fork/Join Bar)</strong></span>
+    </div>
+    <div class="legend-pill">
+        <div class="pill-box" style="background:#059669; border: 1px solid #34d399;"></div>
+        <span><strong>Thành công (Success)</strong></span>
+    </div>
+    <div class="legend-pill">
+        <div class="pill-box" style="background:#dc2626; border: 1px solid #f87171;"></div>
+        <span><strong>Hủy / Lỗi (Cancel/Failed)</strong></span>
+    </div>
+    <div class="legend-pill">
+        <div class="pill-box" style="background:#1e293b; border: 1px solid #475569;"></div>
+        <span><strong>Nhãn rẽ nhánh (High-Contrast Edge)</strong></span>
+    </div>
+</div>
+
+<script>
+    // Cấu hình Mermaid Engine
+    mermaid.initialize({
+        startOnLoad: false,
+        theme: 'base',
+        themeVariables: {
+            fontSize: '15px',
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+            primaryColor: '#0077cd',
+            primaryTextColor: '#ffffff',
+            primaryBorderColor: '#0284c7',
+            lineColor: '#38bdf8',
+            secondaryColor: '#fef3c7',
+            tertiaryColor: '#1e293b'
+        },
+        flowchart: {
+            curve: 'basis',
+            useMaxWidth: false,
+            htmlLabels: true,
+            nodeSpacing: 36,
+            rankSpacing: 46,
+            padding: 20
+        }
+    });
+
+    // Biến trạng thái Viewer
+    const viewport = document.getElementById('viewport');
+    const stage = document.getElementById('diagram-stage');
+    const zoomText = document.getElementById('zoom-text');
+    const zoomSlider = document.getElementById('zoom-slider');
+    const loadingOverlay = document.getElementById('loading-overlay');
+
+    let scale = 1.0;
+    let translateX = 0;
+    let translateY = 0;
+    let isDragging = false;
+    let startX = 0;
+    let startY = 0;
+    let diagramNaturalWidth = 1200;
+    let diagramNaturalHeight = 2000;
+
+    // Khởi tạo và Render sơ đồ
+    window.addEventListener('DOMContentLoaded', async () => {
+        try {
+            await mermaid.run();
+            // Lấy kích thước thật của SVG sau khi render
+            const svgElement = stage.querySelector('svg');
+            if (svgElement) {
+                const bBox = svgElement.getBBox();
+                diagramNaturalWidth = bBox.width || svgElement.clientWidth || 1200;
+                diagramNaturalHeight = bBox.height || svgElement.clientHeight || 2000;
+                svgElement.style.maxWidth = 'none';
+            }
+
+            // Tự động Fit Screen ngay khi mở trang
+            fitToScreen();
+
+            // Ẩn loading
+            setTimeout(() => {
+                loadingOverlay.style.opacity = '0';
+                setTimeout(() => loadingOverlay.style.display = 'none', 300);
+            }, 100);
+        } catch (err) {
+            console.error('Lỗi render Mermaid:', err);
+            loadingOverlay.style.display = 'none';
+        }
+    });
+
+    // Cập nhật ma trận biến đổi CSS Transform
+    function updateTransform() {
+        stage.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+        const percent = Math.round(scale * 100);
+        zoomText.innerText = percent + '%';
+        zoomSlider.value = percent;
+    }
+
+    // Tự động căn chỉnh vừa khít toàn cảnh màn hình (Fit to Screen)
+    function fitToScreen() {
+        const vpWidth = viewport.clientWidth;
+        const vpHeight = viewport.clientHeight;
+        const padding = 48; // Đệm lề an toàn
+
+        const availWidth = vpWidth - padding * 2;
+        const availHeight = vpHeight - padding * 2;
+
+        if (diagramNaturalWidth <= 0 || diagramNaturalHeight <= 0) return;
+
+        // Tính tỷ lệ scale để vừa cả chiều rộng và chiều cao
+        const scaleX = availWidth / diagramNaturalWidth;
+        const scaleY = availHeight / diagramNaturalHeight;
+        scale = Math.min(scaleX, scaleY, 1.0); // Không vượt quá 100% khi màn hình quá to
+
+        // Căn giữa sơ đồ trong viewport
+        const renderedWidth = diagramNaturalWidth * scale;
+        const renderedHeight = diagramNaturalHeight * scale;
+
+        translateX = (vpWidth - renderedWidth) / 2;
+        translateY = (vpHeight - renderedHeight) / 2;
+
+        updateTransform();
+    }
+
+    // Đặt lại kích thước gốc 100%
+    function resetZoom() {
+        scale = 1.0;
+        const vpWidth = viewport.clientWidth;
+        const vpHeight = viewport.clientHeight;
+
+        translateX = (vpWidth - diagramNaturalWidth) / 2;
+        translateY = 32; // Đặt cách trên một chút cho dễ xem từ đầu
+        updateTransform();
+    }
+
+    // Phóng to tại tâm màn hình
+    function zoomIn() {
+        zoomAtPoint(viewport.clientWidth / 2, viewport.clientHeight / 2, 1.25);
+    }
+
+    // Thu nhỏ tại tâm màn hình
+    function zoomOut() {
+        zoomAtPoint(viewport.clientWidth / 2, viewport.clientHeight / 2, 0.8);
+    }
+
+    // Kéo thanh trượt Zoom
+    function onSliderZoom(val) {
+        const targetScale = val / 100;
+        const factor = targetScale / scale;
+        zoomAtPoint(viewport.clientWidth / 2, viewport.clientHeight / 2, factor);
+    }
+
+    // Phóng to / Thu nhỏ tại một tọa độ xác định (Focus zoom)
+    function zoomAtPoint(pointX, pointY, factor) {
+        const newScale = Math.min(Math.max(scale * factor, 0.15), 3.0);
+        if (newScale === scale) return;
+
+        // Tính toán để điểm trỏ chuột đứng yên trong không gian zoom
+        translateX = pointX - (pointX - translateX) * (newScale / scale);
+        translateY = pointY - (pointY - translateY) * (newScale / scale);
+        scale = newScale;
+
+        updateTransform();
+    }
+
+    // Xử lý sự kiện kéo chuột (Pan/Drag)
+    viewport.addEventListener('mousedown', (e) => {
+        // Chỉ bắt chuột trái hoặc chuột giữa
+        if (e.button !== 0 && e.button !== 1) return;
+        isDragging = true;
+        startX = e.clientX - translateX;
+        startY = e.clientY - translateY;
+        e.preventDefault();
+    });
+
+    window.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        translateX = e.clientX - startX;
+        translateY = e.clientY - startY;
+        updateTransform();
+    });
+
+    window.addEventListener('mouseup', () => {
+        isDragging = false;
+    });
+
+    // Lăn con lăn chuột để Zoom mượt tại vị trí con trỏ chuột
+    viewport.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const rect = viewport.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+
+        // Hệ số zoom mượt
+        const zoomFactor = e.deltaY < 0 ? 1.12 : 0.89;
+        zoomAtPoint(mouseX, mouseY, zoomFactor);
+    }, { passive: false });
+
+    // Hỗ trợ cảm ứng trên thiết bị di động / iPad / Touchpad
+    let initialPinchDistance = null;
+    let initialPinchScale = 1.0;
+
+    viewport.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) {
+            isDragging = true;
+            startX = e.touches[0].clientX - translateX;
+            startY = e.touches[0].clientY - translateY;
+        } else if (e.touches.length === 2) {
+            isDragging = false;
+            initialPinchDistance = Math.hypot(
+                e.touches[0].clientX - e.touches[1].clientX,
+                e.touches[0].clientY - e.touches[1].clientY
+            );
+            initialPinchScale = scale;
+        }
+    }, { passive: true });
+
+    viewport.addEventListener('touchmove', (e) => {
+        if (e.touches.length === 1 && isDragging) {
+            translateX = e.touches[0].clientX - startX;
+            translateY = e.touches[0].clientY - startY;
+            updateTransform();
+        } else if (e.touches.length === 2 && initialPinchDistance) {
+            const currentDist = Math.hypot(
+                e.touches[0].clientX - e.touches[1].clientX,
+                e.touches[0].clientY - e.touches[1].clientY
+            );
+            const factor = currentDist / initialPinchDistance;
+            const centerX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+            const centerY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+            scale = Math.min(Math.max(initialPinchScale * factor, 0.15), 3.0);
+            updateTransform();
+        }
+    }, { passive: true });
+
+    viewport.addEventListener('touchend', () => {
+        isDragging = false;
+        initialPinchDistance = null;
+    });
+
+    // Bắt phím tắt bàn phím
+    window.addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT') return;
+        if (e.key === 'f' || e.key === 'F') {
+            fitToScreen();
+        } else if (e.key === 'r' || e.key === 'R' || e.key === '0') {
+            resetZoom();
+        } else if (e.key === '+' || e.key === '=') {
+            zoomIn();
+        } else if (e.key === '-' || e.key === '_') {
+            zoomOut();
+        }
+    });
+
+    // Chuyển đổi Theme Sáng / Tối
+    function toggleTheme() {
+        const isLight = document.body.classList.toggle('light-theme');
+        const themeBtn = document.getElementById('theme-btn');
+        if (isLight) {
+            themeBtn.innerText = '☀️ Nền sáng';
+        } else {
+            themeBtn.innerText = '🌙 Đổi nền';
+        }
+    }
+
+    // Bật / Tắt Toàn màn hình
+    function toggleFullscreen() {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(() => {});
+        } else {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            }
+        }
+    }
+
+    // Tự động fit lại khi thay đổi kích thước cửa sổ trình duyệt
+    window.addEventListener('resize', () => {
+        fitToScreen();
+    });
+</script>
+
+</body>
+</html>

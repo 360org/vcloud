@@ -1,0 +1,112 @@
+<mxfile host="app.diagrams.net" modified="2026-09-15T13:00:00.000Z" agent="AIaC 3.0" version="21.0.0" type="device">
+  <diagram id="master-sequence-diagram-18steps" name="Master Hub Sequence Diagram (18 Steps)">
+    <mxGraphModel dx="1400" dy="2200" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1500" pageHeight="2100" background="#F8FAFC" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="BIỂU ĐỒ TRÌNH TỰ THỜI GIAN (UML SEQUENCE DIAGRAM)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=22;fontStyle=1;fontColor=#0F172A;" vertex="1" parent="1">
+          <mxGeometry x="250" y="20" width="1000" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" value="Quy trình Tương tác 18 Bước: Admin Khách hàng ➔ Odoo Web DB ➔ Daemon Webhook ➔ Master Hub ➔ VCloud Mobile App" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=13;fontColor=#475569;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="250" y="55" width="1000" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="card_stage1" value="&lt;b&gt;Giai đoạn 1: Cấp phát tại DB Khách&lt;/b&gt;&lt;br/&gt;Admin tạo User trên Odoo Web. PostgreSQL lưu và commit an toàn 100%. Giao diện Web phản hồi ngay &lt;b&gt;0ms delay&lt;/b&gt; (Local First)." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EFF6FF;strokeColor=#3B82F6;strokeWidth=1.5;fontColor=#1E3A8A;fontSize=11;align=left;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="60" y="90" width="420" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="card_stage2" value="&lt;b&gt;Giai đoạn 2: Bắn Webhook Ngầm (Daemon)&lt;/b&gt;&lt;br/&gt;Luồng nền &lt;code&gt;threading.Thread(daemon=True)&lt;/code&gt; bắn Webhook lên Master Hub. Master chỉ ghi danh bạ &lt;code&gt;(login, project_id)&lt;/code&gt;, &lt;b&gt;TUYỆT ĐỐI KHÔNG LƯU MẬT KHẨU&lt;/b&gt;." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#F59E0B;strokeWidth=1.5;fontColor=#78350F;fontSize=11;align=left;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="520" y="90" width="460" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="card_stage3" value="&lt;b&gt;Giai đoạn 3: Người Dùng Đăng Nhập&lt;/b&gt;&lt;br/&gt;Người dùng mở VCloud App chỉ nhập Email &amp; Mật khẩu (&lt;b&gt;Zero-Config&lt;/b&gt;). Master Hub tra cứu sổ danh bạ điều hướng App kết nối trực tiếp vào DB khách hàng." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3E8FF;strokeColor=#A855F7;strokeWidth=1.5;fontColor=#581C87;fontSize=11;align=left;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="90" width="420" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="ll_admin" value="Admin (Khách Hàng)" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;size=60;fillColor=#0284C7;strokeColor=#0369A1;fontColor=#FFFFFF;fontStyle=1;fontSize=13;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="60" y="175" width="140" height="1750" as="geometry" />
+        </mxCell>
+        <mxCell id="ll_web" value="Odoo Web (Client DB)" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;size=60;fillColor=#0284C7;strokeColor=#0369A1;fontColor=#FFFFFF;fontStyle=1;fontSize=13;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="260" y="175" width="140" height="1750" as="geometry" />
+        </mxCell>
+        <mxCell id="ll_hook" value="Hook Daemon (Client)" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;size=60;fillColor=#D97706;strokeColor=#B45309;fontColor=#FFFFFF;fontStyle=1;fontSize=13;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="470" y="175" width="140" height="1750" as="geometry" />
+        </mxCell>
+        <mxCell id="ll_master" value="Master Hub (vuahethong.net)" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;size=60;fillColor=#16A34A;strokeColor=#15803D;fontColor=#FFFFFF;fontStyle=1;fontSize=13;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="690" y="175" width="140" height="1750" as="geometry" />
+        </mxCell>
+        <mxCell id="ll_dbuser" value="databases.user (Master)" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;size=60;fillColor=#16A34A;strokeColor=#15803D;fontColor=#FFFFFF;fontStyle=1;fontSize=13;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="910" y="175" width="140" height="1750" as="geometry" />
+        </mxCell>
+        <mxCell id="ll_user" value="Người Dùng (Mobile)" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;size=60;fillColor=#9333EA;strokeColor=#7E22CE;fontColor=#FFFFFF;fontStyle=1;fontSize=13;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="1110" y="175" width="140" height="1750" as="geometry" />
+        </mxCell>
+        <mxCell id="ll_app" value="VCloud App (Mobile)" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;size=60;fillColor=#9333EA;strokeColor=#7E22CE;fontColor=#FFFFFF;fontStyle=1;fontSize=13;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="1290" y="175" width="140" height="1750" as="geometry" />
+        </mxCell>
+        <mxCell id="note_stage1" value="&lt;b&gt;GIAI ĐOẠN 1: CẤP PHÁT TÀI KHOẢN TẠI DB KHÁCH HÀNG (LOCAL FIRST)&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DBEAFE;strokeColor=#3B82F6;strokeWidth=2;fontColor=#1E40AF;fontSize=12;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="100" y="260" width="320" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="msg_1" value="1. Nhập Email, Password &amp; Chọn nhóm quyền trên Odoo Web" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;strokeWidth=2;strokeColor=#0F172A;fontColor=#0F172A;fontSize=11;fontStyle=1;" vertex="0" parent="1">
+          <mxGeometry x="130" y="320" width="200" height="1" as="geometry" />
+        </mxCell>
+        <mxCell id="msg_2" value="2. res.users.create(): Lưu User &amp; Hash Password vào PostgreSQL khách" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;strokeWidth=2;strokeColor=#0284C7;fontColor=#0369A1;fontSize=11;fontStyle=1;" vertex="0" parent="1">
+          <mxGeometry x="330" y="360" width="80" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="msg_3" value="3. env.cr.commit(): Hoàn tất Transaction an toàn 100%" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;strokeWidth=2;strokeColor=#0284C7;fontColor=#0369A1;fontSize=11;fontStyle=1;" vertex="0" parent="1">
+          <mxGeometry x="330" y="430" width="80" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="msg_4" value="4. Giao diện Web báo lưu thành công (0ms delay UI, không phải chờ Master)" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;rounded=0;strokeWidth=2;strokeColor=#16A34A;fontColor=#15803D;fontSize=11;fontStyle=1;" vertex="0" parent="1">
+          <mxGeometry x="330" y="500" width="-200" height="1" as="geometry" />
+        </mxCell>
+        <mxCell id="note_stage2" value="&lt;b&gt;GIAI ĐOẠN 2: ĐỒNG BỘ WEBHOOK BẤT ĐỒNG BỘ (HOÀN TOÀN TỰ ĐỘNG CHẠY NGẦM)&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#F59E0B;strokeWidth=2;fontColor=#92400E;fontSize=12;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="400" y="550" width="480" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="msg_5" value="5. env.cr.postcommit kích hoạt luồng nền threading.Thread(daemon=True)" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;strokeWidth=2;strokeColor=#D97706;fontColor=#B45309;fontSize=11;fontStyle=1;" vertex="0" parent="1">
+          <mxGeometry x="330" y="610" width="210" height="1" as="geometry" />
+        </mxCell>
+        <mxCell id="msg_6" value="6. POST /api/v1/mobile/master/sync-tenant-user (Bearer HMAC Token)&lt;br/&gt;Body: { database_name: 'nds_db', login: 'user@gmail.com', action: 'upsert' }" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;strokeWidth=2;strokeColor=#0F172A;fontColor=#0F172A;fontSize=11;fontStyle=1;" vertex="0" parent="1">
+          <mxGeometry x="540" y="670" width="220" height="1" as="geometry" />
+        </mxCell>
+        <mxCell id="msg_7" value="7. Xác thực Token HMAC-SHA256 &amp; Tìm project.project tương ứng" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;strokeWidth=2;strokeColor=#16A34A;fontColor=#15803D;fontSize=11;fontStyle=1;" vertex="0" parent="1">
+          <mxGeometry x="760" y="740" width="80" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="msg_8" value="8. Upsert databases.user: login='user@gmail.com', project_id=NDS&lt;br/&gt;(LƯU Ý: Master Hub TUYỆT ĐỐI KHÔNG lưu mật khẩu!)" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;strokeWidth=2;strokeColor=#0F172A;fontColor=#B91C1C;fontSize=11;fontStyle=1;" vertex="0" parent="1">
+          <mxGeometry x="760" y="820" width="220" height="1" as="geometry" />
+        </mxCell>
+        <mxCell id="msg_9" value="9. Xác nhận cập nhật Sổ danh bạ thành công" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;rounded=0;strokeWidth=2;strokeColor=#16A34A;fontColor=#15803D;fontSize=11;fontStyle=1;" vertex="0" parent="1">
+          <mxGeometry x="980" y="890" width="-220" height="1" as="geometry" />
+        </mxCell>
+        <mxCell id="msg_10" value="10. HTTP 200 OK: { status: 'ok', count: 1 } (Hoàn tất đồng bộ)" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;rounded=0;strokeWidth=2;strokeColor=#16A34A;fontColor=#15803D;fontSize=11;fontStyle=1;" vertex="0" parent="1">
+          <mxGeometry x="760" y="950" width="-220" height="1" as="geometry" />
+        </mxCell>
+        <mxCell id="note_stage3" value="&lt;b&gt;GIAI ĐOẠN 3: NGƯỜI DÙNG ĐĂNG NHẬP TRÊN MOBILE (ZERO-CONFIG ĐỊNH TUYẾN)&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3E8FF;strokeColor=#A855F7;strokeWidth=2;fontColor=#6B21A8;fontSize=12;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="950" y="1010" width="460" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="msg_11" value="11. Mở VCloud App, chỉ nhập Email &amp; Mật khẩu (Không cần nhớ domain/DB)" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;strokeWidth=2;strokeColor=#0F172A;fontColor=#0F172A;fontSize=11;fontStyle=1;" vertex="0" parent="1">
+          <mxGeometry x="1180" y="1070" width="180" height="1" as="geometry" />
+        </mxCell>
+        <mxCell id="msg_12" value="12. POST /api/v1/auth/lookup-db { login: 'user@gmail.com' }" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;strokeWidth=2;strokeColor=#9333EA;fontColor=#6B21A8;fontSize=11;fontStyle=1;" vertex="0" parent="1">
+          <mxGeometry x="1360" y="1140" width="-600" height="1" as="geometry" />
+        </mxCell>
+        <mxCell id="msg_13" value="13. Tra cứu 'user@gmail.com' thuộc Database nào trong hệ thống?" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;strokeWidth=2;strokeColor=#16A34A;fontColor=#15803D;fontSize=11;fontStyle=1;" vertex="0" parent="1">
+          <mxGeometry x="760" y="1200" width="220" height="1" as="geometry" />
+        </mxCell>
+        <mxCell id="msg_14" value="14. Trả về kết quả: project_id NDS ➔ Database 'nds_db'" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;rounded=0;strokeWidth=2;strokeColor=#16A34A;fontColor=#15803D;fontSize=11;fontStyle=1;" vertex="0" parent="1">
+          <mxGeometry x="980" y="1260" width="-220" height="1" as="geometry" />
+        </mxCell>
+        <mxCell id="msg_15" value="15. Trả về định tuyến: DB 'nds_db', URL 'https://nds.vuahethong.net'" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;rounded=0;strokeWidth=2;strokeColor=#16A34A;fontColor=#15803D;fontSize=11;fontStyle=1;" vertex="0" parent="1">
+          <mxGeometry x="760" y="1330" width="600" height="1" as="geometry" />
+        </mxCell>
+        <mxCell id="msg_16" value="16. App gửi xác thực mật khẩu trực tiếp tới DB khách hàng:&lt;br/&gt;POST /web/session/authenticate { db: 'nds_db', login, password }" style="html=1;verticalAlign=bottom;endArrow=block;rounded=0;strokeWidth=2;strokeColor=#0F172A;fontColor=#0F172A;fontSize=11;fontStyle=1;" vertex="0" parent="1">
+          <mxGeometry x="1360" y="1420" width="-1030" height="1" as="geometry" />
+        </mxCell>
+        <mxCell id="msg_17" value="17. Xác thực mật khẩu thành công! Cấp Session ID &amp; JWT Token" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;rounded=0;strokeWidth=2;strokeColor=#16A34A;fontColor=#15803D;fontSize=11;fontStyle=1;" vertex="0" parent="1">
+          <mxGeometry x="330" y="1510" width="1030" height="1" as="geometry" />
+        </mxCell>
+        <mxCell id="msg_18" value="18. Mở màn hình chính ứng dụng, bắt đầu làm việc ngay!" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;rounded=0;strokeWidth=2;strokeColor=#16A34A;fontColor=#15803D;fontSize=11;fontStyle=1;" vertex="0" parent="1">
+          <mxGeometry x="1360" y="1590" width="-180" height="1" as="geometry" />
+        </mxCell>
+        <mxCell id="box_security" value="&lt;b&gt;NGUYÊN TẮC BẢO MẬT ZERO-KNOWLEDGE (BẮT BUỘC):&lt;/b&gt;&lt;br/&gt;• Master Hub (vuahethong.net) và bảng danh bạ &lt;code&gt;databases.user&lt;/code&gt; chỉ lưu cặp mapping &lt;code&gt;(login, project_id)&lt;/code&gt;.&lt;br/&gt;• &lt;b&gt;Mật khẩu và mã băm mật khẩu (Hashed Password) KHÔNG BAO GIỜ rời khỏi Database PostgreSQL của khách hàng!&lt;/b&gt;&lt;br/&gt;• Mobile App chỉ gửi mật khẩu trực tiếp tới Server của khách hàng (Bước 16). Master Hub không bao giờ nhìn thấy mật khẩu." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF2F2;strokeColor=#EF4444;strokeWidth=1.5;fontColor=#991B1B;fontSize=11;align=left;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="150" y="1680" width="1200" height="80" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

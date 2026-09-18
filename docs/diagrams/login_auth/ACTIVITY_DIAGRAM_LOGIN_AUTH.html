@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sơ Đồ Activity Diagram Toàn Diện — VCloud & Vua Hệ Thống</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'default',
+      themeVariables: {
+        fontSize: '16px',
+        fontFamily: 'system-ui, -apple-system, sans-serif'
+      },
+      flowchart: {
+        curve: 'linear',
+        useMaxWidth: false,
+        htmlLabels: true,
+        nodeSpacing: 40,
+        rankSpacing: 50
+      }
+    });
+  </script>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: #f1f5f9;
+      color: #0f172a;
+    }
+
+    /* Khung cuộn an toàn chống cắt lề trái */
+    .diagram-scroll-pane {
+      overflow-x: auto;
+      overflow-y: visible;
+      padding: 32px 16px;
+      width: 100%;
+      text-align: center;
+      background-color: #ffffff;
+      border-radius: 16px;
+      border: 1px solid #cbd5e1;
+      box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05);
+    }
+
+    .diagram-inner {
+      display: inline-block;
+      text-align: left;
+      margin: 0 auto;
+      padding: 10px 30px;
+      min-width: 600px;
+    }
+
+    .mermaid svg {
+      height: auto !important;
+      overflow: visible !important;
+    }
+
+    /* Font chữ lớn, đậm nét, dễ đọc */
+    .mermaid .nodeLabel {
+      font-size: 16px !important;
+      font-weight: 600 !important;
+      line-height: 1.5 !important;
+      color: inherit !important;
+    }
+
+    .mermaid .edgeLabel {
+      font-size: 14px !important;
+      font-weight: 700 !important;
+      color: #0369a1 !important;
+      background-color: #ffffff !important;
+      padding: 4px 10px !important;
+      border: 1.5px solid #93c5fd !important;
+      border-radius: 8px !important;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08) !important;
+    }
+  </style>
+</head>
+<body class="p-4 md:p-8 max-w-5xl mx-auto">
+
+  <!-- HEADER -->
+  <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm mb-6">
+    <div class="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
+      <div class="flex items-center space-x-3">
+        <span class="w-11 h-11 rounded-xl bg-sky-600 text-white font-black flex items-center justify-center text-xl shadow">V</span>
+        <div>
+          <h1 class="text-xl md:text-2xl font-black text-slate-900 leading-tight">
+            SƠ ĐỒ HOẠT ĐỘNG TOÀN DIỆN (UML ACTIVITY DIAGRAM)
+          </h1>
+          <p class="text-xs md:text-sm text-slate-500 font-medium">
+            Quy trình Tự động hóa VCloud Mobile & Master Hub (vuahethong.net) • Khung Đứng Chuẩn UML 2.5
+          </p>
+        </div>
+      </div>
+      <!-- THANH CÔNG CỤ ĐIỀU KHIỂN PHÓNG TO / THU NHỎ -->
+      <div class="flex items-center space-x-2">
+        <button onclick="changeZoom(-0.1)" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold rounded-lg transition" title="Thu nhỏ">
+          <i class="fa-solid fa-magnifying-glass-minus"></i>
+        </button>
+        <button onclick="resetZoom()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold rounded-lg transition" title="Mặc định 100%">
+          100%
+        </button>
+        <button onclick="changeZoom(0.1)" class="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-sm font-bold rounded-lg transition" title="Phóng to">
+          <i class="fa-solid fa-magnifying-glass-plus"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- TÓM TẮT 3 GIAI ĐOẠN -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+      <div class="bg-blue-50 border border-blue-200 p-3.5 rounded-xl flex items-start space-x-3">
+        <span class="w-6 h-6 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center flex-shrink-0 text-xs mt-0.5">1</span>
+        <div>
+          <div class="font-bold text-blue-900 text-sm">Giai đoạn 1: Cấp phát &amp; Sync Danh bạ</div>
+          <div class="text-blue-700 mt-1 leading-relaxed"><b>User mới</b>: Admin tạo trên Web hoặc Sync hàng loạt ➔ Master nạp danh bạ. <i>(User đã có tài khoản: Đi thẳng vào Giai đoạn 2).</i></div>
+        </div>
+      </div>
+      <div class="bg-sky-50 border border-sky-200 p-3.5 rounded-xl flex items-start space-x-3">
+        <span class="w-6 h-6 rounded-full bg-sky-600 text-white font-bold flex items-center justify-center flex-shrink-0 text-xs mt-0.5">2</span>
+        <div>
+          <div class="font-bold text-sky-900 text-sm">Giai đoạn 2: Mobile Đăng Nhập</div>
+          <div class="text-sky-700 mt-1 leading-relaxed">App tra cứu Master ➔ 1 DB tự chọn / ≥2 DB chọn Dropdown ➔ Xác thực Client DB.</div>
+        </div>
+      </div>
+      <div class="bg-emerald-50 border border-emerald-200 p-3.5 rounded-xl flex items-start space-x-3">
+        <span class="w-6 h-6 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center flex-shrink-0 text-xs mt-0.5">3</span>
+        <div>
+          <div class="font-bold text-emerald-900 text-sm">Giai đoạn 3: Phân Quyền Role</div>
+          <div class="text-emerald-700 mt-1 leading-relaxed">Nhân viên (Internal) mở Full nghiệp vụ / Khách hàng (Portal) chỉ mở Chat &amp; Ticket.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- VÙNG HIỂN THỊ SƠ ĐỒ CHỐNG CẮT LỀ (BẢO VỆ CUỘN AN TOÀN) -->
+  <div class="diagram-scroll-pane">
+    <div id="diagram-container" class="diagram-inner">
+      <div class="mermaid">
+flowchart TD
+    %% ==========================================
+    %% KHỞI TẠO & PRE-CONDITION
+    %% ==========================================
+    START((●))
+    LBL_PRE["<b>Pre-condition</b>:<br/>Khách hàng sử dụng hệ sinh thái Odoo<br/>và ứng dụng VCloud Mobile"]
+
+    DEC_ACCOUNT{"<b>Kiểm tra Trạng thái Tài khoản</b>:<br/>Người dùng đã có tài khoản trên hệ thống chưa?"}
+
+    %% ==========================================
+    %% GIAI ĐOẠN 1: TẠO TÀI KHOẢN & SYNC WEBHOOK (DÀNH CHO USER MỚI)
+    %% ==========================================
+    STEP1_1["<b>Bước 1.1 (Actor Input - Cấp phát mới)</b><br/>Admin khách hàng tạo User trên Odoo Web<br/><i>(Hoặc chạy Sync hàng loạt danh bạ cũ khi mới cài)</i><br/>• Điền Email, Mật khẩu<br/>• Chọn nhóm: Internal User hoặc Portal User"]
+    STEP1_2["<b>Bước 1.2 (System Step)</b><br/>Odoo Client Commit Database an toàn 100%<br/>➔ Hook res.users bắt sự kiện qua postcommit<br/><i>(Giao diện Web lưu ngay, 0ms delay UI)</i>"]
+    STEP1_3["<b>Bước 1.3 (System Step)</b><br/>Luồng nền (Daemon Thread) tự động bắn Webhook:<br/><code>POST /api/v1/mobile/master/sync-tenant-user</code><br/>➔ Master nạp vào Sổ danh bạ <b>databases.user</b>"]
+
+    MERGE_READY{" "}
+
+    %% ==========================================
+    %% GIAI ĐOẠN 2: MOBILE ĐĂNG NHẬP (HÀNG NGÀY)
+    %% ==========================================
+    STEP2_1["<b>Bước 2.1 (Actor Input)</b><br/>Người dùng mở VCloud Mobile App<br/>Nhập Username &amp; Password (chưa hiện ô DB)<br/>➔ Bấm nút <b>'ĐĂNG NHẬP'</b>"]
+    STEP2_2["<b>Bước 2.2 (System Step)</b><br/>App gửi API tra cứu danh bạ Master Hub:<br/><code>POST /api/v1/auth/lookup-db { login }</code>"]
+
+    DEC1{"Tài khoản có trong<br/>danh bạ Master không?"}
+    ERR_NOT_FOUND["<b>Thông báo lỗi</b>:<br/>'Tài khoản không tồn tại trên hệ thống'"]
+    END_FAIL1((⨂))
+
+    DEC2{"Tài khoản thuộc<br/>bao nhiêu Database?"}
+    ALT_PICK["<b>Alternative Flow (Từ 2 DB trở lên)</b><br/>Form bật thêm trường Dropdown 'Database'<br/>➔ Người dùng chọn Công ty muốn đăng nhập"]
+    MERGE_DB{" "}
+
+    STEP2_3["<b>Bước 2.3 (System Step)</b><br/>App gửi xác thực mật khẩu trực tiếp tới Client DB:<br/><code>POST /web/session/authenticate { db, login, pass }</code><br/><i>(Master Hub không giữ mật khẩu - Zero-Knowledge)</i>"]
+    DEC_PASS{"Mật khẩu<br/>có chính xác không?"}
+    ERR_PASS["<b>Thông báo lỗi</b>:<br/>'Mật khẩu không chính xác'"]
+
+    %% Hoạt động song song (Fork / Join)
+    FORK_BAR["══════════════════════════════════════"]
+    STEP2_4A["<b>Bước 2.4a (Song song)</b><br/>Lưu Session ID / JWT Token<br/>vào Flutter Secure Storage"]
+    STEP2_4B["<b>Bước 2.4b (Song song)</b><br/>Tải Hồ sơ User &<br/>Khởi tạo State Riverpod"]
+    JOIN_BAR["══════════════════════════════════════"]
+
+    %% ==========================================
+    %% GIAI ĐOẠN 3: PHÂN QUYỀN & MỞ GIAO DIỆN
+    %% ==========================================
+    DEC_ROLE{"Kiểm tra Loại tài khoản<br/>(user_type từ Token)?"}
+    ROLE_INTERNAL["<b>Giao diện Nhân Viên (Internal User)</b><br/>Mở toàn bộ phân hệ nghiệp vụ:<br/>• Chấm công GPS & Đếm giờ Timesheet<br/>• Quản lý Công việc & Dự án (Task)<br/>• Kênh Chat Discuss & Quản lý Vé (Ticket)"]
+    ROLE_PORTAL["<b>Giao diện Khách Hàng (Portal User)</b><br/>Áp dụng Decorator deny_portal chặn mã 403:<br/>• Chỉ mở Kênh Chat Trao Đổi<br/>• Gửi Vé Yêu Cầu Hỗ Trợ Kỹ Thuật"]
+    MERGE_VIEW{" "}
+
+    LBL_POST["<b>Post-condition</b>:<br/>Người dùng đăng nhập thành công<br/>và làm việc đúng thẩm quyền!"]
+    END_SUCCESS(((◎)))
+
+    %% ==========================================
+    %% LIÊN KẾT LUỒNG DỌC (VERTICAL FLOW)
+    %% ==========================================
+    START --> LBL_PRE
+    LBL_PRE --> DEC_ACCOUNT
+
+    %% Nhánh 1: Người dùng MỚI / Chưa có tài khoản
+    DEC_ACCOUNT -- "[ Người dùng Mới / Chưa có tài khoản ]<br/>Cần cấp phát tài khoản" --> STEP1_1
+    STEP1_1 --> STEP1_2
+    STEP1_2 --> STEP1_3
+    STEP1_3 -. "⚡ Danh bạ đã nạp vào Master Hub" .-> MERGE_READY
+
+    %% Nhánh 2: Người dùng ĐÃ CÓ TÀI KHOẢN RỒI
+    DEC_ACCOUNT -- "[ ĐÃ CÓ TÀI KHOẢN RỒI ]<br/>(Tài khoản & Danh bạ đã có sẵn)" --> MERGE_READY
+
+    MERGE_READY --> STEP2_1
+    STEP2_1 --> STEP2_2
+    STEP2_2 --> DEC1
+
+    DEC1 -- "[ Không tìm thấy ]" --> ERR_NOT_FOUND
+    ERR_NOT_FOUND --> END_FAIL1
+
+    DEC1 -- "[ Có trong danh bạ ]" --> DEC2
+
+    DEC2 -- "[ Basic Flow: Chỉ 1 DB ]<br/>Tự động chọn DB" --> MERGE_DB
+    DEC2 -- "[ Alt Flow: Từ 2 DB trở lên ]" --> ALT_PICK
+    ALT_PICK --> MERGE_DB
+
+    MERGE_DB --> STEP2_3
+    STEP2_3 --> DEC_PASS
+
+    DEC_PASS -- "[ Sai mật khẩu ]" --> ERR_PASS
+    ERR_PASS -. "Quay lại nhập lại mật khẩu" .-> STEP2_1
+
+    DEC_PASS -- "[ Mật khẩu đúng ]" --> FORK_BAR
+
+    FORK_BAR --> STEP2_4A
+    FORK_BAR --> STEP2_4B
+
+    STEP2_4A --> JOIN_BAR
+    STEP2_4B --> JOIN_BAR
+
+    JOIN_BAR --> DEC_ROLE
+
+    DEC_ROLE -- "[ user_type = 'internal' ]" --> ROLE_INTERNAL
+    DEC_ROLE -- "[ user_type = 'portal' ]" --> ROLE_PORTAL
+
+    ROLE_INTERNAL --> MERGE_VIEW
+    ROLE_PORTAL --> MERGE_VIEW
+
+    MERGE_VIEW --> LBL_POST
+    LBL_POST --> END_SUCCESS
+
+    %% ==========================================
+    %% ĐỊNH DẠNG MÀU SẮC CHUẨN ĐỒ HỌA CAO CẤP
+    %% ==========================================
+    classDef default fill:#0284c7,stroke:#0369a1,stroke-width:2px,color:#ffffff;
+    classDef startEnd fill:#0f172a,stroke:#0f172a,stroke-width:3px,color:#ffffff;
+    classDef decision fill:#e0f2fe,stroke:#0284c7,stroke-width:2px,color:#0369a1;
+    classDef alt fill:#fef3c7,stroke:#f59e0b,stroke-width:2px,color:#78350f;
+    classDef fail fill:#fee2e2,stroke:#ef4444,stroke-width:2px,color:#991b1b;
+    classDef roleInternal fill:#dcfce7,stroke:#16a34a,stroke-width:2px,color:#14532d;
+    classDef rolePortal fill:#fef9c3,stroke:#ca8a04,stroke-width:2px,color:#713f12;
+    classDef bar fill:#0f172a,stroke:#0f172a,stroke-width:4px,color:#ffffff;
+    classDef note fill:#f8fafc,stroke:#94a3b8,stroke-width:2px,color:#334155;
+
+    class START,END_SUCCESS startEnd;
+    class END_FAIL1,ERR_NOT_FOUND,ERR_PASS fail;
+    class DEC1,DEC2,DEC_PASS,DEC_ROLE,MERGE_DB,MERGE_VIEW,DEC_ACCOUNT,MERGE_READY decision;
+    class ALT_PICK alt;
+    class ROLE_INTERNAL roleInternal;
+    class ROLE_PORTAL rolePortal;
+    class FORK_BAR,JOIN_BAR bar;
+    class LBL_PRE,LBL_POST note;
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentZoom = 1.0;
+    function changeZoom(delta) {
+      currentZoom = Math.max(0.7, Math.min(2.0, currentZoom + delta));
+      const el = document.getElementById('diagram-container');
+      el.style.zoom = currentZoom;
+    }
+    function resetZoom() {
+      currentZoom = 1.0;
+      const el = document.getElementById('diagram-container');
+      el.style.zoom = 1.0;
+    }
+  </script>
+
+</body>
+</html>

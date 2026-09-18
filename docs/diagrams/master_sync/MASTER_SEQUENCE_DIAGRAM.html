@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Biểu Đồ Trình Tự Thời Gian (Sequence Diagram) — Master Hub & databases.user</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'default',
+      themeVariables: {
+        fontSize: '18px',
+        fontFamily: "'DejaVu Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+        actorBkg: '#0284c7',
+        actorBorder: '#0369a1',
+        actorTextColor: '#ffffff',
+        actorLineColor: '#0284c7',
+        signalColor: '#0f172a',
+        signalTextColor: '#0f172a',
+        labelBoxBkgColor: '#f8fafc',
+        labelBoxBorderColor: '#cbd5e1',
+        labelTextColor: '#0f172a',
+        loopTextColor: '#0f172a',
+        noteBorderColor: '#f59e0b',
+        noteBkgColor: '#fef3c7',
+        noteTextColor: '#78350f',
+        activationBorderColor: '#0284c7',
+        activationBkgColor: '#e0f2fe'
+      },
+      sequence: {
+        diagramMarginX: 45,
+        diagramMarginY: 25,
+        actorMargin: 35,
+        width: 165,
+        height: 65,
+        boxMargin: 10,
+        boxTextMargin: 6,
+        noteMargin: 15,
+        messageMargin: 55,
+        mirrorActors: true,
+        useMaxWidth: false,
+        rightAngles: false,
+        showSequenceNumbers: false
+      }
+    });
+  </script>
+  <style>
+    body {
+      font-family: 'DejaVu Sans', system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: #f8fafc;
+      color: #0f172a;
+    }
+    .diagram-scroll-pane {
+      overflow-x: auto;
+      overflow-y: visible;
+      padding: 30px 20px;
+      width: 100%;
+      text-align: center;
+      background-color: #ffffff;
+      border-radius: 20px;
+      border: 1px solid #cbd5e1;
+      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.05);
+    }
+    .diagram-inner {
+      display: inline-block;
+      text-align: left;
+      margin: 0 auto;
+      padding: 10px 15px;
+    }
+    .mermaid svg {
+      height: auto !important;
+      overflow: visible !important;
+    }
+    .mermaid text.actor > tspan, .mermaid .actor text {
+      font-size: 17px !important;
+      font-weight: 700 !important;
+      fill: #ffffff !important;
+    }
+    .mermaid .messageText {
+      font-size: 15px !important;
+      font-weight: 700 !important;
+      line-height: 1.5 !important;
+      fill: #0f172a !important;
+    }
+    .mermaid .noteText {
+      font-size: 15px !important;
+      font-weight: 700 !important;
+      line-height: 1.5 !important;
+      fill: #78350f !important;
+    }
+  </style>
+</head>
+<body class="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
+
+  <!-- HEADER -->
+  <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+    <div class="flex flex-col md:flex-row md:items-center justify-between border-b border-slate-100 pb-4 mb-4 gap-4">
+      <div class="flex items-center space-x-3">
+        <span class="w-12 h-12 rounded-xl bg-emerald-600 text-white font-black flex items-center justify-center text-2xl shadow">
+          <i class="fa-solid fa-arrows-split-up-and-left"></i>
+        </span>
+        <div>
+          <h1 class="text-xl md:text-2xl font-black text-slate-900 leading-tight">
+            BIỂU ĐỒ TRÌNH TỰ THỜI GIAN (UML SEQUENCE DIAGRAM)
+          </h1>
+          <p class="text-xs md:text-sm text-slate-500 font-medium">
+            Tương tác 18 bước: Admin Khách hàng ➔ Odoo Web DB ➔ Hook Daemon Thread ➔ Master Hub (vuahethong.net) ➔ Mobile App
+          </p>
+        </div>
+      </div>
+      <!-- THANH ĐIỀU KHIỂN ZOOM -->
+      <div class="flex items-center space-x-2">
+        <button onclick="changeZoom(-0.1)" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold rounded-xl transition" title="Thu nhỏ">
+          <i class="fa-solid fa-magnifying-glass-minus"></i>
+        </button>
+        <button onclick="resetZoom()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold rounded-xl transition" title="100%">
+          100%
+        </button>
+        <button onclick="changeZoom(0.1)" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-xl transition" title="Phóng to">
+          <i class="fa-solid fa-magnifying-glass-plus"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- TÓM TẮT 3 GIAI ĐOẠN CHÍNH -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs md:text-sm">
+      <div class="bg-blue-50 border border-blue-200 p-4 rounded-xl">
+        <div class="font-bold text-blue-900 flex items-center gap-2 mb-1.5">
+          <span class="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs">1</span>
+          Giai đoạn 1: Cấp phát tại DB Khách
+        </div>
+        <p class="text-blue-800 leading-relaxed">
+          Admin tạo User trên Odoo Web của công ty mình. PostgreSQL lưu dữ liệu và commit an toàn 100%. Giao diện Web phản hồi ngay lập tức (<b>0ms delay</b>).
+        </p>
+      </div>
+      <div class="bg-amber-50 border border-amber-200 p-4 rounded-xl">
+        <div class="font-bold text-amber-900 flex items-center gap-2 mb-1.5">
+          <span class="w-6 h-6 rounded-full bg-amber-600 text-white flex items-center justify-center text-xs">2</span>
+          Giai đoạn 2: Bắn Webhook Ngầm (Daemon)
+        </div>
+        <p class="text-amber-800 leading-relaxed">
+          Luồng nền <code>threading.Thread(daemon=True)</code> bắn Webhook lên Master Hub. Master chỉ lưu <code>(login, project_id)</code>, <b>tuyệt đối KHÔNG lưu mật khẩu</b>.
+        </p>
+      </div>
+      <div class="bg-purple-50 border border-purple-200 p-4 rounded-xl">
+        <div class="font-bold text-purple-900 flex items-center gap-2 mb-1.5">
+          <span class="w-6 h-6 rounded-full bg-purple-600 text-white flex items-center justify-center text-xs">3</span>
+          Giai đoạn 3: Người Dùng Đăng Nhập
+        </div>
+        <p class="text-purple-800 leading-relaxed">
+          Người dùng mở App chỉ nhập Email &amp; Password. Master Hub tra danh bạ điều hướng App kết nối thẳng vào DB khách hàng để đăng nhập (<b>Zero-Config</b>).
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONTAINER HIỂN THỊ SƠ ĐỒ SEQUENCE DIAGRAM TO, RÕ NÉT -->
+  <div class="diagram-scroll-pane">
+    <div id="diagram-container" class="diagram-inner">
+      <div class="mermaid">
+sequenceDiagram
+    actor Admin as Admin (Khách Hàng)
+    participant Web as Odoo Web (Client DB)
+    participant Hook as Hook Daemon (Client)
+    participant Master as Master Hub (vuahethong.net)
+    participant DBUser as databases.user (Master)
+    actor User as Người Dùng (Mobile)
+    participant App as VCloud App (Mobile)
+
+    %% GIAI ĐOẠN 1: CẤP PHÁT TÀI KHOẢN TẠI DB KHÁCH HÀNG
+    Note over Admin, Web: GIAI ĐOẠN 1: CẤP PHÁT TÀI KHOẢN TẠI DB KHÁCH HÀNG (LOCAL FIRST)
+    Admin->>Web: 1. Nhập Email, Password<br/>& Chọn quyền trên Web
+    Web->>Web: 2. ORM res.users.create():<br/>Lưu User & Hash Pass
+    Web->>Web: 3. env.cr.commit():<br/>Hoàn tất Transaction
+    Web-->>Admin: 4. Giao diện Web báo lưu xong<br/>(0ms delay, không chờ Master)
+
+    %% GIAI ĐOẠN 2: ĐỒNG BỘ WEBHOOK BẤT ĐỒNG BỘ
+    Note over Hook, Master: GIAI ĐOẠN 2: ĐỒNG BỘ WEBHOOK BẤT ĐỒNG BỘ (CHẠY NGẦM 0ms)
+    Web->>Hook: 5. postcommit kích hoạt Thread daemon
+    Hook->>Master: 6. POST /sync-tenant-user<br/>(Bearer HMAC-SHA256 Token)
+    Note over Hook, Master: Payload: { database_name: "nds_db", login: "user@gmail.com", action: "upsert" }
+    Master->>Master: 7. Xác thực Token & Tìm Tenant
+    Master->>DBUser: 8. Upsert (login, project_id)
+    Note over Master, DBUser: Master Hub TUYỆT ĐỐI KHÔNG lưu mật khẩu!
+    DBUser-->>Master: 9. Xác nhận cập nhật Sổ danh bạ
+    Master-->>Hook: 10. HTTP 200 OK (Đã đồng bộ)
+
+    %% GIAI ĐOẠN 3: NGƯỜI DÙNG ĐĂNG NHẬP TRÊN MOBILE
+    Note over User, App: GIAI ĐOẠN 3: NGƯỜI DÙNG ĐĂNG NHẬP TRÊN MOBILE (ZERO-CONFIG ĐỊNH TUYẾN)
+    User->>App: 11. Mở App, chỉ nhập Email & Pass<br/>(Không cần nhớ domain/DB)
+    App->>Master: 12. POST /api/v1/auth/lookup-db<br/>{ login: "user@gmail.com" }
+    Master->>DBUser: 13. Tra cứu "user@gmail.com"<br/>thuộc Database nào?
+    DBUser-->>Master: 14. Trả về Tenant DB & Domain
+    Master-->>App: 15. Trả về DB "nds_db",<br/>URL "nds.vuahethong.net"
+    App->>Web: 16. Gửi xác thực trực tiếp DB khách:<br/>POST /web/session/authenticate
+    Web-->>App: 17. Mật khẩu đúng! Cấp JWT Token & Session ID
+    App-->>User: 18. Mở màn hình chính, làm việc ngay!
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentZoom = 1.0;
+    function changeZoom(delta) {
+      currentZoom = Math.max(0.6, Math.min(2.2, currentZoom + delta));
+      const el = document.getElementById('diagram-container');
+      el.style.zoom = currentZoom;
+    }
+    function resetZoom() {
+      currentZoom = 1.0;
+      const el = document.getElementById('diagram-container');
+      el.style.zoom = 1.0;
+    }
+  </script>
+</body>
+</html>

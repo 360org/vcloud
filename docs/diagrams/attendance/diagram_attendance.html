@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Activity Diagram - Attendance Notification (Odoo 17)</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px;
+    background: #ffffff;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  #container {
+    width: 1000px;
+    margin: 0 auto;
+  }
+  /* Font chữ to khổng lồ 24px - 28px để thu nhỏ trong preview vẫn đọc rõ */
+  .mermaid svg {
+    width: 100% !important;
+    height: auto !important;
+  }
+  .mermaid .nodeLabel {
+    font-size: 26px !important;
+    font-weight: 800 !important;
+    line-height: 1.35 !important;
+    color: #0f172a !important;
+  }
+  .mermaid .edgeLabel {
+    font-size: 22px !important;
+    font-weight: 800 !important;
+    color: #b91c1c !important;
+    background: #ffffff !important;
+    padding: 4px 8px !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 6px !important;
+  }
+</style>
+</head>
+<body>
+  <div id="container">
+    <div class="mermaid">
+flowchart TD
+    START(( )):::startNode --> S1["1. Quét thiết bị: mobile.api.device"]
+    
+    S1 --> S2["2. Lọc User nội bộ & Map hr.employee"]
+    
+    S2 --> D1{"[TC1, 2] Lịch làm việc<br/>resource.calendar?"}
+    
+    D1 -- "Chủ nhật / Nghỉ" --> E1(((o))):::endNode
+    D1 -- "Ngày đi làm" --> D2{"[TC3] Nghỉ phép<br/>hr.leave: validate?"}
+    
+    D2 -- "Có phép" --> E2(((o))):::endNode
+    D2 -- "Không phép" --> D3{"Đúng giờ nhắc<br/>vào ca / ra ca?"}
+    
+    D3 -- "Chưa tới giờ" --> E3(((o))):::endNode
+    D3 -- "Đúng giờ" --> FORK[====== THANH PHÂN NHÁNH FORK ======]:::syncBar
+
+    FORK --> DIN{"[TC4a] Đã Check-in<br/>hôm nay chưa?"}
+    DIN -- "Đã Check-in" --> E4(((o))):::endNode
+    DIN -- "Chưa" --> DID_IN{"[TC5] Trùng khóa<br/>Idempotency?"}
+    DID_IN -- "Đã gửi rồi" --> E5(((o))):::endNode
+    DID_IN -- "Chưa gửi" --> P_IN["Tạo Push Check-in"]
+
+    FORK --> DOUT{"[TC4b] Còn phiên mở<br/>hoặc làm > 8h?"}
+    DOUT -- "Không mở ca" --> E6(((o))):::endNode
+    DOUT -- "Đang mở ca" --> DID_OUT{"[TC5] Trùng khóa<br/>Idempotency?"}
+    DID_OUT -- "Đã gửi rồi" --> E7(((o))):::endNode
+    DID_OUT -- "Chưa gửi" --> P_OUT["Tạo Push Check-out"]
+
+    P_IN --> JOIN[====== THANH HỢP NHẤT JOIN ======]:::syncBar
+    P_OUT --> JOIN
+
+    JOIN --> DISPATCH["3. Worker ngầm gửi Push sang Google FCM"]
+    
+    DISPATCH --> D_RES{"Google FCM phản hồi?"}
+    D_RES -- "200 OK" --> OK["VCloud Mobile App hiện Banner"]
+    D_RES -- "Lỗi mạng / Token" --> FAIL["Lưu status = failed"]
+    
+    OK --> E_OK(((o))):::endNode
+    FAIL --> E8(((o))):::endNode
+
+    classDef startNode fill:#0f172a,stroke:#0f172a,stroke-width:8px;
+    classDef endNode fill:#ffffff,stroke:#0f172a,stroke-width:8px;
+    classDef syncBar fill:#0f172a,stroke:#0f172a,stroke-width:6px,color:#ffffff;
+    </div>
+  </div>
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'default',
+      themeVariables: {
+        fontSize: '24px',
+        primaryColor: '#f1f5f9',
+        primaryTextColor: '#0f172a',
+        primaryBorderColor: '#334155',
+        lineColor: '#1e293b'
+      },
+      flowchart: {
+        nodeSpacing: 45,
+        rankSpacing: 50
+      }
+    });
+  </script>
+</body>
+</html>

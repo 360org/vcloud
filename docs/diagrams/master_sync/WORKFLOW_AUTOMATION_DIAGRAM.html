@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sơ Đồ Nguyên Lý VCloud Zero-Touch & Master Directory</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #f8fafc; }
+    .step-card { transition: all 0.2s ease; }
+    .step-card:hover { transform: translateY(-3px); box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1); }
+  </style>
+</head>
+<body class="p-6 max-w-6xl mx-auto text-slate-800">
+
+  <!-- HEADER -->
+  <div class="text-center mb-8">
+    <span class="bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+      AIaC 3.0 • VCloud Mobile & Master Directory
+    </span>
+    <h1 class="text-2xl md:text-3xl font-black text-slate-900 mt-2">
+      SƠ ĐỒ NGUYÊN LÝ TỰ ĐỘNG HÓA VCLOUD & ĐỊNH TUYẾN MASTER HUB
+    </h1>
+    <p class="text-slate-500 text-sm mt-1">
+      Giải thích trực quan: Vì sao Master cần thông tin Dự án Khách hàng & Chu trình Đăng nhập Mobile diễn ra như thế nào
+    </p>
+  </div>
+
+  <!-- PHẦN 1: BẢN CHẤT MASTER HUB LÀ GÌ? -->
+  <div class="bg-gradient-to-r from-blue-900 to-indigo-900 text-white rounded-2xl p-6 shadow-md mb-8">
+    <div class="flex items-start space-x-4">
+      <div class="w-12 h-12 rounded-xl bg-blue-500/30 flex items-center justify-center text-2xl flex-shrink-0">
+        <i class="fa-solid fa-server"></i>
+      </div>
+      <div>
+        <h2 class="text-lg font-bold uppercase tracking-wide text-blue-200">
+          Master Hub (vuahethong.net) đóng vai trò gì?
+        </h2>
+        <p class="text-sm text-blue-100 mt-1 leading-relaxed">
+          Master Hub chính là <strong>"Tổng Đài 1080 / DNS Trung Tâm"</strong> của hệ sinh thái 360 CORP.
+          Người dùng mở App Mobile chỉ gõ <code>portal1@360.org.vn</code> mà <strong>không biết máy chủ của công ty họ ở đâu</strong>.
+          Master Hub giữ 2 cuốn sổ danh bạ để chỉ đường cho App:
+        </p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+          <div class="bg-white/10 rounded-xl p-3 border border-white/10">
+            <div class="font-bold text-sm text-emerald-300 flex items-center space-x-2">
+              <i class="fa-solid fa-address-book"></i>
+              <span>1. Sổ Danh bạ Khách hàng (project.project)</span>
+            </div>
+            <div class="text-xs text-slate-200 mt-1">
+              Ghi nhớ địa chỉ web của từng công ty:<br>
+              • Công ty NDS (db: <code>nds</code>) ➔ <code>https://ndsgroup.vn</code><br>
+              • Công ty Salem (db: <code>salemoptical</code>) ➔ <code>https://salemoptical.vn</code>
+            </div>
+          </div>
+          <div class="bg-white/10 rounded-xl p-3 border border-white/10">
+            <div class="font-bold text-sm text-amber-300 flex items-center space-x-2">
+              <i class="fa-solid fa-users"></i>
+              <span>2. Sổ Danh bạ Người dùng (databases.user)</span>
+            </div>
+            <div class="text-xs text-slate-200 mt-1">
+              Ghi nhớ từng user thuộc công ty nào:<br>
+              • <code>portal1@360.org.vn</code> ➔ Thuộc công ty NDS (db: <code>nds</code>)<br>
+              • <code>nhanvien@salem.vn</code> ➔ Thuộc công ty Salem
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PHẦN 2: CHU TRÌNH ĐẦY ĐỦ KHI HOẠT ĐỘNG HOÀN HẢO -->
+  <div class="bg-white rounded-2xl p-6 border-2 border-slate-200 shadow-sm mb-8">
+    <div class="flex items-center space-x-3 mb-6">
+      <span class="px-3 py-1 bg-emerald-100 text-emerald-800 font-bold rounded-lg text-sm uppercase">Kịch bản chuẩn</span>
+      <h3 class="text-lg font-bold text-slate-900">4 Bước Từ Tạo User Đến Đăng Nhập Thành Công</h3>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 relative">
+      <!-- BƯỚC 1 -->
+      <div class="step-card bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <span class="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">1</span>
+            <span class="text-[11px] font-semibold text-slate-400">ndsgroup.vn</span>
+          </div>
+          <div class="font-bold text-sm text-slate-800">Admin Tạo Tài Khoản</div>
+          <p class="text-xs text-slate-500 mt-1">
+            Admin vào Odoo Web tạo tài khoản:<br>
+            • Email: <code class="text-blue-600 font-bold">portal1@360.org.vn</code><br>
+            • Pass: <code>123</code><br>
+            • Nhóm: <strong>Portal</strong> hoặc Internal
+          </p>
+        </div>
+        <div class="mt-3 text-[11px] text-blue-600 font-medium bg-blue-50 p-1.5 rounded text-center">
+          Lưu form 0ms delay UI
+        </div>
+      </div>
+
+      <!-- BƯỚC 2 -->
+      <div class="step-card bg-blue-50 border border-blue-200 rounded-xl p-4 flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <span class="w-6 h-6 rounded-full bg-blue-700 text-white text-xs font-bold flex items-center justify-center">2</span>
+            <span class="text-[11px] font-semibold text-blue-600">Daemon Webhook</span>
+          </div>
+          <div class="font-bold text-sm text-blue-900">Odoo Tự Bắn Webhook</div>
+          <p class="text-xs text-blue-700 mt-1">
+            Hook <code>res.users</code> chạy ngầm sau commit:<br>
+            Bắn HTTP POST sang Master Hub kèm:<br>
+            • DB: <code>nds</code><br>
+            • URL: <code>https://ndsgroup.vn</code><br>
+            • User: <code>portal1@360.org.vn</code>
+          </p>
+        </div>
+        <div class="mt-3 text-[11px] text-emerald-700 font-medium bg-emerald-100 p-1.5 rounded text-center">
+          Cluster Secret bảo mật
+        </div>
+      </div>
+
+      <!-- BƯỚC 3 -->
+      <div class="step-card bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <span class="w-6 h-6 rounded-full bg-amber-600 text-white text-xs font-bold flex items-center justify-center">3</span>
+            <span class="text-[11px] font-semibold text-amber-700">vuahethong.net</span>
+          </div>
+          <div class="font-bold text-sm text-amber-950">Master Ghi Danh Bạ</div>
+          <p class="text-xs text-amber-800 mt-1">
+            Master Hub tra sổ:<br>
+            1. Khớp dự án NDS ➔ Lưu URL <code>https://ndsgroup.vn</code><br>
+            2. Ghi nhận <code>portal1...</code> vào bảng <code>databases.user</code>
+          </p>
+        </div>
+        <div class="mt-3 text-[11px] text-amber-800 font-medium bg-amber-100 p-1.5 rounded text-center">
+          Danh bạ sẵn sàng tra cứu!
+        </div>
+      </div>
+
+      <!-- BƯỚC 4 -->
+      <div class="step-card bg-emerald-50 border border-emerald-300 rounded-xl p-4 flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <span class="w-6 h-6 rounded-full bg-emerald-600 text-white text-xs font-bold flex items-center justify-center">4</span>
+            <span class="text-[11px] font-semibold text-emerald-700">App VCloud</span>
+          </div>
+          <div class="font-bold text-sm text-emerald-950">Mobile Đăng Nhập</div>
+          <p class="text-xs text-emerald-800 mt-1">
+            User mở App gõ: <code>portal1@...</code> + pass: <code>123</code><br>
+            • App hỏi Master Hub: "User này ở đâu?"<br>
+            • Master trả lời: "Ở <code>https://ndsgroup.vn</code>"<br>
+            • App đăng nhập thẳng vào NDS!
+          </p>
+        </div>
+        <div class="mt-3 text-[11px] text-white font-bold bg-emerald-600 p-1.5 rounded text-center shadow-sm">
+          🎉 Vào App trong 1 giây!
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PHẦN 3: ĐỐI CHIẾU KỊCH BẢN - CÓ DỰ ÁN VS THIẾU DỰ ÁN -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+
+    <!-- CỘT 1: THIẾU DỰ ÁN (KỊCH BẢN LỖI) -->
+    <div class="bg-red-50 border-2 border-red-200 rounded-2xl p-5">
+      <div class="flex items-center space-x-2 text-red-700 font-bold mb-3">
+        <i class="fa-solid fa-triangle-exclamation text-xl"></i>
+        <h4 class="text-base uppercase">Nếu thiếu thông tin Dự án trên Master</h4>
+      </div>
+      <ul class="text-xs text-red-900 space-y-2.5">
+        <li class="flex items-start space-x-2">
+          <i class="fa-solid fa-xmark text-red-500 mt-0.5"></i>
+          <span>Web NDS bắn webhook thông báo có user mới của database <code>nds</code>.</span>
+        </li>
+        <li class="flex items-start space-x-2">
+          <i class="fa-solid fa-xmark text-red-500 mt-0.5"></i>
+          <span>Master tìm trong sổ không thấy ai tên <code>nds</code>, không biết web của khách hàng ở đâu ➔ <strong>Master từ chối ghi nhận danh bạ (Lỗi 404)</strong>.</span>
+        </li>
+        <li class="flex items-start space-x-2">
+          <i class="fa-solid fa-circle-radiation text-red-600 mt-0.5 font-bold"></i>
+          <span><strong>HẬU QUẢ:</strong> Khách hàng mở app điện thoại lên nhập tài khoản, app báo: <em class="bg-red-100 px-1 font-bold text-red-800">"Không tìm thấy tài khoản của bạn!"</em>. Khách hàng tưởng hệ thống bị hỏng!</span>
+        </li>
+      </ul>
+    </div>
+
+    <!-- CỘT 2: ĐỦ DỰ ÁN HOẶC TỰ ĐỘNG TẠO DỰ ÁN (KỊCH BẢN HOÀN HẢO) -->
+    <div class="bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-5">
+      <div class="flex items-center space-x-2 text-emerald-800 font-bold mb-3">
+        <i class="fa-solid fa-circle-check text-xl text-emerald-600"></i>
+        <h4 class="text-base uppercase">Khi đã có Dự án (Hoặc Auto Tự Tạo)</h4>
+      </div>
+      <ul class="text-xs text-emerald-900 space-y-2.5">
+        <li class="flex items-start space-x-2">
+          <i class="fa-solid fa-check text-emerald-600 mt-0.5"></i>
+          <span>Master nhận Webhook, nhận diện ngay: <code>nds</code> có địa chỉ là <code>https://ndsgroup.vn</code>.</span>
+        </li>
+        <li class="flex items-start space-x-2">
+          <i class="fa-solid fa-check text-emerald-600 mt-0.5"></i>
+          <span>Master tự động ghi user vào danh bạ và kích hoạt ngay lập tức.</span>
+        </li>
+        <li class="flex items-start space-x-2">
+          <i class="fa-solid fa-star text-amber-500 mt-0.5"></i>
+          <span><strong>KẾT QUẢ:</strong> Bất kỳ ai (nhân viên hay khách hàng Portal) vừa tạo xong trên web là mở app mobile lên gõ đúng email + mật khẩu là vào thẳng app ngay lập tức!</span>
+        </li>
+      </ul>
+    </div>
+
+  </div>
+
+  <!-- PHẦN 4: KẾT LUẬN & ĐỀ XUẤT GIẢI PHÁP -->
+  <div class="bg-slate-100 border border-slate-300 rounded-2xl p-5">
+    <h4 class="font-bold text-sm text-slate-800 uppercase flex items-center space-x-2">
+      <i class="fa-solid fa-lightbulb text-amber-500 text-base"></i>
+      <span>Giải pháp tối ưu cho Sếp Tân:</span>
+    </h4>
+    <p class="text-xs text-slate-600 mt-2 leading-relaxed">
+      Để Sếp <strong>không bao giờ phải lo lắng</strong> về việc ai đó quên tạo Dự án trên Master Hub:
+      Ta chỉ cần bổ sung <strong>3 dòng code</strong> vào Master Hub:
+      <em>"Nếu nhận được webhook từ tenant gửi kèm địa chỉ web mà Master chưa có dự án thì Master <strong>TỰ ĐỘNG TẠO DỰ ÁN LUÔN</strong>"</em>.
+      Lúc này toàn bộ hệ thống trở thành <strong>Zero-Touch 100%</strong>: Cứ cài Odoo là tự kết nối vào Mobile, không cần ai phải thao tác thủ công gì cả!
+    </p>
+  </div>
+
+</body>
+</html>

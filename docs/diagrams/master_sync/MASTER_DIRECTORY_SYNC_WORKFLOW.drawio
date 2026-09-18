@@ -1,0 +1,255 @@
+<mxfile host="app.diagrams.net" modified="2026-09-15T12:30:00.000Z" agent="AIaC 3.0" version="21.0.0" type="device">
+  <diagram id="master-directory-sync-workflow" name="Master Directory Sync Workflow">
+    <mxGraphModel dx="1200" dy="2200" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1000" pageHeight="1850" background="#F8FAFC" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- TIÊU ĐỀ & MÔ TẢ -->
+        <mxCell id="title" value="KIẾN TRÚC MASTER HUB &amp; SỔ DANH BẠ databases.user" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=20;fontStyle=1;fontColor=#0F172A;" vertex="1" parent="1">
+          <mxGeometry x="150" y="20" width="700" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" value="Quy trình Cấp phát, Đồng bộ Bất đồng bộ 0ms Delay và Cơ chế Định tuyến Đăng nhập Zero-Config" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=13;fontColor=#64748B;" vertex="1" parent="1">
+          <mxGeometry x="150" y="55" width="700" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- BẢNG GIẢI ĐÁP CÂU HỎI KIẾN TRÚC CỦA SẾP TÂN -->
+        <mxCell id="box_faq" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#F59E0B;strokeWidth=1.5;" vertex="1" parent="1">
+          <mxGeometry x="60" y="85" width="880" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="lbl_faq_title" value="❓ GIẢI ĐÁP THẮC MẮC: Tại sao DB khách hàng đã có tài khoản rồi mà vẫn phải nạp lên Master databases.user? Có bị vòng không?" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontStyle=1;fontColor=#92400E;" vertex="1" parent="1">
+          <mxGeometry x="75" y="90" width="850" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="box_faq_col1" value="❌ NẾU KHÔNG CÓ MASTER HUB (Kiểu Odoo gốc):&#xa;• Người dùng mở app mobile bắt buộc phải gõ tay URL: https://nds.vuahethong.net và nhớ tên DB.&#xa;• 90% nhân viên &amp; khách hàng không nhớ URL/DB ➔ bỏ không dùng app.&#xa;• Nếu 1 người làm ở 2 công ty (dùng chung email), app không thể phát hiện để cho chọn công ty." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#F87171;fontColor=#991B1B;fontSize=11;align=left;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="75" y="120" width="415" height="85" as="geometry" />
+        </mxCell>
+        <mxCell id="box_faq_col2" value="✅ CÓ MASTER HUB &amp; databases.user (VCloud Chuẩn):&#xa;• Đăng nhập Zero-Config: Chỉ cần gõ Email &amp; Password (như Slack, Telegram, Discord).&#xa;• Master Hub đóng vai trò 'Tổng đài danh bạ DNS': Chỉ map Login ➔ Database nào (KHÔNG lưu mật khẩu).&#xa;• Hoàn toàn tự động: Admin tạo user ở DB khách hàng, Daemon Thread tự bắn Webhook ngầm trong 0ms." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#34D399;fontColor=#065F46;fontSize=11;align=left;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="505" y="120" width="420" height="85" as="geometry" />
+        </mxCell>
+
+        <!-- KHỞI ĐẦU & TIỀN ĐIỀU KIỆN -->
+        <mxCell id="start_node" value="" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#0F172A;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="485" y="235" width="30" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="lbl_pre" value="Pre-condition: Khách hàng sở hữu Database Odoo Tenant riêng biệt (NDS, Davita, Salem, v.v.)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;fontColor=#64748B;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="200" y="270" width="600" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- ========================================================================= -->
+        <!-- PHÂN VÙNG 1: ODOO CLIENT WEB (DB KHÁCH HÀNG) -->
+        <!-- ========================================================================= -->
+        <mxCell id="sg_client" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0F9FF;strokeColor=#0284C7;strokeWidth=1.5;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="300" width="880" height="270" as="geometry" />
+        </mxCell>
+        <mxCell id="tag_client" value="🏢 PHÂN VÙNG 1: ODOO CLIENT WEB (DATABASE KHÁCH HÀNG)" style="text;html=1;strokeColor=none;fillColor=#0284C7;fontColor=#FFFFFF;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontSize=11;fontStyle=1;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="75" y="310" width="450" height="24" as="geometry" />
+        </mxCell>
+
+        <!-- Bước 1 -->
+        <mxCell id="step_1" value="1. Admin tạo User mới trên Odoo Web (DB Khách Hàng)&#xa;Admin vào Settings ➔ Users ➔ Nhập Email/Login &amp; Password ➔ Bấm 'LƯU' (Save)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0F2FE;strokeColor=#0284C7;fontColor=#0369A1;fontSize=12;fontStyle=1;arcSize=15;" vertex="1" parent="1">
+          <mxGeometry x="150" y="345" width="700" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- Bước 2 -->
+        <mxCell id="step_2" value="2. Odoo ORM thực thi res.users.create()&#xa;Ghi thông tin tài khoản &amp; Hash mật khẩu (PBKDF2-SHA512) vào PostgreSQL của riêng khách hàng" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0F2FE;strokeColor=#0284C7;fontColor=#0369A1;fontSize=12;fontStyle=1;arcSize=15;" vertex="1" parent="1">
+          <mxGeometry x="150" y="405" width="700" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- Bước 3 -->
+        <mxCell id="step_3" value="3. Commit Transaction an toàn 100%&#xa;env.cr.commit() hoàn tất lưu dữ liệu ➔ Giao diện Web phản hồi NGAY LẬP TỨC (0ms delay UI)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0F2FE;strokeColor=#0284C7;fontColor=#0369A1;fontSize=12;fontStyle=1;arcSize=15;" vertex="1" parent="1">
+          <mxGeometry x="150" y="465" width="700" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- Bước 4 -->
+        <mxCell id="step_4" value="4. Hook res.users bắt sự kiện qua postcommit&#xa;Kiểm tra trigger: login mới hoặc active thay đổi ➔ Đăng ký hàm callback vào env.cr.postcommit" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0F2FE;strokeColor=#0284C7;fontColor=#0369A1;fontSize=12;fontStyle=1;arcSize=15;" vertex="1" parent="1">
+          <mxGeometry x="150" y="520" width="700" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- ========================================================================= -->
+        <!-- PHÂN VÙNG 2: DAEMON BACKGROUND THREAD (BẤT ĐỒNG BỘ) -->
+        <!-- ========================================================================= -->
+        <mxCell id="sg_daemon" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFBEB;strokeColor=#F59E0B;strokeWidth=1.5;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="590" width="880" height="210" as="geometry" />
+        </mxCell>
+        <mxCell id="tag_daemon" value="⚡ PHÂN VÙNG 2: DAEMON BACKGROUND THREAD (BẤT ĐỒNG BỘ - HOÀN TOÀN TỰ ĐỘNG)" style="text;html=1;strokeColor=none;fillColor=#D97706;fontColor=#FFFFFF;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontSize=11;fontStyle=1;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="75" y="600" width="560" height="24" as="geometry" />
+        </mxCell>
+
+        <!-- Bước 5 -->
+        <mxCell id="step_5" value="5. Khởi chạy Thread nền độc lập: threading.Thread(daemon=True)&#xa;Tách biệt hoàn toàn khỏi luồng Web Odoo ➔ Không gây nghẽn, không block người dùng" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#F59E0B;fontColor=#78350F;fontSize=12;fontStyle=1;arcSize=15;" vertex="1" parent="1">
+          <mxGeometry x="150" y="635" width="700" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- Bước 6 -->
+        <mxCell id="step_6" value="6. Đóng gói Payload Webhook &amp; Ký Token HMAC-SHA256&#xa;Payload: { database_name: 'nds_db', login: 'user@gmail.com', action: 'upsert' } | Header: Authorization: Bearer &lt;Secret&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#F59E0B;fontColor=#78350F;fontSize=12;fontStyle=1;arcSize=15;" vertex="1" parent="1">
+          <mxGeometry x="150" y="695" width="700" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- Bước 7 -->
+        <mxCell id="step_7" value="7. Bắn HTTP POST sang Master Hub (Timeout 4s fail-safe)&#xa;POST https://vuahethong.net/api/v1/mobile/master/sync-tenant-user&#xa;Fail-safe: Nếu mạng bớt kết nối hoặc Master bảo trì, chỉ ghi log cảnh báo, tuyệt đối không ảnh hưởng DB khách" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#F59E0B;fontColor=#78350F;fontSize=12;fontStyle=1;arcSize=15;" vertex="1" parent="1">
+          <mxGeometry x="150" y="750" width="700" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- ========================================================================= -->
+        <!-- PHÂN VÙNG 3: MASTER HUB (vuahethong.net) & databases.user -->
+        <!-- ========================================================================= -->
+        <mxCell id="sg_master" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0FDF4;strokeColor=#16A34A;strokeWidth=1.5;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="820" width="880" height="480" as="geometry" />
+        </mxCell>
+        <mxCell id="tag_master" value="🌐 PHÂN VÙNG 3: MASTER HUB (vuahethong.net) &amp; SỔ DANH BẠ databases.user" style="text;html=1;strokeColor=none;fillColor=#16A34A;fontColor=#FFFFFF;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontSize=11;fontStyle=1;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="75" y="830" width="530" height="24" as="geometry" />
+        </mxCell>
+
+        <!-- Bước 8 -->
+        <mxCell id="step_8" value="8. Master Hub tiếp nhận Webhook tại master_sync_tenant_user" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCFCE7;strokeColor=#16A34A;fontColor=#14532D;fontSize=12;fontStyle=1;arcSize=15;" vertex="1" parent="1">
+          <mxGeometry x="250" y="865" width="500" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Decision: Token -->
+        <mxCell id="dec_token" value="Token Bearer HMAC&#xa;hợp lệ không?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#E0F2FE;strokeColor=#0284C7;fontColor=#0369A1;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="415" y="925" width="170" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="err_403" value="Từ chối request (403 Forbidden)&#xa;Chặn request giả mạo" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEE2E2;strokeColor=#EF4444;fontColor=#991B1B;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="720" y="935" width="180" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Decision: Project -->
+        <mxCell id="dec_project" value="Tìm thấy project.project&#xa;khớp database_name?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#E0F2FE;strokeColor=#0284C7;fontColor=#0369A1;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="415" y="1010" width="170" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="err_404" value="Báo lỗi Tenant (404 Not Found)&#xa;Tenant chưa đăng ký trên Master" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEE2E2;strokeColor=#EF4444;fontColor=#991B1B;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="720" y="1020" width="180" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Decision: Exist in databases.user? -->
+        <mxCell id="dec_exist" value="User đã có trong&#xa;databases.user chưa?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#E0F2FE;strokeColor=#0284C7;fontColor=#0369A1;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="415" y="1095" width="170" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Nhánh Update -->
+        <mxCell id="act_update" value="Cập nhật bản ghi hiện hữu:&#xa;is_blocked = False (Trường hợp unarchive tài khoản)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCFCE7;strokeColor=#16A34A;fontColor=#14532D;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="150" y="1175" width="310" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Nhánh Insert -->
+        <mxCell id="act_insert" value="Tạo mới bản ghi trong databases.user:&#xa;• login = 'user@gmail.com' • project_id = project.id&#xa;• is_blocked = False (TUYỆT ĐỐI KHÔNG LƯU MẬT KHẨU)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCFCE7;strokeColor=#16A34A;fontColor=#14532D;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="520" y="1175" width="340" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Bước 9 -->
+        <mxCell id="step_9" value="9. Commit Sổ danh bạ databases.user trên Master Hub&#xa;Đồng bộ hoàn tất! Master Hub đã biết email 'user@gmail.com' thuộc Tenant DB của khách hàng" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#86EFAC;strokeColor=#16A34A;fontColor=#064E3B;fontSize=12;fontStyle=1;arcSize=15;" vertex="1" parent="1">
+          <mxGeometry x="150" y="1245" width="700" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- ========================================================================= -->
+        <!-- PHÂN VÙNG 4: VCLOUD MOBILE APP (HƯỞNG LỢI TRỰC TIẾP) -->
+        <!-- ========================================================================= -->
+        <mxCell id="sg_mobile" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FAF5FF;strokeColor=#9333EA;strokeWidth=1.5;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="1320" width="880" height="230" as="geometry" />
+        </mxCell>
+        <mxCell id="tag_mobile" value="📱 PHÂN VÙNG 4: VCLOUD MOBILE APP (HƯỞNG LỢI - TRẢI NGHIỆM ĐĂNG NHẬP ZERO-CONFIG)" style="text;html=1;strokeColor=none;fillColor=#9333EA;fontColor=#FFFFFF;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontSize=11;fontStyle=1;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="75" y="1330" width="600" height="24" as="geometry" />
+        </mxCell>
+
+        <!-- Bước 10 -->
+        <mxCell id="step_10" value="10. Người dùng mở App &amp; Đăng nhập Zero-Config&#xa;Người dùng chỉ cần nhập Email &amp; Password ➔ App gửi POST /api/v1/auth/lookup-db lên Master Hub" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3E8FF;strokeColor=#9333EA;fontColor=#581C87;fontSize=12;fontStyle=1;arcSize=15;" vertex="1" parent="1">
+          <mxGeometry x="150" y="1370" width="700" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- Bước 11 -->
+        <mxCell id="step_11" value="11. Master tra cứu databases.user &amp; Điều hướng App thẳng tới Tenant DB&#xa;Master tìm ra Database 'nds_db' ➔ App gửi xác thực mật khẩu trực tiếp tới DB khách hàng:&#xa;POST /web/session/authenticate { db: 'nds_db', login, pass } ➔ Đăng nhập thành công!" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3E8FF;strokeColor=#9333EA;fontColor=#581C87;fontSize=12;fontStyle=1;arcSize=15;" vertex="1" parent="1">
+          <mxGeometry x="150" y="1430" width="700" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- Kết thúc -->
+        <mxCell id="end_node" value="" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#16A34A;strokeColor=#FFFFFF;strokeWidth=3;" vertex="1" parent="1">
+          <mxGeometry x="485" y="1500" width="30" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- ========================================================================= -->
+        <!-- CÁC ĐƯỜNG KẾT NỐI (EDGES & FLOW) -->
+        <!-- ========================================================================= -->
+        <mxCell id="e_start" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0F172A;strokeWidth=2;" edge="1" parent="1" source="start_node" target="step_1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_1_2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0284C7;strokeWidth=2;" edge="1" parent="1" source="step_1" target="step_2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_2_3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0284C7;strokeWidth=2;" edge="1" parent="1" source="step_2" target="step_3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_3_4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0284C7;strokeWidth=2;" edge="1" parent="1" source="step_3" target="step_4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_4_5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#D97706;strokeWidth=2;" edge="1" parent="1" source="step_4" target="step_5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_5_6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#D97706;strokeWidth=2;" edge="1" parent="1" source="step_5" target="step_6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_6_7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#D97706;strokeWidth=2;" edge="1" parent="1" source="step_6" target="step_7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_7_8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16A34A;strokeWidth=2;" edge="1" parent="1" source="step_7" target="step_8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_8_dec_token" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16A34A;strokeWidth=2;" edge="1" parent="1" source="step_8" target="dec_token">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_token_no" value="Sai Token" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#EF4444;strokeWidth=1.5;fontColor=#EF4444;fontSize=10;fontStyle=1;" edge="1" parent="1" source="dec_token" target="err_403">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_token_yes" value="Hợp lệ" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16A34A;strokeWidth=2;fontColor=#16A34A;fontSize=10;fontStyle=1;" edge="1" parent="1" source="dec_token" target="dec_project">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_project_no" value="Không tìm thấy" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#EF4444;strokeWidth=1.5;fontColor=#EF4444;fontSize=10;fontStyle=1;" edge="1" parent="1" source="dec_project" target="err_404">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_project_yes" value="Tìm thấy" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16A34A;strokeWidth=2;fontColor=#16A34A;fontSize=10;fontStyle=1;" edge="1" parent="1" source="dec_project" target="dec_exist">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_exist_yes" value="Đã tồn tại" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0284C7;strokeWidth=2;fontColor=#0284C7;fontSize=10;fontStyle=1;" edge="1" parent="1" source="dec_exist" target="act_update">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_exist_no" value="Chưa có" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16A34A;strokeWidth=2;fontColor=#16A34A;fontSize=10;fontStyle=1;" edge="1" parent="1" source="dec_exist" target="act_insert">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_update_step9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16A34A;strokeWidth=2;" edge="1" parent="1" source="act_update" target="step_9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_insert_step9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16A34A;strokeWidth=2;" edge="1" parent="1" source="act_insert" target="step_9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_step9_step10" value="Danh bạ đã sẵn sàng!" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#9333EA;strokeWidth=2;dashed=1;fontColor=#9333EA;fontSize=11;fontStyle=1;" edge="1" parent="1" source="step_9" target="step_10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_10_11" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#9333EA;strokeWidth=2;" edge="1" parent="1" source="step_10" target="step_11">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_11_end" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16A34A;strokeWidth=2;" edge="1" parent="1" source="step_11" target="end_node">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
