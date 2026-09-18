@@ -26,7 +26,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _password = TextEditingController();
   final _serverUrl = TextEditingController();
   final _databaseName = TextEditingController();
-  bool _isManualMode = false;
+  final bool _isManualMode = false;
   bool _submitting = false;
   bool _showSuccessTransition = false;
   String? _error;
@@ -1048,43 +1048,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                                 size: 20),
                                           ],
                                         ),
-                                ),
-                              ),
-
-                              const SizedBox(height: 14),
-
-                              // Toggle Manual Mode Button (Fallback)
-                              Center(
-                                child: TextButton.icon(
-                                  onPressed: () {
-                                    setState(() {
-                                      _isManualMode = !_isManualMode;
-                                      _error = null;
-                                    });
-                                  },
-                                  icon: Icon(
-                                    _isManualMode
-                                        ? LucideIcons.sparkles
-                                        : LucideIcons.slidersHorizontal,
-                                    size: 15,
-                                    color: const Color(0xFF64748B),
-                                  ),
-                                  label: Text(
-                                    _isManualMode
-                                        ? 'Chuyển sang Đăng nhập thông minh (Smart Login)'
-                                        : 'Nhập máy chủ / Database thủ công',
-                                    style: const TextStyle(
-                                      fontSize: 12.5,
-                                      fontWeight: FontWeight.w600,
-                                      color: Color(0xFF64748B),
-                                    ),
-                                  ),
-                                  style: TextButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 8,
-                                    ),
-                                  ),
                                 ),
                               ),
                             ],
