@@ -41,13 +41,14 @@ if [[ -z "$INPUT_ARG" ]]; then
     echo "🚀 VCLOUD FLUTTER WEB — CONNECT LOCAL SERVER ($SERVER_HOST)"
     echo "=============================================================================="
     echo "👉 Chọn phiên bản Backend trên Server Local:"
-    echo "   [1] hoặc 17   ➔ Odoo 17.0 (API: http://$SERVER_HOST:8069, DB: demo-17)"
-    echo "   [2] hoặc 19   ➔ Odoo 19.0 (API: http://$SERVER_HOST:1900, DB: odoo_19)"
-    echo "   [3] hoặc 18   ➔ Odoo 18.0 (API: http://$SERVER_HOST:1800, DB: odoo_18)"
-    echo "   [0] hoặc q    ➔ Thoát"
+    echo "   [1] hoặc 17        ➔ Odoo 17.0 (API: http://$SERVER_HOST:8069, DB: demo-17)"
+    echo "   [2] hoặc 19        ➔ Odoo 19.0 (API: http://$SERVER_HOST:1900, DB: davita)"
+    echo "   [3] hoặc odoo_19   ➔ Odoo 19.0 (API: http://$SERVER_HOST:1900, DB: odoo_19)"
+    echo "   [4] hoặc 18        ➔ Odoo 18.0 (API: http://$SERVER_HOST:1800, DB: odoo_18)"
+    echo "   [0] hoặc q         ➔ Thoát"
     echo "------------------------------------------------------------------------------"
-    read -r -p "Nhập lựa chọn của Sếp [Mặc định: 17]: " CHOICE
-    CHOICE="${CHOICE:-17}"
+    read -r -p "Nhập lựa chọn của Sếp [Mặc định: 19]: " CHOICE
+    CHOICE="${CHOICE:-19}"
 else
     CHOICE="$INPUT_ARG"
 fi
@@ -60,14 +61,21 @@ case "$CHOICE" in
         WEB_PORT="${PORT:-8088}"
         CHROME_PROFILE="/tmp/flutter_chrome_ssh_17"
         ;;
-    2|19|"19.0")
+    2|19|"19.0"|davita|"davita_v19")
+        ODOO_VERSION="19.0"
+        API_PORT="1900"
+        DB_NAME="davita"
+        WEB_PORT="${PORT:-8089}"
+        CHROME_PROFILE="/tmp/flutter_chrome_ssh_19"
+        ;;
+    3|odoo_19|"odoo19")
         ODOO_VERSION="19.0"
         API_PORT="1900"
         DB_NAME="odoo_19"
         WEB_PORT="${PORT:-8089}"
         CHROME_PROFILE="/tmp/flutter_chrome_ssh_19"
         ;;
-    3|18|"18.0")
+    4|18|"18.0")
         ODOO_VERSION="18.0"
         API_PORT="1800"
         DB_NAME="odoo_18"
@@ -79,12 +87,12 @@ case "$CHOICE" in
         exit 0
         ;;
     *)
-        echo "❌ Lựa chọn '$CHOICE' không hợp lệ. Mặc định chọn Odoo 17."
-        ODOO_VERSION="17.0"
-        API_PORT="8069"
-        DB_NAME="demo-17"
-        WEB_PORT="${PORT:-8088}"
-        CHROME_PROFILE="/tmp/flutter_chrome_ssh_17"
+        echo "❌ Lựa chọn '$CHOICE' không hợp lệ. Mặc định chọn Odoo 19 (DB: davita)."
+        ODOO_VERSION="19.0"
+        API_PORT="1900"
+        DB_NAME="davita"
+        WEB_PORT="${PORT:-8089}"
+        CHROME_PROFILE="/tmp/flutter_chrome_ssh_19"
         ;;
 esac
 
@@ -118,12 +126,14 @@ if [[ -d "$PARENT_DIR/v_mobile_17" ]]; then
         "$PARENT_DIR/v_mobile_17/" "$SSH_ALIAS:/mnt/DATA/work/17.0/extra/v_mobile/" 2>/dev/null || SYNC_ERROR=1
 fi
 
-# B. Đồng bộ Odoo 19
+# B. Đồng bộ Odoo 19 (Container odoo_dev_v19 nạp từ /mnt/DATA/work/19.0/default/v_mobile)
 if [[ -d "$PARENT_DIR/v_mobile_19" ]]; then
-    echo "   📦 Đang đồng bộ v_mobile_19 -> Server Local ($SERVER_HOST)..."
+    echo "   📦 Đang đồng bộ v_mobile_19 -> Server Local ($SERVER_HOST:/mnt/DATA/work/19.0/default/v_mobile)..."
+    ssh "$SSH_ALIAS" "echo odoo | sudo -S chown -R corp360:corp360 /mnt/DATA/work/19.0/default/v_mobile" 2>/dev/null || true
     rsync -aq --delete \
         --exclude='.git' --exclude='__pycache__' --exclude='*.pyc' --exclude='.claude' --exclude='.codegraph' \
-        "$PARENT_DIR/v_mobile_19/" "$SSH_ALIAS:/mnt/DATA/work/19.0/extra/v_mobile/" 2>/dev/null || SYNC_ERROR=1
+        "$PARENT_DIR/v_mobile_19/" "$SSH_ALIAS:/mnt/DATA/work/19.0/default/v_mobile/" 2>/dev/null || SYNC_ERROR=1
+    ssh "$SSH_ALIAS" "echo odoo | sudo -S chown -R 101:101 /mnt/DATA/work/19.0/default/v_mobile" 2>/dev/null || true
 fi
 
 if [[ $SYNC_ERROR -eq 0 ]]; then
@@ -138,16 +148,22 @@ echo
 # ------------------------------------------------------------------------------
 
 echo "📡 [2/3] Kiểm tra kết nối Backend ($API_URL)..."
-echo "   [CMD] curl -s -m 3 $API_URL/web/login"
 
-if curl -s -m 3 "$API_URL/web/login" >/dev/null 2>&1; then
-    echo "   ✅ PASS: Kết nối thành công (HTTP 200 OK)"
-else
-    echo "   ❌ FAIL: Không thể kết nối tới $API_URL"
-    read -r -p "Tiếp tục mở Flutter Web? [y/N]: " PROCEED
-    if [[ ! "$PROCEED" =~ ^[yY]$ ]]; then
-        exit 1
+# Sau rsync + chown, Odoo container có thể đang reload — retry tối đa 15s
+_hc_ok=0
+for _i in 1 2 3 4 5; do
+    if /usr/bin/curl -s -o /dev/null -m 3 "$API_URL/web" 2>/dev/null; then
+        _hc_ok=1
+        break
     fi
+    sleep 3
+done
+
+if [[ $_hc_ok -eq 1 ]]; then
+    echo "   ✅ PASS: Kết nối Backend thành công"
+else
+    echo "   ⚠️ CẢNH BÁO: Backend $API_URL chưa phản hồi (có thể đang khởi động lại)"
+    echo "   ➡️ Flutter Web sẽ vẫn khởi chạy, Sếp đợi Backend sẵn sàng rồi đăng nhập."
 fi
 
 # ------------------------------------------------------------------------------

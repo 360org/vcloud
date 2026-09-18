@@ -110,6 +110,7 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
   Duration _recordDuration = Duration.zero;
   Timer? _recordTimer;
   AudioEncoder _currentEncoder = AudioEncoder.aacLc;
+  bool _isHandlingSend = false;
 
   @override
   void initState() {
@@ -417,104 +418,108 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
   }
 
   Future<void> _handleSend() async {
-    if (widget.isSending || _isUploading) return;
+    if (widget.isSending || _isUploading || _isHandlingSend) return;
+    _isHandlingSend = true;
+    try {
+      final text = _controller.text.trim();
 
-    final text = _controller.text.trim();
+      // Nếu có tệp/ảnh đang được chọn -> gửi tệp kèm caption
+      if (_selectedBytes != null) {
+        final bytes = _selectedBytes!;
+        final filename = _selectedFilename ??
+            (_isSelectedImage
+                ? 'image_${DateTime.now().millisecondsSinceEpoch}.jpg'
+                : 'file_${DateTime.now().millisecondsSinceEpoch}');
+        final mime = _selectedMimetype ??
+            (_isSelectedImage ? 'image/jpeg' : 'application/octet-stream');
+        final isImage = _isSelectedImage;
+        final caption = text.isNotEmpty ? text : null;
 
-    // Nếu có tệp/ảnh đang được chọn -> gửi tệp kèm caption
-    if (_selectedBytes != null) {
-      final bytes = _selectedBytes!;
-      final filename = _selectedFilename ??
-          (_isSelectedImage
-              ? 'image_${DateTime.now().millisecondsSinceEpoch}.jpg'
-              : 'file_${DateTime.now().millisecondsSinceEpoch}');
-      final mime = _selectedMimetype ??
-          (_isSelectedImage ? 'image/jpeg' : 'application/octet-stream');
-      final isImage = _isSelectedImage;
-      final caption = text.isNotEmpty ? text : null;
+        setState(() {
+          _selectedBytes = null;
+          _selectedFilename = null;
+          _selectedMimetype = null;
+          _isSelectedImage = false;
+          _isUploading = true;
+        });
 
-      setState(() {
-        _selectedBytes = null;
-        _selectedFilename = null;
-        _selectedMimetype = null;
-        _isSelectedImage = false;
-        _isUploading = true;
-      });
+        _controller.clear();
+        setState(() {
+          _hasText = false;
+          _isUploading = false;
+        });
 
+        try {
+          if (isImage && widget.onSendImage != null) {
+            await widget.onSendImage!(
+              bytes: bytes,
+              filename: filename,
+              mimetype: mime,
+              caption: caption,
+            );
+          } else if (widget.onSendFile != null) {
+            await widget.onSendFile!(
+              bytes: bytes,
+              filename: filename,
+              mimetype: mime,
+              caption: caption,
+            );
+          } else if (widget.onSendImage != null) {
+            await widget.onSendImage!(
+              bytes: bytes,
+              filename: filename,
+              mimetype: mime,
+              caption: caption,
+            );
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Lỗi gửi đính kèm: $e')),
+            );
+          }
+        }
+        return;
+      }
+
+      // Nếu chỉ có văn bản
+      if (text.isEmpty) return;
+
+      final validPartnerIds = <int>[];
+      final validMentionedPartners = <Map<String, dynamic>>[];
+
+      for (final entry in _trackedMentions.entries) {
+        final name = entry.key;
+        final member = entry.value;
+        if (text.contains('@$name')) {
+          final pid = int.tryParse(member.id);
+          if (pid != null && !validPartnerIds.contains(pid)) {
+            validPartnerIds.add(pid);
+            validMentionedPartners.add({
+              'id': pid,
+              'name': member.name,
+            });
+          }
+        }
+      }
+
+      _trackedMentions.clear();
       _controller.clear();
       setState(() {
         _hasText = false;
-        _isUploading = false;
+        _mentionSuggestions = [];
+        _mentionQueryStartIndex = -1;
+        _selectedMentionIndex = 0;
       });
 
-      try {
-        if (isImage && widget.onSendImage != null) {
-          await widget.onSendImage!(
-            bytes: bytes,
-            filename: filename,
-            mimetype: mime,
-            caption: caption,
-          );
-        } else if (widget.onSendFile != null) {
-          await widget.onSendFile!(
-            bytes: bytes,
-            filename: filename,
-            mimetype: mime,
-            caption: caption,
-          );
-        } else if (widget.onSendImage != null) {
-          await widget.onSendImage!(
-            bytes: bytes,
-            filename: filename,
-            mimetype: mime,
-            caption: caption,
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Lỗi gửi đính kèm: $e')),
-          );
-        }
-      }
-      return;
+      await widget.onSend(
+        text,
+        partnerIds: validPartnerIds.isNotEmpty ? validPartnerIds : null,
+        mentionedPartners: validMentionedPartners.isNotEmpty ? validMentionedPartners : null,
+      );
+    } finally {
+      _isHandlingSend = false;
     }
-
-    // Nếu chỉ có văn bản
-    if (text.isEmpty) return;
-
-    final validPartnerIds = <int>[];
-    final validMentionedPartners = <Map<String, dynamic>>[];
-
-    for (final entry in _trackedMentions.entries) {
-      final name = entry.key;
-      final member = entry.value;
-      if (text.contains('@$name')) {
-        final pid = int.tryParse(member.id);
-        if (pid != null && !validPartnerIds.contains(pid)) {
-          validPartnerIds.add(pid);
-          validMentionedPartners.add({
-            'id': pid,
-            'name': member.name,
-          });
-        }
-      }
-    }
-
-    _trackedMentions.clear();
-    _controller.clear();
-    setState(() {
-      _hasText = false;
-      _mentionSuggestions = [];
-      _mentionQueryStartIndex = -1;
-      _selectedMentionIndex = 0;
-    });
-
-    await widget.onSend(
-      text,
-      partnerIds: validPartnerIds.isNotEmpty ? validPartnerIds : null,
-      mentionedPartners: validMentionedPartners.isNotEmpty ? validMentionedPartners : null,
-    );
   }
 
   static const int maxDocumentSizeBytes = 25 * 1024 * 1024; // 25 MB
@@ -637,6 +642,104 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
     if (widget.isSending || _isUploading) return;
 
     try {
+      if (source == ImageSource.gallery) {
+        final List<XFile> files = await _picker.pickMultiImage(
+          maxWidth: 1600,
+          maxHeight: 1600,
+          imageQuality: 80,
+        );
+
+        if (files.isEmpty) return;
+
+        if (files.length == 1) {
+          final file = files.first;
+          final sizeInBytes = await file.length();
+          if (sizeInBytes > maxImageSizeBytes) {
+            if (mounted) {
+              _showFileSizeExceededDialog(
+                context: context,
+                filename: file.name.isNotEmpty ? file.name : 'image.jpg',
+                fileSizeBytes: sizeInBytes,
+                maxSizeBytes: maxImageSizeBytes,
+              );
+            }
+            return;
+          }
+
+          final bytes = await file.readAsBytes();
+          final filename = file.name.isNotEmpty
+              ? file.name
+              : 'image_${DateTime.now().millisecondsSinceEpoch}.jpg';
+          final mime = file.mimeType ?? 'image/jpeg';
+
+          if (mounted) {
+            setState(() {
+              _selectedBytes = bytes;
+              _selectedFilename = filename;
+              _selectedMimetype = mime;
+              _isSelectedImage = true;
+            });
+          }
+          return;
+        }
+
+        // Chọn nhiều ảnh (> 1): Gửi trực tiếp từng ảnh qua onSendImage hoặc onSendFile
+        final sendCallback = widget.onSendImage ?? widget.onSendFile;
+        if (sendCallback == null) return;
+
+        final text = _controller.text.trim();
+        final initialCaption = text.isNotEmpty ? text : null;
+        if (initialCaption != null) {
+          _controller.clear();
+        }
+
+        setState(() {
+          _hasText = false;
+          _selectedBytes = null;
+          _selectedFilename = null;
+          _selectedMimetype = null;
+          _isSelectedImage = false;
+          _isUploading = true;
+        });
+
+        try {
+          for (var i = 0; i < files.length; i++) {
+            final file = files[i];
+            final sizeInBytes = await file.length();
+            if (sizeInBytes > maxImageSizeBytes) {
+              if (mounted) {
+                _showFileSizeExceededDialog(
+                  context: context,
+                  filename: file.name.isNotEmpty ? file.name : 'image.jpg',
+                  fileSizeBytes: sizeInBytes,
+                  maxSizeBytes: maxImageSizeBytes,
+                );
+              }
+              continue;
+            }
+
+            final bytes = await file.readAsBytes();
+            final filename = file.name.isNotEmpty
+                ? file.name
+                : 'image_${DateTime.now().millisecondsSinceEpoch}_$i.jpg';
+            final mime = file.mimeType ?? 'image/jpeg';
+
+            await sendCallback(
+              bytes: bytes,
+              filename: filename,
+              mimetype: mime,
+              caption: (i == 0) ? initialCaption : null,
+            );
+          }
+        } finally {
+          if (mounted) {
+            setState(() => _isUploading = false);
+          }
+        }
+        return;
+      }
+
+      // Nguồn Máy ảnh (Camera): Giữ nguyên chọn 1 ảnh
       final XFile? file = await _picker.pickImage(
         source: source,
         maxWidth: 1600,
@@ -665,12 +768,14 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
           : 'image_${DateTime.now().millisecondsSinceEpoch}.jpg';
       final mime = file.mimeType ?? 'image/jpeg';
 
-      setState(() {
-        _selectedBytes = bytes;
-        _selectedFilename = filename;
-        _selectedMimetype = mime;
-        _isSelectedImage = true;
-      });
+      if (mounted) {
+        setState(() {
+          _selectedBytes = bytes;
+          _selectedFilename = filename;
+          _selectedMimetype = mime;
+          _isSelectedImage = true;
+        });
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1486,6 +1591,8 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
                                           child: TextField(
                                             controller: _controller,
                                             focusNode: _focusNode,
+                                            keyboardType: TextInputType.multiline,
+                                            textInputAction: TextInputAction.newline,
                                             textCapitalization: TextCapitalization.sentences,
                                             minLines: 1,
                                             maxLines: 5,
@@ -1521,7 +1628,6 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
                                                 vertical: 12,
                                               ),
                                             ),
-                                            onSubmitted: (_) => _handleSend(),
                                           ),
                                         ),
                                       ),

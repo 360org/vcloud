@@ -2,6 +2,18 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.7+130] — 2026-09-17 (Chat Input Multiline & Double Send Prevention)
+
+> [!IMPORTANT]
+> **Tối Ưu Khung Soạn Thảo Tin Nhắn & Chống Lỗi Gửi Đúp Khi Xuống Dòng**:
+> - **Phạm vi**: `vclients` (Flutter Mobile & Web)
+> - **Chi tiết thay đổi**:
+>   1. **[FIX] Sửa lỗi tự động gửi tin nhắn khi xuống dòng**: Khắc phục hiện tượng bấm phím Enter/Return trên bàn phím ảo điện thoại bị hiểu nhầm là Submit thay vì ngắt dòng văn bản. Bổ sung cấu hình chuẩn `keyboardType: TextInputType.multiline` và `textInputAction: TextInputAction.newline`, đồng thời gỡ bỏ `onSubmitted` trực tiếp trên `TextField`.
+>   2. **[FIX] Ngăn chặn hoàn toàn nhân đôi tin nhắn (Duplicate Messages)**: Bổ sung cờ guard re-entrance `_isHandlingSend` trong `ChatV2InputBar` với cơ chế bọc an toàn `try ... finally`, triệt tiêu triệt để việc kích hoạt đồng thời 2 luồng gửi dữ liệu lên máy chủ khi thao tác nhanh.
+>   3. **[IMPROVE] Giữ phím tắt Enter trên Web & Desktop**: Đảm bảo trải nghiệm trên Web/Desktop vẫn gửi nhanh bằng `Enter` và xuống dòng bằng `Shift + Enter` thông qua `KeyboardListener` mà không ảnh hưởng tới người dùng di động.
+
+---
+
 ## [v2.9.6+129] — 2026-09-14 (Zero-Knowledge Master DB Lookup & Automation Authentication)
 
 > [!IMPORTANT]
