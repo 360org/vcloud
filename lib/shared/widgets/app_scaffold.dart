@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:ui';
 
@@ -437,7 +438,7 @@ class UserAvatar extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               fallback,
-              _avatarContent(fallback),
+              if (_avatarContent() != null) _avatarContent()!,
             ],
           ),
         ),
@@ -445,14 +446,14 @@ class UserAvatar extends StatelessWidget {
     );
   }
 
-  Widget _avatarContent(Widget fallback) {
+  Widget? _avatarContent() {
     final value = avatarUrl?.trim();
     if (value == null ||
         value.isEmpty ||
         value == 'false' ||
         value == 'null' ||
         value == 'undefined') {
-      return fallback;
+      return null;
     }
     final memoryImage = value.startsWith('data:image')
         ? _safeDataImage(value)
@@ -465,16 +466,15 @@ class UserAvatar extends StatelessWidget {
         image: memoryImage,
         fit: BoxFit.cover,
         gaplessPlayback: true,
-        errorBuilder: (_, _, _) => fallback,
+        errorBuilder: (_, _, _) => const SizedBox.shrink(),
       );
     }
 
     final networkUrl = _networkAvatarUrl(value);
-    if (networkUrl == null) return fallback;
+    if (networkUrl == null) return null;
 
     return _AvatarNetworkImage(
       url: networkUrl,
-      fallback: fallback,
       size: size,
     );
   }
@@ -495,7 +495,17 @@ class UserAvatar extends StatelessWidget {
 
   String? _networkAvatarUrl(String rawValue) {
     if (rawValue.trim().isEmpty) return null;
-    final value = rawValue.trim();
+    var value = rawValue.trim();
+
+    // Chuẩn hoá /web/image sang API Mobile /api/v1/mobile/avatar/ tránh lỗi 401 Cookie Session
+    final webUserMatch = RegExp(r'/web/image/res\.users/(\d+)').firstMatch(value);
+    if (webUserMatch != null) {
+      value = '/api/v1/mobile/avatar/users/${webUserMatch.group(1)}';
+    }
+    final webPartnerMatch = RegExp(r'/web/image/res\.partner/(\d+)').firstMatch(value);
+    if (webPartnerMatch != null) {
+      value = '/api/v1/mobile/avatar/partners/${webPartnerMatch.group(1)}';
+    }
 
     String absoluteUrl;
     if (value.startsWith('http://') || value.startsWith('https://')) {
@@ -514,29 +524,54 @@ class UserAvatar extends StatelessWidget {
   }
 }
 
-class _AvatarNetworkImage extends StatelessWidget {
+class _AvatarNetworkImage extends StatefulWidget {
   _AvatarNetworkImage({
     required this.url,
-    required this.fallback,
     required this.size,
   }) : super(key: ValueKey(url));
 
   final String url;
-  final Widget fallback;
   final double size;
+
+  @override
+  State<_AvatarNetworkImage> createState() => _AvatarNetworkImageState();
+}
+
+class _AvatarNetworkImageState extends State<_AvatarNetworkImage> {
+  int _retryCount = 0;
+  Timer? _retryTimer;
+
+  @override
+  void dispose() {
+    _retryTimer?.cancel();
+    super.dispose();
+  }
+
+  void _scheduleRetry() {
+    if (_retryCount >= 2 || !mounted) return;
+    _retryTimer?.cancel();
+    _retryTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted) {
+        setState(() {
+          _retryCount++;
+        });
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Image.network(
-      url,
+      widget.url,
       headers: odooApiClient.authHeaders,
-      key: ValueKey(url),
+      key: ValueKey('${widget.url}_$_retryCount'),
       fit: BoxFit.cover,
-      cacheWidth: (size * MediaQuery.devicePixelRatioOf(context)).round(),
-      cacheHeight: (size * MediaQuery.devicePixelRatioOf(context)).round(),
+      cacheWidth: (widget.size * MediaQuery.devicePixelRatioOf(context)).round(),
+      cacheHeight: (widget.size * MediaQuery.devicePixelRatioOf(context)).round(),
       gaplessPlayback: true,
       errorBuilder: (context, error, stackTrace) {
-        return fallback;
+        _scheduleRetry();
+        return const SizedBox.shrink();
       },
     );
   }

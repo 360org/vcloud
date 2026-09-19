@@ -13,6 +13,7 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
+import '../../../../core/api/odoo_api_client.dart';
 import '../../data/models/chat_v2_channel.dart';
 import 'chat_v2_create_poll_sheet.dart';
 
@@ -1243,6 +1244,7 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
                                  width: 34,
                                  height: 34,
                                  fit: BoxFit.cover,
+                                 headers: odooApiClient.authHeaders,
                                  errorBuilder: (context, error, stackTrace) => Text(
                                    initial,
                                    style: const TextStyle(

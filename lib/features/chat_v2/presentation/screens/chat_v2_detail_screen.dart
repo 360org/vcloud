@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
+import '../../../../core/api/odoo_api_client.dart';
 import '../../application/chat_v2_channels_controller.dart';
 import '../../application/chat_v2_messages_controller.dart';
 import '../../application/chat_v2_read_state_controller.dart';
@@ -439,6 +440,11 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
         }
       }
     }
+    if (resolvedAvatarUrl != null && resolvedAvatarUrl.contains('/web/image/res.users/')) {
+      resolvedAvatarUrl = resolvedAvatarUrl.replaceAll('/web/image/res.users/', '/api/v1/mobile/avatar/users/');
+    } else if (resolvedAvatarUrl != null && resolvedAvatarUrl.contains('/web/image/res.partner/')) {
+      resolvedAvatarUrl = resolvedAvatarUrl.replaceAll('/web/image/res.partner/', '/api/v1/mobile/avatar/partners/');
+    }
 
     void ensureRetainedInCache() {
       final latestMsgs = messagesAsync.valueOrNull ?? ChatV2MessageLocalCache.get(widget.channelId);
@@ -565,6 +571,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                             cacheWidth: (40 * MediaQuery.devicePixelRatioOf(context)).round(),
                             cacheHeight: (40 * MediaQuery.devicePixelRatioOf(context)).round(),
                             gaplessPlayback: true,
+                            headers: odooApiClient.authHeaders,
                             errorBuilder: (context, error, stackTrace) =>
                                 const SizedBox.shrink(),
                           ),
@@ -1345,7 +1352,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
     final meta = currentUser?.userMetadata;
     final currentUserAvatar = meta?['avatar_128_url']?.toString() ??
         meta?['image_128_url']?.toString() ??
-        (currentUser != null ? '/web/image/res.users/${currentUser.id}/avatar_128' : null);
+        (currentUser != null ? '/api/v1/mobile/avatar/users/${currentUser.id}' : null);
     final channelIdInt = int.tryParse(widget.channelId) ?? 0;
 
     // Tìm receiverId chính xác nhất

@@ -147,7 +147,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final rawAvatar = meta?['avatar_url'] ??
         meta?['avatar_128_url'] ??
         meta?['image_128_url'] ??
-        (user != null ? '/web/image/res.users/${user.id}/avatar_128' : null);
+        (user != null ? '/api/v1/mobile/avatar/users/${user.id}' : null);
     final avatarUrl = rawAvatar is String && rawAvatar.isNotEmpty ? rawAvatar : null;
     final displayName = (name != null && name.isNotEmpty)
         ? name

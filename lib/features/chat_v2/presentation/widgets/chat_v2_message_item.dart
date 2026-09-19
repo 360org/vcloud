@@ -256,6 +256,7 @@ class ChatV2MessageItem extends StatelessWidget {
                             cacheWidth: avatarCacheSize,
                             cacheHeight: avatarCacheSize,
                             gaplessPlayback: true,
+                            headers: odooApiClient.authHeaders,
                             errorBuilder: (context, error, stackTrace) =>
                                 const SizedBox.shrink(),
                           ),
