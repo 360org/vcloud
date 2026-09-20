@@ -136,14 +136,12 @@ class Bubble extends ConsumerWidget {
 
   void _openImageViewer(BuildContext context, String url) {
     Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => ImageViewerScreen(
-          imageUrl: url,
-          fileName: attachmentFileName(message),
-          attachmentId: message.attachmentIds.isEmpty
-              ? null
-              : int.tryParse(message.attachmentIds.first),
-        ),
+      ImageViewerScreen.route(
+        imageUrl: url,
+        fileName: attachmentFileName(message),
+        attachmentId: message.attachmentIds.isEmpty
+            ? null
+            : int.tryParse(message.attachmentIds.first),
       ),
     );
   }

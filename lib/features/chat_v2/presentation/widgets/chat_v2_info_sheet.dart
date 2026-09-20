@@ -783,16 +783,17 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
                                   LocalAttachmentCache.get(img.id.isNotEmpty ? img.id : null, altKey: img.name);
                               final fullUrl = img.resolveFullUrl(odooApiClient.absoluteUrl(''));
 
+                              final heroTag = 'info_preview_img_${img.id.isNotEmpty ? img.id : (fullUrl.isNotEmpty ? fullUrl : img.name)}';
+
                               return GestureDetector(
                                 onTap: () {
                                   Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => ChatV2ImageViewerScreen(
-                                        imageUrl: fullUrl,
-                                        title: img.name,
-                                        bytes: memBytes,
-                                        attachmentId: img.id.isNotEmpty ? img.id : null,
-                                      ),
+                                    ChatV2ImageViewerScreen.route(
+                                      imageUrl: fullUrl,
+                                      title: img.name,
+                                      bytes: memBytes,
+                                      attachmentId: img.id.isNotEmpty ? img.id : null,
+                                      heroTag: heroTag,
                                     ),
                                   );
                                 },
@@ -802,19 +803,21 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
                                     width: 64,
                                     height: 64,
                                     color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
-                                    child: memBytes != null && memBytes.isNotEmpty
-                                        ? Image.memory(
-                                            memBytes,
-                                            fit: BoxFit.cover,
-                                            gaplessPlayback: true,
-                                          )
-                                        : (fullUrl.isNotEmpty
-                                            ? Image.network(
-                                                fullUrl,
-                                                fit: BoxFit.cover,
-                                                headers: odooApiClient.authHeaders,
-                                                errorBuilder: (c, e, s) => _buildImageThumbnailFallback(isDark),
-                                                loadingBuilder: (_, child, progress) {
+                                    child: Hero(
+                                      tag: heroTag,
+                                      child: memBytes != null && memBytes.isNotEmpty
+                                          ? Image.memory(
+                                              memBytes,
+                                              fit: BoxFit.cover,
+                                              gaplessPlayback: true,
+                                            )
+                                          : (fullUrl.isNotEmpty
+                                              ? Image.network(
+                                                  fullUrl,
+                                                  fit: BoxFit.cover,
+                                                  headers: odooApiClient.authHeaders,
+                                                  errorBuilder: (c, e, s) => _buildImageThumbnailFallback(isDark),
+                                                  loadingBuilder: (_, child, progress) {
                                                   if (progress == null) return child;
                                                   return const Center(
                                                     child: SizedBox(
@@ -826,6 +829,7 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
                                                 },
                                               )
                                             : _buildImageThumbnailFallback(isDark)),
+                                    ),
                                   ),
                                 ),
                               );
@@ -1316,16 +1320,17 @@ class _ChatV2MediaHubScreenState extends State<ChatV2MediaHubScreen>
                         LocalAttachmentCache.get(img.id.isNotEmpty ? img.id : null, altKey: img.name);
                     final fullUrl = img.resolveFullUrl(odooApiClient.absoluteUrl(''));
 
+                    final heroTag = 'info_gallery_img_${img.id.isNotEmpty ? img.id : (fullUrl.isNotEmpty ? fullUrl : img.name)}';
+
                     return GestureDetector(
                       onTap: () {
                         Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => ChatV2ImageViewerScreen(
-                              imageUrl: fullUrl,
-                              title: img.name,
-                              bytes: memBytes,
-                              attachmentId: img.id.isNotEmpty ? img.id : null,
-                            ),
+                          ChatV2ImageViewerScreen.route(
+                            imageUrl: fullUrl,
+                            title: img.name,
+                            bytes: memBytes,
+                            attachmentId: img.id.isNotEmpty ? img.id : null,
+                            heroTag: heroTag,
                           ),
                         );
                       },
@@ -1333,30 +1338,33 @@ class _ChatV2MediaHubScreenState extends State<ChatV2MediaHubScreen>
                         borderRadius: BorderRadius.circular(8),
                         child: Container(
                           color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
-                          child: memBytes != null && memBytes.isNotEmpty
-                              ? Image.memory(
-                                  memBytes,
-                                  fit: BoxFit.cover,
-                                  gaplessPlayback: true,
-                                )
-                              : (fullUrl.isNotEmpty
-                                  ? Image.network(
-                                      fullUrl,
-                                      fit: BoxFit.cover,
-                                      headers: odooApiClient.authHeaders,
-                                      errorBuilder: (c, e, s) => _buildEmptyMediaBox(isDark, LucideIcons.image),
-                                      loadingBuilder: (_, child, progress) {
-                                        if (progress == null) return child;
-                                        return const Center(
-                                          child: SizedBox(
-                                            width: 16,
-                                            height: 16,
-                                            child: CircularProgressIndicator(strokeWidth: 2),
-                                          ),
-                                        );
-                                      },
-                                    )
-                                  : _buildEmptyMediaBox(isDark, LucideIcons.image)),
+                          child: Hero(
+                            tag: heroTag,
+                            child: memBytes != null && memBytes.isNotEmpty
+                                ? Image.memory(
+                                    memBytes,
+                                    fit: BoxFit.cover,
+                                    gaplessPlayback: true,
+                                  )
+                                : (fullUrl.isNotEmpty
+                                    ? Image.network(
+                                        fullUrl,
+                                        fit: BoxFit.cover,
+                                        headers: odooApiClient.authHeaders,
+                                        errorBuilder: (c, e, s) => _buildEmptyMediaBox(isDark, LucideIcons.image),
+                                        loadingBuilder: (_, child, progress) {
+                                          if (progress == null) return child;
+                                          return const Center(
+                                            child: SizedBox(
+                                              width: 16,
+                                              height: 16,
+                                              child: CircularProgressIndicator(strokeWidth: 2),
+                                            ),
+                                          );
+                                        },
+                                      )
+                                    : _buildEmptyMediaBox(isDark, LucideIcons.image)),
+                          ),
                         ),
                       ),
                     );

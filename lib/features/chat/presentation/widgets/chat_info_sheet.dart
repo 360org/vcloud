@@ -702,12 +702,10 @@ class MediaGrid extends StatelessWidget {
           onTap: item.isImage
               ? () {
                   Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => ImageViewerScreen(
-                        imageUrl: item.url,
-                        fileName: item.displayLabel,
-                        attachmentId: item.attachmentIntId,
-                      ),
+                    ImageViewerScreen.route(
+                      imageUrl: item.url,
+                      fileName: item.displayLabel,
+                      attachmentId: item.attachmentIntId,
                     ),
                   );
                 }

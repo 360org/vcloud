@@ -30,6 +30,36 @@ class ImageViewerScreen extends ConsumerStatefulWidget {
   final String? fileName;
   final int? attachmentId;
 
+  /// Route mở ImageViewer với hiệu ứng Fade mượt mà, loại bỏ hiệu ứng trượt từ phải qua.
+  static Route<void> route({
+    required String imageUrl,
+    required String? fileName,
+    required int? attachmentId,
+  }) {
+    return PageRouteBuilder<void>(
+      opaque: true,
+      transitionDuration: const Duration(milliseconds: 250),
+      reverseTransitionDuration: const Duration(milliseconds: 200),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return ImageViewerScreen(
+          imageUrl: imageUrl,
+          fileName: fileName,
+          attachmentId: attachmentId,
+        );
+      },
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        return FadeTransition(
+          opacity: CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+            reverseCurve: Curves.easeInCubic,
+          ),
+          child: child,
+        );
+      },
+    );
+  }
+
   @override
   ConsumerState<ImageViewerScreen> createState() => _ImageViewerScreenState();
 }

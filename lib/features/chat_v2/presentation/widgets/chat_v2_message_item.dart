@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -30,6 +31,9 @@ class ChatV2MessageItem extends StatelessWidget {
     this.onLongPress,
     this.onReplyTap,
     this.onReactionBadgeTap,
+    this.onRetry,
+    this.onDelete,
+    this.onMentionTap,
     this.isHighlighted = false,
   });
 
@@ -40,6 +44,9 @@ class ChatV2MessageItem extends StatelessWidget {
   final VoidCallback? onLongPress;
   final ValueChanged<String?>? onReplyTap;
   final VoidCallback? onReactionBadgeTap;
+  final VoidCallback? onRetry;
+  final VoidCallback? onDelete;
+  final ValueChanged<String>? onMentionTap;
   final bool isHighlighted;
 
   static final DateFormat _timeFormatter = DateFormat('HH:mm');
@@ -519,11 +526,61 @@ class ChatV2MessageItem extends StatelessWidget {
                         ),
                   if (message.reactions.isNotEmpty)
                     _buildReactionBadges(context, isMine),
+                  if (message.status == 'error' && !isPureImage)
+                    _buildErrorActions(context, isMine),
                 ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildErrorActions(BuildContext context, bool isMine) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: isMine ? MainAxisAlignment.end : MainAxisAlignment.start,
+        children: [
+          const Icon(LucideIcons.alertCircle, color: Colors.redAccent, size: 12),
+          const SizedBox(width: 4),
+          const Text(
+            'Lỗi gửi',
+            style: TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.w500),
+          ),
+          if (onRetry != null) ...[
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: onRetry,
+              child: const Text(
+                'Thử lại',
+                style: TextStyle(
+                  color: Color(0xFF00C83A),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ),
+          ],
+          if (onDelete != null) ...[
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: onDelete,
+              child: const Text(
+                'Xóa',
+                style: TextStyle(
+                  color: Color(0xFFE11D48),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -537,7 +594,7 @@ class ChatV2MessageItem extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
-      constraints: const BoxConstraints(maxWidth: 290),
+      constraints: const BoxConstraints(minWidth: 240, minHeight: 140, maxWidth: 290),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E293B) : Colors.white,
         borderRadius: BorderRadius.only(
@@ -568,8 +625,7 @@ class ChatV2MessageItem extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (imageAttachments.isNotEmpty)
-                  for (final att in imageAttachments)
-                    _buildImageAttachment(context, att, isMine)
+                  _buildImageGalleryGrid(context, imageAttachments, isMine)
                 else if (message.isImageFilename)
                   _buildImageFilenameCard(context, isMine),
               ],
@@ -595,28 +651,144 @@ class ChatV2MessageItem extends StatelessWidget {
                           ),
                         ],
                       ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SizedBox(
-                            width: 15,
-                            height: 15,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Color(0xFF00C83A),
+                      child: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: 15,
+                              height: 15,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Color(0xFF00C83A),
+                              ),
                             ),
-                          ),
-                          SizedBox(width: 8),
-                          Text(
-                            'Đang tải lên...',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
+                            SizedBox(width: 8),
+                            Text(
+                              'Đang tải lên...',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
+                    ),
+                  ),
+                ),
+              ),
+            if (message.status == 'error')
+              Positioned.fill(
+                child: Container(
+                  color: Colors.black.withValues(alpha: 0.65),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.redAccent.withValues(alpha: 0.85),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(LucideIcons.alertCircle, color: Colors.white, size: 14),
+                              SizedBox(width: 4),
+                              Text(
+                                'Lỗi gửi ảnh',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Wrap(
+                            spacing: 8,
+                            runSpacing: 6,
+                            alignment: WrapAlignment.center,
+                            children: [
+                              if (onRetry != null)
+                                GestureDetector(
+                                  onTap: onRetry,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF00C83A),
+                                      borderRadius: BorderRadius.circular(16),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(alpha: 0.2),
+                                          blurRadius: 4,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(LucideIcons.refreshCw, color: Colors.white, size: 12),
+                                        SizedBox(width: 4),
+                                        Text(
+                                          'Thử lại',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              if (onDelete != null)
+                                GestureDetector(
+                                  onTap: onDelete,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFE11D48),
+                                      borderRadius: BorderRadius.circular(16),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(alpha: 0.2),
+                                          blurRadius: 4,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(LucideIcons.trash2, color: Colors.white, size: 12),
+                                        SizedBox(width: 4),
+                                        Text(
+                                          'Xóa',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -793,26 +965,126 @@ class ChatV2MessageItem extends StatelessWidget {
   Widget _buildImageAttachment(
     BuildContext context,
     ChatV2Attachment att,
-    bool isMine,
-  ) {
+    bool isMine, {
+    double? width,
+    double? height,
+    BoxFit fit = BoxFit.contain,
+  }) {
     final fullUrl = att.resolveFullUrl(odooApiClient.absoluteUrl(''));
     final fallbackCard = _buildSimpleFilenameCard(context, isMine, att.name);
+    final heroTag = 'chat_v2_img_${att.id.isNotEmpty ? att.id : (att.url ?? att.name)}_${att.hashCode}';
 
     return ChatV2AttachmentImage(
       attachment: att,
+      heroTag: heroTag,
       fallback: fallbackCard,
+      width: width,
+      height: height,
+      fit: fit,
       onTap: () {
         Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => ChatV2ImageViewerScreen(
-              imageUrl: fullUrl,
-              title: att.name,
-              bytes: att.bytes,
-              attachmentId: att.id,
-            ),
+          ChatV2ImageViewerScreen.route(
+            imageUrl: fullUrl,
+            title: att.name,
+            bytes: att.bytes,
+            attachmentId: att.id,
+            heroTag: heroTag,
           ),
         );
       },
+    );
+  }
+
+  Widget _buildImageGalleryGrid(
+    BuildContext context,
+    List<ChatV2Attachment> attachments,
+    bool isMine,
+  ) {
+    if (attachments.isEmpty) return const SizedBox.shrink();
+    if (attachments.length == 1) {
+      return _buildImageAttachment(
+        context,
+        attachments.first,
+        isMine,
+        width: 250,
+        height: 160,
+        fit: BoxFit.cover,
+      );
+    }
+
+    final total = attachments.length;
+    if (total == 2) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildImageAttachment(context, attachments[0], isMine, width: 142, height: 142, fit: BoxFit.cover),
+          const SizedBox(width: 2),
+          _buildImageAttachment(context, attachments[1], isMine, width: 142, height: 142, fit: BoxFit.cover),
+        ],
+      );
+    }
+
+    if (total == 3) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildImageAttachment(context, attachments[0], isMine, width: 286, height: 140, fit: BoxFit.cover),
+          const SizedBox(height: 2),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildImageAttachment(context, attachments[1], isMine, width: 142, height: 110, fit: BoxFit.cover),
+              const SizedBox(width: 2),
+              _buildImageAttachment(context, attachments[2], isMine, width: 142, height: 110, fit: BoxFit.cover),
+            ],
+          ),
+        ],
+      );
+    }
+
+    if (total == 4) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildImageAttachment(context, attachments[0], isMine, width: 142, height: 142, fit: BoxFit.cover),
+              const SizedBox(width: 2),
+              _buildImageAttachment(context, attachments[1], isMine, width: 142, height: 142, fit: BoxFit.cover),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildImageAttachment(context, attachments[2], isMine, width: 142, height: 142, fit: BoxFit.cover),
+              const SizedBox(width: 2),
+              _buildImageAttachment(context, attachments[3], isMine, width: 142, height: 142, fit: BoxFit.cover),
+            ],
+          ),
+        ],
+      );
+    }
+
+    // 5 đến 9 ảnh: Wrap 3 cột
+    return SizedBox(
+      width: 286,
+      child: Wrap(
+        spacing: 2,
+        runSpacing: 2,
+        children: [
+          for (final att in attachments)
+            _buildImageAttachment(
+              context,
+              att,
+              isMine,
+              width: 93,
+              height: 93,
+              fit: BoxFit.cover,
+            ),
+        ],
+      ),
     );
   }
 
@@ -1530,6 +1802,13 @@ class ChatV2MessageItem extends StatelessWidget {
             height: 1.38,
             fontWeight: FontWeight.w700,
           ),
+          recognizer: TapGestureRecognizer()
+            ..onTap = () {
+              HapticFeedback.lightImpact();
+              if (onMentionTap != null) {
+                onMentionTap!(mentionText);
+              }
+            },
         ),
       );
       lastIdx = m.end;
@@ -1708,11 +1987,19 @@ class ChatV2AttachmentImage extends StatefulWidget {
     required this.attachment,
     required this.fallback,
     required this.onTap,
+    this.heroTag,
+    this.width,
+    this.height,
+    this.fit = BoxFit.contain,
   });
 
   final ChatV2Attachment attachment;
   final Widget fallback;
   final VoidCallback onTap;
+  final String? heroTag;
+  final double? width;
+  final double? height;
+  final BoxFit fit;
 
   static final Map<String, Uint8List> imageCache = {};
 
@@ -1875,34 +2162,51 @@ class _ChatV2AttachmentImageState extends State<ChatV2AttachmentImage> {
 
   @override
   Widget build(BuildContext context) {
+    final hasCustomDimension = widget.width != null || widget.height != null;
+
     if (_bytes != null && _bytes!.isNotEmpty) {
+      Widget imageContent = Image.memory(
+        _bytes!,
+        width: widget.width,
+        height: widget.height,
+        fit: widget.fit,
+        cacheWidth: 600,
+        gaplessPlayback: true,
+        errorBuilder: (_, _, _) => widget.fallback,
+      );
+
+      if (widget.heroTag != null && widget.heroTag!.isNotEmpty) {
+        imageContent = Hero(
+          tag: widget.heroTag!,
+          child: imageContent,
+        );
+      }
+
       return GestureDetector(
         onTap: widget.onTap,
         child: Container(
-          constraints: const BoxConstraints(maxWidth: 290, maxHeight: 340),
+          width: widget.width,
+          height: widget.height,
+          constraints: hasCustomDimension
+              ? null
+              : const BoxConstraints(maxWidth: 290, maxHeight: 340),
           decoration: BoxDecoration(
             color: Colors.black.withValues(alpha: 0.04),
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(hasCustomDimension ? 8 : 16),
           ),
           clipBehavior: Clip.antiAlias,
-          child: Image.memory(
-            _bytes!,
-            fit: BoxFit.contain,
-            cacheWidth: 600,
-            gaplessPlayback: true,
-            errorBuilder: (_, _, _) => widget.fallback,
-          ),
+          child: imageContent,
         ),
       );
     }
 
     if (_loading) {
       return Container(
-        height: 160,
-        width: 220,
+        height: widget.height ?? 160,
+        width: widget.width ?? 220,
         decoration: BoxDecoration(
           color: const Color(0xFFF1F5F9),
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(hasCustomDimension ? 8 : 14),
         ),
         alignment: Alignment.center,
         child: const SizedBox(

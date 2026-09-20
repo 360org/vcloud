@@ -13,6 +13,7 @@ class ChatV2ImageViewerScreen extends StatefulWidget {
   final String title;
   final Uint8List? bytes;
   final String? attachmentId;
+  final String? heroTag;
 
   const ChatV2ImageViewerScreen({
     super.key,
@@ -20,14 +21,50 @@ class ChatV2ImageViewerScreen extends StatefulWidget {
     this.title = 'Hình ảnh',
     this.bytes,
     this.attachmentId,
+    this.heroTag,
   });
+
+  /// Route mở ImageViewer với hiệu ứng Zoom/Hero và Fade mượt mà chuẩn Zalo/Telegram/Messenger,
+  /// loại bỏ hoàn toàn hiệu ứng kéo trượt từ phải sang (slide from right).
+  static Route<void> route({
+    required String imageUrl,
+    String title = 'Hình ảnh',
+    Uint8List? bytes,
+    String? attachmentId,
+    String? heroTag,
+  }) {
+    return PageRouteBuilder<void>(
+      opaque: true,
+      transitionDuration: const Duration(milliseconds: 250),
+      reverseTransitionDuration: const Duration(milliseconds: 200),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return ChatV2ImageViewerScreen(
+          imageUrl: imageUrl,
+          title: title,
+          bytes: bytes,
+          attachmentId: attachmentId,
+          heroTag: heroTag,
+        );
+      },
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        return FadeTransition(
+          opacity: CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+            reverseCurve: Curves.easeInCubic,
+          ),
+          child: child,
+        );
+      },
+    );
+  }
 
   @override
   State<ChatV2ImageViewerScreen> createState() => _ChatV2ImageViewerScreenState();
 }
 
 class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   Uint8List? _bytes;
   bool _loading = true;
   bool _showControls = true;
@@ -37,7 +74,10 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
   final TransformationController _transformationController =
       TransformationController();
   late AnimationController _animationController;
+  late AnimationController _dragResetController;
   Animation<Matrix4>? _zoomAnimation;
+  Animation<double>? _dragOffsetAnimation;
+  Animation<double>? _dragScaleAnimation;
   TapDownDetails? _doubleTapDetails;
 
   @override
@@ -51,12 +91,28 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
           _transformationController.value = _zoomAnimation!.value;
         }
       });
+
+    _dragResetController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 180),
+    )..addListener(() {
+        setState(() {
+          if (_dragOffsetAnimation != null) {
+            _dragOffsetY = _dragOffsetAnimation!.value;
+          }
+          if (_dragScaleAnimation != null) {
+            _dragScale = _dragScaleAnimation!.value;
+          }
+        });
+      });
+
     _loadBytes();
   }
 
   @override
   void dispose() {
     _animationController.dispose();
+    _dragResetController.dispose();
     _transformationController.dispose();
     super.dispose();
   }
@@ -150,6 +206,10 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
     final currentScale = _transformationController.value.getMaxScaleOnAxis();
     if (currentScale > 1.05) return;
 
+    if (_dragResetController.isAnimating) {
+      _dragResetController.stop();
+    }
+
     setState(() {
       _dragOffsetY += details.delta.dy;
       _dragScale = (1.0 - (_dragOffsetY.abs() / 1000)).clamp(0.8, 1.0);
@@ -160,22 +220,31 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
     final currentScale = _transformationController.value.getMaxScaleOnAxis();
     if (currentScale > 1.05) return;
 
-    if (_dragOffsetY.abs() > 90 || (details.primaryVelocity?.abs() ?? 0) > 600) {
+    if (_dragOffsetY.abs() > 80 || (details.primaryVelocity?.abs() ?? 0) > 500) {
       Navigator.of(context).pop();
     } else {
-      setState(() {
-        _dragOffsetY = 0.0;
-        _dragScale = 1.0;
-      });
+      _dragOffsetAnimation = Tween<double>(
+        begin: _dragOffsetY,
+        end: 0.0,
+      ).animate(CurvedAnimation(
+        parent: _dragResetController,
+        curve: Curves.easeOutCubic,
+      ));
+      _dragScaleAnimation = Tween<double>(
+        begin: _dragScale,
+        end: 1.0,
+      ).animate(CurvedAnimation(
+        parent: _dragResetController,
+        curve: Curves.easeOutCubic,
+      ));
+      _dragResetController.forward(from: 0.0);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final bgOpacity = (1.0 - (_dragOffsetY.abs() / 400)).clamp(0.0, 1.0);
-
     return Scaffold(
-      backgroundColor: Colors.black.withValues(alpha: bgOpacity),
+      backgroundColor: Colors.black,
       body: Stack(
         fit: StackFit.expand,
         children: [
@@ -271,22 +340,29 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
   }
 
   Widget _buildImageContent() {
+    final Widget content;
     if (_loading) {
-      return const Center(
+      content = const Center(
         child: CircularProgressIndicator(color: Colors.white),
       );
-    }
-
-    if (_bytes != null) {
-      return Image.memory(
+    } else if (_bytes != null) {
+      content = Image.memory(
         _bytes!,
         fit: BoxFit.contain,
         gaplessPlayback: true,
         errorBuilder: (context, error, stackTrace) => _buildNetworkOrError(),
       );
+    } else {
+      content = _buildNetworkOrError();
     }
 
-    return _buildNetworkOrError();
+    if (widget.heroTag != null && widget.heroTag!.isNotEmpty) {
+      return Hero(
+        tag: widget.heroTag!,
+        child: content,
+      );
+    }
+    return content;
   }
 
   Widget _buildNetworkOrError() {

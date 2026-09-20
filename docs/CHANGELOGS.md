@@ -2,6 +2,54 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.9+132] — 2026-09-20 (Trải Nghiệm Hiệu Ứng Xem Ảnh Chat Chuẩn Messenger / Zalo / Telegram)
+
+> [!IMPORTANT]
+> **Tối Ưu Hiệu Ứng Mở & Đóng Hình Ảnh Chat V2 Trên Di Động (iOS & Android)**:
+> - **Phạm vi**: `vclients` (Flutter Mobile & Web)
+> - **Nguyên nhân**: Màn hình xem ảnh trước đây sử dụng `MaterialPageRoute` mặc định kích hoạt hiệu ứng chuyển trang kéo trượt từ phải sang trái (`Slide from right`), không phù hợp với thao tác xem ảnh trong ứng dụng nhắn tin.
+> - **Chi tiết thay đổi**:
+>   1. **[IMPROVE - Hiệu ứng Mở] Phóng to từ Thumbnail (Hero & Scale Expansion)**:
+>      - Thay thế `MaterialPageRoute` bằng route chuyên dụng `ChatV2ImageViewerScreen.route` (`PageRouteBuilder`).
+>      - Tích hợp `Hero` animation đồng bộ `heroTag` giữa ảnh thu nhỏ trong bong bóng chat (`ChatV2AttachmentImage`) và màn hình xem ảnh toàn cảnh (`ChatV2ImageViewerScreen`).
+>      - Bức ảnh phóng to mượt mà từ đúng toạ độ tin nhắn ra giữa màn hình, kết hợp chuyển nền đen che kín (`FadeTransition`, `opaque: true`) chuẩn xác 250ms (`Curves.easeOutCubic`).
+>   2. **[IMPROVE - Cử chỉ Kéo] Vuốt xuống đóng có Snap-Back êm ái (Swipe-down to Dismiss)**:
+>      - Hỗ trợ kéo ảnh theo trục Y và co nhỏ nhẹ (`Scale down`).
+>      - Tích hợp `_dragResetController` tự động hoàn trả vị trí (`Curves.easeOutCubic` 180ms) khi buông tay chưa đủ lực, triệt tiêu hoàn toàn hiện tượng giật cục.
+>      - Tự động kích hoạt đóng màn hình khi vuốt vượt ngưỡng (> 80px hoặc vận tốc > 500px/s).
+>   3. **[IMPROVE - Hiệu ứng Đóng] Thu nhỏ về vị trí cũ (Hero Return & Fade Pop)**:
+>      - Khi bấm nút Back hoặc vuốt xuống thả tay: Ảnh tự động co nhỏ bay ngược về đúng vị trí bóng chat ban đầu, nền đen mờ dần biến mất, loại bỏ hoàn toàn hiện tượng trượt giật sang phải.
+>   4. **[COMPAT] Đồng bộ toàn diện**: Áp dụng đồng bộ cho cả ảnh đơn, gallery grid, mục Ảnh/Media trong bảng thông tin hội thoại (`chat_v2_info_sheet.dart`) và chat v1 (`image_viewer_screen.dart`, `chat_bubbles.dart`).
+>   5. **[TEST] Bộ Test Tự Động 10/10 Test Cases**: Xây dựng test suite `test/features/chat_v2/chat_v2_image_viewer_transition_test.dart` kiểm chứng toàn diện từ Route builder, opaque, thời lượng, Hero tag, Scaffold background và thao tác pop, kết quả PASS 10/10 (100%).
+
+---
+
+## [v2.9.8+131] — 2026-09-19 (Khắc Phục Toàn Diện 4 Lỗi Trải Nghiệm Chat Trên Android & iOS)
+
+> [!IMPORTANT]
+> **Khắc Phục Dứt Điểm 4 Lỗi Nghiêm Trọng Chat V2 Trên Thiết Bị Android & iOS (Theo Phản Ánh Của Sếp Châu)**:
+> - **Phạm vi**: `vclients` (Flutter Mobile & Web) & `v_mobile_17` / `v_mobile_19` (Odoo Backend)
+> - **Chi tiết thay đổi**:
+>   1. **[FIX - Lỗi 1] Khắc phục toàn diện @Mention Tag Tên**:
+>      - Gắn `TapGestureRecognizer` vào `TextSpan` của `@mention` trong `ChatV2MessageItem`, kích hoạt rung haptic và hiển thị thông tin thành viên được tag.
+>      - Gỡ bỏ giới hạn `!widget.isGroup` trong `ChatV2InputBar` để cho phép mention ở mọi cuộc trò chuyện (cả 1-1 lẫn nhóm).
+>      - Chống lỗi bàn phím Android mất focus (`cursor < 0`) làm biến mất danh sách gợi ý mention khi người dùng chạm vào item gợi ý.
+>   2. **[FIX - Lỗi 2] Chọn đồng thời nhiều Ảnh & Video (Multi-select Media)**:
+>      - Nâng cấp từ `pickMultiImage` sang `pickMultipleMedia`, hỗ trợ chọn cùng lúc cả ảnh và video từ thư viện Android/iOS.
+>      - Tự động phân loại luồng gửi: nén và gom batch ảnh dạng Album Grid (1 ảnh, 2 ảnh, 2x2, wrap 3 cột) và gửi video qua kênh tệp đính kèm.
+>      - Giới hạn tối đa 9 tệp/lần gửi kèm cảnh báo Toast thân thiện chống tràn RAM và nghẽn mạng.
+>   3. **[FIX - Lỗi 3] Khắc phục triệt để ảnh gửi 0KB / Icon ảnh vỡ**:
+>      - Backend Odoo 17 & 19 bổ sung API `/api/v1/mobile/attachments/upload-batch` tạo tệp trong 1 transaction an toàn, cấp đúng `access_token` và đồng bộ `file_size` từ filestore.
+>      - Frontend tối ưu `ChatV2AttachmentImage` với kích thước linh hoạt, nén ảnh client-side JPEG 80% (1600x1600) giảm dung lượng từ 8MB xuống 300KB.
+>   4. **[FIX - Lỗi 4] Triệt tiêu lỗi `Failure(missing_channel_id)`**:
+>      - Chặn điều hướng `/chat/0` trong `home_screen.dart` khi người dùng bấm vào các thông báo hệ thống không thuộc kênh thảo luận.
+>      - Bổ sung Guard `channelId <= 0` trong `ChatV2Repository` (`getMessages`, `getChannel`, `sendMessage`) ngăn chặn gửi request rác lên backend.
+>      - Chuẩn hóa payload FCM Backend trong `mail_thread.py`: chỉ gửi trường `channel_id` khi sự kiện thực sự thuộc model `discuss.channel`.
+>   5. **[RECOVERY] Máy trạng thái phục hồi lỗi (Error Recovery State Machine)**: Cơ chế Hard Timeout 30s tự động chuyển tin nhắn treo sang trạng thái `error`, tích hợp 2 nút hành động trực quan `[Thử lại]` và `[Xóa]`.
+>   6. **[TEST] Bộ Test Tự Động 11/11 Test Cases**: Hoàn thiện bộ test `test/features/chat_v2/chat_v2_multi_image_test.dart` kiểm chứng toàn diện các kịch bản multi-image, album rendering, mention click, error state recovery, đạt kết quả PASS 100%.
+
+---
+
 ## [v2.9.7+130] — 2026-09-17 (Chat Input Multiline & Double Send Prevention)
 
 > [!IMPORTANT]
