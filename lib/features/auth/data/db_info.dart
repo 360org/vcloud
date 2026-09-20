@@ -7,6 +7,7 @@ class DbInfo {
     this.displayName,
     this.projectId,
     this.hasVMobile = true,
+    this.rawCategoryLabel,
   });
 
   final String login;
@@ -15,6 +16,7 @@ class DbInfo {
   final String? displayName;
   final dynamic projectId;
   final bool hasVMobile;
+  final String? rawCategoryLabel;
 
   String get effectiveDisplayName {
     if (displayName != null && displayName!.trim().isNotEmpty) {
@@ -23,24 +25,27 @@ class DbInfo {
     return databaseName.isNotEmpty ? databaseName : databaseUrl;
   }
 
-  /// Nhãn phân biệt [Nội bộ / Khách hàng] và phiên bản Odoo [17 / 19]
+  /// Nhãn phân biệt [Nội bộ / Khách hàng]
+  /// Theo chỉ đạo của Sếp Tân: Bỏ đuôi hiển thị "(Odoo 17)" / "(Odoo 19)".
   String get categoryLabel {
-    final lowerDb = databaseName.toLowerCase();
-    final lowerUrl = databaseUrl.toLowerCase();
+    // 1. Ưu tiên lấy trực tiếp nhãn do Master Hub / Backend trả về
+    if (rawCategoryLabel != null && rawCategoryLabel!.trim().isNotEmpty) {
+      final clean = rawCategoryLabel!.trim();
+      final lower = clean.toLowerCase();
+      if (lower.contains('khách hàng') || lower.contains('client')) {
+        return '👥 Khách Hàng';
+      }
+      if (lower.contains('nội bộ') || lower.contains('internal')) {
+        return '🏢 Nội Bộ';
+      }
+      return clean;
+    }
 
-    final is19 = lowerDb.contains('19') ||
-        lowerUrl.contains(':1900') ||
-        lowerUrl.contains(':8079') ||
-        lowerUrl.contains('demo.vuahethong');
+    // 2. Fallback heuristic theo tên database và URL
+    final lowerDb = databaseName.toLowerCase();
     final isCustomer = lowerDb.contains('client') || lowerDb.contains('kh');
 
-    if (is19) {
-      return isCustomer ? '👥 Khách Hàng (Odoo 19)' : '🏢 Nội Bộ (Odoo 19)';
-    } else if (isCustomer) {
-      return '👥 Khách Hàng (Odoo 17)';
-    } else {
-      return '🏢 Nội Bộ (Odoo 17)';
-    }
+    return isCustomer ? '👥 Khách Hàng' : '🏢 Nội Bộ';
   }
 
   factory DbInfo.fromJson(Map<String, dynamic> json) {
@@ -60,6 +65,8 @@ class DbInfo {
       hasVMobile: (json['has_v_mobile'] as bool?) ??
           (json['has_vmobile'] as bool?) ??
           true,
+      rawCategoryLabel: (json['category_label'] as String?) ??
+          (json['category'] as String?),
     );
   }
 
@@ -70,6 +77,7 @@ class DbInfo {
         if (displayName != null) 'display_name': displayName,
         if (projectId != null) 'project_id': projectId,
         'has_v_mobile': hasVMobile,
+        if (rawCategoryLabel != null) 'category_label': rawCategoryLabel,
       };
 
   @override

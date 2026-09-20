@@ -80,7 +80,7 @@ case "$CHOICE" in
         MODULE_NAME="v_mobile"
         BACKEND_DIR="$MOBILE_ROOT/v_mobile_19"
         PORT="${PORT:-8089}"
-        API_URL="${API_URL:-http://127.0.0.1:8079}"
+        API_URL="${API_URL:-http://127.0.0.1:1900}"
         CHROME_PROFILE="${CHROME_PROFILE:-/tmp/flutter_chrome_dev_19}"
         ;;
     0|q|Q|exit)
@@ -235,6 +235,7 @@ exec flutter run \
     $MODE_FLAG \
     --web-port="$PORT" \
     --web-browser-flag="--disable-web-security" \
+    --web-browser-flag="--remote-allow-origins=*" \
     --web-browser-flag="--user-data-dir=$CHROME_PROFILE" \
     --dart-define="VCLOUD_ODOO_API_BASE_URL=$API_URL" \
     --dart-define="VCLOUD_ODOO_DB=$DB_NAME"

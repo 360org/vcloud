@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
+import '../../../core/config/env.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../../../shared/widgets/brand_logo.dart';
 import '../../chat_v2/application/chat_v2_channels_controller.dart';
@@ -149,14 +150,27 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final preferredDb = await ref
           .read(authControllerProvider.notifier)
           .getLastSelectedDb();
+      final effectivePreferredDb = Env.odooDb.isNotEmpty ? Env.odooDb : preferredDb;
 
-      debugPrint('🔍 [VCLOUD AUTH] Đang tra cứu cơ sở dữ liệu trên Master: $login (Preferred: $preferredDb)');
+      debugPrint('🔍 [VCLOUD AUTH] Đang tra cứu cơ sở dữ liệu trên Master: $login (Preferred: $effectivePreferredDb)');
       // [Bước 2]: Gửi API tra cứu DB lên Master: POST /api/v1/auth/lookup-db
-      final dbs = await ref
+      final rawDbs = await ref
           .read(authControllerProvider.notifier)
-          .lookupDb(login, password: password, preferredDb: preferredDb);
+          .lookupDb(login, password: password, preferredDb: effectivePreferredDb);
 
-      debugPrint('📋 [VCLOUD AUTH RESULT] Tìm thấy ${dbs.length} database cho tài khoản $login:');
+      // Khử trùng lặp (Deduplicate) theo cặp (databaseName, databaseUrl)
+      // Phòng thủ khi backend trả về nhiều dòng do user thuộc nhiều project
+      final seenKeys = <String>{};
+      final dbs = <DbInfo>[];
+      for (final item in rawDbs) {
+        final key = '${item.databaseName.trim().toLowerCase()}|${item.databaseUrl.trim().toLowerCase()}';
+        if (!seenKeys.contains(key)) {
+          seenKeys.add(key);
+          dbs.add(item);
+        }
+      }
+
+      debugPrint('📋 [VCLOUD AUTH RESULT] Tìm thấy ${rawDbs.length} database (đã lọc còn ${dbs.length}) cho tài khoản $login:');
       for (int i = 0; i < dbs.length; i++) {
         debugPrint('   [$i] DB: ${dbs[i].databaseName} | URL: ${dbs[i].databaseUrl}');
       }
@@ -164,8 +178,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (!mounted) return;
 
       // [Bước 3 - Nhánh 3: KHÔNG TỒN TẠI (Master trả về rỗng [])]
-      // App thông báo ngay: "Tài khoản không tồn tại trên hệ thống".
+      // Nếu có VCLOUD_ODOO_DB chỉ định từ env dev, tự động thử đăng nhập thẳng
       if (dbs.isEmpty) {
+        if (Env.odooDb.isNotEmpty) {
+          final fallbackDb = DbInfo(
+            login: login,
+            databaseName: Env.odooDb,
+            databaseUrl: Env.odooApiBaseUrl,
+            hasVMobile: true,
+          );
+          await _executeClientAuth(
+            db: fallbackDb,
+            login: login,
+            password: password,
+          );
+          return;
+        }
         setState(() {
           _submitting = false;
           _error = 'Tài khoản không tồn tại trên hệ thống.';
@@ -336,13 +364,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           separatorBuilder: (context, index) => const SizedBox(height: 10),
                           itemBuilder: (context, index) {
                             final item = dbs[index];
-                            final is19 = item.categoryLabel.contains('19');
                             final isClient = item.categoryLabel.contains('Khách Hàng');
-                            final primaryColor = is19
-                                ? const Color(0xFF7C3AED)
-                                : (isClient
-                                    ? const Color(0xFF2563EB)
-                                    : const Color(0xFF059669));
+                            final primaryColor = isClient
+                                ? const Color(0xFF2563EB)
+                                : const Color(0xFF059669);
 
                             final lightBgColor = primaryColor.withValues(alpha: 0.08);
 
@@ -375,7 +400,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                           borderRadius: BorderRadius.circular(12),
                                         ),
                                         child: Icon(
-                                          is19 ? LucideIcons.server : LucideIcons.database,
+                                          isClient ? LucideIcons.building2 : LucideIcons.database,
                                           color: primaryColor,
                                           size: 22,
                                         ),

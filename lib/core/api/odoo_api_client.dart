@@ -415,10 +415,10 @@ class OdooApiClient {
           'login': trimmedLogin,
           'database_name': 'demo',
           'database_url': demoUrl,
-          'display_name': 'Trung tâm Trải nghiệm & Demo (Odoo 19)',
+          'display_name': 'Trung tâm Trải nghiệm & Demo',
           'project_id': 9999,
           'has_v_mobile': true,
-          'category_label': '🏢 Nội Bộ (Odoo 19)',
+          'category_label': '🏢 Nội Bộ',
         }
       ];
     }
@@ -444,20 +444,6 @@ class OdooApiClient {
       // Fallback khi Master Router chạy bản cũ chưa hỗ trợ endpoint lookup-db hoặc báo 400 (do backend live chưa deploy bản bỏ password)
       if (response.statusCode == 404 || response.statusCode == 405 || response.statusCode == 400) {
         debugPrint('⚠️ [lookupDb] Master ($masterUrl) trả về ${response.statusCode}, fallback sang cấu hình mặc định.');
-        if ((lowerLogin == 'support@360.org.vn' || lowerLogin == 'portal@360.org.vn') && isProdMaster) {
-          return [
-            {
-              'login': trimmedLogin,
-              'database_name': 'nds',
-              'database_url': 'https://ndsgroup.vn',
-              'display_name': 'NDS Group',
-              'project_id': 7790,
-              'has_v_mobile': true,
-              'category_label': '🏢 Khách Hàng',
-            }
-          ];
-        }
-
         final String effectiveDb;
         final String effectiveUrl;
         final String displayName;
@@ -498,22 +484,6 @@ class OdooApiClient {
 
     final decoded = jsonDecode(response.body);
     if (decoded is Map && decoded['error'] != null) {
-      // Nếu Master báo missing_password hoặc lỗi tra cứu:
-      // Fallback kiểm tra các tài khoản đặc biệt (như NDS Group hoặc nội bộ vuahethong) trước khi báo lỗi
-      if (lowerLogin == 'support@360.org.vn' || lowerLogin == 'portal@360.org.vn') {
-        return [
-          {
-            'login': trimmedLogin,
-            'database_name': 'nds',
-            'database_url': 'https://ndsgroup.vn',
-            'display_name': 'NDS Group',
-            'project_id': 7790,
-            'has_v_mobile': true,
-            'category_label': '🏢 Khách Hàng',
-          }
-        ];
-      }
-
       // Fallback cho tài khoản chính thức Vua Hệ Thống khi server trả về 200 {"error": "missing_password"}
       final isProd = masterUrl.contains('vuahethong.net');
       if (isProd) {
@@ -525,7 +495,7 @@ class OdooApiClient {
             'display_name': 'Vua Hệ Thống (Chính thức)',
             'project_id': 1,
             'has_v_mobile': true,
-            'category_label': '🏢 Nội Bộ (Odoo 17)',
+            'category_label': '🏢 Nội Bộ',
           }
         ];
       }
@@ -552,6 +522,30 @@ class OdooApiClient {
         .map((e) => Map<String, dynamic>.from(e))
         .toList();
 
+    // Chuẩn hóa định tuyến cho tài khoản supporter kỹ thuật đa cơ sở dữ liệu
+    if (lowerLogin == 'support@360.org.vn') {
+      return [
+        {
+          'login': trimmedLogin,
+          'database_name': 'vuahethong',
+          'database_url': 'https://vuahethong.net',
+          'display_name': 'Vua Hệ Thống (Chính thức)',
+          'project_id': 1,
+          'has_v_mobile': true,
+          'category_label': '🏢 Nội Bộ',
+        },
+        {
+          'login': trimmedLogin,
+          'database_name': 'nds',
+          'database_url': 'https://ndsgroup.vn',
+          'display_name': 'NDS Group (Khách Hàng)',
+          'project_id': 536,
+          'has_v_mobile': true,
+          'category_label': '🤝 Khách Hàng',
+        },
+      ];
+    }
+
     // -------------------------------------------------------------------------
     // Fallback: Xử lý các tài khoản đặc biệt khi Master Directory chưa sync
     // -------------------------------------------------------------------------
@@ -564,25 +558,10 @@ class OdooApiClient {
             'login': login.trim(),
             'database_name': 'demo',
             'database_url': demoUrl,
-            'display_name': 'Trung tâm Trải nghiệm & Demo (Odoo 19)',
+            'display_name': 'Trung tâm Trải nghiệm & Demo',
             'project_id': 9999,
             'has_v_mobile': true,
-            'category_label': '🏢 Nội Bộ (Odoo 19)',
-          }
-        ];
-      }
-
-      // ponytail: Fallback danh bạ client NDS Group khi Master vuahethong.net chưa sync databases.user
-      if ((trimmedLower == 'support@360.org.vn' || trimmedLower == 'portal@360.org.vn') && isProdMaster) {
-        return [
-          {
-            'login': login.trim(),
-            'database_name': 'nds',
-            'database_url': 'https://ndsgroup.vn',
-            'display_name': 'NDS Group',
-            'project_id': 7790,
-            'has_v_mobile': true,
-            'category_label': '🏢 Khách Hàng',
+            'category_label': '🏢 Nội Bộ',
           }
         ];
       }

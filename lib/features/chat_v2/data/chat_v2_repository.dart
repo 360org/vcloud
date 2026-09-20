@@ -99,6 +99,9 @@ class ChatV2Repository {
   }
 
   Future<ChatV2Channel?> getChannel(String channelId) async {
+    final cid = int.tryParse(channelId);
+    if (cid == null || cid <= 0) return null;
+
     try {
       final dynamic data = await _client.get('/api/v1/mobile/chat/channels/$channelId');
       if (data is Map) {
@@ -115,6 +118,9 @@ class ChatV2Repository {
     int limit = 35,
     String? beforeId,
   }) async {
+    final cid = int.tryParse(channelId);
+    if (cid == null || cid <= 0) return const [];
+
     dynamic data;
     final queryParams = <String, dynamic>{'limit': limit.toString()};
     if (beforeId != null && beforeId.isNotEmpty) {
@@ -374,6 +380,55 @@ class ChatV2Repository {
     throw Exception('Phản hồi upload ảnh không hợp lệ từ máy chủ Odoo.');
   }
 
+  Future<List<ChatV2Attachment>> uploadAttachmentsBatch({
+    required List<({String filename, Uint8List bytes, String? mimetype})> files,
+    String? resModel,
+    int? resId,
+  }) async {
+    if (files.isEmpty) return [];
+
+    // 1. Thử gọi API batch endpoint mới
+    try {
+      final filesPayload = files.map((f) => {
+        'name': f.filename,
+        'data': base64Encode(f.bytes),
+        if (f.mimetype != null && f.mimetype!.isNotEmpty) 'mimetype': f.mimetype,
+      }).toList();
+
+      final payload = <String, dynamic>{
+        'files': filesPayload,
+        'res_model': ?resModel,
+        'res_id': ?resId,
+      };
+
+      final dynamic data = await _client
+          .post('/api/v1/mobile/attachments/upload-batch', body: payload)
+          .timeout(const Duration(seconds: 30));
+
+      if (data is Map && data['attachments'] is List) {
+        return (data['attachments'] as List)
+            .map((item) => ChatV2Attachment.fromMap(Map<String, dynamic>.from(item as Map)))
+            .toList();
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[ChatV2Repository] Batch upload fallback to parallel: $e');
+      }
+    }
+
+    // 2. Fallback dự phòng song song nếu server chưa có upload-batch
+    final fallbackList = await Future.wait(
+      files.map(
+        (f) => uploadAttachment(
+          filename: f.filename,
+          bytes: f.bytes,
+          mimetype: f.mimetype,
+        ),
+      ),
+    );
+    return fallbackList;
+  }
+
   Future<ChatV2Message> sendMessage(
     String channelId,
     String body, {
@@ -387,6 +442,11 @@ class ChatV2Repository {
     String? parentBody,
     String? parentAuthorName,
   }) async {
+    final cid = int.tryParse(channelId);
+    if (cid == null || cid <= 0) {
+      throw Exception('Mã phòng trò chuyện không hợp lệ: $channelId');
+    }
+
     String payloadBody = body;
     if (parentId != null && parentId.isNotEmpty) {
       final safeAuthor = (parentAuthorName != null && parentAuthorName.isNotEmpty)

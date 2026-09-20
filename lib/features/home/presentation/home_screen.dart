@@ -996,7 +996,9 @@ String? _notificationRoute(Map<String, dynamic> data, {String? title}) {
     return '/tickets/$ticketId';
   }
   final conversationId = data['conversation_id'] ?? data['channel_id'];
-  if (conversationId != null && conversationId.toString().isNotEmpty) {
+  if (conversationId != null &&
+      conversationId.toString().isNotEmpty &&
+      conversationId.toString() != '0') {
     final cleanTitle = title != null ? _cleanNotificationText(title) : null;
     if (cleanTitle != null && cleanTitle.isNotEmpty) {
       return '/chat/$conversationId?name=${Uri.encodeComponent(cleanTitle)}';

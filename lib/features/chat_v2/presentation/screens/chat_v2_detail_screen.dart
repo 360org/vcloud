@@ -307,6 +307,32 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
     }
   }
 
+  Future<void> _handleSendBatchImages({
+    required List<({String filename, Uint8List bytes, String? mimetype})> files,
+    String? caption,
+  }) async {
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    try {
+      await ref
+          .read(chatV2MessagesProvider(widget.channelId).notifier)
+          .sendBatchImages(
+            files: files,
+            caption: caption,
+          );
+
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi gửi ảnh: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _handleSendFile({
     required Uint8List bytes,
     required String filename,
@@ -334,6 +360,55 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
           ),
         );
       }
+    }
+  }
+
+  void _handleMentionTap(String mentionText) {
+    HapticFeedback.lightImpact();
+    final cleanName = mentionText.replaceFirst('@', '').trim();
+    if (cleanName.isEmpty) return;
+
+    final currentChannel = ref
+        .watch(chatV2ChannelsProvider)
+        .valueOrNull
+        ?.firstWhereOrNull((c) => c.id == widget.channelId);
+    final members = currentChannel?.members ?? const [];
+    final matchedMember = members.firstWhereOrNull(
+      (m) => m.name.trim().toLowerCase() == cleanName.toLowerCase(),
+    );
+
+    if (matchedMember != null) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(LucideIcons.user, color: Colors.white, size: 16),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Thành viên: ${matchedMember.name}${matchedMember.email != null && matchedMember.email!.isNotEmpty ? ' (${matchedMember.email})' : ''}',
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: const Color(0xFF0077CD),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Đã nhắc đến: @$cleanName'),
+          backgroundColor: const Color(0xFF0077CD),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
     }
   }
 
@@ -807,6 +882,13 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                     showAvatar: showAvatar,
                                     isGroup: isActualGroup,
                                     isHighlighted: message.id == _highlightedMessageId,
+                                    onRetry: () => ref
+                                        .read(chatV2MessagesProvider(widget.channelId).notifier)
+                                        .retryMessage(message.id),
+                                    onDelete: () => ref
+                                        .read(chatV2MessagesProvider(widget.channelId).notifier)
+                                        .deleteTempMessage(message.id),
+                                    onMentionTap: _handleMentionTap,
                                     onReplyTap: (parentId) {
                                       if (parentId != null) {
                                         _jumpToMessage(parentId);
@@ -1197,6 +1279,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                     focusNode: _inputFocusNode,
                     onSend: _handleSendMessage,
                     onSendImage: _handleSendImage,
+                    onSendBatchImages: _handleSendBatchImages,
                     onSendFile: _handleSendFile,
                     isSending: _isSending,
                     onTyping: (isTyping) {

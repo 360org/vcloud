@@ -41,6 +41,7 @@ class ChatV2InputBar extends StatefulWidget {
     super.key,
     required this.onSend,
     this.onSendImage,
+    this.onSendBatchImages,
     this.onSendFile,
     this.onTyping,
     this.onCreatePoll,
@@ -66,6 +67,10 @@ class ChatV2InputBar extends StatefulWidget {
     String? mimetype,
     String? caption,
   })? onSendImage;
+  final Future<void> Function({
+    required List<({String filename, Uint8List bytes, String? mimetype})> files,
+    String? caption,
+  })? onSendBatchImages;
   final Future<void> Function({
     required Uint8List bytes,
     required String filename,
@@ -150,8 +155,7 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
   }
 
   void _checkMentionTrigger(String text) {
-    // Chỉ kích hoạt gợi ý @mention trong Chat Nhóm hoặc Kênh Thảo luận (loại trừ chat 1-1)
-    if (!widget.isGroup) {
+    if (widget.channelMembers.isEmpty) {
       if (_mentionSuggestions.isNotEmpty) {
         setState(() {
           _mentionSuggestions = [];
@@ -162,7 +166,12 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
     }
 
     final cursor = _controller.selection.baseOffset;
-    if (cursor < 0 || cursor > text.length || widget.channelMembers.isEmpty) {
+    // Trên Android, khi touch vào danh sách gợi ý mention, con trỏ cursor có thể bị -1 do mất focus tạm thời.
+    // Không xóa suggestions khi cursor < 0 nếu người dùng chưa xóa hết text.
+    if (cursor < 0) {
+      return;
+    }
+    if (cursor > text.length) {
       if (_mentionSuggestions.isNotEmpty) {
         setState(() {
           _mentionSuggestions = [];
@@ -219,10 +228,13 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
     if (_mentionQueryStartIndex < 0) return;
     final text = _controller.text;
     final cursor = _controller.selection.baseOffset;
+    int endIdx = cursor;
+    if (endIdx < _mentionQueryStartIndex || endIdx > text.length) {
+      final spaceIdx = text.indexOf(' ', _mentionQueryStartIndex);
+      endIdx = spaceIdx != -1 ? spaceIdx : text.length;
+    }
     final prefix = text.substring(0, _mentionQueryStartIndex);
-    final suffix = cursor >= _mentionQueryStartIndex && cursor <= text.length
-        ? text.substring(cursor)
-        : (text.length > _mentionQueryStartIndex ? text.substring(_mentionQueryStartIndex + 1) : '');
+    final suffix = text.substring(endIdx);
 
     final insertText = '@${member.name} ';
     final newText = '$prefix$insertText$suffix';
@@ -639,102 +651,188 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
     );
   }
 
+  Future<Uint8List> _compressImageBytes(Uint8List bytes) async {
+    try {
+      final compressed = await FlutterImageCompress.compressWithList(
+        bytes,
+        minWidth: 1600,
+        minHeight: 1600,
+        quality: 80,
+        format: CompressFormat.jpeg,
+      );
+      if (compressed.isNotEmpty) {
+        return compressed;
+      }
+    } catch (_) {}
+    return bytes;
+  }
+
   Future<void> _handlePickImage(ImageSource source) async {
     if (widget.isSending || _isUploading) return;
 
     try {
       if (source == ImageSource.gallery) {
-        final List<XFile> files = await _picker.pickMultiImage(
+        final List<XFile> rawFiles = await _picker.pickMultipleMedia(
           maxWidth: 1600,
           maxHeight: 1600,
           imageQuality: 80,
         );
 
-        if (files.isEmpty) return;
+        if (rawFiles.isEmpty) return;
+
+        // Giới hạn chọn tối đa 9 tệp để bảo vệ RAM và chống nghẽn server
+        List<XFile> files = rawFiles;
+        if (files.length > 9) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Chỉ được gửi tối đa 9 tệp mỗi lần. Đã chọn 9 tệp đầu tiên.'),
+                backgroundColor: Color(0xFF00C83A),
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
+          files = files.take(9).toList();
+        }
+
+        bool isVideoFile(XFile f) {
+          final m = (f.mimeType ?? '').toLowerCase();
+          final n = f.name.toLowerCase();
+          return m.startsWith('video/') ||
+              n.endsWith('.mp4') ||
+              n.endsWith('.mov') ||
+              n.endsWith('.avi') ||
+              n.endsWith('.mkv') ||
+              n.endsWith('.webm');
+        }
 
         if (files.length == 1) {
           final file = files.first;
+          final isVideo = isVideoFile(file);
+          final maxLimit = isVideo ? maxDocumentSizeBytes : maxImageSizeBytes;
+
           final sizeInBytes = await file.length();
-          if (sizeInBytes > maxImageSizeBytes) {
+          if (sizeInBytes > maxLimit) {
             if (mounted) {
               _showFileSizeExceededDialog(
                 context: context,
-                filename: file.name.isNotEmpty ? file.name : 'image.jpg',
+                filename: file.name.isNotEmpty ? file.name : (isVideo ? 'video.mp4' : 'image.jpg'),
                 fileSizeBytes: sizeInBytes,
-                maxSizeBytes: maxImageSizeBytes,
+                maxSizeBytes: maxLimit,
               );
             }
             return;
           }
 
-          final bytes = await file.readAsBytes();
+          final rawBytes = await file.readAsBytes();
+          final bytes = isVideo ? rawBytes : await _compressImageBytes(rawBytes);
           final filename = file.name.isNotEmpty
-              ? file.name
-              : 'image_${DateTime.now().millisecondsSinceEpoch}.jpg';
-          final mime = file.mimeType ?? 'image/jpeg';
+              ? (isVideo
+                  ? file.name
+                  : (file.name.toLowerCase().endsWith('.jpg') || file.name.toLowerCase().endsWith('.jpeg')
+                      ? file.name
+                      : '${file.name}.jpg'))
+              : (isVideo
+                  ? 'video_${DateTime.now().millisecondsSinceEpoch}.mp4'
+                  : 'image_${DateTime.now().millisecondsSinceEpoch}.jpg');
+          final mime = file.mimeType ?? (isVideo ? 'video/mp4' : 'image/jpeg');
 
           if (mounted) {
             setState(() {
               _selectedBytes = bytes;
               _selectedFilename = filename;
               _selectedMimetype = mime;
-              _isSelectedImage = true;
+              _isSelectedImage = !isVideo;
             });
           }
           return;
         }
 
-        // Chọn nhiều ảnh (> 1): Gửi trực tiếp từng ảnh qua onSendImage hoặc onSendFile
-        final sendCallback = widget.onSendImage ?? widget.onSendFile;
-        if (sendCallback == null) return;
-
+        // Chọn nhiều tệp (> 1): Phân loại ảnh & video
         final text = _controller.text.trim();
         final initialCaption = text.isNotEmpty ? text : null;
         if (initialCaption != null) {
           _controller.clear();
         }
 
+        final batchFiles = <({String filename, Uint8List bytes, String? mimetype})>[];
+        final videoFiles = <({String filename, Uint8List bytes, String? mimetype})>[];
+
+        for (var i = 0; i < files.length; i++) {
+          final file = files[i];
+          final isVideo = isVideoFile(file);
+          final maxLimit = isVideo ? maxDocumentSizeBytes : maxImageSizeBytes;
+          final sizeInBytes = await file.length();
+          if (sizeInBytes > maxLimit) {
+            continue;
+          }
+
+          final rawBytes = await file.readAsBytes();
+          if (isVideo) {
+            final filename = file.name.isNotEmpty
+                ? file.name
+                : 'video_${DateTime.now().millisecondsSinceEpoch}_$i.mp4';
+            videoFiles.add((
+              filename: filename,
+              bytes: rawBytes,
+              mimetype: file.mimeType ?? 'video/mp4',
+            ));
+          } else {
+            final compressedBytes = await _compressImageBytes(rawBytes);
+            final filename = file.name.isNotEmpty
+                ? file.name
+                : 'image_${DateTime.now().millisecondsSinceEpoch}_$i.jpg';
+            batchFiles.add((
+              filename: filename,
+              bytes: compressedBytes,
+              mimetype: 'image/jpeg',
+            ));
+          }
+        }
+
+        if (batchFiles.isEmpty && videoFiles.isEmpty) return;
+
+        // Tự do mở khóa UI ngay lập tức — không chặn người dùng
         setState(() {
           _hasText = false;
           _selectedBytes = null;
           _selectedFilename = null;
           _selectedMimetype = null;
           _isSelectedImage = false;
-          _isUploading = true;
+          _isUploading = false;
         });
 
-        try {
-          for (var i = 0; i < files.length; i++) {
-            final file = files[i];
-            final sizeInBytes = await file.length();
-            if (sizeInBytes > maxImageSizeBytes) {
-              if (mounted) {
-                _showFileSizeExceededDialog(
-                  context: context,
-                  filename: file.name.isNotEmpty ? file.name : 'image.jpg',
-                  fileSizeBytes: sizeInBytes,
-                  maxSizeBytes: maxImageSizeBytes,
+        // Gửi batch ảnh nếu có
+        if (batchFiles.isNotEmpty) {
+          if (widget.onSendBatchImages != null) {
+            unawaited(widget.onSendBatchImages!(
+              files: batchFiles,
+              caption: initialCaption,
+            ));
+          } else {
+            final sendCallback = widget.onSendImage ?? widget.onSendFile;
+            if (sendCallback != null) {
+              for (var i = 0; i < batchFiles.length; i++) {
+                final item = batchFiles[i];
+                await sendCallback(
+                  bytes: item.bytes,
+                  filename: item.filename,
+                  mimetype: item.mimetype,
+                  caption: (i == 0) ? initialCaption : null,
                 );
               }
-              continue;
             }
-
-            final bytes = await file.readAsBytes();
-            final filename = file.name.isNotEmpty
-                ? file.name
-                : 'image_${DateTime.now().millisecondsSinceEpoch}_$i.jpg';
-            final mime = file.mimeType ?? 'image/jpeg';
-
-            await sendCallback(
-              bytes: bytes,
-              filename: filename,
-              mimetype: mime,
-              caption: (i == 0) ? initialCaption : null,
-            );
           }
-        } finally {
-          if (mounted) {
-            setState(() => _isUploading = false);
+        }
+
+        // Gửi video files nếu có
+        if (videoFiles.isNotEmpty && widget.onSendFile != null) {
+          for (final v in videoFiles) {
+            await widget.onSendFile!(
+              bytes: v.bytes,
+              filename: v.filename,
+              mimetype: v.mimetype,
+            );
           }
         }
         return;

@@ -47,7 +47,7 @@ void main() {
     });
 
     test(
-      '3. DbInfo categoryLabel phân loại đúng môi trường Prod và Odoo 19',
+      '3. DbInfo categoryLabel phân loại đúng môi trường Prod và Demo (bỏ hậu tố Odoo 17/19 theo chỉ đạo Sếp Tân)',
       () {
         const prodDb = DbInfo(
           login: 'tanmnn@360.org.vn',
@@ -55,15 +55,23 @@ void main() {
           databaseUrl: 'https://vuahethong.net',
           displayName: 'Vua Hệ Thống (Chính thức)',
         );
-        expect(prodDb.categoryLabel, '🏢 Nội Bộ (Odoo 17)');
+        expect(prodDb.categoryLabel, '🏢 Nội Bộ');
 
         const demoDb = DbInfo(
           login: 'demo',
           databaseName: 'demo',
           databaseUrl: 'https://demo.vuahethong.com',
-          displayName: 'Trung tâm Trải nghiệm & Demo (Odoo 19)',
+          displayName: 'Trung tâm Trải nghiệm & Demo',
         );
-        expect(demoDb.categoryLabel, '🏢 Nội Bộ (Odoo 19)');
+        expect(demoDb.categoryLabel, '🏢 Nội Bộ');
+
+        const clientDb = DbInfo(
+          login: 'client@example.com',
+          databaseName: 'client_corp',
+          databaseUrl: 'https://client.vuahethong.com',
+          displayName: 'Công ty Khách Hàng',
+        );
+        expect(clientDb.categoryLabel, '👥 Khách Hàng');
       },
     );
   });

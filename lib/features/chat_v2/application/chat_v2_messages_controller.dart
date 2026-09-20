@@ -733,6 +733,202 @@ class ChatV2MessagesNotifier
     }
   }
 
+  Future<void> sendBatchImages({
+    required List<({String filename, Uint8List bytes, String? mimetype})> files,
+    String? caption,
+  }) async {
+    if (files.isEmpty) return;
+    if (files.length == 1) {
+      final f = files.first;
+      await sendImage(
+        filename: f.filename,
+        bytes: f.bytes,
+        mimetype: f.mimetype,
+        caption: caption,
+      );
+      return;
+    }
+
+    final channelId = arg;
+    final repo = ref.read(chatV2RepositoryProvider);
+    final user = ref.read(authControllerProvider).valueOrNull;
+
+    final meta = user?.userMetadata;
+    final partnerId = meta?['partner_id']?.toString() ??
+        meta?['partner']?['id']?.toString();
+    final userId = user?.id;
+    final userName = meta?['name']?.toString() ?? 'Tôi';
+
+    // 1. Optimistic message gom nhiều ảnh
+    final tempId = 'temp_batch_${DateTime.now().millisecondsSinceEpoch}';
+    final tempAttachments = <ChatV2Attachment>[];
+
+    for (var i = 0; i < files.length; i++) {
+      final f = files[i];
+      final attId = '${tempId}_$i';
+      ChatV2AttachmentImage.cacheBytes(attId, f.bytes);
+      LocalAttachmentCache.save(f.filename, f.bytes);
+      LocalAttachmentCache.save(attId, f.bytes);
+      tempAttachments.add(ChatV2Attachment(
+        id: attId,
+        name: f.filename,
+        mimetype: f.mimetype ?? 'image/jpeg',
+        bytes: f.bytes,
+      ));
+    }
+
+    final tempMsg = ChatV2Message(
+      id: tempId,
+      channelId: channelId,
+      content: (caption != null && caption.isNotEmpty) ? caption : '',
+      authorId: partnerId ?? userId,
+      authorName: userName,
+      createdAt: DateTime.now(),
+      isMine: true,
+      status: 'pending',
+      attachments: tempAttachments,
+    );
+
+    final previousState = state.valueOrNull ?? const [];
+    state = AsyncData([tempMsg, ...previousState]);
+    ChatV2MessageLocalCache.prepend(channelId, tempMsg);
+
+    try {
+      // 2. Upload batch với hard timeout 30 giây
+      final uploadedAtts = await repo
+          .uploadAttachmentsBatch(files: files)
+          .timeout(const Duration(seconds: 30));
+
+      final attIds = uploadedAtts
+          .map((a) => int.tryParse(a.id))
+          .whereType<int>()
+          .toList();
+
+      if (attIds.isEmpty) {
+        throw Exception('Không có tệp đính kèm nào được tải lên thành công.');
+      }
+
+      // Ghép lại bytes vào attachments đã upload để hiển thị mượt
+      final attachedWithBytes = <ChatV2Attachment>[];
+      for (var i = 0; i < uploadedAtts.length; i++) {
+        final att = uploadedAtts[i];
+        final originalBytes = (i < files.length) ? files[i].bytes : null;
+        if (originalBytes != null) {
+          ChatV2AttachmentImage.cacheBytes(att.id, originalBytes);
+          LocalAttachmentCache.save(att.id, originalBytes);
+        }
+        attachedWithBytes.add(att.copyWith(bytes: originalBytes));
+      }
+
+      // 3. Gửi 1 tin nhắn duy nhất chứa toàn bộ attachment_ids
+      final bodyText = (caption != null && caption.isNotEmpty) ? caption : '';
+      final sentMsg = await repo.sendMessage(
+        channelId,
+        bodyText,
+        attachmentIds: attIds,
+        currentPartnerId: partnerId,
+        currentUserId: userId,
+        authorName: userName,
+      );
+
+      // 4. Cập nhật state thành công
+      final currentList = (state.valueOrNull ?? []).where((m) => m.id != tempId).toList();
+      currentList.insert(
+        0,
+        sentMsg.copyWith(
+          isMine: true,
+          status: 'sent',
+          attachments: attachedWithBytes,
+        ),
+      );
+
+      ChatV2MessageLocalCache.set(channelId, currentList);
+      state = AsyncData(currentList);
+
+      final cleanForTracker = (caption != null && caption.isNotEmpty)
+          ? caption
+          : '[${files.length} Hình ảnh]';
+      ref.read(chatV2LastSentTrackerProvider.notifier).recordSent(channelId, cleanForTracker);
+      ref.read(chatV2ReadStateProvider.notifier).markChannelAsRead(channelId);
+
+      ChatV2ChannelLocalCache.updateChannelLastMessage(
+        channelId,
+        lastMessage: cleanForTracker,
+        lastMessageDate: DateTime.now(),
+        authorId: partnerId ?? userId,
+        authorName: userName,
+        unreadCount: 0,
+      );
+    } catch (e) {
+      debugPrint('❌ [ERROR] sendBatchImages error: $e');
+      final currentList = state.valueOrNull ?? const [];
+      final hasTemp = currentList.any((m) => m.id == tempId);
+      if (hasTemp) {
+        final updatedList = currentList.map((m) {
+          if (m.id == tempId) {
+            return m.copyWith(status: 'error');
+          }
+          return m;
+        }).toList();
+        ChatV2MessageLocalCache.set(channelId, updatedList);
+        state = AsyncData(updatedList);
+      }
+    }
+  }
+
+  Future<void> retryMessage(String messageId) async {
+    final currentList = state.valueOrNull ?? const [];
+    final msg = currentList.firstWhereOrNull((m) => m.id == messageId);
+    if (msg == null) return;
+
+    // Chuyển lại trạng thái thành pending
+    final pendingList = currentList.map((m) {
+      if (m.id == messageId) {
+        return m.copyWith(status: 'pending');
+      }
+      return m;
+    }).toList();
+    state = AsyncData(pendingList);
+
+    final imageAttachments = msg.attachments.where((a) => a.isImage).toList();
+    if (imageAttachments.isNotEmpty) {
+      final files = <({String filename, Uint8List bytes, String? mimetype})>[];
+      for (final att in imageAttachments) {
+        final bytes = att.bytes ??
+            (att.id.isNotEmpty ? ChatV2AttachmentImage.imageCache[att.id] : null) ??
+            (att.name.isNotEmpty ? LocalAttachmentCache.get(att.name) : null);
+        if (bytes != null && bytes.isNotEmpty) {
+          files.add((
+            filename: att.name,
+            bytes: bytes,
+            mimetype: att.mimetype ?? 'image/jpeg',
+          ));
+        }
+      }
+
+      if (files.isNotEmpty) {
+        final filteredList = (state.valueOrNull ?? []).where((m) => m.id != messageId).toList();
+        state = AsyncData(filteredList);
+        await sendBatchImages(
+          files: files,
+          caption: msg.content.isNotEmpty ? msg.content : null,
+        );
+        return;
+      }
+    }
+
+    final filtered = (state.valueOrNull ?? []).where((m) => m.id != messageId).toList();
+    state = AsyncData(filtered);
+    await sendMessage(msg.content, parentId: msg.parentId);
+  }
+
+  void deleteTempMessage(String messageId) {
+    final channelId = arg;
+    final currentList = (state.valueOrNull ?? []).where((m) => m.id != messageId).toList();
+    ChatV2MessageLocalCache.set(channelId, currentList);
+    state = AsyncData(currentList);
+  }
+
   Future<void> editMessage(String messageId, String newBody) async {
     final repo = ref.read(chatV2RepositoryProvider);
     try {
