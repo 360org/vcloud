@@ -3,10 +3,11 @@
 /// We deliberately avoid either/result libraries for the MVP; a simple
 /// [String] message is enough to drive UI snackbars / banners.
 class Failure implements Exception {
-  Failure(this.message, {this.cause});
+  Failure(this.message, {this.cause, this.statusCode});
 
   final String message;
   final Object? cause;
+  final int? statusCode;
 
   @override
   String toString() => 'Failure($message)';

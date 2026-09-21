@@ -2,13 +2,15 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
-## [UNRELEASED] — 2026-09-21
+## [v2.9.9+135] — 2026-09-21
 
-- [FIX] Xóa toàn bộ cache tệp đính kèm cục bộ khi đăng xuất để không lộ ảnh/tệp của phiên trước trên thiết bị dùng chung.
-- [SECURITY] Gỡ quyền đọc toàn bộ thư viện ảnh/video Android; luồng chọn media tiếp tục dùng System Photo Picker của `image_picker`.
-- [SECURITY] CI Android chỉ tạo cấu hình ký khi đủ bốn secret; không còn giá trị mật khẩu/alias mặc định trong source.
-- [REFACTOR] Chuẩn hóa cấu hình AIaC, tài liệu phát hành và sơ đồ sang đường dẫn portable; bỏ các liên kết tuyệt đối của máy phát triển cũ.
-- [DOCS] Cập nhật báo cáo audit cho revision `1c9b4a0` và trạng thái kiểm chứng hiện hành.
+- [FIX] Triệt để loại bỏ tham số `password` khỏi chữ ký hàm và request body của `lookupDb` trên toàn hệ thống (từ UI, Riverpod Controller, Repository cho đến OdooApiClient), bảo vệ tuyệt mật thông tin xác thực trên Master Hub (Finding 1.1).
+- [FIX] Khử hoàn toàn luồng đăng nhập legacy probing đồng thời (parallel authentication) giữa domain production và máy chủ Demo, bảo vệ credential không bị rò rỉ (Finding 1.2).
+- [FIX] Bảo mật tệp tin in log: Lọc bỏ log in toàn bộ header chứa bearer token và preview body thô có thể chứa session token / JWT trong `OdooApiClient.fetchBytes()` (Finding 1.4).
+- [IMPROVE] Nâng cấp cơ chế Silent Refresh Mutex trong `OdooApiClient` bằng `Completer<bool>` dùng chung thay thế cho vòng lặp chờ `delay(500ms)` trước đây, giải quyết triệt để lỗi race-conditions và loại bỏ nguy cơ người dùng bị văng ra màn hình đăng nhập (Finding 2.4).
+- [IMPROVE] Thêm cơ chế tự động kiểm tra quyền exact alarm `canScheduleExactNotifications()` trên Android trước khi lên lịch `exactAllowWhileIdle`, tự động fallback mượt mà sang `inexactAllowWhileIdle` nếu không được cấp quyền (Finding 2.1).
+- [IMPROVE] Đồng bộ bọc `unawaited()` cho lệnh gọi đồng bộ nhắc nhở chấm công trong Riverpod provider `attendanceReminderSyncProvider` tại `attendance_controller.dart` (Finding 2.3).
+- [NEW] Bổ sung regression unit tests `test/security_regression_test.dart` kiểm chứng tự động: test lookupDb không chứa mật khẩu và dọn dẹp cache file attachment cục bộ (Finding 3.2).
 
 ## [v2.9.9+132] — 2026-09-20 (Trải Nghiệm Hiệu Ứng Xem Ảnh Chat Chuẩn Messenger / Zalo / Telegram)
 

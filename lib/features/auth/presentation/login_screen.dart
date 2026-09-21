@@ -156,7 +156,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       // [Bước 2]: Gửi API tra cứu DB lên Master: POST /api/v1/auth/lookup-db
       final rawDbs = await ref
           .read(authControllerProvider.notifier)
-          .lookupDb(login, password: password, preferredDb: effectivePreferredDb);
+          .lookupDb(login, preferredDb: effectivePreferredDb);
 
       // Khử trùng lặp (Deduplicate) theo cặp (databaseName, databaseUrl)
       // Phòng thủ khi backend trả về nhiều dòng do user thuộc nhiều project

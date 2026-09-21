@@ -26,9 +26,9 @@ class AuthRepository {
   // TUYỆT ĐỐI KHÔNG BẮT GỬI PASSWORD LÊN MASTER!
   // ---------------------------------------------------------------------------
 
-  Future<List<DbInfo>> lookupDb(String login, {String? password, String? preferredDb}) async {
+  Future<List<DbInfo>> lookupDb(String login, {String? preferredDb}) async {
     try {
-      final rawList = await _client.lookupDb(login, password: password, preferredDb: preferredDb);
+      final rawList = await _client.lookupDb(login, preferredDb: preferredDb);
       return rawList.map(DbInfo.fromJson).toList();
     } on Failure {
       rethrow;

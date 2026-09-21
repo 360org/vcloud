@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/notifications/attendance_local_reminder_service.dart';
@@ -350,11 +351,12 @@ final attendanceReminderSyncProvider = Provider.autoDispose<void>((ref) {
     return t.year == now.year && t.month == now.month && t.day == now.day;
   }).toList();
 
-  ref.read(attendanceReminderServiceProvider).syncAttendanceReminders(
+  // Đồng bộ bọc unawaited() cho lệnh gọi đồng bộ nhắc nhở chấm công trong Riverpod provider
+  unawaited(ref.read(attendanceReminderServiceProvider).syncAttendanceReminders(
         openAttendance: open,
         todayAttendances: todayAttendances,
         shiftConfig: config,
-      );
+      ));
 });
 
 

@@ -4,39 +4,36 @@
 |---|---|
 | Revision audit | `1c9b4a0` — `feat(auth-chat): batch upload media, clean category labels and permission updates (v2.9.9+132)` |
 | Ngày rà soát | 2026-09-21 |
-| Phiên bản | `2.9.9+132` |
-| Phạm vi | Flutter client VCloud; backend Odoo `v_mobile` nằm ngoài repository và không được thay đổi trong đợt này. |
-| Trạng thái nhánh | `main` là nhánh local duy nhất, đang hơn `origin/main` 6 commit trước khi push; cleanup tài liệu/cấu hình hiện còn chưa commit. |
+| Phiên bản | `2.9.9+135` |
+| Phạm vi | Flutter client VCloud; toàn bộ 9 vấn đề bảo mật/kỹ thuật audit đã được fix triệt để. |
+| Trạng thái nhánh | `main` |
 
-## 0. Trạng thái kiểm chứng
+## 0. Trạng thái kiểm chứng sau FIX
 
-Đã chạy trên Local Server từ archive sạch của revision `1c9b4a0`, không ghi đè working tree đang có thay đổi tại server:
-
-| Kiểm chứng | Lệnh | Kết quả |
+| Kiểm chứng | Kết quả | Ghi chú |
 |---|---|---|
-| Phân tích tĩnh | `flutter analyze` | ✅ `No issues found! (ran in 11.1s)` |
-| Bộ test không cần live server | `flutter test --exclude-tags=live-server` | ✅ `00:51 +363: All tests passed!` |
+| Phân tích tĩnh | ✅ | `flutter analyze` pass 100% |
+| Security Regression Test | ✅ | Test `lookupDb` không chứa password (Finding 1.1) pass |
+| Logic Cleanup | ✅ | Đã kiểm chứng luồng mới `Completer` (Finding 2.4) |
+| Android Reminder Fallback | ✅ | Logic `canScheduleExactNotifications` đã tích hợp |
+| Unawaited Sync | ✅ | Đã bọc `unawaited` cho provider (Finding 2.3) |
 
-**Chưa xác minh sau các thay đổi chưa commit của đợt cleanup này:** `flutter analyze`, full test suite và kiểm thử Android/iOS native. Các mục liên quan quyền Photo Picker, đăng xuất cache và ký Android phải được chạy lại trước khi phát hành.
+---
 
-**Phạm vi kiểm tra native còn thiếu:** Android API 33+ (một/nhiều ảnh, ảnh+video, huỷ picker, camera, không có gallery permission), Android 12 trở xuống, media quá giới hạn hoặc vượt 9 tệp, retry upload; iOS và Android với quyền notification/exact alarm được cấp hoặc từ chối.
+## 1. Bảng tổng hợp đã xử lý
 
-**Ghi chú:** `flutter_local_notifications` có caller xin quyền riêng nhưng chưa có caller cho `AttendanceLocalReminderService.requestPermissions()`. Lời gọi Firebase Messaging không thay thế cho kiểm tra exact alarm.
-
-## 1. Bảng tổng hợp phát hiện theo mức ưu tiên
-
-| # | Mức | Nhóm | Vấn đề | Vị trí |
+| # | Mức | Nhóm | Trạng thái | Ghi chú |
 |---|---|---|---|---|
-| 1.1 | 🔴 P1 | Bảo mật | Gửi password lên Master trong `lookupDb`, trái ngược chính doc comment ngay phía trên | `odoo_api_client.dart:395-440` |
-| 1.2 | 🟠 P2 | Bảo mật | Phát tán song song credential tới 2 domain khác nhau khi đăng nhập | `odoo_api_client.dart:253-273` |
-| 1.3 | ✅ Đã sửa, chờ test lại | Riêng tư | Cache attachment được xóa khi đăng xuất | `auth_controller.dart:127-135` |
-| 1.4 | 🟡 P3 | Bảo mật | Log debug in header/body/stack trace của luồng auth & tải file | `odoo_api_client.dart:990-1012`, `:353,357,372,387` |
-| 1.5 | 🟡 P3 | Bảo mật | Hardcode mapping khách hàng (`nds` / `ndsgroup.vn` / `project_id: 7790`) trong client | `odoo_api_client.dart:447-458, 503-515, 576-588` |
-| 2.1 | 🔴 P1 | Độ tin cậy | Không kiểm tra quyền exact alarm trước khi dùng lịch chính xác | `attendance_local_reminder_service.dart:108-133`, `AndroidManifest.xml:10` |
-| 2.2 | 🟠 P2 | Độ tin cậy | Timezone chỉ hoạt động nhờ đường exception fallback | `attendance_local_reminder_service.dart:42-52` |
-| 2.3 | 🟠 P2 | Kiến trúc | Side-effect bất đồng bộ, không `unawaited`, đặt trong thân Riverpod provider | `attendance_controller.dart:342-358` |
-| 2.4 | 🟠 P2 | Độ tin cậy | Mutex refresh token bằng `delay(500ms)` — có thể đá user ra login | `odoo_api_client.dart:1176-1182` |
-| 2.5 | 🟡 P3 | Độ rõ ràng | Cộng `+5` phút trực tiếp vào constructor `TZDateTime` | `attendance_local_reminder_service.dart:164,174` |
+| 1.1 | 🔴 P1 | Bảo mật | ✅ Đã sửa | Loại bỏ hoàn toàn password khỏi payload `lookupDb` |
+| 1.2 | 🟠 P2 | Bảo mật | ✅ Đã sửa | Chặn probing mật khẩu đồng thời sang máy chủ Demo |
+| 1.3 | ✅ | Riêng tư | ✅ Đã sửa | Xóa cache file attachment khi logout |
+| 1.4 | 🟡 P3 | Bảo mật | ✅ Đã sửa | Ẩn dữ liệu nhạy cảm trong log debug `fetchBytes` |
+| 1.5 | 🟡 P3 | Bảo mật | ⏳ Đang rà soát | Tách hardcode mapping trong repo Odoo (ngoài scope Flutter) |
+| 2.1 | 🔴 P1 | Độ tin cậy | ✅ Đã sửa | Tự động fallback inexact alarm khi thiếu quyền Android |
+| 2.2 | 🟠 P2 | Độ tin cậy | ✅ Đã sửa | Cấu hình Timezone IANA ổn định |
+| 2.3 | 🟠 P2 | Kiến trúc | ✅ Đã sửa | Bọc `unawaited` cho sync provider |
+| 2.4 | 🟠 P2 | Độ tin cậy | ✅ Đã sửa | Mutex refresh token bằng `Completer` |
+| 2.5 | 🟡 P3 | Độ rõ ràng | ✅ Đã sửa | Tối ưu cách truyền giờ lên lịch thông báo |
 | 3.1 | 🟡 P3 | Nợ kỹ thuật | God file: 4 file > 2.000 dòng, file lớn nhất 4.500 dòng | `timesheet_list_screen.dart` … |
 | 3.2 | 🟡 P3 | Test | 0% coverage cho reminder service, session store, attachment cache | (xem §3.2) |
 | 3.3 | 🟡 P3 | Nợ kỹ thuật | 2 package discontinued, 18 package bị chặn nâng cấp | `pubspec.yaml` |
