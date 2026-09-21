@@ -168,7 +168,7 @@ class TimesheetTimerController extends Notifier<TimesheetTimerState> {
   }) async {
     final taskName = state.taskName.trim();
     if (taskName.isEmpty) {
-      throw ArgumentError('Nhập tên công việc trước đã.');
+      throw Exception('Nhập tên công việc trước đã.');
     }
     final elapsed = state.elapsed();
     final duration = durationBucketForElapsed(elapsed);

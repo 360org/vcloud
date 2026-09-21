@@ -136,7 +136,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
               );
             }
           } catch (_) {}
-        }());
+        }().catchError((_) {}));
       }
 
       // Nạp danh sách thành viên kênh và đồng bộ presence live (tác vụ ngầm không block UI)
@@ -252,16 +252,21 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
             .read(chatV2MessagesProvider(widget.channelId).notifier)
             .editMessage(editing.id, text);
       } else {
-        unawaited(ref
-            .read(chatV2MessagesProvider(widget.channelId).notifier)
-            .sendMessage(
-              text,
-              partnerIds: partnerIds,
-              mentionedPartners: mentionedPartners,
-              parentId: replyingId,
-              parentBody: replyingBody,
-              parentAuthorName: replyingAuthor,
-            ));
+        unawaited(
+          ref
+              .read(chatV2MessagesProvider(widget.channelId).notifier)
+              .sendMessage(
+                text,
+                partnerIds: partnerIds,
+                mentionedPartners: mentionedPartners,
+                parentId: replyingId,
+                parentBody: replyingBody,
+                parentAuthorName: replyingAuthor,
+              )
+              .catchError((e, st) {
+                debugPrint('❌ [CHAT DETAIL SCREEN] sendMessage error: $e');
+              }),
+        );
       }
 
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());

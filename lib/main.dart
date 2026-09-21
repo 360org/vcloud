@@ -146,7 +146,9 @@ Future<void> main() async {
     PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
       if (!kIsWeb && Firebase.apps.isNotEmpty) {
         try {
-          FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+          // ponytail: Chỉ đánh dấu fatal với Error hệ thống cấp thấp; Exception async xử lý an toàn
+          final isFatal = error is Error && error is! ArgumentError;
+          FirebaseCrashlytics.instance.recordError(error, stack, fatal: isFatal);
         } catch (_) {}
       }
       _logDetailedError(error, stack, context: 'PLATFORM DISPATCHER');
@@ -157,7 +159,8 @@ Future<void> main() async {
   }, (Object error, StackTrace stack) {
     if (!kIsWeb && Firebase.apps.isNotEmpty) {
       try {
-        FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+        final isFatal = error is Error && error is! ArgumentError;
+        FirebaseCrashlytics.instance.recordError(error, stack, fatal: isFatal);
       } catch (_) {}
     }
     _logDetailedError(error, stack, context: 'ZONED GUARDED');

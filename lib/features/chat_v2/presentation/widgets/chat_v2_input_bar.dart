@@ -805,21 +805,29 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
         // Gửi batch ảnh nếu có
         if (batchFiles.isNotEmpty) {
           if (widget.onSendBatchImages != null) {
-            unawaited(widget.onSendBatchImages!(
-              files: batchFiles,
-              caption: initialCaption,
-            ));
+            unawaited(
+              widget.onSendBatchImages!(
+                files: batchFiles,
+                caption: initialCaption,
+              ).catchError((e, st) {
+                debugPrint('❌ [CHAT INPUT BAR] onSendBatchImages background error: $e');
+              }),
+            );
           } else {
             final sendCallback = widget.onSendImage ?? widget.onSendFile;
             if (sendCallback != null) {
               for (var i = 0; i < batchFiles.length; i++) {
                 final item = batchFiles[i];
-                await sendCallback(
-                  bytes: item.bytes,
-                  filename: item.filename,
-                  mimetype: item.mimetype,
-                  caption: (i == 0) ? initialCaption : null,
-                );
+                try {
+                  await sendCallback(
+                    bytes: item.bytes,
+                    filename: item.filename,
+                    mimetype: item.mimetype,
+                    caption: (i == 0) ? initialCaption : null,
+                  );
+                } catch (e) {
+                  debugPrint('❌ [CHAT INPUT BAR] sendCallback error: $e');
+                }
               }
             }
           }
@@ -828,11 +836,15 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
         // Gửi video files nếu có
         if (videoFiles.isNotEmpty && widget.onSendFile != null) {
           for (final v in videoFiles) {
-            await widget.onSendFile!(
-              bytes: v.bytes,
-              filename: v.filename,
-              mimetype: v.mimetype,
-            );
+            try {
+              await widget.onSendFile!(
+                bytes: v.bytes,
+                filename: v.filename,
+                mimetype: v.mimetype,
+              );
+            } catch (e) {
+              debugPrint('❌ [CHAT INPUT BAR] onSendFile error: $e');
+            }
           }
         }
         return;

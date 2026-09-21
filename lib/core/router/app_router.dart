@@ -94,7 +94,7 @@ final routerProvider = Provider<GoRouter>((ref) {
                 !decoded.startsWith('/login') &&
                 !decoded.startsWith('/signup') &&
                 !decoded.startsWith('/splash')) {
-              if (user.isPortal && (decoded.startsWith('/attendance') || decoded.startsWith('/timesheet'))) {
+              if (user.isPortal && (decoded.startsWith('/home') || decoded.startsWith('/attendance') || decoded.startsWith('/timesheet'))) {
                 return '/tickets';
               }
               return decoded;
@@ -104,9 +104,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         return user.isPortal ? '/tickets' : '/chat';
       }
 
-      // Guard cho Portal User: chặn truy cập vào tính năng nội bộ
+      // Guard cho Portal User: chặn truy cập vào tính năng nội bộ (Home, Chấm công, Timesheet)
       if (user.isPortal) {
-        if (loc.startsWith('/attendance') || loc.startsWith('/timesheet')) {
+        if (loc == '/home' ||
+            loc.startsWith('/home') ||
+            loc.startsWith('/attendance') ||
+            loc.startsWith('/timesheet')) {
           return '/tickets';
         }
       }

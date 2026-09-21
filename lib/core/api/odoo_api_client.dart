@@ -606,6 +606,16 @@ class OdooApiClient {
     final parsedUri = Uri.tryParse(cleanBaseUrl);
     final host = parsedUri?.host.toLowerCase() ?? '';
 
+    // Tự động bóc tách db từ query parameter ?db=... nếu có trong URL (vd: http://ip:1900/?db=vcloud_test_v19)
+    if (parsedUri != null && parsedUri.queryParameters.containsKey('db')) {
+      final queryDb = parsedUri.queryParameters['db']?.trim();
+      if (queryDb != null && queryDb.isNotEmpty && effectiveDb.isEmpty) {
+        effectiveDb = queryDb;
+      }
+      // Làm sạch cleanBaseUrl, loại bỏ query string (?db=...) và fragment
+      cleanBaseUrl = '${parsedUri.scheme}://${parsedUri.host}${parsedUri.hasPort ? ':${parsedUri.port}' : ''}${parsedUri.path.replaceAll(RegExp(r'/+$'), '')}';
+    }
+
     if (host == 'vuahethong.net' || host == 'www.vuahethong.net') {
       // Chỉ chuẩn hoá về 'vuahethong' nếu dbName rỗng hoặc bị gán nhầm 'demo' trên server chính
       if (effectiveDb.isEmpty || effectiveDb == 'demo') {
@@ -635,6 +645,16 @@ class OdooApiClient {
           timeout: timeout,
         );
       } catch (e) {
+        if (e is Failure) {
+          final msg = e.message.toLowerCase();
+          // Nếu Backend từ chối do phân quyền portal hoặc thông tin đăng nhập, cấm fallback web session
+          if (msg.contains('portal') ||
+              msg.contains('quyền') ||
+              msg.contains('denied') ||
+              msg.contains('tài khoản hoặc mật khẩu')) {
+            rethrow;
+          }
+        }
         debugPrint('⚠️ [authenticateOnClient] Web _attemptLoginAt failed ($e), trying Odoo session fallback...');
         session = await _loginWithOdooSessionAndJwtAt(
           targetBaseUrl: cleanBaseUrl,
@@ -834,10 +854,26 @@ class OdooApiClient {
             fallbackPartnerId: partnerId,
           );
         }
+      } else if (jwtResponse.statusCode == 403) {
+        // [P0 Guard] Server từ chối quyền truy cập mobile (portal_mobile_access_denied)
+        String msg = 'Tài khoản Portal này chưa được cấp quyền truy cập ứng dụng (chưa tick bật tính năng vmobile). Vui lòng liên hệ Quản trị viên để kích hoạt.';
+        try {
+          final errDecoded = jsonDecode(jwtResponse.body);
+          if (errDecoded is Map && errDecoded['message'] != null) {
+            msg = errDecoded['message'].toString();
+          }
+        } catch (_) {}
+        throw Failure(msg);
       }
       debugPrint('🚨 [_loginWithOdooSessionAndJwtAt] JWT step2 status=${jwtResponse.statusCode}, body=${jwtResponse.body.length > 500 ? jwtResponse.body.substring(0, 500) : jwtResponse.body}');
+      if (jwtResponse.statusCode >= 500) {
+        throw Failure('Máy chủ Odoo gặp lỗi nội bộ (${jwtResponse.statusCode}) khi cấp token JWT.');
+      }
+    } on Failure {
+      rethrow;
     } catch (e, st) {
       debugPrint('🚨 [_loginWithOdooSessionAndJwtAt] JWT step2 failed: $e\n$st');
+      if (e is Failure) rethrow;
     }
 
     return OdooSession(
@@ -1213,6 +1249,8 @@ class OdooApiClient {
     if (decoded is Map) {
       final code = decoded['error']?.toString();
       final knownMessage = switch (code) {
+        'portal_mobile_access_denied' =>
+          'Tài khoản Portal này chưa được cấp quyền truy cập ứng dụng (chưa tick bật tính năng vmobile). Vui lòng liên hệ Quản trị viên để kích hoạt.',
         'invalid_credentials' =>
           'Tài khoản hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại.',
         'missing_login_or_password' =>

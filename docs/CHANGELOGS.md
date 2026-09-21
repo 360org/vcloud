@@ -2,6 +2,34 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.9+133] — 2026-09-21 (Phân Định Cảnh Báo Quyền Truy Cập Portal User, Bảo Vệ Zero-Trust & Triệt Tiêu Lỗi Crashlytics Microtask)
+
+> [!IMPORTANT]
+> **Tối Ưu Trải Nghiệm Phản Hồi Khi Portal User Chưa Cấp Quyền & Khắc Phục Triệt Để Crashlytics**:
+> - **Phạm vi**: `vclients` (Flutter Mobile & Web) & `v_mobile_17` / `v_mobile_19` (Odoo Backend)
+> - **Chi tiết thay đổi**:
+>   1. **[FIX - Crashlytics Stability] Bọc Toàn Diện Error Boundaries Cho Microtask & Async Unawaited**:
+>      - Cập nhật [`main.dart`](lib/main.dart): Phân loại chính xác giữa Error hệ thống cấp thấp (`OutOfMemoryError`, `StackOverflowError` -> fatal) và các `Exception` bất đồng bộ thông thường (non-fatal), dập tắt email báo động sai lệch *"Trending stability issues"* từ Google Firebase Crashlytics.
+>      - Cập nhật [`chat_v2_input_bar.dart`](lib/features/chat_v2/presentation/widgets/chat_v2_input_bar.dart): Bọc an toàn `.catchError` cho tác vụ ngầm `onSendBatchImages` và `try...catch` cho luồng upload video, chống văng microtask khi chọn nhiều ảnh.
+>      - Cập nhật [`chat_v2_detail_screen.dart`](lib/features/chat_v2/presentation/screens/chat_v2_detail_screen.dart): Bọc `.catchError` an toàn cho `sendMessage` ngầm và nạp tin nhắn khởi đầu.
+>      - Cập nhật [`auth_controller.dart`](lib/features/auth/application/auth_controller.dart): Bọc `.catchError` cho `_registerPushDevice()` và bọc an toàn `AppToast.showGlobal` tránh exception khi Navigator context chưa sẵn sàng.
+>      - Cập nhật [`chat_v2_messages_controller.dart`](lib/features/chat_v2/application/chat_v2_messages_controller.dart) & [`chat_v2_channels_controller.dart`](lib/features/chat_v2/application/chat_v2_channels_controller.dart): Bọc an toàn các tác vụ `markAsRead` và `fetchFreshChannels`.
+>      - Cập nhật [`messages_controller.dart`](lib/features/chat/application/messages_controller.dart): Chuyển `throw ArgumentError('Empty message.')` sang return null an toàn khi nội dung tin nhắn rỗng.
+>   2. **[IMPROVE - UI/UX Phân định lỗi] Chuyển Thông Báo Từ Lỗi Hệ Thống Sang Cảnh Báo Cấp Quyền**:
+>      - Cập nhật [`login_screen.dart`](lib/features/auth/presentation/login_screen.dart): Phân biệt rõ ràng giữa lỗi đăng nhập sai mật khẩu/mất mạng (Error màu đỏ) và cảnh báo chưa cấp quyền Portal (Warning màu vàng cam - amber).
+>      - Hiển thị `AppToast.warning` với tiêu đề *"Chưa cấp quyền truy cập"* và nội dung hướng dẫn thân thiện: *"Tài khoản Portal này chưa được cấp quyền truy cập ứng dụng (chưa tick bật tính năng vmobile). Vui lòng liên hệ Quản trị viên để kích hoạt."*
+>      - Đổi màu khung lỗi inline phía trên nút Đăng nhập sang tone vàng cam (amber) kèm icon tam giác cảnh báo `Icons.warning_amber_rounded`, tránh người dùng hiểu lầm ứng dụng gặp lỗi kỹ thuật.
+>   3. **[IMPROVE - API Client Normalization] Chuẩn Hóa Mã Lỗi `portal_mobile_access_denied`**:
+>      - Cập nhật [`odoo_api_client.dart`](lib/core/api/odoo_api_client.dart): Bắt mã lỗi chuẩn `portal_mobile_access_denied` từ Backend Odoo 17 & 19 để dịch thành thông điệp tường minh.
+>   4. **[SECURITY - Zero-Trust Realtime Invalidation] Thu Hồi Phiên Đăng Nhập Tức Thì Khi Bỏ Tick**:
+>      - Khi Quản trị viên bỏ tick `vmobile` trên Odoo Backend, cổng xác thực trung tâm từ chối ngay lập tức mọi API calls của tài khoản Portal đó (HTTP 401).
+>      - Cơ chế silent refresh thất bại (HTTP 403) kích hoạt xóa sạch Secure Storage/Session và đá người dùng ra màn hình Đăng nhập ngay lập tức trong thời gian thực.
+>   5. **[TEST] Kiểm Thử Tự Động & Thực Tế**:
+>      - `flutter analyze` đạt chuẩn 0 errors / 0 warnings.
+>      - 115/115 tests tính năng chat v2 passed 100%.
+
+---
+
 ## [v2.9.9+132] — 2026-09-20 (Trải Nghiệm Hiệu Ứng Xem Ảnh Chat Chuẩn Messenger / Zalo / Telegram)
 
 > [!IMPORTANT]

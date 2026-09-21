@@ -121,11 +121,12 @@ class SendMessageAction {
   final dynamic _repo;
   final Ref _ref;
 
-  Future<Message> send(String conversationId, String content) async {
-    if (content.trim().isEmpty) {
-      throw ArgumentError('Empty message.');
+  Future<Message?> send(String conversationId, String content) async {
+    final trimmed = content.trim();
+    if (trimmed.isEmpty) {
+      return null;
     }
-    final msg = await _repo.sendMessage(conversationId, content.trim());
+    final msg = await _repo.sendMessage(conversationId, trimmed);
     _ref.invalidate(conversationsProvider);
     return msg;
   }

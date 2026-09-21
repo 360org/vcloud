@@ -38,7 +38,7 @@ class AuthController extends AsyncNotifier<AuthUser?> {
     try {
       final user = await _repo.currentUser();
       if (user != null) {
-        unawaited(_registerPushDevice());
+        unawaited(_registerPushDevice().catchError((_) {}));
       }
       return user;
     } catch (e, st) {
@@ -75,7 +75,7 @@ class AuthController extends AsyncNotifier<AuthUser?> {
         login: login,
         password: password,
       );
-      unawaited(_registerPushDevice());
+      unawaited(_registerPushDevice().catchError((_) {}));
       state = AsyncData(user);
     } catch (e, st) {
       state = AsyncError(e, st);
@@ -94,7 +94,7 @@ class AuthController extends AsyncNotifier<AuthUser?> {
         password: password,
         tenantId: tenantId,
       );
-      unawaited(_registerPushDevice());
+      unawaited(_registerPushDevice().catchError((_) {}));
       state = AsyncData(user);
     } catch (e, st) {
       state = AsyncError(e, st);
@@ -197,12 +197,14 @@ class AuthController extends AsyncNotifier<AuthUser?> {
     } catch (e) {
       debugPrint('❌ [PUSH REGISTRATION FAILED]: $e');
       if (!kIsWeb) {
-        AppToast.showGlobal(
-          type: AppToastType.error,
-          title: 'Lỗi đăng ký Push',
-          message: e.toString(),
-          duration: const Duration(seconds: 10),
-        );
+        try {
+          AppToast.showGlobal(
+            type: AppToastType.error,
+            title: 'Lỗi đăng ký Push',
+            message: e.toString(),
+            duration: const Duration(seconds: 10),
+          );
+        } catch (_) {}
       }
     } finally {
       _isRegisteringPush = false;

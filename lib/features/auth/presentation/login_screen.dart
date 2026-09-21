@@ -239,11 +239,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _submitting = false;
         _error = cleanMsg;
       });
-      AppToast.error(
-        context,
-        title: 'Đăng nhập thất bại',
-        message: cleanMsg,
-      );
+      final isPermissionNotice = cleanMsg.contains('vmobile') ||
+          cleanMsg.contains('chưa được cấp quyền') ||
+          cleanMsg.contains('Tài khoản Portal');
+      if (isPermissionNotice) {
+        AppToast.warning(
+          context,
+          title: 'Chưa cấp quyền truy cập',
+          message: cleanMsg,
+          duration: const Duration(seconds: 5),
+        );
+      } else {
+        AppToast.error(
+          context,
+          title: 'Đăng nhập thất bại',
+          message: cleanMsg,
+        );
+      }
     }
   }
 
@@ -617,11 +629,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _submitting = false;
         _error = cleanMsg;
       });
-      AppToast.error(
-        context,
-        title: 'Đăng nhập thất bại',
-        message: cleanMsg,
-      );
+      final isPermissionNotice = cleanMsg.contains('vmobile') ||
+          cleanMsg.contains('chưa được cấp quyền') ||
+          cleanMsg.contains('Tài khoản Portal');
+      if (isPermissionNotice) {
+        AppToast.warning(
+          context,
+          title: 'Chưa cấp quyền truy cập',
+          message: cleanMsg,
+          duration: const Duration(seconds: 5),
+        );
+      } else {
+        AppToast.error(
+          context,
+          title: 'Đăng nhập thất bại',
+          message: cleanMsg,
+        );
+      }
       _password.clear();
     }
   }

@@ -186,5 +186,6 @@ exec flutter run \
     $MODE_FLAG \
     --web-port="$PORT" \
     --web-browser-flag="--disable-web-security" \
+    --web-browser-flag="--remote-allow-origins=*" \
     --web-browser-flag="--user-data-dir=$CHROME_PROFILE" \
     --dart-define="VCLOUD_ODOO_API_BASE_URL=$API_URL"

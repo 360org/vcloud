@@ -186,8 +186,8 @@ class ChatV2MessagesNotifier
         meta?['partner']?['id']?.toString();
     final userId = user?.id;
 
-    // Tự động đánh dấu đã đọc
-    unawaited(repo.markAsRead(channelId));
+    // Tự động đánh dấu đã đọc an toàn ngầm
+    unawaited(repo.markAsRead(channelId).catchError((_) {}));
 
     // Lắng nghe tin nhắn Realtime qua WebSocket
     _wsSub?.cancel();
@@ -280,7 +280,7 @@ class ChatV2MessagesNotifier
         } catch (e, st) {
           debugPrint('❌ [ERROR] ChatV2MessagesNotifier.build SWR: $e\n$st');
         }
-      }());
+      }().catchError((_) {}));
       debugPrint('🔴 [TRACE] ChatV2MessagesNotifier.build() END (Returned Cached)');
       return cached;
     }

@@ -713,7 +713,7 @@ class ChatV2ChannelsNotifier
 
     final cached = ChatV2ChannelLocalCache.cached;
     if (cached.isNotEmpty) {
-      if (hasVMobile) unawaited(fetchFreshChannels());
+      if (hasVMobile) unawaited(fetchFreshChannels().catchError((_) {}));
       return cached;
     }
 

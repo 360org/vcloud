@@ -80,7 +80,7 @@ case "$CHOICE" in
         MODULE_NAME="v_mobile"
         BACKEND_DIR="$MOBILE_ROOT/v_mobile_19"
         PORT="${PORT:-8089}"
-        API_URL="${API_URL:-http://127.0.0.1:1900}"
+        API_URL="${API_URL:-http://127.0.0.1:8079}"
         CHROME_PROFILE="${CHROME_PROFILE:-/tmp/flutter_chrome_dev_19}"
         ;;
     0|q|Q|exit)

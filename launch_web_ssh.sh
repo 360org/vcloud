@@ -42,8 +42,8 @@ if [[ -z "$INPUT_ARG" ]]; then
     echo "=============================================================================="
     echo "👉 Chọn phiên bản Backend trên Server Local:"
     echo "   [1] hoặc 17        ➔ Odoo 17.0 (API: http://$SERVER_HOST:8069, DB: demo-17)"
-    echo "   [2] hoặc 19        ➔ Odoo 19.0 (API: http://$SERVER_HOST:1900, DB: davita)"
-    echo "   [3] hoặc odoo_19   ➔ Odoo 19.0 (API: http://$SERVER_HOST:1900, DB: odoo_19)"
+    echo "   [2] hoặc 19        ➔ Odoo 19.0 Test chuẩn (API: http://$SERVER_HOST:1900, DB: vcloud_test_v19)"
+    echo "   [3] hoặc davita    ➔ Odoo 19.0 Davita (API: http://$SERVER_HOST:1900, DB: davita_v19)"
     echo "   [4] hoặc 18        ➔ Odoo 18.0 (API: http://$SERVER_HOST:1800, DB: odoo_18)"
     echo "   [0] hoặc q         ➔ Thoát"
     echo "------------------------------------------------------------------------------"
@@ -61,17 +61,17 @@ case "$CHOICE" in
         WEB_PORT="${PORT:-8088}"
         CHROME_PROFILE="/tmp/flutter_chrome_ssh_17"
         ;;
-    2|19|"19.0"|davita|"davita_v19")
+    2|19|"19.0"|vcloud|"vcloud_test_v19")
         ODOO_VERSION="19.0"
         API_PORT="1900"
-        DB_NAME="davita"
+        DB_NAME="vcloud_test_v19"
         WEB_PORT="${PORT:-8089}"
         CHROME_PROFILE="/tmp/flutter_chrome_ssh_19"
         ;;
-    3|odoo_19|"odoo19")
+    3|davita|"davita_v19")
         ODOO_VERSION="19.0"
         API_PORT="1900"
-        DB_NAME="odoo_19"
+        DB_NAME="davita_v19"
         WEB_PORT="${PORT:-8089}"
         CHROME_PROFILE="/tmp/flutter_chrome_ssh_19"
         ;;
@@ -87,10 +87,10 @@ case "$CHOICE" in
         exit 0
         ;;
     *)
-        echo "❌ Lựa chọn '$CHOICE' không hợp lệ. Mặc định chọn Odoo 19 (DB: davita)."
+        echo "❌ Lựa chọn '$CHOICE' không hợp lệ. Mặc định chọn Odoo 19 Test chuẩn (DB: vcloud_test_v19)."
         ODOO_VERSION="19.0"
         API_PORT="1900"
-        DB_NAME="davita"
+        DB_NAME="vcloud_test_v19"
         WEB_PORT="${PORT:-8089}"
         CHROME_PROFILE="/tmp/flutter_chrome_ssh_19"
         ;;
@@ -118,12 +118,15 @@ echo "🔄 [1/3] Kiểm tra & Tự động đồng bộ mã nguồn Backend lên
 PARENT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 SYNC_ERROR=0
 
-# A. Đồng bộ Odoo 17 (Nguồn chuẩn duy nhất: /mnt/DATA/work/17.0/extra/v_mobile)
+# A. Đồng bộ Odoo 17 (Nguồn chuẩn duy nhất: /mnt/DATA/work/17.0/extra/v_mobile và dev_env)
 if [[ -d "$PARENT_DIR/v_mobile_17" ]]; then
     echo "   📦 Đang đồng bộ v_mobile_17 -> Server Local ($SERVER_HOST:/mnt/DATA/work/17.0/extra/v_mobile)..."
     rsync -aq --delete \
         --exclude='.git' --exclude='__pycache__' --exclude='*.pyc' --exclude='.claude' --exclude='.codegraph' \
         "$PARENT_DIR/v_mobile_17/" "$SSH_ALIAS:/mnt/DATA/work/17.0/extra/v_mobile/" 2>/dev/null || SYNC_ERROR=1
+    rsync -aq --delete \
+        --exclude='.git' --exclude='__pycache__' --exclude='*.pyc' --exclude='.claude' --exclude='.codegraph' \
+        "$PARENT_DIR/v_mobile_17/" "$SSH_ALIAS:/home/corp360/DATA/save/dev_env/17.0/modules/extra/v_mobile/" 2>/dev/null || true
 fi
 
 # B. Đồng bộ Odoo 19 (Container odoo_dev_v19 nạp từ /mnt/DATA/work/19.0/default/v_mobile)
