@@ -2,7 +2,7 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
-## [v2.9.9+136] — 2026-09-21 (Tự Động Hóa Tạo Version & Phát Hành App Store Qua App Store Connect API)
+## [v2.9.9+136] — 2026-09-21 (Tự Động Hóa Tạo Version & Phát Hành App Store & Thêm Thành Viên Nhóm Chat)
 
 > [!IMPORTANT]
 > **Tự Động Hóa Triệt Để Vòng Đời Phát Hành iOS Lên App Store Connect (Zero-Manual Submission)**:
@@ -15,7 +15,31 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 >   3. **[DOCUMENTATION - Secret Guide] Lưu Trữ & Hướng Dẫn Cấu Hình Secrets**:
 >      - Cập nhật hướng dẫn cấu hình bộ Secrets `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_KEY_CONTENT` bảo mật cao, độc lập với hệ thống Push Notifications Firebase APNs.
 
-## [v2.9.9+135] — 2026-09-21 (Triệt Tiêu Bão Request Ngầm & Đóng Băng Polling Khi Ứng Dụng Vào Background)
+> [!IMPORTANT]
+> **Chuẩn Hóa & Hoàn Thiện Tính Năng Thêm Thành Viên Vào Nhóm Trò Chuyện (Chat Group Add Members)**:
+> - **Phạm vi**: `vclients` (Flutter UI/State/Repo), `v_mobile_17` & `v_mobile_19` (Odoo Backend Controllers & Tests)
+> - **Chi tiết thay đổi theo chuẩn 4 trụ cột (4-Pillar Standard)**:
+>   1. **[NEW - Backend Endpoint Chuẩn Core Discuss]**:
+>      - Thêm route chuẩn REST: `POST /api/v1/mobile/chat/channels/<int:channel_id>/members/add`.
+>      - Áp dụng nguyên mẫu core Odoo `channel.with_user(user).add_members(partner_ids=new_pids)`: tự động sinh bản ghi `discuss.channel.member`, gửi bus notification thời gian thực tới tất cả subscriber và đăng message hệ thống vào cuộc trò chuyện.
+>      - Xử lý idempotent: tự động lọc bỏ các partner đã là thành viên (`already_members`), trả về `member_count` mới nhất sau khi commit transaction.
+>   2. **[SECURITY - Trust Boundary & IDOR Barrier]**:
+>      - Kiểm tra xác thực token JWT qua `AuthController.authenticate()`.
+>      - Thiết lập rào chắn bảo mật IDOR: Kiểm tra người gọi API có nằm trong danh sách thành viên hiện tại của kênh (`partner.id in current_member_partner_ids`). Chặn triệt để hành vi thêm lậu thành viên vào nhóm chat kín.
+>   3. **[REUSE & MINIMAL DIFF - Flutter Client]**:
+>      - Cập nhật [`chat_v2_repository.dart`](lib/features/chat_v2/data/chat_v2_repository.dart): Bổ sung hàm `addChannelMembers` kết nối API backend.
+>      - Cập nhật [`chat_v2_info_sheet.dart`](lib/features/chat_v2/presentation/widgets/chat_v2_info_sheet.dart):
+>        - Tái sử dụng `chatRepositoryProvider.allUsers()` và `UserAvatar` có sẵn trong codebase.
+>        - Tích hợp modal bottom sheet `_AddGroupMemberBottomSheet` tìm kiếm đồng nghiệp theo tên hoặc email.
+>        - Tự động lọc bỏ các thành viên đã có mặt trong nhóm (`existingPartnerIds`).
+>        - Hiển thị danh sách chọn dưới dạng `InputChip` dễ dàng gỡ bỏ trước khi xác nhận.
+>        - Nút bấm thêm thành viên tự động disable khi chưa chọn ai (`Thêm vào nhóm (0)`), hiển thị spinner khi đang gửi.
+>        - Tự động làm mới danh sách thành viên và invalidation Riverpod providers sau khi thêm thành công.
+>   4. **[TEST - 10 Independent Test Cases & Odoo Contract Tests]**:
+>      - Tạo mới [`chat_v2_add_member_test.dart`](test/features/chat_v2/chat_v2_add_member_test.dart) bao phủ 10 test case độc lập: nút tác vụ tròn, dòng danh sách, ẩn trên chat 1-1, mở/đóng modal, tìm kiếm & chip chọn, disabled submit button, parse JSON ChatV2Member, nhận diện group/direct, hiển thị member count.
+>      - Tạo mới file test contract trên cả Odoo 17 & Odoo 19: `test_chat_add_members_contract.py` pass 100%.
+>      - `flutter analyze` đạt chuẩn tuyệt đối 0 errors / 0 warnings.
+>      - 10/10 Flutter widget & unit tests passed.
 
 > [!IMPORTANT]
 > **Khắc Phục Tận Gốc Nguyên Nhân Gây Cạn Kiệt DB Connections (P0 Database Connection Exhaustion)**:

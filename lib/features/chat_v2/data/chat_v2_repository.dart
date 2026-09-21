@@ -728,6 +728,29 @@ class ChatV2Repository {
     return [];
   }
 
+  Future<Map<String, dynamic>> addChannelMembers({
+    required String channelId,
+    required List<int> partnerIds,
+  }) async {
+    final cid = int.tryParse(channelId);
+    if (cid == null || cid <= 0) {
+      throw Exception('Mã phòng trò chuyện không hợp lệ: $channelId');
+    }
+    if (partnerIds.isEmpty) {
+      return {'status': 'empty_selection', 'member_count': 0};
+    }
+
+    final dynamic data = await _client.post(
+      '/api/v1/mobile/chat/channels/$cid/members/add',
+      body: {'partner_ids': partnerIds},
+    );
+
+    if (data is Map) {
+      return Map<String, dynamic>.from(data);
+    }
+    return {'status': 'success'};
+  }
+
   Future<List<ChatV2Reaction>?> toggleReaction({
     required String messageId,
     required String content,

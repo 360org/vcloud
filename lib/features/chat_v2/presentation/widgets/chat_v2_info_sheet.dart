@@ -10,6 +10,10 @@ import '../../../../core/api/odoo_api_client.dart';
 import '../../../../core/utils/file_download.dart';
 import '../../../../core/utils/local_attachment_cache.dart';
 import '../../../../core/utils/magic_bytes_validator.dart';
+import '../../../../shared/models/profile.dart';
+import '../../../../shared/widgets/app_scaffold.dart';
+import '../../../../shared/widgets/loading_view.dart';
+import '../../../chat/application/conversations_controller.dart';
 import '../../application/chat_v2_channels_controller.dart';
 import '../../data/chat_v2_repository.dart';
 import '../../data/models/chat_v2_channel.dart';
@@ -430,6 +434,32 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
     }
   }
 
+  void _openAddMemberSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (bottomSheetContext) => _AddGroupMemberBottomSheet(
+        channelId: widget.channel.id,
+        currentMembers: _members,
+        onMembersAdded: (newCount) async {
+          await _loadRemoteMembers();
+          ref.invalidate(chatV2ChannelsProvider);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Đã thêm thành viên vào nhóm thành công'),
+                backgroundColor: Color(0xFF00C83A),
+                duration: Duration(seconds: 2),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -698,15 +728,7 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
                       isDark: isDark,
                       icon: LucideIcons.userPlus,
                       label: 'Thêm thành viên',
-                      onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Tính năng mời thành viên mới đang mở'),
-                            duration: Duration(seconds: 2),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                      },
+                      onTap: _openAddMemberSheet,
                     ),
                   _buildCircularAction(
                     isDark: isDark,
@@ -892,15 +914,7 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
                           size: 18,
                           color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
                         ),
-                        onTap: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Tính năng thêm thành viên vào nhóm đang mở'),
-                              duration: Duration(seconds: 2),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        },
+                        onTap: _openAddMemberSheet,
                       ),
 
                       if (_members.isNotEmpty) ...[
@@ -1645,3 +1659,397 @@ class _ChatV2MediaHubScreenState extends State<ChatV2MediaHubScreen>
 }
 
 typedef ChatV2InfoScreen = ChatV2InfoSheet;
+
+/// BottomSheet chọn và thêm thành viên vào nhóm chat
+class _AddGroupMemberBottomSheet extends ConsumerStatefulWidget {
+  final String channelId;
+  final List<ChatV2Member> currentMembers;
+  final ValueChanged<int>? onMembersAdded;
+
+  const _AddGroupMemberBottomSheet({
+    required this.channelId,
+    required this.currentMembers,
+    this.onMembersAdded,
+  });
+
+  @override
+  ConsumerState<_AddGroupMemberBottomSheet> createState() =>
+      _AddGroupMemberBottomSheetState();
+}
+
+class _AddGroupMemberBottomSheetState
+    extends ConsumerState<_AddGroupMemberBottomSheet> {
+  final Set<String> _selectedPartnerIds = {};
+  String _searchQuery = '';
+  bool _submitting = false;
+
+  late final _usersFuture = FutureProvider.autoDispose<List<Profile>>((ref) async {
+    final repo = ref.read(chatRepositoryProvider);
+    return repo.allUsers();
+  });
+
+  Future<void> _submitAddMembers(List<Profile> allProfiles) async {
+    if (_selectedPartnerIds.isEmpty) return;
+
+    final targetPartnerIds = _selectedPartnerIds
+        .map(int.tryParse)
+        .whereType<int>()
+        .toList();
+
+    if (targetPartnerIds.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng chọn ít nhất một thành viên hợp lệ.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _submitting = true);
+    try {
+      final res = await ref.read(chatV2RepositoryProvider).addChannelMembers(
+            channelId: widget.channelId,
+            partnerIds: targetPartnerIds,
+          );
+
+      if (mounted) {
+        Navigator.of(context).pop();
+        final count = (res['member_count'] as int?) ??
+            (widget.currentMembers.length + targetPartnerIds.length);
+        widget.onMembersAdded?.call(count);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _submitting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Không thể thêm thành viên: $e'),
+            backgroundColor: const Color(0xFFEF4444),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final usersAsync = ref.watch(_usersFuture);
+    final existingMemberIds = widget.currentMembers
+        .map((m) => m.id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    final existingMemberNames = widget.currentMembers
+        .map((m) => m.name.trim().toLowerCase())
+        .where((n) => n.isNotEmpty)
+        .toSet();
+
+    return SizedBox(
+      height: MediaQuery.of(context).size.height * 0.85,
+      child: Material(
+        color: isDark ? const Color(0xFF0F172A) : Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle bar & Header
+            Container(
+              margin: const EdgeInsets.only(top: 10, bottom: 6),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: isDark ? Colors.white24 : const Color(0xFFE2E8F0),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Thêm thành viên mới',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      LucideIcons.x,
+                      size: 20,
+                      color: isDark ? Colors.white70 : const Color(0xFF64748B),
+                    ),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+            ),
+            Divider(
+              height: 1,
+              color: isDark ? Colors.white10 : const Color(0xFFE2E8F0),
+            ),
+
+            // Search Bar
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: TextField(
+                style: TextStyle(
+                  fontSize: 14,
+                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                ),
+                decoration: InputDecoration(
+                  prefixIcon: Icon(
+                    LucideIcons.search,
+                    size: 18,
+                    color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                  ),
+                  hintText: 'Tìm theo tên hoặc email...',
+                  hintStyle: TextStyle(
+                    fontSize: 14,
+                    color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
+                  ),
+                  filled: true,
+                  fillColor: isDark
+                      ? const Color(0xFF1E293B)
+                      : const Color(0xFFF1F5F9),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: isDark ? Colors.white10 : const Color(0xFFE2E8F0),
+                    ),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: isDark ? Colors.white10 : const Color(0xFFE2E8F0),
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
+                      color: Color(0xFF00C83A),
+                      width: 1.5,
+                    ),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 11),
+                ),
+                onChanged: (v) => setState(() => _searchQuery = v.trim()),
+              ),
+            ),
+
+            // Selected Chips
+            if (_selectedPartnerIds.isNotEmpty)
+              usersAsync.maybeWhen(
+                data: (allUsers) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        children: [
+                          for (final pid in _selectedPartnerIds)
+                            InputChip(
+                              label: Text(
+                                allUsers
+                                    .firstWhereOrNull((u) =>
+                                        u.partnerId == pid || u.id == pid)
+                                    ?.displayName ??
+                                    'Thành viên',
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark
+                                      ? Colors.white
+                                      : const Color(0xFF0F172A),
+                                ),
+                              ),
+                              backgroundColor: isDark
+                                  ? const Color(0xFF1E293B)
+                                  : const Color(0xFFE2E8F0),
+                              deleteIconColor: isDark
+                                  ? Colors.white60
+                                  : const Color(0xFF64748B),
+                              onDeleted: () => setState(() => _selectedPartnerIds.remove(pid)),
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+                orElse: () => const SizedBox.shrink(),
+              ),
+
+            // User List
+            Expanded(
+              child: usersAsync.when(
+                loading: () => const LoadingView(),
+                error: (err, _) => Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      'Lỗi tải danh sách người dùng: $err',
+                      style: const TextStyle(color: Color(0xFFEF4444)),
+                    ),
+                  ),
+                ),
+                data: (allUsers) {
+                  // Lọc bỏ những người đã là thành viên trong nhóm
+                  final availableUsers = allUsers.where((u) {
+                    final pId = u.partnerId?.trim() ?? '';
+                    final uId = u.id.trim();
+                    final name = u.displayName.trim().toLowerCase();
+
+                    final isAlreadyMember = (pId.isNotEmpty && existingMemberIds.contains(pId)) ||
+                        (uId.isNotEmpty && existingMemberIds.contains(uId)) ||
+                        (name.isNotEmpty && existingMemberNames.contains(name));
+                    return !isAlreadyMember;
+                  }).toList();
+
+                  final filtered = _searchQuery.isEmpty
+                      ? availableUsers
+                      : availableUsers.where((u) {
+                          final query = _searchQuery.toLowerCase();
+                          return u.displayName.toLowerCase().contains(query) ||
+                              u.email.toLowerCase().contains(query);
+                        }).toList();
+
+                  if (filtered.isEmpty) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          _searchQuery.isEmpty
+                              ? 'Tất cả đồng nghiệp đã tham gia nhóm'
+                              : 'Không tìm thấy người dùng phù hợp',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+
+                  return ListView.separated(
+                    itemCount: filtered.length,
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    separatorBuilder: (_, _) => Divider(
+                      height: 1,
+                      indent: 72,
+                      endIndent: 16,
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.06)
+                          : const Color(0xFFE2E8F0),
+                    ),
+                    itemBuilder: (context, idx) {
+                      final u = filtered[idx];
+                      final targetPid = (u.partnerId != null && u.partnerId!.isNotEmpty)
+                          ? u.partnerId!
+                          : u.id;
+                      final isSelected = _selectedPartnerIds.contains(targetPid);
+
+                      return CheckboxListTile(
+                        value: isSelected,
+                        activeColor: const Color(0xFF00C83A),
+                        checkColor: Colors.white,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 2,
+                        ),
+                        secondary: UserAvatar(
+                          userId: u.id,
+                          displayName: u.displayName,
+                          email: u.email,
+                          avatarUrl: u.avatarUrl,
+                          size: 40,
+                        ),
+                        title: Text(
+                          u.displayName,
+                          style: TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          ),
+                        ),
+                        subtitle: Text(
+                          u.email,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                          ),
+                        ),
+                        onChanged: (val) {
+                          setState(() {
+                            if (val == true) {
+                              _selectedPartnerIds.add(targetPid);
+                            } else {
+                              _selectedPartnerIds.remove(targetPid);
+                            }
+                          });
+                        },
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+
+            // Submit Button
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: FilledButton.icon(
+                  onPressed: (_selectedPartnerIds.isEmpty || _submitting)
+                      ? null
+                      : () {
+                          final allUsers = usersAsync.valueOrNull ?? [];
+                          _submitAddMembers(allUsers);
+                        },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF00C83A),
+                    disabledBackgroundColor: isDark
+                        ? const Color(0xFF1E293B)
+                        : const Color(0xFFE2E8F0),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  icon: _submitting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(LucideIcons.userPlus, size: 18),
+                  label: Text(
+                    _submitting
+                        ? 'Đang thêm...'
+                        : 'Thêm vào nhóm (${_selectedPartnerIds.length})',
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ));
+  }
+}
