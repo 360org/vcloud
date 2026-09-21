@@ -8,6 +8,7 @@ import '../../../core/api/auth_user.dart';
 import '../../../core/api/odoo_api_client.dart';
 import '../../../core/notifications/push_notification_controller.dart';
 import '../../../core/notifications/push_notification_service.dart';
+import '../../../core/utils/local_attachment_cache.dart';
 import '../../chat_v2/application/chat_v2_channels_controller.dart';
 import '../../chat_v2/application/chat_v2_messages_controller.dart';
 import '../../../shared/widgets/app_toast.dart';
@@ -15,7 +16,9 @@ import '../../timesheet/data/timesheet_repository.dart';
 import '../data/auth_repository.dart';
 import '../data/db_info.dart';
 
-final authRepositoryProvider = Provider<AuthRepository>((_) => AuthRepository());
+final authRepositoryProvider = Provider<AuthRepository>(
+  (_) => AuthRepository(),
+);
 
 /// Single source of truth for the current Odoo-authenticated user.
 final authControllerProvider = AsyncNotifierProvider<AuthController, AuthUser?>(
@@ -50,7 +53,12 @@ class AuthController extends AsyncNotifier<AuthUser?> {
   /// [Bước 2 Theo Kiến Trúc Chuẩn Của Sếp Tân]
   /// Tra cứu danh sách DB từ Master Router chỉ với login.
   /// ⚠️ TUYỆT ĐỐI KHÔNG BẮT GỬI PASSWORD LÊN MASTER!
-  Future<List<DbInfo>> lookupDb(String login, {String? password, String? preferredDb}) {
+  /// Bước 2: Xác thực và tra cứu danh sách DB từ Master Router.
+  Future<List<DbInfo>> lookupDb(
+    String login, {
+    String? password,
+    String? preferredDb,
+  }) {
     return _repo.lookupDb(login, password: password, preferredDb: preferredDb);
   }
 
@@ -128,6 +136,7 @@ class AuthController extends AsyncNotifier<AuthUser?> {
     ChatV2ChannelLocalCache.clear();
     ChatV2MessageLocalCache.clear();
     TimesheetRepository.clearCache();
+    await LocalAttachmentCache.clearAllCache();
     await _repo.signOut();
     state = const AsyncData(null);
   }
@@ -183,7 +192,9 @@ class AuthController extends AsyncNotifier<AuthUser?> {
         );
       }
     } catch (e) {
-      debugPrint('Remote avatar upload failed, keeping local base64 avatar: $e');
+      debugPrint(
+        'Remote avatar upload failed, keeping local base64 avatar: $e',
+      );
     }
   }
 

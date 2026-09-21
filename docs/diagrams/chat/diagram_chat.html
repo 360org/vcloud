@@ -42,33 +42,33 @@
     <div class="mermaid">
 flowchart TD
     START(( )):::startNode --> MSG["1. Người dùng gửi tin nhắn trong kênh Chat<br/>(discuss.channel / mail.message)"]
-    
+
     MSG --> HOOK["2. Kích hoạt hook: mail.thread._notify_thread()"]
-    
+
     HOOK --> MEM["3. Nạp danh sách thành viên kênh từ<br/>discuss.channel.member"]
-    
+
     MEM --> D_AUTH{"Loại bỏ chính người gửi<br/>(author_id != user)?"}
-    
+
     D_AUTH -- "Người gửi (Tác giả)" --> E1(((o))):::endNode
     D_AUTH -- "Thành viên nhận tin" --> DEV["4. Tìm thiết bị Mobile đang Active<br/>mobile.api.device (provider = firebase)"]
-    
+
     DEV --> D_DEV{"Có thiết bị Active?"}
     D_DEV -- "Không có thiết bị" --> E2(((o))):::endNode
     D_DEV -- "Có thiết bị" --> FORMAT["5. Phân tích nội dung & Chuẩn hóa tiêu đề<br/>(Text / Thoại 🎙️ / Ảnh 🖼️ / File 📎)"]
-    
+
     FORMAT --> D_IDEMP{"Khóa chống trùng (Idempotency)<br/>chat_msg_messageID_deviceID?"}
-    
+
     D_IDEMP -- "Đã gửi thông báo rồi" --> E3(((o))):::endNode
     D_IDEMP -- "Chưa gửi" --> NOTIF["6. Tạo bản ghi hàng đợi:<br/>mobile.api.notification (status = 'pending')"]
-    
+
     NOTIF --> POSTCOMMIT["7. cr.postcommit.add: Khởi chạy Worker Thread ngầm<br/>(Không làm nghẽn luồng chat DB)"]
-    
+
     POSTCOMMIT --> DISPATCH["8. Ký JWT Service Account & Gửi HTTP v1 sang FCM"]
-    
+
     DISPATCH --> D_RES{"Google FCM phản hồi 200 OK?"}
     D_RES -- "Thành công" --> OK["VCloud Mobile App hiện Banner Push Tin Nhắn"]
     D_RES -- "Lỗi Token / Mạng" --> FAIL["Lưu status = failed"]
-    
+
     OK --> E_OK(((o))):::endNode
     FAIL --> E4(((o))):::endNode
 

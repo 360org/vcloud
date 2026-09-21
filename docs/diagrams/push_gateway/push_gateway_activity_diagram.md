@@ -1,7 +1,7 @@
 # Activity Diagram — Push Gateway API v1 (Bản Phóng To Đầy Đủ)
 
-**Document:** `/media/tanma/DATA/save/mobile_versions/docs/push_gateway_activity_diagram.md`  
-**Bản HTML trực quan có bộ công cụ Phóng to / Thu nhỏ (Zoom In/Out):** [`/media/tanma/DATA/save/mobile_versions/docs/push_gateway_activity_diagram.html`](/media/tanma/DATA/save/mobile_versions/docs/push_gateway_activity_diagram.html)  
+**Document:** `docs/diagrams/push_gateway/push_gateway_activity_diagram.md`
+**Bản HTML trực quan có bộ công cụ Phóng to / Thu nhỏ (Zoom In/Out):** [`push_gateway_activity_diagram.html`](push_gateway_activity_diagram.html)
 **Tiêu chuẩn biểu diễn:** UML 2.0 Activity Diagram phân luồng bơi (Swimlanes), font chữ lớn, bố cục rộng rãi chống cắt chữ.
 
 ---

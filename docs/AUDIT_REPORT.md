@@ -2,26 +2,26 @@
 
 | Hạng mục | Thông tin |
 |---|---|
-| Revision audit | `d320aa5` — `docs: bổ sung báo cáo audit VCloud v2.9.6+129` (2026-09-17) |
-| Phiên bản | `2.9.6+129` |
-| Quy mô | 147 file Dart trong `lib/` (~62k dòng), 73 file test |
-| Phạm vi | **Chỉ đọc — không sửa code.** Repo Flutter client `vcloud`. Backend Odoo `v_mobile` nằm ngoài phạm vi. |
-| Trạng thái nhánh | `main` local đã **đồng bộ 100% với `origin/main` (GitLab)**, local chỉ duy nhất 1 nhánh `main` |
+| Revision audit | `1c9b4a0` — `feat(auth-chat): batch upload media, clean category labels and permission updates (v2.9.9+132)` |
+| Ngày rà soát | 2026-09-21 |
+| Phiên bản | `2.9.9+132` |
+| Phạm vi | Flutter client VCloud; backend Odoo `v_mobile` nằm ngoài repository và không được thay đổi trong đợt này. |
+| Trạng thái nhánh | `main` là nhánh local duy nhất, đang hơn `origin/main` 6 commit trước khi push; cleanup tài liệu/cấu hình hiện còn chưa commit. |
 
-## 0. Trạng thái kiểm chứng (verification status)
+## 0. Trạng thái kiểm chứng
 
-Chạy trên Local Server (`ssh local`, Ubuntu 24, Flutter snap) từ bản export sạch của revision `d320aa5`:
+Đã chạy trên Local Server từ archive sạch của revision `1c9b4a0`, không ghi đè working tree đang có thay đổi tại server:
 
 | Kiểm chứng | Lệnh | Kết quả |
 |---|---|---|
-| Phân tích tĩnh | `flutter analyze` | ✅ `No issues found! (ran in 10.1s)` |
-| Bộ test | `flutter test --exclude-tags=live-server` | ✅ `00:45 +337: All tests passed!` (exit 0) |
-| Dependency | `flutter pub outdated` | ⚠️ 41 package khóa ở bản cũ, 18 package bị chặn nâng cấp, 2 package discontinued |
+| Phân tích tĩnh | `flutter analyze` | ✅ `No issues found! (ran in 11.1s)` |
+| Bộ test không cần live server | `flutter test --exclude-tags=live-server` | ✅ `00:51 +363: All tests passed!` |
 
-**Điểm CHƯA xác minh (phải ghi rõ, không suy diễn là đã pass):**
-- Toàn bộ phát hiện dưới đây là **phân tích tĩnh mã nguồn**, chưa chạy trên thiết bị thật (iOS device/Simulator, Android device/Emulator).
-- Các mục về notification, quyền Android 13+, exact alarm, timezone **bắt buộc phải test trên thiết bị thật** mới kết luận được pass/fail.
-- Rà soát song song đa-agent bị chặn (lỗi hạ tầng `model_not_found` 404), nên báo cáo này được lập bằng kiểm tra trực tiếp qua CodeGraph + đọc đích danh file, không phải fan-out review.
+**Chưa xác minh sau các thay đổi chưa commit của đợt cleanup này:** `flutter analyze`, full test suite và kiểm thử Android/iOS native. Các mục liên quan quyền Photo Picker, đăng xuất cache và ký Android phải được chạy lại trước khi phát hành.
+
+**Phạm vi kiểm tra native còn thiếu:** Android API 33+ (một/nhiều ảnh, ảnh+video, huỷ picker, camera, không có gallery permission), Android 12 trở xuống, media quá giới hạn hoặc vượt 9 tệp, retry upload; iOS và Android với quyền notification/exact alarm được cấp hoặc từ chối.
+
+**Ghi chú:** `flutter_local_notifications` có caller xin quyền riêng nhưng chưa có caller cho `AttendanceLocalReminderService.requestPermissions()`. Lời gọi Firebase Messaging không thay thế cho kiểm tra exact alarm.
 
 ## 1. Bảng tổng hợp phát hiện theo mức ưu tiên
 
@@ -29,10 +29,10 @@ Chạy trên Local Server (`ssh local`, Ubuntu 24, Flutter snap) từ bản expo
 |---|---|---|---|---|
 | 1.1 | 🔴 P1 | Bảo mật | Gửi password lên Master trong `lookupDb`, trái ngược chính doc comment ngay phía trên | `odoo_api_client.dart:395-440` |
 | 1.2 | 🟠 P2 | Bảo mật | Phát tán song song credential tới 2 domain khác nhau khi đăng nhập | `odoo_api_client.dart:253-273` |
-| 1.3 | 🟠 P2 | Riêng tư | Cache file đính kèm không được xóa khi đăng xuất | `auth_controller.dart:126-133` |
+| 1.3 | ✅ Đã sửa, chờ test lại | Riêng tư | Cache attachment được xóa khi đăng xuất | `auth_controller.dart:127-135` |
 | 1.4 | 🟡 P3 | Bảo mật | Log debug in header/body/stack trace của luồng auth & tải file | `odoo_api_client.dart:990-1012`, `:353,357,372,387` |
 | 1.5 | 🟡 P3 | Bảo mật | Hardcode mapping khách hàng (`nds` / `ndsgroup.vn` / `project_id: 7790`) trong client | `odoo_api_client.dart:447-458, 503-515, 576-588` |
-| 2.1 | 🔴 P1 | Độ tin cậy | `requestPermissions()` không có caller + không kiểm tra quyền exact alarm | `attendance_local_reminder_service.dart:108`, `AndroidManifest.xml:10` |
+| 2.1 | 🔴 P1 | Độ tin cậy | Không kiểm tra quyền exact alarm trước khi dùng lịch chính xác | `attendance_local_reminder_service.dart:108-133`, `AndroidManifest.xml:10` |
 | 2.2 | 🟠 P2 | Độ tin cậy | Timezone chỉ hoạt động nhờ đường exception fallback | `attendance_local_reminder_service.dart:42-52` |
 | 2.3 | 🟠 P2 | Kiến trúc | Side-effect bất đồng bộ, không `unawaited`, đặt trong thân Riverpod provider | `attendance_controller.dart:342-358` |
 | 2.4 | 🟠 P2 | Độ tin cậy | Mutex refresh token bằng `delay(500ms)` — có thể đá user ra login | `odoo_api_client.dart:1176-1182` |
@@ -87,25 +87,24 @@ Cùng một cặp login/password được gửi đồng thời tới `vuahethong
 
 **Đề xuất tối thiểu:** Dùng kết quả `lookupDb` (không password) làm nguồn chân lý để chọn đúng **một** domain, chỉ khi đó mới gửi password. Trường hợp thật sự đa tenant thì để backend trả `409 multiple_tenants` (code đã hỗ trợ sẵn tại `_tryMultipleTenants`, dòng 1203).
 
-### 1.3 — 🟠 P2: Cache tệp đính kèm không bị xóa khi đăng xuất
+### 1.3 — ✅ Đã sửa, chờ kiểm chứng native: Xóa cache tệp đính kèm khi đăng xuất
 
-**Vị trí:** `lib/features/auth/application/auth_controller.dart:126-133`
+**Vị trí:** `lib/features/auth/application/auth_controller.dart:127-135`
 ```dart
 Future<void> signOut() async {
   await _unregisterPushDevice();
   ChatV2ChannelLocalCache.clear();
   ChatV2MessageLocalCache.clear();
   TimesheetRepository.clearCache();
-  await _repo.signOut();      // -> odoo_api_client.logout(): chỉ clear session
+  await LocalAttachmentCache.clearAllCache();
+  await _repo.signOut();
   state = const AsyncData(null);
 }
 ```
-`LocalAttachmentCache.clearAllCache()` (`local_attachment_cache.dart:236`) chỉ được gọi **duy nhất** từ `profile_screen.dart:559` — một hành động thủ công của người dùng. `OdooApiClient.logout()` (dòng 903-918) chỉ xóa `_session` + `_sessionStore`.
 
-**Kịch bản lỗi:** Nhân viên A đăng xuất trên máy dùng chung/thiết bị công ty. Toàn bộ ảnh và tài liệu chat đã tải vẫn nằm trên đĩa tại `<AppDocuments>/attachments/*.bin` (mobile) hoặc base64 trong `localStorage` (web, `web_storage_web.dart:12`, **không mã hóa**). Nhân viên B đăng nhập, hoặc backup thiết bị bị trích xuất ⇒ đọc được tài liệu nội bộ của A. Đáng chú ý: `_memCache` tĩnh cũng sống suốt vòng đời process.
+`LocalAttachmentCache.clearAllCache()` đã xóa RAM cache, file `attachments/*.bin` trên mobile và cache web. Điều này chặn việc người dùng B đọc attachment của người dùng A trên thiết bị dùng chung.
 
-**Đề xuất tối thiểu (1 dòng):** thêm `await LocalAttachmentCache.clearAllCache();` vào `signOut()` — đặt trước `await _repo.signOut()`.
-**Tiêu chí kiểm thử:** đăng nhập A → mở vài ảnh/tệp chat → đăng xuất → kiểm tra thư mục `attachments` rỗng và `localStorage` không còn key `vcloud_att_*`; đăng nhập B xác nhận không thấy ảnh của A; đảm bảo lần tải lại của B vẫn hoạt động.
+**Còn thiếu trước khi đóng mục:** kiểm thử Android/iOS/Web: đăng nhập A → tải ảnh/tệp → đăng xuất → xác nhận thư mục cache hoặc `localStorage` rỗng → đăng nhập B → tải lại tệp mới thành công. Cần một unit test riêng cho luồng `signOut()` khi service path-provider được mock ổn định.
 
 ### 1.4 — 🟡 P3: Log debug quá chi tiết ở luồng auth và tải tệp
 
@@ -133,22 +132,17 @@ Cùng một khối fallback bị lặp lại **3 lần** trong một hàm.
 
 ## 3. ⚡ Độ tin cậy, Hiệu năng & Kiến trúc
 
-### 2.1 — 🔴 P1: Quyền thông báo cho nhắc chấm công chưa từng được xin
+### 2.1 — 🔴 P1: Chưa kiểm tra quyền exact alarm trước khi lập lịch
 
-**Vị trí:** `lib/core/notifications/attendance_local_reminder_service.dart:108`; `android/app/src/main/AndroidManifest.xml:10`
+**Vị trí:** `lib/core/notifications/attendance_local_reminder_service.dart:108-133, 226-233, 289-296`; `android/app/src/main/AndroidManifest.xml:10`
 
-Đã xác minh bằng grep: `requestPermissions()` **không có bất kỳ caller nào** trong `lib/`. `main.dart:35` chỉ gọi `initialize()`. FCM có xin quyền riêng (`push_notification_service.dart:128`) nhưng đó là luồng Firebase Messaging, không thay thế việc quản lý quyền của `flutter_local_notifications` và **không liên quan gì** tới quyền exact alarm.
+`PushNotificationService.registerCurrentDevice()` đã gọi `FirebaseMessaging.requestPermission()` khi đăng ký thiết bị, nên không còn kết luận rằng notification permission không có caller. Tuy vậy, app khai báo `SCHEDULE_EXACT_ALARM` và dùng `AndroidScheduleMode.exactAllowWhileIdle` nhưng không kiểm tra `canScheduleExactAlarms` hoặc fallback khi exact alarm bị tắt.
 
-Đồng thời manifest khai báo `SCHEDULE_EXACT_ALARM` (dòng 10) và code lên lịch bằng `AndroidScheduleMode.exactAllowWhileIdle` (dòng 232, 295), nhưng **không có chỗ nào kiểm tra `canScheduleExactAlarms`** trước khi dùng.
+**Kịch bản lỗi:** Trên thiết bị Android hạn chế exact alarm, `zonedSchedule` có thể ném lỗi. Hai hàm schedule chỉ ghi `debugPrint` trong `catch`, vì vậy người dùng không nhận nhắc check-in/check-out mà không biết nguyên nhân.
 
-**Kịch bản lỗi:**
-- Android 13+ (API 33) cài mới: người dùng chưa từng thấy hộp thoại xin quyền cho kênh thông báo cục bộ ⇒ nhắc check-in 08:05 và check-out 17:35 **âm thầm không hiện**, và vì mọi lỗi trong `_scheduleCheckInReminder` đều bị `catch (e) { debugPrint(...) }` (dòng 240-242) nên **không ai biết là đã hỏng** — tính năng coi như không tồn tại với người dùng cuối.
-- Trên các thiết bị mà exact alarm bị hạn chế, `zonedSchedule` ném lỗi và cũng bị nuốt y hệt.
+**Đề xuất tối thiểu:** Trước khi dùng lịch chính xác, kiểm tra quyền exact alarm; nếu không được phép, chuyển sang lịch inexact hoặc thông báo cách bật quyền tại màn hình nhắc chấm công.
 
-**Đề xuất tối thiểu:** Gọi luồng xin quyền một lần sau đăng nhập thành công (hoặc tại màn hình bật/tắt nhắc chấm công); nếu không có quyền exact alarm thì hạ xuống lịch inexact thay vì để thất bại im lặng; và ít nhất là ghi nhận trạng thái thất bại để hiển thị được cho người dùng.
-
-**Tiêu chí kiểm thử (bắt buộc trên thiết bị thật, tối thiểu 10 case):** Android 13+ cài mới cấp quyền / từ chối quyền; Android 12 trở xuống; Android có exact alarm bị tắt; iOS cấp quyền / từ chối; chưa check-in trước giờ ca; đã check-in chưa check-out; đã hoàn tất cả hai; ngày Chủ Nhật (phải hủy toàn bộ); khởi động lại thiết bị rồi chờ tới giờ nhắc.
-
+**Tiêu chí kiểm thử native:** Android API 33+ cấp/từ chối notification; Android exact alarm bật/tắt; Android 12 trở xuống; iOS cấp/từ chối; chưa check-in, đang mở ca, đã check-out, Chủ Nhật và khởi động lại thiết bị.
 ### 2.2 — 🟠 P2: Timezone chỉ đúng nhờ đường exception
 
 **Vị trí:** `lib/core/notifications/attendance_local_reminder_service.dart:42-52`
@@ -242,30 +236,30 @@ Từ `flutter pub outdated` trên đúng revision này:
 
 **Khuyến nghị:** không nâng đồng loạt. Thứ tự an toàn: (1) nhóm minor/patch Firebase + `image_picker` + `uuid`; (2) `flutter_secure_storage` (ảnh hưởng trực tiếp session store, cần test đăng nhập/đăng xuất kỹ); (3) `go_router` và `flutter_riverpod` — hai major này đổi API nhiều, nên tách hẳn thành công việc riêng có nhánh riêng. Mỗi bước chạy lại `flutter analyze` + `flutter test`.
 
-### 3.4 — ⚪ P4: Vệ sinh mã & trạng thái repo
+### 3.4 — ⚪ P4: Vệ sinh mã, docs và trạng thái nhánh
 
-- `lib/features/attendance/application/attendance_controller.dart:359-360` — **2 dòng trống thừa ở cuối file**.
-- **Đã đồng bộ toàn diện với GitLab (`origin/main`)**: Toàn bộ commit và 5 Git Tag release (`v2.9.5+121` -> `v2.9.6+129`) đã được push lên `origin`.
-- **Đã dọn dẹp các nhánh thừa**: Đã xóa 4 nhánh đã merge trên GitLab (`feat/app-attachment-fallback-and-auth-fixes`, `feat/attendance-smart-reminders`, `fix/test-files-sync`, `fix/security-redos-regex`).
-- **Local sạch sẽ 100%**: Đã xóa toàn bộ nhánh rác ở local, hiện tại chỉ duy nhất nhánh `main` hoạt động.
-- 2 nhánh remote cũ còn lại trên GitLab chưa đụng đến: `codex/fix-chat-runner-ios` (tháng 6/2026) và `fix/chat-v2-image-display` (tháng 8/2026, đã bị thay thế bởi `3758036`).
+- Đã bỏ trailing whitespace tại tài liệu/sơ đồ đã chạm, path Linux cũ trong cấu hình AIaC và hardcode credential release trong CI/tài liệu.
+- `origin/fix/avatar-flicker-resilience` đã được fast-forward vào `main`; chỉ được xóa sau khi push `main` thành công.
+- `origin/codex/fix-chat-runner-ios` chỉ xóa workflow iOS cũ, đã bị workflow `deploy.yml` hiện tại thay thế; có thể xóa sau push `main`.
+- Giữ `origin/fix/chat-v2-image-display`: patch còn có logic pending attachment và xử lý dummy MIME chưa chứng minh là đã có trong `main`.
+- Local chỉ giữ nhánh `main`. Remote cleanup không thay thế review/cherry-pick nhánh còn giá trị.
 
 ---
 
 ## 4. Thứ tự xử lý đề xuất cho nhóm phát triển
 
 **Đợt 1 — làm ngay, diff nhỏ, giá trị cao:**
-1. §1.3 — thêm 1 dòng xóa cache đính kèm khi đăng xuất.
-2. §2.3 — bọc `unawaited(...)` cho lời gọi sync reminder.
-3. §2.1 — gọi luồng xin quyền thông báo sau đăng nhập (nếu không, tính năng nhắc chấm công vừa phát hành coi như không chạy trên Android 13+).
+1. Hoàn tất test native và regression cho §1.3, Photo Picker và CI signing cleanup của đợt này.
+2. §2.3 — bọc `unawaited(...)` cho lời gọi sync reminder; chuyển side-effect khỏi provider khi có thời gian.
+3. §2.1 — gọi luồng xin quyền notification sau đăng nhập hoặc từ cài đặt nhắc chấm công; kiểm tra exact alarm và có fallback inexact.
 
 **Đợt 2 — cần phối hợp với backend `v_mobile`:**
-4. §1.1 — gỡ password khỏi `lookup-db` (xác nhận backend production trước).
-5. §1.2 — bỏ đăng nhập song song 2 domain, chuyển sang phân giải bằng lookup.
-6. §2.4 — thay `delay(500ms)` bằng `Completer`.
+4. §1.1 — gỡ password khỏi `lookup-db` sau khi xác nhận contract backend production.
+5. §1.2 — bỏ đăng nhập song song hai domain, chọn một tenant bằng directory lookup trước khi gửi password.
+6. §2.4 — thay `delay(500ms)` bằng `Completer` dùng chung.
 
 **Đợt 3 — nợ kỹ thuật theo lịch:**
-7. §2.2 timezone, §1.5 gom fallback hardcode, §3.2 bổ sung test, §3.3 nâng dependency theo nhóm.
+7. §2.2 timezone, §1.5 loại fallback directory hardcode, §3.2 bổ sung test, §3.3 nâng dependency theo nhóm.
 
 ## 5. Lưu ý bàn giao
 

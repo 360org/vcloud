@@ -9,12 +9,9 @@ Tài liệu lưu trữ quy trình ký số, cấu hình kỹ thuật, chuẩn b�
 - **Tên hiển thị ứng dụng (App Name)**: `Vua Hệ Thống` (Tên trước đây: `V_Cloud`)
 - **Package Name (Application ID)**: `com.mobile.vloud`
 - **Target SDK**: `36` (Android SDK 36 — Chuẩn bắt buộc mới nhất của Google Play)
-- **Phiên bản hiện tại trên Console**: `version: 2.9.3+105` (`versionCode: 105`, `versionName: 2.9.3`)
-- **Vị trí file Keystore chính**: `/media/tanma/DATA/save/mobile_versions/vclients/android/upload-keystore.jks`
-- **Vị trí file Backup an toàn**: `/media/tanma/DATA/thongbao_firebase/upload-keystore.jks`
-- **Thời hạn hiệu lực**: Đến năm **2054** (10.000 ngày)
-- **Key Alias**: `upload`
-- **Mật khẩu Keystore & Key**: `123456`
+- **Phiên bản hiện tại trong source**: `2.9.9+132` (đối chiếu Play Console trước mỗi release).
+- **Keystore và mật khẩu**: chỉ cung cấp qua CI secret `ANDROID_KEYSTORE_*`; không ghi giá trị hoặc vị trí backup vào repository.
+- **Key Alias**: lấy từ CI secret `ANDROID_KEY_ALIAS`.
 - **Thông tin chủ sở hữu (Certificate Owner)**:
   - `CN`: 360corp
   - `OU`: Mobile
@@ -30,11 +27,12 @@ Tài liệu lưu trữ quy trình ký số, cấu hình kỹ thuật, chuẩn b�
 
 ## 2. Cấu Hình Ký Tự Động (`key.properties`)
 
-File: `/media/tanma/DATA/save/mobile_versions/vclients/android/key.properties` (Đã được cấu hình và nằm trong `.gitignore`):
+`android/key.properties` và `android/upload-keystore.jks` được `.gitignore`; CI chỉ tạo chúng khi đủ bốn secret `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`.
+
 ```properties
-storePassword=123456
-keyPassword=123456
-keyAlias=upload
+storePassword=<ANDROID_KEYSTORE_PASSWORD>
+keyPassword=<ANDROID_KEY_PASSWORD>
+keyAlias=<ANDROID_KEY_ALIAS>
 storeFile=../upload-keystore.jks
 ```
 
@@ -44,14 +42,9 @@ storeFile=../upload-keystore.jks
 
 Toàn bộ hình ảnh đã được chuẩn hóa đúng từng pixel theo tiêu chuẩn Google Play và lưu trong project:
 
-1. **Biểu tượng ứng dụng (App Icon - 512x512 px PNG)**:
-   `/media/tanma/DATA/save/mobile_versions/vclients/assets/branding/google_play_icon_512x512.png`
-2. **Ảnh đầu trang (Feature Graphic - 1024x500 px PNG)**:
-   `/media/tanma/DATA/save/mobile_versions/vclients/assets/branding/google_play_feature_graphic_1024x500.png`
-3. **Bộ 5 ảnh chụp màn hình điện thoại (Galaxy S20 - 736x1600 px)**:
-   - Thư mục lưu trong project: `/media/tanma/DATA/save/mobile_versions/vclients/assets/screenshots/android/`
-   - Thư mục nguồn ngoài: `/media/tanma/DATA/save/anhchup_android/`
-   - Gồm 5 file: `Samsung-Galaxy-S20-localhost (1).png` đến `(5).png`.
+1. **Biểu tượng ứng dụng (App Icon - 512x512 px PNG)**: `assets/branding/google_play_icon_512x512.png`.
+2. **Ảnh đầu trang (Feature Graphic - 1024x500 px PNG)**: `assets/branding/google_play_feature_graphic_1024x500.png`.
+3. **Bộ ảnh chụp màn hình Android**: `assets/screenshots/android/` (nếu có); ảnh nguồn ngoài không ghi trong repository.
 
 ---
 
@@ -74,10 +67,9 @@ Toàn bộ hình ảnh đã được chuẩn hóa đúng từng pixel theo tiêu
 - **Email hỗ trợ**: `support@360.org.vn` (hoặc `nhattanmanguyen@gmail.com`).
 - **Website & Privacy Policy**: `https://vuahethong.net/` (hoặc `https://360.org.vn`).
 
-### B. Khai báo quyền hình ảnh/video (Photo & Video Permissions):
-- **Quyền**: `READ_MEDIA_IMAGES`
-- **Mục đích khai báo**: Chức năng ứng dụng (App functionality) / Chia sẻ tệp & trò chuyện (File sharing / Chat).
-- **Lý do giải trình**: Cho phép nhân viên tải ảnh đính kèm vào phiếu hỗ trợ (Ticket), gửi ảnh trong tin nhắn nội bộ và cập nhật ảnh đại diện hồ sơ.
+### B. Quyền ảnh/video
+- Ứng dụng dùng system Photo Picker qua `image_picker`; không khai báo quyền đọc toàn bộ thư viện (`READ_MEDIA_IMAGES`, `READ_MEDIA_VIDEO`, `READ_EXTERNAL_STORAGE`).
+- Khi thay đổi sang truy cập thư viện diện rộng, phải đánh giá lại Play policy và cập nhật Data safety trước khi phát hành.
 
 ---
 
@@ -111,15 +103,13 @@ version: 2.9.2+103   # Tăng từ 102 lên 103 (hoặc cao hơn)
 
 ### Bước 2: Chạy lệnh build `.aab`
 ```bash
-cd /media/tanma/DATA/save/mobile_versions/vclients
 flutter build appbundle --release
 ```
 
-- **File kết quả**:
-  `/media/tanma/DATA/save/mobile_versions/vclients/build/app/outputs/bundle/release/app-release.aab`
+- **File kết quả**: `build/app/outputs/bundle/release/app-release.aab`.
 - **Lệnh kiểm tra chữ ký xác thực**:
   ```bash
-  keytool -printcert -jarfile /media/tanma/DATA/save/mobile_versions/vclients/build/app/outputs/bundle/release/app-release.aab
+  keytool -printcert -jarfile build/app/outputs/bundle/release/app-release.aab
   ```
 
 ### Bước 3: Đưa lên Google Play Console
