@@ -453,8 +453,8 @@ class OdooApiClient {
         if (isDemoLogin && isProdMaster) {
           effectiveDb = 'demo';
           effectiveUrl = 'https://demo.vuahethong.com';
-          displayName = 'Trung tâm Trải nghiệm & Demo (Odoo 19)';
-          categoryLabel = '🏢 Nội Bộ (Odoo 19)';
+          displayName = 'Trung tâm Trải nghiệm & Demo';
+          categoryLabel = '🏢 Nội Bộ';
         } else {
           // Trên Production vuahethong.net: DB chính thức là 'vuahethong'
           if (isProdMaster) {
@@ -464,7 +464,7 @@ class OdooApiClient {
           }
           effectiveUrl = masterUrl;
           displayName = isProdMaster ? 'Vua Hệ Thống (Chính thức)' : 'Local Server ($effectiveDb)';
-          categoryLabel = isProdMaster ? '🏢 Nội Bộ (Odoo 17)' : '💻 Máy Chủ Nội Bộ';
+          categoryLabel = isProdMaster ? '🏢 Nội Bộ' : '💻 Máy Chủ Nội Bộ';
         }
 
         return [
