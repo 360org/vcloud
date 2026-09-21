@@ -43,17 +43,17 @@
     <div class="mermaid">
 flowchart TD
     START(( )):::startNode --> S1["1. Quét thiết bị: mobile.api.device"]
-    
+
     S1 --> S2["2. Lọc User nội bộ & Map hr.employee"]
-    
+
     S2 --> D1{"[TC1, 2] Lịch làm việc<br/>resource.calendar?"}
-    
+
     D1 -- "Chủ nhật / Nghỉ" --> E1(((o))):::endNode
     D1 -- "Ngày đi làm" --> D2{"[TC3] Nghỉ phép<br/>hr.leave: validate?"}
-    
+
     D2 -- "Có phép" --> E2(((o))):::endNode
     D2 -- "Không phép" --> D3{"Đúng giờ nhắc<br/>vào ca / ra ca?"}
-    
+
     D3 -- "Chưa tới giờ" --> E3(((o))):::endNode
     D3 -- "Đúng giờ" --> FORK[====== THANH PHÂN NHÁNH FORK ======]:::syncBar
 
@@ -73,11 +73,11 @@ flowchart TD
     P_OUT --> JOIN
 
     JOIN --> DISPATCH["3. Worker ngầm gửi Push sang Google FCM"]
-    
+
     DISPATCH --> D_RES{"Google FCM phản hồi?"}
     D_RES -- "200 OK" --> OK["VCloud Mobile App hiện Banner"]
     D_RES -- "Lỗi mạng / Token" --> FAIL["Lưu status = failed"]
-    
+
     OK --> E_OK(((o))):::endNode
     FAIL --> E8(((o))):::endNode
 

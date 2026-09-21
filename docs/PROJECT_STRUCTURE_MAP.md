@@ -1,6 +1,6 @@
 # 🗺️ BẢN ĐỒ CẤU TRÚC DỰ ÁN & TRA CỨU NHANH (PROJECT STRUCTURE MAP)
-> **Dự án**: VCloud Mobile (Flutter) & Odoo API Backend (`v_mobile`)  
-> **Phiên bản chuẩn hóa**: AIaC 2026 / Build 94+  
+> **Dự án**: VCloud Mobile (Flutter) & Odoo API Backend (`v_mobile`)
+> **Phiên bản chuẩn hóa**: AIaC 2026 / Build 94+
 > **Mục đích**: Bản đồ tra cứu tức thì theo từng chức năng, loại bỏ hoàn toàn việc tìm mò file thủ công (`Zero-Guessing Navigation`).
 
 ---
@@ -25,8 +25,8 @@
 
 ---
 
-## 📁 2. CHI TIẾT CẤU TRÚC FLUTTER CLIENT (`vclients/`)
-Đường dẫn: [`/media/tanma/DATA/save/mobile_versions/vclients`](file:///media/tanma/DATA/save/mobile_versions/vclients)
+## 📁 2. CHI TIẾT CẤU TRÚC FLUTTER CLIENT
+Đường dẫn: thư mục gốc repository này.
 
 ```text
 vclients/lib/
@@ -66,7 +66,7 @@ vclients/lib/
 ---
 
 ## ⚙️ 3. CHI TIẾT CẤU TRÚC BACKEND ODOO (`v_mobile_17/`)
-Đường dẫn: [`/media/tanma/DATA/save/mobile_versions/v_mobile_17`](file:///media/tanma/DATA/save/mobile_versions/v_mobile_17)
+Backend nằm ở repository riêng `v_mobile`, không đi kèm repository Flutter này.
 
 ```text
 v_mobile_17/
@@ -128,37 +128,32 @@ v_mobile_17/
 ## 🛠️ 5. BỘ CÔNG CỤ & KỊCH BẢN TỰ ĐỘNG HÓA (`scripts/` & `tools/`)
 
 * **Khởi chạy Môi Trường Phát Triển & Web (Local Dev & Testing)**:
-  * [`vclients/launch_web.sh`](file:///media/tanma/DATA/save/mobile_versions/vclients/launch_web.sh): Tự khởi động Odoo 17 Docker (`dev_env/17.0`) & chạy Flutter Web (Port 8088, Odoo 17).
-  * [`vclients/launch_web_19.sh`](file:///media/tanma/DATA/save/mobile_versions/vclients/launch_web_19.sh): Tự khởi động Odoo 19 Docker (`dev_env/19.0`) & chạy Flutter Web (Port 8088, Odoo 19).
-  * [`vclients/update_backend.sh`](file:///media/tanma/DATA/save/mobile_versions/vclients/update_backend.sh): Nạp nhanh code mới & Upgrade Backend Odoo 17/19 mà không cần tắt Flutter Web.
-  * [`vclients/launch_web_prod.sh`](file:///media/tanma/DATA/save/mobile_versions/vclients/launch_web_prod.sh): Chạy Flutter Web trỏ trực tiếp Production/Staging server.
-* **Quản trị Push Notification**:
-  * [`scripts/push_notification_manager.py`](file:///media/tanma/DATA/save/mobile_versions/scripts/push_notification_manager.py): Gửi push notification test trực tiếp đến FCM/APNs.
-  * [`scripts/diagnose_user_notifications.py`](file:///media/tanma/DATA/save/mobile_versions/scripts/diagnose_user_notifications.py): Kiểm tra trạng thái thiết bị của từng nhân sự.
+  * [`launch_web.sh`](../launch_web.sh): Tự khởi động Odoo 17 Docker (`dev_env/17.0`) & chạy Flutter Web (Port 8088, Odoo 17).
+  * [`launch_web_19.sh`](../launch_web_19.sh): Tự khởi động Odoo 19 Docker (`dev_env/19.0`) & chạy Flutter Web (Port 8088, Odoo 19).
+  * [`update_backend.sh`](../update_backend.sh): Nạp nhanh code mới & Upgrade Backend Odoo 17/19 mà không cần tắt Flutter Web.
+  * [`launch_web_prod.sh`](../launch_web_prod.sh): Chạy Flutter Web trỏ trực tiếp Production/Staging server.
 * **Kiểm thử Hiệu năng & Tải**:
-  * [`tools/benchmark_home_apis.py`](file:///media/tanma/DATA/save/mobile_versions/tools/benchmark_home_apis.py): Đo lường độ trễ (latency) của các API màn hình Home.
-  * [`tools/testing/spam_demo_chat.py`](file:///media/tanma/DATA/save/mobile_versions/tools/testing/spam_demo_chat.py): Bắn tải tin nhắn liên tục để kiểm tra độ mượt UI.
-* **Đồng bộ Dữ liệu Odoo**:
-  * [`scripts/odoo_task_manager.py`](file:///media/tanma/DATA/save/mobile_versions/scripts/odoo_task_manager.py): Tương tác trực tiếp với Task Odoo qua XML-RPC.
+  * [`tools/benchmark_home_apis.py`](../tools/benchmark_home_apis.py): Đo lường độ trễ (latency) của các API màn hình Home.
+* **Lưu ý:** công cụ quản trị push, spam demo và XML-RPC backend thuộc repository/hạ tầng riêng, không còn được liên kết từ repository Flutter này.
 * **Sơ đồ Kiến trúc, UML Activity Diagram & Sequence Diagram (Thư mục tập trung: `docs/diagrams/`)**:
-  * [`docs/diagrams/README.md`](file:///media/tanma/DATA/save/mobile_versions/docs/diagrams/README.md): Bản đồ tổng quan toàn bộ sơ đồ hệ thống Vcloud & vmobile theo từng phân hệ chức năng.
+  * [`docs/diagrams/README.md`](diagrams/README.md): Bản đồ tổng quan toàn bộ sơ đồ hệ thống Vcloud & vmobile theo từng phân hệ chức năng.
   * **Master Directory Hub & Đồng bộ Tenant (`docs/diagrams/master_sync/`)**:
-    * [`docs/diagrams/master_sync/MASTER_SEQUENCE_DIAGRAM.png`](file:///media/tanma/DATA/save/mobile_versions/docs/diagrams/master_sync/MASTER_SEQUENCE_DIAGRAM.png): Biểu đồ trình tự UML độc lập sắc nét (3646 x 1588 px), 18 bước rõ ràng qua 3 giai đoạn.
-    * [`docs/diagrams/master_sync/MASTER_SEQUENCE_DIAGRAM.svg`](file:///media/tanma/DATA/save/mobile_versions/docs/diagrams/master_sync/MASTER_SEQUENCE_DIAGRAM.svg) | [`.html`](file:///media/tanma/DATA/save/mobile_versions/docs/diagrams/master_sync/MASTER_SEQUENCE_DIAGRAM.html) | [`.drawio`](file:///media/tanma/DATA/save/mobile_versions/docs/diagrams/master_sync/MASTER_SEQUENCE_DIAGRAM.drawio)
-    * [`docs/diagrams/master_sync/MASTER_DIRECTORY_SYNC_WORKFLOW.png`](file:///media/tanma/DATA/save/mobile_versions/docs/diagrams/master_sync/MASTER_DIRECTORY_SYNC_WORKFLOW.png): Ảnh Raster PNG tĩnh độ phân giải cao (1800 x 4200 px).
-    * [`docs/diagrams/master_sync/MASTER_DIRECTORY_SYNC_WORKFLOW.svg`](file:///media/tanma/DATA/save/mobile_versions/docs/diagrams/master_sync/MASTER_DIRECTORY_SYNC_WORKFLOW.svg) | [`.html`](file:///media/tanma/DATA/save/mobile_versions/docs/diagrams/master_sync/MASTER_DIRECTORY_SYNC_WORKFLOW.html) | [`.drawio`](file:///media/tanma/DATA/save/mobile_versions/docs/diagrams/master_sync/MASTER_DIRECTORY_SYNC_WORKFLOW.drawio)
-    * [`docs/diagrams/master_sync/WORKFLOW_AUTOMATION_DIAGRAM.html`](file:///media/tanma/DATA/save/mobile_versions/docs/diagrams/master_sync/WORKFLOW_AUTOMATION_DIAGRAM.html) | [`.drawio`](file:///media/tanma/DATA/save/mobile_versions/docs/diagrams/master_sync/WORKFLOW_USER_SYNC_AUTOMATION.drawio)
+    * [`docs/diagrams/master_sync/MASTER_SEQUENCE_DIAGRAM.png`](diagrams/master_sync/MASTER_SEQUENCE_DIAGRAM.png): Biểu đồ trình tự UML độc lập sắc nét (3646 x 1588 px), 18 bước rõ ràng qua 3 giai đoạn.
+    * [`docs/diagrams/master_sync/MASTER_SEQUENCE_DIAGRAM.svg`](diagrams/master_sync/MASTER_SEQUENCE_DIAGRAM.svg) | [`.html`](diagrams/master_sync/MASTER_SEQUENCE_DIAGRAM.html) | [`.drawio`](diagrams/master_sync/MASTER_SEQUENCE_DIAGRAM.drawio)
+    * [`docs/diagrams/master_sync/MASTER_DIRECTORY_SYNC_WORKFLOW.png`](diagrams/master_sync/MASTER_DIRECTORY_SYNC_WORKFLOW.png): Ảnh Raster PNG tĩnh độ phân giải cao (1800 x 4200 px).
+    * [`docs/diagrams/master_sync/MASTER_DIRECTORY_SYNC_WORKFLOW.svg`](diagrams/master_sync/MASTER_DIRECTORY_SYNC_WORKFLOW.svg) | [`.html`](diagrams/master_sync/MASTER_DIRECTORY_SYNC_WORKFLOW.html) | [`.drawio`](diagrams/master_sync/MASTER_DIRECTORY_SYNC_WORKFLOW.drawio)
+    * [`docs/diagrams/master_sync/WORKFLOW_AUTOMATION_DIAGRAM.html`](diagrams/master_sync/WORKFLOW_AUTOMATION_DIAGRAM.html) | [`.drawio`](diagrams/master_sync/WORKFLOW_USER_SYNC_AUTOMATION.drawio)
   * **Đăng nhập & Phân quyền Role (`docs/diagrams/login_auth/`)**:
-    * [`docs/diagrams/login_auth/ACTIVITY_DIAGRAM_LOGIN_AUTH.png`](file:///media/tanma/DATA/save/mobile_versions/docs/diagrams/login_auth/ACTIVITY_DIAGRAM_LOGIN_AUTH.png): Sơ đồ UML Activity Diagram toàn diện 3 giai đoạn (1680 x 3833 px).
-    * [`docs/diagrams/login_auth/ACTIVITY_DIAGRAM_LOGIN_AUTH.svg`](file:///media/tanma/DATA/save/mobile_versions/docs/diagrams/login_auth/ACTIVITY_DIAGRAM_LOGIN_AUTH.svg) | [`.html`](file:///media/tanma/DATA/save/mobile_versions/docs/diagrams/login_auth/ACTIVITY_DIAGRAM_LOGIN_AUTH.html) | [`.drawio`](file:///media/tanma/DATA/save/mobile_versions/docs/diagrams/login_auth/ACTIVITY_DIAGRAM_LOGIN_AUTH.drawio)
+    * [`docs/diagrams/login_auth/ACTIVITY_DIAGRAM_LOGIN_AUTH.png`](diagrams/login_auth/ACTIVITY_DIAGRAM_LOGIN_AUTH.png): Sơ đồ UML Activity Diagram toàn diện 3 giai đoạn (1680 x 3833 px).
+    * [`docs/diagrams/login_auth/ACTIVITY_DIAGRAM_LOGIN_AUTH.svg`](diagrams/login_auth/ACTIVITY_DIAGRAM_LOGIN_AUTH.svg) | [`.html`](diagrams/login_auth/ACTIVITY_DIAGRAM_LOGIN_AUTH.html) | [`.drawio`](diagrams/login_auth/ACTIVITY_DIAGRAM_LOGIN_AUTH.drawio)
   * **Chấm công & Điểm danh (`docs/diagrams/attendance/`)**:
-    * [`docs/diagrams/attendance/diagram_attendance_activity.png`](file:///media/tanma/DATA/save/mobile_versions/docs/diagrams/attendance/diagram_attendance_activity.png): Sơ đồ luồng chấm công vào/ra và quét ca động `resource.calendar`.
-    * [`docs/diagrams/attendance/diagram_attendance.html`](file:///media/tanma/DATA/save/mobile_versions/docs/diagrams/attendance/diagram_attendance.html): Bản vẽ HTML Mermaid tương tác.
+    * [`docs/diagrams/attendance/diagram_attendance_activity.png`](diagrams/attendance/diagram_attendance_activity.png): Sơ đồ luồng chấm công vào/ra và quét ca động `resource.calendar`.
+    * [`docs/diagrams/attendance/diagram_attendance.html`](diagrams/attendance/diagram_attendance.html): Bản vẽ HTML Mermaid tương tác.
   * **Nhắn tin Chat V2 (`docs/diagrams/chat/`)**:
-    * [`docs/diagrams/chat/diagram_chat_activity.png`](file:///media/tanma/DATA/save/mobile_versions/docs/diagrams/chat/diagram_chat_activity.png): Sơ đồ luồng gửi nhận tin nhắn, đính kèm nhiều ảnh và websocket.
-    * [`docs/diagrams/chat/diagram_chat.html`](file:///media/tanma/DATA/save/mobile_versions/docs/diagrams/chat/diagram_chat.html): Bản vẽ HTML tương tác.
+    * [`docs/diagrams/chat/diagram_chat_activity.png`](diagrams/chat/diagram_chat_activity.png): Sơ đồ luồng gửi nhận tin nhắn, đính kèm nhiều ảnh và websocket.
+    * [`docs/diagrams/chat/diagram_chat.html`](diagrams/chat/diagram_chat.html): Bản vẽ HTML tương tác.
   * **Push Notification Gateway (`docs/diagrams/push_gateway/`)**:
-    * [`docs/diagrams/push_gateway/push_gateway_activity_diagram.html`](file:///media/tanma/DATA/save/mobile_versions/docs/diagrams/push_gateway/push_gateway_activity_diagram.html): Sơ đồ điều phối Gateway 2 chế độ Local Tenant vs Master SaaS.
+    * [`docs/diagrams/push_gateway/push_gateway_activity_diagram.html`](diagrams/push_gateway/push_gateway_activity_diagram.html): Sơ đồ điều phối Gateway 2 chế độ Local Tenant vs Master SaaS.
 
 ---
 
@@ -180,7 +175,7 @@ Hạ tầng Docker tập trung trên Server nội bộ (`ssh local` - `/mnt/DATA
 - **Odoo 19.0 (`odoo_dev_v19`)**: HTTP Port **`1900`** (Longpolling: `1972`, DB: `odoo_dev_v19_db` port `1932`).
 
 ### B. Môi trường Standalone trên Máy trạm cá nhân (Docker Dev Env tại máy Mac/Laptop)
-Dùng khi phát triển cô lập hoặc offline tại chỗ (`/media/tanma/DATA/save/dev_env/`):
+Dùng khi phát triển cô lập hoặc offline tại chỗ (đường dẫn do từng máy phát triển tự cấu hình):
 
 | Cụm / Phiên bản | Tên Database | Mục đích sử dụng | Tên Công ty trong DB | Backend API Port | Tài khoản Trùng (Test Dropdown) | Tài khoản Độc Quyền (Không hiện Dropdown) |
 | :---: | :--- | :--- | :--- | :---: | :--- | :--- |
