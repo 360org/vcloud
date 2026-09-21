@@ -2,6 +2,19 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.9+136] — 2026-09-21 (Tự Động Hóa Tạo Version & Phát Hành App Store Qua App Store Connect API)
+
+> [!IMPORTANT]
+> **Tự Động Hóa Triệt Để Vòng Đời Phát Hành iOS Lên App Store Connect (Zero-Manual Submission)**:
+> - **Phạm vi**: `vclients` (Fastlane & GitHub Actions CI/CD)
+> - **Chi tiết thay đổi**:
+>   1. **[CI/CD - Fastlane Deliver] Tích Hợp Tự Động Tạo Version & Gán Build Release**:
+>      - Cập nhật [`fastlane/Fastfile`](fastlane/Fastfile): Tích hợp action `deliver` (`upload_to_app_store`) kết hợp App Store Connect API Key (`PU7FLKDJNTF0`). Tự động phát hiện phiên bản từ `pubspec.yaml`, tự tạo Version mới trên App Store Connect nếu chưa tồn tại, đính kèm bản build TestFlight vừa hoàn tất, tự động sync Release Notes và cấu hình phát hành theo đợt (`phased_release: true`).
+>   2. **[WORKFLOW - GitHub Actions] Tinh Chỉnh Workflow Dispatch & Release Triggers**:
+>      - Cập nhật [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml): Thêm tham số điều khiển `auto_create_appstore` (mặc định: `true`) và `submit_for_review` (mặc định: `false`). Cho phép kiểm soát linh hoạt giữa đẩy bản dựng thử nghiệm TestFlight nội bộ hoặc tự động hóa tạo Version chuẩn bị phát hành trên App Store.
+>   3. **[DOCUMENTATION - Secret Guide] Lưu Trữ & Hướng Dẫn Cấu Hình Secrets**:
+>      - Cập nhật hướng dẫn cấu hình bộ Secrets `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_KEY_CONTENT` bảo mật cao, độc lập với hệ thống Push Notifications Firebase APNs.
+
 ## [v2.9.9+135] — 2026-09-21 (Triệt Tiêu Bão Request Ngầm & Đóng Băng Polling Khi Ứng Dụng Vào Background)
 
 > [!IMPORTANT]

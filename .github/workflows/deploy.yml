@@ -14,6 +14,16 @@ on:
           - all
           - ios
           - android
+      auto_create_appstore:
+        description: "Tự động tạo Version & Gán build lên App Store Connect (True/False)"
+        required: false
+        default: true
+        type: boolean
+      submit_for_review:
+        description: "Tự động gửi Apple xét duyệt ngay (Submit for Review)"
+        required: false
+        default: false
+        type: boolean
   repository_dispatch:
     types: [trigger-build]
 
@@ -113,6 +123,8 @@ jobs:
           WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
           BUILD_NUMBER: ${{ github.run_number }}
           VCLOUD_ODOO_API_BASE_URL: "https://vuahethong.net"
+          AUTO_CREATE_APPSTORE_VERSION: ${{ github.event_name == 'release' || inputs.auto_create_appstore == true }}
+          SUBMIT_FOR_REVIEW: ${{ inputs.submit_for_review == true }}
         run: |
           bundle exec fastlane ios beta
 

@@ -274,6 +274,8 @@ platform :ios do
       # 5. Upload to Apple TestFlight & Auto-Distribute to Testers with Release Notes
       tester_groups = ENV["TESTFLIGHT_GROUPS"] ? ENV["TESTFLIGHT_GROUPS"].split(",") : ["360 internal testing staff"]
       app_store_app_id = "1365622472"
+      bundle_identifier = "com.w360s.wcloudapp"
+      auto_create_appstore = ENV["AUTO_CREATE_APPSTORE_VERSION"] == "true" || ENV["RELEASE_TO_APP_STORE"] == "true"
 
       uploaded = false
 
@@ -285,10 +287,37 @@ platform :ios do
             apple_id: app_store_app_id,
             groups: tester_groups,
             changelog: changelog_text,
-            skip_waiting_for_build_processing: true,
+            skip_waiting_for_build_processing: !auto_create_appstore,
             ipa: ipa_path
           )
           uploaded = true
+
+          # 6. Automatically create or prepare App Store Release Version if requested
+          if auto_create_appstore
+            UI.header("🚀 Auto-Creating & Preparing App Store Release Version (#{build_name}+#{build_number})")
+            begin
+              deliver(
+                api_key: api_key,
+                app_identifier: bundle_identifier,
+                app_version: build_name,
+                build_number: build_number.to_s,
+                ipa: ipa_path,
+                skip_screenshots: true,
+                skip_metadata: false,
+                force: true,
+                submit_for_review: ENV["SUBMIT_FOR_REVIEW"] == "true",
+                automatic_release: true,
+                phased_release: true,
+                release_notes: {
+                  "vi" => changelog_text,
+                  "en-US" => changelog_text
+                }
+              )
+              UI.success("🎉 App Store version #{build_name} created and build #{build_number} attached successfully!")
+            rescue => deliver_err
+              UI.important("⚠️ App Store deliver completed or returned note: #{deliver_err.message}")
+            end
+          end
         rescue => api_err
           UI.important("⚠️ TestFlight upload via API Key failed: #{api_err.message}. Falling back to App-Specific Password...")
         end
