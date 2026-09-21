@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/notifications/push_notification_controller.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'core/utils/app_lifecycle_manager.dart';
 import 'features/attendance/application/attendance_controller.dart';
 import 'features/auth/application/auth_controller.dart';
 import 'features/chat_v2/application/chat_v2_call_watcher.dart';
@@ -69,6 +70,7 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      ref.read(isAppForegroundProvider.notifier).state = true;
       final user = ref.read(authControllerProvider).valueOrNull;
       if (user == null) return;
       ref.read(chatV2CallWatcherProvider).onAppResumed();
@@ -78,8 +80,12 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
       ref.invalidate(attendanceTodayProvider);
       ref.invalidate(attendanceStreamProvider);
       ref.invalidate(mobileDashboardSummaryProvider);
-    } else if (state == AppLifecycleState.paused) {
+    } else if (state == AppLifecycleState.paused ||
+               state == AppLifecycleState.inactive ||
+               state == AppLifecycleState.detached) {
+      ref.read(isAppForegroundProvider.notifier).state = false;
       ref.read(chatV2CallWatcherProvider).onAppPaused();
+      ref.read(chatV2ChannelsProvider.notifier).pausePolling();
     }
   }
 

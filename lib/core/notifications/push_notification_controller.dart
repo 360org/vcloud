@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import '../utils/app_lifecycle_manager.dart';
 import 'push_notification_repository.dart';
 import 'push_notification_service.dart';
 
@@ -63,5 +64,7 @@ class DismissedNotificationNotifier extends StateNotifier<Set<String>> {
 final mobileNotificationsProvider =
     StreamProvider.autoDispose<MobileNotificationList>(
       (ref) =>
-          ref.read(pushNotificationRepositoryProvider).watchNotifications(),
+          ref.read(pushNotificationRepositoryProvider).watchNotifications(
+            isForegroundCheck: () => ref.read(isAppForegroundProvider),
+          ),
     );

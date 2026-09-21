@@ -153,6 +153,7 @@ class PushNotificationRepository {
     String status = '',
     String eventType = '',
     Duration pollInterval = RealtimeIntervals.notifications,
+    bool Function()? isForegroundCheck,
   }) {
     final controller = StreamController<MobileNotificationList>();
     bool inFlight = false;
@@ -183,7 +184,10 @@ class PushNotificationRepository {
         timer?.cancel();
         timer = Timer(pollInterval, () async {
           if (!controller.isClosed) {
-            await refresh();
+            final isFg = isForegroundCheck?.call() ?? true;
+            if (isFg) {
+              await refresh();
+            }
             scheduleNextPoll();
           }
         });

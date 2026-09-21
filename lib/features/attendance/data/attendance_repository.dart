@@ -91,6 +91,7 @@ class AttendanceRepository {
   /// notification is delayed or the session is opened on another device.
   Stream<Attendance?> watchCurrentOpenAttendance({
     Duration pollInterval = RealtimeIntervals.attendance,
+    bool Function()? isForegroundCheck,
   }) {
     final controller = StreamController<Attendance?>();
     bool inFlight = false;
@@ -123,7 +124,10 @@ class AttendanceRepository {
         timer?.cancel();
         timer = Timer(pollInterval, () async {
           if (!controller.isClosed) {
-            await refresh();
+            final isFg = isForegroundCheck?.call() ?? true;
+            if (isFg) {
+              await refresh();
+            }
             scheduleNextPoll();
           }
         });

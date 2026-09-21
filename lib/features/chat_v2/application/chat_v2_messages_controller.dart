@@ -8,6 +8,7 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 
 import '../../../core/api/odoo_api_client.dart';
+import '../../../core/utils/app_lifecycle_manager.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../../core/utils/local_attachment_cache.dart';
 import '../domain/models/chat_v2_poll_model.dart';
@@ -209,7 +210,8 @@ class ChatV2MessagesNotifier
       _pollingTimer?.cancel();
       _pollingTimer = Timer(const Duration(seconds: 8), () async {
         if (isDisposed) return;
-        if (!state.isLoading && state.hasValue) {
+        final isForeground = ref.read(isAppForegroundProvider);
+        if (isForeground && !state.isLoading && state.hasValue) {
           try {
             final latest = await repo.getMessages(
               channelId,
@@ -227,7 +229,7 @@ class ChatV2MessagesNotifier
             }
           } catch (_) {}
         }
-        if (!isDisposed) {
+        if (!isDisposed && isForeground) {
           scheduleNextPoll();
         }
       });

@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:collection/collection.dart';
 import '../../../core/api/odoo_api_client.dart';
+import '../../../core/utils/app_lifecycle_manager.dart';
 import '../../auth/application/auth_controller.dart';
 import 'chat_v2_presence_controller.dart';
 import 'chat_v2_read_state_controller.dart';
@@ -688,10 +689,11 @@ class ChatV2ChannelsNotifier
       _pollingTimer?.cancel();
       _pollingTimer = Timer(const Duration(seconds: 8), () async {
         if (_isDisposed) return;
-        if (!state.isLoading && state.hasValue) {
+        final isForeground = ref.read(isAppForegroundProvider);
+        if (isForeground && !state.isLoading && state.hasValue) {
           await fetchFreshChannels();
         }
-        if (!_isDisposed) {
+        if (!_isDisposed && isForeground) {
           scheduleNextPoll();
         }
       });
@@ -767,7 +769,30 @@ class ChatV2ChannelsNotifier
     return true;
   }
 
+  /// Tạm dừng hoàn toàn Polling Timer khi app đi vào background/paused
+  void pausePolling() {
+    _pollingTimer?.cancel();
+    _pollingTimer = null;
+    _debounceTimer?.cancel();
+    _debounceTimer = null;
+    _resumeRetryTimer?.cancel();
+    _resumeRetryTimer = null;
+    debugPrint('⏸️ [ChatV2ChannelsNotifier] Đã tạm dừng toàn bộ Polling do app vào Background');
+  }
+
   Future<void> resumeRefresh() async {
+    final authState = ref.read(authControllerProvider);
+    final hasVMobile = (authState.valueOrNull?.userMetadata['has_v_mobile'] as bool?) ?? true;
+    if (hasVMobile && _pollingTimer == null && !_isDisposed) {
+      _pollingTimer = Timer(const Duration(seconds: 8), () async {
+        if (_isDisposed) return;
+        final isForeground = ref.read(isAppForegroundProvider);
+        if (isForeground && !state.isLoading && state.hasValue) {
+          await _executeResumeRefresh();
+        }
+      });
+    }
+
     if (_isResumeRefreshing) {
       // Single-flight lock: Tránh gọi chồng nhiều worker song song
       return;

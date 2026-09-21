@@ -2,6 +2,25 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.9+135] — 2026-09-21 (Triệt Tiêu Bão Request Ngầm & Đóng Băng Polling Khi Ứng Dụng Vào Background)
+
+> [!IMPORTANT]
+> **Khắc Phục Tận Gốc Nguyên Nhân Gây Cạn Kiệt DB Connections (P0 Database Connection Exhaustion)**:
+> - **Phạm vi**: `vclients` (Flutter Mobile & Web)
+> - **Chi tiết thay đổi**:
+>   1. **[ARCHITECTURE - Lifecycle State Bridge] Bổ sung Single Source of Truth cho App State**:
+>      - Thêm [`app_lifecycle_manager.dart`](lib/core/utils/app_lifecycle_manager.dart): Cung cấp `isAppForegroundProvider` theo dõi trạng thái `resumed` vs `paused`/`inactive`/`detached`.
+>      - Cập nhật [`app.dart`](lib/app.dart): Đăng ký `WidgetsBindingObserver` toàn cục. Khi vào Background/Inactive (`paused`, `inactive`, `detached`), tự động set `isAppForegroundProvider = false` và ngắt ngay lập tức mọi polling loops. Khi quay lại Foreground (`resumed`), set `isAppForegroundProvider = true` và kích hoạt refresh làm mới dữ liệu một lần duy nhất.
+>   2. **[FIX - Request Storm Mitigation] Đóng Băng Toàn Diện Polling Timers**:
+>      - Cập nhật [`chat_v2_channels_controller.dart`](lib/features/chat_v2/application/chat_v2_channels_controller.dart): Thêm phương thức `pausePolling()` hủy triệt để `_pollingTimer`, `_debounceTimer`, `_resumeRetryTimer`. Kiểm tra `isAppForegroundProvider` trước mỗi chu kỳ hẹn giờ 8s.
+>      - Cập nhật [`chat_v2_messages_controller.dart`](lib/features/chat_v2/application/chat_v2_messages_controller.dart): Chặn chu kỳ polling 8s trong phòng chat khi app ở background.
+>      - Cập nhật [`attendance_repository.dart`](lib/features/attendance/data/attendance_repository.dart) & [`attendance_controller.dart`](lib/features/attendance/application/attendance_controller.dart): Bổ sung `isForegroundCheck` cho stream polling chấm công 15s (`watchCurrentOpenAttendance`), bỏ qua request khi app đang ẩn.
+>      - Cập nhật [`push_notification_repository.dart`](lib/core/notifications/push_notification_repository.dart) & [`push_notification_controller.dart`](lib/core/notifications/push_notification_controller.dart): Bổ sung `isForegroundCheck` cho stream polling thông báo 45s (`watchNotifications`), ngừng bắn request khi app đang ẩn.
+>   3. **[TEST] Kiểm Thử Tự Động & Hồi Quy Toàn Diện**:
+>      - Tạo mới [`app_lifecycle_manager_test.dart`](test/app_lifecycle_manager_test.dart): Kiểm thử độc lập chuyển trạng thái foreground/background.
+>      - `flutter analyze`: Đạt chuẩn 0 errors / 0 warnings.
+>      - Toàn bộ test suites Chat V2, Notifications, Attendance và Lifecycle passed 100%.
+
 ## [v2.9.9+134] — 2026-09-21 (Tuân Thủ Chính Sách Quyền Ảnh & Video Google Play Cho Android)
 
 > [!IMPORTANT]

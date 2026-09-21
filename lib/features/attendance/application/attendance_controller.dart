@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/notifications/attendance_local_reminder_service.dart';
+import '../../../core/utils/app_lifecycle_manager.dart';
 import '../../../shared/models/attendance.dart';
 import '../data/attendance_repository.dart';
 import '../domain/shift_calculator.dart';
@@ -18,7 +19,9 @@ final attendanceStreamProvider = StreamProvider.autoDispose<List<Attendance>>(
 );
 
 final attendanceTodayProvider = StreamProvider.autoDispose<Attendance?>(
-  (ref) => ref.read(attendanceRepositoryProvider).watchCurrentOpenAttendance(),
+  (ref) => ref.read(attendanceRepositoryProvider).watchCurrentOpenAttendance(
+    isForegroundCheck: () => ref.read(isAppForegroundProvider),
+  ),
 );
 
 class AttendanceActions {
