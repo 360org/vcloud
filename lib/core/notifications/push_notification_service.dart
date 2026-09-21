@@ -66,14 +66,25 @@ class PushNotificationService {
       _onMessageWired = true;
       try {
         _onMessageSubscription = FirebaseMessaging.onMessage.listen(
-          _onMessageController.add,
+          (message) {
+            final title = message.notification?.title ?? message.data['title'] ?? '(Không có tiêu đề)';
+            final body = message.notification?.body ?? message.data['body'] ?? '(Không có nội dung)';
+            debugPrint('╔══════════════════════════════════════════════════════════════════╗');
+            debugPrint('║ 📩 [FCM PUSH RECEIVED] NHẬN THÔNG BÁO PUSH THÀNH CÔNG            ║');
+            debugPrint('╠══════════════════════════════════════════════════════════════════╣');
+            debugPrint('║ 📌 Tiêu đề: $title');
+            debugPrint('║ 💬 Nội dung: $body');
+            debugPrint('║ 📦 Payload: ${message.data}');
+            debugPrint('╚══════════════════════════════════════════════════════════════════╝');
+            _onMessageController.add(message);
+          },
           onError: (e) {
-            debugPrint('FCM onMessage error: $e');
+            debugPrint('❌ [FCM PUSH ERROR] FCM onMessage error: $e');
             _onMessageController.addError(e);
           },
         );
       } catch (e) {
-        debugPrint('FCM onMessage listen exception: $e');
+        debugPrint('❌ [FCM PUSH EXCEPTION] FCM onMessage listen exception: $e');
       }
     }).catchError((e) {
       debugPrint('ensureInitialized error in onMessageStream: $e');
@@ -90,14 +101,23 @@ class PushNotificationService {
       _onMessageOpenedAppWired = true;
       try {
         _onMessageOpenedAppSubscription = FirebaseMessaging.onMessageOpenedApp.listen(
-          _onMessageOpenedAppController.add,
+          (message) {
+            final title = message.notification?.title ?? message.data['title'] ?? '(Không có tiêu đề)';
+            debugPrint('╔══════════════════════════════════════════════════════════════════╗');
+            debugPrint('║ 📲 [FCM TAP NOTIFICATION] NGƯỜI DÙNG NHẤN VÀO THÔNG BÁO          ║');
+            debugPrint('╠══════════════════════════════════════════════════════════════════╣');
+            debugPrint('║ 📌 Tiêu đề: $title');
+            debugPrint('║ 📦 Payload: ${message.data}');
+            debugPrint('╚══════════════════════════════════════════════════════════════════╝');
+            _onMessageOpenedAppController.add(message);
+          },
           onError: (e) {
-            debugPrint('FCM onMessageOpenedApp error: $e');
+            debugPrint('❌ [FCM PUSH ERROR] FCM onMessageOpenedApp error: $e');
             _onMessageOpenedAppController.addError(e);
           },
         );
       } catch (e) {
-        debugPrint('FCM onMessageOpenedApp listen exception: $e');
+        debugPrint('❌ [FCM PUSH EXCEPTION] FCM onMessageOpenedApp listen exception: $e');
       }
     }).catchError((e) {
       debugPrint('ensureInitialized error in onMessageOpenedAppStream: $e');
@@ -233,11 +253,16 @@ class PushNotificationService {
   }
 
   Future<void> unregisterCurrentDevice() async {
-    final storedToken = await _storage.read(key: _deviceTokenKey);
-    final token = storedToken ?? await _currentTokenIfAvailable();
-    if (token == null || token.isEmpty) return;
-    await _repository.unregisterDevice(deviceToken: token);
-    await _storage.delete(key: _deviceTokenKey);
+    try {
+      final storedToken = await _storage.read(key: _deviceTokenKey);
+      final token = storedToken ?? await _currentTokenIfAvailable();
+      if (token == null || token.isEmpty) return;
+      await _repository.unregisterDevice(deviceToken: token);
+      await _storage.delete(key: _deviceTokenKey);
+      debugPrint('📴 [FCM PUSH] Đã hủy đăng ký token thiết bị thành công.');
+    } catch (e) {
+      debugPrint('⚠️ [FCM PUSH UNREGISTER ERROR]: $e');
+    }
   }
 
   /// Releases FCM subscriptions. Called on logout so a listener
