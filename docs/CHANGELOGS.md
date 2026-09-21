@@ -2,6 +2,17 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.9+134] — 2026-09-21 (Tuân Thủ Chính Sách Quyền Ảnh & Video Google Play Cho Android)
+
+> [!IMPORTANT]
+> **Loại Bỏ Quyền Nhạy Cảm & Tương Thích Google Play Photo Picker**:
+> - **Phạm vi**: `vclients/android` (Android Native Manifest)
+> - **Chi tiết thay đổi**:
+>   1. **[COMPLIANCE - Google Play Policy] Gỡ Bỏ Quyền Đọc Ảnh & Video Nhạy Cảm**:
+>      - Cập nhật [`AndroidManifest.xml`](android/app/src/main/AndroidManifest.xml): Loại bỏ các quyền `READ_MEDIA_IMAGES`, `READ_MEDIA_VIDEO` và `READ_EXTERNAL_STORAGE` (maxSdkVersion=32).
+>      - Ứng dụng tuân thủ 100% chính sách mới của Google Play bằng cách sử dụng **Android System Photo Picker** (thông qua `image_picker` và `file_picker`), không yêu cầu quyền truy cập toàn bộ kho ảnh thiết bị.
+>      - Khắc phục triệt để lỗi upload Fastlane supply lên Google Play Console (`Google Api Error: Invalid request - All developers requesting access to the photo and video permissions are required to tell Google Play about the core functionality of their app`).
+
 ## [v2.9.9+133] — 2026-09-21 (Phân Định Cảnh Báo Quyền Truy Cập Portal User, Bảo Vệ Zero-Trust & Triệt Tiêu Lỗi Crashlytics Microtask)
 
 > [!IMPORTANT]
