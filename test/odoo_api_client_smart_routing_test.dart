@@ -87,7 +87,7 @@ void main() {
       expect(requestedUrls.first, startsWith('https://vuahethong.net'));
     });
 
-    test('TC-03: Network error on primary domain falls back to demo for short demo user', () async {
+    test('TC-03: Primary domain failure fails fast and does NOT probe demo server (Finding 1.2)', () async {
       final store = _MemorySessionStore();
       final requestedUrls = <String>[];
 
@@ -115,12 +115,14 @@ void main() {
         }),
       );
 
-      final session = await client.login(login: 'demo', password: 'demo');
+      // Theo Finding 1.2: Không phát tán credential sang demo khi login thất bại trên primary
+      await expectLater(
+        client.login(login: 'demo', password: 'demo'),
+        throwsA(anything),
+      );
 
-      expect(session.baseUrl, 'https://demo.vuahethong.com');
-      expect(session.uid, 5);
-      expect(requestedUrls.first, startsWith('https://vuahethong.net'));
-      expect(requestedUrls.any((u) => u.startsWith('https://demo.vuahethong.com')), isTrue);
+      expect(requestedUrls.every((u) => u.startsWith('https://vuahethong.net')), isTrue);
+      expect(requestedUrls.any((u) => u.startsWith('https://demo.vuahethong.com')), isFalse);
     });
 
     test('TC-04: Logout clears session and restores activeBaseUrl', () async {

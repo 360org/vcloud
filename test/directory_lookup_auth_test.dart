@@ -251,7 +251,7 @@ void main() {
         password: 'secret_password_123',
       );
 
-      expect(requests, hasLength(2));
+      expect(requests, hasLength(1));
       expect(session.uid, 42);
       expect(session.partnerId, 99);
       expect(session.db, 'client_db_1');

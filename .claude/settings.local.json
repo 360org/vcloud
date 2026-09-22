@@ -2,7 +2,8 @@
   "permissions": {
     "additionalDirectories": [
       "/Volumes/DATA/DEV/flutter",
-      "/Volumes/DATA/DEV/MOBILES/VCloud"
+      "/Volumes/DATA/DEV/MOBILES/VCloud",
+      "/media/tanma/DATA/aiac"
     ],
     "allow": [
       "Bash(git pull *)"
@@ -14,5 +15,6 @@
   ],
   "env": {
     "CLAUDE_CODE_MAX_CONTEXT_TOKENS": "200000"
-  }
+  },
+  "allowedWorkspace": "/media/tanma/DATA/save/mobile_versions/vclients"
 }
