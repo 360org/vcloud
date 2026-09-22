@@ -52,6 +52,7 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 >      - Cập nhật [`chat_v2_detail_screen.dart`](lib/features/chat_v2/presentation/screens/chat_v2_detail_screen.dart):
 >        - Bổ sung cơ chế fallback thành viên thông minh (`effectiveChannelMembers`): Trong cuộc trò chuyện 1-1, nếu danh sách `currentChannel.members` chưa kịp tải hoặc rỗng, hệ thống tự động sinh `ChatV2Member` từ thông tin đối tác trực tiếp (`partnerId`, `directPartnerId`, `displayTitle`, `resolvedAvatarUrl`).
 >        - Truyền `effectiveChannelMembers` vào `ChatV2InputBar` giúp người dùng gõ `@` luôn hiển thị ngay popup gợi ý thẻ xanh để tag tên người đối diện mà không bị phụ thuộc vào độ trễ mạng hay API.
+>        - [LIFECYCLE/MEMORY LEAK FIX]: Bổ sung giải phóng tài nguyên `_inputController.dispose()` và `_inputFocusNode.dispose()` trong `dispose()` của `ChatV2DetailScreen`, ngăn chặn triệt để rò rỉ RAM (Memory Leak) khi người dùng ra vào phòng chat liên tục gây giật lag app.
 >   3. **[TEST - Kiểm Thử Toàn Diện & Độc Lập]**:
 >      - Cú pháp Python: `python3 -m py_compile` cả 2 bản `v_mobile_17` và `v_mobile_19` pass 100%.
 >      - Static Analysis Flutter: `flutter analyze` đạt chuẩn tuyệt đối 0 errors / 0 warnings.
@@ -61,9 +62,16 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 
 ## [v2.9.9+136] — 2026-09-21 (Tự Động Hóa Tạo Version & Phát Hành App Store & Thêm Thành Viên Nhóm Chat)
 
----
-
-## [v2.9.9+136] — 2026-09-21 (Tự Động Hóa Tạo Version & Phát Hành App Store & Thêm Thành Viên Nhóm Chat)
+> [!IMPORTANT]
+> **Tự Động Hóa Triệt Để Vòng Đời Phát Hành iOS Lên App Store Connect (Zero-Manual Submission)**:
+> - **Phạm vi**: `vclients` (Fastlane & GitHub Actions CI/CD)
+> - **Chi tiết thay đổi**:
+>   1. **[CI/CD - Fastlane Deliver] Tích Hợp Tự Động Tạo Version & Gán Build Release**:
+>      - Cập nhật [`fastlane/Fastfile`](fastlane/Fastfile): Tích hợp action `deliver` (`upload_to_app_store`) kết hợp App Store Connect API Key (`PU7FLKDJNTF0`). Tự động phát hiện phiên bản từ `pubspec.yaml`, tự tạo Version mới trên App Store Connect nếu chưa tồn tại, đính kèm bản build TestFlight vừa hoàn tất, tự động sync Release Notes và cấu hình phát hành theo đợt (`phased_release: true`).
+>   2. **[WORKFLOW - GitHub Actions] Tinh Chỉnh Workflow Dispatch & Release Triggers**:
+>      - Cập nhật [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml): Thêm tham số điều khiển `auto_create_appstore` (mặc định: `true`) và `submit_for_review` (mặc định: `false`). Cho phép kiểm soát linh hoạt giữa đẩy bản dựng thử nghiệm TestFlight nội bộ hoặc tự động hóa tạo Version chuẩn bị phát hành trên App Store.
+>   3. **[DOCUMENTATION - Secret Guide] Lưu Trữ & Hướng Dẫn Cấu Hình Secrets**:
+>      - Cập nhật hướng dẫn cấu hình bộ Secrets `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_KEY_CONTENT` bảo mật cao, độc lập với hệ thống Push Notifications Firebase APNs.
 
 > [!IMPORTANT]
 > **Chuẩn Hóa & Hoàn Thiện Tính Năng Thêm Thành Viên Vào Nhóm Trò Chuyện (Chat Group Add Members)**:
