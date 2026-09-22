@@ -223,13 +223,25 @@ class AttendanceLocalReminderService {
         iOS: iosDetails,
       );
 
+      // Thêm cơ chế kiểm tra quyền và tự động fallback trong lập lịch báo thức chấm công
+      var scheduleMode = AndroidScheduleMode.exactAllowWhileIdle;
+      if (defaultTargetPlatform == TargetPlatform.android && !_isUnitTest) {
+        final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+        final canScheduleExact = await androidPlugin?.canScheduleExactNotifications();
+        if (canScheduleExact == false) {
+          scheduleMode = AndroidScheduleMode.inexactAllowWhileIdle;
+          debugPrint('[AttendanceReminder] Android exact alarm permission not granted. Falling back to inexactAllowWhileIdle.');
+        }
+      }
+
       await _plugin.zonedSchedule(
         id: kAttendanceCheckInReminderNotifId,
         title: '⏰ Sếp ơi, chưa Check-in chấm công!',
         body: 'Đã qua giờ vào ca làm việc rồi. Bấm vào đây để Check-in ngay nhé!',
         scheduledDate: scheduledDate,
         notificationDetails: notifDetails,
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        androidScheduleMode: scheduleMode,
         payload: 'checkin',
       );
 
@@ -286,13 +298,25 @@ class AttendanceLocalReminderService {
         iOS: iosDetails,
       );
 
+      // Thêm cơ chế kiểm tra quyền và tự động fallback trong lập lịch báo thức chấm công
+      var scheduleMode = AndroidScheduleMode.exactAllowWhileIdle;
+      if (defaultTargetPlatform == TargetPlatform.android && !_isUnitTest) {
+        final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+        final canScheduleExact = await androidPlugin?.canScheduleExactNotifications();
+        if (canScheduleExact == false) {
+          scheduleMode = AndroidScheduleMode.inexactAllowWhileIdle;
+          debugPrint('[AttendanceReminder] Android exact alarm permission not granted. Falling back to inexactAllowWhileIdle.');
+        }
+      }
+
       await _plugin.zonedSchedule(
         id: kAttendanceCheckOutReminderNotifId,
         title: '🏢 Hết giờ làm việc rồi Sếp ơi!',
         body: 'Đã hết ca làm việc. Đừng quên bấm Check-out trước khi về nhé!',
         scheduledDate: scheduledDate,
         notificationDetails: notifDetails,
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        androidScheduleMode: scheduleMode,
         payload: 'checkout',
       );
 
