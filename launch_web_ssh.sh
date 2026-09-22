@@ -41,8 +41,10 @@ if [[ -z "$INPUT_ARG" ]]; then
     echo "🚀 VCLOUD FLUTTER WEB — CONNECT LOCAL SERVER ($SERVER_HOST)"
     echo "=============================================================================="
     echo "👉 Chọn phiên bản Backend trên Server Local:"
-    echo "   [1] hoặc 17        ➔ Odoo 17.0 (API: http://$SERVER_HOST:8069, DB: demo-17)"
+    echo "   [1] hoặc 17        ➔ Odoo 17.0 Chuẩn (API: http://$SERVER_HOST:8069, DB: demo-17)"
+    echo "   [1-2] hoặc 17-2    ➔ Odoo 17.0 Tenant 2 (Trùng tài khoản) (DB: demo-17-tenant2)"
     echo "   [2] hoặc 19        ➔ Odoo 19.0 Test chuẩn (API: http://$SERVER_HOST:1900, DB: vcloud_test_v19)"
+    echo "   [2-2] hoặc 19-2    ➔ Odoo 19.0 Tenant 2 (Trùng tài khoản) (DB: vcloud_test_v19_tenant2)"
     echo "   [3] hoặc davita    ➔ Odoo 19.0 Davita (API: http://$SERVER_HOST:1900, DB: davita_v19)"
     echo "   [4] hoặc 18        ➔ Odoo 18.0 (API: http://$SERVER_HOST:1800, DB: odoo_18)"
     echo "   [0] hoặc q         ➔ Thoát"
@@ -61,12 +63,26 @@ case "$CHOICE" in
         WEB_PORT="${PORT:-8088}"
         CHROME_PROFILE="/tmp/flutter_chrome_ssh_17"
         ;;
+    1-2|"17-2"|"17_tenant2"|"demo-17-tenant2")
+        ODOO_VERSION="17.0 (Tenant 2)"
+        API_PORT="8069"
+        DB_NAME="demo-17-tenant2"
+        WEB_PORT="${PORT:-8088}"
+        CHROME_PROFILE="/tmp/flutter_chrome_ssh_17_tenant2"
+        ;;
     2|19|"19.0"|vcloud|"vcloud_test_v19")
         ODOO_VERSION="19.0"
         API_PORT="1900"
         DB_NAME="vcloud_test_v19"
         WEB_PORT="${PORT:-8089}"
         CHROME_PROFILE="/tmp/flutter_chrome_ssh_19"
+        ;;
+    2-2|"19-2"|"19_tenant2"|"vcloud_test_v19_tenant2")
+        ODOO_VERSION="19.0 (Tenant 2)"
+        API_PORT="1900"
+        DB_NAME="vcloud_test_v19_tenant2"
+        WEB_PORT="${PORT:-8089}"
+        CHROME_PROFILE="/tmp/flutter_chrome_ssh_19_tenant2"
         ;;
     3|davita|"davita_v19")
         ODOO_VERSION="19.0"

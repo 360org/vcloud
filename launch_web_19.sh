@@ -20,7 +20,15 @@ set -Eeuo pipefail
 
 export PATH="$HOME/flutter/bin:$PATH:/usr/local/bin"
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Định vị thư mục vclients chính xác dù gọi trực tiếp hay qua symlink
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+    DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+    SOURCE="$(readlink "$SOURCE")"
+    [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+cd "$SCRIPT_DIR"
 MOBILE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 ODOO_VERSION="19.0"

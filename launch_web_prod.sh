@@ -29,10 +29,16 @@ set -Eeuo pipefail
 export PATH="$PATH:$HOME/flutter/bin:/usr/local/bin"
 
 # ------------------------------------------------------------------------------
-# 0. Resolve project directory
+# 0. Resolve project directory (chuẩn hóa dù gọi trực tiếp hay qua symlink)
 # ------------------------------------------------------------------------------
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+    DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+    SOURCE="$(readlink "$SOURCE")"
+    [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
 cd "$SCRIPT_DIR"
 
 # ------------------------------------------------------------------------------

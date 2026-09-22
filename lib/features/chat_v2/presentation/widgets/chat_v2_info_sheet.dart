@@ -12,6 +12,7 @@ import '../../../../core/utils/local_attachment_cache.dart';
 import '../../../../core/utils/magic_bytes_validator.dart';
 import '../../../../shared/models/profile.dart';
 import '../../../../shared/widgets/app_scaffold.dart';
+import '../../../../shared/widgets/app_toast.dart';
 import '../../../../shared/widgets/loading_view.dart';
 import '../../../chat/application/conversations_controller.dart';
 import '../../application/chat_v2_channels_controller.dart';
@@ -301,17 +302,21 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
     setState(() {
       _isMuted = ChatV2ChannelLocalCache.isUserMuted(widget.channel.id);
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          _isMuted
-              ? 'Đã tắt thông báo cuộc trò chuyện'
-              : 'Đã bật thông báo cuộc trò chuyện',
-        ),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    if (mounted) {
+      if (_isMuted) {
+        AppToast.warning(
+          context,
+          title: 'Đã tắt thông báo',
+          message: 'Bạn sẽ không nhận được thông báo từ cuộc trò chuyện này.',
+        );
+      } else {
+        AppToast.success(
+          context,
+          title: 'Đã bật thông báo',
+          message: 'Bạn sẽ nhận được thông báo khi có tin nhắn mới.',
+        );
+      }
+    }
   }
 
   void _togglePin() {
@@ -320,30 +325,34 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
     setState(() {
       _isPinned = !_isPinned;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          _isPinned
-              ? 'Đã ghim cuộc trò chuyện lên đầu'
-              : 'Đã bỏ ghim cuộc trò chuyện',
-        ),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    if (mounted) {
+      if (_isPinned) {
+        AppToast.success(
+          context,
+          title: 'Đã ghim trò chuyện',
+          message: 'Cuộc trò chuyện đã được ghim lên đầu danh sách.',
+        );
+      } else {
+        AppToast.info(
+          context,
+          title: 'Đã bỏ ghim trò chuyện',
+          message: 'Cuộc trò chuyện đã được bỏ ghim.',
+        );
+      }
+    }
   }
 
   void _copyChannelLink() {
     HapticFeedback.lightImpact();
     final link = 'https://vuahethong.net/chat/${widget.channel.id}';
     Clipboard.setData(ClipboardData(text: link));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Đã sao chép liên kết cuộc trò chuyện'),
-        duration: Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    if (mounted) {
+      AppToast.success(
+        context,
+        title: 'Đã sao chép liên kết',
+        message: 'Liên kết cuộc trò chuyện đã được sao chép vào bộ nhớ tạm.',
+      );
+    }
   }
 
   void _openMediaHub() {
@@ -404,13 +413,10 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
 
       if (mounted) {
         ref.invalidate(chatV2ChannelsProvider);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đã rời khỏi nhóm trò chuyện thành công'),
-            backgroundColor: Color(0xFF00C83A),
-            duration: Duration(seconds: 2),
-            behavior: SnackBarBehavior.floating,
-          ),
+        AppToast.success(
+          context,
+          title: 'Đã rời nhóm',
+          message: 'Bạn đã rời khỏi nhóm trò chuyện thành công.',
         );
         // Pop info sheet & navigate back to chat list
         Navigator.of(context).pop();
@@ -418,13 +424,10 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Không thể rời nhóm: $e'),
-            backgroundColor: const Color(0xFFEF4444),
-            duration: const Duration(seconds: 3),
-            behavior: SnackBarBehavior.floating,
-          ),
+        AppToast.error(
+          context,
+          title: 'Không thể rời nhóm',
+          message: '$e',
         );
       }
     } finally {
@@ -446,13 +449,10 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
           await _loadRemoteMembers();
           ref.invalidate(chatV2ChannelsProvider);
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Đã thêm thành viên vào nhóm thành công'),
-                backgroundColor: Color(0xFF00C83A),
-                duration: Duration(seconds: 2),
-                behavior: SnackBarBehavior.floating,
-              ),
+            AppToast.success(
+              context,
+              title: 'Thành công',
+              message: 'Đã thêm thành viên vào nhóm trò chuyện.',
             );
           }
         },
@@ -1697,11 +1697,10 @@ class _AddGroupMemberBottomSheetState
         .toList();
 
     if (targetPartnerIds.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng chọn ít nhất một thành viên hợp lệ.'),
-          behavior: SnackBarBehavior.floating,
-        ),
+      AppToast.warning(
+        context,
+        title: 'Chưa chọn thành viên',
+        message: 'Vui lòng chọn ít nhất một thành viên hợp lệ để thêm.',
       );
       return;
     }
@@ -1722,12 +1721,10 @@ class _AddGroupMemberBottomSheetState
     } catch (e) {
       if (mounted) {
         setState(() => _submitting = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Không thể thêm thành viên: $e'),
-            backgroundColor: const Color(0xFFEF4444),
-            behavior: SnackBarBehavior.floating,
-          ),
+        AppToast.error(
+          context,
+          title: 'Không thể thêm thành viên',
+          message: '$e',
         );
       }
     }

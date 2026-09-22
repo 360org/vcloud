@@ -376,11 +376,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           separatorBuilder: (context, index) => const SizedBox(height: 10),
                           itemBuilder: (context, index) {
                             final item = dbs[index];
-                            final isClient = item.categoryLabel.contains('Khách Hàng');
-                            final primaryColor = isClient
-                                ? const Color(0xFF2563EB)
-                                : const Color(0xFF059669);
-
+                            const primaryColor = Color(0xFF0077CD);
                             final lightBgColor = primaryColor.withValues(alpha: 0.08);
 
                             return Material(
@@ -411,8 +407,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                           color: lightBgColor,
                                           borderRadius: BorderRadius.circular(12),
                                         ),
-                                        child: Icon(
-                                          isClient ? LucideIcons.building2 : LucideIcons.database,
+                                        child: const Icon(
+                                          LucideIcons.building2,
                                           color: primaryColor,
                                           size: 22,
                                         ),
@@ -434,29 +430,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                                       letterSpacing: -0.2,
                                                     ),
                                                     overflow: TextOverflow.ellipsis,
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 8),
-                                                Container(
-                                                  padding: const EdgeInsets.symmetric(
-                                                    horizontal: 8,
-                                                    vertical: 2.5,
-                                                  ),
-                                                  decoration: BoxDecoration(
-                                                    color: primaryColor.withValues(alpha: 0.1),
-                                                    borderRadius: BorderRadius.circular(6),
-                                                    border: Border.all(
-                                                      color: primaryColor.withValues(alpha: 0.2),
-                                                      width: 0.8,
-                                                    ),
-                                                  ),
-                                                  child: Text(
-                                                    item.categoryLabel,
-                                                    style: TextStyle(
-                                                      fontSize: 10.5,
-                                                      fontWeight: FontWeight.w700,
-                                                      color: primaryColor,
-                                                    ),
                                                   ),
                                                 ),
                                                 if (!item.hasVMobile) ...[
