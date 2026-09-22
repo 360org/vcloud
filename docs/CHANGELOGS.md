@@ -153,6 +153,20 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 >      - `flutter analyze` đạt chuẩn 0 errors / 0 warnings.
 >      - 115/115 tests tính năng chat v2 passed 100%.
 
+## [v2.9.9+135] — 2026-09-21 (Full Security & Audit Fixes Triệt Để 9 Vấn Đề)
+
+> [!IMPORTANT]
+> **Khắc Phục Toàn Diện 9 Vấn Đề Bảo Mật & Kỹ Thuật Theo Báo Cáo Audit**:
+> - **Phạm vi**: `vclients` (Flutter Mobile & Web)
+> - **Chi tiết thay đổi**:
+>   - [FIX] Triệt để loại bỏ tham số `password` khỏi chữ ký hàm và request body của `lookupDb` trên toàn hệ thống (từ UI, Riverpod Controller, Repository cho đến OdooApiClient), bảo vệ tuyệt mật thông tin xác thực trên Master Hub (Finding 1.1).
+>   - [FIX] Khử hoàn toàn luồng đăng nhập legacy probing đồng thời (parallel authentication) giữa domain production và máy chủ Demo, bảo vệ credential không bị rò rỉ (Finding 1.2).
+>   - [FIX] Bảo mật tệp tin in log: Lọc bỏ log in toàn bộ header chứa bearer token và preview body thô có thể chứa session token / JWT trong `OdooApiClient.fetchBytes()` (Finding 1.4).
+>   - [IMPROVE] Nâng cấp cơ chế Silent Refresh Mutex trong `OdooApiClient` bằng `Completer<bool>` dùng chung thay thế cho vòng lặp chờ `delay(500ms)` trước đây, giải quyết triệt để lỗi race-conditions và loại bỏ nguy cơ người dùng bị văng ra màn hình đăng nhập (Finding 2.4).
+>   - [IMPROVE] Thêm cơ chế tự động kiểm tra quyền exact alarm `canScheduleExactNotifications()` trên Android trước khi lên lịch `exactAllowWhileIdle`, tự động fallback mượt mà sang `inexactAllowWhileIdle` nếu không được cấp quyền (Finding 2.1).
+>   - [IMPROVE] Đồng bộ bọc `unawaited()` cho lệnh gọi đồng bộ nhắc nhở chấm công trong Riverpod provider `attendanceReminderSyncProvider` tại `attendance_controller.dart` (Finding 2.3).
+>   - [NEW] Bổ sung regression unit tests `test/security_regression_test.dart` kiểm chứng tự động: test lookupDb không chứa mật khẩu và dọn dẹp cache file attachment cục bộ (Finding 3.2).
+
 ---
 
 ## [v2.9.9+132] — 2026-09-20 (Trải Nghiệm Hiệu Ứng Xem Ảnh Chat Chuẩn Messenger / Zalo / Telegram)
@@ -849,16 +863,11 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 
 > [!IMPORTANT]
 > **Nhánh làm việc chung cho phiên bản v2.5.0+81 (Dành cho các AI Agent khác / Claude Code / Codex tiếp quản)**:
-> - **Frontend (`vclients`)**: Nhánh `fix/app-build81-stabilization`
+> - **Frontend (`vclients`)**: Nhánh `fix/app-build81-stabilization`; chạy lệnh từ thư mục gốc của repository Flutter.
 >   ```bash
->   cd /media/tanma/DATA/save/mobile/vclients
 >   git fetch origin && git checkout fix/app-build81-stabilization && git pull origin fix/app-build81-stabilization
 >   ```
-> - **Backend (`v_mobile`)**: Nhánh `fix/app-build81-stabilization`
->   ```bash
->   cd /media/tanma/DATA/save/mobile/v_mobile
->   git fetch origin && git checkout fix/app-build81-stabilization && git pull origin fix/app-build81-stabilization
->   ```
+> - **Backend (`v_mobile`)**: Nhánh `fix/app-build81-stabilization`; thực hiện tại repository backend tương ứng.
 >
 > **📢 Hướng Dẫn Kỹ Thuật & Cảnh Báo Khi Review & Deploy**:
 > 1. Tính năng Voice Call (Task #16455) đã hoàn thiện cả Frontend và Backend (In-App Voice Call MVP).
@@ -955,16 +964,11 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 
 > [!IMPORTANT]
 > **Nhánh làm việc chung cho phiên bản v2.5.0+80 (Dành cho các AI Agent khác / Claude Code / Codex tiếp quản)**:
-> - **Frontend (`vclients`)**: Nhánh `fix/app-build80-stabilization`
+> - **Frontend (`vclients`)**: Nhánh `fix/app-build80-stabilization`; chạy lệnh từ thư mục gốc của repository Flutter.
 >   ```bash
->   cd /media/tanma/DATA/save/mobile/vclients
 >   git fetch origin && git checkout fix/app-build80-stabilization && git pull origin fix/app-build80-stabilization
 >   ```
-> - **Backend (`v_mobile`)**: Nhánh `fix/app-build80-stabilization`
->   ```bash
->   cd /media/tanma/DATA/save/mobile/v_mobile
->   git fetch origin && git checkout fix/app-build80-stabilization && git pull origin fix/app-build80-stabilization
->   ```
+> - **Backend (`v_mobile`)**: Nhánh `fix/app-build80-stabilization`; thực hiện tại repository backend tương ứng.
 >
 > **📢 Hướng Dẫn Kỹ Thuật & Cảnh Báo Khi Review & Deploy Trên Nhánh `17.0` & `release/ios-appstore`**:
 > 1. **Quy Trình Merge & Deploy**: Sau khi **anh Tân** kiểm tra và merge nhánh `fix/app-build80-stabilization` vào **`17.0`** (Backend Odoo `v_mobile`) và **`release/ios-appstore`** (Frontend Mobile `vclients`), **Claude Code / Sếp** sẽ checkout và thực hiện deploy trực tiếp trên nhánh `17.0` (Odoo SaaS Upgrade) và `release/ios-appstore` (GitHub Actions CI/CD).
@@ -1036,7 +1040,7 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
   - Tối ưu hóa chu trình Warm-up tại `SplashScreen`: Đọc nhanh Token từ `Secure Storage` và nạp trước dữ liệu quan trọng trong vòng **300ms – 800ms**.
   - Kết hợp với kiến trúc **SWR RAM Cache** tại các widget Home/Chat, giúp hiển thị ngay dữ liệu trong **16ms** mà không gây hiện tượng tải chồng chéo.
 - **Chuẩn Hóa Script Chạy Local `launch_web.sh` (Direct Local Backend Sync)**:
-  - Bỏ lệnh `git pull origin 17.0` từ xa, đảm bảo giữ nguyên 100% mã nguồn Backend đang chỉnh sửa tại máy local (`/media/tanma/DATA/save/mobile/v_mobile`).
+  - Bỏ lệnh `git pull origin 17.0` từ xa, đảm bảo giữ nguyên 100% mã nguồn Backend đang chỉnh sửa tại repository local.
   - Tự động gọi lệnh nâng cấp (`button_immediate_upgrade()`) cho module `mobile_api` vào Odoo Docker local (`demo-17`), giúp mọi thay đổi code Backend có hiệu lực ngay lập tức.
 
 ### 🎨 [UI/UX] Đồng Bộ Giao Diện Boot Loader Web & Modal Sheet "Có Gì Mới" Build 80
@@ -1045,7 +1049,7 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
   - Thiết lập cơ chế tự động hiển thị Sheet khi mở app (`targetBuild: 80`) tại cả màn hình Home và Chat List ngay sau khi đăng nhập.
   - Đồng bộ mục cài đặt "Có gì mới trong v2.5.0 (Build 80)" trên `ProfileScreen` và thông tin phiên bản tại `AboutScreen`.
 - **Khắc phục lỗi ảnh logo World360 bị cắt góc**:
-  - Đồng bộ file ảnh logo chuẩn gốc [`web/brand_logo.png`](file:///media/tanma/DATA/save/mobile/vclients/web/brand_logo.png).
+  - Đồng bộ file ảnh logo chuẩn gốc `web/brand_logo.png`.
   - Chuẩn hóa màn hình HTML Boot Loader giống hệt 100% màn hình Splash của Flutter: Logo `world360 Vua hệ thống` sắc nét, badge thương hiệu, quả cầu xoay 3D Orbit Loader phát sáng và chân trang `WORLD360 CORP • V2.5.0`.
 
 ### 🟢 [QUALITY & TESTS]
@@ -1058,21 +1062,16 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 
 > [!IMPORTANT]
 > **Nhánh làm việc chung cho phiên bản v2.5.0+79 (Dành cho các AI Agent khác / Claude Code / Codex tiếp quản)**:
-> - **Frontend (`vclients`)**: Nhánh `fix/app-chat-stabilization`
+> - **Frontend (`vclients`)**: Nhánh `fix/app-chat-stabilization`; chạy lệnh từ thư mục gốc của repository Flutter.
 >   ```bash
->   cd /media/tanma/DATA/save/mobile/vclients
 >   git fetch origin && git checkout fix/app-chat-stabilization && git pull origin fix/app-chat-stabilization
 >   ```
-> - **Backend (`v_mobile`)**: Nhánh `fix/app-chat-stabilization`
->   ```bash
->   cd /media/tanma/DATA/save/mobile/v_mobile
->   git fetch origin && git checkout fix/app-chat-stabilization && git pull origin fix/app-chat-stabilization
->   ```
+> - **Backend (`v_mobile`)**: Nhánh `fix/app-chat-stabilization`; thực hiện tại repository backend tương ứng.
 >
 > **📢 Hướng Dẫn Kỹ Thuật & Cảnh Báo Khi Review & Deploy Trên Nhánh `17.0` & `release/ios-appstore`**:
 > 1. **Quy Trình Merge & Deploy**: Sau khi **anh Tân** kiểm tra và merge nhánh `fix/app-chat-stabilization` vào **`17.0`** (Backend Odoo `v_mobile`) và **`release/ios-appstore`** (Frontend Mobile `vclients`), **Claude Code / Sếp** sẽ checkout và thực hiện deploy trực tiếp trên nhánh `17.0` (Odoo SaaS Upgrade) và `release/ios-appstore` (GitHub Actions CI/CD).
 > 2. **CẢNH BÁO: Không Thay Đổi Logic Code Đã Kiểm Toán**: Nếu Claude Code tự ý thay đổi logic code trên nhánh `17.0` / `release/ios-appstore`, toàn bộ hệ thống test suite (**207 tests**) trên máy anh Tân sẽ bị **FAIL (LỖI ĐỎ)**, dẫn đến luồng **GitHub Actions CI/CD bị chặn hoàn toàn (Build Failed)** và **KHÔNG THỂ DEPLOY ĐƯỢC**. Bắt buộc bảo toàn nguyên vẹn 100% logic đã audit (*Local Cache First < 1.2ms, Batch SQL Prefetch O(1), GPS Location Card, Nạp 80 kênh + Pagination 35 messages Telegram-style, và `mounted` checks*).
-> 3. **Góp Ý Qua Audit & Changelog**: Mọi thay đổi hoặc góp ý cần cập nhật minh bạch vào [`docs/AUDIT_REPORT.md`](file:///media/tanma/DATA/save/mobile/docs/AUDIT_REPORT.md) và [`docs/CHANGELOGS.md`](file:///media/tanma/DATA/save/mobile/docs/CHANGELOGS.md).
+> 3. **Góp Ý Qua Audit & Changelog**: Mọi thay đổi hoặc góp ý cần cập nhật minh bạch vào `docs/AUDIT_REPORT.md` và `docs/CHANGELOGS.md`.
 
 ### ⚡ [PERF] Tối Ưu Hóa Hiệu Năng Toàn Diện Mobile & Backend (60fps Chat & Batch Prefetch)
 - **Tối Ưu Hóa Tải Kênh Chat (Initial Batch Size: 80 Kênh & Lazy Load Infinite Scroll)**:

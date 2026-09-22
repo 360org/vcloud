@@ -244,82 +244,18 @@ class OdooApiClient {
       return session;
     }
 
-    // Gửi đồng thời kiểm tra cả 2 domain (Parallel Multi-Domain Check)
-    OdooSession? primarySession;
-    Object? primaryErr;
-    OdooSession? demoSession;
-    Object? demoErr;
-
-    await Future.wait([
-      _tryFullLoginAt(
-        targetBaseUrl: primaryBaseUrl,
-        login: trimmedLogin,
-        password: password,
-        timeout: const Duration(seconds: 12),
-      ).then<void>(
-        (s) => primarySession = s,
-        onError: (e) => primaryErr = e,
-      ),
-      _tryFullLoginAt(
-        targetBaseUrl: demoBaseUrl,
-        login: trimmedLogin,
-        password: password,
-        targetDb: 'demo',
-        timeout: const Duration(seconds: 8),
-      ).then<void>(
-        (s) => demoSession = s,
-        onError: (e) => demoErr = e,
-      ),
-    ]);
-
-    // Trường hợp 1: CẢ 2 DOMAIN ĐỀU ĐĂNG NHẬP ĐƯỢC (Trùng tài khoản & mật khẩu)
-    if (primarySession != null && demoSession != null) {
-      final tenants = [
-        TenantChoice(
-          tenantId: 1,
-          name: 'Vua Hệ Thống (Chính thức)',
-          db: primarySession!.db,
-          baseUrl: primaryBaseUrl,
-        ),
-        const TenantChoice(
-          tenantId: 9999,
-          name: 'Trung tâm Trải nghiệm & Demo',
-          db: 'demo',
-          baseUrl: demoBaseUrl,
-        ),
-      ];
-      throw MultipleTenantsFailure(tenants);
-    }
-
-    // Trường hợp 2: Chỉ thành công ở Primary (vuahethong.net)
-    if (primarySession != null) {
-      _session = primarySession;
-      await _sessionStore.write(primarySession!);
-      return primarySession!;
-    }
-
-    // Trường hợp 3: Chỉ thành công ở Demo (demo.vuahethong.com)
-    if (demoSession != null) {
-      _session = demoSession;
-      await _sessionStore.write(demoSession!);
-      return demoSession!;
-    }
-
-    // Trường hợp 4: Cả 2 đều thất bại
-    if (primaryErr is MultipleTenantsFailure) {
-      throw primaryErr!;
-    }
-    if (primaryErr is TenantNotFoundFailure) {
-      throw primaryErr!;
-    }
-    if (primaryErr != null) {
-      throw primaryErr!;
-    }
-    if (demoErr != null) {
-      throw demoErr!;
-    }
-
-    throw Failure('Tài khoản hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại!');
+    // Không phát tán credential sang Demo: login legacy chỉ xác thực trên domain
+    // primary. Luồng giao diện dùng lookupDb() rồi authenticateOnClient() để chọn
+    // tenant trước khi password được gửi đi.
+    final session = await _tryFullLoginAt(
+      targetBaseUrl: primaryBaseUrl,
+      login: trimmedLogin,
+      password: password,
+      timeout: const Duration(seconds: 12),
+    );
+    _session = session;
+    await _sessionStore.write(session);
+    return session;
   }
 
   Future<OdooSession> _tryFullLoginAt({
@@ -398,7 +334,6 @@ class OdooApiClient {
   /// ⚠️ TUYỆT ĐỐI KHÔNG BẮT GỬI PASSWORD LÊN MASTER!
   Future<List<Map<String, dynamic>>> lookupDb(
     String login, {
-    String? password,
     String? preferredDb,
   }) async {
     final trimmedLogin = login.trim();
@@ -433,8 +368,6 @@ class OdooApiClient {
       },
       body: jsonEncode({
         'login': trimmedLogin,
-        if (password != null && password.isNotEmpty)
-          'password': password,
         if (preferredDb != null && preferredDb.trim().isNotEmpty)
           'preferred_db': preferredDb.trim(),
       }),
@@ -1004,17 +937,8 @@ class OdooApiClient {
         debugPrint(
           'Content-Type Header: ${response.headers['content-type'] ?? "unknown"}',
         );
-        debugPrint('All Headers: ${response.headers}');
-
-        try {
-          final bodyStr = response.body;
-          final bodyPreview = bodyStr.length > 500
-              ? '${bodyStr.substring(0, 500)}...'
-              : bodyStr;
-          debugPrint('Body Preview (Text): $bodyPreview');
-        } catch (e) {
-          debugPrint('Failed to read response body as text: $e');
-        }
+        // Bảo mật tệp tin in log: Chỉ in độ dài header, ẩn Authorization/X-Odoo-Database / body preview có thể chứa session token / JWT
+        debugPrint('Headers Count: ${response.headers.length}');
 
         debugPrint('Raw BodyBytes Length: ${response.bodyBytes.length}');
         debugPrint('==================================================');
@@ -1180,28 +1104,35 @@ class OdooApiClient {
   }
 
   /// Cố gắng refresh token silent. Trả về `true` nếu refresh thành công.
-  bool _isRefreshing = false;
+  Completer<bool>? _refreshCompleter;
 
   Future<bool> _tryRefreshSession() async {
-    // Nếu đang có request khác refresh rồi thì đợi nó.
-    if (_isRefreshing) {
-      // Đơn giản: đợi rồi kiểm tra session mới hơn không.
-      await Future<void>.delayed(const Duration(milliseconds: 500));
-      return _session != null && !(_session?.isExpired ?? true);
+    // Nếu đang có request khác refresh rồi thì đợi nó qua Completer chung
+    if (_refreshCompleter != null) {
+      return _refreshCompleter!.future;
     }
-    _isRefreshing = true;
+
+    final completer = Completer<bool>();
+    _refreshCompleter = completer;
+
     try {
       final hasRefreshToken = _session?.refreshToken != null &&
           _session!.refreshToken!.isNotEmpty;
-      if (!hasRefreshToken) return false;
+      if (!hasRefreshToken) {
+        completer.complete(false);
+        return false;
+      }
 
       final refreshed = await refreshSession();
-      return refreshed != null;
+      final success = refreshed != null;
+      completer.complete(success);
+      return success;
     } catch (e) {
       debugPrint('[AuthController] Silent refresh failed: $e');
+      completer.complete(false);
       return false;
     } finally {
-      _isRefreshing = false;
+      _refreshCompleter = null;
     }
   }
 

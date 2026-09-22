@@ -151,7 +151,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       // Không gửi preferred_db lên Master để luôn lấy trọn vẹn danh sách các tổ chức liên kết
       final rawDbs = await ref
           .read(authControllerProvider.notifier)
-          .lookupDb(login, password: password);
+          .lookupDb(login);
 
       // Khử trùng lặp (Deduplicate) theo cặp (databaseName, databaseUrl)
       // Phòng thủ khi backend trả về nhiều dòng do user thuộc nhiều project

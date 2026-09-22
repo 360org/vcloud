@@ -53,13 +53,11 @@ class AuthController extends AsyncNotifier<AuthUser?> {
   /// [Bước 2 Theo Kiến Trúc Chuẩn Của Sếp Tân]
   /// Tra cứu danh sách DB từ Master Router chỉ với login.
   /// ⚠️ TUYỆT ĐỐI KHÔNG BẮT GỬI PASSWORD LÊN MASTER!
-  /// Bước 2: Xác thực và tra cứu danh sách DB từ Master Router.
   Future<List<DbInfo>> lookupDb(
     String login, {
-    String? password,
     String? preferredDb,
   }) {
-    return _repo.lookupDb(login, password: password, preferredDb: preferredDb);
+    return _repo.lookupDb(login, preferredDb: preferredDb);
   }
 
   /// Lấy database đã đăng nhập thành công gần nhất từ LocalStorage
