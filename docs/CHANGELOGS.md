@@ -157,15 +157,15 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 
 ---
 
-## [v2.9.6+129] — 2026-09-14 (Zero-Knowledge Master DB Lookup & Automation Authentication)
+## [v2.9.6+129] — 2026-09-14 (Service Directory Master DB Lookup & Client-to-Tenant Auth)
 
 > [!IMPORTANT]
-> **Đồng bộ Định tuyến Xác thực Master Hub Không Cần Cấu hình (Zero-Settings / Zero-Knowledge DB Lookup)**:
+> **Đồng bộ Định tuyến Xác thực Master Hub Không Cần Cấu hình (Service Directory DB Lookup & Client-to-Tenant Auth)**:
 > - **Phạm vi**: `vclients` (Flutter Mobile & Web)
 > - **Chi tiết thay đổi**:
->   1. **[SECURITY/AUTH] Zero-Knowledge Master DB Lookup**: Cập nhật `OdooApiClient.lookupDb` và `LoginScreen` truyền tham số `password` lên `POST /api/v1/auth/lookup-db`.
->   2. **[FIX] Khắc phục lỗi 400 missing_password**: Đảm bảo Master Hub xác thực hai chiều trực tiếp với Tenant Backend, ngăn chặn rò rỉ danh bạ (anti-enumeration) và tự động trả về tenant database chuẩn xác cho cả tài khoản Internal lẫn Portal.
->   3. **[IMPROVE] Trải nghiệm Đăng nhập Tự động**: Loại bỏ hoàn toàn yêu cầu nhập hoặc chọn Database thủ công, hỗ trợ người dùng đăng nhập tức thì sau khi tài khoản được tạo trên cơ sở dữ liệu khách hàng.
+>   1. **[ARCHITECTURE/AUTH] Decoupled Service Directory Lookup**: Chuẩn hóa luồng đăng nhập: Master Hub (`vuahethong.net`) đóng vai trò Service Directory tra cứu danh bạ (`POST /api/v1/auth/lookup-db`), chỉ nhận `login` và phản hồi tức thì metadata URL/DB.
+>   2. **[PERFORMANCE/STABILITY] Triệt tiêu 504 Gateway Timeout**: Bỏ cơ chế Master Hub proxy xác thực mật khẩu tuần tự sang các tenant; giao quyền xác thực trực tiếp (Client-to-Tenant) cho Flutter App, bảo vệ Odoo worker pool trên Master.
+>   3. **[IMPROVE] Trải nghiệm Đăng nhập Tự động**: Tự động đăng nhập 1 chạm nếu chỉ có 1 DB hợp lệ, hoặc bật Popup Clean & Flat chọn tổ chức khi tài khoản có trên nhiều đơn vị.
 
 ---
 

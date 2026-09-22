@@ -4,13 +4,13 @@
 # 🚀 VCLOUD FLUTTER WEB — LOCAL SERVER SSH LAUNCHER
 # ==============================================================================
 #
-# Kết nối Flutter Web tới Odoo Backend đang chạy trên Local Server (192.168.1.100)
+# Kết nối Flutter Web tới Odoo Backend trên Local Server (192.168.1.100).
+# Mặc định chạy thẳng chế độ Đa Database (tự động hiện popup chọn 4 DB khi đăng nhập).
 #
 # Cách dùng:
-#   ./launch_web_ssh.sh          -> Mặc định kết nối Odoo 17 (:8069)
-#   ./launch_web_ssh.sh 17       -> Kết nối Odoo 17 (:8069)
-#   ./launch_web_ssh.sh 19       -> Kết nối Odoo 19 (:1900)
-#   ./launch_web_ssh.sh 18       -> Kết nối Odoo 18 (:1800)
+#   ./launch_web_ssh.sh          -> Chạy ngay lập tức 1-click (Zero-Interaction)
+#   ./launch_web_ssh.sh 17       -> (Tùy chọn) Khóa cứng vào Odoo 17 (:8069, demo-17)
+#   ./launch_web_ssh.sh 19       -> (Tùy chọn) Khóa cứng vào Odoo 19 (:1900, vcloud_test_v19)
 #
 # ==============================================================================
 
@@ -31,84 +31,61 @@ SERVER_HOST="${SERVER_HOST:-192.168.1.100}"
 SSH_ALIAS="${SSH_ALIAS:-local}"
 
 # ------------------------------------------------------------------------------
-# 1. Chọn phiên bản Odoo Backend trên Server
+# 1. Cấu hình Backend: Mặc định chạy thẳng Multi-Database (Zero-Prompt)
 # ------------------------------------------------------------------------------
 
 INPUT_ARG="${1:-}"
 
-if [[ -z "$INPUT_ARG" ]]; then
-    echo "=============================================================================="
-    echo "🚀 VCLOUD FLUTTER WEB — CONNECT LOCAL SERVER ($SERVER_HOST)"
-    echo "=============================================================================="
-    echo "👉 Chọn phiên bản Backend trên Server Local:"
-    echo "   [1] hoặc 17        ➔ Odoo 17.0 Chuẩn (API: http://$SERVER_HOST:8069, DB: demo-17)"
-    echo "   [1-2] hoặc 17-2    ➔ Odoo 17.0 Tenant 2 (Trùng tài khoản) (DB: demo-17-tenant2)"
-    echo "   [2] hoặc 19        ➔ Odoo 19.0 Test chuẩn (API: http://$SERVER_HOST:1900, DB: vcloud_test_v19)"
-    echo "   [2-2] hoặc 19-2    ➔ Odoo 19.0 Tenant 2 (Trùng tài khoản) (DB: vcloud_test_v19_tenant2)"
-    echo "   [3] hoặc davita    ➔ Odoo 19.0 Davita (API: http://$SERVER_HOST:1900, DB: davita_v19)"
-    echo "   [4] hoặc 18        ➔ Odoo 18.0 (API: http://$SERVER_HOST:1800, DB: odoo_18)"
-    echo "   [0] hoặc q         ➔ Thoát"
-    echo "------------------------------------------------------------------------------"
-    read -r -p "Nhập lựa chọn của Sếp [Mặc định: 19]: " CHOICE
-    CHOICE="${CHOICE:-19}"
-else
-    CHOICE="$INPUT_ARG"
-fi
-
-case "$CHOICE" in
+case "$INPUT_ARG" in
     1|17|"17.0")
-        ODOO_VERSION="17.0"
+        ODOO_VERSION="17.0 Cố Định"
         API_PORT="8069"
         DB_NAME="demo-17"
         WEB_PORT="${PORT:-8088}"
         CHROME_PROFILE="/tmp/flutter_chrome_ssh_17"
         ;;
     1-2|"17-2"|"17_tenant2"|"demo-17-tenant2")
-        ODOO_VERSION="17.0 (Tenant 2)"
+        ODOO_VERSION="17.0 Tenant 2 Cố Định"
         API_PORT="8069"
         DB_NAME="demo-17-tenant2"
         WEB_PORT="${PORT:-8088}"
         CHROME_PROFILE="/tmp/flutter_chrome_ssh_17_tenant2"
         ;;
     2|19|"19.0"|vcloud|"vcloud_test_v19")
-        ODOO_VERSION="19.0"
+        ODOO_VERSION="19.0 Cố Định"
         API_PORT="1900"
         DB_NAME="vcloud_test_v19"
         WEB_PORT="${PORT:-8089}"
         CHROME_PROFILE="/tmp/flutter_chrome_ssh_19"
         ;;
     2-2|"19-2"|"19_tenant2"|"vcloud_test_v19_tenant2")
-        ODOO_VERSION="19.0 (Tenant 2)"
+        ODOO_VERSION="19.0 Tenant 2 Cố Định"
         API_PORT="1900"
         DB_NAME="vcloud_test_v19_tenant2"
         WEB_PORT="${PORT:-8089}"
         CHROME_PROFILE="/tmp/flutter_chrome_ssh_19_tenant2"
         ;;
     3|davita|"davita_v19")
-        ODOO_VERSION="19.0"
+        ODOO_VERSION="19.0 Davita Cố Định"
         API_PORT="1900"
         DB_NAME="davita_v19"
         WEB_PORT="${PORT:-8089}"
         CHROME_PROFILE="/tmp/flutter_chrome_ssh_19"
         ;;
     4|18|"18.0")
-        ODOO_VERSION="18.0"
+        ODOO_VERSION="18.0 Cố Định"
         API_PORT="1800"
         DB_NAME="odoo_18"
         WEB_PORT="${PORT:-8087}"
         CHROME_PROFILE="/tmp/flutter_chrome_ssh_18"
         ;;
-    0|q|Q|exit)
-        echo "👋 Đã hủy thao tác. Thoát."
-        exit 0
-        ;;
     *)
-        echo "❌ Lựa chọn '$CHOICE' không hợp lệ. Mặc định chọn Odoo 19 Test chuẩn (DB: vcloud_test_v19)."
-        ODOO_VERSION="19.0"
+        # Mặc định khi không truyền tham số: Chạy thẳng chế độ Đa Database thông minh
+        ODOO_VERSION="Multi-Database Master Router (v17 + v19)"
         API_PORT="1900"
-        DB_NAME="vcloud_test_v19"
+        DB_NAME=""
         WEB_PORT="${PORT:-8089}"
-        CHROME_PROFILE="/tmp/flutter_chrome_ssh_19"
+        CHROME_PROFILE="/tmp/flutter_chrome_ssh_multi"
         ;;
 esac
 
@@ -226,6 +203,17 @@ echo "   💡 Khi Chrome mở, đợi trang nạp xong rồi đăng nhập."
 echo "   🌐 Sếp có thể copy link http://localhost:$WEB_PORT mở trên bất kỳ cửa sổ Chrome nào khác đều đăng nhập được bình thường!"
 echo
 
+DART_DEFINES=(
+    "--dart-define=VCLOUD_ODOO_API_BASE_URL=$API_URL"
+)
+
+# Chỉ truyền VCLOUD_ODOO_DB khi Sếp chọn cố định một database cụ thể.
+# Khi ở chế độ 'multi' (Đa Database), DB_NAME rỗng -> Không truyền VCLOUD_ODOO_DB
+# để LoginScreen tự động bật Dialog cho người dùng chọn Database khi có nhiều DB trùng khớp.
+if [[ -n "$DB_NAME" ]]; then
+    DART_DEFINES+=("--dart-define=VCLOUD_ODOO_DB=$DB_NAME")
+fi
+
 exec flutter run \
     -d chrome \
     --no-pub \
@@ -233,5 +221,4 @@ exec flutter run \
     --web-port="$WEB_PORT" \
     --web-browser-flag="--disable-web-security" \
     --web-browser-flag="--user-data-dir=$CHROME_PROFILE" \
-    --dart-define="VCLOUD_ODOO_API_BASE_URL=$API_URL" \
-    --dart-define="VCLOUD_ODOO_DB=$DB_NAME"
+    "${DART_DEFINES[@]}"
