@@ -3,7 +3,6 @@
 // 2) LocalAttachmentCache.clearAllCache is callable (logout cache wipe)
 // Run: flutter test test/security_regression_test.dart
 
-import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
