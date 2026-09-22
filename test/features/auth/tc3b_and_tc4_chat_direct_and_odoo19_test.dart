@@ -9,7 +9,7 @@ import 'package:http/http.dart' as http;
 void main() {
   const String baseUrl17 = 'http://192.168.1.100:8069';
   const String dbName17 = 'demo-17';
-  const String baseUrl19 = 'http://192.168.1.100:1902'; // Instance Odoo 19 trên Local Server
+  const String baseUrl19 = 'http://192.168.1.100:1900'; // Instance Odoo 19 trên Local Server chuẩn (Port 1900)
 
   group('TC3b & TC4: Chat 1-1 6 tin nhắn & Đăng nhập Odoo 19 & Đo hiệu năng', () {
     String? tokenInternal;

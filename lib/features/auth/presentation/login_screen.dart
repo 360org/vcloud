@@ -147,16 +147,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         return;
       }
 
-      final preferredDb = await ref
-          .read(authControllerProvider.notifier)
-          .getLastSelectedDb();
-      final effectivePreferredDb = Env.odooDb.isNotEmpty ? Env.odooDb : preferredDb;
-
-      debugPrint('🔍 [VCLOUD AUTH] Đang tra cứu cơ sở dữ liệu trên Master: $login (Preferred: $effectivePreferredDb)');
       // [Bước 2]: Gửi API tra cứu DB lên Master: POST /api/v1/auth/lookup-db
+      // Không gửi preferred_db lên Master để luôn lấy trọn vẹn danh sách các tổ chức liên kết
       final rawDbs = await ref
           .read(authControllerProvider.notifier)
-          .lookupDb(login, password: password, preferredDb: effectivePreferredDb);
+          .lookupDb(login, password: password);
 
       // Khử trùng lặp (Deduplicate) theo cặp (databaseName, databaseUrl)
       // Phòng thủ khi backend trả về nhiều dòng do user thuộc nhiều project

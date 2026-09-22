@@ -172,8 +172,17 @@ class AuthRepository {
     }
   }
 
-  Future<void> signOut() {
-    return _client.logout();
+  Future<void> clearLastSelectedDb() async {
+    try {
+      await _storage.delete(key: _savedDbKey);
+    } catch (e, st) {
+      debugPrint('[AuthRepository.clearLastSelectedDb] Error: $e\n$st');
+    }
+  }
+
+  Future<void> signOut() async {
+    await clearLastSelectedDb();
+    await _client.logout();
   }
 
   Future<void> saveLocalAvatar(String uid, String avatarData, {String? db}) async {

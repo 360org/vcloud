@@ -11,24 +11,15 @@ All backend-facing feature work must follow:
 ```
 
 ## Functional Scope
-- Authentication uses `POST /api/v1/mobile/auth/login` against the master
-  resolver with only `login` and `password`. The resolver maps the user to a
-  tenant through `mobile.api.tenant_user` first, falls back to `databases.user`
-  only when that optional module is available, forwards to tenant
-  `/api/v1/auth/login`, and the app stores the tenant JWT plus `tenant_id`,
-  `db`, `base_url`, and `scope` securely on device.
-  - Before a mobile user can sign in, Odoo master must have a Tenant Users
-    mapping: Login, Tenant Database, Tenant Base URL, and Allowed Mode.
-  - A missing mapping returns `404 tenant_not_found`; the app surfaces this as a
-    setup error instead of treating it as invalid credentials. If the same
-    credentials can authenticate directly against master `/api/v1/auth/login`,
-    the client stores that session with `scope=master_admin` so the database
-    manager account can still sign in without a tenant mapping.
-  - When more than one tenant accepts the same `login`/`password`, the master
-    returns `409 multiple_tenants` with a `tenants[]` list. The app shows a tenant
-    picker and re-authenticates with `tenant_id` to force that tenant.
-  Session enrichment and lifecycle use `GET /api/v1/auth/me`,
-  `POST /api/v1/auth/refresh`, and `POST /api/v1/auth/logout`.
+- Authentication follows the Decoupled 2-Tier Architecture (Service Directory Lookup & Direct Client-to-Tenant Auth):
+  - Step 1 (Zero-Knowledge Directory Lookup): The client calls `POST /api/v1/auth/lookup-db` (or `POST /api/v1/mobile/auth/lookup-db`) on Master Hub (`vuahethong.net`) with ONLY `login` (NO password sent to Master Hub).
+  - Master Hub acts strictly as a Service Directory (DNS/Index querying `databases.user` / `mobile.api.tenant_user`), returning a list of tenant candidates: `[{"database_name": "...", "database_url": "...", "display_name": "..."}]` without performing proxy authentication or storing tenant passwords. Anti-hardcode policy: URL lấy từ cấu hình chuẩn của tenant hoặc fallback về base_url, tuyệt đối không gán cứng domain `.vuahethong.com` làm hỏng custom domain của khách hàng.
+  - Step 2 (Direct Client-to-Tenant Authentication):
+    - Trường hợp 1 Database duy nhất (90% người dùng thông thường): Sau khi nhận metadata từ Master, App TỰ ĐỘNG gửi request xác thực thẳng vào server của tenant đó (`POST /api/v1/mobile/auth/login` hoặc `/web/session/authenticate`) với username/password vừa nhập -> Người dùng vào thẳng ứng dụng (Đăng nhập 1 chạm), không bao giờ hiển thị popup làm phiền.
+    - Trường hợp Trùng tài khoản ở nhiều Database/Tổ chức (kể cả khi mật khẩu giống nhau hoặc khác nhau): App tự động hiển thị Popup Clean & Flat ("Chọn tổ chức / cơ sở dữ liệu làm việc" kèm tên đơn vị thân thiện và URL). Người dùng chỉ cần chạm chọn tổ chức mong muốn -> App gửi ĐÚNG 1 REQUEST xác thực duy nhất tới server của đơn vị đã chọn.
+    - Trường hợp 0 Database tìm thấy (Tài khoản không tồn tại trên hệ thống hoặc Portal chưa được cấp quyền): App thông báo lỗi rõ ràng: "Tài khoản không tồn tại trên hệ thống".
+  - The client receives and securely stores the tenant JWT access token, `tenant_id`, `db`, `base_url`, and user `scope`.
+  - Session enrichment and lifecycle use tenant endpoints: `GET /api/v1/auth/me`, `POST /api/v1/auth/refresh`, and `POST /api/v1/auth/logout`.
 - Attendance uses mobile endpoints:
   - `GET /api/v1/mobile/attendance/today`
   - `POST /api/v1/mobile/attendance/check-in`

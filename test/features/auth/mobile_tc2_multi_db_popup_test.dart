@@ -10,7 +10,7 @@ import 'package:vcloud/features/auth/data/db_info.dart';
 
 void main() {
   const String backendUrl17 = 'http://192.168.1.100:8069';
-  const String backendUrl19 = 'http://192.168.1.100:1902';
+  const String backendUrl19 = 'http://192.168.1.100:1900';
 
   group('Mobile Login TC2: Trùng DB demo-17 & demo-19 (Popup & Login)', () {
     test('1. Kiểm tra kịch bản trùng 2 DB -> Bật Popup chọn Tổ chức với Tên thân thiện', () {

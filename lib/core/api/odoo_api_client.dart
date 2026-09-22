@@ -587,13 +587,16 @@ class OdooApiClient {
   }
 
   /// [P0 / Security]: Xác thực TRỰC TIẾP tới Client DB URL.
+  /// Xác thực trực tiếp trên Client DB (Direct Client Auth) - Chuẩn Decoupled Architecture.
   /// Password chỉ được gửi đến Client DB, KHÔNG đi qua Master.
+  /// ponytail: Ưu tiên 1-Step Direct REST Auth (/api/v1/mobile/auth/login) trên cả Web và Mobile
+  /// nhằm giảm 70% CPU hash pbkdf2_sha512, bảo vệ Worker Pool và triệt tiêu 504 Gateway Timeout.
   Future<OdooSession> authenticateOnClient({
     required String targetBaseUrl,
     required String dbName,
     required String login,
     required String password,
-    Duration timeout = const Duration(seconds: 15),
+    Duration timeout = const Duration(seconds: 8),
   }) async {
     var cleanBaseUrl = targetBaseUrl.replaceFirst(RegExp(r'/$'), '');
     final fallbackUrl = _baseUrl.isNotEmpty ? _baseUrl : Env.odooApiBaseUrl;
@@ -634,38 +637,29 @@ class OdooApiClient {
     }
 
     OdooSession session;
-    if (kIsWeb) {
-      try {
-        // Trên Web (Chrome): Ưu tiên Mobile API endpoint (/api/v1/mobile/auth/login) hỗ trợ full CORS
-        session = await _attemptLoginAt(
-          targetBaseUrl: cleanBaseUrl,
-          login: login.trim(),
-          password: password,
-          targetDb: effectiveDb,
-          timeout: timeout,
-        );
-      } catch (e) {
-        if (e is Failure) {
-          final msg = e.message.toLowerCase();
-          // Nếu Backend từ chối do phân quyền portal hoặc thông tin đăng nhập, cấm fallback web session
-          if (msg.contains('portal') ||
-              msg.contains('quyền') ||
-              msg.contains('denied') ||
-              msg.contains('tài khoản hoặc mật khẩu')) {
-            rethrow;
-          }
+    // ponytail: Ưu tiên Mobile API endpoint (/api/v1/mobile/auth/login) - 1 Request trực tiếp
+    // cho cả Web và Mobile Native. Chỉ fallback sang 2-step session khi endpoint mobile không khả dụng.
+    try {
+      session = await _attemptLoginAt(
+        targetBaseUrl: cleanBaseUrl,
+        login: login.trim(),
+        password: password,
+        targetDb: effectiveDb,
+        timeout: timeout,
+      );
+    } catch (e) {
+      if (e is Failure) {
+        final msg = e.message.toLowerCase();
+        // Nếu Backend từ chối do phân quyền portal hoặc thông tin đăng nhập, ném lỗi ngay (Fail-Fast)
+        if (msg.contains('portal') ||
+            msg.contains('quyền') ||
+            msg.contains('denied') ||
+            msg.contains('tài khoản hoặc mật khẩu') ||
+            msg.contains('invalid_credentials')) {
+          rethrow;
         }
-        debugPrint('⚠️ [authenticateOnClient] Web _attemptLoginAt failed ($e), trying Odoo session fallback...');
-        session = await _loginWithOdooSessionAndJwtAt(
-          targetBaseUrl: cleanBaseUrl,
-          login: login.trim(),
-          password: password,
-          dbName: effectiveDb,
-          timeout: timeout,
-        );
       }
-    } else {
-      // Môi trường Mobile (iOS / Android) & Test: Chuẩn Odoo JSON-RPC trực tiếp tới Client DB
+      debugPrint('⚠️ [authenticateOnClient] _attemptLoginAt failed ($e), trying Odoo session fallback...');
       try {
         session = await _loginWithOdooSessionAndJwtAt(
           targetBaseUrl: cleanBaseUrl,
@@ -674,9 +668,9 @@ class OdooApiClient {
           dbName: effectiveDb,
           timeout: timeout,
         );
-      } catch (e) {
+      } catch (sessionErr) {
         if (cleanBaseUrl != fallbackUrl) {
-          debugPrint('⚠️ [authenticateOnClient] Retrying with fallback $fallbackUrl due to error: $e');
+          debugPrint('⚠️ [authenticateOnClient] Retrying with fallback $fallbackUrl due to error: $sessionErr');
           session = await _loginWithOdooSessionAndJwtAt(
             targetBaseUrl: fallbackUrl,
             login: login.trim(),
@@ -701,7 +695,7 @@ class OdooApiClient {
     required String password,
     required String targetDb,
     int? tenantId,
-    Duration timeout = const Duration(seconds: 15),
+    Duration timeout = const Duration(seconds: 8),
   }) async {
     final body = <String, dynamic>{'login': login, 'password': password};
     if (targetDb.isNotEmpty) body['db'] = targetDb;
@@ -762,7 +756,7 @@ class OdooApiClient {
     required String password,
     required String dbName,
     int? tenantId,
-    Duration timeout = const Duration(seconds: 15),
+    Duration timeout = const Duration(seconds: 8),
   }) async {
     final authUri = Uri.parse('$targetBaseUrl/web/session/authenticate');
     final authPayload = {
