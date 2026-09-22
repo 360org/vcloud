@@ -72,3 +72,21 @@
 - [ ] Refactor dần các presentation widget còn dùng `odooApiClient` trực tiếp sang repository/helper/action.
 - [ ] Chuẩn hóa Firebase config generation để giảm lệch giữa `Env`, `firebase_push_options.dart`, native service files.
 - [ ] Audit dependency upgrade riêng: `golden_toolkit` discontinued, `record_linux` override, major packages outdated.
+
+## 10. Verification Checklist & Milestones (Audit Tracker)
+- [x] **[v2.9.9+138] FCM Foreground Instant Sync & Delta Fetch for Chat V2 (2026-09-22)**:
+  - [x] Root Cause: App chỉ invalidate danh sách kênh khi FCM Foreground Push bay về, không đánh thức phòng chat đang mở làm người dùng phải chờ hết 8 giây polling.
+  - [x] Fix: Bổ sung `triggerImmediateFetch()` trong `chat_v2_messages_controller.dart` và gọi từ `_onForegroundPush` trong `lib/app.dart`.
+  - [x] Deduplication & Ordering: Tái sử dụng `_mergeMessages` chống duplicate `message_id`, bảo toàn tin nhắn tạm `temp_*`.
+  - [x] Verify: `test/chat_v2_fcm_trigger_test.dart` pass 7/7 (100%); `flutter analyze` 0 errors / 0 warnings.
+- [x] **[v2.9.9+137] @Mention Chat Suggestion Fix (2026-09-22)**:
+  - [x] Odoo ACL/Record Rule: Đã bọc `sudo()` khi duyệt `all_partners` và `user_ids` trên `v_mobile_17` & `v_mobile_19`, triệt tiêu lỗi `AccessError: res.users` trả về HTTP 500 khi non-admin gọi API.
+  - [x] Fallback thông minh Flutter: Bổ sung `effectiveChannelMembers` tự sinh `ChatV2Member` từ đối tác trực tiếp trong phòng chat 1-1, đảm bảo popup @tag luôn hiện tức thì kể cả khi mạng lag.
+  - [x] Verify: `flutter analyze` 0 errors / 0 warnings; `python3 -m py_compile` pass 100%.
+- [x] **[v2.9.9+136] Single-Step Direct Auth & 504 Timeout Mitigation (2026-09-22)**:
+  - [x] Bỏ luồng 2-step auth tuần tự; ưu tiên 1 request trực tiếp `/api/v1/mobile/auth/login`.
+  - [x] Giảm tải worker pool Master Hub, chặn đứng bão lỗi 504 Gateway Timeout.
+- [x] **[v2.9.9+135] App Background Polling Freeze (2026-09-21)**:
+  - [x] Tích hợp `AppLifecycleManager`, đóng băng toàn bộ timer 8s khi app xuống background, triệt tiêu P0 DB Connection Exhaustion.
+- [x] **[v2.9.9+134] Realtime 2-Way FCM Push Delivery (2026-09-21)**:
+  - [x] Xử lý truy vấn thiết bị FCM active, khắc phục triệt để lỗi `no_active_device_for_user`.

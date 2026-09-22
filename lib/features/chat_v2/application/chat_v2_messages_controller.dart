@@ -386,6 +386,53 @@ class ChatV2MessagesNotifier
     return false;
   }
 
+  /// Kích hoạt fetch tin nhắn mới ngay lập tức khi nhận FCM Foreground Push.
+  /// Thay vì chờ nhịp polling 8s, method này bắn HTTP GET ngay để Chat UI
+  /// đồng bộ tức thì với Push Notification đã hiển thị trên màn hình.
+  /// ponytail: fetch thay vì delta-insert vì FCM payload chỉ có metadata (message_id, channel_id),
+  /// không đủ trường để dựng ChatV2Message hoàn chỉnh. Nâng cấp khi backend bổ sung full payload.
+  Future<void> triggerImmediateFetch() async {
+    final channelId = arg;
+    final repo = ref.read(chatV2RepositoryProvider);
+    final user = ref.read(authControllerProvider).valueOrNull;
+    final meta = user?.userMetadata;
+    final partnerId = meta?['partner_id']?.toString() ??
+        meta?['partner']?['id']?.toString();
+    final userId = user?.id;
+
+    try {
+      final latest = await repo.getMessages(
+        channelId,
+        currentPartnerId: partnerId,
+        currentUserId: userId,
+      );
+      if (latest.isNotEmpty) {
+        final currentList = state.valueOrNull ?? const [];
+        final merged = _mergeMessages(currentList, latest);
+        if (_hasDifferences(currentList, merged)) {
+          ChatV2MessageLocalCache.set(channelId, merged);
+          state = AsyncData(merged);
+          if (merged.isNotEmpty) {
+            final topMsg = merged.first;
+            ChatV2ChannelLocalCache.updateChannelLastMessage(
+              channelId,
+              lastMessage: topMsg.content.isNotEmpty
+                  ? topMsg.content
+                  : (topMsg.attachments.isNotEmpty ? '[Đính kèm]' : ''),
+              lastMessageDate: topMsg.createdAt ?? DateTime.now(),
+              authorId: topMsg.authorId,
+              authorName: topMsg.authorName,
+              unreadCount: 0,
+              addIfMissing: true,
+            );
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('⚡ [FCM TRIGGER] triggerImmediateFetch error: $e');
+    }
+  }
+
   bool _isLoadingMore = false;
   bool get isLoadingMore => _isLoadingMore;
 

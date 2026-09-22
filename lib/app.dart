@@ -12,6 +12,7 @@ import 'features/attendance/application/attendance_controller.dart';
 import 'features/auth/application/auth_controller.dart';
 import 'features/chat_v2/application/chat_v2_call_watcher.dart';
 import 'features/chat_v2/application/chat_v2_channels_controller.dart';
+import 'features/chat_v2/application/chat_v2_messages_controller.dart';
 import 'features/chat_v2/presentation/widgets/chat_v2_call_listener.dart';
 import 'features/chat_v2/presentation/widgets/chat_v2_in_app_banner.dart';
 import 'features/home/application/home_summary_controller.dart';
@@ -101,6 +102,17 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
     if (type.contains('chat') || type.contains('discuss') || data.containsKey('channel_id') || data.containsKey('res_id')) {
       ref.invalidate(chatV2ChannelsProvider);
       ref.invalidate(chatV2TotalUnreadProvider);
+
+      // ⚡ FCM Delta Trigger: Kích hoạt fetch tin nhắn mới ngay lập tức cho
+      // phòng chat đang mở, thay vì chờ nhịp polling 8s gây lệch pha với Push.
+      final pushChannelId = (data['res_id'] ?? data['channel_id'] ?? data['discuss_channel_id'] ?? data['chat_id'] ?? '').toString();
+      if (pushChannelId.isNotEmpty) {
+        try {
+          ref.read(chatV2MessagesProvider(pushChannelId).notifier).triggerImmediateFetch();
+        } catch (_) {
+          // Provider chưa active (phòng chat chưa mở) — bỏ qua an toàn
+        }
+      }
 
       final notification = message.notification;
       final channelId = (data['res_id'] ?? data['channel_id'] ?? data['discuss_channel_id'] ?? data['chat_id'] ?? '').toString();

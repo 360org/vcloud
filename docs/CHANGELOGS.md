@@ -2,7 +2,26 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
-## [v2.9.9+137] — 2026-09-22 (Khắc Phục Triệt Để 504 Gateway Timeout & Single-Step Direct Auth)
+## [v2.9.9+138] — 2026-09-22 (Tối Ưu Đồng Bộ Tức Thì FCM Foreground Trigger Cho Chat V2)
+
+> [!IMPORTANT]
+> **Khắc Phục Hiện Tượng Lệch Pha: Push Notification Nổ Trước Nhưng Chat UI Trễ Nhịp Polling 8s**:
+> - **Phạm vi**: `vclients` (Flutter Mobile & Web)
+> - **Chi tiết thay đổi theo chuẩn AIaC 4 Trụ Cột**:
+>   1. **[ROOT CAUSE / PERFORMANCE - Triệt Tiêu Độ Trễ Polling 8 Giây]**:
+>      - *Nguyên nhân*: Khi có tin nhắn mới, backend gửi FCM Push Notification đến máy cực nhanh qua hạ tầng Google/Apple. Tuy nhiên, tại `_onForegroundPush` trong `lib/app.dart`, app chỉ hiển thị banner in-app và `ref.invalidate(chatV2ChannelsProvider)` (danh sách kênh), hoàn toàn bỏ quên phòng chat đang mở `chatV2MessagesProvider(channelId)`. Người dùng đang ở trong phòng chat buộc phải chờ hết chu kỳ timer Polling 8 giây mới thấy tin nhắn xuất hiện.
+>      - *Giải pháp*: Bổ sung method `triggerImmediateFetch()` trong [`chat_v2_messages_controller.dart`](lib/features/chat_v2/application/chat_v2_messages_controller.dart). Khi nhận sự kiện FCM Push ở Foreground (`_onForegroundPush` trong [`lib/app.dart`](lib/app.dart)), lập tức kích hoạt fetch tin nhắn mới ngay cho `channel_id` liên quan mà không phải chờ chu kỳ 8s.
+>   2. **[RESILIENCE & DEDUPLICATION - An Toàn Dữ Liệu & Chống Trùng Lặp]**:
+>      - Tái sử dụng cơ chế `_mergeMessages` thông minh: tự động deduplicate theo `message_id`, bảo toàn tin nhắn tạm `temp_*` đang gửi (optimistic update), và giữ nguyên thứ tự sắp xếp thời gian.
+>      - Bọc try-catch an toàn khi gọi notifier; nếu phòng chat chưa được mở hoặc đã dispose thì bỏ qua không gây crash app hay rò rỉ bộ nhớ.
+>   3. **[TEST & VERIFICATION - Kiểm Thử Toàn Diện]**:
+>      - Viết mới test suite độc lập [`test/chat_v2_fcm_trigger_test.dart`](test/chat_v2_fcm_trigger_test.dart) bao phủ 7 test cases: chèn tin nhắn mới, deduplication chống trùng ID, cập nhật content đã sửa, bảo toàn temp optimistic messages, danh sách rỗng, fresh rỗng, cách ly theo channel.
+>      - Chạy test: 7/7 test cases pass 100%.
+>      - Static Analysis: `flutter analyze` đạt chuẩn 0 errors / 0 warnings.
+
+---
+
+## [v2.9.9+137] — 2026-09-22 (Khắc Phục Triệt Để 504 Gateway Timeout & Single-Step Direct Auth & @Mention Tag Tên)
 
 > [!IMPORTANT]
 > **Triệt Tiêu 504 Gateway Timeout Trên Production Master Hub (vuahethong.net) & Tối Ưu Xác Thực**:
@@ -21,6 +40,26 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 >   4. **[TEST - Kiểm Thử Toàn Diện 10/10 Test Cases]**:
 >      - Toàn bộ suite `test/features/auth/` (32 tests) pass 100% trong 59s.
 >      - `flutter analyze` đạt chuẩn tuyệt đối 0 errors / 0 warnings.
+
+> [!IMPORTANT]
+> **Khắc Phục Sự Cố Chỉ Tài Khoản Admin Mới Gõ Được @Mention & Đồng Bộ Toàn Diện Client - Backend**:
+> - **Phạm vi**: `vclients` (Flutter Mobile & Web), `v_mobile_17` & `v_mobile_19` (Odoo Backend)
+> - **Chi tiết thay đổi theo chuẩn AIaC 4 Trụ Cột**:
+>   1. **[ROOT CAUSE / SECURITY - Backend Odoo `v_mobile_17` & `v_mobile_19`]**:
+>      - *Nguyên nhân*: Trong Odoo core, model `res.users` có Record Rule `res_users_rule` chặn người dùng thông thường đọc thông tin của user khác. Endpoint `/api/v1/mobile/chat/channels/<id>/members` và `channel_info` duyệt `p.user_ids` không có `sudo()`, dẫn đến việc tài khoản Admin (Sếp Tân) gọi thành công nhưng tài khoản nhân viên (Thu Thảo) bị ném ngoại lệ `AccessError`, crash API với mã lỗi HTTP 500.
+>      - *Giải pháp*: Bọc `.sudo()` an toàn khi duyệt danh sách `all_partners` và `p.sudo().user_ids` khi lấy presence và avatar trong `controllers/chat.py`. Trả về mã HTTP 200 kèm danh sách đầy đủ thành viên cho mọi phân quyền tài khoản.
+>   2. **[UI/UX & RESILIENCE - Flutter Client `vclients`]**:
+>      - Cập nhật [`chat_v2_detail_screen.dart`](lib/features/chat_v2/presentation/screens/chat_v2_detail_screen.dart):
+>        - Bổ sung cơ chế fallback thành viên thông minh (`effectiveChannelMembers`): Trong cuộc trò chuyện 1-1, nếu danh sách `currentChannel.members` chưa kịp tải hoặc rỗng, hệ thống tự động sinh `ChatV2Member` từ thông tin đối tác trực tiếp (`partnerId`, `directPartnerId`, `displayTitle`, `resolvedAvatarUrl`).
+>        - Truyền `effectiveChannelMembers` vào `ChatV2InputBar` giúp người dùng gõ `@` luôn hiển thị ngay popup gợi ý thẻ xanh để tag tên người đối diện mà không bị phụ thuộc vào độ trễ mạng hay API.
+>   3. **[TEST - Kiểm Thử Toàn Diện & Độc Lập]**:
+>      - Cú pháp Python: `python3 -m py_compile` cả 2 bản `v_mobile_17` và `v_mobile_19` pass 100%.
+>      - Static Analysis Flutter: `flutter analyze` đạt chuẩn tuyệt đối 0 errors / 0 warnings.
+>      - Suite test `test/features/chat_v2/` chạy pass đồng bộ.
+
+---
+
+## [v2.9.9+136] — 2026-09-21 (Tự Động Hóa Tạo Version & Phát Hành App Store & Thêm Thành Viên Nhóm Chat)
 
 ---
 

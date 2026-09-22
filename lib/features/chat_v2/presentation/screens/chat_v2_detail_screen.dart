@@ -169,6 +169,8 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
     _highlightTimer?.cancel();
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+    _inputController.dispose();
+    _inputFocusNode.dispose();
     super.dispose();
   }
 
@@ -525,6 +527,37 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
     } else if (resolvedAvatarUrl != null && resolvedAvatarUrl.contains('/web/image/res.partner/')) {
       resolvedAvatarUrl = resolvedAvatarUrl.replaceAll('/web/image/res.partner/', '/api/v1/mobile/avatar/partners/');
     }
+
+    final isActualGroup = currentChannel?.isGroup == true ||
+        (currentChannel != null && currentChannel.getActualIsGroup(currentUserName));
+
+    // Fallback an toàn cho channelMembers: nếu đang ở chat 1-1 mà currentChannel.members rỗng,
+    // tự động tạo ChatV2Member từ đối tác trực tiếp (partnerId/directPartnerId + displayTitle)
+    // để đảm bảo thanh gõ luôn hiện popup mention @tag người đối diện ngay lập tức.
+    final effectiveChannelMembers = () {
+      final members = currentChannel?.members ?? const <ChatV2Member>[];
+      if (members.isNotEmpty) return members;
+      if (!isActualGroup) {
+        final targetPartnerId = currentChannel?.partnerId ??
+            currentChannel?.directPartnerId ??
+            widget.initialPartnerId;
+        final targetName = (currentChannel?.directPartnerName?.isNotEmpty == true)
+            ? currentChannel!.directPartnerName!
+            : displayTitle;
+        if (targetName.isNotEmpty && targetName != 'Trò chuyện') {
+          return [
+            ChatV2Member(
+              id: targetPartnerId ?? '',
+              name: targetName,
+              avatarUrl: resolvedAvatarUrl,
+              imStatus: currentChannel?.imStatus ?? 'offline',
+              isMe: false,
+            ),
+          ];
+        }
+      }
+      return const <ChatV2Member>[];
+    }();
 
     void ensureRetainedInCache() {
       final latestMsgs = messagesAsync.valueOrNull ?? ChatV2MessageLocalCache.get(widget.channelId);
@@ -1276,10 +1309,8 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                     ),
                   ChatV2InputBar(
                     channelId: widget.channelId,
-                    channelMembers: currentChannel?.members ?? const [],
-                    isGroup: currentChannel?.isGroup == true ||
-                        (currentChannel != null &&
-                            currentChannel.getActualIsGroup(currentUserName)),
+                    channelMembers: effectiveChannelMembers,
+                    isGroup: isActualGroup,
                     controller: _inputController,
                     focusNode: _inputFocusNode,
                     onSend: _handleSendMessage,
