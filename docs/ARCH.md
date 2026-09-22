@@ -28,10 +28,18 @@ Presentation must never call HTTP, Odoo, or storage directly.
 
 ## Multi-Tenant Authentication Architecture (1 + N Master Directory Routing)
 
-### 1. Tổng quan Mô hình 1 + N
-Hệ sinh thái xác thực VCloud hoạt động theo mô hình **1 Master Directory + N Client Databases**:
-- **1 Master Directory (`vuahethong.net`)**: Đóng vai trò danh bạ điều phối tập trung (Central Directory / Routing Node), lưu trữ bảng định tuyến người dùng (`databases.user` hoặc `mobile.api.tenant_user`). Master **KHÔNG** lưu mật khẩu, **KHÔNG** lưu dữ liệu nghiệp vụ của khách hàng.
-- **N Client Databases (`1 + N`)**: Gồm 1 DB nội bộ công ty và hàng chục/hàng trăm DB độc lập của từng khách hàng (`client_a`, `client_b`, `360.org.vn`...). Dữ liệu và người dùng hoàn toàn cô lập theo từng database/instance riêng biệt.
+### 1. Tổng quan Mô hình 1 + N (Phân Tách Decoupled Directory & Client-to-Tenant Auth)
+Hệ sinh thái xác thực VCloud hoạt động theo mô hình **1 Master Directory + N Client Databases** phân tách rành mạch 2 nhiệm vụ:
+
+1. **Master Hub (`vuahethong.net`) — Làm đúng vai trò Service Directory (DNS / Chỉ Mục)**:
+   - **Nhiệm vụ duy nhất**: Nhận `login` ➔ Truy vấn bảng `databases.user` (dưới 10ms trên PostgreSQL nội bộ) ➔ Trả về danh sách `{database_name, database_url, display_name}` cho Mobile App.
+   - **Không xác thực mật khẩu thay cho tenant**: Master Hub không lưu mật khẩu và **tuyệt đối không làm proxy xác thực tuần tự** hộ 10-20 tenant cùng lúc qua vòng lặp remote HTTP (nguyên nhân gây nghẽn pool worker và lỗi `504 Gateway Time-out`).
+2. **Mobile App (`vclients`) — Tự đảm nhận việc xác thực trực tiếp (Client-to-Tenant)**:
+   - **Nếu 1 DB**: Mobile App lấy URL đó, tự động gửi HTTP POST đăng nhập thẳng vào tenant đó (`/api/v1/mobile/auth/login` hoặc `/web/session/authenticate`).
+   - **Nếu nhiều DB**: Mobile App hiển thị popup Clean & Flat cho người dùng chọn tổ chức họ muốn vào. Khi người dùng bấm chọn đơn vị nào, Mobile App chỉ gửi **đúng 1 request xác thực duy nhất** vào đúng server của đơn vị đó.
+   - **Lợi ích kiến trúc**:
+     - Tốc độ phản hồi tức thì (< 50ms), hoàn toàn triệt tiêu nguy cơ Timeout trên Master Hub.
+     - Tải xác thực được phân tán cho các tenant, Master Hub nhẹ gánh và cực kỳ an toàn.
 
 ```text
                                   ┌──────────────────────────────┐
