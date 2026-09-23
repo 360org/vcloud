@@ -100,8 +100,9 @@ class _FakeSendAttachmentAction implements SendAttachmentAction {
   @override
   Future<MobileAttachment> send(
     String conversationId,
-    MobileAttachmentUpload attachment,
-  ) async {
+    MobileAttachmentUpload attachment, {
+    String? caption,
+  }) async {
     attachments.add(attachment);
     return MobileAttachment(
       id: 100,

@@ -377,6 +377,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             return Material(
                               color: Colors.transparent,
                               child: InkWell(
+                                key: ValueKey('db_item_${item.databaseName}'),
                                 onTap: () => Navigator.of(ctx).pop(item),
                                 borderRadius: BorderRadius.circular(16),
                                 hoverColor: primaryColor.withValues(alpha: 0.05),

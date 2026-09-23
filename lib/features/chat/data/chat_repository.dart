@@ -320,8 +320,9 @@ class ChatRepository {
 
   Future<MobileAttachment> uploadAttachment(
     String conversationId,
-    MobileAttachmentUpload attachment,
-  ) async {
+    MobileAttachmentUpload attachment, {
+    String? caption,
+  }) async {
     final uploaded = await _attachmentRepository.upload(
       MobileAttachmentUpload(
         filename: attachment.filename,
@@ -333,11 +334,14 @@ class ChatRepository {
     );
     LocalAttachmentCache.save(attachment.filename, attachment.bytes);
     LocalAttachmentCache.save(uploaded.attachmentId.toString(), attachment.bytes);
+    final postBody = (caption != null && caption.trim().isNotEmpty)
+        ? caption.trim()
+        : attachment.filename;
     await _client.post(
       '/api/v1/mobile/chat/messages',
       body: <String, dynamic>{
         'channel_id': int.tryParse(conversationId),
-        'body': attachment.filename,
+        'body': postBody,
         'attachment_ids': <int>[uploaded.attachmentId],
       },
     );

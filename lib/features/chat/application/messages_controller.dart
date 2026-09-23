@@ -143,9 +143,14 @@ class SendAttachmentAction {
 
   Future<MobileAttachment> send(
     String conversationId,
-    MobileAttachmentUpload attachment,
-  ) async {
-    final uploaded = await _repo.uploadAttachment(conversationId, attachment);
+    MobileAttachmentUpload attachment, {
+    String? caption,
+  }) async {
+    final uploaded = await _repo.uploadAttachment(
+      conversationId,
+      attachment,
+      caption: caption,
+    );
     _ref.invalidate(conversationsProvider);
     return uploaded;
   }

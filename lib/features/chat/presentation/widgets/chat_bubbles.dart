@@ -1265,12 +1265,23 @@ class ImageAttachmentBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final maxBubbleWidth = (maxWidth * 0.72).clamp(200.0, 300.0);
+    final rawContent = stripHtml(message.content).trim();
+    final fileName = attachmentFileName(message).trim();
+    // Kiểm tra xem message có prompt/caption thật sự hay chỉ là tên file tự sinh
+    final hasCaption = rawContent.isNotEmpty &&
+        rawContent != fileName &&
+        rawContent != message.attachmentName &&
+        !rawContent.toLowerCase().startsWith('image_picker') &&
+        !rawContent.toLowerCase().startsWith('img_') &&
+        rawContent != 'Sent attachment';
+
+    final textColor = mine ? Colors.white : context.textColor;
+    final mutedColor = textColor.withValues(alpha: mine ? 0.76 : 0.62);
+
     return ConstrainedBox(
       constraints: BoxConstraints(
         maxWidth: maxBubbleWidth,
-        maxHeight: 320.0,
         minWidth: 140.0,
-        minHeight: 120.0,
       ),
       child: Container(
         decoration: BoxDecoration(
@@ -1297,32 +1308,71 @@ class ImageAttachmentBubble extends StatelessWidget {
           ],
         ),
         clipBehavior: Clip.antiAlias,
-        child: Stack(
-          alignment: Alignment.bottomRight,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            NetworkPreviewImage(
-              url: imageUrl,
-              fit: BoxFit.cover,
-              attachmentId: message.attachmentIds.isEmpty
-                  ? null
-                  : message.attachmentIds.first,
-              fallback: ImageAttachmentFallback(
-                fileName: attachmentFileName(message),
+            ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxHeight: 320.0,
+                minHeight: 120.0,
+              ),
+              child: Stack(
+                alignment: Alignment.bottomRight,
+                children: [
+                  NetworkPreviewImage(
+                    url: imageUrl,
+                    fit: BoxFit.cover,
+                    attachmentId: message.attachmentIds.isEmpty
+                        ? null
+                        : message.attachmentIds.first,
+                    fallback: ImageAttachmentFallback(
+                      fileName: fileName,
+                    ),
+                  ),
+                  if (!hasCaption)
+                    Container(
+                      margin: const EdgeInsets.all(8),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.50),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Timestamp(
+                        message: message,
+                        mine: mine,
+                        color: Colors.white,
+                      ),
+                    ),
+                ],
               ),
             ),
-            Container(
-              margin: const EdgeInsets.all(8),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.50),
-                borderRadius: BorderRadius.circular(999),
+            if (hasCaption)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 7),
+                child: Wrap(
+                  alignment: WrapAlignment.end,
+                  crossAxisAlignment: WrapCrossAlignment.end,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8, bottom: 2),
+                      child: Text(
+                        rawContent,
+                        style: TextStyle(
+                          color: textColor,
+                          fontSize: 14.5,
+                          height: 1.35,
+                        ),
+                      ),
+                    ),
+                    Timestamp(
+                      message: message,
+                      mine: mine,
+                      color: mutedColor,
+                    ),
+                  ],
+                ),
               ),
-              child: Timestamp(
-                message: message,
-                mine: mine,
-                color: Colors.white,
-              ),
-            ),
           ],
         ),
       ),

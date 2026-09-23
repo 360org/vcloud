@@ -83,13 +83,16 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
     }
   }
 
-  Future<void> _sendAttachment(MobileAttachmentUpload attachment) async {
+  Future<void> _sendAttachment(
+    MobileAttachmentUpload attachment, {
+    String? caption,
+  }) async {
     LocalAttachmentCache.save(attachment.filename, attachment.bytes);
     setState(() => _sending = true);
     try {
       final uploaded = await ref
           .read(sendAttachmentActionProvider)
-          .send(widget.conversationId, attachment);
+          .send(widget.conversationId, attachment, caption: caption);
       if (uploaded.attachmentId > 0) {
         LocalAttachmentCache.save(uploaded.attachmentId.toString(), attachment.bytes);
       }

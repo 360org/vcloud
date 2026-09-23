@@ -178,6 +178,7 @@ class _FloatingTabBar extends ConsumerWidget {
                 for (var i = 0; i < tabs.length; i++)
                   Expanded(
                     child: _NavItem(
+                      key: ValueKey('tab_item_${tabs[i].path.replaceAll('/', '')}'),
                       tab: tabs[i],
                       selected: i == activeIndex,
                       badgeCount: _getBadgeCount(tabs[i].path, chatUnread),
@@ -204,6 +205,7 @@ int _getBadgeCount(String path, int chatUnread) {
 
 class _NavItem extends StatelessWidget {
   const _NavItem({
+    super.key,
     required this.tab,
     required this.selected,
     required this.onTap,
@@ -418,6 +420,7 @@ class UserAvatar extends StatelessWidget {
         : AppColors.accent(_userColor);
 
     return Container(
+      key: const ValueKey('user_avatar_widget'),
       width: size + 4,
       height: size + 4,
       padding: const EdgeInsets.all(2),

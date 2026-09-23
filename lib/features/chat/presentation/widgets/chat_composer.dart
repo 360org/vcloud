@@ -80,7 +80,7 @@ class ComposerWithAttachments extends StatefulWidget {
   final TextEditingController controller;
   final bool sending;
   final VoidCallback onSubmit;
-  final Future<void> Function(MobileAttachmentUpload attachment) onAttachment;
+  final Future<void> Function(MobileAttachmentUpload attachment, {String? caption}) onAttachment;
 
   @override
   State<ComposerWithAttachments> createState() =>
@@ -137,11 +137,7 @@ class _ComposerWithAttachmentsState extends State<ComposerWithAttachments> {
           mimetype: mimetypeForName(filename) ?? 'image/jpeg',
           onSend: (upload, caption) async {
             Navigator.pop(sheetContext);
-            if (caption != null && caption.trim().isNotEmpty) {
-              widget.controller.text = caption.trim();
-              widget.onSubmit();
-            }
-            await widget.onAttachment(upload);
+            await widget.onAttachment(upload, caption: caption);
           },
         ),
       );
