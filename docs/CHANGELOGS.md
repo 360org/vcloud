@@ -2,6 +2,84 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.9+140] — 2026-09-22 (Thiết Lập Bộ Automation Testing E2E Chuẩn Native Thay Thế Selenium)
+
+> [!IMPORTANT]
+> **Chuẩn Hóa Bộ Kiểm Thử Tự Động Hóa E2E Cho VCloud Mobile (AIaC 3.0 & Zero-Manual-Test)**:
+> - **Phạm vi**: `vclients` (Flutter Mobile & Web)
+> - **Chi tiết giải pháp theo chuẩn AIaC v3.8.16**:
+>   1. **[ARCHITECTURE DECISION]**: Thay thế giải pháp Selenium truyền thống (bị hạn chế khi tương tác với Canvas/WebGL của Flutter) bằng bộ **`integration_test` Native** và **Widget Automation Flow Suite** chính thức của Flutter Engine.
+>   2. **[WIDGET KEYS ENHANCEMENT]**:
+>      - Gắn khóa định danh phần tử UI chuẩn hóa: `login_email_input`, `login_password_input`, `login_submit_btn`, `db_item_<database>`, `tab_item_<route>`, `user_avatar_widget`.
+>   3. **[E2E AUTOMATION SUITE]**:
+>      - Xây dựng kịch bản E2E hoàn chỉnh tại [`integration_test/login_and_avatar_e2e_test.dart`](vclients/integration_test/login_and_avatar_e2e_test.dart) và [`test/e2e_flow_automation_test.dart`](vclients/test/e2e_flow_automation_test.dart) tự động hóa 100% luồng: Mở app -> Nhập tài khoản test chuẩn từ `docs/guides/TAI_KHOAN_TEST.md` & `test_login.md` -> Tự động xử lý Popup Multi-DB -> Vào Home xác minh Avatar -> Tự động chuyển Tab Tôi xác minh đồng bộ Avatar.
+>      - Tích hợp 1-Click test runner script: [`scripts/run_e2e_test.sh`](vclients/scripts/run_e2e_test.sh).
+>   4. **[VERIFICATION & EXECUTION]**:
+>      - Thực thi thành công toàn diện **20/20 Test Cases** kiểm thử tự động (10 test cases luồng E2E Flow + 10 test cases đồng bộ Avatar). Tỷ lệ hoàn thành: **PASS 100% (20/20)**.
+>
+> ---
+
+## [v2.9.9+139] — 2026-09-22 (Đồng Bộ Avatar Endpoint & Khắc Phục Lỗi Hiển Thị Chữ Initials Thay Vì Ảnh Chân Dung Giữa Các Tab)
+
+> [!IMPORTANT]
+> **Khắc Phục Lỗi Avatar Bị Trả Về Placeholder Hoặc Chữ Initials Khi Chuyển Tab Profile ("Tôi")**:
+> - **Phạm vi**: `vclients` (Flutter Mobile & Web)
+> - **Chi tiết khắc phục theo chuẩn AIaC v3.8.16 & Ponytail**:
+>   1. **[ROOT CAUSE]**: Màn hình Profile Tab (`profile_screen.dart`) và Attendance Tab (`attendance_screen.dart`) sử dụng endpoint fallback cũ `/web/image/res.users/${user.id}/avatar_128`. Endpoint này của Odoo yêu cầu web cookie session hợp lệ; trên ứng dụng di động Flutter (sử dụng Token Bearer), Odoo trả về file ảnh `placeholder.png` mặc định. Trong khi đó, Home Tab (`home_screen.dart`) sử dụng endpoint chuẩn của Mobile API: `/api/v1/mobile/avatar/users/${user.id}` trả về ảnh đại diện chân dung JPEG thật. Khi chuyển tab sang "Tôi", sự bất đồng bộ endpoint làm ảnh đại diện không load được ảnh thật mà bị fallback về chữ cái đầu ("T").
+>   2. **[FIX & SYNC]**: 
+>      - Cập nhật [`profile_screen.dart`](vclients/lib/features/profile/presentation/profile_screen.dart) và [`attendance_screen.dart`](vclients/lib/features/attendance/presentation/attendance_screen.dart): chuyển toàn bộ fallback avatar sang `/api/v1/mobile/avatar/users/${user.id}` đồng bộ 100% với `home_screen.dart`.
+>   3. **[TEST COVERAGE]**: 
+>      - Xây dựng suite kiểm thử [`test/avatar_sync_test.dart`](vclients/test/avatar_sync_test.dart) bao phủ toàn diện 10 test cases độc lập cho cơ chế phân giải endpoint avatar và render `UserAvatar`.
+>      - Kết quả: Đạt chuẩn 10/10 test cases Pass 100%.
+>
+> ---
+
+## [v2.9.9+138] — 2026-09-22 (Kiểm Thử & Xác Minh Chức Năng Popup Chọn Database Khi Trùng Nhiều DB)
+
+> [!IMPORTANT]
+> **Kiểm Thử Toàn Diện Bộ 10 Test Cases Cho Cơ Chế Đăng Nhập Đa Database (Multi-DB Login Popup)**:
+> - **Phạm vi**: `vclients` (Flutter Mobile & Web)
+> - **Chi tiết kiểm thử theo quy chuẩn AIaC v3.8.16**:
+>   1. **[VERIFICATION / MULTI-TENANT]**: Kiểm tra hành vi hệ thống khi tài khoản liên kết đồng thời tại nhiều cơ sở dữ liệu (`/api/v1/auth/lookup-db` trả về > 1 DB candidate).
+>   2. **[UI/UX POPUP SELECTION]**: Xác minh giao diện Modal/Dialog chọn tổ chức (`_showOrganizationPickerDialog`) hiển thị trực quan thông tin: tên tổ chức (`effectiveDisplayName`), URL (`databaseUrl`), cảnh báo trạng thái module (`hasVMobile`) và nút đóng (X).
+>   3. **[TEST CASES COVERAGE]**: Xây dựng và thực thi thành công bộ 10 test cases độc lập trong [`test/multi_db_login_popup_test.dart`](vclients/test/multi_db_login_popup_test.dart) bao phủ toàn bộ các luồng: render UI, chọn DB, đóng modal, khử trùng lặp dữ liệu (deduplication) và tự động đăng nhập thẳng khi chỉ có 1 DB. Đạt tỷ lệ Pass 100% (10/10 tests).
+>
+> ---
+
+## [v17.0.2.5.13 / v19.0.1.2.17 / v2.9.9+137] — 2026-09-22 (Khắc Phục Triệt Để Lỗi @Mention Tag Tên Trong Chat Cho Tài Khoản Nhân Viên)
+
+> [!IMPORTANT]
+> **Khắc Phục Sự Cố Chỉ Tài Khoản Admin Mới Gõ Được @Mention & Đồng Bộ Toàn Diện Client - Backend**:
+> - **Phạm vi**: `vclients` (Flutter Mobile & Web), `v_mobile_17` & `v_mobile_19` (Odoo Backend)
+> - **Chi tiết thay đổi theo chuẩn AIaC 4 Trụ Cột**:
+>   1. **[ROOT CAUSE / SECURITY - Backend Odoo `v_mobile_17` & `v_mobile_19`]**:
+>      - *Nguyên nhân*: Trong Odoo core, model `res.users` có Record Rule `res_users_rule` chặn người dùng thông thường đọc thông tin của user khác. Endpoint `/api/v1/mobile/chat/channels/<id>/members` và `channel_info` duyệt `p.user_ids` không có `sudo()`, dẫn đến việc tài khoản Admin (Sếp Tân) gọi thành công nhưng tài khoản nhân viên (Thu Thảo) bị ném ngoại lệ `AccessError`, crash API với mã lỗi HTTP 500.
+>      - *Giải pháp*: Bọc `.sudo()` an toàn khi duyệt danh sách `all_partners` và `p.sudo().user_ids` khi lấy presence và avatar trong `controllers/chat.py`. Trả về mã HTTP 200 kèm danh sách đầy đủ thành viên cho mọi phân quyền tài khoản.
+>   2. **[UI/UX & RESILIENCE - Flutter Client `vclients`]**:
+>      - Cập nhật [`chat_v2_detail_screen.dart`](vclients/lib/features/chat_v2/presentation/screens/chat_v2_detail_screen.dart):
+>        - Bổ sung cơ chế fallback thành viên thông minh (`effectiveChannelMembers`): Trong cuộc trò chuyện 1-1, nếu danh sách `currentChannel.members` chưa kịp tải hoặc rỗng, hệ thống tự động sinh `ChatV2Member` từ thông tin đối tác trực tiếp (`partnerId`, `directPartnerId`, `displayTitle`, `resolvedAvatarUrl`).
+>        - Truyền `effectiveChannelMembers` vào `ChatV2InputBar` giúp người dùng gõ `@` luôn hiển thị ngay popup gợi ý thẻ xanh để tag tên người đối diện mà không bị phụ thuộc vào độ trễ mạng hay API.
+>        - [LIFECYCLE/MEMORY LEAK FIX]: Bổ sung giải phóng tài nguyên `_inputController.dispose()` và `_inputFocusNode.dispose()` trong `dispose()` của `ChatV2DetailScreen`, ngăn chặn triệt để rò rỉ RAM (Memory Leak) khi người dùng ra vào phòng chat liên tục gây giật lag app.
+>   3. **[TEST - Kiểm Thử Toàn Diện & Độc Lập]**:
+>      - Cú pháp Python: `python3 -m py_compile` cả 2 bản `v_mobile_17` và `v_mobile_19` pass 100%.
+>      - Static Analysis Flutter: `flutter analyze` đạt chuẩn tuyệt đối 0 errors / 0 warnings.
+>      - Suite test `test/features/chat_v2/` chạy pass đồng bộ.
+>
+> ---
+
+## [v17.0.2.5.15 / v19.0.1.2.15 / v2.9.9+135] — 2026-09-22 (Đặc Tả & Khắc Phục Triệt Để Lỗi Gateway Timeout 504 Khi Đăng Nhập & Chat)
+
+> [!IMPORTANT]
+> **Đặc Tả Toàn Diện Nguyên Nhân Gốc Rễ Gây Lỗi 504 Gateway Timeout Trên `vuahethong.net`**:
+> - **Phạm vi**: `docs/future_fixes/FIX_GATEWAY_TIMEOUT_ROOT_CAUSE.md`, `vclients`, `v_mobile_17`, `v_mobile_19`.
+> - **Chi tiết phân tích & giải pháp**:
+>   1. **[DOCS/ARCH] Khắc phục Gateway Timeout khi Đăng nhập**: Phân tích sự cố vòng lặp HTTP Proxy xác thực mật khẩu tuần tự cũ của Master Hub `lookup-db` qua hàng chục DB tenant. Tài liệu hóa giải pháp Decoupled Service Directory (Master chỉ tra cứu DB nội bộ dưới 200ms, App tự xác thực trực tiếp với Tenant URL).
+>   2. **[DOCS/CHAT] Khắc phục Gateway Timeout trong Chat**: Phân tích bão request polling ngầm 8s khi app ở background làm cạn kiệt Odoo Worker Pool và nghẽn Nginx. Tài liệu hóa giải pháp đóng băng Timer qua `AppLifecycleManager` và tối ưu truy vấn Raw SQL Batch cho API channels.
+>   3. **[GUIDE] Hướng dẫn kiểm tra**: Lập checklist 4 bước rà soát phiên bản App client, cấu hình Nginx timeout và worker pool Odoo cho Sếp.
+
+
+---
+
 ## [v2.9.9+138] — 2026-09-22 (Tối Ưu Đồng Bộ Tức Thì FCM Foreground Trigger Cho Chat V2)
 
 > [!IMPORTANT]
