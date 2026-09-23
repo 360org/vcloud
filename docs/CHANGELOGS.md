@@ -2,6 +2,27 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.9+140] — 2026-09-23 (Khắc Phục Lỗi Chat V2 Crop Ảnh Portrait / Dài & Bảo Tồn Tỷ Lệ Aspect Ratio)
+
+> [!IMPORTANT]
+> **Khắc Phục Hoàn Toàn Lỗi Crop Ảnh Portrait Dài (~501x1037) Cả Đầu (Header) Lẫn Đuôi (Keyboard) Trong Chat V2**:
+> - **Phạm vi**: `vclients` (Flutter Mobile & Web)
+> - **Chi tiết khắc phục theo chuẩn AIaC v3.8.16 & Ponytail**:
+>   1. **[ROOT CAUSE]**:
+>      - Trong `chat_v2_message_item.dart` (`_buildImageGalleryGrid`), ảnh đơn bị ép `fit: BoxFit.cover`. Khi ảnh có tỷ lệ portrait dài (ví dụ: $501 \times 1037$, tỷ lệ $\approx 0.483$), `BoxFit.cover` buộc ảnh phủ kín chiều ngang tối thiểu 220px, kéo chiều cao lên $455.5\text{ px}$. Container giới hạn `maxHeight: 340px` kết hợp `Clip.antiAlias` cắt đối xứng $\approx 57.75\text{ px}$ ở đỉnh đầu (mất Header) và $\approx 57.75\text{ px}$ ở đáy dưới (mất Keyboard).
+>      - `BoxConstraints` cũ ép `minWidth: 220px` khiến ảnh portrait hẹp bị phình to bất thường.
+>   2. **[SOLUTION - ASPECT-RATIO PRESERVING SCALE-TO-FIT]**:
+>      - Đổi ảnh đơn sang `fit: BoxFit.contain` trong `_buildImageGalleryGrid`.
+>      - Nới lỏng `minWidth: 140px, minHeight: 120px` (thay vì 220x140) và mở rộng `maxHeight: 380px` tại `ChatV2AttachmentImage` và `_buildPureImageBubble`.
+>      - Ảnh portrait dài $501 \times 1037$ được scale to fit trọn vẹn $183.6\text{ px} \times 380\text{ px}$, không crop bất kỳ pixel nào ở đầu hay cuối.
+>      - Bảo tồn 100% nội dung text caption `@` khi tin nhắn có kèm caption text riêng biệt.
+>   3. **[VERIFICATION & TESTS]**:
+>      - 10/10 test cases tại `test/features/chat_v2/chat_v2_image_aspect_ratio_test.dart` PASSED 100%.
+>      - 85/85 tests toàn bộ regression test suite Chat V2 liên quan PASSED 100%.
+>      - `flutter analyze` đạt 0 issues (0 errors, 0 warnings).
+
+---
+
 ## [v2.9.9+140] — 2026-09-23 (Đồng Bộ Hóa Hiển Thị Tiêu Đề Hội Thoại Chat V2 Giữa Web Và iPhone)
 
 > [!IMPORTANT]

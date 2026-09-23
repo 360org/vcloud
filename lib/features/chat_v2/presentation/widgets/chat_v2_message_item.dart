@@ -610,9 +610,10 @@ class ChatV2MessageItem extends StatelessWidget {
 
     return Container(
       constraints: BoxConstraints(
-        minWidth: 220,
-        minHeight: 140,
+        minWidth: 140.0,
+        minHeight: 120.0,
         maxWidth: maxBubbleWidth,
+        maxHeight: 380.0,
       ),
       decoration: BoxDecoration(
         color: Colors.transparent,
@@ -1028,7 +1029,7 @@ class ChatV2MessageItem extends StatelessWidget {
         context,
         attachments.first,
         isMine,
-        fit: BoxFit.cover,
+        fit: BoxFit.contain,
       );
     }
 
@@ -2209,11 +2210,14 @@ class _ChatV2AttachmentImageState extends State<ChatV2AttachmentImage> {
           height: widget.height,
           constraints: hasCustomDimension
               ? null
-              : const BoxConstraints(
-                  minWidth: 220,
-                  minHeight: 140,
-                  maxWidth: 290,
-                  maxHeight: 340,
+              : BoxConstraints(
+                  minWidth: 140.0,
+                  minHeight: 120.0,
+                  maxWidth: math.min(
+                    MediaQuery.of(context).size.width * 0.72,
+                    320.0,
+                  ),
+                  maxHeight: 380.0,
                 ),
           decoration: BoxDecoration(
             color: Colors.black.withValues(alpha: 0.04),
