@@ -2,6 +2,28 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.9+140] — 2026-09-23 (Đồng Bộ Hóa Hiển Thị Tiêu Đề Hội Thoại Chat V2 Giữa Web Và iPhone)
+
+> [!IMPORTANT]
+> **Đồng Bộ Hoàn Toàn Display Name Hội Thoại Chat V2 Kênh Internal & Named Channels Giữa Web & Mobile**:
+> - **Phạm vi**: `vclients` (Flutter Mobile & Web)
+> - **Chi tiết khắc phục theo chuẩn AIaC v3.8.16 & Ponytail**:
+>   1. **[ROOT CAUSE]**:
+>      - Trên Odoo API, các kênh mang tên như `Internal` trả về `channel_type: "channel"`, `is_group: true`, kèm `members` (2 người) và `partner_id`.
+>      - `ChatV2Channel.fromJson` trước đó bị chặn bởi cờ `if (!isGroup)` nên không nạp `directPartnerName` và `directPartnerId` từ `members` hay `partner_id`.
+>      - `ChatV2Channel.getCleanName` chỉ trích xuất tên khi `!isGroup`. Khi `isGroup: true`, hàm trả về trần trụi `"Internal"` trên Web, thiếu phần tên đối diện mà Mobile có được từ push/cache.
+>   2. **[SOLUTION - DYNAMIC COMPOSITE TITLE RESOLUTION]**:
+>      - Trong `ChatV2Channel.fromJson`: Cho phép giải nạp `directPartnerName` từ `otherMember` đối với kênh 2 thành viên hoặc có `partner_id` kể cả khi `is_group: true`.
+>      - Trong `ChatV2Channel.getCleanName`: Tự động trích xuất `partnerName` (từ `directPartnerName` hoặc `otherMember`). Khi `name` là tên kênh/chủ đề cụ thể và khác `partnerName`, tự động format thành `"$partnerName ($name)"` (ví dụ: `"Nguyễn Hoàng Khang (Internal)"`).
+>      - Hoàn toàn không hardcode chuỗi `"Internal"` hay bất kỳ tên riêng nào; hoạt động tự nhiên với mọi tên kênh và loại hội thoại.
+>      - Giữ nguyên hiển thị chuẩn của direct chat 1-1 không có tên kênh, group chat nhiều người, và kênh thông báo không có participant.
+>   3. **[VERIFICATION & TESTS]**:
+>      - 10/10 test cases tại `test/features/chat_v2/chat_v2_display_name_test.dart` PASSED 100%.
+>      - 58/58 tests toàn bộ regression test suite Chat V2 PASSED 100%.
+>      - `flutter analyze` đạt 0 issues (0 errors, 0 warnings).
+
+---
+
 ## [v2.9.9+140] — 2026-09-23 (Khắc Phục Lỗi Chat V2 Render Raw Empty Odoo HTML & Tối Ưu Bubble Layout Sizing)
 
 > [!IMPORTANT]

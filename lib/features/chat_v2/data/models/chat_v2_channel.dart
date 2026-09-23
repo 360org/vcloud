@@ -198,10 +198,35 @@ class ChatV2Channel {
     return pLower == uLower || uLower.contains(pLower) || pLower.contains(uLower);
   }
 
-  /// Lấy tên hiển thị sạch: Nếu là chat 1-1 chứa tên người dùng thì chỉ lấy tên của người đối diện
+  /// Lấy tên hiển thị sạch:
+  /// - Nếu là hội thoại có tên kênh cụ thể và có người tham gia (participant): hiển thị "Tên người (Tên kênh)"
+  /// - Nếu là chat 1-1 ghép tên thì chỉ lấy tên người đối diện
+  /// - Nếu là nhóm hoặc kênh công khai không có participant đơn lẻ: giữ nguyên tên kênh/nhóm
   String getCleanName(String? currentUserName) {
     if (name.isEmpty) return 'Cuộc trò chuyện';
     if (currentUserName == null || currentUserName.trim().isEmpty) return name;
+
+    // 1. Xác định participant name đối diện (nếu có)
+    String? partnerName = directPartnerName?.trim();
+    if ((partnerName == null || partnerName.isEmpty) && (memberCount <= 2 || members.length <= 2)) {
+      final other = members.firstWhereOrNull((m) => !m.isMe && !matchesUser(m.name, currentUserName));
+      if (other != null && other.name.trim().isNotEmpty) {
+        partnerName = other.name.trim();
+      }
+    }
+
+    // 2. Nếu có participant name và name là một tên kênh/chủ đề cụ thể
+    // (name không phải là chính partnerName, không chứa partnerName, và không phải danh sách ghép tên bằng dấu phẩy)
+    if (partnerName != null && partnerName.isNotEmpty && !matchesUser(partnerName, currentUserName)) {
+      final nTrim = name.trim();
+      final pLower = partnerName.toLowerCase();
+      final nLower = nTrim.toLowerCase();
+      final hasCommaOrDelimiter = nTrim.contains(RegExp(r'[,/|-]|\bvà\b|&'));
+
+      if (!hasCommaOrDelimiter && !nLower.contains(pLower) && !pLower.contains(nLower) && !nTrim.contains('(')) {
+        return '$partnerName ($nTrim)';
+      }
+    }
 
     if (!isGroup) {
       if (directPartnerName != null && directPartnerName!.isNotEmpty) {
@@ -214,10 +239,8 @@ class ChatV2Channel {
       if (nLower.contains(uLower)) {
         var clean = name;
         final patterns = [
-          RegExp('^\\s*${RegExp.escape(uTrim)}\\s*[,/|-]\\s*', caseSensitive: false),
-          RegExp('\\s*[,/|-]\\s*${RegExp.escape(uTrim)}\\s*\$', caseSensitive: false),
-          RegExp('^\\s*${RegExp.escape(uTrim)}\\s+(\\bvà\\b|&)\\s*', caseSensitive: false),
-          RegExp('\\s+(\\bvà\\b|&)\\s*${RegExp.escape(uTrim)}\\s*\$', caseSensitive: false),
+          RegExp('^\\s*${RegExp.escape(uTrim)}\\s*([,/|-]|và|&)\\s*', caseSensitive: false),
+          RegExp('\\s*([,/|-]|và|&)\\s*${RegExp.escape(uTrim)}\\s*\$', caseSensitive: false),
         ];
         for (final p in patterns) {
           if (p.hasMatch(clean)) {
@@ -414,7 +437,7 @@ class ChatV2Channel {
       );
     }
     final otherMember = memberObjs.firstWhereOrNull((m) => !m.isMe);
-    if (!isGroup && otherMember != null) {
+    if (otherMember != null && (!isGroup || parsedMemberCount <= 2 || memberObjs.length <= 2)) {
       directPartnerId ??= otherMember.id.isNotEmpty ? otherMember.id : null;
       directPartnerName ??= otherMember.name.isNotEmpty ? otherMember.name : null;
       if (otherMember.imStatus.isNotEmpty && otherMember.imStatus != 'offline') {
@@ -425,6 +448,13 @@ class ChatV2Channel {
       }
     }
     directPartnerId ??= _stringOrNull(map['partner_id'] ?? map['other_partner_id']);
+    if (directPartnerId != null && (directPartnerName == null || directPartnerName.isEmpty)) {
+      final pMember = memberObjs.firstWhereOrNull((m) => m.id == directPartnerId && !m.isMe);
+      if (pMember != null && pMember.name.isNotEmpty) {
+        directPartnerName = pMember.name;
+      }
+    }
+    directPartnerName ??= _stringOrNull(map['partner_name'] ?? map['other_partner_name']);
     directPartnerStatus ??= imStatus;
 
     String? finalAvatarUrl = avatarUrl;
