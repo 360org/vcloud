@@ -2,6 +2,25 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.9+140] — 2026-09-23 (Ẩn Tên File Ảnh Kỹ Thuật image_picker Khỏi Header Xem Ảnh Toàn Màn Hình)
+
+> [!IMPORTANT]
+> **Khắc Phục Lỗi Hiển Thị Tên File Ảnh Tạm Thời (`image_picker_...`) Trên Header Của ChatV2ImageViewerScreen**:
+> - **Phạm vi**: `vclients` (Flutter Mobile & Web)
+> - **Chi tiết khắc phục theo chuẩn AIaC v3.8.16 & Ponytail**:
+>   1. **[ROOT CAUSE]**:
+>      - Khi người dùng bấm vào ảnh trong tin nhắn hoặc Media Hub, `ChatV2MessageItem` và `ChatV2InfoSheet` truyền trực tiếp `att.name` / `img.name` vào `ChatV2ImageViewerScreen.route(title: ...)`.
+>      - Với ảnh chụp/chọn từ thư viện, tên file sinh ra có dạng `image_picker_33AEDF17-F38C-47DF-966D-D7A0EA875B00.png` hoặc `scaled_image_picker_...`. Header hiển thị chuỗi ký tự kỹ thuật thô kệch, gây xấu giao diện và khó chịu cho người dùng.
+>   2. **[SOLUTION]**:
+>      - Trong `ChatV2ImageViewerScreen`: Bổ sung getter `_shouldShowTitle` tự động lọc bỏ và ẩn các chuỗi tên kỹ thuật (`image_picker`, `scaled_`, hoặc tên file ảnh thô không có khoảng trắng kết thúc bằng `.png`, `.jpg`, `.jpeg`, v.v.). Header chỉ hiển thị nút Back và Reset Zoom với khoảng trống `Spacer()` tinh gọn, thanh lịch chuẩn Telegram/Zalo/Apple Photos.
+>      - Trong `ChatV2MessageItem` và `ChatV2InfoSheet`: Truyền `title: ''` thay vì tên file ảnh thô.
+>   3. **[VERIFICATION & TESTS]**:
+>      - Thêm 2 test cases TC-11, TC-12 vào `test/features/chat_v2/chat_v2_image_viewer_transition_test.dart` xác minh ẩn hoàn toàn tên file kỹ thuật.
+>      - 147/147 tests Chat V2 suite PASSED 100%.
+>      - `flutter analyze` đạt 0 issues (0 errors, 0 warnings).
+
+---
+
 ## [v2.9.9+140] — 2026-09-23 (Khắc Phục Lỗi Chat V2 Crop Ảnh Portrait / Dài & Bảo Tồn Tỷ Lệ Aspect Ratio)
 
 > [!IMPORTANT]

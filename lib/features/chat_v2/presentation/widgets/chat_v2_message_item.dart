@@ -1008,7 +1008,7 @@ class ChatV2MessageItem extends StatelessWidget {
         Navigator.of(context).push(
           ChatV2ImageViewerScreen.route(
             imageUrl: fullUrl,
-            title: att.name,
+            title: '',
             bytes: att.bytes,
             attachmentId: att.id,
             heroTag: heroTag,

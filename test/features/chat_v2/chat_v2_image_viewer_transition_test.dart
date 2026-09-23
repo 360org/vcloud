@@ -212,5 +212,42 @@ void main() {
       expect(find.byType(ChatV2ImageViewerScreen), findsNothing);
       expect(find.text('Mở ảnh'), findsOneWidget);
     });
+
+    // TC-11: Tên file ảnh kỹ thuật dạng image_picker_... bị ẩn hoàn toàn khỏi header
+    testWidgets('TC-11: Tên ảnh kỹ thuật image_picker_... bị ẩn khỏi header', (tester) async {
+      const technicalName = 'image_picker_33AEDF17-F38C-47DF-966D-D7A0EA875B00.png';
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatV2ImageViewerScreen(
+            imageUrl: '',
+            title: technicalName,
+            bytes: sampleBytes,
+          ),
+        ),
+      );
+
+      // Không hiển thị tên file kỹ thuật
+      expect(find.text(technicalName), findsNothing);
+      expect(find.textContaining('image_picker'), findsNothing);
+      // Nút điều hướng back và reset zoom vẫn có mặt
+      expect(find.byIcon(LucideIcons.arrowLeft), findsOneWidget);
+      expect(find.byIcon(LucideIcons.rotateCcw), findsOneWidget);
+    });
+
+    // TC-12: Tên file raw image (photo.jpg, scaled_xxx) bị ẩn khỏi header
+    testWidgets('TC-12: Tên file raw photo.jpg và scaled_... bị ẩn khỏi header', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatV2ImageViewerScreen(
+            imageUrl: '',
+            title: 'scaled_image_picker_1024.jpg',
+            bytes: sampleBytes,
+          ),
+        ),
+      );
+
+      expect(find.text('scaled_image_picker_1024.jpg'), findsNothing);
+      expect(find.textContaining('scaled_'), findsNothing);
+    });
   });
 }

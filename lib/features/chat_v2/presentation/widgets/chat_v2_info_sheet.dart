@@ -812,7 +812,7 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
                                   Navigator.of(context).push(
                                     ChatV2ImageViewerScreen.route(
                                       imageUrl: fullUrl,
-                                      title: img.name,
+                                      title: '',
                                       bytes: memBytes,
                                       attachmentId: img.id.isNotEmpty ? img.id : null,
                                       heroTag: heroTag,
@@ -1341,7 +1341,7 @@ class _ChatV2MediaHubScreenState extends State<ChatV2MediaHubScreen>
                         Navigator.of(context).push(
                           ChatV2ImageViewerScreen.route(
                             imageUrl: fullUrl,
-                            title: img.name,
+                            title: '',
                             bytes: memBytes,
                             attachmentId: img.id.isNotEmpty ? img.id : null,
                             heroTag: heroTag,

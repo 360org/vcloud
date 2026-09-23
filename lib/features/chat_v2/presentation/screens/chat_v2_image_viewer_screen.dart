@@ -241,6 +241,31 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
     }
   }
 
+  /// Kiểm tra có hiển thị tiêu đề trên thanh header hay không.
+  /// Ẩn hoàn toàn nếu rỗng hoặc là tên file ảnh kỹ thuật (image_picker_..., scaled_..., raw filename).
+  bool get _shouldShowTitle {
+    final t = widget.title.trim();
+    if (t.isEmpty) return false;
+    final lower = t.toLowerCase();
+    if (lower.startsWith('image_picker') ||
+        lower.startsWith('scaled_') ||
+        lower.contains('image_picker')) {
+      return false;
+    }
+    // Ẩn nếu là tên file ảnh thô (không có khoảng trắng, có phần mở rộng ảnh)
+    final isRawFilename = !t.contains(' ') &&
+        (lower.endsWith('.png') ||
+            lower.endsWith('.jpg') ||
+            lower.endsWith('.jpeg') ||
+            lower.endsWith('.gif') ||
+            lower.endsWith('.webp') ||
+            lower.endsWith('.heic') ||
+            lower.endsWith('.heif') ||
+            lower.endsWith('.bmp'));
+    if (isRawFilename) return false;
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -310,19 +335,22 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
                     icon: const Icon(LucideIcons.arrowLeft, color: Colors.white, size: 22),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      widget.title,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
+                  if (_shouldShowTitle) ...[
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        widget.title,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
+                  ] else
+                    const Spacer(),
                   IconButton(
                     icon: const Icon(LucideIcons.rotateCcw, color: Colors.white, size: 20),
                     tooltip: 'Đặt lại thu phóng',
