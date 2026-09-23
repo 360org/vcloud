@@ -507,7 +507,7 @@ class ChatV2Message {
         extractedParentBody ??= bodyMatch?.group(1);
 
         if (extractedParentBody == null || extractedParentBody.isEmpty) {
-          final cleanInner = _cleanHtml(bqInner);
+          final cleanInner = cleanHtml(bqInner);
           if (cleanInner.isNotEmpty) {
             extractedParentBody = cleanInner;
             extractedParentId ??= 'quote';
@@ -518,7 +518,7 @@ class ChatV2Message {
       }
     }
 
-    final cleanContent = _cleanHtml(bodyWithoutQuote);
+    final cleanContent = cleanHtml(bodyWithoutQuote);
 
     // Parse attachments
     final parsedAttachments = <ChatV2Attachment>[];
@@ -581,7 +581,7 @@ class ChatV2Message {
     }
 
     final cleanParentBody = (extractedParentBody != null && extractedParentBody.isNotEmpty)
-        ? _cleanHtml(extractedParentBody)
+        ? cleanHtml(extractedParentBody)
         : null;
 
     final parsedReactions = <ChatV2Reaction>[];
@@ -641,31 +641,49 @@ class ChatV2Message {
     );
   }
 
-  static String _cleanHtml(String html) {
-    if (html.isEmpty) return '';
+  /// Làm sạch HTML body từ Odoo (Discuss), loại bỏ wrapper rỗng và chuẩn hóa text hiển thị.
+  ///
+  /// Trả về chuỗi rỗng nếu nội dung chỉ chứa thẻ HTML rỗng (vd: `<div class="o-paragraph"><br></div>`, `<p><br></p>`),
+  /// khoảng trắng HTML (`&nbsp;`), hoặc zero-width space.
+  static String cleanHtml(String? html) {
+    if (html == null || html.isEmpty) return '';
     var text = html;
-    // Unescape HTML entities trước khi strip tags
+
+    // 1. Chuẩn hóa các thẻ ngắt dòng/phân đoạn thành newline
+    text = text
+        .replaceAll(RegExp(r'<(?:br|/p|/div|/li|/tr|/blockquote)[^>]*>', caseSensitive: false), '\n')
+        .replaceAll(RegExp(r'&lt;(?:br|/p|/div|/li|/tr|/blockquote)[^&]*&gt;', caseSensitive: false), '\n');
+
+    // 2. Loại bỏ toàn bộ các thẻ HTML (cả unescaped lẫn escaped tags)
+    text = text
+        .replaceAll(RegExp(r'<[^>]*>'), '')
+        .replaceAll(RegExp(r'&lt;[^&]*&gt;'), '');
+
+    // 3. Giải mã các HTML entities thông dụng
     text = text
         .replaceAll('&lt;', '<')
         .replaceAll('&gt;', '>')
         .replaceAll('&amp;', '&')
         .replaceAll('&quot;', '"')
         .replaceAll('&#39;', "'")
-        .replaceAll('&nbsp;', ' ');
+        .replaceAll('&apos;', "'")
+        .replaceAll('&nbsp;', ' ')
+        .replaceAll('&#160;', ' ');
 
-    for (var i = 0; i < 3; i++) {
-      text = text
-          .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
-          .replaceAll(RegExp(r'</p>', caseSensitive: false), '\n')
-          .replaceAll(RegExp(r'<[^>]*>'), '')
-          .trim();
-    }
-    // Nếu vô tình bị rỗng do HTML bóc bẩn nhưng chuỗi gốc có chữ, trả về chuỗi gốc đã unescape
-    if (text.isEmpty && html.trim().isNotEmpty && !html.contains('<')) {
-      return html.trim();
-    }
+    // 4. Loại bỏ zero-width characters
+    text = text.replaceAll(RegExp('[​-‍﻿]'), '');
+
+    // 5. Chuẩn hóa khoảng trắng và newlines liên tiếp (tối đa 2 newlines liên tiếp)
+    text = text
+        .replaceAll(RegExp(r'[ \t]+'), ' ')
+        .replaceAll(RegExp(r'\n{3,}'), '\n\n')
+        .trim();
+
     return text;
   }
+
+  /// Kiểm tra xem chuỗi HTML có tương đương nội dung rỗng hay không.
+  static bool isEmptyHtml(String? html) => cleanHtml(html).isEmpty;
 
   @override
   bool operator ==(Object other) {

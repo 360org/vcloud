@@ -2,6 +2,27 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.9+140] — 2026-09-23 (Khắc Phục Lỗi Chat V2 Render Raw Empty Odoo HTML & Tối Ưu Bubble Layout Sizing)
+
+> [!IMPORTANT]
+> **Khắc Phục Triệt Để Bug Chat V2 Render Chuỗi Raw HTML `<div class="o-paragraph"><br></div>` & Phình To Bubble Vùng Trắng**:
+> - **Phạm vi**: `vclients` (Flutter Mobile & Web)
+> - **Chi tiết khắc phục theo chuẩn AIaC v3.8.16 & Ponytail**:
+>   1. **[ROOT CAUSE A - RAW HTML]**: Khi tin nhắn Odoo có ảnh không có caption, Odoo tự tạo body placeholder `<div class="o-paragraph"><br></div>`. `ChatV2MessageItem` fallback sang `rawBody` mà không qua lọc HTML, khiến raw HTML bị gán vào `cleanContent`, hiểu nhầm là caption người dùng và render text bubble rác.
+>   2. **[ROOT CAUSE B - BUBBLE SIZING & EXCESSIVE WHITE SPACE]**:
+>      - `Align(alignment: Alignment.centerRight)` cho timestamp trong `Column` không có `IntrinsicWidth`, tự mở rộng ra tối đa `maxWidth = 0.72 * screenWidth` (864px trên web), ép Container phình to tạo vùng trắng lớn quanh ảnh.
+>      - `_buildImageGalleryGrid` hardcode `width: 250, height: 160` cho single image thay vì để ảnh co giãn tự nhiên.
+>      - `_buildPureImageBubble` có background màu trắng gây lộ viền khi ảnh render khác kích thước.
+>   3. **[MULTI-TIER ARCHITECTURAL FIX]**:
+>      - Data Model: Nâng cấp `ChatV2Message.cleanHtml` và `isEmptyHtml` bóc sạch toàn bộ thẻ HTML rác, entity và whitespace ẩn.
+>      - Presentation: Chuẩn hóa `effectiveText` qua `cleanHtml`, bọc `IntrinsicWidth` cho `Column` message bubble để ôm sát kích thước ảnh/caption, loại bỏ hardcode `250x160`, và xóa background color thừa.
+>   4. **[VERIFICATION & TESTS]**:
+>      - 13/13 test cases tại `test/chat_v2_empty_html_bubble_test.dart` PASSED 100%.
+>      - 34/34 tests toàn bộ test suites Chat V2 PASSED 100%.
+>      - `flutter analyze` đạt chuẩn 0 errors, 0 warnings.
+>
+> ---
+
 ## [v2.9.9+140] — 2026-09-22 (Thiết Lập Bộ Automation Testing E2E Chuẩn Native Thay Thế Selenium)
 
 > [!IMPORTANT]

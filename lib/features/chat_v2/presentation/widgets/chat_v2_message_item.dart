@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -116,11 +118,15 @@ class ChatV2MessageItem extends StatelessWidget {
     final isHistoricalImage = message.isImageFilename && !hasImages;
     final hasAnyImage = hasImages || isHistoricalImage;
 
-    final effectiveText = message.content.trim().isNotEmpty
-        ? message.content.trim()
-        : (message.rawBody != null && message.rawBody!.trim().isNotEmpty
-              ? message.rawBody!.trim()
-              : '');
+    final effectiveText = () {
+      final textFromContent = ChatV2Message.cleanHtml(message.content);
+      if (textFromContent.isNotEmpty) return textFromContent;
+      if (message.rawBody != null && message.rawBody!.trim().isNotEmpty) {
+        final textFromRaw = ChatV2Message.cleanHtml(message.rawBody);
+        if (textFromRaw.isNotEmpty) return textFromRaw;
+      }
+      return '';
+    }();
     final cleanContent = effectiveText;
     final isFileNameContent =
         cleanContent.isEmpty ||
@@ -326,7 +332,10 @@ class ChatV2MessageItem extends StatelessWidget {
                         )
                       : Container(
                           constraints: BoxConstraints(
-                            maxWidth: MediaQuery.of(context).size.width * 0.72,
+                            maxWidth: math.min(
+                              MediaQuery.of(context).size.width * 0.72,
+                              480.0,
+                            ),
                           ),
                           decoration: BoxDecoration(
                             color: isMine
@@ -372,10 +381,11 @@ class ChatV2MessageItem extends StatelessWidget {
                                       horizontal: 12,
                                       vertical: 8,
                                     ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
+                              child: IntrinsicWidth(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
                                   if (!isMine && showSenderName) ...[
                                     Text(
                                       message.authorName,
@@ -524,6 +534,7 @@ class ChatV2MessageItem extends StatelessWidget {
                             ),
                           ),
                         ),
+                      ),
                   if (message.reactions.isNotEmpty)
                     _buildReactionBadges(context, isMine),
                   if (message.status == 'error' && !isPureImage)
@@ -592,11 +603,19 @@ class ChatV2MessageItem extends StatelessWidget {
     String timeStr,
   ) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final maxBubbleWidth = math.min(
+      MediaQuery.of(context).size.width * 0.72,
+      320.0,
+    );
 
     return Container(
-      constraints: const BoxConstraints(minWidth: 240, minHeight: 140, maxWidth: 290),
+      constraints: BoxConstraints(
+        minWidth: 220,
+        minHeight: 140,
+        maxWidth: maxBubbleWidth,
+      ),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        color: Colors.transparent,
         borderRadius: BorderRadius.only(
           topLeft: const Radius.circular(18),
           topRight: const Radius.circular(18),
@@ -605,7 +624,7 @@ class ChatV2MessageItem extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
+            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.08),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -689,26 +708,29 @@ class ChatV2MessageItem extends StatelessWidget {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.redAccent.withValues(alpha: 0.85),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(LucideIcons.alertCircle, color: Colors.white, size: 14),
-                              SizedBox(width: 4),
-                              Text(
-                                'Lỗi gửi ảnh',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.redAccent.withValues(alpha: 0.85),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(LucideIcons.alertCircle, color: Colors.white, size: 14),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Lỗi gửi ảnh',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -1006,8 +1028,6 @@ class ChatV2MessageItem extends StatelessWidget {
         context,
         attachments.first,
         isMine,
-        width: 250,
-        height: 160,
         fit: BoxFit.cover,
       );
     }
@@ -2189,7 +2209,12 @@ class _ChatV2AttachmentImageState extends State<ChatV2AttachmentImage> {
           height: widget.height,
           constraints: hasCustomDimension
               ? null
-              : const BoxConstraints(maxWidth: 290, maxHeight: 340),
+              : const BoxConstraints(
+                  minWidth: 220,
+                  minHeight: 140,
+                  maxWidth: 290,
+                  maxHeight: 340,
+                ),
           decoration: BoxDecoration(
             color: Colors.black.withValues(alpha: 0.04),
             borderRadius: BorderRadius.circular(hasCustomDimension ? 8 : 16),
