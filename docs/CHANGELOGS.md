@@ -2,7 +2,7 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
-## [v2.9.9+141] — 2026-09-23 (Ẩn Tên File Ảnh Kỹ Thuật image_picker Khỏi Header Xem Ảnh Toàn Màn Hình)
+## [v2.9.10+141] — 2026-09-23 (Ẩn Tên File Ảnh Kỹ Thuật image_picker Khỏi Header Xem Ảnh Toàn Màn Hình)
 
 > [!IMPORTANT]
 > **Khắc Phục Lỗi Hiển Thị Tên File Ảnh Tạm Thời (`image_picker_...`) Trên Header Của ChatV2ImageViewerScreen**:
