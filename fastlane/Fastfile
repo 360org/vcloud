@@ -296,12 +296,34 @@ platform :ios do
           if auto_create_appstore
             UI.header("🚀 Auto-Creating & Preparing App Store Release Version (#{build_name}+#{build_number})")
             begin
+              # 6.1. Ensure editable App Store version exists via Spaceship ConnectAPI
+              begin
+                app = Spaceship::ConnectAPI::App.find(bundle_identifier)
+                if app
+                  edit_version = app.get_edit_app_store_version(platform: Spaceship::ConnectAPI::Platform::IOS)
+                  if edit_version.nil?
+                    UI.message("📱 No editable version found on App Store Connect. Creating new version: #{build_name}...")
+                    app.create_app_store_version(version_string: build_name, platform: Spaceship::ConnectAPI::Platform::IOS)
+                    UI.success("✅ Successfully created new App Store version #{build_name}!")
+                  else
+                    UI.message("ℹ️ Found existing editable version: #{edit_version.version_string}")
+                    if edit_version.version_string != build_name
+                      UI.message("🔄 Updating editable version string from #{edit_version.version_string} to #{build_name}...")
+                      edit_version.update(attributes: { versionString: build_name }) rescue nil
+                    end
+                  end
+                end
+              rescue => ver_create_err
+                UI.important("⚠️ Spaceship version pre-check noted: #{ver_create_err.message}. Proceeding to deliver...")
+              end
+
+              # 6.2. Attach build and update metadata via deliver
               deliver(
                 api_key: api_key,
                 app_identifier: bundle_identifier,
                 app_version: build_name,
                 build_number: build_number.to_s,
-                ipa: ipa_path,
+                skip_binary_upload: true,
                 skip_screenshots: true,
                 skip_metadata: false,
                 force: true,
@@ -313,7 +335,7 @@ platform :ios do
                   "en-US" => changelog_text
                 }
               )
-              UI.success("🎉 App Store version #{build_name} created and build #{build_number} attached successfully!")
+              UI.success("🎉 App Store version #{build_name} ready and build #{build_number} attached successfully!")
             rescue => deliver_err
               UI.important("⚠️ App Store deliver completed or returned note: #{deliver_err.message}")
             end
