@@ -2,10 +2,10 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
-## [v2.9.11+142] — 2026-09-24 (Triển Khai Tính Năng Gọi Thoại P2P WebRTC & Mute Thông Báo Kênh Chat)
+## [v2.9.11+142] — 2026-09-24 (Triển Khai Tính Năng Gọi Thoại P2P WebRTC & Khắc Phục Lỗi Bubble Chat Kéo Giãn)
 
 > [!IMPORTANT]
-> **Triển Khai Tính Năng Voice Call 1-1 Chuẩn Native Odoo 19 Discuss RTC Core, Apple CallKit / Android Full-Screen & Mute Kênh Chat**:
+> **Triển Khai Tính Năng Voice Call 1-1 Chuẩn Native Odoo 19 Discuss RTC Core, Apple CallKit / Android Full-Screen & Khắc Phục Lỗi Bubble Chat Kéo Giãn**:
 > - **Phạm vi**: `vclients` (Flutter Mobile & Web) trên nhánh `feat/chat-voice-call`
 > - **Chi tiết triển khai theo chuẩn SSOT SPEC_VOICE_CALL_ODOO19_RTC.md & AIaC v3.8.16**:
 >   1. **[VOICE CALL — FLUTTER CLIENT `vclients`]**:
@@ -18,11 +18,14 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 >      - Bổ sung trường `is_muted` vào model `ChatV2Channel` (hỗ trợ cả boolean và int).
 >      - Thêm `muteChannel(channelId, {mute, minutes})` vào `ChatV2Repository` đồng bộ trạng thái mute lên server Odoo backend (`/api/v1/mobile/chat/channels/<id>/mute`).
 >      - Cập nhật `ChatV2ChannelLocalCache.setUserMuted` đồng bộ cache tức thì và chặn hiển thị in-app banner thông báo khi kênh bị mute.
->   3. **[VERIFICATION & TESTS]**:
->      - Bộ 10 test cases độc lập `test/features/chat_v2/chat_v2_mute_test.dart` PASSED 100%.
->      - Bộ 10/10 test cases độc lập tại `test/features/chat_v2/chat_v2_odoo19_rtc_test.dart` PASSED 100%.
+>   3. **[KHẮC PHỤC LỖI BUBBLE TEXT KÉO GIÃN & TIMESTAMP RƠI DÒNG]**:
+>      - **Root Cause**: `RenderWrap.computeMaxIntrinsicWidth` trong Flutter framework tính `math.max` của children thay vì `sum`. Khi bọc `Wrap` trong `IntrinsicWidth`, Flutter không cấp đủ chiều ngang cho timestamp ở dòng 1 khiến timestamp bị ép xuống dòng 2 và kéo giãn khung lên 533px (72% màn hình), tạo khoảng trắng thừa 38px.
+>      - **Khắc phục**: Tách riêng luồng xử lý `isPureText` thành `_buildPureTextContent` không bọc `IntrinsicWidth`. Bubble co gọn ôm sát nội dung (từ 533px về 296.5px), giờ và chữ cùng 1 dòng, độ cao giảm từ 60px về 36px, xóa bỏ 100% khoảng trắng thừa 38px.
+>   4. **[VERIFICATION & TESTS]**:
+>      - Toàn bộ test suite Chat V2 gồm 53/53 tests PASSED 100%.
 >      - Toàn bộ 4 test suite Chat V2 Call (`chat_v2_odoo19_rtc_test.dart`, `chat_v2_call_ui_test.dart`, `chat_v2_call_test.dart`, `call_notification_test.dart`) gồm 39/39 tests PASSED 100%.
 >      - `flutter analyze` đạt 0 issues (0 errors, 0 warnings).
+>      - Render ảnh preview đối soát trực quan tại `/media/tanma/DATA/save/mobile_versions/bubble_fixed_preview.png`.
 
 ---
 
