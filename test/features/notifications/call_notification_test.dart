@@ -64,6 +64,19 @@ class MockCallRepository implements ChatV2CallRepository {
     rejectCalled = true;
     return true;
   }
+
+  @override
+  Future<OdooRtcJoinResult?> joinCall({
+    required int channelId,
+    List<int> checkRtcSessionIds = const [],
+    bool camera = false,
+  }) async => null;
+
+  @override
+  Future<bool> leaveCall({required int channelId, int? sessionId}) async => true;
+
+  @override
+  Future<bool> cancelCallInvitation({required int channelId, List<int>? memberIds}) async => true;
 }
 
 class FakeAuthRepository implements AuthRepository {

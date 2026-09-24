@@ -8,6 +8,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import '../data/chat_v2_call_repository.dart';
 import '../data/odoo_bus_service.dart';
 import '../domain/models/chat_v2_call_session.dart';
+import 'chat_v2_callkit_service.dart';
 import 'chat_v2_webrtc_engine.dart';
 
 final chatV2CallControllerProvider =
@@ -259,6 +260,7 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
     }
     state = current?.copyWith(state: ChatV2CallState.rejected);
     _cleanupWebrtc();
+    ChatV2CallKitService.instance.endAllCalls();
 
     Future.delayed(const Duration(milliseconds: 500), () {
       if (state?.state == ChatV2CallState.rejected) {
@@ -282,6 +284,7 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
     }
     state = current?.copyWith(state: ChatV2CallState.cancelled);
     _cleanupWebrtc();
+    ChatV2CallKitService.instance.endAllCalls();
 
     Future.delayed(const Duration(milliseconds: 500), () {
       if (state?.state == ChatV2CallState.cancelled) {
@@ -304,6 +307,7 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
     }
     state = current?.copyWith(state: ChatV2CallState.ended);
     _cleanupWebrtc();
+    ChatV2CallKitService.instance.endAllCalls();
   }
 
   /// Xử lý bản tin WebRTC Signaling nhận từ Odoo Bus
@@ -359,6 +363,7 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
     _stopTimers();
     state = state?.copyWith(state: ChatV2CallState.ended);
     _cleanupWebrtc();
+    ChatV2CallKitService.instance.endAllCalls();
   }
 
   /// Bật/Tắt Micro
@@ -413,6 +418,7 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
         _stopAudio();
         state = state!.copyWith(state: ChatV2CallState.missed);
         _cleanupWebrtc();
+        ChatV2CallKitService.instance.endAllCalls();
       }
     });
   }

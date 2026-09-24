@@ -8,6 +8,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:uuid/uuid.dart';
 
 import '../config/env.dart';
+import '../../features/chat_v2/application/chat_v2_callkit_service.dart';
 import 'firebase_push_options.dart';
 import 'push_notification_repository.dart';
 
@@ -21,6 +22,29 @@ Future<void> vcloudFirebaseMessagingBackgroundHandler(
   if (!Env.firebasePushConfigured) return;
   try {
     await Firebase.initializeApp(options: VCloudFirebaseOptions.currentPlatform);
+
+    // Kích hoạt CallKit Incoming Call khi nhận FCM wake-up ở Background / Lock screen
+    final data = message.data;
+    final eventType = (data['event_type'] ?? data['event'] ?? data['type'] ?? '').toString();
+    if (eventType == 'incoming_call' || eventType.contains('call')) {
+      final channelId = int.tryParse(data['channel_id']?.toString() ?? '0') ?? 0;
+      final callerId = int.tryParse(data['caller_id']?.toString() ?? '0') ?? 0;
+      final callerName = data['caller_name']?.toString() ?? 'Đồng nghiệp';
+      final callerAvatar = data['caller_avatar']?.toString();
+      final callUuid = data['call_uuid']?.toString() ?? 'call_${channelId}_${DateTime.now().millisecondsSinceEpoch}';
+
+      if (channelId > 0) {
+        await ChatV2CallKitService.instance.showIncomingCall(
+          callUuid: callUuid,
+          callerName: callerName,
+          callerAvatar: callerAvatar,
+          channelId: channelId,
+          callerId: callerId,
+        );
+      }
+    } else if (eventType == 'call_cancelled' || eventType == 'call_ended') {
+      await ChatV2CallKitService.instance.endAllCalls();
+    }
   } catch (e) {
     debugPrint('Background handler Firebase init error: $e');
   }

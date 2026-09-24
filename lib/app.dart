@@ -10,9 +10,13 @@ import 'core/theme/app_theme.dart';
 import 'core/utils/app_lifecycle_manager.dart';
 import 'features/attendance/application/attendance_controller.dart';
 import 'features/auth/application/auth_controller.dart';
+import 'features/chat_v2/application/chat_v2_call_controller.dart';
 import 'features/chat_v2/application/chat_v2_call_watcher.dart';
+import 'features/chat_v2/application/chat_v2_callkit_service.dart';
 import 'features/chat_v2/application/chat_v2_channels_controller.dart';
 import 'features/chat_v2/application/chat_v2_messages_controller.dart';
+import 'features/chat_v2/domain/models/chat_v2_call_session.dart';
+import 'features/chat_v2/presentation/screens/chat_v2_call_screen.dart';
 import 'features/chat_v2/presentation/widgets/chat_v2_call_listener.dart';
 import 'features/chat_v2/presentation/widgets/chat_v2_in_app_banner.dart';
 import 'features/home/application/home_summary_controller.dart';
@@ -55,6 +59,46 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
       }).catchError((e) {
         debugPrint('Get initial message error: $e');
       });
+
+      // Khởi tạo ChatV2CallKitService và bắt các action từ màn hình khóa / CallKit
+      ChatV2CallKitService.instance.initialize(
+        onAccept: (extra) async {
+          final channelId = int.tryParse(extra['channel_id']?.toString() ?? '0') ?? 0;
+          final callerId = int.tryParse(extra['caller_id']?.toString() ?? '0') ?? 0;
+          final callerName = extra['caller_name']?.toString() ?? 'Đồng nghiệp';
+          if (channelId > 0) {
+            final incomingSession = ChatV2CallSession(
+              id: 0,
+              channelId: channelId,
+              callerId: callerId,
+              callerName: callerName,
+              receiverId: 0,
+              receiverName: 'Tôi',
+              state: ChatV2CallState.incomingRinging,
+              isCaller: false,
+            );
+            ref.read(chatV2CallControllerProvider.notifier).setIncomingCall(incomingSession);
+            await ref.read(chatV2CallControllerProvider.notifier).acceptCall();
+
+            final nav = ref.read(routerProvider).routerDelegate.navigatorKey.currentState;
+            nav?.push(
+              MaterialPageRoute(
+                fullscreenDialog: true,
+                builder: (_) => const ChatV2CallScreen(),
+              ),
+            );
+          }
+        },
+        onDecline: (extra) async {
+          await ref.read(chatV2CallControllerProvider.notifier).rejectCall();
+        },
+        onEnd: (extra) async {
+          await ref.read(chatV2CallControllerProvider.notifier).endCall();
+        },
+        onTimeout: (extra) async {
+          ref.read(chatV2CallControllerProvider.notifier).reset();
+        },
+      );
     } catch (e) {
       debugPrint('Push notification listener setup failed: $e');
     }
@@ -92,6 +136,35 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
 
   void _onForegroundPush(RemoteMessage message) {
     final data = message.data;
+    final event = (data['event'] ?? data['event_type'] ?? '').toString();
+
+    // Nếu là sự kiện cuộc gọi
+    if (event == 'incoming_call') {
+      final channelId = int.tryParse(data['channel_id']?.toString() ?? '0') ?? 0;
+      final callerId = int.tryParse(data['caller_id']?.toString() ?? '0') ?? 0;
+      final callerName = data['caller_name']?.toString() ?? 'Đồng nghiệp';
+      final callerAvatar = data['caller_avatar']?.toString();
+      if (channelId > 0) {
+        final incomingSession = ChatV2CallSession(
+          id: 0,
+          channelId: channelId,
+          callerId: callerId,
+          callerName: callerName,
+          callerAvatar: callerAvatar,
+          receiverId: 0,
+          receiverName: 'Tôi',
+          state: ChatV2CallState.incomingRinging,
+          isCaller: false,
+        );
+        ref.read(chatV2CallControllerProvider.notifier).setIncomingCall(incomingSession);
+      }
+      return;
+    } else if (event == 'call_cancelled' || event == 'call_ended') {
+      ref.read(chatV2CallControllerProvider.notifier).reset();
+      ChatV2CallKitService.instance.endAllCalls();
+      return;
+    }
+
     final type = (data['event_type'] ?? data['type'] ?? data['model'] ?? '')
         .toString()
         .toLowerCase();
