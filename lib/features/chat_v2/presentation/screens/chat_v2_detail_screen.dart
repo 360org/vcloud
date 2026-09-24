@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:collection/collection.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -25,6 +26,7 @@ import '../widgets/chat_v2_info_sheet.dart';
 import '../widgets/chat_v2_reaction_details_sheet.dart';
 import '../../application/chat_v2_call_controller.dart';
 import 'chat_v2_call_screen.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class ChatV2DetailScreen extends ConsumerStatefulWidget {
   const ChatV2DetailScreen({
@@ -1463,6 +1465,50 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
     String? resolvedAvatarUrl,
   ) async {
     if (channel == null) return;
+
+    // PRE-FLIGHT GUARD 1: Chỉ hỗ trợ gọi 1-1 ở giai đoạn hiện tại
+    if (channel.isGroup) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cuộc gọi nhóm đang được phát triển. Vui lòng gọi thoại trong kênh 1-1.'),
+          duration: Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    // PRE-FLIGHT GUARD 2: Xin quyền Microphone Just-in-Time
+    if (!kIsWeb) {
+      final micStatus = await Permission.microphone.request();
+      if (!context.mounted) return;
+      if (micStatus.isPermanentlyDenied) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Ứng dụng cần quyền Micro để đàm thoại. Vui lòng mở Cài đặt thiết bị để cấp quyền.'),
+            action: SnackBarAction(
+              label: 'Cài đặt',
+              onPressed: () => openAppSettings(),
+            ),
+            duration: const Duration(seconds: 5),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+      if (!micStatus.isGranted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Quyền Micro bị từ chối, không thể bắt đầu cuộc gọi thoại.'),
+            duration: Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+    }
+
     final currentUser = ref.read(authControllerProvider).valueOrNull;
     final currentUserName = (currentUser?.userMetadata['name'] ??
         currentUser?.userMetadata['display_name'] ??
@@ -1483,8 +1529,23 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
       }
     }
 
+    // PRE-FLIGHT GUARD 3: Xác minh đối tác nhận cuộc gọi
+    if (receiverId == 0) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Không thể xác định đối phương để kết nối cuộc gọi.'),
+          duration: Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     final receiverName = displayTitle.isNotEmpty ? displayTitle : 'Đồng nghiệp';
     final receiverAvatar = resolvedAvatarUrl;
+
+    if (!context.mounted) return;
 
     // 1. Mở Call Screen ngay lập tức
     Navigator.of(context).push(
