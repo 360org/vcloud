@@ -97,6 +97,7 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
       startedAt: DateTime.now(),
     );
 
+    bus?.subscribeChannel(channelId);
     _playDialingTone();
 
     // Timeout 30s đổ chuông nếu đối phương không nghe máy
@@ -178,6 +179,7 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
       return; // Đang bận cuộc gọi khác
     }
 
+    bus?.subscribeChannel(incomingSession.channelId);
     state = incomingSession.copyWith(
       state: ChatV2CallState.incomingRinging,
       isCaller: false,

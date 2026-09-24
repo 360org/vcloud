@@ -20,6 +20,10 @@ class OdooBusService {
   StreamSubscription? _sub;
   bool _isConnected = false;
   Timer? _reconnectTimer;
+  int _reconnectAttempts = 0;
+  static const int _maxReconnectAttempts = 5;
+
+  final Set<String> _subscribedChannels = {};
 
   final _peerNotificationController = StreamController<Map<String, dynamic>>.broadcast();
   final _callEndedController = StreamController<int>.broadcast();
@@ -44,6 +48,7 @@ class OdooBusService {
 
       _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
       _isConnected = true;
+      _reconnectAttempts = 0;
 
       // 1. Gửi bản tin subscribe ban đầu
       _sendSubscribe();
@@ -68,6 +73,15 @@ class OdooBusService {
     }
   }
 
+  /// Thêm phòng chat cần theo dõi realtime
+  void subscribeChannel(int channelId) {
+    if (channelId <= 0) return;
+    final chName = 'discuss.channel_$channelId';
+    if (_subscribedChannels.add(chName)) {
+      _sendSubscribe();
+    }
+  }
+
   /// Gửi bản tin đăng ký nhận notifications từ Odoo Bus
   void _sendSubscribe() {
     if (_channel == null) return;
@@ -75,7 +89,7 @@ class OdooBusService {
       final msg = jsonEncode({
         'event_name': 'subscribe',
         'data': {
-          'channels': [],
+          'channels': _subscribedChannels.toList(),
           'last': 0,
         },
       });
@@ -129,22 +143,28 @@ class OdooBusService {
     _sub?.cancel();
     _sub = null;
 
-    // Tự động kết nối lại sau 3 giây nếu còn session
+    // Tự động kết nối lại với exponential backoff tối đa 5 lần
     _reconnectTimer?.cancel();
-    _reconnectTimer = Timer(const Duration(seconds: 3), () {
-      if (odooApiClient.session != null) {
-        connect();
-      }
-    });
+    if (_reconnectAttempts < _maxReconnectAttempts) {
+      _reconnectAttempts++;
+      final delaySeconds = (_reconnectAttempts * 2).clamp(2, 30);
+      _reconnectTimer = Timer(Duration(seconds: delaySeconds), () {
+        if (odooApiClient.session != null) {
+          connect();
+        }
+      });
+    }
   }
 
   void disconnect() {
     _reconnectTimer?.cancel();
+    _reconnectAttempts = 0;
     _isConnected = false;
     _sub?.cancel();
     _sub = null;
     _channel?.sink.close();
     _channel = null;
+    _subscribedChannels.clear();
   }
 
   void dispose() {

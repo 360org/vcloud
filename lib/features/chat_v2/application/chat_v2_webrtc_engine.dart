@@ -17,6 +17,8 @@ class ChatV2WebRtcEngine {
   MediaStream? _localStream;
   bool _isMuted = false;
   bool _isSpeaker = false;
+  bool _hasRemoteDescription = false;
+  final List<RTCIceCandidate> _queuedRemoteCandidates = [];
 
   int _localSessionId = 0;
   List<int> _targetSessionIds = [];
@@ -136,6 +138,8 @@ class ChatV2WebRtcEngine {
       sdpMap['type']?.toString(),
     );
     await _peerConnection!.setRemoteDescription(description);
+    _hasRemoteDescription = true;
+    await _flushQueuedCandidates();
 
     final constraints = <String, dynamic>{
       'offerToReceiveAudio': true,
@@ -164,9 +168,11 @@ class ChatV2WebRtcEngine {
       sdpMap['type']?.toString(),
     );
     await _peerConnection!.setRemoteDescription(description);
+    _hasRemoteDescription = true;
+    await _flushQueuedCandidates();
   }
 
-  /// 5. Nhận ICE Candidate từ đối phương
+  /// 5. Nhận ICE Candidate từ đối phương (Buffer nếu RemoteDescription chưa sẵn sàng)
   Future<void> handleRemoteCandidate(Map<String, dynamic> candidateMap) async {
     if (_peerConnection == null) return;
     final candidate = RTCIceCandidate(
@@ -174,7 +180,23 @@ class ChatV2WebRtcEngine {
       candidateMap['sdpMid']?.toString(),
       candidateMap['sdpMLineIndex'] is num ? (candidateMap['sdpMLineIndex'] as num).toInt() : 0,
     );
-    await _peerConnection!.addCandidate(candidate);
+    if (_hasRemoteDescription) {
+      await _peerConnection!.addCandidate(candidate);
+    } else {
+      _queuedRemoteCandidates.add(candidate);
+    }
+  }
+
+  Future<void> _flushQueuedCandidates() async {
+    if (_peerConnection == null) return;
+    for (final candidate in _queuedRemoteCandidates) {
+      try {
+        await _peerConnection!.addCandidate(candidate);
+      } catch (e) {
+        debugPrint('[WebRTC] Lỗi add queued ICE candidate: $e');
+      }
+    }
+    _queuedRemoteCandidates.clear();
   }
 
   /// 6. Gửi bản tin Signaling qua Odoo 19 Core
@@ -216,10 +238,8 @@ class ChatV2WebRtcEngine {
   /// Bật/Tắt Loa ngoài
   void toggleSpeaker() {
     _isSpeaker = !_isSpeaker;
-    if (_localStream != null) {
-      for (final track in _localStream!.getAudioTracks()) {
-        track.enableSpeakerphone(_isSpeaker);
-      }
+    if (!kIsWeb) {
+      Helper.setSpeakerphoneOn(_isSpeaker);
     }
   }
 
