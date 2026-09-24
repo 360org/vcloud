@@ -2,6 +2,27 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.10+141] — 2026-09-24 (Khắc Phục Lỗi Bubble Chat Kéo Giãn & Timestamp Rơi Dòng Thừa Khoảng Trống)
+
+> [!IMPORTANT]
+> **Khắc Phục Triệt Để Lỗi Text Bubble Bị Kéo Dãn 533px Và Timestamp Bị Đẩy Xuống Dòng 2 Tạo Khoảng Trống Thừa 38px Trong Chat V2**:
+> - **Phạm vi**: `vclients` (Flutter Mobile & Web)
+> - **Chi tiết khắc phục theo chuẩn AIaC v3.8.16 & Ponytail**:
+>   1. **[ROOT CAUSE]**:
+>      - Cơ chế `RenderWrap.computeMaxIntrinsicWidth` trong Flutter framework tính toán `math.max(child.getMaxIntrinsicWidth)` thay vì cộng dồn các children theo trục ngang (`sum`).
+>      - Khi `Wrap` chứa `Text` và `timeAndStatus` bị bọc trong `IntrinsicWidth`, `IntrinsicWidth` chỉ cấp độ rộng bằng đúng chiều ngang của `Text`, dẫn đến `Wrap` nhận diện không còn chỗ trống cho `timeAndStatus` trên dòng 1.
+>      - Hệ quả: `timeAndStatus` bị ép xuống dòng 2 trên 100% tin nhắn văn bản, `WrapAlignment.end` đẩy timestamp sang góc phải dưới cùng, và `Column` bị kéo giãn tối đa lên 533px tạo ra khoảng trống thừa ~38px.
+>   2. **[SOLUTION - PURE TEXT BUBBLE DECOUPLING]**:
+>      - Tách riêng luồng xử lý `isPureText` thành phương thức `_buildPureTextContent` độc lập, không bọc qua `IntrinsicWidth`.
+>      - Khi độ dài `textWidth + spacing + timeWidth <= maxWidth`, `Wrap` đặt cả chữ và giờ trên cùng 1 dòng gọn gàng, độ cao thu gọn từ 60px xuống 36px, độ rộng bubble shrink-wrap ôm sát nội dung (giảm từ 533px xuống 296.5px), xóa bỏ hoàn toàn khoảng trắng thừa 38px.
+>      - Giữ nguyên `IntrinsicWidth` cho các trường hợp tin nhắn phức hợp đa media (`!isPureText` như audio, quote reply, document attachment, image gallery) để đảm bảo không hồi quy giao diện.
+>   3. **[VERIFICATION & TESTS]**:
+>      - 53/53 tests trong test suite Chat V2 (`chat_v2_test.dart`, `chat_v2_image_viewer_transition_test.dart`) PASSED 100%.
+>      - `flutter analyze` đạt 0 issues (0 errors, 0 warnings).
+>      - Render ảnh preview đối soát trực quan tại `/media/tanma/DATA/save/mobile_versions/bubble_fixed_preview.png`.
+
+---
+
 ## [v2.9.10+141] — 2026-09-23 (Ẩn Tên File Ảnh Kỹ Thuật image_picker Khỏi Header Xem Ảnh Toàn Màn Hình)
 
 > [!IMPORTANT]

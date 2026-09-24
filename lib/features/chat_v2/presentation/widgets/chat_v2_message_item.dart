@@ -381,24 +381,35 @@ class ChatV2MessageItem extends StatelessWidget {
                                       horizontal: 12,
                                       vertical: 8,
                                     ),
-                              child: IntrinsicWidth(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                  if (!isMine && showSenderName) ...[
-                                    Text(
-                                      message.authorName,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700,
-                                        color: authorColor,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 3),
-                                  ],
+                              child: isPureText
+                                  ? _buildPureTextContent(
+                                      context: context,
+                                      cleanContent: cleanContent,
+                                      isMine: isMine,
+                                      isDark: isDark,
+                                      showSenderName: showSenderName,
+                                      authorColor: authorColor,
+                                      timeAndStatus: timeAndStatus,
+                                    )
+                                  : IntrinsicWidth(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          if (!isMine && showSenderName) ...[
+                                            Text(
+                                              message.authorName,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w700,
+                                                color: authorColor,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 3),
+                                          ],
                                   // 0. Render Reply Quote Card if this message is a reply
                                   if (message.parentId != null ||
                                       message.parentBody != null)
@@ -464,31 +475,6 @@ class ChatV2MessageItem extends StatelessWidget {
                                       isDark,
                                       timeStr,
                                       timeAndStatus,
-                                    ),
-                                  ] else if (isPureText) ...[
-                                    Wrap(
-                                      alignment: WrapAlignment.end,
-                                      crossAxisAlignment:
-                                          WrapCrossAlignment.end,
-                                      spacing: 8,
-                                      runSpacing: 2,
-                                      children: [
-                                        _buildParsedMessageText(
-                                          context: context,
-                                          rawText: cleanContent,
-                                          isMine: isMine,
-                                          isDark: isDark,
-                                          textColor: isDark
-                                              ? const Color(0xFFE9EDEF)
-                                              : const Color(0xFF111B21),
-                                        ),
-                                        Padding(
-                                          padding: const EdgeInsets.only(
-                                            bottom: 1,
-                                          ),
-                                          child: timeAndStatus,
-                                        ),
-                                      ],
                                     ),
                                   ] else ...[
                                     if (cleanContent.isNotEmpty &&
@@ -1621,6 +1607,60 @@ class ChatV2MessageItem extends StatelessWidget {
           color: const Color(0xFF8696A0),
         );
     }
+  }
+
+  Widget _buildPureTextContent({
+    required BuildContext context,
+    required String cleanContent,
+    required bool isMine,
+    required bool isDark,
+    required bool showSenderName,
+    required Color authorColor,
+    required Widget timeAndStatus,
+  }) {
+    final textWidget = _buildParsedMessageText(
+      context: context,
+      rawText: cleanContent,
+      isMine: isMine,
+      isDark: isDark,
+      textColor: isDark ? const Color(0xFFE9EDEF) : const Color(0xFF111B21),
+    );
+
+    final textWrap = Wrap(
+      alignment: WrapAlignment.end,
+      crossAxisAlignment: WrapCrossAlignment.end,
+      spacing: 8,
+      runSpacing: 2,
+      children: [
+        textWidget,
+        Padding(
+          padding: const EdgeInsets.only(bottom: 1),
+          child: timeAndStatus,
+        ),
+      ],
+    );
+
+    if (!isMine && showSenderName) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            message.authorName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: authorColor,
+            ),
+          ),
+          const SizedBox(height: 3),
+          textWrap,
+        ],
+      );
+    }
+    return textWrap;
   }
 
   // Parse and build message text
