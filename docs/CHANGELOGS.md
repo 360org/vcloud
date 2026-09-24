@@ -2,6 +2,25 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.11+142] — 2026-09-24 (Triển Khai Tính Năng Gọi Thoại P2P WebRTC Tương Thích Odoo 19 Discuss RTC Core)
+
+> [!IMPORTANT]
+> **Triển Khai Tính Năng Voice Call 1-1 Chuẩn Native Odoo 19 Discuss RTC Core & WebRTC P2P**:
+> - **Phạm vi**: `vclients` (Flutter Mobile & Web) trên nhánh `feat/chat-voice-call`
+> - **Chi tiết triển khai theo chuẩn SSOT SPEC_VOICE_CALL_ODOO19_RTC.md & AIaC v3.8.16**:
+>   1. **[FLUTTER CLIENT — `vclients`]**:
+>      - **Odoo Discuss RTC API**: `ChatV2CallRepository` trực tiếp gọi các JSON-RPC 2.0 endpoint chuẩn của Odoo 19 (`/mail/rtc/channel/join_call`, `/mail/rtc/session/notify_call_members`, `/mail/rtc/channel/leave_call`, `/mail/rtc/channel/cancel_call_invitation`, `/mail/rtc/session/update_and_broadcast`), đồng thời giữ backward-compatible fallback cho Odoo 17 & legacy endpoints.
+>      - **WebRTC P2P Audio Engine**: Xây dựng `ChatV2WebRtcEngine` sử dụng `flutter_webrtc` (v1.6.2+hotfix.3), khởi tạo `RTCPeerConnection` với ICE servers từ Odoo, quản lý microphone capture, gửi và nhận SDP Offer/Answer, trao đổi ICE candidates, toggle mute và toggle speaker.
+>      - **Odoo Bus WebSocket Signaling**: Xây dựng `OdooBusService` kết nối `/websocket` nhận các sự kiện `discuss.channel.rtc.session/peer_notification` (SDP/ICE) và `discuss.channel.rtc.session/ended` (gác máy).
+>      - **Pre-flight Call Guards**: Trong `chat_v2_detail_screen.dart`, chặn gọi thoại nhóm (giới hạn 1-1), xin quyền micro qua `permission_handler`, kiểm tra hợp lệ người nhận trước khi quay số.
+>      - **State Machine & Lifecycle**: `ChatV2CallController` quản lý đầy đủ 10 trạng thái cuộc gọi, timeout đổ chuông 30s, phát âm thanh quay số và nhạc chuông.
+>   2. **[VERIFICATION & TESTS]**:
+>      - Bộ 10/10 test cases độc lập tại `test/features/chat_v2/chat_v2_odoo19_rtc_test.dart` PASSED 100%.
+>      - Toàn bộ 4 test suite Chat V2 Call (`chat_v2_odoo19_rtc_test.dart`, `chat_v2_call_ui_test.dart`, `chat_v2_call_test.dart`, `chat_v2_call_widget_test.dart`) gồm 30/30 tests PASSED 100%.
+>      - `flutter analyze` đạt 0 issues (0 errors, 0 warnings).
+
+---
+
 ## [v2.9.10+141] — 2026-09-23 (Ẩn Tên File Ảnh Kỹ Thuật image_picker Khỏi Header Xem Ảnh Toàn Màn Hình)
 
 > [!IMPORTANT]
