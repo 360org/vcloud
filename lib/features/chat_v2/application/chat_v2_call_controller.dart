@@ -26,6 +26,7 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
   ChatV2WebRtcEngine? _webrtc;
   StreamSubscription? _busPeerSub;
   StreamSubscription? _busEndedSub;
+  StreamSubscription? _busIncomingCallSub;
 
   Timer? _durationTimer;
   Timer? _ringingTimeoutTimer;
@@ -64,6 +65,30 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
     _busEndedSub = bus?.onCallEnded.listen((channelId) {
       if (state != null && state!.channelId == channelId) {
         _handleRemoteHangup();
+      }
+    });
+
+    // 3. Lắng nghe sự kiện Odoo Bus mời tham gia cuộc gọi (RTC Invite Callee)
+    _busIncomingCallSub = bus?.onIncomingCall.listen((data) {
+      final channelId = int.tryParse(data['channel_id']?.toString() ?? '0') ?? 0;
+      final callerId = int.tryParse(data['caller_id']?.toString() ?? '0') ?? 0;
+      final callerName = data['caller_name']?.toString() ?? 'Đồng nghiệp';
+      final callerAvatar = data['caller_avatar']?.toString();
+
+      if (channelId > 0 && (state == null || state!.state == ChatV2CallState.idle)) {
+        final incomingSession = ChatV2CallSession(
+          id: int.tryParse(data['rtc_inviting_session_id']?.toString() ?? '0') ?? 0,
+          channelId: channelId,
+          callerId: callerId,
+          callerName: callerName,
+          callerAvatar: callerAvatar,
+          receiverId: 0,
+          receiverName: 'Tôi',
+          state: ChatV2CallState.incomingRinging,
+          isCaller: false,
+          startedAt: DateTime.now(),
+        );
+        setIncomingCall(incomingSession);
       }
     });
   }
@@ -465,6 +490,7 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
     _isDisposed = true;
     _busPeerSub?.cancel();
     _busEndedSub?.cancel();
+    _busIncomingCallSub?.cancel();
     _stopAudio();
     _stopTimers();
     _cleanupWebrtc();

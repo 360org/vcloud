@@ -27,9 +27,11 @@ class OdooBusService {
 
   final _peerNotificationController = StreamController<Map<String, dynamic>>.broadcast();
   final _callEndedController = StreamController<int>.broadcast();
+  final _incomingCallController = StreamController<Map<String, dynamic>>.broadcast();
 
   Stream<Map<String, dynamic>> get onPeerNotification => _peerNotificationController.stream;
   Stream<int> get onCallEnded => _callEndedController.stream;
+  Stream<Map<String, dynamic>> get onIncomingCall => _incomingCallController.stream;
   bool get isConnected => _isConnected;
 
   /// Khởi tạo kết nối WebSocket Bus với Odoo 19
@@ -135,6 +137,70 @@ class OdooBusService {
         _callEndedController.add(chId);
       }
     }
+
+    // Sự kiện Odoo 19 Mail Record Insert: Mời tham gia cuộc gọi (RTC Invite)
+    if (type == 'mail.record/insert' && payload is Map) {
+      _checkRtcInvitationInsert(payload);
+    }
+  }
+
+  void _checkRtcInvitationInsert(Map payload) {
+    try {
+      final members = payload['discuss.channel.member'];
+      if (members is! List) return;
+
+      int channelId = 0;
+      int rtcInvitingSessionId = 0;
+      int callerPartnerId = 0;
+
+      for (final m in members) {
+        if (m is! Map) continue;
+        if (m['rtc_inviting_session_id'] != null) {
+          final invId = int.tryParse(m['rtc_inviting_session_id'].toString()) ?? 0;
+          if (invId > 0) {
+            rtcInvitingSessionId = invId;
+            final ch = m['channel_id'];
+            if (ch is Map && ch['id'] != null) {
+              channelId = int.tryParse(ch['id'].toString()) ?? 0;
+            } else if (ch is num) {
+              channelId = ch.toInt();
+            }
+          }
+        }
+      }
+
+      if (channelId > 0) {
+        // Tìm thông tin caller partner từ danh sách partners
+        String callerName = 'Đồng nghiệp';
+        String? callerAvatar;
+        final partners = payload['res.partner'];
+        if (partners is List) {
+          for (final p in partners) {
+            if (p is Map && p['name'] != null) {
+              final pid = int.tryParse(p['id']?.toString() ?? '0') ?? 0;
+              // Nếu partner không phải chính user hiện tại
+              final myPartnerId = odooApiClient.session?.partnerId;
+              if (myPartnerId == null || pid != myPartnerId) {
+                callerPartnerId = pid;
+                callerName = p['name'].toString();
+                callerAvatar = '/api/v1/mobile/avatar/res.partner/$pid?field=avatar_128';
+                break;
+              }
+            }
+          }
+        }
+
+        _incomingCallController.add({
+          'channel_id': channelId,
+          'caller_id': callerPartnerId,
+          'caller_name': callerName,
+          'caller_avatar': callerAvatar,
+          'rtc_inviting_session_id': rtcInvitingSessionId,
+        });
+      }
+    } catch (e) {
+      debugPrint('[OdooBus] Error checking RTC invitation: $e');
+    }
   }
 
   void _handleDisconnect() {
@@ -171,5 +237,6 @@ class OdooBusService {
     disconnect();
     _peerNotificationController.close();
     _callEndedController.close();
+    _incomingCallController.close();
   }
 }
