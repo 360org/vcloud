@@ -81,6 +81,7 @@ class ChatV2Channel {
   final String? directPartnerId;
   final String? directPartnerName;
   final String? directPartnerStatus;
+  final bool isMuted;
 
   const ChatV2Channel({
     required this.id,
@@ -101,6 +102,7 @@ class ChatV2Channel {
     this.directPartnerId,
     this.directPartnerName,
     this.directPartnerStatus,
+    this.isMuted = false,
   });
 
   ChatV2Channel copyWith({
@@ -122,6 +124,7 @@ class ChatV2Channel {
     String? directPartnerId,
     String? directPartnerName,
     String? directPartnerStatus,
+    bool? isMuted,
   }) {
     return ChatV2Channel(
       id: id ?? this.id,
@@ -142,6 +145,7 @@ class ChatV2Channel {
       directPartnerId: directPartnerId ?? this.directPartnerId,
       directPartnerName: directPartnerName ?? this.directPartnerName,
       directPartnerStatus: directPartnerStatus ?? this.directPartnerStatus,
+      isMuted: isMuted ?? this.isMuted,
     );
   }
 
@@ -188,6 +192,7 @@ class ChatV2Channel {
     'last_message_author_name': lastMessageAuthorName,
     'last_message_author_id': lastMessageAuthorId,
     'partner_id': partnerId,
+    'is_muted': isMuted,
   };
 
   static bool matchesUser(String part, String? currentUserName) {
@@ -468,6 +473,9 @@ class ChatV2Channel {
       }
     }
 
+    final rawIsMuted = map['is_muted'];
+    final bool isMuted = rawIsMuted == true || rawIsMuted == 1 || rawIsMuted == 'true';
+
     return ChatV2Channel(
       id: id,
       name: name,
@@ -487,6 +495,7 @@ class ChatV2Channel {
       directPartnerId: directPartnerId,
       directPartnerName: directPartnerName,
       directPartnerStatus: directPartnerStatus,
+      isMuted: isMuted,
     );
   }
 

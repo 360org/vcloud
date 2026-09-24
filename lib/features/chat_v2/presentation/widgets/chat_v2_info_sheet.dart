@@ -296,11 +296,12 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
     }
   }
 
-  void _toggleMute() {
+  void _toggleMute() async {
     HapticFeedback.lightImpact();
-    ChatV2ChannelLocalCache.toggleUserMute(widget.channel.id);
+    final newMuted = !_isMuted;
+    ChatV2ChannelLocalCache.setUserMuted(widget.channel.id, newMuted);
     setState(() {
-      _isMuted = ChatV2ChannelLocalCache.isUserMuted(widget.channel.id);
+      _isMuted = newMuted;
     });
     if (mounted) {
       if (_isMuted) {
@@ -317,6 +318,14 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
         );
       }
     }
+    // Đồng bộ lên Server Odoo Backend
+    try {
+      await ref.read(chatV2RepositoryProvider).muteChannel(
+            widget.channel.id,
+            mute: newMuted,
+          );
+      ref.invalidate(chatV2ChannelsProvider);
+    } catch (_) {}
   }
 
   void _togglePin() {

@@ -189,7 +189,8 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
 
       final notification = message.notification;
       final channelId = (data['res_id'] ?? data['channel_id'] ?? data['discuss_channel_id'] ?? data['chat_id'] ?? '').toString();
-      if (notification != null && (notification.title != null || notification.body != null)) {
+      final isChannelMuted = channelId.isNotEmpty && ChatV2ChannelLocalCache.isUserMuted(channelId);
+      if (!isChannelMuted && notification != null && (notification.title != null || notification.body != null)) {
         final bodyText = notification.body ?? '';
         final currentUser = ref.read(authControllerProvider).valueOrNull;
         final currentUserName = (currentUser?.userMetadata['name'] ??
