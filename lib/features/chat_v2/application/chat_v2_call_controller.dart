@@ -431,6 +431,7 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
       final player = AudioPlayer();
       _audioPlayer = player;
       player.setReleaseMode(ReleaseMode.loop).catchError((_) {});
+      player.play(AssetSource('audio/dialing_tone.mp3')).catchError((_) {});
     } catch (_) {}
   }
 
@@ -440,6 +441,7 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
       final player = AudioPlayer();
       _audioPlayer = player;
       player.setReleaseMode(ReleaseMode.loop).catchError((_) {});
+      player.play(AssetSource('audio/ringtone.mp3')).catchError((_) {});
     } catch (_) {}
   }
 
