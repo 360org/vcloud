@@ -61,10 +61,17 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
       _handlePeerNotification(data);
     });
 
-    // 2. Lắng nghe sự kiện đối phương gác máy
-    _busEndedSub = bus?.onCallEnded.listen((channelId) {
-      if (state != null && state!.channelId == channelId) {
-        _handleRemoteHangup();
+    // 2. Lắng nghe sự kiện đối phương gác máy hoặc từ chối (Odoo 19 Core & VMobile)
+    _busEndedSub = bus?.onCallEnded.listen((data) {
+      final channelId = int.tryParse(data['channel_id']?.toString() ?? '0') ?? 0;
+      final sessionId = int.tryParse(data['sessionId']?.toString() ?? '0') ?? 0;
+      final endState = data['state']?.toString();
+
+      final matchChannel = (channelId > 0 && state != null && state!.channelId == channelId);
+      final matchSession = (sessionId > 0 && state != null && state!.id == sessionId);
+
+      if (matchChannel || matchSession) {
+        _handleRemoteHangup(endState: endState);
       }
     });
 
@@ -385,12 +392,25 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
     _startDurationTimer();
   }
 
-  void _handleRemoteHangup() {
+  void _handleRemoteHangup({String? endState}) {
     _stopAudio();
     _stopTimers();
-    state = state?.copyWith(state: ChatV2CallState.ended);
+    ChatV2CallState targetState = ChatV2CallState.ended;
+    if (endState == 'rejected') {
+      targetState = ChatV2CallState.rejected;
+    } else if (endState == 'cancelled') {
+      targetState = ChatV2CallState.cancelled;
+    }
+    state = state?.copyWith(state: targetState);
     _cleanupWebrtc();
     ChatV2CallKitService.instance.endAllCalls();
+
+    // Tự động dọn dẹp state sau 1.5s nếu màn hình UI chưa reset
+    Future.delayed(const Duration(milliseconds: 1500), () {
+      if (state?.state == targetState) {
+        reset();
+      }
+    });
   }
 
   /// Bật/Tắt Micro

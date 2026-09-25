@@ -73,20 +73,20 @@ class FakeOdoo19RtcApiClient extends OdooApiClient {
 /// Fake Odoo Bus Service để kiểm soát sự kiện WebSocket phát sinh
 class FakeOdooBusService extends OdooBusService {
   final _peerController = StreamController<Map<String, dynamic>>.broadcast();
-  final _endedController = StreamController<int>.broadcast();
+  final _endedController = StreamController<Map<String, dynamic>>.broadcast();
 
   @override
   Stream<Map<String, dynamic>> get onPeerNotification => _peerController.stream;
 
   @override
-  Stream<int> get onCallEnded => _endedController.stream;
+  Stream<Map<String, dynamic>> get onCallEnded => _endedController.stream;
 
   void emitPeerNotification(Map<String, dynamic> data) {
     _peerController.add(data);
   }
 
-  void emitCallEnded(int channelId) {
-    _endedController.add(channelId);
+  void emitCallEnded({int channelId = 0, int sessionId = 0, String? state}) {
+    _endedController.add({'channel_id': channelId, 'sessionId': sessionId, 'state': state});
   }
 
   @override
@@ -209,7 +209,8 @@ void main() {
       final call = apiClient.recordedCalls.firstWhere((c) => c['path'] == '/mail/rtc/channel/join_call');
       expect(call['body']['jsonrpc'], '2.0');
       expect(call['body']['params']['channel_id'], 123);
-      expect(call['body']['params']['camera'], false);
+      // ponytail: Odoo 17 không chấp nhận param camera, chỉ truyền khi camera = true
+      expect(call['body']['params'].containsKey('camera'), isFalse);
     });
 
     test('TC-CALL-03: notifyCallMembers gửi đúng cấu trúc peer_notifications tuple', () async {
@@ -308,10 +309,27 @@ void main() {
       );
 
       // Đối phương gác máy trên Odoo Bus
-      bus.emitCallEnded(123);
+      bus.emitCallEnded(channelId: 123);
       await Future.delayed(const Duration(milliseconds: 10));
 
       expect(controller.state?.state, ChatV2CallState.ended);
+    });
+
+    test('TC-CALL-09B: Bus onCallEnded mang state rejected lập tức chuyển Caller sang rejected', () async {
+      await controller.startCall(
+        channelId: 123,
+        callerName: 'Tân Nguyễn',
+        receiverId: 5,
+        receiverName: 'Đồng nghiệp',
+      );
+
+      expect(controller.state?.state, ChatV2CallState.outgoingRinging);
+
+      // Callee từ chối và Odoo Bus broadcast ended với state rejected
+      bus.emitCallEnded(channelId: 123, state: 'rejected');
+      await Future.delayed(const Duration(milliseconds: 10));
+
+      expect(controller.state?.state, ChatV2CallState.rejected);
     });
 
     test('TC-CALL-10: Callee bấm Từ chối gọi leaveCall giải phóng phiên an toàn', () async {
@@ -334,6 +352,126 @@ void main() {
 
       final leaveCall = apiClient.recordedCalls.any((c) => c['path'] == '/mail/rtc/channel/leave_call');
       expect(leaveCall, true);
+    });
+
+    test('TC-CALL-11: Bus onCallEnded khớp theo sessionId của Odoo 19 core và chuyển Caller sang ended', () async {
+      await controller.startCall(
+        channelId: 123,
+        callerName: 'Tân Nguyễn',
+        receiverId: 5,
+        receiverName: 'Đồng nghiệp',
+      );
+
+      expect(controller.state?.id, 789);
+
+      // Odoo 19 core broadcast discuss.channel.rtc.session/ended chỉ có sessionId: 789 (không có channel_id)
+      bus.emitCallEnded(sessionId: 789, state: 'ended');
+      await Future.delayed(const Duration(milliseconds: 10));
+
+      expect(controller.state?.state, ChatV2CallState.ended);
+    });
+
+    test('TC-CALL-12: Bus onCallEnded khớp theo sessionId mang state rejected chuyển Caller sang rejected', () async {
+      await controller.startCall(
+        channelId: 123,
+        callerName: 'Tân Nguyễn',
+        receiverId: 5,
+        receiverName: 'Đồng nghiệp',
+      );
+
+      expect(controller.state?.id, 789);
+
+      // Callee từ chối và Odoo 19 broadcast ended theo sessionId với state rejected
+      bus.emitCallEnded(sessionId: 789, state: 'rejected');
+      await Future.delayed(const Duration(milliseconds: 10));
+
+      expect(controller.state?.state, ChatV2CallState.rejected);
+    });
+
+    test('TC-CALL-13: OdooBusService bóc tách mail.record/insert với invited_member_ids DELETE ra event rejected', () async {
+      final realBus = OdooBusService();
+      Map<String, dynamic>? receivedEnded;
+      final sub = realBus.onCallEnded.listen((data) {
+        receivedEnded = data;
+      });
+
+      // Bản tin mail.record/insert thực tế của Odoo 19 khi Callee bấm Từ chối
+      realBus.processBusNotificationForTesting({
+        'type': 'mail.record/insert',
+        'payload': {
+          'discuss.channel': [
+            {
+              'id': 123,
+              'invited_member_ids': [
+                ['DELETE', [4]]
+              ],
+            }
+          ]
+        }
+      });
+
+      await Future.delayed(const Duration(milliseconds: 10));
+      expect(receivedEnded, isNotNull);
+      expect(receivedEnded!['channel_id'], 123);
+      expect(receivedEnded!['state'], 'rejected');
+
+      await sub.cancel();
+      realBus.dispose();
+    });
+
+    test('TC-CALL-14: OdooBusService bóc tách mail.record/insert với rtc_session_ids DELETE ra event ended', () async {
+      final realBus = OdooBusService();
+      Map<String, dynamic>? receivedEnded;
+      final sub = realBus.onCallEnded.listen((data) {
+        receivedEnded = data;
+      });
+
+      // Bản tin mail.record/insert của Odoo 19 khi thành viên trong phòng rời cuộc gọi
+      realBus.processBusNotificationForTesting({
+        'type': 'mail.record/insert',
+        'payload': {
+          'discuss.channel': [
+            {
+              'id': 123,
+              'rtc_session_ids': [
+                ['DELETE', [11]]
+              ],
+            }
+          ]
+        }
+      });
+
+      await Future.delayed(const Duration(milliseconds: 10));
+      expect(receivedEnded, isNotNull);
+      expect(receivedEnded!['channel_id'], 123);
+      expect(receivedEnded!['state'], 'ended');
+
+      await sub.cancel();
+      realBus.dispose();
+    });
+
+    test('TC-CALL-15: OdooBusService bóc tách discuss.channel.rtc.session/ended chuẩn Odoo 19 có sessionId', () async {
+      final realBus = OdooBusService();
+      Map<String, dynamic>? receivedEnded;
+      final sub = realBus.onCallEnded.listen((data) {
+        receivedEnded = data;
+      });
+
+      // Bản tin native Odoo 19 core discuss.channel.rtc.session/ended
+      realBus.processBusNotificationForTesting({
+        'type': 'discuss.channel.rtc.session/ended',
+        'payload': {
+          'sessionId': 789,
+        }
+      });
+
+      await Future.delayed(const Duration(milliseconds: 10));
+      expect(receivedEnded, isNotNull);
+      expect(receivedEnded!['sessionId'], 789);
+      expect(receivedEnded!['state'], 'ended');
+
+      await sub.cancel();
+      realBus.dispose();
     });
   });
 }

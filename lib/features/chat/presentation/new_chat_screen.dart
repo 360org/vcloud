@@ -105,6 +105,73 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen>
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final currentUser = ref.watch(authControllerProvider).valueOrNull;
+    final isPortalUser = currentUser?.isPortal == true;
+
+    if (isPortalUser) {
+      return Scaffold(
+        backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+        appBar: AppBar(
+          backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: Icon(
+              LucideIcons.chevronLeft,
+              color: isDark ? Colors.white : const Color(0xFF0F172A),
+              size: 22,
+            ),
+            onPressed: () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.go('/chat');
+              }
+            },
+          ),
+          title: Text(
+            'Cuộc trò chuyện',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: isDark ? Colors.white : const Color(0xFF0F172A),
+            ),
+          ),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  LucideIcons.shieldAlert,
+                  size: 48,
+                  color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Tài khoản khách hàng không có quyền tạo cuộc trò chuyện mới hoặc tạo nhóm.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    color: isDark ? Colors.white70 : const Color(0xFF334155),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                FilledButton(
+                  onPressed: () => context.go('/chat'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF00C83A),
+                  ),
+                  child: const Text('Quay lại phòng chat'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
@@ -297,12 +364,15 @@ class _DirectChatListState extends State<_DirectChatList> {
 
     return widget.users.when(
       data: (list) {
-        final filtered = _query.isEmpty
+        final rawQ = _query.trim();
+        final searchQ = rawQ.startsWith('@') ? rawQ.substring(1).trim().toLowerCase() : rawQ.toLowerCase();
+        final filtered = searchQ.isEmpty
             ? list
             : list.where((p) {
-                final q = _query.toLowerCase();
-                return p.displayName.toLowerCase().contains(q) ||
-                    p.email.toLowerCase().contains(q);
+                final nameMatch = p.displayName.toLowerCase().contains(searchQ);
+                final emailMatch = p.email.toLowerCase().contains(searchQ);
+                final roleMatch = (p.isPortal ? 'khách hàng portal' : 'nội bộ nhân viên').contains(searchQ);
+                return nameMatch || emailMatch || roleMatch;
               }).toList();
 
         return Column(
@@ -410,15 +480,45 @@ class _DirectChatListState extends State<_DirectChatList> {
                               avatarUrl: p.avatarUrl,
                               size: 44,
                             ),
-                            title: Text(
-                              p.displayName,
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                color: isDark
-                                    ? Colors.white
-                                    : const Color(0xFF0F172A),
-                              ),
+                            title: Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    p.displayName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                      color: isDark
+                                          ? Colors.white
+                                          : const Color(0xFF0F172A),
+                                    ),
+                                  ),
+                                ),
+                                if (p.isPortal) ...[
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF0077CD).withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(
+                                        color: const Color(0xFF0077CD).withValues(alpha: 0.3),
+                                        width: 0.8,
+                                      ),
+                                    ),
+                                    child: const Text(
+                                      'Khách hàng',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF0077CD),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                             subtitle: Text(
                               p.email,
@@ -519,13 +619,18 @@ class _GroupFormState extends ConsumerState<_GroupForm> {
           return !isSelf;
         }).toList();
 
-        final filtered = _query.isEmpty
+        final rawQ = _query.trim();
+        final searchQ = rawQ.startsWith('@') ? rawQ.substring(1).trim().toLowerCase() : rawQ.toLowerCase();
+        final filtered = searchQ.isEmpty
             ? list
             : list
                   .where(
-                    (p) => p.displayName.toLowerCase().contains(
-                      _query.toLowerCase(),
-                    ),
+                    (p) {
+                      final nameMatch = p.displayName.toLowerCase().contains(searchQ);
+                      final emailMatch = p.email.toLowerCase().contains(searchQ);
+                      final roleMatch = (p.isPortal ? 'khách hàng portal' : 'nội bộ nhân viên').contains(searchQ);
+                      return nameMatch || emailMatch || roleMatch;
+                    },
                   )
                   .toList();
         return Column(
@@ -632,35 +737,53 @@ class _GroupFormState extends ConsumerState<_GroupForm> {
                     runSpacing: 6,
                     children: [
                       for (final id in _selected)
-                      InputChip(
-                        label: Text(
-                          list
-                              .firstWhere(
-                                (p) =>
-                                    (p.partnerId ?? p.id) == id || p.id == id,
-                                orElse: () => Profile(
-                                  id: id,
-                                  email: '',
-                                  displayName: 'Thành viên',
-                                ),
-                              )
-                              .displayName,
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w600,
-                            color: isDark
-                                ? Colors.white
-                                : const Color(0xFF0F172A),
-                          ),
+                        Builder(
+                          builder: (context) {
+                            final p = list.firstWhere(
+                              (item) => (item.partnerId ?? item.id) == id || item.id == id,
+                              orElse: () => Profile(
+                                id: id,
+                                email: '',
+                                displayName: 'Thành viên',
+                              ),
+                            );
+                            return InputChip(
+                              label: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    p.displayName,
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: isDark
+                                          ? Colors.white
+                                          : const Color(0xFF0F172A),
+                                    ),
+                                  ),
+                                  if (p.isPortal) ...[
+                                    const SizedBox(width: 4),
+                                    const Text(
+                                      '(KH)',
+                                      style: TextStyle(
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF0077CD),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              backgroundColor: isDark
+                                  ? const Color(0xFF1E293B)
+                                  : const Color(0xFFE2E8F0),
+                              deleteIconColor: isDark
+                                  ? Colors.white60
+                                  : const Color(0xFF64748B),
+                              onDeleted: () => setState(() => _selected.remove(id)),
+                            );
+                          },
                         ),
-                        backgroundColor: isDark
-                            ? const Color(0xFF1E293B)
-                            : const Color(0xFFE2E8F0),
-                        deleteIconColor: isDark
-                            ? Colors.white60
-                            : const Color(0xFF64748B),
-                        onDeleted: () => setState(() => _selected.remove(id)),
-                      ),
                   ],
                 ),
               ),
@@ -695,13 +818,43 @@ class _GroupFormState extends ConsumerState<_GroupForm> {
                     avatarUrl: p.avatarUrl,
                     size: 40,
                   ),
-                  title: Text(
-                    p.displayName,
-                    style: TextStyle(
-                      fontSize: 14.5,
-                      fontWeight: FontWeight.w600,
-                      color: isDark ? Colors.white : const Color(0xFF0F172A),
-                    ),
+                  title: Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          p.displayName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          ),
+                        ),
+                      ),
+                      if (p.isPortal) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0077CD).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color: const Color(0xFF0077CD).withValues(alpha: 0.3),
+                              width: 0.8,
+                            ),
+                          ),
+                          child: const Text(
+                            'Khách hàng',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF0077CD),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                   subtitle: Text(
                     p.email,

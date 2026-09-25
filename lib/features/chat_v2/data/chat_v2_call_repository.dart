@@ -28,26 +28,82 @@ class OdooRtcJoinResult {
       final localSession = rtcData['localSession'];
       if (localSession is Map && localSession['id'] != null) {
         localSid = int.tryParse(localSession['id'].toString()) ?? 0;
+      } else if (localSession is num) {
+        localSid = localSession.toInt();
+      } else if (localSession != null) {
+        localSid = int.tryParse(localSession.toString()) ?? 0;
       }
+    }
+    // Fallback cho Odoo 17: 'sessionId' nằm trực tiếp ở root của response
+    if (localSid == 0 && store['sessionId'] != null) {
+      localSid = int.tryParse(store['sessionId'].toString()) ?? 0;
     }
 
     List<dynamic> ice = [];
     if (rtcData is Map && rtcData['iceServers'] is List) {
       ice = List<dynamic>.from(rtcData['iceServers'] as List);
+    } else if (store['iceServers'] is List) {
+      // Odoo 17 root-level iceServers
+      ice = List<dynamic>.from(store['iceServers'] as List);
     }
 
     // Trích xuất các session khác đang trong phòng
-    final sessionIds = <int>[];
+    final sessionIds = <int>{};
+
+    // 0. Trích xuất từ Odoo 17 rtcSessions: [['ADD', [{id: ...}]]]
+    final rawRtcSessions = store['rtcSessions'];
+    if (rawRtcSessions is List) {
+      for (final item in rawRtcSessions) {
+        if (item is List && item.length >= 2 && item[0] == 'ADD') {
+          final added = item[1];
+          if (added is List) {
+            for (final s in added) {
+              if (s is Map && s['id'] != null) {
+                final sid = int.tryParse(s['id'].toString());
+                if (sid != null && sid != localSid) sessionIds.add(sid);
+              } else if (s is num && s.toInt() != localSid) {
+                sessionIds.add(s.toInt());
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // 1. Trích xuất trực tiếp từ discuss.channel.rtc.session nếu có
+    final rtcSessions = store['discuss.channel.rtc.session'];
+    if (rtcSessions is List) {
+      for (final s in rtcSessions) {
+        if (s is Map && s['id'] != null) {
+          final sid = int.tryParse(s['id'].toString());
+          if (sid != null && sid != localSid) sessionIds.add(sid);
+        } else if (s is num && s.toInt() != localSid) {
+          sessionIds.add(s.toInt());
+        }
+      }
+    }
+
+    // 2. Quét qua các danh sách/map discuss.channel hoặc command tuple [ADD, [id]]
     for (final entry in store.entries) {
-      if (entry.value is Map) {
-        final val = entry.value as Map;
-        if (val['rtc_session_ids'] is List) {
-          for (final s in val['rtc_session_ids'] as List) {
+      final valList = entry.value is List ? (entry.value as List) : [entry.value];
+      for (final val in valList) {
+        if (val is! Map) continue;
+        final rawRtc = val['rtc_session_ids'];
+        if (rawRtc is List) {
+          for (final s in rawRtc) {
             if (s is Map && s['id'] != null) {
               final sid = int.tryParse(s['id'].toString());
               if (sid != null && sid != localSid) sessionIds.add(sid);
-            } else if (s is num) {
-              if (s.toInt() != localSid) sessionIds.add(s.toInt());
+            } else if (s is num && s.toInt() != localSid) {
+              sessionIds.add(s.toInt());
+            } else if (s is List && s.length >= 2 && s[0] == 'ADD') {
+              final added = s[1];
+              if (added is List) {
+                for (final a in added) {
+                  final sid = int.tryParse(a.toString());
+                  if (sid != null && sid != localSid) sessionIds.add(sid);
+                }
+              }
             }
           }
         }
@@ -57,7 +113,7 @@ class OdooRtcJoinResult {
     return OdooRtcJoinResult(
       localSessionId: localSid,
       iceServers: ice,
-      currentRtcSessionIds: sessionIds,
+      currentRtcSessionIds: sessionIds.toList(),
       rawStore: store,
     );
   }
@@ -93,11 +149,15 @@ class ChatV2CallRepository {
     bool camera = false,
   }) async {
     try {
-      final res = await _callJsonRpc('/mail/rtc/channel/join_call', {
+      final params = <String, dynamic>{
         'channel_id': channelId,
         'check_rtc_session_ids': checkRtcSessionIds,
-        'camera': camera,
-      });
+      };
+      // ponytail: Odoo 17 không có param camera, chỉ truyền khi camera thực sự bật
+      if (camera) {
+        params['camera'] = true;
+      }
+      final res = await _callJsonRpc('/mail/rtc/channel/join_call', params);
 
       if (res is Map) {
         return OdooRtcJoinResult.fromStore(Map<String, dynamic>.from(res));
@@ -134,10 +194,19 @@ class ChatV2CallRepository {
   }) async {
     try {
       final params = <String, dynamic>{'channel_id': channelId};
+      // ponytail: Odoo 19 hỗ trợ session_id, Odoo 17 chỉ nhận channel_id
       if (sessionId != null && sessionId > 0) {
         params['session_id'] = sessionId;
       }
-      await _callJsonRpc('/mail/rtc/channel/leave_call', params);
+      try {
+        await _callJsonRpc('/mail/rtc/channel/leave_call', params);
+      } catch (_) {
+        if (params.containsKey('session_id')) {
+          await _callJsonRpc('/mail/rtc/channel/leave_call', {'channel_id': channelId});
+        } else {
+          rethrow;
+        }
+      }
       return true;
     } catch (_) {
       return false;

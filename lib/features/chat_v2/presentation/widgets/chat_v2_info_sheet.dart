@@ -14,6 +14,7 @@ import '../../../../shared/models/profile.dart';
 import '../../../../shared/widgets/app_scaffold.dart';
 import '../../../../shared/widgets/app_toast.dart';
 import '../../../../shared/widgets/loading_view.dart';
+import '../../../auth/application/auth_controller.dart';
 import '../../../chat/application/conversations_controller.dart';
 import '../../application/chat_v2_channels_controller.dart';
 import '../../data/chat_v2_repository.dart';
@@ -473,6 +474,8 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isGroup = widget.channel.getActualIsGroup(widget.currentUserName);
+    final currentUser = ref.watch(authControllerProvider).valueOrNull;
+    final isPortalUser = currentUser?.isPortal == true;
     final cleanName = widget.channel.getCleanName(widget.currentUserName);
     final avatarGrad = ChatV2InfoSheet.getAvatarGradient(cleanName);
     final isOnline = widget.channel.imStatus == 'online';
@@ -732,7 +735,7 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
                     isActive: _isMuted,
                     onTap: _toggleMute,
                   ),
-                  if (isGroup)
+                  if (isGroup && !isPortalUser)
                     _buildCircularAction(
                       isDark: isDark,
                       icon: LucideIcons.userPlus,
@@ -904,7 +907,8 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
                       ),
 
                       // Add member button row
-                      ListTile(
+                      if (!isPortalUser)
+                        ListTile(
                         leading: Container(
                           width: 40,
                           height: 40,
@@ -1920,12 +1924,15 @@ class _AddGroupMemberBottomSheetState
                     return !isAlreadyMember;
                   }).toList();
 
-                  final filtered = _searchQuery.isEmpty
+                  final rawQ = _searchQuery.trim();
+                  final searchQ = rawQ.startsWith('@') ? rawQ.substring(1).trim().toLowerCase() : rawQ.toLowerCase();
+                  final filtered = searchQ.isEmpty
                       ? availableUsers
                       : availableUsers.where((u) {
-                          final query = _searchQuery.toLowerCase();
-                          return u.displayName.toLowerCase().contains(query) ||
-                              u.email.toLowerCase().contains(query);
+                          final nameMatch = u.displayName.toLowerCase().contains(searchQ);
+                          final emailMatch = u.email.toLowerCase().contains(searchQ);
+                          final roleMatch = (u.isPortal ? 'khách hàng portal' : 'nội bộ nhân viên').contains(searchQ);
+                          return nameMatch || emailMatch || roleMatch;
                         }).toList();
 
                   if (filtered.isEmpty) {
@@ -1978,13 +1985,43 @@ class _AddGroupMemberBottomSheetState
                           avatarUrl: u.avatarUrl,
                           size: 40,
                         ),
-                        title: Text(
-                          u.displayName,
-                          style: TextStyle(
-                            fontSize: 14.5,
-                            fontWeight: FontWeight.w600,
-                            color: isDark ? Colors.white : const Color(0xFF0F172A),
-                          ),
+                        title: Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                u.displayName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 14.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                ),
+                              ),
+                            ),
+                            if (u.isPortal) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF0077CD).withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(
+                                    color: const Color(0xFF0077CD).withValues(alpha: 0.3),
+                                    width: 0.8,
+                                  ),
+                                ),
+                                child: const Text(
+                                  'Khách hàng',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF0077CD),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                         subtitle: Text(
                           u.email,

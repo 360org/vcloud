@@ -26,11 +26,11 @@ class OdooBusService {
   final Set<String> _subscribedChannels = {};
 
   final _peerNotificationController = StreamController<Map<String, dynamic>>.broadcast();
-  final _callEndedController = StreamController<int>.broadcast();
+  final _callEndedController = StreamController<Map<String, dynamic>>.broadcast();
   final _incomingCallController = StreamController<Map<String, dynamic>>.broadcast();
 
   Stream<Map<String, dynamic>> get onPeerNotification => _peerNotificationController.stream;
-  Stream<int> get onCallEnded => _callEndedController.stream;
+  Stream<Map<String, dynamic>> get onCallEnded => _callEndedController.stream;
   Stream<Map<String, dynamic>> get onIncomingCall => _incomingCallController.stream;
   bool get isConnected => _isConnected;
 
@@ -117,6 +117,11 @@ class OdooBusService {
     }
   }
 
+  @visibleForTesting
+  void processBusNotificationForTesting(dynamic item) {
+    _processBusNotification(item);
+  }
+
   void _processBusNotification(dynamic item) {
     if (item is! Map) return;
 
@@ -130,22 +135,174 @@ class OdooBusService {
       }
     }
 
-    // Sự kiện kênh kết thúc cuộc gọi
+    // Sự kiện kênh kết thúc cuộc gọi (hỗ trợ cả VMobile format & Odoo 19 Core sessionId)
     if (type == 'discuss.channel.rtc.session/ended') {
-      if (payload is Map && payload['channel_id'] != null) {
-        final chId = int.tryParse(payload['channel_id'].toString()) ?? 0;
-        _callEndedController.add(chId);
+      if (payload is Map) {
+        final chId = int.tryParse(payload['channel_id']?.toString() ?? '0') ?? 0;
+        final sessionId = int.tryParse(payload['sessionId']?.toString() ?? '0') ?? 0;
+        final state = payload['state']?.toString() ?? 'ended';
+        _callEndedController.add({
+          'channel_id': chId,
+          'sessionId': sessionId,
+          'state': state,
+        });
       }
     }
 
-    // Sự kiện Odoo 19 Mail Record Insert: Mời tham gia cuộc gọi (RTC Invite)
+    // Sự kiện Odoo 17 Cập nhật RTC Sessions (Rời phòng / gác máy)
+    if (type == 'discuss.channel/rtc_sessions_update' && payload is Map) {
+      final chId = int.tryParse(payload['id']?.toString() ?? '0') ?? 0;
+      final rtcSessions = payload['rtcSessions'];
+      if (chId > 0 && rtcSessions is List) {
+        for (final item in rtcSessions) {
+          if (item is List && item.isNotEmpty && item[0] == 'DELETE') {
+            debugPrint('📵 [OdooBus] Odoo 17 rtc_sessions_update DELETE kênh $chId -> Cuộc gọi kết thúc');
+            _callEndedController.add({
+              'channel_id': chId,
+              'state': 'ended',
+            });
+            break;
+          }
+        }
+      }
+    }
+
+    // Sự kiện Mail Record Insert: Mời tham gia hoặc hủy/kết thúc cuộc gọi (Odoo 19 & Odoo 17)
     if (type == 'mail.record/insert' && payload is Map) {
       _checkRtcInvitationInsert(payload);
+      _checkRtcCallDelete(payload);
+    }
+  }
+
+  void _checkRtcCallDelete(Map payload) {
+    try {
+      // 1. Hỗ trợ Odoo 17 Thread format
+      final threadData = payload['Thread'];
+      if (threadData != null) {
+        final threadList = threadData is List ? threadData : [threadData];
+        for (final th in threadList) {
+          if (th is! Map) continue;
+          final chId = int.tryParse(th['id']?.toString() ?? '0') ?? 0;
+          if (chId <= 0) continue;
+
+          // Odoo 17: rtcInvitingSession set to false -> Bị hủy / từ chối
+          if (th.containsKey('rtcInvitingSession') && th['rtcInvitingSession'] == false) {
+            debugPrint('📵 [OdooBus] Odoo 17 rtcInvitingSession false kênh $chId -> Cuộc gọi bị từ chối');
+            _callEndedController.add({
+              'channel_id': chId,
+              'state': 'rejected',
+            });
+            continue;
+          }
+
+          // Odoo 17: invitedMembers chứa [('DELETE', ...)]
+          final invited = th['invitedMembers'];
+          if (invited is List) {
+            for (final inv in invited) {
+              if (inv is List && inv.isNotEmpty && inv[0] == 'DELETE') {
+                debugPrint('📵 [OdooBus] Odoo 17 DELETE invitedMembers kênh $chId -> Cuộc gọi bị từ chối');
+                _callEndedController.add({
+                  'channel_id': chId,
+                  'state': 'rejected',
+                });
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      // 2. Hỗ trợ Odoo 19 discuss.channel format
+      final channels = payload['discuss.channel'];
+      if (channels is! List) return;
+
+      for (final ch in channels) {
+        if (ch is! Map) continue;
+        final chId = int.tryParse(ch['id']?.toString() ?? '0') ?? 0;
+        if (chId <= 0) continue;
+
+        // 1. Kiểm tra invited_member_ids bị DELETE -> Đối phương từ chối / hủy lời mời
+        final invited = ch['invited_member_ids'];
+        if (invited is List) {
+          for (final inv in invited) {
+            if (inv is List && inv.isNotEmpty && inv[0] == 'DELETE') {
+              debugPrint('📵 [OdooBus] Nhận DELETE invited_member_ids kênh $chId -> Cuộc gọi bị từ chối');
+              _callEndedController.add({
+                'channel_id': chId,
+                'state': 'rejected',
+              });
+              break;
+            }
+          }
+        }
+
+        // 2. Kiểm tra rtc_session_ids bị DELETE -> Thành viên rời cuộc gọi
+        final rtcSessions = ch['rtc_session_ids'];
+        if (rtcSessions is List) {
+          for (final rtc in rtcSessions) {
+            if (rtc is List && rtc.isNotEmpty && rtc[0] == 'DELETE') {
+              debugPrint('📵 [OdooBus] Nhận DELETE rtc_session_ids kênh $chId -> Cuộc gọi kết thúc');
+              _callEndedController.add({
+                'channel_id': chId,
+                'state': 'ended',
+              });
+              break;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[OdooBus] Error checking RTC call delete: $e');
     }
   }
 
   void _checkRtcInvitationInsert(Map payload) {
     try {
+      // 1. Hỗ trợ Odoo 17 Thread format
+      final threadData = payload['Thread'];
+      if (threadData != null) {
+        final threadList = threadData is List ? threadData : [threadData];
+        for (final th in threadList) {
+          if (th is! Map) continue;
+          final invSession = th['rtcInvitingSession'];
+          if (invSession is Map && invSession['id'] != null) {
+            final chId = int.tryParse(th['id']?.toString() ?? '0') ?? 0;
+            final invId = int.tryParse(invSession['id'].toString()) ?? 0;
+            if (chId > 0 && invId > 0) {
+              String callerName = 'Đồng nghiệp';
+              String? callerAvatar;
+              int callerPartnerId = 0;
+
+              final member = invSession['channelMember'];
+              if (member is Map) {
+                final persona = member['persona'];
+                if (persona is Map && persona['partner'] is Map) {
+                  final partner = persona['partner'] as Map;
+                  callerPartnerId = int.tryParse(partner['id']?.toString() ?? '0') ?? 0;
+                  callerName = partner['name']?.toString() ?? callerName;
+                  if (callerPartnerId > 0) {
+                    callerAvatar = '/api/v1/mobile/avatar/res.partner/$callerPartnerId?field=avatar_128';
+                  }
+                }
+              }
+
+              final myPartnerId = odooApiClient.session?.partnerId;
+              if (myPartnerId == null || callerPartnerId != myPartnerId) {
+                _incomingCallController.add({
+                  'channel_id': chId,
+                  'caller_id': callerPartnerId,
+                  'caller_name': callerName,
+                  'caller_avatar': callerAvatar,
+                  'rtc_inviting_session_id': invId,
+                });
+                return;
+              }
+            }
+          }
+        }
+      }
+
+      // 2. Hỗ trợ Odoo 19 discuss.channel.member format
       final members = payload['discuss.channel.member'];
       if (members is! List) return;
 

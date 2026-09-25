@@ -2,6 +2,27 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.11+142] — 2026-09-25 (Chuẩn Hóa Phân Quyền Rule & Role Chat: Internal Users vs Portal Users)
+
+> [!IMPORTANT]
+> **Chuẩn Hóa Ma Trận Phân Quyền Chat & Bảo Vệ Dữ Liệu Khách Hàng (Internal vs Portal Users) Đồng Bộ Odoo 17, Odoo 19 & Flutter Client**:
+> - **Phạm vi**: `vclients` (Flutter Mobile & Web) và `v_mobile` (Odoo 17 / 19 Addon Backend)
+> - **Chi tiết theo chuẩn Bảo Mật Odoo Core & Least Privilege**:
+>   1. **[BACKEND ODOO 17 & 19 — `v_mobile`]**:
+>      - **Chặn Portal tạo nhóm & mời thành viên (Defense-in-Depth)**: Thêm rào chắn `deny_portal(uid)` (trả về HTTP 403 Forbidden) tại endpoint `/api/v1/mobile/chat/groups/create` và `/api/v1/mobile/chat/channels/<id>/members/add`.
+>      - **Hạn chế 1-1 Chat cho Portal**: Portal user chỉ được phép khởi tạo chat 1-1 với nhân viên nội bộ (`share = False`), cấm tạo chat trực tiếp với tài khoản khách hàng khác.
+>      - **Mở rộng API Tìm kiếm Người dùng (`/api/v1/mobile/users/search`)**: Nhân viên nội bộ có thể tìm kiếm cả đồng nghiệp nội bộ lẫn tài khoản Portal đã được cấp quyền Mobile (`vmobile_enabled = True`). Hỗ trợ làm sạch tiền tố `@` khi tìm kiếm (`@portal` -> `portal`). Bổ sung cờ `is_portal` và `user_type` vào kết quả trả về.
+>   2. **[FLUTTER CLIENT — `vclients`]**:
+>      - **Model `Profile` & `AuthUser`**: Cập nhật getter `isPortal`, nhận diện chính xác vai trò Portal (`role == 'portal' || role == 'customer' || is_portal == true`).
+>      - **Giao diện Chat List (`ChatV2ListScreen`)**: Ẩn nút tạo mới FloatingActionButton (`+`) khi tài khoản đăng nhập là Portal.
+>      - **Giao diện New Chat (`NewChatScreen`)**: Chặn Portal truy cập luồng tạo chat/tạo nhóm với banner cảnh báo thân thiện; tự động làm sạch ký tự `@` khi gõ tìm kiếm; bổ sung badge `[Khách hàng]` trực quan bằng màu Tech Royal Blue `#0077cd` trong danh sách người dùng, danh sách thành viên nhóm và selected chips.
+>      - **Giao diện Info Sheet (`ChatV2InfoSheet`)**: Ẩn nút và menu "Thêm thành viên" đối với tài khoản Portal khi xem chi tiết nhóm.
+>   3. **[VERIFICATION & TESTS]**:
+>      - Bổ sung Test Suite `test/features/chat/chat_role_rule_test.dart` gồm 10 case kiểm thử PASSED 100%.
+>      - `flutter analyze` đạt 0 issues (0 errors, 0 warnings).
+
+---
+
 ## [v2.9.11+142] — 2026-09-24 (Triển Khai Tính Năng Gọi Thoại P2P WebRTC & Khắc Phục Lỗi Bubble Chat Kéo Giãn)
 
 > [!IMPORTANT]
@@ -10,6 +31,10 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 > - **Chi tiết triển khai theo chuẩn SSOT SPEC_VOICE_CALL_ODOO19_RTC.md & AIaC v3.8.16**:
 >   1. **[VOICE CALL — FLUTTER CLIENT `vclients`]**:
 >      - **Odoo Discuss RTC API**: `ChatV2CallRepository` trực tiếp gọi các JSON-RPC 2.0 endpoint chuẩn của Odoo 19 (`/mail/rtc/channel/join_call`, `/mail/rtc/session/notify_call_members`, `/mail/rtc/channel/leave_call`, `/mail/rtc/channel/cancel_call_invitation`, `/mail/rtc/session/update_and_broadcast`), đồng thời giữ backward-compatible fallback cho Odoo 17 & legacy endpoints.
+>      - **Xử Lý Tín Hiệu Từ Chối & Gác Máy Tức Thì (<100ms)**: Khắc phục lỗi bên Caller (Admin) bị treo giao diện "Đang đổ chuông..." 30s khi Callee (Demo) bấm "Từ chối":
+>        * Trong `ChatV2CallRepository`: `OdooRtcJoinResult.fromStore` hỗ trợ bóc tách `localSession` dạng `num`/`int` và `Map`, parse danh sách `rtc_session_ids` và `discuss.channel.rtc.session` từ Odoo 19 Store.
+>        * Trong `OdooBusService`: Bổ sung `_checkRtcCallDelete` bắt sự kiện `mail.record/insert` với `invited_member_ids` DELETE (`state: rejected`) và `rtc_session_ids` DELETE (`state: ended`), đồng thời bóc tách `sessionId` từ `discuss.channel.rtc.session/ended`.
+>        * Trong `ChatV2CallController`: Lắng nghe khớp theo cả `channelId` và `sessionId`, chuyển trạng thái `ChatV2CallState.rejected` tức thì, dừng âm thanh và tự động đóng UI sau 1.5s.
 >      - **WebRTC P2P Audio Engine**: Xây dựng `ChatV2WebRtcEngine` sử dụng `flutter_webrtc` (v1.6.2+hotfix.3), khởi tạo `RTCPeerConnection` với ICE servers từ Odoo, quản lý microphone capture, gửi và nhận SDP Offer/Answer, đệm ICE candidates trước khi nhận remote SDP, toggle mute và toggle speaker qua `Helper.setSpeakerphoneOn`.
 >      - **Apple CallKit & Android Full-Screen Incoming Call**: Tích hợp `flutter_callkit_incoming` (v3.1.6), cấu hình đầy đủ quyền `USE_FULL_SCREEN_INTENT`, `WAKE_LOCK`, `FOREGROUND_SERVICE_PHONE_CALL`, `MANAGE_OWN_CALLS` trên Android và `voip`, `audio` Background Modes trên iOS. Xử lý FCM background message tự động hiện màn hình nhận cuộc gọi khi tắt app / khóa màn hình.
 >      - **Odoo Bus WebSocket Signaling**: Xây dựng `OdooBusService` kết nối `/websocket` nhận các sự kiện `discuss.channel.rtc.session/peer_notification` (SDP/ICE) và `discuss.channel.rtc.session/ended` (gác máy), tự động subscribe channel khi cuộc gọi phát sinh và áp dụng exponential backoff khi mất kết nối.

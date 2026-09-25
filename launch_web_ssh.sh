@@ -214,11 +214,19 @@ if [[ -n "$DB_NAME" ]]; then
     DART_DEFINES+=("--dart-define=VCLOUD_ODOO_DB=$DB_NAME")
 fi
 
+TARGET_DEVICE="${DEVICE:-chrome}"
+EXTRA_FLAGS=()
+if [[ "$TARGET_DEVICE" == "chrome" ]]; then
+    EXTRA_FLAGS+=(
+        --web-browser-flag="--disable-web-security"
+        --web-browser-flag="--user-data-dir=$CHROME_PROFILE"
+    )
+fi
+
 exec flutter run \
-    -d chrome \
+    -d "$TARGET_DEVICE" \
     --no-pub \
     $MODE_FLAG \
     --web-port="$WEB_PORT" \
-    --web-browser-flag="--disable-web-security" \
-    --web-browser-flag="--user-data-dir=$CHROME_PROFILE" \
+    "${EXTRA_FLAGS[@]}" \
     "${DART_DEFINES[@]}"

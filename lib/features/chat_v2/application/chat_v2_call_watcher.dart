@@ -100,20 +100,35 @@ class ChatV2CallWatcher {
           }
         }
       } else {
-        // Nếu server không còn active call nào nhưng máy nhận vẫn đang đổ chuông incomingRinging -> reset
-        if (currentCallState != null &&
-            currentCallState.state == ChatV2CallState.incomingRinging &&
-            !currentCallState.isCaller) {
-          debugPrint('📵 [CALL_WATCHER] Không còn active call trên server -> Reset incoming call dialog');
-          ref.read(chatV2CallControllerProvider.notifier).reset();
-        } else if (currentCallState != null &&
-            (currentCallState.state == ChatV2CallState.ended ||
-             currentCallState.state == ChatV2CallState.rejected ||
-             currentCallState.state == ChatV2CallState.missed ||
-             currentCallState.state == ChatV2CallState.cancelled ||
-             currentCallState.state == ChatV2CallState.failed)) {
-          // Cleanup trạng thái kẹt
-          ref.read(chatV2CallControllerProvider.notifier).reset();
+        // Nếu server không còn active call nào:
+        if (currentCallState != null) {
+          // 1. Máy nhận vẫn đang đổ chuông incomingRinging -> reset
+          if (currentCallState.state == ChatV2CallState.incomingRinging && !currentCallState.isCaller) {
+            debugPrint('📵 [CALL_WATCHER] Không còn active call trên server -> Reset incoming call dialog');
+            ref.read(chatV2CallControllerProvider.notifier).reset();
+          }
+          // 2. Máy gọi đang đổ chuông (outgoingRinging) nhưng server không còn active call
+          // -> Tra cứu nhanh session xem đã bị rejected/cancelled chưa để cập nhật ngay
+          else if (currentCallState.state == ChatV2CallState.outgoingRinging && currentCallState.isCaller && currentCallState.id > 0) {
+            final endedSession = await repo.getCallSession(currentCallState.id);
+            if (_isDisposed) return;
+            if (endedSession != null &&
+                (endedSession.state == ChatV2CallState.rejected ||
+                 endedSession.state == ChatV2CallState.cancelled ||
+                 endedSession.state == ChatV2CallState.ended ||
+                 endedSession.state == ChatV2CallState.missed)) {
+              debugPrint('📵 [CALL_WATCHER] Cuộc gọi đi ${currentCallState.id} đã kết thúc từ server: ${endedSession.state}');
+              ref.read(chatV2CallControllerProvider.notifier).setIncomingCall(endedSession);
+            }
+          }
+          // 3. Cleanup trạng thái kẹt
+          else if (currentCallState.state == ChatV2CallState.ended ||
+                   currentCallState.state == ChatV2CallState.rejected ||
+                   currentCallState.state == ChatV2CallState.missed ||
+                   currentCallState.state == ChatV2CallState.cancelled ||
+                   currentCallState.state == ChatV2CallState.failed) {
+            ref.read(chatV2CallControllerProvider.notifier).reset();
+          }
         }
       }
     } catch (e) {

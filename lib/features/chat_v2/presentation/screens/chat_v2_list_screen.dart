@@ -125,15 +125,17 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
     return AppScaffold(
       title: 'Trò chuyện',
       showAppBar: false,
-      floatingActionButton: FloatingActionButton(
-        heroTag: 'chat_new_fab',
-        onPressed: () => context.push('/chat/new'),
-        backgroundColor: const Color(0xFF00C83A),
-        foregroundColor: Colors.white,
-        elevation: 4,
-        shape: const CircleBorder(),
-        child: const Icon(LucideIcons.plus, size: 26),
-      ),
+      floatingActionButton: (currentUser?.isPortal == true)
+          ? null
+          : FloatingActionButton(
+              heroTag: 'chat_new_fab',
+              onPressed: () => context.push('/chat/new'),
+              backgroundColor: const Color(0xFF00C83A),
+              foregroundColor: Colors.white,
+              elevation: 4,
+              shape: const CircleBorder(),
+              child: const Icon(LucideIcons.plus, size: 26),
+            ),
       body: Container(
         color: isDark ? const Color(0xFF1E293B) : Colors.white,
         child: Column(

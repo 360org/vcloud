@@ -2,6 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vcloud/features/chat_v2/domain/models/chat_v2_call_session.dart';
 import 'package:vcloud/features/chat_v2/data/chat_v2_call_repository.dart';
+import 'package:vcloud/features/chat_v2/data/odoo_bus_service.dart';
 import 'package:vcloud/features/chat_v2/application/chat_v2_call_controller.dart';
 import 'package:vcloud/core/api/odoo_api_client.dart';
 
@@ -307,6 +308,179 @@ void main() {
       expect(successMsg.contains('Cuộc gọi thoại'), true);
       expect(rejectMsg.contains('từ chối'), true);
       expect(cancelMsg.contains('hủy'), true);
+    });
+  });
+
+  group('Odoo 17 & 19 Dual-Version RTC & Bus Compatibility Tests', () {
+    test('TC-12: Odoo 19 Store format parses localSession and iceServers', () {
+      final store19 = {
+        'Rtc': {
+          'localSession': 14,
+          'iceServers': [
+            {'urls': 'stun:stun.l.google.com:19302'}
+          ],
+        },
+        'discuss.channel_3': {
+          'rtc_session_ids': [
+            [
+              'ADD',
+              [14, 15]
+            ]
+          ],
+        }
+      };
+      final res = OdooRtcJoinResult.fromStore(store19);
+      expect(res.localSessionId, 14);
+      expect(res.iceServers.length, 1);
+      expect(res.currentRtcSessionIds, contains(15));
+      expect(res.currentRtcSessionIds, isNot(contains(14)));
+    });
+
+    test('TC-13: Odoo 17 root format parses sessionId, iceServers and rtcSessions', () {
+      final store17 = {
+        'sessionId': 4,
+        'iceServers': [
+          {'urls': 'stun:stun.l.google.com:19302'}
+        ],
+        'rtcSessions': [
+          [
+            'ADD',
+            [
+              {'id': 4},
+              {'id': 9}
+            ]
+          ],
+          [
+            'DELETE',
+            [
+              {'id': 2}
+            ]
+          ]
+        ],
+        'serverInfo': null,
+      };
+      final res = OdooRtcJoinResult.fromStore(store17);
+      expect(res.localSessionId, 4);
+      expect(res.iceServers.length, 1);
+      expect(res.currentRtcSessionIds, contains(9));
+      expect(res.currentRtcSessionIds, isNot(contains(4)));
+    });
+
+    test('TC-14: Odoo 17 Thread format rejection emits callEnded event', () async {
+      final busService = OdooBusService();
+      Map<String, dynamic>? endedData;
+      final sub = busService.onCallEnded.listen((data) => endedData = data);
+
+      busService.processBusNotificationForTesting({
+        'type': 'mail.record/insert',
+        'payload': {
+          'Thread': {
+            'id': 42,
+            'model': 'discuss.channel',
+            'rtcInvitingSession': false,
+          }
+        }
+      });
+
+      await Future.delayed(Duration.zero);
+      expect(endedData, isNotNull);
+      expect(endedData?['channel_id'], 42);
+      expect(endedData?['state'], 'rejected');
+      await sub.cancel();
+      busService.dispose();
+    });
+
+    test('TC-15: Odoo 17 Thread format invitedMembers DELETE emits callEnded event', () async {
+      final busService = OdooBusService();
+      Map<String, dynamic>? endedData;
+      final sub = busService.onCallEnded.listen((data) => endedData = data);
+
+      busService.processBusNotificationForTesting({
+        'type': 'mail.record/insert',
+        'payload': {
+          'Thread': {
+            'id': 55,
+            'model': 'discuss.channel',
+            'invitedMembers': [
+              [
+                'DELETE',
+                [10]
+              ]
+            ],
+          }
+        }
+      });
+
+      await Future.delayed(Duration.zero);
+      expect(endedData, isNotNull);
+      expect(endedData?['channel_id'], 55);
+      expect(endedData?['state'], 'rejected');
+      await sub.cancel();
+      busService.dispose();
+    });
+
+    test('TC-16: Odoo 17 rtc_sessions_update DELETE emits callEnded event', () async {
+      final busService = OdooBusService();
+      Map<String, dynamic>? endedData;
+      final sub = busService.onCallEnded.listen((data) => endedData = data);
+
+      busService.processBusNotificationForTesting({
+        'type': 'discuss.channel/rtc_sessions_update',
+        'payload': {
+          'id': 77,
+          'rtcSessions': [
+            [
+              'DELETE',
+              [
+                {'id': 12}
+              ]
+            ]
+          ],
+        }
+      });
+
+      await Future.delayed(Duration.zero);
+      expect(endedData, isNotNull);
+      expect(endedData?['channel_id'], 77);
+      expect(endedData?['state'], 'ended');
+      await sub.cancel();
+      busService.dispose();
+    });
+
+    test('TC-17: Odoo 17 Thread incoming call invitation triggers onIncomingCall', () async {
+      final busService = OdooBusService();
+      Map<String, dynamic>? incomingData;
+      final sub = busService.onIncomingCall.listen((data) => incomingData = data);
+
+      busService.processBusNotificationForTesting({
+        'type': 'mail.record/insert',
+        'payload': {
+          'Thread': {
+            'id': 88,
+            'model': 'discuss.channel',
+            'rtcInvitingSession': {
+              'id': 999,
+              'channelMember': {
+                'id': 12,
+                'persona': {
+                  'partner': {
+                    'id': 99,
+                    'name': 'Nguyễn Văn A',
+                  }
+                }
+              }
+            }
+          }
+        }
+      });
+
+      await Future.delayed(Duration.zero);
+      expect(incomingData, isNotNull);
+      expect(incomingData?['channel_id'], 88);
+      expect(incomingData?['caller_name'], 'Nguyễn Văn A');
+      expect(incomingData?['rtc_inviting_session_id'], 999);
+      await sub.cancel();
+      busService.dispose();
     });
   });
 }

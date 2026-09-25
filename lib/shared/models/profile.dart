@@ -30,7 +30,8 @@ class Profile {
     displayName: _parseString(map['display_name']) ?? '',
     avatarUrl: _parseString(map['avatar_url']),
     partnerId: _parseString(map['partner_id']),
-    role: _parseString(map['role']) ?? 'customer',
+    role: _parseString(map['role'] ?? map['user_type']) ??
+        (map['is_portal'] == true ? 'portal' : 'customer'),
     imStatus: _parseString(map['im_status'] ?? map['imStatus']),
   );
 
@@ -57,7 +58,8 @@ class Profile {
     return (parts.first[0] + parts.last[0]).toUpperCase();
   }
 
-  bool get isCustomer => role == 'customer';
-  bool get isStaff => role == 'staff' || role == 'admin';
+  bool get isCustomer => role == 'customer' || role == 'portal';
+  bool get isPortal => role == 'customer' || role == 'portal';
+  bool get isStaff => role == 'staff' || role == 'admin' || role == 'employee' || role == 'internal';
   bool get isAdmin => role == 'admin';
 }
