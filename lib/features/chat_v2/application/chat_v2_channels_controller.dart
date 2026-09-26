@@ -530,6 +530,10 @@ class ChatV2ChannelLocalCache {
   static void clear() {
     _pinnedDirectChannels.clear();
     _cached = const [];
+    _userPinnedOrder = [];
+    _userPinnedIds = {};
+    _userMutedIds = {};
+    _lastKnownUnread = 0;
     _initialized = false;
     _activeScope = '';
     _saveToStorage();

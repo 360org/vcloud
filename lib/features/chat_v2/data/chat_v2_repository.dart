@@ -25,6 +25,15 @@ class ChatV2Repository {
   static int? _lastChannelsCount;
   static String? _lastChannelsChecksum;
 
+  /// Xóa sạch bộ nhớ đệm Chat V2 trong RAM khi logout / switch user (Protocol V2.1).
+  static void clearCache() {
+    _resolvedAttachmentMsgIds.clear();
+    _resolvedParentMsgIds.clear();
+    _cachedAttachmentsByMsgId.clear();
+    _lastChannelsCount = null;
+    _lastChannelsChecksum = null;
+  }
+
   String resolveUrl(String path, {String? accessToken}) =>
       _client.authenticatedUrl(path, accessToken: accessToken);
 

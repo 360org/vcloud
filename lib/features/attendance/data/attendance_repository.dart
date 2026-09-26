@@ -17,6 +17,11 @@ class AttendanceRepository {
   final OdooApiClient _client;
   static ShiftConfig? cachedShiftConfig;
 
+  /// Xóa sạch bộ nhớ đệm Attendance ShiftConfig trong RAM khi logout / switch user.
+  static void clearCache() {
+    cachedShiftConfig = null;
+  }
+
   Future<ShiftConfig> getShiftConfig({DateTime? date}) async {
     try {
       final query = date != null ? <String, Object?>{'date': date.toIso8601String().split('T').first} : <String, Object?>{};

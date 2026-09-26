@@ -218,3 +218,16 @@ final taskDetailProvider = FutureProvider.family<Task, String>((ref, taskId) {
 final taskActionsProvider = Provider(
   (ref) => TaskActions(ref.read(taskRepositoryProvider), ref),
 );
+
+/// Reset toàn bộ state tạm thời của Task khi logout hoặc switch user.
+void resetTaskState({Ref? ref, ProviderContainer? container}) {
+  if (ref != null) {
+    ref.read(_completedTaskIdsProvider.notifier).state = const <String>{};
+    ref.read(completedTaskLogsProvider.notifier).state = const <String, CompletedTaskLog>{};
+    ref.invalidate(todayTasksProvider);
+  } else if (container != null) {
+    container.read(_completedTaskIdsProvider.notifier).state = const <String>{};
+    container.read(completedTaskLogsProvider.notifier).state = const <String, CompletedTaskLog>{};
+    container.invalidate(todayTasksProvider);
+  }
+}

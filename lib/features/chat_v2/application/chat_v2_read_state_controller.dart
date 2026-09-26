@@ -13,6 +13,11 @@ final chatV2ReadStateProvider =
 class ChatV2ReadStateNotifier extends Notifier<Map<String, DateTime>> {
   static final Map<String, DateTime> _memoryCache = {};
 
+  /// Xóa sạch bộ nhớ đệm trạng thái đã đọc trong RAM khi logout / switch user (Protocol V2.1).
+  static void clearMemoryCache() {
+    _memoryCache.clear();
+  }
+
   @override
   Map<String, DateTime> build() {
     return _memoryCache;

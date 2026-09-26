@@ -120,6 +120,10 @@ class OdooApiClient {
     }
   }
 
+  void clearPartnerToUserMap() {
+    _partnerToUserMap.clear();
+  }
+
   String? getUserIdForPartner(String partnerId) {
     return _partnerToUserMap[partnerId.trim()];
   }
@@ -856,6 +860,7 @@ class OdooApiClient {
       } catch (_) {}
     }
     _session = null;
+    _partnerToUserMap.clear();
     await _sessionStore.clear();
   }
 

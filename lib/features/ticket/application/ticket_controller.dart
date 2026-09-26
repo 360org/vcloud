@@ -189,3 +189,18 @@ final activityLogProvider = StreamProvider.autoDispose
       (ref, ticketId) =>
           ref.read(activityLogRepositoryProvider).watchByTicket(ticketId),
     );
+
+/// Reset toàn bộ state tạm thời của Ticket khi logout hoặc switch user (Protocol V2.1).
+void resetTicketState({Ref? ref, ProviderContainer? container}) {
+  if (ref != null) {
+    ref.read(ticketFilterProvider.notifier).clear();
+    ref.read(ticketOverrideProvider.notifier).set(null);
+    ref.invalidate(ticketsProvider);
+    ref.invalidate(effectiveTicketsProvider);
+  } else if (container != null) {
+    container.read(ticketFilterProvider.notifier).clear();
+    container.read(ticketOverrideProvider.notifier).set(null);
+    container.invalidate(ticketsProvider);
+    container.invalidate(effectiveTicketsProvider);
+  }
+}

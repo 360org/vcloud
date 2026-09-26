@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 
 import '../../../core/api/odoo_api_client.dart';
 import '../../../core/error/failure.dart';
@@ -73,6 +73,19 @@ class TaskRepository {
   }
 
   static List<Task> _cachedTodayTasks = const <Task>[];
+
+  /// Xóa sạch bộ nhớ đệm Task trong RAM khi logout / switch tài khoản (Protocol V2.1).
+  static void clearCache() {
+    _cachedTodayTasks = const <Task>[];
+  }
+
+  @visibleForTesting
+  static List<Task> get cachedTodayTasksForTesting => _cachedTodayTasks;
+
+  @visibleForTesting
+  static void setCachedTodayTasksForTesting(List<Task> tasks) {
+    _cachedTodayTasks = tasks;
+  }
 
   Stream<List<Task>> watchToday({DateTime? day}) {
     final ctl = StreamController<List<Task>>.broadcast();

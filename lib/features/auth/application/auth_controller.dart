@@ -8,11 +8,8 @@ import '../../../core/api/auth_user.dart';
 import '../../../core/api/odoo_api_client.dart';
 import '../../../core/notifications/push_notification_controller.dart';
 import '../../../core/notifications/push_notification_service.dart';
-import '../../../core/utils/local_attachment_cache.dart';
-import '../../chat_v2/application/chat_v2_channels_controller.dart';
-import '../../chat_v2/application/chat_v2_messages_controller.dart';
+import '../../../core/services/global_state_reset_service.dart';
 import '../../../shared/widgets/app_toast.dart';
-import '../../timesheet/data/timesheet_repository.dart';
 import '../data/auth_repository.dart';
 import '../data/db_info.dart';
 
@@ -35,6 +32,7 @@ class AuthController extends AsyncNotifier<AuthUser?> {
     _pushNotifications = ref.watch(pushNotificationServiceProvider);
     OdooApiClient.onSessionExpired = () {
       if (state.valueOrNull != null) {
+        unawaited(GlobalStateResetService.clearAllUserDataOnLogout(ref: ref));
         state = const AsyncData(null);
       }
     };
@@ -73,9 +71,7 @@ class AuthController extends AsyncNotifier<AuthUser?> {
   }) async {
     state = const AsyncLoading();
     try {
-      ChatV2ChannelLocalCache.clear();
-      ChatV2MessageLocalCache.clear();
-      TimesheetRepository.clearCache();
+      await GlobalStateResetService.clearAllUserDataOnLogout(ref: ref);
       final user = await _repo.authenticateOnClient(
         db: db,
         login: login,
@@ -92,9 +88,7 @@ class AuthController extends AsyncNotifier<AuthUser?> {
   Future<void> signIn(String email, String password, {int? tenantId}) async {
     state = const AsyncLoading();
     try {
-      ChatV2ChannelLocalCache.clear();
-      ChatV2MessageLocalCache.clear();
-      TimesheetRepository.clearCache();
+      await GlobalStateResetService.clearAllUserDataOnLogout(ref: ref);
       final user = await _repo.signIn(
         email: email,
         password: password,
@@ -131,10 +125,7 @@ class AuthController extends AsyncNotifier<AuthUser?> {
 
   Future<void> signOut() async {
     await _unregisterPushDevice();
-    ChatV2ChannelLocalCache.clear();
-    ChatV2MessageLocalCache.clear();
-    TimesheetRepository.clearCache();
-    await LocalAttachmentCache.clearAllCache();
+    await GlobalStateResetService.clearAllUserDataOnLogout(ref: ref);
     await _repo.signOut();
     state = const AsyncData(null);
   }

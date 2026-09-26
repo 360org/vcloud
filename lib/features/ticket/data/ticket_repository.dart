@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 
 import '../../../core/api/odoo_api_client.dart';
 import '../../../core/api/mobile_attachment_repository.dart';
@@ -22,6 +22,21 @@ class TicketRepository {
   static const _ticketBasePath = '/api/v1/mobile/ticket';
   static final Map<String, String> _descriptionCache = <String, String>{};
   static List<Ticket> _cachedTickets = const <Ticket>[];
+
+  /// Xóa sạch toàn bộ bộ nhớ đệm Ticket trong RAM (In-Memory Cache Wipe).
+  /// Ngăn chặn rò rỉ Ticket cũ khi logout hoặc chuyển đổi user (Protocol V2.1).
+  static void clearCache() {
+    _cachedTickets = const <Ticket>[];
+    _descriptionCache.clear();
+  }
+
+  @visibleForTesting
+  static List<Ticket> get cachedTicketsForTesting => _cachedTickets;
+
+  @visibleForTesting
+  static void setCachedTicketsForTesting(List<Ticket> tickets) {
+    _cachedTickets = tickets;
+  }
 
   final OdooApiClient _client;
   final MobileAttachmentRepository _attachmentRepository;
