@@ -2,6 +2,31 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.11+142] — 2026-09-26 (Tối Ưu Tín Hiệu Máy Bận Nhanh - Fast-Busy Signal Cho Cuộc Gọi Thoại 1-1)
+
+> [!IMPORTANT]
+> **Tối ưu hóa tín hiệu Máy Bận Nhanh (Fast-Busy Signal) khi xảy ra va chạm cuộc gọi 1-1 (Phương án A)**:
+> - **Phạm vi**: `vclients` (`ChatV2CallController`, `ChatV2CallRepository`, `OdooBusService`, `ChatV2CallSession`, `ChatV2CallWatcher`, `ChatV2CallScreen`, `chat_v2_call_test.dart`)
+> - **Nguyên nhân & Bối cảnh**:
+>   * Khi người dùng A và B đang đàm thoại (`connected`), nếu có người thứ 3 (C) gọi tới cho B: trước đây giao diện rơi vào silent drop hoặc có nguy cơ xung đột phiên, trong khi người gọi C phải chờ 30 giây chuông chờ timeout vô nghĩa.
+> - **Giải pháp xử lý (Architectural Solution)**:
+>   1. **[Xử lý phía Receiver - Người đang đàm thoại]**:
+>      - Trong `ChatV2CallController.setIncomingCall()`: khi `state == ChatV2CallState.connected`, tự động phát ngầm tín hiệu từ chối `rejectCall(incomingSession.id, reason: 'busy')` và `leaveCall(channelId, sessionId, reason: 'busy')` về server/bus (<200ms).
+>      - Bảo toàn 100% cuộc gọi hiện tại: không gián đoạn WebRTC, không ngắt audio, không đè giao diện cuộc gọi đang diễn ra.
+>   2. **[Xử lý phía Caller thứ 3 - Người gọi tới]**:
+>      - Khi nhận được Bus event `busy` (hoặc `rejected` kèm `reason: 'busy'`), dừng chuông chờ ngay lập tức.
+>      - Hiển thị thông báo trạng thái rõ ràng: *"Người dùng đang trong cuộc gọi khác"*.
+>      - Tự động đóng màn hình sau 1.2 giây (thay vì 30 giây timeout).
+>   3. **[Tương thích Đa Phiên Bản Odoo 17 & 19]**:
+>      - Odoo 19 Core RTC: `/mail/rtc/channel/leave_call` nhận `{channel_id, session_id, reason: 'busy'}`.
+>      - Odoo 17 REST API: `/api/v1/mobile/chat/call/$callId/reject` nhận body `{'reason': 'busy'}`.
+>   4. **[VERIFICATION & TDD]**:
+>      - Thêm test case **TC-34** trong `chat_v2_call_test.dart` kiểm thử đầy đủ kịch bản xung đột 3 bên.
+>      - 34/34 tests trong toàn bộ Voice Call Test Suite đạt PASS.
+>      - `flutter analyze`: 0 errors / 0 warnings.
+
+---
+
 ## [v2.9.11+142] — 2026-09-26 (Khắc Phục Lỗi Hiển Thị Tên Kênh Odoo Discuss: Khóa Cố Định Title Kênh "Internal" & Chống Biến Dạng Theo Người Gửi)
 
 > [!IMPORTANT]

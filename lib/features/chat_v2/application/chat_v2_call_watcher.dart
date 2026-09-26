@@ -76,6 +76,11 @@ class ChatV2CallWatcher {
 
       if (active != null) {
         if (currentCallState != null && currentCallState.id != active.id && currentCallState.state != ChatV2CallState.idle) {
+          if (currentCallState.state == ChatV2CallState.connected) {
+            debugPrint('⚠️ [CALL_WATCHER] Đang connected mà server có cuộc gọi khác (ID: ${active.id}) -> Kích hoạt Fast-Busy');
+            ref.read(chatV2CallControllerProvider.notifier).setIncomingCall(active);
+            return;
+          }
           debugPrint('⚠️ [CALL_WATCHER] Phát hiện server đổi Call ID (cũ: ${currentCallState.id}, mới: ${active.id}) -> Reset state cũ bị kẹt');
           ref.read(chatV2CallControllerProvider.notifier).reset();
           return;

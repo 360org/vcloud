@@ -141,10 +141,12 @@ class OdooBusService {
         final chId = int.tryParse(payload['channel_id']?.toString() ?? '0') ?? 0;
         final sessionId = int.tryParse(payload['sessionId']?.toString() ?? '0') ?? 0;
         final state = payload['state']?.toString() ?? 'ended';
+        final reason = payload['reason']?.toString();
         _callEndedController.add({
           'channel_id': chId,
           'sessionId': sessionId,
           'state': state,
+          if (reason != null && reason.isNotEmpty) 'reason': reason,
         });
       }
     }
@@ -188,9 +190,11 @@ class OdooBusService {
           // Odoo 17: rtcInvitingSession set to false -> Bị hủy / từ chối
           if (th.containsKey('rtcInvitingSession') && th['rtcInvitingSession'] == false) {
             debugPrint('📵 [OdooBus] Odoo 17 rtcInvitingSession false kênh $chId -> Cuộc gọi bị từ chối');
+            final reason = th['reason']?.toString() ?? payload['reason']?.toString();
             _callEndedController.add({
               'channel_id': chId,
               'state': 'rejected',
+              if (reason != null && reason.isNotEmpty) 'reason': reason,
             });
             continue;
           }
@@ -201,9 +205,13 @@ class OdooBusService {
             for (final inv in invited) {
               if (inv is List && inv.isNotEmpty && inv[0] == 'DELETE') {
                 debugPrint('📵 [OdooBus] Odoo 17 DELETE invitedMembers kênh $chId -> Cuộc gọi bị từ chối');
+                final reason = (inv.length > 2 && inv[2] is Map && inv[2]['reason'] != null)
+                    ? inv[2]['reason'].toString()
+                    : (th['reason']?.toString() ?? payload['reason']?.toString());
                 _callEndedController.add({
                   'channel_id': chId,
                   'state': 'rejected',
+                  if (reason != null && reason.isNotEmpty) 'reason': reason,
                 });
                 break;
               }
@@ -227,9 +235,13 @@ class OdooBusService {
           for (final inv in invited) {
             if (inv is List && inv.isNotEmpty && inv[0] == 'DELETE') {
               debugPrint('📵 [OdooBus] Nhận DELETE invited_member_ids kênh $chId -> Cuộc gọi bị từ chối');
+              final reason = (inv.length > 2 && inv[2] is Map && inv[2]['reason'] != null)
+                  ? inv[2]['reason'].toString()
+                  : (ch['reason']?.toString() ?? payload['reason']?.toString());
               _callEndedController.add({
                 'channel_id': chId,
                 'state': 'rejected',
+                if (reason != null && reason.isNotEmpty) 'reason': reason,
               });
               break;
             }

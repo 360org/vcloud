@@ -191,17 +191,21 @@ class ChatV2CallRepository {
   Future<bool> leaveCall({
     required int channelId,
     int? sessionId,
+    String? reason,
   }) async {
     try {
       final params = <String, dynamic>{'channel_id': channelId};
-      // ponytail: Odoo 19 hỗ trợ session_id, Odoo 17 chỉ nhận channel_id
+      // ponytail: Odoo 19 hỗ trợ session_id và reason, Odoo 17 chỉ nhận channel_id
       if (sessionId != null && sessionId > 0) {
         params['session_id'] = sessionId;
+      }
+      if (reason != null && reason.isNotEmpty) {
+        params['reason'] = reason;
       }
       try {
         await _callJsonRpc('/mail/rtc/channel/leave_call', params);
       } catch (_) {
-        if (params.containsKey('session_id')) {
+        if (params.containsKey('session_id') || params.containsKey('reason')) {
           await _callJsonRpc('/mail/rtc/channel/leave_call', {'channel_id': channelId});
         } else {
           rethrow;
@@ -315,9 +319,16 @@ class ChatV2CallRepository {
     }
   }
 
-  Future<bool> rejectCall(int callId) async {
+  Future<bool> rejectCall(int callId, {String? reason}) async {
     try {
-      final res = await client.post('/api/v1/mobile/chat/call/$callId/reject');
+      final body = <String, dynamic>{};
+      if (reason != null && reason.isNotEmpty) {
+        body['reason'] = reason;
+      }
+      final res = await client.post(
+        '/api/v1/mobile/chat/call/$callId/reject',
+        body: body.isNotEmpty ? body : null,
+      );
       return res is Map && res['status'] == 'success';
     } catch (_) {
       return false;

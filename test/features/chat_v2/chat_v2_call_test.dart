@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vcloud/features/chat_v2/domain/models/chat_v2_call_session.dart';
@@ -10,6 +11,7 @@ class FakeCallApiClient extends OdooApiClient {
   FakeCallApiClient() : super(baseUrl: 'http://localhost:8069');
 
   Map<String, dynamic>? mockResponse;
+  final List<Map<String, dynamic>> recordedCalls = [];
 
   @override
   Future<dynamic> post(
@@ -18,6 +20,13 @@ class FakeCallApiClient extends OdooApiClient {
     Map<String, Object?> query = const <String, Object?>{},
     bool auth = true,
   }) async {
+    recordedCalls.add({
+      'path': path,
+      'body': body,
+    });
+    if (path.contains('/leave_call')) {
+      return {'jsonrpc': '2.0', 'result': true};
+    }
     if (path.contains('/initiate')) {
       return {
         'status': 'success',
@@ -93,6 +102,46 @@ class FakeCallApiClient extends OdooApiClient {
       };
     }
     return mockResponse ?? {};
+  }
+}
+
+class FakeOdooBusService extends OdooBusService {
+  final _peerController = StreamController<Map<String, dynamic>>.broadcast();
+  final _endedController = StreamController<Map<String, dynamic>>.broadcast();
+  final _incomingController = StreamController<Map<String, dynamic>>.broadcast();
+
+  @override
+  Stream<Map<String, dynamic>> get onPeerNotification => _peerController.stream;
+
+  @override
+  Stream<Map<String, dynamic>> get onCallEnded => _endedController.stream;
+
+  @override
+  Stream<Map<String, dynamic>> get onIncomingCall => _incomingController.stream;
+
+  void emitPeerNotification(Map<String, dynamic> data) {
+    _peerController.add(data);
+  }
+
+  void emitCallEnded({int channelId = 0, int sessionId = 0, String? state, String? reason}) {
+    _endedController.add({
+      'channel_id': channelId,
+      'sessionId': sessionId,
+      'state': state,
+      'reason': ?reason,
+    });
+  }
+
+  void emitIncomingCall(Map<String, dynamic> data) {
+    _incomingController.add(data);
+  }
+
+  @override
+  void dispose() {
+    _peerController.close();
+    _endedController.close();
+    _incomingController.close();
+    super.dispose();
   }
 }
 
@@ -481,6 +530,98 @@ void main() {
       expect(incomingData?['rtc_inviting_session_id'], 999);
       await sub.cancel();
       busService.dispose();
+    });
+
+    test('TC-34: Third-party incoming call while connected triggers fast-busy and preserves active call', () async {
+      final fakeClient = FakeCallApiClient();
+      final testRepo = ChatV2CallRepository(client: fakeClient);
+      final fakeBus = FakeOdooBusService();
+      final ctl = ChatV2CallController(repo: testRepo, bus: fakeBus);
+
+      // 1. Phía Receiver: Đang trong cuộc đàm thoại (Call 1: channelId 4255, sessionId 101)
+      const currentCall = ChatV2CallSession(
+        id: 101,
+        channelId: 4255,
+        callerId: 2,
+        callerName: 'Marc Demo',
+        receiverId: 5,
+        receiverName: 'Bùi Tuấn Kiệt',
+        state: ChatV2CallState.connected,
+        duration: 45,
+        isCaller: false,
+      );
+      ctl.setIncomingCall(currentCall);
+      await ctl.acceptCall();
+      expect(ctl.state?.state, ChatV2CallState.connected);
+      expect(ctl.state?.id, 101);
+      fakeClient.recordedCalls.clear();
+
+      // 2. Bên thứ 3 (Người gọi C) thực hiện gọi tới kênh 8888 (Call 2)
+      const thirdPartyCall = ChatV2CallSession(
+        id: 202,
+        channelId: 8888,
+        callerId: 99,
+        callerName: 'Lê Văn C',
+        receiverId: 5,
+        receiverName: 'Bùi Tuấn Kiệt',
+        state: ChatV2CallState.incomingRinging,
+        isCaller: false,
+      );
+
+      // Nhận incoming call thứ 3 khi đang connected
+      ctl.setIncomingCall(thirdPartyCall);
+
+      // 3. Kiểm chứng phía Receiver:
+      // - Đã phát ngầm tín hiệu từ chối về server/bus với reason: 'busy'
+      final rejectCalls = fakeClient.recordedCalls.where((c) => c['path'].toString().contains('/reject')).toList();
+      final leaveCalls = fakeClient.recordedCalls.where((c) => c['path'].toString().contains('/leave_call')).toList();
+
+      expect(rejectCalls.isNotEmpty, true);
+      expect(rejectCalls.first['path'], contains('/202/reject'));
+      expect(rejectCalls.first['body'], {'reason': 'busy'});
+
+      expect(leaveCalls.isNotEmpty, true);
+      final leaveBody = leaveCalls.first['body'] as Map<String, dynamic>?;
+      final leaveParams = leaveBody?['params'] as Map<String, dynamic>?;
+      expect(leaveParams?['channel_id'], 8888);
+      expect(leaveParams?['reason'], 'busy');
+
+      // - Cuộc gọi hiện tại Call 1 KHÔNG bị gián đoạn, state giữ nguyên 100%
+      expect(ctl.state?.id, 101);
+      expect(ctl.state?.channelId, 4255);
+      expect(ctl.state?.state, ChatV2CallState.connected);
+      expect(ctl.state?.duration, 0);
+
+      // 4. Kiểm chứng phía Caller thứ 3:
+      // Khi nhận Bus event 'rejected' kèm 'reason: busy', Caller 3 dừng chuông chờ và lưu endReason: 'busy'
+      final caller3Client = FakeCallApiClient();
+      final caller3Repo = ChatV2CallRepository(client: caller3Client);
+      final caller3Bus = FakeOdooBusService();
+      final caller3Ctl = ChatV2CallController(repo: caller3Repo, bus: caller3Bus);
+
+      // Caller 3 đang gọi đi trên kênh 8888
+      caller3Ctl.setIncomingCall(const ChatV2CallSession(
+        id: 202,
+        channelId: 8888,
+        callerId: 99,
+        callerName: 'Lê Văn C',
+        receiverId: 5,
+        receiverName: 'Bùi Tuấn Kiệt',
+        state: ChatV2CallState.outgoingRinging,
+        isCaller: true,
+      ));
+
+      // Nhận bus event đối phương báo busy
+      caller3Bus.emitCallEnded(channelId: 8888, sessionId: 202, state: 'rejected', reason: 'busy');
+      await Future.delayed(Duration.zero);
+
+      expect(caller3Ctl.state?.state, ChatV2CallState.rejected);
+      expect(caller3Ctl.state?.endReason, 'busy');
+
+      caller3Ctl.dispose();
+      caller3Bus.dispose();
+      ctl.dispose();
+      fakeBus.dispose();
     });
   });
 }

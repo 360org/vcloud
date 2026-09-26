@@ -85,8 +85,13 @@ class FakeOdooBusService extends OdooBusService {
     _peerController.add(data);
   }
 
-  void emitCallEnded({int channelId = 0, int sessionId = 0, String? state}) {
-    _endedController.add({'channel_id': channelId, 'sessionId': sessionId, 'state': state});
+  void emitCallEnded({int channelId = 0, int sessionId = 0, String? state, String? reason}) {
+    _endedController.add({
+      'channel_id': channelId,
+      'sessionId': sessionId,
+      'state': state,
+      'reason': ?reason,
+    });
   }
 
   @override

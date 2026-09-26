@@ -60,7 +60,7 @@ class MockCallRepository implements ChatV2CallRepository {
   }
 
   @override
-  Future<bool> rejectCall(int callId) async {
+  Future<bool> rejectCall(int callId, {String? reason}) async {
     rejectCalled = true;
     return true;
   }

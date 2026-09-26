@@ -49,6 +49,7 @@ class ChatV2CallSession {
   final String? sdpOffer;
   final String? sdpAnswer;
   final List<dynamic> iceCandidates;
+  final String? endReason;
   final DateTime? startedAt;
   final DateTime? connectedAt;
   final DateTime? endedAt;
@@ -68,6 +69,7 @@ class ChatV2CallSession {
     this.sdpOffer,
     this.sdpAnswer,
     this.iceCandidates = const [],
+    this.endReason,
     this.startedAt,
     this.connectedAt,
     this.endedAt,
@@ -107,6 +109,7 @@ class ChatV2CallSession {
       sdpOffer: json['sdp_offer']?.toString(),
       sdpAnswer: json['sdp_answer']?.toString(),
       iceCandidates: (json['ice_candidates'] is List) ? json['ice_candidates'] as List<dynamic> : const [],
+      endReason: json['end_reason']?.toString() ?? json['reason']?.toString(),
       startedAt: json['started_at'] != null ? DateTime.tryParse(json['started_at'].toString()) : null,
       connectedAt: json['connected_at'] != null ? DateTime.tryParse(json['connected_at'].toString()) : null,
       endedAt: json['ended_at'] != null ? DateTime.tryParse(json['ended_at'].toString()) : null,
@@ -128,6 +131,7 @@ class ChatV2CallSession {
     String? sdpOffer,
     String? sdpAnswer,
     List<dynamic>? iceCandidates,
+    String? endReason,
     DateTime? startedAt,
     DateTime? connectedAt,
     DateTime? endedAt,
@@ -147,6 +151,7 @@ class ChatV2CallSession {
       sdpOffer: sdpOffer ?? this.sdpOffer,
       sdpAnswer: sdpAnswer ?? this.sdpAnswer,
       iceCandidates: iceCandidates ?? this.iceCandidates,
+      endReason: endReason ?? this.endReason,
       startedAt: startedAt ?? this.startedAt,
       connectedAt: connectedAt ?? this.connectedAt,
       endedAt: endedAt ?? this.endedAt,

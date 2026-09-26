@@ -66,12 +66,13 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
       final channelId = int.tryParse(data['channel_id']?.toString() ?? '0') ?? 0;
       final sessionId = int.tryParse(data['sessionId']?.toString() ?? '0') ?? 0;
       final endState = data['state']?.toString();
+      final reason = data['reason']?.toString();
 
       final matchChannel = (channelId > 0 && state != null && state!.channelId == channelId);
       final matchSession = (sessionId > 0 && state != null && state!.id == sessionId);
 
       if (matchChannel || matchSession) {
-        _handleRemoteHangup(endState: endState);
+        _handleRemoteHangup(endState: endState, reason: reason);
       }
     });
 
@@ -82,7 +83,7 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
       final callerName = data['caller_name']?.toString() ?? 'Đồng nghiệp';
       final callerAvatar = data['caller_avatar']?.toString();
 
-      if (channelId > 0 && (state == null || state!.state == ChatV2CallState.idle)) {
+      if (channelId > 0) {
         final incomingSession = ChatV2CallSession(
           id: int.tryParse(data['rtc_inviting_session_id']?.toString() ?? '0') ?? 0,
           channelId: channelId,
@@ -207,8 +208,22 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
 
   /// Khi nhận thông báo FCM Wake-up có cuộc gọi đến (Callee)
   void setIncomingCall(ChatV2CallSession incomingSession) {
+    // Fast-Busy Signal: Nếu đang bận trong cuộc đàm thoại (connected)
     if (state != null && state!.state == ChatV2CallState.connected) {
-      return; // Đang bận cuộc gọi khác
+      debugPrint('📞 [FAST_BUSY] Đang trong cuộc gọi connected -> Tự động từ chối cuộc gọi đến từ kênh ${incomingSession.channelId} với lý do bận (busy)');
+      if (incomingSession.id > 0) {
+        repo.rejectCall(incomingSession.id, reason: 'busy');
+      }
+      repo.leaveCall(
+        channelId: incomingSession.channelId,
+        sessionId: incomingSession.id > 0 ? incomingSession.id : null,
+        reason: 'busy',
+      );
+      return;
+    }
+
+    if (state != null && state!.state != ChatV2CallState.idle) {
+      return; // Đang quay số hoặc xử lý cuộc gọi khác
     }
 
     bus?.subscribeChannel(incomingSession.channelId);
@@ -392,21 +407,28 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
     _startDurationTimer();
   }
 
-  void _handleRemoteHangup({String? endState}) {
+  void _handleRemoteHangup({String? endState, String? reason}) {
     _stopAudio();
     _stopTimers();
     ChatV2CallState targetState = ChatV2CallState.ended;
-    if (endState == 'rejected') {
+    if (endState == 'rejected' || reason == 'busy') {
       targetState = ChatV2CallState.rejected;
     } else if (endState == 'cancelled') {
       targetState = ChatV2CallState.cancelled;
     }
-    state = state?.copyWith(state: targetState);
+    state = state?.copyWith(
+      state: targetState,
+      endReason: reason,
+    );
     _cleanupWebrtc();
     ChatV2CallKitService.instance.endAllCalls();
 
-    // Tự động dọn dẹp state sau 1.5s nếu màn hình UI chưa reset
-    Future.delayed(const Duration(milliseconds: 1500), () {
+    // Tự động dọn dẹp state sau 1.2s nếu bận, 1.5s nếu gác máy bình thường
+    final cleanupDelay = (reason == 'busy')
+        ? const Duration(milliseconds: 1200)
+        : const Duration(milliseconds: 1500);
+
+    Future.delayed(cleanupDelay, () {
       if (state?.state == targetState) {
         reset();
       }

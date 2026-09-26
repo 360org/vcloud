@@ -60,7 +60,7 @@ class MockCallRepository implements ChatV2CallRepository {
   }
 
   @override
-  Future<bool> rejectCall(int callId) async {
+  Future<bool> rejectCall(int callId, {String? reason}) async {
     rejectCalled = true;
     return true;
   }
@@ -73,7 +73,7 @@ class MockCallRepository implements ChatV2CallRepository {
   }) async => null;
 
   @override
-  Future<bool> leaveCall({required int channelId, int? sessionId}) async => true;
+  Future<bool> leaveCall({required int channelId, int? sessionId, String? reason}) async => true;
 
   @override
   Future<bool> cancelCallInvitation({required int channelId, List<int>? memberIds}) async => true;
