@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:vcloud/features/chat_v2/data/models/chat_v2_channel.dart';
@@ -593,11 +594,13 @@ void main() {
       );
 
       await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(
-            body: ChatV2InfoSheet(
-              channel: channel,
-              currentUserName: 'Nguyễn Văn A',
+        const ProviderScope(
+          child: MaterialApp(
+            home: Scaffold(
+              body: ChatV2InfoSheet(
+                channel: channel,
+                currentUserName: 'Nguyễn Văn A',
+              ),
             ),
           ),
         ),
@@ -628,11 +631,13 @@ void main() {
       );
 
       await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(
-            body: ChatV2InfoSheet(
-              channel: channel,
-              currentUserName: 'Nguyễn Văn A',
+        const ProviderScope(
+          child: MaterialApp(
+            home: Scaffold(
+              body: ChatV2InfoSheet(
+                channel: channel,
+                currentUserName: 'Nguyễn Văn A',
+              ),
             ),
           ),
         ),
@@ -684,12 +689,14 @@ void main() {
       ];
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: ChatV2InfoSheet(
-              channel: channel,
-              currentUserName: 'Nguyễn Văn A',
-              messages: messages,
+        ProviderScope(
+          child: MaterialApp(
+            home: Scaffold(
+              body: ChatV2InfoSheet(
+                channel: channel,
+                currentUserName: 'Nguyễn Văn A',
+                messages: messages,
+              ),
             ),
           ),
         ),
@@ -781,12 +788,14 @@ void main() {
       ];
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: ChatV2InfoSheet(
-              channel: channel,
-              currentUserName: 'Nguyễn Văn A',
-              messages: messages,
+        ProviderScope(
+          child: MaterialApp(
+            home: Scaffold(
+              body: ChatV2InfoSheet(
+                channel: channel,
+                currentUserName: 'Nguyễn Văn A',
+                messages: messages,
+              ),
             ),
           ),
         ),
