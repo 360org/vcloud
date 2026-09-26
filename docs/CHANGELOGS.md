@@ -2,6 +2,27 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.10+141] — 2026-09-26 (Khắc Phục Lỗi Bộ Lọc Timesheet Theo Khoảng Ngày & Đồng Bộ Phân Trang Cuộn)
+
+> [!IMPORTANT]
+> **Khắc Phục Toàn Diện Lỗi Lọc Task Theo Khoảng Ngày & Mất Tham Số Lọc Khi Phân Trang Cuộn Trang Timesheet**:
+> - **Phạm vi**: `vclients` (`TimesheetListScreen`, `timesheet_filter_verification_test.dart`)
+> - **Chi tiết khắc phục & nâng cấp**:
+>   1. **[Bảo toàn hiển thị toàn bộ Task đang mở ở Tab "Cần làm" (`!t.done`)]**:
+>      - Khắc phục triệt để vấn đề nhân viên bị ẩn mất các nhiệm vụ đang mở khi chọn bộ lọc "Tuần này", "Tháng này" hoặc khoảng ngày tùy chọn.
+>      - Nguyên nhân gốc: Logic cũ loại bỏ các task có `dueDate`, `createdAt` hoặc `dateAssign` trước khoảng ngày lọc, làm nhân viên không thấy task được giao từ trước để bấm giờ chấm công.
+>      - Giải pháp: Tab "Cần làm" (`!t.done`) luôn giữ lại toàn bộ các nhiệm vụ đang mở (Open / In Progress) thuộc Dự án (`projectId`) được chọn, không triệt tiêu theo ngày cũ.
+>   2. **[Đồng bộ Tham số Bộ lọc khi Phân trang Cuộn trang (`_loadMore`)]**:
+>      - Trước đây `_loadMore()` chỉ gọi `repo.fetchPage(limit: 20, offset: _offset + 20)` mà không truyền `dateFrom`, `dateTo`, `projectId`, khiến dữ liệu tải thêm bị rớt bộ lọc và quay về dữ liệu mặc định.
+>      - Bổ sung trích xuất và format ISO `dateFrom`, `dateTo` cùng `projectId` từ `timesheetFilterProvider` truyền đầy đủ vào `repo.fetchPage(...)`.
+>   3. **[So khớp chính xác ngày hoàn thành ở Tab "Đã hoàn thành" (`t.done`)]**:
+>      - Ưu tiên ngày phát sinh công gần nhất (`lastLogDate` / `workedDate`) hoặc ngày hoàn thành (`completedAt` / `dueDate`), đảm bảo task đã xong hiển thị đúng khoảng ngày thực tế.
+>   4. **[VERIFICATION & TESTS]**:
+>      - Đạt 8/8 test cases độc lập trong `test/timesheet_filter_verification_test.dart`.
+>      - `flutter analyze lib/features/timesheet/ test/timesheet_filter_verification_test.dart`: 0 errors / 0 warnings.
+>
+> ---
+
 ## [v2.9.10+141] — 2026-09-26 (Khóa Cố Định Title Kênh "Internal" Odoo Discuss & Bổ Sung Nút Tải Ảnh Trực Tiếp)
 
 > [!IMPORTANT]

@@ -80,7 +80,16 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
     });
     try {
       final repo = ref.read(timesheetRepositoryProvider);
-      final newEntries = await repo.fetchPage(limit: 20, offset: _offset + 20);
+      final filter = ref.read(timesheetFilterProvider);
+      final dateFromStr = filter.dateFrom != null ? Dates.isoDate(filter.dateFrom!) : null;
+      final dateToStr = filter.dateTo != null ? Dates.isoDate(filter.dateTo!) : null;
+      final newEntries = await repo.fetchPage(
+        limit: 20,
+        offset: _offset + 20,
+        dateFrom: dateFromStr,
+        dateTo: dateToStr,
+        projectId: filter.projectId,
+      );
       if (newEntries.isEmpty) {
         _hasMore = false;
       } else {
@@ -515,12 +524,11 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
     }
 
     // 2. Lọc theo Khoảng thời gian (Date range)
-    // ponytail: Preset mặc định "Hôm nay" và "Tất cả" hiển thị toàn bộ task đang cần làm mà user chưa hoàn thành
-    // Khi user chọn khoảng ngày cụ thể (vd: "Tuần này", "Tháng này", "Tùy chọn"):
-    // - Đối với task đã có ghi nhận công (logged > Duration.zero), luôn giữ lại nếu log phát sinh trong khoảng ngày lọc
-    // - Với task đã hoàn thành (t.done): so khớp completedAt (hoặc fallback dueDate) nằm trong [dateFrom, dateTo]
-    // - Với task chưa hoàn thành (!t.done): ưu tiên so khớp dueDate; nếu không có dueDate thì kiểm tra dateAssign hoặc createdAt.
-    //   Nếu không có bất kỳ mốc thời gian nào thì không loại bỏ để task vẫn hiển thị ở tab "Cần làm".
+    // - Đối với Tab "Cần làm" (!t.done): Giữ lại toàn bộ các Task đang mở (Open / In Progress)
+    //   thuộc Dự án (project_id) được chọn, không triệt tiêu Task theo ngày tạo cũ (createdAt)
+    //   hay hạn chót (dueDate), để nhân viên luôn thấy việc và bấm giờ được.
+    // - Đối với Tab "Đã hoàn thành" (t.done): So khớp khoảng ngày lọc với ngày hoàn thành thực tế
+    //   (completedAt) hoặc ngày phát sinh công gần nhất (lastLogDate / workedDate).
     final isCustomDateFilter = filter.presetName != 'Hôm nay' && filter.presetName != 'Tất cả';
     if (isCustomDateFilter && (filter.dateFrom != null || filter.dateTo != null)) {
       final fromDay = filter.dateFrom != null
@@ -530,30 +538,16 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
           ? DateTime(filter.dateTo!.year, filter.dateTo!.month, filter.dateTo!.day)
           : null;
 
-      // Nếu task đã ghi nhận công (có log timesheet gắn với task)
-      if (t.logged > Duration.zero) {
-        final logDate = t.lastLogDate ?? t.completedAt ?? t.dueDate ?? t.dateAssign ?? t.createdAt;
-        if (logDate != null) {
-          final logDay = DateTime(logDate.year, logDate.month, logDate.day);
-          final inRange = (fromDay == null || !logDay.isBefore(fromDay)) &&
-              (toDay == null || !logDay.isAfter(toDay));
-          if (inRange) return true;
-        }
-      }
-
       if (t.done) {
-        final taskDate = t.completedAt ?? t.dueDate;
-        if (taskDate == null) return false;
-        final taskDay = DateTime(taskDate.year, taskDate.month, taskDate.day);
-        if (fromDay != null && taskDay.isBefore(fromDay)) return false;
-        if (toDay != null && taskDay.isAfter(toDay)) return false;
+        // Tab Đã hoàn thành: Ưu tiên ngày phát sinh công gần nhất (lastLogDate / workedDate) hoặc ngày hoàn thành (completedAt)
+        final effectiveDoneDate = t.lastLogDate ?? t.completedAt ?? t.dueDate;
+        if (effectiveDoneDate == null) return false;
+        final doneDay = DateTime(effectiveDoneDate.year, effectiveDoneDate.month, effectiveDoneDate.day);
+        if (fromDay != null && doneDay.isBefore(fromDay)) return false;
+        if (toDay != null && doneDay.isAfter(toDay)) return false;
       } else {
-        // Task đang mở (!t.done):
-        final openDate = t.dueDate ?? t.dateAssign ?? t.createdAt;
-        if (openDate != null) {
-          final openDay = DateTime(openDate.year, openDate.month, openDate.day);
-          if (toDay != null && openDay.isAfter(toDay)) return false;
-        }
+        // Tab Cần làm (!t.done): Giữ lại toàn bộ task đang mở để nhân viên luôn bấm giờ được
+        return true;
       }
     }
 
