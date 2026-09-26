@@ -2,6 +2,27 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.10+141] — 2026-09-26 (Khóa Cố Định Title Kênh "Internal" Odoo Discuss & Bổ Sung Nút Tải Ảnh Trực Tiếp)
+
+> [!IMPORTANT]
+> **Khắc Phục Lỗi Hiển Thị Tên Kênh Odoo Discuss (Kênh `Internal`) & Bổ Sung Nút Tải Ảnh Đa Nền Tảng Trên ChatV2ImageViewerScreen**:
+> - **Phạm vi**: `vclients` (`ChatV2Channel`, `ChatV2ImageViewerScreen`, `chat_v2_display_name_test.dart`, `chat_v2_image_viewer_test.dart`)
+> - **Chi tiết khắc phục & nâng cấp**:
+>   1. **[Bảo vệ tuyệt đối Title Kênh & Nhóm trong `ChatV2Channel.getCleanName()`]**:
+>      - Thêm guard clause: `if (isChannel || channelType == 'channel' || isGroup) return name;`.
+>      - Khóa 100% tên kênh thảo luận (`Internal`, `General`, `Hỗ trợ khách hàng`...) và nhóm chat theo đúng `name` gốc, nghiêm cấm ghép tên bất kỳ người tham gia hay tác giả nào vào title.
+>      - Trong `ChatV2Channel.fromJson()`: Chỉ trích xuất `directPartnerId`, `directPartnerName` và `directPartnerAvatar` cho cuộc trò chuyện 1-1 trực tiếp (`!isGroup && channelType != 'channel'`). Kênh `Internal` giữ nguyên avatar chữ cái `I`.
+>   2. **[Nút Tải Ảnh Trực Tiếp Trên `ChatV2ImageViewerScreen`]**:
+>      - Bổ sung nút `IconButton` icon `LucideIcons.download` cạnh nút `rotateCcw` trên thanh Floating Appbar Overlay.
+>      - Tích hợp module đa nền tảng `file_download.dart` (`saveBytesToFile` cho Web Blob và Android/iOS Storage) kết hợp `MobileAttachmentRepository.fetchBytes()` tải dữ liệu nhị phân chuẩn từ Odoo 19 `/api/v1/mobile/attachments/<id>/download`.
+>      - Hiển thị thông báo trạng thái `Đang tải ảnh...` và `Đã lưu ảnh thành công` qua SnackBar; tự động disable nút và hiện progress khi đang tải.
+>   3. **[VERIFICATION & TESTS]**:
+>      - Đạt 100% (11/11) test cases trong `chat_v2_display_name_test.dart` (bao gồm Test Case 11 kiểm thử mô phỏng đa người gửi gửi tin nhắn liên tục vào kênh `Internal`).
+>      - Đạt 100% (2/2) test cases trong `chat_v2_image_viewer_test.dart` kiểm thử render nút download và trigger trạng thái lưu ảnh.
+>      - `flutter analyze`: 0 errors / 0 warnings.
+>
+> ---
+
 ## [v2.9.10+141] — 2026-09-23 (Ẩn Tên File Ảnh Kỹ Thuật image_picker Khỏi Header Xem Ảnh Toàn Màn Hình)
 
 > [!IMPORTANT]
