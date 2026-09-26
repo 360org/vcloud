@@ -181,6 +181,16 @@ class ChatV2ChannelLocalCache {
 
   static bool isUserMuted(String channelId) => _userMutedIds.contains(channelId);
 
+  static void setUserMuted(String channelId, bool isMuted) {
+    if (isMuted) {
+      _userMutedIds.add(channelId);
+    } else {
+      _userMutedIds.remove(channelId);
+    }
+    _saveUserMutedIds();
+    set(_cached);
+  }
+
   static void toggleUserMute(String channelId) {
     if (_userMutedIds.contains(channelId)) {
       _userMutedIds.remove(channelId);
@@ -595,6 +605,9 @@ class ChatV2ChannelsNotifier
         if (fresh.isNotEmpty) {
           final presenceNotifier = ref.read(chatV2PresenceProvider.notifier);
           for (final f in fresh) {
+            if (f.isMuted) {
+              ChatV2ChannelLocalCache.setUserMuted(f.id, true);
+            }
             final pId = f.partnerId ?? f.directPartnerId;
             if (pId != null && pId.isNotEmpty && f.imStatus.isNotEmpty) {
               presenceNotifier.updatePresence(pId, f.imStatus);

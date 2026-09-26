@@ -2,7 +2,32 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
-## [v2.9.10+141] — 2026-09-26 (Đồng Bộ Tính Năng Sprint P0 & P1 Parity Giữa Odoo 19 Discuss Native Core & Flutter Client)
+## [v2.9.11+142] — 2026-09-26 (Tối Ưu Tín Hiệu Máy Bận Nhanh - Fast-Busy Signal Cho Cuộc Gọi Thoại 1-1)
+
+> [!IMPORTANT]
+> **Tối ưu hóa tín hiệu Máy Bận Nhanh (Fast-Busy Signal) khi xảy ra va chạm cuộc gọi 1-1 (Phương án A)**:
+> - **Phạm vi**: `vclients` (`ChatV2CallController`, `ChatV2CallRepository`, `OdooBusService`, `ChatV2CallSession`, `ChatV2CallWatcher`, `ChatV2CallScreen`, `chat_v2_call_test.dart`)
+> - **Nguyên nhân & Bối cảnh**:
+>   * Khi người dùng A và B đang đàm thoại (`connected`), nếu có người thứ 3 (C) gọi tới cho B: trước đây giao diện rơi vào silent drop hoặc có nguy cơ xung đột phiên, trong khi người gọi C phải chờ 30 giây chuông chờ timeout vô nghĩa.
+> - **Giải pháp xử lý (Architectural Solution)**:
+>   1. **[Xử lý phía Receiver - Người đang đàm thoại]**:
+>      - Trong `ChatV2CallController.setIncomingCall()`: khi `state == ChatV2CallState.connected`, tự động phát ngầm tín hiệu từ chối `rejectCall(incomingSession.id, reason: 'busy')` và `leaveCall(channelId, sessionId, reason: 'busy')` về server/bus (<200ms).
+>      - Bảo toàn 100% cuộc gọi hiện tại: không gián đoạn WebRTC, không ngắt audio, không đè giao diện cuộc gọi đang diễn ra.
+>   2. **[Xử lý phía Caller thứ 3 - Người gọi tới]**:
+>      - Khi nhận được Bus event `busy` (hoặc `rejected` kèm `reason: 'busy'`), dừng chuông chờ ngay lập tức.
+>      - Hiển thị thông báo trạng thái rõ ràng: *"Người dùng đang trong cuộc gọi khác"*.
+>      - Tự động đóng màn hình sau 1.2 giây (thay vì 30 giây timeout).
+>   3. **[Tương thích Đa Phiên Bản Odoo 17 & 19]**:
+>      - Odoo 19 Core RTC: `/mail/rtc/channel/leave_call` nhận `{channel_id, session_id, reason: 'busy'}`.
+>      - Odoo 17 REST API: `/api/v1/mobile/chat/call/$callId/reject` nhận body `{'reason': 'busy'}`.
+>   4. **[VERIFICATION & TDD]**:
+>      - Thêm test case **TC-34** trong `chat_v2_call_test.dart` kiểm thử đầy đủ kịch bản xung đột 3 bên.
+>      - 34/34 tests trong toàn bộ Voice Call Test Suite đạt PASS.
+>      - `flutter analyze`: 0 errors / 0 warnings.
+
+---
+
+## [v2.9.11+142] — 2026-09-26 (Đồng Bộ Tính Năng Sprint P0 & P1 Parity Giữa Odoo 19 Discuss Native Core & Flutter Client)
 
 > [!IMPORTANT]
 > **Đồng Bộ Tính Năng Sprint P0 & P1 Parity Giữa Odoo 19 Discuss Native Core & Flutter Mobile Client (Anti-Sycophancy Protocol V2.1)**:
@@ -33,8 +58,10 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 >   - Đạt 12/12 test case độc lập mới trong `test/features/chat_v2/chat_v2_p0_p1_features_test.dart`.
 >   - 172/172 test case Chat V2 đạt 100% PASS.
 >   - `flutter analyze`: 0 errors / 0 warnings trên toàn bộ codebase `vclients`.
->
-> ---
+
+---
+
+## [v2.9.11+142] — 2026-09-26 (Nâng Cấp Phân Loại Hội Thoại & Tối Ưu UX Bộ Lọc Danh Sách Chat V2)
 
 > [!IMPORTANT]
 > **Nâng Cấp Phân Loại Hội Thoại & Tối Ưu UX Bộ Lọc Danh Sách Chat V2**:
@@ -55,10 +82,10 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 >      - Bộ 10 test case TDD độc lập kiểm chứng phân loại 4 nhóm hội thoại trong `test/features/chat_v2/chat_v2_taxonomy_test.dart` đạt 10/10 PASS.
 >      - Toàn bộ 160 test case hiện hữu của Chat V2 đạt 100% PASS.
 >      - `flutter analyze lib/features/chat_v2/`: 0 errors / 0 warnings.
->
-> ---
 
-## [v2.9.10+141] — 2026-09-26 (Khắc Phục Lỗi Bộ Lọc Timesheet Theo Khoảng Ngày & Đồng Bộ Phân Trang Cuộn)
+---
+
+## [v2.9.11+142] — 2026-09-26 (Khắc Phục Lỗi Bộ Lọc Timesheet Theo Khoảng Ngày & Đồng Bộ Phân Trang Cuộn)
 
 > [!IMPORTANT]
 > **Khắc Phục Toàn Diện Lỗi Lọc Task Theo Khoảng Ngày & Mất Tham Số Lọc Khi Phân Trang Cuộn Trang Timesheet**:
@@ -76,10 +103,10 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 >   4. **[VERIFICATION & TESTS]**:
 >      - Đạt 8/8 test cases độc lập trong `test/timesheet_filter_verification_test.dart`.
 >      - `flutter analyze lib/features/timesheet/ test/timesheet_filter_verification_test.dart`: 0 errors / 0 warnings.
->
-> ---
 
-## [v2.9.10+141] — 2026-09-26 (Khóa Cố Định Title Kênh "Internal" Odoo Discuss & Bổ Sung Nút Tải Ảnh Trực Tiếp)
+---
+
+## [v2.9.11+142] — 2026-09-26 (Khóa Cố Định Title Kênh "Internal" Odoo Discuss & Bổ Sung Nút Tải Ảnh Trực Tiếp)
 
 > [!IMPORTANT]
 > **Khắc Phục Lỗi Hiển Thị Tên Kênh Odoo Discuss (Kênh `Internal`) & Bổ Sung Nút Tải Ảnh Đa Nền Tảng Trên ChatV2ImageViewerScreen**:
@@ -97,8 +124,81 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 >      - Đạt 100% (11/11) test cases trong `chat_v2_display_name_test.dart` (bao gồm Test Case 11 kiểm thử mô phỏng đa người gửi gửi tin nhắn liên tục vào kênh `Internal`).
 >      - Đạt 100% (2/2) test cases trong `chat_v2_image_viewer_test.dart` kiểm thử render nút download và trigger trạng thái lưu ảnh.
 >      - `flutter analyze`: 0 errors / 0 warnings.
->
-> ---
+
+---
+
+## [v2.9.11+142] — 2026-09-25 (Khắc phục lỗi Disconnected from call by server & Cách ly Bus Signaling vmobile.call/ended)
+
+> [!IMPORTANT]
+> **Khắc phục triệt để cảnh báo "Disconnected from the call by the server" trên Odoo 19 Web Discuss & Đồng bộ trạng thái Từ chối / Kết thúc cuộc gọi tức thì**:
+> - **Phạm vi**: `vclients` (Flutter), `v_mobile_17` & `v_mobile_19` (Odoo Backend)
+> - **Nguyên nhân gốc rễ (Root Cause)**:
+>   * `mail/static/src/discuss/call/common/rtc_service.js` của Odoo 19 bắt sự kiện native `discuss.channel.rtc.session/ended`. Khi VMobile phát sự kiện này không kèm `sessionId`, biểu thức so sánh `rtc.localSession?.id === sessionId` chuyển thành `undefined === undefined` (trả về `true`) khiến Odoo Web tự kích hoạt `notifyServerDisconnect()`.
+> - **Giải pháp xử lý (Architectural Solution)**:
+>   1. **[BACKEND ODOO 17 & 19 — `v_mobile`]**:
+>      - Tách biệt toàn bộ bus notification kết thúc/từ chối cuộc gọi sang topic độc lập `vmobile.call/ended` (kèm `channel_id`, `state`, `member_id`, `partner_id`).
+>      - Không còn xâm phạm vào namespace bus dành riêng của Odoo Core.
+>   2. **[FLUTTER CLIENT — `vclients`]**:
+>      - `OdooBusService`: Lắng nghe và xử lý sự kiện riêng `vmobile.call/ended`.
+>      - Thêm điều kiện bảo vệ (guard clause) cho `discuss.channel.rtc.session/ended`: chỉ tiếp nhận khi có `sessionId > 0` hoặc `channel_id > 0`.
+>   3. **[VERIFICATION]**:
+>      - Đạt 100% (17/17) test cases trong `chat_v2_odoo19_rtc_test.dart` (bổ sung `TC-CALL-16`).
+>      - `flutter analyze`: 0 errors / 0 warnings.
+>      - Đạt 100% test contract trên Odoo 17 (`TestRtcCallSignalingContract`) và Odoo 19 (`TestRtcCallSignalingContractV19`).
+
+---
+
+## [v2.9.11+142] — 2026-09-25 (Chuẩn Hóa Phân Quyền Rule & Role Chat: Internal Users vs Portal Users)
+
+> [!IMPORTANT]
+> **Chuẩn Hóa Ma Trận Phân Quyền Chat & Bảo Vệ Dữ Liệu Khách Hàng (Internal vs Portal Users) Đồng Bộ Odoo 17, Odoo 19 & Flutter Client**:
+> - **Phạm vi**: `vclients` (Flutter Mobile & Web) và `v_mobile` (Odoo 17 / 19 Addon Backend)
+> - **Chi tiết theo chuẩn Bảo Mật Odoo Core & Least Privilege**:
+>   1. **[BACKEND ODOO 17 & 19 — `v_mobile`]**:
+>      - **Chặn Portal tạo nhóm & mời thành viên (Defense-in-Depth)**: Thêm rào chắn `deny_portal(uid)` (trả về HTTP 403 Forbidden) tại endpoint `/api/v1/mobile/chat/groups/create` và `/api/v1/mobile/chat/channels/<id>/members/add`.
+>      - **Hạn chế 1-1 Chat cho Portal**: Portal user chỉ được phép khởi tạo chat 1-1 với nhân viên nội bộ (`share = False`), cấm tạo chat trực tiếp với tài khoản khách hàng khác.
+>      - **Mở rộng API Tìm kiếm Người dùng (`/api/v1/mobile/users/search`)**: Nhân viên nội bộ có thể tìm kiếm cả đồng nghiệp nội bộ lẫn tài khoản Portal đã được cấp quyền Mobile (`vmobile_enabled = True`). Hỗ trợ làm sạch tiền tố `@` khi tìm kiếm (`@portal` -> `portal`). Bổ sung cờ `is_portal` và `user_type` vào kết quả trả về.
+>   2. **[FLUTTER CLIENT — `vclients`]**:
+>      - **Model `Profile` & `AuthUser`**: Cập nhật getter `isPortal`, nhận diện chính xác vai trò Portal (`role == 'portal' || role == 'customer' || is_portal == true`).
+>      - **Giao diện Chat List (`ChatV2ListScreen`)**: Ẩn nút tạo mới FloatingActionButton (`+`) khi tài khoản đăng nhập là Portal.
+>      - **Giao diện New Chat (`NewChatScreen`)**: Chặn Portal truy cập luồng tạo chat/tạo nhóm với banner cảnh báo thân thiện; tự động làm sạch ký tự `@` khi gõ tìm kiếm; bổ sung badge `[Khách hàng]` trực quan bằng màu Tech Royal Blue `#0077cd` trong danh sách người dùng, danh sách thành viên nhóm và selected chips.
+>      - **Giao diện Info Sheet (`ChatV2InfoSheet`)**: Ẩn nút và menu "Thêm thành viên" đối với tài khoản Portal khi xem chi tiết nhóm.
+>   3. **[VERIFICATION & TESTS]**:
+>      - Bổ sung Test Suite `test/features/chat/chat_role_rule_test.dart` gồm 10 case kiểm thử PASSED 100%.
+>      - `flutter analyze` đạt 0 issues (0 errors, 0 warnings).
+
+---
+
+## [v2.9.11+142] — 2026-09-24 (Triển Khai Tính Năng Gọi Thoại P2P WebRTC & Khắc Phục Lỗi Bubble Chat Kéo Giãn)
+
+> [!IMPORTANT]
+> **Triển Khai Tính Năng Voice Call 1-1 Chuẩn Native Odoo 19 Discuss RTC Core, Apple CallKit / Android Full-Screen & Khắc Phục Lỗi Bubble Chat Kéo Giãn**:
+> - **Phạm vi**: `vclients` (Flutter Mobile & Web) trên nhánh `feat/chat-voice-call`
+> - **Chi tiết triển khai theo chuẩn SSOT SPEC_VOICE_CALL_ODOO19_RTC.md & AIaC v3.8.16**:
+>   1. **[VOICE CALL — FLUTTER CLIENT `vclients`]**:
+>      - **Odoo Discuss RTC API**: `ChatV2CallRepository` trực tiếp gọi các JSON-RPC 2.0 endpoint chuẩn của Odoo 19 (`/mail/rtc/channel/join_call`, `/mail/rtc/session/notify_call_members`, `/mail/rtc/channel/leave_call`, `/mail/rtc/channel/cancel_call_invitation`, `/mail/rtc/session/update_and_broadcast`), đồng thời giữ backward-compatible fallback cho Odoo 17 & legacy endpoints.
+>      - **Xử Lý Tín Hiệu Từ Chối & Gác Máy Tức Thì (<100ms)**: Khắc phục lỗi bên Caller (Admin) bị treo giao diện "Đang đổ chuông..." 30s khi Callee (Demo) bấm "Từ chối":
+>        * Trong `ChatV2CallRepository`: `OdooRtcJoinResult.fromStore` hỗ trợ bóc tách `localSession` dạng `num`/`int` và `Map`, parse danh sách `rtc_session_ids` và `discuss.channel.rtc.session` từ Odoo 19 Store.
+>        * Trong `OdooBusService`: Bổ sung `_checkRtcCallDelete` bắt sự kiện `mail.record/insert` với `invited_member_ids` DELETE (`state: rejected`) và `rtc_session_ids` DELETE (`state: ended`), đồng thời bóc tách `sessionId` từ `discuss.channel.rtc.session/ended`.
+>        * Trong `ChatV2CallController`: Lắng nghe khớp theo cả `channelId` và `sessionId`, chuyển trạng thái `ChatV2CallState.rejected` tức thì, dừng âm thanh và tự động đóng UI sau 1.5s.
+>      - **WebRTC P2P Audio Engine**: Xây dựng `ChatV2WebRtcEngine` sử dụng `flutter_webrtc` (v1.6.2+hotfix.3), khởi tạo `RTCPeerConnection` với ICE servers từ Odoo, quản lý microphone capture, gửi và nhận SDP Offer/Answer, đệm ICE candidates trước khi nhận remote SDP, toggle mute và toggle speaker qua `Helper.setSpeakerphoneOn`.
+>      - **Apple CallKit & Android Full-Screen Incoming Call**: Tích hợp `flutter_callkit_incoming` (v3.1.6), cấu hình đầy đủ quyền `USE_FULL_SCREEN_INTENT`, `WAKE_LOCK`, `FOREGROUND_SERVICE_PHONE_CALL`, `MANAGE_OWN_CALLS` trên Android và `voip`, `audio` Background Modes trên iOS. Xử lý FCM background message tự động hiện màn hình nhận cuộc gọi khi tắt app / khóa màn hình.
+>      - **Odoo Bus WebSocket Signaling**: Xây dựng `OdooBusService` kết nối `/websocket` nhận các sự kiện `discuss.channel.rtc.session/peer_notification` (SDP/ICE) và `discuss.channel.rtc.session/ended` (gác máy), tự động subscribe channel khi cuộc gọi phát sinh và áp dụng exponential backoff khi mất kết nối.
+>      - **Pre-flight Call Guards & State Machine**: Trong `chat_v2_detail_screen.dart`, chặn gọi thoại nhóm (giới hạn 1-1), xin quyền micro qua `permission_handler`, kiểm tra hợp lệ người nhận trước khi quay số. `ChatV2CallController` quản lý đầy đủ 10 trạng thái cuộc gọi, timeout đổ chuông 30s.
+>   2. **[MUTE THÔNG BÁO KÊNH CHAT]**:
+>      - Bổ sung trường `is_muted` vào model `ChatV2Channel` (hỗ trợ cả boolean và int).
+>      - Thêm `muteChannel(channelId, {mute, minutes})` vào `ChatV2Repository` đồng bộ trạng thái mute lên server Odoo backend (`/api/v1/mobile/chat/channels/<id>/mute`).
+>      - Cập nhật `ChatV2ChannelLocalCache.setUserMuted` đồng bộ cache tức thì và chặn hiển thị in-app banner thông báo khi kênh bị mute.
+>   3. **[KHẮC PHỤC LỖI BUBBLE TEXT KÉO GIÃN & TIMESTAMP RƠI DÒNG]**:
+>      - **Root Cause**: `RenderWrap.computeMaxIntrinsicWidth` trong Flutter framework tính `math.max` của children thay vì `sum`. Khi bọc `Wrap` trong `IntrinsicWidth`, Flutter không cấp đủ chiều ngang cho timestamp ở dòng 1 khiến timestamp bị ép xuống dòng 2 và kéo giãn khung lên 533px (72% màn hình), tạo khoảng trắng thừa 38px.
+>      - **Khắc phục**: Tách riêng luồng xử lý `isPureText` thành `_buildPureTextContent` không bọc `IntrinsicWidth`. Bubble co gọn ôm sát nội dung (từ 533px về 296.5px), giờ và chữ cùng 1 dòng, độ cao giảm từ 60px về 36px, xóa bỏ 100% khoảng trắng thừa 38px.
+>   4. **[VERIFICATION & TESTS]**:
+>      - Toàn bộ test suite Chat V2 gồm 53/53 tests PASSED 100%.
+>      - Toàn bộ 4 test suite Chat V2 Call (`chat_v2_odoo19_rtc_test.dart`, `chat_v2_call_ui_test.dart`, `chat_v2_call_test.dart`, `call_notification_test.dart`) gồm 39/39 tests PASSED 100%.
+>      - `flutter analyze` đạt 0 issues (0 errors, 0 warnings).
+>      - Render ảnh preview đối soát trực quan tại `/media/tanma/DATA/save/mobile_versions/bubble_fixed_preview.png`.
+
+---
 
 ## [v2.9.10+141] — 2026-09-23 (Ẩn Tên File Ảnh Kỹ Thuật image_picker Khỏi Header Xem Ảnh Toàn Màn Hình)
 

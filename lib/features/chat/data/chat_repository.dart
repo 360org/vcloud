@@ -511,17 +511,23 @@ class ChatRepository {
     final userId = user['user_id'] ?? user['id'];
     final partnerId = user['partner_id'];
     if (userId == null || partnerId == null) {
-      throw Failure('Káº¿t quáº£ tÃ¬m kiáº¿m thiáº¿u user hoáº·c partner id.');
+      throw Failure('Kết quả tìm kiếm thiếu user hoặc partner id.');
     }
     final email = (user['email'] ?? user['login'] ?? '').toString();
+    final isPortalUser = user['is_portal'] == true || user['user_type'] == 'portal';
+    final role = isPortalUser ? 'portal' : (user['role'] ?? 'employee');
+    final avatarUrlStr = user['avatar_url'] as String?;
     return Profile(
       id: userId.toString(),
       partnerId: partnerId.toString(),
       email: email,
       displayName: (user['name'] ?? user['display_name'] ?? email).toString(),
-      avatarUrl: _client.absoluteUrl(
-        '/api/v1/mobile/avatar/partners/$partnerId',
-      ),
+      role: role.toString(),
+      avatarUrl: (avatarUrlStr != null && avatarUrlStr.isNotEmpty)
+          ? avatarUrlStr
+          : _client.absoluteUrl(
+              '/api/v1/mobile/avatar/partners/$partnerId',
+            ),
     );
   }
 

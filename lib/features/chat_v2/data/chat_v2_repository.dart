@@ -702,6 +702,24 @@ class ChatV2Repository {
     await _client.post('/api/v1/mobile/chat/channels/$channelId/unarchive');
   }
 
+  Future<bool> muteChannel(String channelId, {bool mute = true, int minutes = -1}) async {
+    try {
+      final res = await _client.post(
+        '/api/v1/mobile/chat/channels/$channelId/mute',
+        body: {'mute': mute, 'minutes': minutes},
+      );
+      if (res is Map && res['is_muted'] != null) {
+        return res['is_muted'] == true;
+      }
+      return mute;
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[ChatV2Repository] muteChannel error: $e');
+      }
+      return mute;
+    }
+  }
+
   Future<List<ChatV2Member>> fetchChannelMembers(String channelId) async {
     final chIdInt = int.tryParse(channelId);
     if (chIdInt == null) return [];

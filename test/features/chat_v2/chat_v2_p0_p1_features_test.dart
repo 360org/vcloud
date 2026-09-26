@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vcloud/features/chat_v2/application/chat_v2_channels_controller.dart';
 import 'package:vcloud/features/chat_v2/data/models/chat_v2_channel.dart';
@@ -140,7 +138,7 @@ void main() {
     // ---------------------------------------------------------
     test('Case 6: ChatV2ChannelLocalCache markChannelAsUnread increments unreadCount', () {
       const channelId = 'ch_test_unread_77';
-      final channel = ChatV2Channel(
+      const channel = ChatV2Channel(
         id: channelId,
         name: 'Dự án Alpha',
         isGroup: true,
@@ -218,8 +216,8 @@ void main() {
     // ---------------------------------------------------------
     test('Case 10: Multi-file size verification rejects files exceeding 25MB', () {
       const maxDocumentSizeBytes = 25 * 1024 * 1024;
-      final file1Size = 10 * 1024 * 1024; // 10MB -> Valid
-      final file2Size = 26 * 1024 * 1024; // 26MB -> Invalid
+      const file1Size = 10 * 1024 * 1024; // 10MB -> Valid
+      const file2Size = 26 * 1024 * 1024; // 26MB -> Invalid
 
       expect(file1Size <= maxDocumentSizeBytes, isTrue);
       expect(file2Size <= maxDocumentSizeBytes, isFalse);

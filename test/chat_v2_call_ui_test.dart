@@ -17,6 +17,13 @@ class MockChatV2CallRepository implements ChatV2CallRepository {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 
   @override
+  Future<OdooRtcJoinResult?> joinCall({
+    required int channelId,
+    List<int> checkRtcSessionIds = const [],
+    bool camera = false,
+  }) async => null;
+
+  @override
   Future<ChatV2CallSession?> initiateCall({
     required int channelId,
     String? sdpOffer,

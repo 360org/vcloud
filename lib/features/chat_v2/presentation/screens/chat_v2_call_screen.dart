@@ -68,7 +68,11 @@ class _ChatV2CallScreenState extends ConsumerState<ChatV2CallScreen> {
           statusText = 'Cuộc gọi đã kết thúc (${session.formattedDuration})';
           break;
         case ChatV2CallState.rejected:
-          statusText = 'Cuộc gọi bị từ chối';
+          if (session.endReason == 'busy') {
+            statusText = 'Người dùng đang trong cuộc gọi khác';
+          } else {
+            statusText = 'Cuộc gọi bị từ chối';
+          }
           statusColor = const Color(0xFFEF4444);
           break;
         case ChatV2CallState.missed:
