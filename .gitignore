@@ -18,6 +18,7 @@
 .svn/
 .swiftpm/
 migrate_working_dir/
+.worktree-voice-call/
 
 # IntelliJ related
 *.iml

@@ -1233,4 +1233,42 @@ class ChatV2MessagesNotifier
       }
     }
   }
+
+  Future<void> togglePinMessage(String messageId) async {
+    final channelId = arg;
+    final repo = ref.read(chatV2RepositoryProvider);
+    final currentList = state.valueOrNull ?? const [];
+    final targetMsg = currentList.firstWhereOrNull((m) => m.id == messageId);
+    if (targetMsg == null) return;
+
+    // 1. Optimistic Update locally
+    final isCurrentlyPinned = targetMsg.isPinned;
+    final updatedMsg = targetMsg.copyWith(
+      pinnedAt: isCurrentlyPinned ? null : DateTime.now().toIso8601String(),
+      clearPinnedAt: isCurrentlyPinned,
+    );
+    final optimisticList = currentList.map((m) => m.id == messageId ? updatedMsg : m).toList();
+    state = AsyncData(optimisticList);
+    ChatV2MessageLocalCache.set(channelId, optimisticList);
+
+    // 2. Network Call with rollback on failure
+    try {
+      final isPinned = await repo.togglePinMessage(channelId: channelId, messageId: messageId);
+      final verifiedMsg = targetMsg.copyWith(
+        pinnedAt: isPinned ? (targetMsg.pinnedAt ?? DateTime.now().toIso8601String()) : null,
+        clearPinnedAt: !isPinned,
+      );
+      final confirmedList = (state.valueOrNull ?? []).map((m) => m.id == messageId ? verifiedMsg : m).toList();
+      state = AsyncData(confirmedList);
+      ChatV2MessageLocalCache.set(channelId, confirmedList);
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[ChatV2MessagesNotifier] togglePinMessage error: $e');
+      }
+      // Rollback on failure
+      state = AsyncData(currentList);
+      ChatV2MessageLocalCache.set(channelId, currentList);
+    }
+  }
 }
+

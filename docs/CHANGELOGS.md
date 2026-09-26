@@ -2,7 +2,39 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
-## [v2.9.10+141] — 2026-09-26 (Phân Loại 4 Nhóm Hội Thoại Chat V2: Trực Tiếp, Nhóm, Kênh & Zalo OA Kèm 6 Filter Chips Một Chạm)
+## [v2.9.10+141] — 2026-09-26 (Đồng Bộ Tính Năng Sprint P0 & P1 Parity Giữa Odoo 19 Discuss Native Core & Flutter Client)
+
+> [!IMPORTANT]
+> **Đồng Bộ Tính Năng Sprint P0 & P1 Parity Giữa Odoo 19 Discuss Native Core & Flutter Mobile Client (Anti-Sycophancy Protocol V2.1)**:
+> - **Phạm vi**: `vclients` (`ChatV2DetailScreen`, `ChatV2ListScreen`, `ChatV2InputBar`, `ChatV2InfoSheet`, `ChatV2Message`, `ChatV2Repository`, `ChatV2MessagesNotifier`, `ChatV2ChannelsNotifier`, `chat_v2_p0_p1_features_test.dart`)
+> - **Chi tiết tính năng Sprint P0**:
+>   1. **[In-Chat Search & Smooth Scroll Jump]**:
+>      - Tích hợp tìm kiếm nội dung trực tiếp trong hội thoại (`_isSearching`, SearchBar trên AppBar).
+>      - Bộ đếm kết quả so khớp (`X / Y`), điều hướng lên/xuống (Chevron Up/Down).
+>      - Tự động nhảy (`_jumpToMessage`) và tô sáng (highlight vàng cam) tin nhắn khớp với từ khóa tìm kiếm.
+>   2. **[Thanh Sticky Ghim Tin Nhắn (Pinned Message Bar)]**:
+>      - Hiển thị thanh ghim cố định đầu màn hình hội thoại với viền xanh thương hiệu, tên tác giả, trích đoạn nội dung tin nhắn đã ghim.
+>      - Chạm để cuộn nhảy tới tin nhắn được ghim; nút bỏ ghim nhanh (`LucideIcons.pinOff`).
+>      - Hỗ trợ Ghim/Bỏ ghim tin nhắn trực tiếp qua menu tùy chọn (Bottom Sheet) với cập nhật lạc quan (Optimistic UI) và rollback tự động.
+>   3. **[Đánh Dấu Chưa Đọc (Mark as Unread)]**:
+>      - Context menu nhấn giữ trên danh sách hội thoại hỗ trợ "Đánh dấu chưa đọc" / "Đánh dấu đã đọc".
+>      - Đồng bộ trạng thái cục bộ tức thì (`ChatV2ChannelLocalCache.markChannelAsUnread`) và đồng bộ lên backend Odoo Discuss endpoint.
+> - **Chi tiết tính năng Sprint P1**:
+>   1. **[Chọn Nhiều Tệp Cùng Lúc (Multi-file Picking)]**:
+>      - Nâng cấp `FilePicker.platform.pickFiles` hỗ trợ `allowMultiple: true`.
+>      - Giới hạn an toàn tối đa 9 tệp / lần gửi, kiểm tra kích thước tối đa 25MB / tệp để bảo vệ RAM thiết bị và tránh nghẽn băng thông server.
+>   2. **[Quản Lý Thành Viên Nhóm (Kick Member & Rời Nhóm)]**:
+>      - Thêm nút xóa thành viên (`LucideIcons.userMinus`) trong danh sách thành viên nhóm tại `ChatV2InfoSheet` với hộp thoại xác nhận.
+>      - Tích hợp endpoint backend `/api/v1/mobile/chat/channels/<id>/members/remove` và `/api/v1/mobile/chat/channels/<id>/leave`.
+>   3. **[Gợi Ý Tag Kênh (#channel Mention Trigger)]**:
+>      - Hỗ trợ trigger ký tự `#` trong khung nhập liệu `ChatV2InputBar`.
+>      - Popup gợi ý danh sách các kênh thảo luận nội bộ từ bộ nhớ cache cục bộ, chèn `#tên_kênh ` khi người dùng chạm chọn.
+> - **[VERIFICATION & TESTS]**:
+>   - Đạt 12/12 test case độc lập mới trong `test/features/chat_v2/chat_v2_p0_p1_features_test.dart`.
+>   - 172/172 test case Chat V2 đạt 100% PASS.
+>   - `flutter analyze`: 0 errors / 0 warnings trên toàn bộ codebase `vclients`.
+>
+> ---
 
 > [!IMPORTANT]
 > **Nâng Cấp Phân Loại Hội Thoại & Tối Ưu UX Bộ Lọc Danh Sách Chat V2**:

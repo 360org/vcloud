@@ -14,6 +14,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
 import '../../../../core/api/odoo_api_client.dart';
+import '../../application/chat_v2_channels_controller.dart';
 import '../../data/models/chat_v2_channel.dart';
 import 'chat_v2_create_poll_sheet.dart';
 
@@ -109,6 +110,11 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
   int _selectedMentionIndex = 0;
   final ScrollController _mentionScrollController = ScrollController();
 
+  // Channel mentions (#channel)
+  List<ChatV2Channel> _channelSuggestions = [];
+  int _channelQueryStartIndex = -1;
+  int _selectedChannelIndex = 0;
+
   // Voice recording state
   final AudioRecorder _audioRecorder = AudioRecorder();
   bool _isRecording = false;
@@ -155,71 +161,100 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
   }
 
   void _checkMentionTrigger(String text) {
-    if (widget.channelMembers.isEmpty) {
-      if (_mentionSuggestions.isNotEmpty) {
-        setState(() {
-          _mentionSuggestions = [];
-          _mentionQueryStartIndex = -1;
-        });
-      }
-      return;
-    }
-
     final cursor = _controller.selection.baseOffset;
-    // Trên Android, khi touch vào danh sách gợi ý mention, con trỏ cursor có thể bị -1 do mất focus tạm thời.
-    // Không xóa suggestions khi cursor < 0 nếu người dùng chưa xóa hết text.
-    if (cursor < 0) {
-      return;
-    }
+    if (cursor < 0) return;
     if (cursor > text.length) {
-      if (_mentionSuggestions.isNotEmpty) {
+      if (_mentionSuggestions.isNotEmpty || _channelSuggestions.isNotEmpty) {
         setState(() {
           _mentionSuggestions = [];
           _mentionQueryStartIndex = -1;
+          _channelSuggestions = [];
+          _channelQueryStartIndex = -1;
         });
       }
       return;
     }
 
     final textBeforeCursor = text.substring(0, cursor);
-    final lastAtIndex = textBeforeCursor.lastIndexOf('@');
 
-    if (lastAtIndex != -1) {
-      final isStart = lastAtIndex == 0 ||
-          textBeforeCursor[lastAtIndex - 1] == ' ' ||
-          textBeforeCursor[lastAtIndex - 1] == '\n';
-      final query = textBeforeCursor.substring(lastAtIndex + 1);
+    // 1. Kiểm tra trigger @ (thành viên)
+    if (widget.channelMembers.isNotEmpty) {
+      final lastAtIndex = textBeforeCursor.lastIndexOf('@');
+      if (lastAtIndex != -1) {
+        final isStart = lastAtIndex == 0 ||
+            textBeforeCursor[lastAtIndex - 1] == ' ' ||
+            textBeforeCursor[lastAtIndex - 1] == '\n';
+        final query = textBeforeCursor.substring(lastAtIndex + 1);
+
+        if (isStart && !query.contains('\n') && query.length <= 30) {
+          final qLower = query.toLowerCase().trim();
+          final qNormalized = _removeVietnameseDiacritics(qLower);
+          final matches = widget.channelMembers.where((m) {
+            if (m.isMe) return false;
+            if (qLower.isEmpty) return true;
+            final nLower = m.name.toLowerCase();
+            final nNormalized = _removeVietnameseDiacritics(nLower);
+            final eLower = (m.email ?? '').toLowerCase();
+            return nLower.contains(qLower) ||
+                nNormalized.contains(qNormalized) ||
+                eLower.contains(qLower);
+          }).toList();
+
+          if (matches.isNotEmpty) {
+            setState(() {
+              _mentionSuggestions = matches;
+              _mentionQueryStartIndex = lastAtIndex;
+              _selectedMentionIndex = 0;
+              _channelSuggestions = [];
+              _channelQueryStartIndex = -1;
+            });
+            return;
+          }
+        }
+      }
+    }
+
+    // 2. Kiểm tra trigger # (kênh trò chuyện)
+    final lastHashIndex = textBeforeCursor.lastIndexOf('#');
+    if (lastHashIndex != -1) {
+      final isStart = lastHashIndex == 0 ||
+          textBeforeCursor[lastHashIndex - 1] == ' ' ||
+          textBeforeCursor[lastHashIndex - 1] == '\n';
+      final query = textBeforeCursor.substring(lastHashIndex + 1);
 
       if (isStart && !query.contains('\n') && query.length <= 30) {
         final qLower = query.toLowerCase().trim();
         final qNormalized = _removeVietnameseDiacritics(qLower);
-        final matches = widget.channelMembers.where((m) {
-          if (m.isMe) return false;
+        final allChannels = ChatV2ChannelLocalCache.cached;
+        final channelMatches = allChannels.where((c) {
+          if (c.id == widget.channelId) return false;
           if (qLower.isEmpty) return true;
-          final nLower = m.name.toLowerCase();
-          final nNormalized = _removeVietnameseDiacritics(nLower);
-          final eLower = (m.email ?? '').toLowerCase();
-          return nLower.contains(qLower) ||
-              nNormalized.contains(qNormalized) ||
-              eLower.contains(qLower);
+          final cLower = c.name.toLowerCase();
+          final cNormalized = _removeVietnameseDiacritics(cLower);
+          return cLower.contains(qLower) || cNormalized.contains(qNormalized);
         }).toList();
 
-        if (matches.isNotEmpty) {
+        if (channelMatches.isNotEmpty) {
           setState(() {
-            _mentionSuggestions = matches;
-            _mentionQueryStartIndex = lastAtIndex;
-            _selectedMentionIndex = 0;
+            _channelSuggestions = channelMatches;
+            _channelQueryStartIndex = lastHashIndex;
+            _selectedChannelIndex = 0;
+            _mentionSuggestions = [];
+            _mentionQueryStartIndex = -1;
           });
           return;
         }
       }
     }
 
-    if (_mentionSuggestions.isNotEmpty) {
+    if (_mentionSuggestions.isNotEmpty || _channelSuggestions.isNotEmpty) {
       setState(() {
         _mentionSuggestions = [];
         _mentionQueryStartIndex = -1;
         _selectedMentionIndex = 0;
+        _channelSuggestions = [];
+        _channelQueryStartIndex = -1;
+        _selectedChannelIndex = 0;
       });
     }
   }
@@ -249,6 +284,34 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
       _mentionSuggestions = [];
       _mentionQueryStartIndex = -1;
       _selectedMentionIndex = 0;
+    });
+    _focusNode.requestFocus();
+  }
+
+  void _selectChannelMention(ChatV2Channel channel) {
+    if (_channelQueryStartIndex < 0) return;
+    final text = _controller.text;
+    final cursor = _controller.selection.baseOffset;
+    int endIdx = cursor;
+    if (endIdx < _channelQueryStartIndex || endIdx > text.length) {
+      final spaceIdx = text.indexOf(' ', _channelQueryStartIndex);
+      endIdx = spaceIdx != -1 ? spaceIdx : text.length;
+    }
+    final prefix = text.substring(0, _channelQueryStartIndex);
+    final suffix = text.substring(endIdx);
+
+    final insertText = '#${channel.name} ';
+    final newText = '$prefix$insertText$suffix';
+
+    _controller.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: prefix.length + insertText.length),
+    );
+
+    setState(() {
+      _channelSuggestions = [];
+      _channelQueryStartIndex = -1;
+      _selectedChannelIndex = 0;
     });
     _focusNode.requestFocus();
   }
@@ -901,11 +964,66 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
 
     try {
       final result = await FilePicker.platform.pickFiles(
-        allowMultiple: false,
+        allowMultiple: true,
         withData: true,
       );
 
       if (result == null || result.files.isEmpty) return;
+
+      // Xử lý khi người dùng chọn nhiều tệp
+      if (result.files.length > 1) {
+        final rawFiles = result.files.take(9).toList();
+        if (result.files.length > 9 && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Chỉ được chọn tối đa 9 tệp mỗi lần. Đã chọn 9 tệp đầu tiên.'),
+              backgroundColor: Color(0xFF00C83A),
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+
+        final validFiles = <({String filename, Uint8List bytes, String? mimetype})>[];
+        for (final file in rawFiles) {
+          final sizeInBytes = file.size;
+          if (sizeInBytes > maxDocumentSizeBytes) {
+            if (mounted) {
+              _showFileSizeExceededDialog(
+                context: context,
+                filename: file.name,
+                fileSizeBytes: sizeInBytes,
+                maxSizeBytes: maxDocumentSizeBytes,
+              );
+            }
+            continue;
+          }
+          final bytes = file.bytes;
+          if (bytes != null) {
+            final ext = file.extension?.toLowerCase();
+            final mime = _guessMimeType(ext);
+            validFiles.add((filename: file.name, bytes: bytes, mimetype: mime));
+          }
+        }
+
+        if (validFiles.isEmpty) return;
+
+        setState(() => _isUploading = true);
+        try {
+          final sendCallback = widget.onSendFile ?? widget.onSendImage;
+          if (sendCallback != null) {
+            for (final f in validFiles) {
+              await sendCallback(
+                bytes: f.bytes,
+                filename: f.filename,
+                mimetype: f.mimetype,
+              );
+            }
+          }
+        } finally {
+          if (mounted) setState(() => _isUploading = false);
+        }
+        return;
+      }
 
       final file = result.files.first;
       final sizeInBytes = file.size;
@@ -1434,6 +1552,127 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
     );
   }
 
+  Widget _buildChannelSuggestionsBox(BuildContext context, bool isDark) {
+    return Container(
+      margin: const EdgeInsets.only(left: 4, right: 4, bottom: 8),
+      constraints: const BoxConstraints(maxHeight: 220),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? Colors.white12 : const Color(0xFFE2E8F0),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: ListView.separated(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          shrinkWrap: true,
+          itemCount: _channelSuggestions.length,
+          separatorBuilder: (ctx, i) => Divider(
+            height: 1,
+            thickness: 0.5,
+            color: isDark ? Colors.white10 : const Color(0xFFF1F5F9),
+          ),
+          itemBuilder: (ctx, index) {
+            final channel = _channelSuggestions[index];
+            final isSelected = index == _selectedChannelIndex;
+            return Material(
+              color: isSelected
+                  ? (isDark
+                      ? const Color(0xFF2563EB).withValues(alpha: 0.22)
+                      : const Color(0xFF2563EB).withValues(alpha: 0.12))
+                  : Colors.transparent,
+              child: InkWell(
+                onTap: () => _selectChannelMention(channel),
+                hoverColor: isDark
+                    ? const Color(0xFF2563EB).withValues(alpha: 0.15)
+                    : const Color(0xFF2563EB).withValues(alpha: 0.08),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: const Color(0xFF2563EB).withValues(alpha: 0.15),
+                        ),
+                        alignment: Alignment.center,
+                        child: const Icon(
+                          LucideIcons.hash,
+                          size: 16,
+                          color: Color(0xFF2563EB),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              channel.name,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                                color: isSelected
+                                    ? const Color(0xFF2563EB)
+                                    : (isDark ? Colors.white : const Color(0xFF0F172A)),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 1),
+                            Text(
+                              channel.isGroup ? 'Kênh nhóm' : 'Kênh trực tiếp',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? const Color(0xFF2563EB)
+                              : const Color(0xFF2563EB).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          '#kênh',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: isSelected ? Colors.white : const Color(0xFF2563EB),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -1462,7 +1701,9 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
                 children: [
                   // Danh sách gợi ý thành viên khi gõ @ Mention
                   if (_mentionSuggestions.isNotEmpty)
-                    _buildMentionSuggestionsBox(context, isDark),
+                    _buildMentionSuggestionsBox(context, isDark)
+                  else if (_channelSuggestions.isNotEmpty)
+                    _buildChannelSuggestionsBox(context, isDark),
                   // Preview tệp/ảnh trước khi gửi nếu có tệp được chọn
                   if (_selectedBytes != null) ...[
                     Container(

@@ -775,5 +775,82 @@ class ChatV2Repository {
     }
     return null;
   }
+
+  Future<void> markAsUnread(String channelId) async {
+    final cid = int.tryParse(channelId) ?? 0;
+    try {
+      await _client.post(
+        '/api/v1/mobile/chat/channels/$channelId/mark-unread',
+        body: {'channel_id': cid},
+      );
+    } catch (_) {
+      try {
+        await _client.post(
+          '/api/v1/mobile/chat/channels/$channelId/unread',
+          body: {},
+        );
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint('[ChatV2Repository] markAsUnread error: $e');
+        }
+      }
+    }
+  }
+
+  Future<bool> togglePinMessage({
+    required String channelId,
+    required String messageId,
+  }) async {
+    final cid = int.tryParse(channelId) ?? 0;
+    final mid = int.tryParse(messageId) ?? 0;
+    try {
+      final res = await _client.post(
+        '/api/v1/mobile/chat/channels/$channelId/pin-message',
+        body: {'message_id': mid, 'channel_id': cid},
+      );
+      if (res is Map && res['is_pinned'] is bool) {
+        return res['is_pinned'] as bool;
+      }
+      return true;
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[ChatV2Repository] togglePinMessage error: $e');
+      }
+      try {
+        await _client.post(
+          '/api/v1/mobile/chat/messages/$messageId/pin',
+          body: {'channel_id': cid},
+        );
+        return true;
+      } catch (_) {
+        return false;
+      }
+    }
+  }
+
+  Future<void> removeChannelMember({
+    required String channelId,
+    required int partnerId,
+  }) async {
+    final cid = int.tryParse(channelId) ?? 0;
+    try {
+      await _client.post(
+        '/api/v1/mobile/chat/channels/$channelId/members/remove',
+        body: {'partner_id': partnerId, 'channel_id': cid},
+      );
+    } catch (_) {
+      try {
+        await _client.post(
+          '/api/v1/mobile/chat/channels/$channelId/kick',
+          body: {'partner_id': partnerId},
+        );
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint('[ChatV2Repository] removeChannelMember error: $e');
+        }
+        rethrow;
+      }
+    }
+  }
 }
 

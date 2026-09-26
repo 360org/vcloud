@@ -183,6 +183,7 @@ class ChatV2Message {
     this.parentAuthorName,
     this.reactions = const [],
     this.partnerIds = const [],
+    this.pinnedAt,
   });
 
   final String id;
@@ -201,6 +202,9 @@ class ChatV2Message {
   final String? parentAuthorName;
   final List<ChatV2Reaction> reactions;
   final List<int> partnerIds;
+  final String? pinnedAt;
+
+  bool get isPinned => pinnedAt != null && pinnedAt!.isNotEmpty;
 
   bool get hasImageAttachment => attachments.any((a) => a.isImage);
 
@@ -369,6 +373,8 @@ class ChatV2Message {
     String? parentAuthorName,
     List<ChatV2Reaction>? reactions,
     List<int>? partnerIds,
+    String? pinnedAt,
+    bool clearPinnedAt = false,
   }) {
     return ChatV2Message(
       id: id ?? this.id,
@@ -387,6 +393,7 @@ class ChatV2Message {
       parentAuthorName: parentAuthorName ?? this.parentAuthorName,
       reactions: reactions ?? this.reactions,
       partnerIds: partnerIds ?? this.partnerIds,
+      pinnedAt: clearPinnedAt ? null : (pinnedAt ?? this.pinnedAt),
     );
   }
 
@@ -406,6 +413,7 @@ class ChatV2Message {
     'parent_author_name': parentAuthorName,
     'reactions': reactions.map((r) => r.toJson()).toList(),
     'partner_ids': partnerIds,
+    'pinned_at': pinnedAt,
   };
 
   factory ChatV2Message.fromMap(
@@ -621,6 +629,8 @@ class ChatV2Message {
             ? odooApiClient.resolveAvatarUrl('/api/v1/mobile/avatar/res.partner/$authorId')
             : null);
 
+    final pinnedAt = _stringOrNull(map['pinned_at']);
+
     return ChatV2Message(
       id: id,
       channelId: channelId,
@@ -638,6 +648,7 @@ class ChatV2Message {
       parentAuthorName: extractedParentAuthor,
       reactions: parsedReactions,
       partnerIds: parsedPartnerIds,
+      pinnedAt: pinnedAt,
     );
   }
 
@@ -702,7 +713,8 @@ class ChatV2Message {
         other.parentBody == parentBody &&
         other.parentAuthorName == parentAuthorName &&
         const ListEquality().equals(other.reactions, reactions) &&
-        const ListEquality().equals(other.partnerIds, partnerIds);
+        const ListEquality().equals(other.partnerIds, partnerIds) &&
+        other.pinnedAt == pinnedAt;
   }
 
   @override
@@ -722,6 +734,7 @@ class ChatV2Message {
       parentAuthorName,
       const ListEquality().hash(reactions),
       const ListEquality().hash(partnerIds),
+      pinnedAt,
     );
   }
 }

@@ -290,6 +290,28 @@ class ChatV2ChannelLocalCache {
     onCacheUpdated?.call();
   }
 
+  static void markChannelAsUnread(String channelId) {
+    if (_pinnedDirectChannels.containsKey(channelId)) {
+      final old = _pinnedDirectChannels[channelId]!;
+      _pinnedDirectChannels[channelId] = old.copyWith(
+        unreadCount: old.unreadCount > 0 ? old.unreadCount : 1,
+      );
+    }
+    final currentCached = List<ChatV2Channel>.from(_cached);
+    final idx = currentCached.indexWhere((c) => c.id == channelId);
+    if (idx != -1) {
+      final count = currentCached[idx].unreadCount;
+      currentCached[idx] = currentCached[idx].copyWith(
+        unreadCount: count > 0 ? count : 1,
+      );
+      set(currentCached);
+    } else if (_pinnedDirectChannels.containsKey(channelId)) {
+      set(_cached);
+    }
+    _saveToStorage();
+    onCacheUpdated?.call();
+  }
+
   static Future<void> _saveToStorage() async {
     try {
       final list = _pinnedDirectChannels.values.map((c) => c.toMap()).toList();
@@ -962,6 +984,41 @@ class ChatV2ChannelsNotifier
       await refresh(); // Reload channels from API to get it back
       ref.invalidate(chatV2ArchivedChannelsProvider);
     } catch (_) {}
+  }
+
+  Future<void> markChannelAsUnread(String channelId) async {
+    ChatV2ChannelLocalCache.markChannelAsUnread(channelId);
+    state = AsyncData(ChatV2ChannelLocalCache.cached);
+    ref.read(chatV2ReadStateProvider.notifier).markChannelAsUnread(channelId);
+    try {
+      await ref.read(chatV2RepositoryProvider).markAsUnread(channelId);
+    } catch (_) {}
+  }
+
+  Future<void> leaveChannel(String channelId) async {
+    try {
+      await ref.read(chatV2RepositoryProvider).leaveChannel(channelId);
+      ChatV2ChannelLocalCache.remove(channelId);
+      final current = state.valueOrNull ?? ChatV2ChannelLocalCache.cached;
+      final updated = current.where((c) => c.id != channelId).toList();
+      ChatV2ChannelLocalCache.set(updated);
+      state = AsyncData(updated);
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[ChatV2ChannelsNotifier] leaveChannel error: $e');
+      }
+      rethrow;
+    }
+  }
+
+  void togglePin(String channelId) {
+    ChatV2ChannelLocalCache.toggleUserPin(channelId);
+    state = AsyncData(ChatV2ChannelLocalCache.cached);
+  }
+
+  void toggleMute(String channelId) {
+    ChatV2ChannelLocalCache.toggleUserMute(channelId);
+    state = AsyncData(ChatV2ChannelLocalCache.cached);
   }
 }
 

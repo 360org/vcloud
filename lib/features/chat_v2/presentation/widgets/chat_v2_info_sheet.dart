@@ -437,6 +437,72 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
     }
   }
 
+  Future<void> _handleRemoveMember(ChatV2Member member) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(LucideIcons.userMinus, color: Color(0xFFEF4444), size: 22),
+            SizedBox(width: 8),
+            Text('Xóa thành viên?', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17)),
+          ],
+        ),
+        content: Text(
+          'Bạn có chắc chắn muốn xóa "${member.name}" khỏi nhóm trò chuyện này không?',
+          style: const TextStyle(fontSize: 14, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy', style: TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Xóa', style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    final pId = int.tryParse(member.id);
+    if (pId == null) return;
+
+    try {
+      final repo = ref.read(chatV2RepositoryProvider);
+      await repo.removeChannelMember(channelId: widget.channel.id, partnerId: pId);
+      setState(() {
+        _members.removeWhere((m) => m.id == member.id);
+        if (_memberCount > 0) _memberCount--;
+      });
+      ref.invalidate(chatV2ChannelsProvider);
+      if (mounted) {
+        AppToast.success(
+          context,
+          title: 'Đã xóa thành viên',
+          message: 'Đã xóa "${member.name}" khỏi nhóm.',
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        AppToast.error(
+          context,
+          title: 'Lỗi',
+          message: 'Không thể xóa thành viên: $e',
+        );
+      }
+    }
+  }
+
   void _openAddMemberSheet() {
     showModalBottomSheet<void>(
       context: context,
@@ -1039,6 +1105,17 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
                                       : (isDark ? Colors.white54 : const Color(0xFF94A3B8)),
                                 ),
                               ),
+                              trailing: isGroup && !isMe
+                                  ? IconButton(
+                                      icon: const Icon(
+                                        LucideIcons.userMinus,
+                                        size: 18,
+                                        color: Color(0xFFEF4444),
+                                      ),
+                                      tooltip: 'Xóa khỏi nhóm',
+                                      onPressed: () => _handleRemoveMember(member),
+                                    )
+                                  : null,
                             );
                           },
                         ),
