@@ -2,6 +2,31 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.11+142] — 2026-09-26 (Tích Hợp Trình Mở Tài Liệu Trực Tiếp In-App Document Viewer Với open_filex - Loại Bỏ Fallback Trình Duyệt Ngoài)
+
+> [!IMPORTANT]
+> **Tích Hợp Trình Mở Tài Liệu Trực Tiếp In-App Document Viewer Với `open_filex` (Anti-Sycophancy Protocol V2.1)**:
+> - **Phạm vi**: `vclients` (`pubspec.yaml`, `ChatV2AttachmentViewer`, `ChatV2MessageItem`, `ChatV2InfoSheet`, `chat_v2_attachment_viewer_test.dart`)
+> - **Nguyên nhân & Bối cảnh**:
+>   * Trước đây khi người dùng chạm vào tài liệu đính kèm (PDF, DOCX, XLSX, TXT...), ứng dụng kích hoạt fallback mở qua trình duyệt ngoài (`url_launcher.launchUrl`) gây lộ authenticated URL, làm gián đoạn trải nghiệm người dùng trên thiết bị di động.
+> - **Giải pháp xử lý (Architectural Solution)**:
+>   1. **[Tích hợp Dependency `open_filex: ^4.7.0`]**:
+>      - Cấu hình native file viewer đa nền tảng cho Android và iOS.
+>   2. **[Triển khai `ChatV2AttachmentViewer` Độc Lập]**:
+>      - Cơ chế tải và lưu tạm file an toàn: Nạp bytes từ bộ nhớ cache hoặc tải qua `odooApiClient.fetchBytes()` / `MobileAttachmentRepository().fetchBytes()`.
+>      - Kiểm tra magic bytes qua `MagicBytesValidator` chống nạp nhầm ảnh placeholder khi file không tồn tại hoặc không có quyền truy cập.
+>      - Lưu file vào thư mục cache tạm thời của ứng dụng (`getTemporaryDirectory()`) với tên file đã được làm sạch ký tự đặc biệt (`sanitized`).
+>      - Gọi `OpenFilex.open(filePath)` để mở trực tiếp tài liệu ngay trong ứng dụng native.
+>   3. **[🛑 LOẠI BỎ TRIỆT ĐỂ FALLBACK TRÌNH DUYỆT NGOÀI]**:
+>      - Loại bỏ 100% việc gọi `openDownloadUrl` / `url_launcher` cho tài liệu văn bản trong `ChatV2MessageItem` và `ChatV2InfoSheet`.
+>      - Khi không có ứng dụng phù hợp trên thiết bị (`ResultType.noAppToOpen`), hiển thị SnackBar hướng dẫn người dùng cài đặt ứng dụng đọc tài liệu chuyên dụng thay vì chuyển hướng sang trình duyệt web.
+>   4. **[VERIFICATION & TDD]**:
+>      - Viết mới 10 test case chuyên biệt trong `chat_v2_attachment_viewer_test.dart` bao phủ toàn diện: mở thành công `done`, ưu tiên `directBytes`, chặn lỗi magic bytes placeholder, xử lý `noAppToOpen`, zero browser fallback, xử lý `permissionDenied`, sanitize tên file, xử lý bytes rỗng, nạp qua custom fetcher và tích hợp UI tap card trong `ChatV2MessageItem`.
+>      - 10/10 test case đạt PASS; toàn bộ 215/215 tests trong Chat V2 đạt PASS.
+>      - `flutter analyze`: 0 errors / 0 warnings.
+
+---
+
 ## [v2.9.11+142] — 2026-09-26 (Tối Ưu Tín Hiệu Máy Bận Nhanh - Fast-Busy Signal Cho Cuộc Gọi Thoại 1-1)
 
 > [!IMPORTANT]

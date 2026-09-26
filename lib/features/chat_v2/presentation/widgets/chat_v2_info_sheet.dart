@@ -7,9 +7,7 @@ import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/api/odoo_api_client.dart';
-import '../../../../core/utils/file_download.dart';
 import '../../../../core/utils/local_attachment_cache.dart';
-import '../../../../core/utils/magic_bytes_validator.dart';
 import '../../../../shared/models/profile.dart';
 import '../../../../shared/widgets/app_scaffold.dart';
 import '../../../../shared/widgets/app_toast.dart';
@@ -21,6 +19,7 @@ import '../../data/chat_v2_repository.dart';
 import '../../data/models/chat_v2_channel.dart';
 import '../../data/models/chat_v2_message.dart';
 import '../screens/chat_v2_image_viewer_screen.dart';
+import 'chat_v2_attachment_viewer.dart';
 import 'chat_v2_message_item.dart';
 
 class ChatV2InfoSheet extends ConsumerStatefulWidget {
@@ -1493,22 +1492,6 @@ class _ChatV2MediaHubScreenState extends State<ChatV2MediaHubScreen>
 
                     return InkWell(
                       onTap: () async {
-                        final messenger = ScaffoldMessenger.of(context);
-                        if (cachedBytes != null && cachedBytes.isNotEmpty) {
-                          if (MagicBytesValidator.isMistakenImagePayloadForDocument(file.name, cachedBytes)) {
-                            messenger.showSnackBar(
-                              const SnackBar(
-                                content: Text('Tệp tin gốc không tồn tại hoặc bạn không có quyền truy cập trên máy chủ.'),
-                                duration: Duration(seconds: 3),
-                                backgroundColor: Color(0xFFE11D48),
-                              ),
-                            );
-                            return;
-                          }
-                          await saveBytesToFile(cachedBytes, file.name);
-                          return;
-                        }
-
                         final targetPath = (file.downloadUrl != null && file.downloadUrl!.isNotEmpty)
                             ? file.downloadUrl!
                             : ((file.url != null && file.url!.isNotEmpty)
@@ -1517,37 +1500,13 @@ class _ChatV2MediaHubScreenState extends State<ChatV2MediaHubScreen>
                                     ? '/web/content/${file.id}/${file.name}'
                                     : ''));
 
-                        if (targetPath.isNotEmpty) {
-                          try {
-                            final bytes = await odooApiClient.fetchBytes(targetPath);
-                            if (bytes.isNotEmpty) {
-                              if (MagicBytesValidator.isMistakenImagePayloadForDocument(file.name, bytes)) {
-                                messenger.showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Tệp tin gốc không tồn tại hoặc bạn không có quyền truy cập trên máy chủ.'),
-                                    duration: Duration(seconds: 3),
-                                    backgroundColor: Color(0xFFE11D48),
-                                  ),
-                                );
-                                return;
-                              }
-                              await saveBytesToFile(bytes, file.name);
-                              return;
-                            }
-                          } catch (_) {}
-                          final fullUrl = targetPath.startsWith('http')
-                              ? targetPath
-                              : odooApiClient.authenticatedUrl(targetPath);
-                          openDownloadUrl(fullUrl);
-                        } else {
-                          messenger.showSnackBar(
-                            const SnackBar(
-                              content: Text('Tệp đính kèm chưa sẵn sàng để tải về.'),
-                              duration: Duration(seconds: 2),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        }
+                        await ChatV2AttachmentViewer.open(
+                          context: context,
+                          filename: file.name,
+                          attachmentId: int.tryParse(file.id),
+                          downloadUrl: targetPath.isNotEmpty ? targetPath : null,
+                          directBytes: cachedBytes,
+                        );
                       },
                       borderRadius: BorderRadius.circular(12),
                       child: Container(
