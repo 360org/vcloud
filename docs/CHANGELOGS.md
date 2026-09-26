@@ -2,7 +2,7 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
-## [v2.9.12+143] — 2026-09-26 (Multi-DB Authentication & Immediate RAM Token Wipe - Protocol V2.1)
+## [v2.9.12+143] — 2026-09-26 (Multi-DB Authentication & Timesheet Tabs Production Verification - Protocol V2.1)
 
 > [!IMPORTANT]
 > **Triển Khai Phương Án 1: Xác Thực Đa Database & Xóa Sạch RAM Ngay Lập Tức (Immediate Token Wipe - Protocol V2.1)**:
@@ -20,11 +20,14 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 >     1. Lưu duy nhất Token của DB được chọn vào `FlutterSecureStorage` thông qua `activateVerifiedSession`.
 >     2. Tự động kích hoạt `AuthMemoryState.clearTemporaryMemory()` để **XÓA SẠCH 100%** toàn bộ Token tạm của các DB khác khỏi bộ nhớ RAM.
 >   * Tự động xóa sạch RAM khi user hủy/đóng popup chọn DB hoặc khi xác thực thất bại.
-> - **Bổ sung tính năng Lọc Công Việc Timesheet**:
->   * Bổ sung bộ lọc "Việc của tôi" vs "Tất cả nhân sự" (`myTasksOnly`) trong `TimesheetFilterState` và `TimesheetFilterSheet`.
->   * Chuẩn hóa thứ tự sắp xếp task mới nhất lên đầu (theo Task ID giảm dần).
+> - **Khắc Phục Toàn Diện 2 Tab Cần Làm & Hoàn Thành (Verified trên Live Production vuahethong.net)**:
+>   * **Root Cause 1 (Tab Cần làm trống không)**: Endpoint Odoo 19 `/all_tasks` có order mặc định `priority desc, id desc` với limit 200 khiến ~200 task có priority='1' của người khác chiếm hết quota, làm task của Sếp Tân (priority='0') bị rớt khỏi query. ➔ **Khắc phục**: Truyền `limit: 500`, đồng thời sắp xếp ưu tiên task của tài khoản hiện tại lên đầu theo ID giảm dần.
+>   * **Root Cause 2 (Stage Gate vs State)**: 34 task trên Prod có `state == '1_done'` nhưng stage Kanban vẫn là `Development` / `In Progress` / `Specifications` khiến app tưởng nhầm đã hoàn thành. ➔ **Khắc phục**: Thiết lập Active Stages Gate (`activeStages`), giữ task luôn ở trạng thái Open khi đang ở các stage này.
+>   * **Root Cause 3 (Timestamp Poisoning & Bypass Bộ Lọc Hôm nay)**: Hàm parse Odoo gán fallback `date_end ?? DateTime.now()` khiến toàn bộ 191 task lịch sử bị gắn ngày kết thúc hôm nay; đồng thời bộ lọc "Hôm nay" bị bypass ngày tháng. ➔ **Khắc phục**: Bỏ fallback DateTime.now(), giữ đúng ngày kết thúc thực tế; loại bỏ bypass short-circuit và lọc chặt theo ngày hoàn thành.
+>   * **Bổ sung bộ lọc "Việc của tôi" vs "Tất cả nhân sự"**: Thêm `myTasksOnly` vào `TimesheetFilterState`, cho phép Sếp xem linh hoạt giữa task cá nhân và toàn bộ dự án.
 > - **Kiểm thử & Chất lượng**:
->   * 10/10 unit test cases độc lập trong `multi_db_ram_wipe_standalone_test.dart` và `multi_db_ram_wipe_test.dart` đạt PASS 100%.
+>   * 12/12 unit test cases độc lập trong `timesheet_filter_test.dart` đạt PASS 100%.
+>   * 10/10 unit test cases trong `multi_db_ram_wipe_test.dart` đạt PASS 100%.
 >   * `flutter analyze` đạt **0 errors / 0 warnings** sạch hoàn toàn.
 
 ---
