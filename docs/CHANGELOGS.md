@@ -2,6 +2,55 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.11+142] — 2026-09-26 (Khắc Phục Lỗi Hiển Thị Tên Kênh Odoo Discuss: Khóa Cố Định Title Kênh "Internal" & Chống Biến Dạng Theo Người Gửi)
+
+> [!IMPORTANT]
+> **Khắc phục triệt để lỗi kênh Discuss Odoo (như `Internal`) bị biến đổi tiêu đề thành `Tên người gửi (Internal)` trên danh sách hội thoại VCloud**:
+> - **Phạm vi**: `vclients` (`ChatV2Channel`, `ChatV2ChannelLocalCache`, `test/features/chat_v2/chat_v2_display_name_test.dart`)
+> - **Hiện tượng**:
+>   * Khi mở danh sách chat, kênh Odoo Discuss `Internal` bị hiển thị thành `Chau, Le Ba (Internal)` và avatar lấy chữ cái `C`.
+>   * Khi có thành viên khác (ví dụ: `Nguyen Thi Thu Thao`) gửi tin nhắn mới, tiêu đề kênh bị biến dạng động thành `Nguyen Thi Thu Thao (Internal)`, và tiếp tục đổi theo từng người gửi tiếp theo.
+> - **Nguyên nhân gốc rễ (Root Cause)**:
+>   * Phương thức `ChatV2Channel.getCleanName()` trước đây có logic ghép chuỗi `$partnerName ($name)` áp dụng quá rộng, không chặn các kênh Odoo Discuss (`channelType == 'channel'`) và các nhóm cố định (`isGroup == true`).
+>   * Hàm `ChatV2Channel.fromJson()` tự động gán `directPartnerName` và `directPartnerId` từ `memberObjs.firstWhereOrNull((m) => !m.isMe)` ngay cả với kênh thảo luận công khai/nội bộ Odoo, khiến `directPartnerName` bị trỏ vào một thành viên ngẫu nhiên.
+>   * Khi `ChatV2ChannelLocalCache.updateChannelLastMessage` cập nhật tin nhắn đến kèm `authorName`, logic cũ ghép sai tên tác giả vào title thay vì chỉ đặt ở subtitle dòng tin nhắn cuối.
+> - **Giải pháp xử lý (Architectural Solution)**:
+>   1. **[Bảo vệ tuyệt đối Title Kênh & Nhóm trong `ChatV2Channel.getCleanName()`]**:
+>      - Thêm guard clause: `if (isChannel || channelType == 'channel' || isGroup) return name;`.
+>      - Khóa 100% tên kênh thảo luận (`Internal`, `General`, `Hỗ trợ khách hàng`...) và nhóm chat theo đúng `name` gốc, nghiêm cấm ghép tên bất kỳ người tham gia hay tác giả nào vào title.
+>   2. **[Cách ly Direct Partner trong `ChatV2Channel.fromJson()`]**:
+>      - Chỉ trích xuất `directPartnerId`, `directPartnerName` và `directPartnerAvatar` cho cuộc trò chuyện 1-1 trực tiếp (`!isGroup && channelType != 'channel'`).
+>      - Avatar và chữ cái viết tắt (initial) của kênh `Internal` được tính toán chuẩn xác từ chính chữ `I` của tên kênh.
+>   3. **[Subtitle preview phân tách rõ ràng]**:
+>      - Tên người gửi tin nhắn (`Châu: ...`, `Thao: ...`) chỉ hiển thị độc quyền ở dòng preview bên dưới (subtitle), không làm ô nhiễm title.
+>   4. **[VERIFICATION & TDD]**:
+>      - Đạt 100% (11/11) test cases trong `chat_v2_display_name_test.dart` (bao gồm Test Case 11 kiểm thử mô phỏng đa người gửi gửi tin nhắn liên tục).
+>      - `flutter analyze`: 0 errors / 0 warnings.
+>      - Bộ 28 test suites liên quan đến Chat V2 đều vượt qua toàn bộ.
+
+---
+
+## [v2.9.11+142] — 2026-09-25 (Khắc phục lỗi Disconnected from call by server & Cách ly Bus Signaling vmobile.call/ended)
+
+> [!IMPORTANT]
+> **Khắc phục triệt để cảnh báo "Disconnected from the call by the server" trên Odoo 19 Web Discuss & Đồng bộ trạng thái Từ chối / Kết thúc cuộc gọi tức thì**:
+> - **Phạm vi**: `vclients` (Flutter), `v_mobile_17` & `v_mobile_19` (Odoo Backend)
+> - **Nguyên nhân gốc rễ (Root Cause)**:
+>   * `mail/static/src/discuss/call/common/rtc_service.js` của Odoo 19 bắt sự kiện native `discuss.channel.rtc.session/ended`. Khi VMobile phát sự kiện này không kèm `sessionId`, biểu thức so sánh `rtc.localSession?.id === sessionId` chuyển thành `undefined === undefined` (trả về `true`) khiến Odoo Web tự kích hoạt `notifyServerDisconnect()`.
+> - **Giải pháp xử lý (Architectural Solution)**:
+>   1. **[BACKEND ODOO 17 & 19 — `v_mobile`]**:
+>      - Tách biệt toàn bộ bus notification kết thúc/từ chối cuộc gọi sang topic độc lập `vmobile.call/ended` (kèm `channel_id`, `state`, `member_id`, `partner_id`).
+>      - Không còn xâm phạm vào namespace bus dành riêng của Odoo Core.
+>   2. **[FLUTTER CLIENT — `vclients`]**:
+>      - `OdooBusService`: Lắng nghe và xử lý sự kiện riêng `vmobile.call/ended`.
+>      - Thêm điều kiện bảo vệ (guard clause) cho `discuss.channel.rtc.session/ended`: chỉ tiếp nhận khi có `sessionId > 0` hoặc `channel_id > 0`.
+>   3. **[VERIFICATION]**:
+>      - Đạt 100% (17/17) test cases trong `chat_v2_odoo19_rtc_test.dart` (bổ sung `TC-CALL-16`).
+>      - `flutter analyze`: 0 errors / 0 warnings.
+>      - Đạt 100% test contract trên Odoo 17 (`TestRtcCallSignalingContract`) và Odoo 19 (`TestRtcCallSignalingContractV19`).
+
+---
+
 ## [v2.9.11+142] — 2026-09-25 (Chuẩn Hóa Phân Quyền Rule & Role Chat: Internal Users vs Portal Users)
 
 > [!IMPORTANT]

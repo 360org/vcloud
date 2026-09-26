@@ -1,11 +1,12 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vcloud/features/chat_v2/data/models/chat_v2_channel.dart';
+import 'package:vcloud/features/chat_v2/application/chat_v2_channels_controller.dart';
 
 void main() {
   group('ChatV2Channel Display Name Resolution & Mapping Tests', () {
     const currentUserName = 'Sếp Tân';
 
-    test('1. Internal channel with direct partner displays participant name alongside channel name', () {
+    test('1. Kênh thảo luận Odoo (channelType == "channel") luôn giữ nguyên 100% tên kênh gốc ("Internal")', () {
       const channel = ChatV2Channel(
         id: '101',
         name: 'Internal',
@@ -16,10 +17,10 @@ void main() {
       );
 
       final cleanName = channel.getCleanName(currentUserName);
-      expect(cleanName, equals('Nguyễn Hoàng Khang (Internal)'));
+      expect(cleanName, equals('Internal'));
     });
 
-    test('2. Internal channel without participant name displays bare channel name', () {
+    test('2. Kênh Internal không có participant name vẫn hiển thị chuẩn xác tên kênh', () {
       const channel = ChatV2Channel(
         id: '102',
         name: 'Internal',
@@ -32,7 +33,7 @@ void main() {
       expect(cleanName, equals('Internal'));
     });
 
-    test('3. Direct 1-1 chat with comma-separated names resolves only the other person', () {
+    test('3. Chat 1-1 trực tiếp với định dạng tên ghép bằng dấu phẩy bóc tách đúng người đối diện', () {
       const channel = ChatV2Channel(
         id: '103',
         name: 'Sếp Tân, Nguyễn Hoàng Khang',
@@ -46,7 +47,7 @@ void main() {
       expect(cleanName, equals('Nguyễn Hoàng Khang'));
     });
 
-    test('4. Direct 1-1 chat whose name is already partner name keeps partner name', () {
+    test('4. Chat 1-1 trực tiếp khi tên kênh đã là tên người đối diện giữ nguyên tên người đó', () {
       const channel = ChatV2Channel(
         id: '104',
         name: 'Nguyễn Hoàng Khang',
@@ -60,7 +61,7 @@ void main() {
       expect(cleanName, equals('Nguyễn Hoàng Khang'));
     });
 
-    test('5. Multi-person group chat keeps group name without adding arbitrary member', () {
+    test('5. Kênh nhóm nhiều người (group) giữ nguyên tên nhóm, không ghép tên thành viên vào title', () {
       const channel = ChatV2Channel(
         id: '105',
         name: 'Ban Giám Đốc',
@@ -79,7 +80,7 @@ void main() {
       expect(cleanName, equals('Ban Giám Đốc'));
     });
 
-    test('6. Non-internal named channel with participant displays participant alongside channel name', () {
+    test('6. Kênh thảo luận có tên cụ thể (như "Hỗ trợ khách hàng") luôn giữ nguyên tên kênh', () {
       const channel = ChatV2Channel(
         id: '106',
         name: 'Hỗ trợ khách hàng',
@@ -90,10 +91,10 @@ void main() {
       );
 
       final cleanName = channel.getCleanName(currentUserName);
-      expect(cleanName, equals('Lê Văn B (Hỗ trợ khách hàng)'));
+      expect(cleanName, equals('Hỗ trợ khách hàng'));
     });
 
-    test('7. Internal channel resolves participant from members list when directPartnerName is absent', () {
+    test('7. Kênh Internal với danh sách members không bao giờ biến đổi title thành tên member', () {
       const channel = ChatV2Channel(
         id: '107',
         name: 'Internal',
@@ -107,10 +108,10 @@ void main() {
       );
 
       final cleanName = channel.getCleanName(currentUserName);
-      expect(cleanName, equals('Nguyễn Hoàng Khang (Internal)'));
+      expect(cleanName, equals('Internal'));
     });
 
-    test('8. Empty channel name falls back to default label', () {
+    test('8. Tên kênh rỗng fallback an toàn về nhãn mặc định', () {
       const channel = ChatV2Channel(
         id: '108',
         name: '',
@@ -121,7 +122,7 @@ void main() {
       expect(cleanName, equals('Cuộc trò chuyện'));
     });
 
-    test('9. Null or empty current user name falls back to channel name', () {
+    test('9. CurrentUserName null hoặc rỗng fallback về tên gốc của kênh', () {
       const channel = ChatV2Channel(
         id: '109',
         name: 'Internal',
@@ -132,7 +133,7 @@ void main() {
       expect(channel.getCleanName('   '), equals('Internal'));
     });
 
-    test('10. ChatV2Channel.fromJson populates directPartnerName for 2-member channel', () {
+    test('10. ChatV2Channel.fromJson cho kênh channelType == "channel" không gán directPartnerName gây biến dạng title', () {
       final json = {
         'id': 110,
         'name': 'Internal',
@@ -146,8 +147,73 @@ void main() {
       };
 
       final parsed = ChatV2Channel.fromJson(json);
-      expect(parsed.directPartnerName, equals('Đặng Minh Châu'));
-      expect(parsed.getCleanName(currentUserName), equals('Đặng Minh Châu (Internal)'));
+      expect(parsed.name, equals('Internal'));
+      expect(parsed.channelType, equals('channel'));
+      expect(parsed.isChannel, isTrue);
+      expect(parsed.directPartnerName, isNull);
+      expect(parsed.getCleanName(currentUserName), equals('Internal'));
+    });
+
+    test('11. [Multi-Sender TDD] Kênh Internal khi nhận tin nhắn liên tục từ nhiều thành viên khác nhau vẫn giữ nguyên Title "Internal"', () {
+      // Thiết lập kênh Internal ban đầu trong Cache
+      final initialChannel = ChatV2Channel(
+        id: '201',
+        name: 'Internal',
+        channelType: 'channel',
+        isGroup: true,
+        memberCount: 5,
+        lastMessage: 'Khởi tạo kênh',
+        lastMessageDate: DateTime.now().subtract(const Duration(hours: 2)),
+      );
+
+      ChatV2ChannelLocalCache.set([initialChannel]);
+
+      // 1. Thành viên 1: Chau, Le Ba gửi tin nhắn
+      ChatV2ChannelLocalCache.updateChannelLastMessage(
+        '201',
+        lastMessage: 'Chào mọi người, dự án đã bắt đầu',
+        lastMessageDate: DateTime.now().subtract(const Duration(minutes: 30)),
+        authorId: '10',
+        authorName: 'Chau, Le Ba',
+      );
+
+      var cachedList = ChatV2ChannelLocalCache.cached;
+      var currentCh = cachedList.firstWhere((c) => c.id == '201');
+      expect(currentCh.name, equals('Internal'));
+      expect(currentCh.getCleanName(currentUserName), equals('Internal'),
+          reason: 'Title BẮT BUỘC giữ nguyên "Internal", KHÔNG ĐƯỢC biến thành "Chau, Le Ba (Internal)"');
+      expect(currentCh.lastMessageAuthorName, equals('Chau, Le Ba'));
+
+      // 2. Thành viên 2: Nguyen Thi Thu Thao gửi tin nhắn mới
+      ChatV2ChannelLocalCache.updateChannelLastMessage(
+        '201',
+        lastMessage: 'Em đã nộp báo cáo tuần nhé',
+        lastMessageDate: DateTime.now().subtract(const Duration(minutes: 10)),
+        authorId: '11',
+        authorName: 'Nguyen Thi Thu Thao',
+      );
+
+      cachedList = ChatV2ChannelLocalCache.cached;
+      currentCh = cachedList.firstWhere((c) => c.id == '201');
+      expect(currentCh.name, equals('Internal'));
+      expect(currentCh.getCleanName(currentUserName), equals('Internal'),
+          reason: 'Title BẮT BUỘC giữ nguyên "Internal", KHÔNG ĐƯỢC biến thành "Nguyen Thi Thu Thao (Internal)"');
+      expect(currentCh.lastMessageAuthorName, equals('Nguyen Thi Thu Thao'));
+
+      // 3. Thành viên 3: Sếp Tân (chính mình) gửi tin nhắn
+      ChatV2ChannelLocalCache.updateChannelLastMessage(
+        '201',
+        lastMessage: 'Ok em, duyệt báo cáo nhé',
+        lastMessageDate: DateTime.now(),
+        authorId: '1',
+        authorName: 'Sếp Tân',
+      );
+
+      cachedList = ChatV2ChannelLocalCache.cached;
+      currentCh = cachedList.firstWhere((c) => c.id == '201');
+      expect(currentCh.name, equals('Internal'));
+      expect(currentCh.getCleanName(currentUserName), equals('Internal'));
+      expect(currentCh.lastMessageAuthorName, equals('Sếp Tân'));
     });
   });
 }
