@@ -38,6 +38,32 @@ class AuthRepository {
     }
   }
 
+  /// Thử xác thực với một Database ứng viên mà không làm thay đổi phiên hiện tại.
+  Future<OdooSession?> verifyCredentialOnClient({
+    required DbInfo db,
+    required String login,
+    required String password,
+  }) async {
+    return _client.verifyCredentialOnClient(
+      targetBaseUrl: db.databaseUrl,
+      dbName: db.databaseName,
+      login: login,
+      password: password,
+    );
+  }
+
+  /// Kích hoạt phiên người dùng đã xác thực thành công trước đó (Pre-authenticated session).
+  Future<AuthUser> activateVerifiedSession({
+    required DbInfo db,
+    required OdooSession session,
+    required String login,
+  }) async {
+    await saveLastLoginEmail(login);
+    await saveLastSelectedDb(db.databaseName);
+    await _client.setSession(session);
+    return await _toUser(session);
+  }
+
   /// Bước 4 — Xác thực TRỰC TIẾP với Client DB URL.
   /// Password chỉ đến [db.databaseUrl], tuyệt đối không qua Master.
   Future<AuthUser> authenticateOnClient({

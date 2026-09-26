@@ -6,11 +6,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
+import '../../../core/api/odoo_session.dart';
 import '../../../core/config/env.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../../../shared/widgets/brand_logo.dart';
 import '../../chat_v2/application/chat_v2_channels_controller.dart';
 import '../application/auth_controller.dart';
+import '../application/auth_memory_state.dart';
 import '../data/db_info.dart';
 
 /// WhatsApp-style premium light-themed login screen với Master Directory Lookup & Direct Client Auth.
@@ -98,13 +100,46 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.dispose();
   }
 
+  DbInfo _normalizeCandidateDb(DbInfo db) {
+    var effectiveDb = db;
+    final host = Uri.tryParse(db.databaseUrl)?.host.toLowerCase() ?? '';
+    if (host == 'vuahethong.net' || host == 'www.vuahethong.net') {
+      if (db.databaseName.isEmpty || db.databaseName == 'demo') {
+        effectiveDb = DbInfo(
+          login: db.login,
+          databaseName: 'vuahethong',
+          databaseUrl: db.databaseUrl,
+          displayName: db.displayName,
+          hasVMobile: db.hasVMobile,
+          projectId: db.projectId,
+          rawCategoryLabel: db.rawCategoryLabel,
+        );
+      }
+    } else if (host == 'demo.vuahethong.com') {
+      if (db.databaseName.isEmpty) {
+        effectiveDb = DbInfo(
+          login: db.login,
+          databaseName: 'demo',
+          databaseUrl: db.databaseUrl,
+          displayName: db.displayName,
+          hasVMobile: db.hasVMobile,
+          projectId: db.projectId,
+          rawCategoryLabel: db.rawCategoryLabel,
+        );
+      }
+    }
+    return effectiveDb;
+  }
+
   // ---------------------------------------------------------------------------
-  // [Giải pháp 2]: Xác thực Mật khẩu TRƯỚC rồi mới chọn Database
-  // 1. Gửi login + password lên Master Router
-  // 2. Master verify password qua các candidate DBs
-  // 3. Nếu 1 DB đúng -> Đăng nhập thẳng
-  // 4. Nếu > 1 DB đúng -> Hiện Dialog/Sheet chọn tổ chức
-  // 5. Nếu 0 DB đúng -> Báo lỗi "Tài khoản hoặc mật khẩu không chính xác" (chống dò quét DB)
+  // [Quy trình 3 Điều Kiện Chuẩn Của Sếp Tân]:
+  // 1. Gửi login lên Master Router lấy danh sách candidate DBs.
+  // 2. Client xác thực song song (login + password) với tất cả các candidate DBs (Pre-Authentication).
+  // 3. Phân nhánh kết quả:
+  //    - ĐIỀU KIỆN 3: 0 DB đúng (sai TK hoặc MK) -> Báo lỗi ngay lập tức, TUYỆT ĐỐI KHÔNG mở popup.
+  //    - ĐIỀU KIỆN 1: Đúng duy nhất 1 DB (không trùng) -> Đăng nhập thẳng, không hiện popup.
+  //    - ĐIỀU KIỆN 2: Đúng trùng >= 2 DBs -> Hiện popup các DB ĐÃ XÁC THỰC THÀNH CÔNG.
+  //                   Người dùng bấm chọn DB nào là VÀO THẲNG NGAY (session đã có sẵn).
   // ---------------------------------------------------------------------------
 
   Future<void> _submit() async {
@@ -147,86 +182,132 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         return;
       }
 
-      // [Bước 2]: Gửi API tra cứu DB lên Master: POST /api/v1/auth/lookup-db
-      // Không gửi preferred_db lên Master để luôn lấy trọn vẹn danh sách các tổ chức liên kết
+      // [Bước 1]: Gửi API tra cứu DB ứng viên lên Master: POST /api/v1/auth/lookup-db
       final rawDbs = await ref
           .read(authControllerProvider.notifier)
           .lookupDb(login);
 
-      // Khử trùng lặp (Deduplicate) theo cặp (databaseName, databaseUrl)
-      // Phòng thủ khi backend trả về nhiều dòng do user thuộc nhiều project
+      // Khử trùng lặp và chuẩn hóa Candidate DBs
       final seenKeys = <String>{};
-      final dbs = <DbInfo>[];
+      final candidateDbs = <DbInfo>[];
       for (final item in rawDbs) {
-        final key = '${item.databaseName.trim().toLowerCase()}|${item.databaseUrl.trim().toLowerCase()}';
+        final normalized = _normalizeCandidateDb(item);
+        final key = '${normalized.databaseName.trim().toLowerCase()}|${normalized.databaseUrl.trim().toLowerCase()}';
         if (!seenKeys.contains(key)) {
           seenKeys.add(key);
-          dbs.add(item);
+          candidateDbs.add(normalized);
         }
       }
 
-      debugPrint('📋 [VCLOUD AUTH RESULT] Tìm thấy ${rawDbs.length} database (đã lọc còn ${dbs.length}) cho tài khoản $login:');
-      for (int i = 0; i < dbs.length; i++) {
-        debugPrint('   [$i] DB: ${dbs[i].databaseName} | URL: ${dbs[i].databaseUrl}');
+      if (candidateDbs.isEmpty && Env.odooDb.isNotEmpty) {
+        final fallbackDb = _normalizeCandidateDb(DbInfo(
+          login: login,
+          databaseName: Env.odooDb,
+          databaseUrl: Env.odooApiBaseUrl,
+          hasVMobile: true,
+        ));
+        candidateDbs.add(fallbackDb);
       }
+
+      debugPrint('📋 [VCLOUD AUTH] Tìm thấy ${candidateDbs.length} candidate database cho tài khoản $login');
 
       if (!mounted) return;
 
-      // [Bước 3 - Nhánh 3: KHÔNG TỒN TẠI (Master trả về rỗng [])]
-      // Nếu có VCLOUD_ODOO_DB chỉ định từ env dev, tự động thử đăng nhập thẳng
-      if (dbs.isEmpty) {
-        if (Env.odooDb.isNotEmpty) {
-          final fallbackDb = DbInfo(
-            login: login,
-            databaseName: Env.odooDb,
-            databaseUrl: Env.odooApiBaseUrl,
-            hasVMobile: true,
-          );
-          await _executeClientAuth(
-            db: fallbackDb,
-            login: login,
-            password: password,
-          );
-          return;
-        }
+      // Nếu Master không tìm thấy bất kỳ database nào cho email này
+      if (candidateDbs.isEmpty) {
         setState(() {
           _submitting = false;
-          _error = 'Tài khoản không tồn tại trên hệ thống.';
+          _error = 'Tài khoản hoặc mật khẩu không chính xác.';
         });
         AppToast.error(
           context,
           title: 'Đăng nhập thất bại',
-          message: 'Tài khoản không tồn tại trên hệ thống.',
+          message: 'Tài khoản hoặc mật khẩu không chính xác.',
         );
         return;
       }
 
-      // [Bước 3 - Nhánh 1: CHỈ CÓ 1 DATABASE]
-      // App tự động lấy DB đó và gửi thẳng request authenticate với user/pass vừa nhập.
-      // Người dùng vào thẳng app, KHÔNG CẦN CHỌN DB.
-      if (dbs.length == 1) {
-        final targetDb = dbs.first;
-        await _executeClientAuth(
-          db: targetDb,
+      // [Bước 2]: Xác thực Mật khẩu TRƯỚC qua tất cả các Candidate DBs (Pre-Authentication song song)
+      // Gửi đồng thời (login, password) để kiểm tra tính hợp lệ của tài khoản trên từng DB.
+      final verifyFutures = candidateDbs.map((db) async {
+        try {
+          final session = await ref
+              .read(authControllerProvider.notifier)
+              .verifyCredentialOnClient(
+                db: db,
+                login: login,
+                password: password,
+              );
+          if (session != null) {
+            return (db: db, session: session);
+          }
+        } catch (err) {
+          debugPrint('⚠️ [Pre-Auth] Lỗi xác thực trên ${db.databaseName}: $err');
+        }
+        return null;
+      });
+
+      final results = await Future.wait(verifyFutures);
+      final verifiedList = results.whereType<({DbInfo db, OdooSession session})>().toList();
+
+      if (!mounted) return;
+
+      // ── ĐIỀU KIỆN 3: TK HOẶC MK SAI (0 DB xác thực thành công) ──
+      // Báo lỗi ngay lập tức, TUYỆT ĐỐI KHÔNG mở popup DB và WIPE sạch RAM.
+      if (verifiedList.isEmpty) {
+        AuthMemoryState.clearTemporaryMemory();
+        setState(() {
+          _submitting = false;
+          _error = 'Tài khoản hoặc mật khẩu không chính xác.';
+        });
+        AppToast.error(
+          context,
+          title: 'Đăng nhập thất bại',
+          message: 'Tài khoản hoặc mật khẩu không chính xác.',
+        );
+        return;
+      }
+
+      // [Protocol V2.1 - Phương án 1]: Lưu tạm thời các phiên hợp lệ vào RAM ngắn hạn
+      AuthMemoryState.setTemporarySessions(verifiedList);
+
+      // ── ĐIỀU KIỆN 1: ĐÚNG VÀ CHỈ CÓ 1 DB THÀNH CÔNG (Không trùng) ──
+      // Vào thẳng màn hình chính, KHÔNG CẦN CHỌN DB.
+      if (verifiedList.length == 1) {
+        final single = verifiedList.first;
+        await _completeLoginWithSession(
+          db: single.db,
+          session: single.session,
           login: login,
-          password: password,
         );
+        AuthMemoryState.clearTemporaryMemory();
         return;
       }
 
-      // [Bước 3 - Nhánh 2: TRÙNG TẠI NHIỀU DATABASE]
-      // BẬT THÊM TRƯỜNG "DATABASE" (Dropdown hoặc Popup để User chọn DB muốn đăng nhập).
-      // User bấm chọn -> Bấm Login để vào đúng DB (xác thực trực tiếp tại Client DB).
+      // ── ĐIỀU KIỆN 2: ĐÚNG VÀ TRÙNG NHIỀU DB (≥ 2 DB thành công) ──
+      // Hiển thị Popup danh sách các DB ĐÃ XÁC THỰC THÀNH CÔNG.
+      // Người dùng chọn DB nào là VÀO THẲNG LUÔN (không cần xác thực lại vì session đã có sẵn).
       setState(() => _submitting = false);
-      final selected = await _showOrganizationPickerDialog(dbs);
+      final verifiedDbs = AuthMemoryState.candidateDbs;
+      final selected = await _showOrganizationPickerDialog(verifiedDbs);
       if (selected != null && mounted) {
-        await _executeClientAuth(
-          db: selected,
+        final matched = AuthMemoryState.getSessionForDb(selected) ??
+            verifiedList.firstWhere(
+              (e) =>
+                  e.db.databaseName.toLowerCase() == selected.databaseName.toLowerCase() &&
+                  e.db.databaseUrl.toLowerCase() == selected.databaseUrl.toLowerCase(),
+              orElse: () => verifiedList.first,
+            );
+        await _completeLoginWithSession(
+          db: matched.db,
+          session: matched.session,
           login: login,
-          password: password,
         );
       }
+      // [Phương án 1 - Immediate Memory Wipe]: Xóa sạch hoàn toàn các token tạm còn lại khỏi RAM
+      AuthMemoryState.clearTemporaryMemory();
     } catch (e, st) {
+      AuthMemoryState.clearTemporaryMemory();
       if (!mounted) return;
       debugPrint('🚨 [LoginScreen.submit] Error: $e\n$st');
       final cleanMsg = _cleanErrorMessage(e);
@@ -499,6 +580,99 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         );
       },
     );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Hoàn tất đăng nhập với Session đã được xác thực trước đó (Pre-authenticated)
+  // ---------------------------------------------------------------------------
+
+  Future<void> _completeLoginWithSession({
+    required DbInfo db,
+    required OdooSession session,
+    required String login,
+  }) async {
+    setState(() => _submitting = true);
+    debugPrint('''
+------------------------------------------------------------------
+🚀 [VCLOUD AUTH ACTIVATED] HOÀN TẤT ĐĂNG NHẬP
+👤 Login   : $login
+🗄️ Mục tiêu: ${db.databaseName}
+🌐 URL đích: ${db.databaseUrl}
+------------------------------------------------------------------''');
+    try {
+      await ref.read(authControllerProvider.notifier).activateVerifiedSession(
+            db: db,
+            session: session,
+            login: login,
+          );
+
+      // [Phương án 1 - Protocol V2.1]: Token DB đích đã lưu vào SecureStorage -> Wipe sạch RAM ngay
+      AuthMemoryState.clearTemporaryMemory();
+
+      if (!mounted) return;
+
+      // Pre-warm data (chỉ thực hiện nếu database đã cài đặt vmobile)
+      if (db.hasVMobile) {
+        try {
+          await Future.wait([
+            ref.read(chatV2ChannelsProvider.notifier).refresh(),
+          ]).timeout(const Duration(milliseconds: 2500));
+        } catch (warmupErr) {
+          debugPrint('⚠️ [LoginScreen] Pre-warm data sync timed out: $warmupErr');
+        }
+      }
+
+      if (!mounted) return;
+
+      // Chuyển hướng màn hình chính
+      setState(() {
+        _submitting = false;
+        _showSuccessTransition = true;
+      });
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (mounted) {
+        context.go('/chat');
+
+        // Nếu database chưa được cài đặt module vmobile, hiển thị cảnh báo rõ ràng
+        if (!db.hasVMobile) {
+          Future.delayed(const Duration(milliseconds: 750), () {
+            AppToast.showGlobal(
+              type: AppToastType.warning,
+              title: 'Chưa cài đặt module vmobile',
+              message:
+                  'Cơ sở dữ liệu "${db.databaseName}" chưa cài module vmobile. Tất cả các tính năng không thể sử dụng được.',
+              duration: const Duration(seconds: 6),
+            );
+          });
+        }
+      }
+    } catch (e, st) {
+      AuthMemoryState.clearTemporaryMemory();
+      if (!mounted) return;
+      debugPrint('🚨 [LoginScreen._completeLoginWithSession] Error: $e\n$st');
+      final cleanMsg = _cleanErrorMessage(e);
+      setState(() {
+        _submitting = false;
+        _error = cleanMsg;
+      });
+      final isPermissionNotice = cleanMsg.contains('vmobile') ||
+          cleanMsg.contains('chưa được cấp quyền') ||
+          cleanMsg.contains('Tài khoản Portal');
+      if (isPermissionNotice) {
+        AppToast.warning(
+          context,
+          title: 'Chưa cấp quyền truy cập',
+          message: cleanMsg,
+          duration: const Duration(seconds: 5),
+        );
+      } else {
+        AppToast.error(
+          context,
+          title: 'Đăng nhập thất bại',
+          message: cleanMsg,
+        );
+      }
+    }
   }
 
   // ---------------------------------------------------------------------------

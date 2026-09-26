@@ -43,6 +43,7 @@ class Task {
     this.messages = const <TaskMessage>[],
     this.completedAt,
     this.timesheetId,
+    this.isDone = false,
   });
 
   final String id;
@@ -69,11 +70,12 @@ class Task {
   final DateTime dueDate;
   final DateTime? completedAt;
   final String? timesheetId;
+  final bool isDone;
   final DateTime createdAt;
   final DateTime updatedAt;
 
-  /// True once the user has logged time against this task.
-  bool get isCompleted => completedAt != null;
+  /// True once the user has logged time against this task or marked done.
+  bool get isCompleted => isDone || completedAt != null;
 
   factory Task.fromMap(Map<String, dynamic> map) => Task(
     id: map['id'].toString(),
@@ -115,6 +117,7 @@ class Task {
         ? null
         : DateTime.tryParse(map['completed_at'].toString()),
     timesheetId: map['timesheet_id'] != null && map['timesheet_id'] != false ? map['timesheet_id'].toString() : null,
+    isDone: map['is_done'] == true || (map['is_done'] is String && map['is_done'] == 'true'),
     createdAt: map['created_at'] == null || map['created_at'] == false
         ? DateTime.now()
         : DateTime.tryParse(map['created_at'].toString()) ?? DateTime.now(),

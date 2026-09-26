@@ -2,6 +2,33 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.12+143] — 2026-09-26 (Multi-DB Authentication & Immediate RAM Token Wipe - Protocol V2.1)
+
+> [!IMPORTANT]
+> **Triển Khai Phương Án 1: Xác Thực Đa Database & Xóa Sạch RAM Ngay Lập Tức (Immediate Token Wipe - Protocol V2.1)**:
+> - **Phạm vi**: `vclients` (`OdooApiClient`, `AuthRepository`, `AuthController`, `AuthMemoryState`, `LoginScreen`, `multi_db_ram_wipe_test.dart`, `multi_db_ram_wipe_standalone_test.dart`)
+> - **Mục tiêu & Nguyên tắc kiến trúc**:
+>   * **Strict Tenant Isolation**: Mỗi database thuộc về một khách hàng/công ty độc lập, cô lập 100% dữ liệu và token.
+>   * **Zero-Leakage & Fail-Fast Verification**: Mật khẩu sai báo lỗi ngay lập tức, nghiêm cấm hiển thị danh sách tổ chức/database để ngăn chặn nguy cơ thăm dò tenant (tenant enumeration).
+>   * **3 Điều Kiện Chuẩn Của Sếp Tân**:
+>     1. *Điều kiện 1 (Đúng MK & Không trùng)*: Xác thực đúng duy nhất 1 DB ➔ Tự động đăng nhập thẳng vào màn hình chính, không hiển thị popup.
+>     2. *Điều kiện 2 (Đúng MK & Trùng nhiều DB)*: Xác thực đồng thời N DBs ứng viên ➔ Lưu tạm các session hợp lệ vào `AuthMemoryState` trong RAM ➔ Hiển thị Popup chọn DB đã xác thực ➔ Người dùng bấm chọn là vào thẳng ngay lập tức (không cần chờ xác thực lại).
+>     3. *Điều kiện 3 (Sai TK hoặc MK)*: 0 DB xác thực thành công ➔ Báo lỗi ngay lập tức "Tài khoản hoặc mật khẩu không chính xác", cấm mở popup.
+> - **Triển khai kỹ thuật Phương án 1 (Immediate RAM Token Wipe)**:
+>   * Tạo mới lớp `AuthMemoryState` chuyên quản lý session tạm thời trong RAM ngắn hạn, hỗ trợ snapshot chỉ đọc và kiểm soát truy xuất.
+>   * Ngay sau khi người dùng lựa chọn DB mục tiêu:
+>     1. Lưu duy nhất Token của DB được chọn vào `FlutterSecureStorage` thông qua `activateVerifiedSession`.
+>     2. Tự động kích hoạt `AuthMemoryState.clearTemporaryMemory()` để **XÓA SẠCH 100%** toàn bộ Token tạm của các DB khác khỏi bộ nhớ RAM.
+>   * Tự động xóa sạch RAM khi user hủy/đóng popup chọn DB hoặc khi xác thực thất bại.
+> - **Bổ sung tính năng Lọc Công Việc Timesheet**:
+>   * Bổ sung bộ lọc "Việc của tôi" vs "Tất cả nhân sự" (`myTasksOnly`) trong `TimesheetFilterState` và `TimesheetFilterSheet`.
+>   * Chuẩn hóa thứ tự sắp xếp task mới nhất lên đầu (theo Task ID giảm dần).
+> - **Kiểm thử & Chất lượng**:
+>   * 10/10 unit test cases độc lập trong `multi_db_ram_wipe_standalone_test.dart` và `multi_db_ram_wipe_test.dart` đạt PASS 100%.
+>   * `flutter analyze` đạt **0 errors / 0 warnings** sạch hoàn toàn.
+
+---
+
 ## [v2.9.11+142] — 2026-09-26 (Khắc Phục Triệt Để Hiện Tượng Rò Rỉ Dữ Liệu Ticket & State Khi Logout / Switch User - Protocol V2.1)
 
 > [!IMPORTANT]

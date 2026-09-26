@@ -247,6 +247,7 @@ class TimesheetFilterState {
     this.dateTo,
     this.projectId,
     this.projectName,
+    this.myTasksOnly = true,
   });
 
   final String presetName;
@@ -254,6 +255,7 @@ class TimesheetFilterState {
   final DateTime? dateTo;
   final String? projectId;
   final String? projectName;
+  final bool myTasksOnly;
 
   TimesheetFilterState copyWith({
     String? presetName,
@@ -261,6 +263,7 @@ class TimesheetFilterState {
     DateTime? dateTo,
     String? projectId,
     String? projectName,
+    bool? myTasksOnly,
     bool clearDates = false,
     bool clearProject = false,
   }) {
@@ -270,6 +273,7 @@ class TimesheetFilterState {
       dateTo: clearDates ? null : (dateTo ?? this.dateTo),
       projectId: clearProject ? null : (projectId ?? this.projectId),
       projectName: clearProject ? null : (projectName ?? this.projectName),
+      myTasksOnly: myTasksOnly ?? this.myTasksOnly,
     );
   }
 }

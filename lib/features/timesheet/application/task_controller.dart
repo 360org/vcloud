@@ -36,8 +36,8 @@ final completedTaskLogsProvider = StateProvider<Map<String, CompletedTaskLog>>(
 );
 
 /// Convenience split used by the screen UI — keeps the sort in one place
-/// so the open list renders in `createdAt` order (oldest first, "queue
-/// feel") and the completed list newest first.
+/// so the open list renders in newest-first order (highest task ID first)
+/// and the completed list newest completed first.
 final todayTasksSplitProvider = Provider<({List<Task> open, List<Task> done})>((
   ref,
 ) {
@@ -48,11 +48,20 @@ final todayTasksSplitProvider = Provider<({List<Task> open, List<Task> done})>((
   for (final t in list) {
     (t.isCompleted || locallyCompleted.contains(t.id) ? done : open).add(t);
   }
-  open.sort((a, b) => a.createdAt.compareTo(b.createdAt));
-  done.sort(
-    (a, b) =>
-        (b.completedAt ?? b.updatedAt).compareTo(a.completedAt ?? a.updatedAt),
-  );
+  open.sort((a, b) {
+    final aId = int.tryParse(a.id) ?? 0;
+    final bId = int.tryParse(b.id) ?? 0;
+    return bId.compareTo(aId);
+  });
+  done.sort((a, b) {
+    final aDate = a.completedAt ?? a.updatedAt;
+    final bDate = b.completedAt ?? b.updatedAt;
+    final comp = bDate.compareTo(aDate);
+    if (comp != 0) return comp;
+    final aId = int.tryParse(a.id) ?? 0;
+    final bId = int.tryParse(b.id) ?? 0;
+    return bId.compareTo(aId);
+  });
   return (open: open, done: done);
 });
 

@@ -523,12 +523,8 @@ class OdooApiClient {
     return parsedList;
   }
 
-  /// [P0 / Security]: Xác thực TRỰC TIẾP tới Client DB URL.
-  /// Xác thực trực tiếp trên Client DB (Direct Client Auth) - Chuẩn Decoupled Architecture.
-  /// Password chỉ được gửi đến Client DB, KHÔNG đi qua Master.
-  /// ponytail: Ưu tiên 1-Step Direct REST Auth (/api/v1/mobile/auth/login) trên cả Web và Mobile
-  /// nhằm giảm 70% CPU hash pbkdf2_sha512, bảo vệ Worker Pool và triệt tiêu 504 Gateway Timeout.
-  Future<OdooSession> authenticateOnClient({
+  /// [P0 / Security]: Helper giải quyết xác thực phiên người dùng với Client DB.
+  Future<OdooSession> _resolveClientAuthSession({
     required String targetBaseUrl,
     required String dbName,
     required String login,
@@ -573,11 +569,10 @@ class OdooApiClient {
       }
     }
 
-    OdooSession session;
     // ponytail: Ưu tiên Mobile API endpoint (/api/v1/mobile/auth/login) - 1 Request trực tiếp
     // cho cả Web và Mobile Native. Chỉ fallback sang 2-step session khi endpoint mobile không khả dụng.
     try {
-      session = await _attemptLoginAt(
+      return await _attemptLoginAt(
         targetBaseUrl: cleanBaseUrl,
         login: login.trim(),
         password: password,
@@ -596,9 +591,9 @@ class OdooApiClient {
           rethrow;
         }
       }
-      debugPrint('⚠️ [authenticateOnClient] _attemptLoginAt failed ($e), trying Odoo session fallback...');
+      debugPrint('⚠️ [_resolveClientAuthSession] _attemptLoginAt failed ($e), trying Odoo session fallback...');
       try {
-        session = await _loginWithOdooSessionAndJwtAt(
+        return await _loginWithOdooSessionAndJwtAt(
           targetBaseUrl: cleanBaseUrl,
           login: login.trim(),
           password: password,
@@ -607,8 +602,8 @@ class OdooApiClient {
         );
       } catch (sessionErr) {
         if (cleanBaseUrl != fallbackUrl) {
-          debugPrint('⚠️ [authenticateOnClient] Retrying with fallback $fallbackUrl due to error: $sessionErr');
-          session = await _loginWithOdooSessionAndJwtAt(
+          debugPrint('⚠️ [_resolveClientAuthSession] Retrying with fallback $fallbackUrl due to error: $sessionErr');
+          return await _loginWithOdooSessionAndJwtAt(
             targetBaseUrl: fallbackUrl,
             login: login.trim(),
             password: password,
@@ -620,10 +615,59 @@ class OdooApiClient {
         }
       }
     }
+  }
 
+  /// [P0 / Security]: Xác thực TRỰC TIẾP tới Client DB URL.
+  /// Xác thực trực tiếp trên Client DB (Direct Client Auth) - Chuẩn Decoupled Architecture.
+  /// Password chỉ được gửi đến Client DB, KHÔNG đi qua Master.
+  /// ponytail: Ưu tiên 1-Step Direct REST Auth (/api/v1/mobile/auth/login) trên cả Web và Mobile
+  /// nhằm giảm 70% CPU hash pbkdf2_sha512, bảo vệ Worker Pool và triệt tiêu 504 Gateway Timeout.
+  Future<OdooSession> authenticateOnClient({
+    required String targetBaseUrl,
+    required String dbName,
+    required String login,
+    required String password,
+    Duration timeout = const Duration(seconds: 8),
+  }) async {
+    final session = await _resolveClientAuthSession(
+      targetBaseUrl: targetBaseUrl,
+      dbName: dbName,
+      login: login,
+      password: password,
+      timeout: timeout,
+    );
     _session = session;
     await _sessionStore.write(session);
     return session;
+  }
+
+  /// Thử xác thực với một Database ứng viên mà KHÔNG làm thay đổi session hiện tại (Stateless verification).
+  /// Dùng để kiểm tra mật khẩu trước khi mở popup chọn DB.
+  Future<OdooSession?> verifyCredentialOnClient({
+    required String targetBaseUrl,
+    required String dbName,
+    required String login,
+    required String password,
+    Duration timeout = const Duration(seconds: 8),
+  }) async {
+    try {
+      return await _resolveClientAuthSession(
+        targetBaseUrl: targetBaseUrl,
+        dbName: dbName,
+        login: login,
+        password: password,
+        timeout: timeout,
+      );
+    } catch (e) {
+      debugPrint('⚠️ [verifyCredentialOnClient] Thất bại trên $dbName ($targetBaseUrl): $e');
+      return null;
+    }
+  }
+
+  /// Kích hoạt session đã được xác thực trước đó (Pre-authenticated session).
+  Future<void> setSession(OdooSession session) async {
+    _session = session;
+    await _sessionStore.write(session);
   }
 
   Future<OdooSession> _attemptLoginAt({

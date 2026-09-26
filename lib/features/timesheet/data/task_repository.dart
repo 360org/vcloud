@@ -43,12 +43,26 @@ class TaskRepository {
 
   Future<List<Task>> listAllTasks() async {
     try {
-      final res = await _client.get('/api/v1/mobile/project/all_tasks');
+      final res = await _client.get(
+        '/api/v1/mobile/project/all_tasks',
+        query: const <String, Object?>{'limit': 500},
+      );
       if (res is List) {
-        return res
+        final currentUid = _client.session?.uid.toString() ?? '';
+        final tasks = res
             .cast<Map<String, dynamic>>()
             .map((m) => Task.fromMap(_taskFromOdoo(m, DateTime.now())))
             .toList();
+        tasks.sort((a, b) {
+          final aMine = currentUid.isNotEmpty && a.userId == currentUid;
+          final bMine = currentUid.isNotEmpty && b.userId == currentUid;
+          if (aMine && !bMine) return -1;
+          if (!aMine && bMine) return 1;
+          final aId = int.tryParse(a.id) ?? 0;
+          final bId = int.tryParse(b.id) ?? 0;
+          return bId.compareTo(aId);
+        });
+        return tasks;
       }
       return const <Task>[];
     } catch (_) {
@@ -344,26 +358,43 @@ class TaskRepository {
     final now = DateTime.now().toIso8601String();
     final state = (map['state'] ?? '').toString().toLowerCase().trim();
     final stageName = (_many2OneName(map['stage_id']) ?? _stringOrNull(map['stage_name']) ?? _stringOrNull(map['stage']) ?? '').toLowerCase().trim();
-    // ponytail: Chỉ nhận diện là Done khi task có flag completed, hoặc state 1_done / done chuẩn Odoo,
-    // hoặc stageName trùng khớp chính xác các từ khóa kết thúc (tuyệt đối không dùng .contains('xong') hay .contains('done')
-    // lỏng lẻo làm match nhầm các stage trung gian như "review xong", "chờ duyệt xong", "testing done"...)
-    final isDone = completed ||
-        state == '1_done' ||
-        state == 'done' ||
-        stageName == 'done' ||
-        stageName == 'hoàn thành' ||
-        stageName == 'đã hoàn thành' ||
-        stageName == 'xong' ||
-        stageName == 'đã xong' ||
-        stageName == 'closed' ||
-        stageName == 'đã đóng' ||
-        stageName == 'cancelled' ||
-        stageName == 'canceled' ||
-        stageName == 'đã hủy' ||
-        stageName == 'đã huỷ';
+
+    // ponytail: Phân định rõ ràng stage đang thực hiện vs stage hoàn tất.
+    // Nếu stage nằm trong activeStages (Development, In Progress...), task luôn là việc cần làm
+    // ngay cả khi state trên database là '1_done'.
+    const activeStages = {
+      'development', 'in progress', 'specifications', 'increment',
+      'backlog', 'backlogs', 'new', 'pending', 'sprint in progress',
+      'đang thực hiện', 'đang phát triển', 'đang xử lý', 'chờ xử lý',
+      'yêu cầu thay đổi', 'khảo sát', 'triển khai',
+    };
+    const doneStages = {
+      'done', 'hoàn thành', 'đã hoàn thành', 'xong', 'đã xong',
+      'closed', 'đã đóng', 'delivered', 'đã bàn giao',
+      'cancelled', 'canceled', 'đã hủy', 'đã huỷ',
+    };
+
+    final bool isDone;
+    if (completed) {
+      isDone = true;
+    } else if (activeStages.contains(stageName)) {
+      isDone = false;
+    } else if (doneStages.contains(stageName)) {
+      isDone = true;
+    } else if (state == '1_done' || state == 'done' || state == '1_canceled') {
+      isDone = true;
+    } else {
+      isDone = false;
+    }
+
+    final userId = _idOrNull(map['user_id']) ??
+        (map['user_id'] is num ? map['user_id'].toString() : null) ??
+        _stringOrNull(map['user_id']) ??
+        '';
+
     return <String, dynamic>{
       'id': map['id'].toString(),
-      'user_id': map['user_id']?.toString() ?? '',
+      'user_id': userId,
       'title': (map['name'] ?? map['display_name'] ?? 'Task').toString(),
       'description': _stringOrNull(map['description']),
       'project_id': _idOrNull(map['project_id']) ?? _idOrNull(projectId),
@@ -394,7 +425,8 @@ class TaskRepository {
       'state': _stringOrNull(map['state']),
       'category': TimesheetCategory.other.dbValue,
       'due_date': dueDate,
-      'completed_at': isDone ? (map['date_end']?.toString() ?? now) : null,
+      'is_done': isDone,
+      'completed_at': completed ? now : map['date_end']?.toString(),
 
       'timesheet_id':
           timesheetId ??

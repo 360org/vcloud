@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/auth_user.dart';
 import '../../../core/api/odoo_api_client.dart';
+import '../../../core/api/odoo_session.dart';
 import '../../../core/notifications/push_notification_controller.dart';
 import '../../../core/notifications/push_notification_service.dart';
 import '../../../core/services/global_state_reset_service.dart';
@@ -61,6 +62,41 @@ class AuthController extends AsyncNotifier<AuthUser?> {
   /// Lấy database đã đăng nhập thành công gần nhất từ LocalStorage
   Future<String?> getLastSelectedDb() {
     return _repo.getLastSelectedDb();
+  }
+
+  /// Thử xác thực với một DB ứng viên mà không làm thay đổi phiên hiện tại
+  Future<OdooSession?> verifyCredentialOnClient({
+    required DbInfo db,
+    required String login,
+    required String password,
+  }) {
+    return _repo.verifyCredentialOnClient(
+      db: db,
+      login: login,
+      password: password,
+    );
+  }
+
+  /// Kích hoạt phiên đã xác thực thành công trước đó (Pre-authenticated session)
+  Future<void> activateVerifiedSession({
+    required DbInfo db,
+    required OdooSession session,
+    required String login,
+  }) async {
+    state = const AsyncLoading();
+    try {
+      await GlobalStateResetService.clearAllUserDataOnLogout(ref: ref);
+      final user = await _repo.activateVerifiedSession(
+        db: db,
+        session: session,
+        login: login,
+      );
+      unawaited(_registerPushDevice().catchError((_) {}));
+      state = AsyncData(user);
+    } catch (e, st) {
+      state = AsyncError(e, st);
+      rethrow;
+    }
   }
 
   /// Bước 4: Xác thực trực tiếp với Client DB (password gửi thẳng Client DB).

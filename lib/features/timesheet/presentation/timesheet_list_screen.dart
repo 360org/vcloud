@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
+import '../../../core/api/odoo_api_client.dart';
 import '../../../core/error/failure.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/date_format.dart';
@@ -335,6 +336,7 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
     final done = task.isCompleted || localLog != null;
     return _TodayTask(
       id: task.id,
+      userId: task.userId,
       title: task.title,
       description: task.description,
       tag: task.category.label,
@@ -492,6 +494,16 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
   }
 
   bool _matchesFilter(_TodayTask t, TimesheetFilterState filter) {
+    // 0. Lọc phân loại công việc: Việc của tôi vs Tất cả nhân sự
+    if (filter.myTasksOnly) {
+      final currentUid = odooApiClient.session?.uid.toString();
+      if (currentUid != null && currentUid.isNotEmpty && t.userId != null && t.userId!.isNotEmpty) {
+        if (t.userId != currentUid) {
+          return false;
+        }
+      }
+    }
+
     // 1. Lọc theo Dự án (Project) - Nếu có chọn dự án thì BẮT BUỘC task phải thuộc dự án đó
     if (filter.projectId != null && filter.projectId!.trim().isNotEmpty) {
       final targetProjectId = filter.projectId!.trim();
@@ -525,12 +537,12 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
 
     // 2. Lọc theo Khoảng thời gian (Date range)
     // - Đối với Tab "Cần làm" (!t.done): Giữ lại toàn bộ các Task đang mở (Open / In Progress)
-    //   thuộc Dự án (project_id) được chọn, không triệt tiêu Task theo ngày tạo cũ (createdAt)
-    //   hay hạn chót (dueDate), để nhân viên luôn thấy việc và bấm giờ được.
+    //   để nhân viên luôn thấy việc cần làm và bấm giờ được.
     // - Đối với Tab "Đã hoàn thành" (t.done): So khớp khoảng ngày lọc với ngày hoàn thành thực tế
     //   (completedAt) hoặc ngày phát sinh công gần nhất (lastLogDate / workedDate).
-    final isCustomDateFilter = filter.presetName != 'Hôm nay' && filter.presetName != 'Tất cả';
-    if (isCustomDateFilter && (filter.dateFrom != null || filter.dateTo != null)) {
+    //   Nếu filter là 'Tất cả', hiển thị toàn bộ lịch sử hoàn thành.
+    //   Nếu có mốc thời gian cụ thể (Hôm nay, Hôm qua, Tuần này, Tháng này...), chỉ hiện task hoàn tất trong mốc đó.
+    if (filter.presetName != 'Tất cả' && (filter.dateFrom != null || filter.dateTo != null)) {
       final fromDay = filter.dateFrom != null
           ? DateTime(filter.dateFrom!.year, filter.dateFrom!.month, filter.dateFrom!.day)
           : null;
@@ -539,15 +551,15 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
           : null;
 
       if (t.done) {
-        // Tab Đã hoàn thành: Ưu tiên ngày phát sinh công gần nhất (lastLogDate / workedDate) hoặc ngày hoàn thành (completedAt)
-        final effectiveDoneDate = t.lastLogDate ?? t.completedAt ?? t.dueDate;
-        if (effectiveDoneDate == null) return false;
+        // Tab Đã hoàn thành: Ưu tiên ngày phát sinh công gần nhất (lastLogDate) hoặc ngày hoàn thành (completedAt)
+        final effectiveDoneDate = t.lastLogDate ?? t.completedAt;
+        if (effectiveDoneDate == null) {
+          // Task không có mốc thời gian hoàn thành/log cụ thể: chỉ hiện trong preset 'Tất cả'
+          return false;
+        }
         final doneDay = DateTime(effectiveDoneDate.year, effectiveDoneDate.month, effectiveDoneDate.day);
         if (fromDay != null && doneDay.isBefore(fromDay)) return false;
         if (toDay != null && doneDay.isAfter(toDay)) return false;
-      } else {
-        // Tab Cần làm (!t.done): Giữ lại toàn bộ task đang mở để nhân viên luôn bấm giờ được
-        return true;
       }
     }
 
@@ -1607,6 +1619,39 @@ class _TaskTile extends StatelessWidget {
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
                             ),
+                          ),
+                        ),
+                        if (task.userName != null && task.userName!.isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          Icon(LucideIcons.user, size: 12, color: isDark ? Colors.white38 : AppColors.textMuted),
+                          const SizedBox(width: 3),
+                          Text(
+                            task.userName!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: isDark ? AppColors.darkTextMuted : AppColors.textSecondary,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ] else if (task.userName != null && task.userName!.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(LucideIcons.user, size: 12, color: isDark ? Colors.white38 : AppColors.textMuted),
+                        const SizedBox(width: 4),
+                        Text(
+                          task.userName!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: isDark ? AppColors.darkTextMuted : AppColors.textSecondary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
@@ -3722,6 +3767,7 @@ class _TagPill extends StatelessWidget {
 class _TodayTask {
   const _TodayTask({
     required this.id,
+    this.userId,
     required this.title,
     this.description,
     required this.tag,
@@ -3750,6 +3796,7 @@ class _TodayTask {
   });
 
   final String id;
+  final String? userId;
   final String title;
   final String? description;
   final String tag;
@@ -3778,6 +3825,7 @@ class _TodayTask {
   final DateTime? lastLogDate;
 
   _TodayTask copyWith({
+    String? userId,
     bool? done,
     Duration? logged,
     String? note,
@@ -3788,6 +3836,7 @@ class _TodayTask {
   }) {
     return _TodayTask(
       id: id,
+      userId: userId ?? this.userId,
       title: title,
       description: description,
       tag: tag,
@@ -4085,6 +4134,7 @@ class _TimesheetFilterSheetState extends ConsumerState<_TimesheetFilterSheet> {
   late DateTime? _dateTo;
   late String? _projectId;
   late String? _projectName;
+  late bool _myTasksOnly;
   List<TimesheetProjectOption> _projects = const [];
   bool _loadingProjects = true;
 
@@ -4096,6 +4146,7 @@ class _TimesheetFilterSheetState extends ConsumerState<_TimesheetFilterSheet> {
     _dateTo = widget.initialFilter.dateTo;
     _projectId = widget.initialFilter.projectId;
     _projectName = widget.initialFilter.projectName;
+    _myTasksOnly = widget.initialFilter.myTasksOnly;
     _loadProjects();
   }
 
@@ -4247,6 +4298,7 @@ class _TimesheetFilterSheetState extends ConsumerState<_TimesheetFilterSheet> {
                         _dateTo = now;
                         _projectId = null;
                         _projectName = null;
+                        _myTasksOnly = true;
                       });
                     },
                     icon: const Icon(LucideIcons.rotateCcw, size: 15, color: Color(0xFF00C83A)),
@@ -4256,6 +4308,71 @@ class _TimesheetFilterSheetState extends ConsumerState<_TimesheetFilterSheet> {
                         color: Color(0xFF00C83A),
                         fontWeight: FontWeight.w700,
                         fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Text(
+                'Phân loại công việc',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: isDark ? Colors.white70 : AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  ChoiceChip(
+                    label: const Text('Việc của tôi'),
+                    selected: _myTasksOnly,
+                    onSelected: (val) {
+                      if (val) {
+                        HapticFeedback.selectionClick();
+                        setState(() => _myTasksOnly = true);
+                      }
+                    },
+                    selectedColor: const Color(0xFF00C83A),
+                    labelStyle: TextStyle(
+                      fontSize: 13,
+                      fontWeight: _myTasksOnly ? FontWeight.w800 : FontWeight.w600,
+                      color: _myTasksOnly ? Colors.white : (isDark ? Colors.white70 : AppColors.textPrimary),
+                    ),
+                    backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      side: BorderSide(
+                        color: _myTasksOnly
+                            ? const Color(0xFF00C83A)
+                            : (isDark ? Colors.white.withValues(alpha: 0.08) : AppColors.border),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ChoiceChip(
+                    label: const Text('Tất cả nhân sự'),
+                    selected: !_myTasksOnly,
+                    onSelected: (val) {
+                      if (val) {
+                        HapticFeedback.selectionClick();
+                        setState(() => _myTasksOnly = false);
+                      }
+                    },
+                    selectedColor: const Color(0xFF00C83A),
+                    labelStyle: TextStyle(
+                      fontSize: 13,
+                      fontWeight: !_myTasksOnly ? FontWeight.w800 : FontWeight.w600,
+                      color: !_myTasksOnly ? Colors.white : (isDark ? Colors.white70 : AppColors.textPrimary),
+                    ),
+                    backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      side: BorderSide(
+                        color: !_myTasksOnly
+                            ? const Color(0xFF00C83A)
+                            : (isDark ? Colors.white.withValues(alpha: 0.08) : AppColors.border),
                       ),
                     ),
                   ),
@@ -4453,6 +4570,7 @@ class _TimesheetFilterSheetState extends ConsumerState<_TimesheetFilterSheet> {
                         dateTo: _dateTo,
                         projectId: _projectId,
                         projectName: _projectName,
+                        myTasksOnly: _myTasksOnly,
                       );
                       ref.read(timesheetFilterProvider.notifier).state = newFilter;
                       // Kích hoạt làm mới dữ liệu để cập nhật summary & task tương ứng filter mới
