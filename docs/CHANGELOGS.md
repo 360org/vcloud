@@ -2,6 +2,30 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.10+141] — 2026-09-26 (Phân Loại 4 Nhóm Hội Thoại Chat V2: Trực Tiếp, Nhóm, Kênh & Zalo OA Kèm 6 Filter Chips Một Chạm)
+
+> [!IMPORTANT]
+> **Nâng Cấp Phân Loại Hội Thoại & Tối Ưu UX Bộ Lọc Danh Sách Chat V2**:
+> - **Phạm vi**: `vclients` (`ChatV2Channel`, `ChatV2ListScreen`, `ChatV2DetailScreen`, `chat_v2_taxonomy_test.dart`)
+> - **Chi tiết khắc phục & nâng cấp**:
+>   1. **[Phân định rõ ràng 4 nhóm hội thoại trong ChatV2Channel]**:
+>      - `isChannel`: Kênh thảo luận Odoo (`channelType == 'channel'`). Giữ nguyên tên gốc, subtitle trên Detail hiển thị "Kênh thảo luận • X thành viên" kèm icon `LucideIcons.hash` (#0284C7).
+>      - `isZaloOA`: Kênh tương tác khách hàng Zalo OA hoặc Livechat (`channelType` là `zalo`, `zalo_oa`, `livechat` hoặc tên chứa `zalo`). Subtitle hiển thị "Zalo OA • Khách hàng" kèm icon `LucideIcons.messageCircle` (#0068FF).
+>      - `isGroupChat`: Nhóm trò chuyện nội bộ (`isGroup == true` hoặc `memberCount > 2`), avatar gắn badge `LucideIcons.users` (#3B82F6).
+>      - `isInternalDirect`: Hội thoại 1-1 trực tiếp (`!isGroup && channelType != 'channel' && !isZaloOA`).
+>   2. **[Thanh 6 Filter Chips Cuộn Ngang Một Chạm & Full-Width Search]**:
+>      - Thay thế modal bottom sheet cũ bằng thanh 6 Filter Chips cuộn ngang tức thì: Tất cả (null), Chưa đọc (0), Trực tiếp (1), Nhóm (2), Kênh (3), Zalo OA (4).
+>      - Badge đếm số lượng real-time trên từng chip (Chưa đọc màu đỏ `#EF4444`, Zalo OA màu xanh Zalo `#0068FF`).
+>      - Mở rộng thanh tìm kiếm SearchBar full-width 100% hiện đại, bỏ nút icon bộ lọc thừa.
+>   3. **[Avatar Badge Nhận Diện Nhanh]**:
+>      - Gắn badge góc dưới avatar: Kênh (icon `#`), Nhóm (icon nhóm người), Zalo OA (icon tin nhắn Zalo) giúp nhận diện tức thì trong danh sách.
+>   4. **[VERIFICATION & TESTS]**:
+>      - Bộ 10 test case TDD độc lập kiểm chứng phân loại 4 nhóm hội thoại trong `test/features/chat_v2/chat_v2_taxonomy_test.dart` đạt 10/10 PASS.
+>      - Toàn bộ 160 test case hiện hữu của Chat V2 đạt 100% PASS.
+>      - `flutter analyze lib/features/chat_v2/`: 0 errors / 0 warnings.
+>
+> ---
+
 ## [v2.9.10+141] — 2026-09-26 (Khắc Phục Lỗi Bộ Lọc Timesheet Theo Khoảng Ngày & Đồng Bộ Phân Trang Cuộn)
 
 > [!IMPORTANT]

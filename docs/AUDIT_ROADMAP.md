@@ -74,6 +74,11 @@
 - [ ] Audit dependency upgrade riêng: `golden_toolkit` discontinued, `record_linux` override, major packages outdated.
 
 ## 10. Verification Checklist & Milestones (Audit Tracker)
+- [x] **[v2.9.10+141] Chat V2 4-Category Taxonomy & 6-Filter Chips (2026-09-26)**:
+  - [x] Phân loại 4 nhóm hội thoại: Trực tiếp (1-1), Nhóm trò chuyện, Kênh thảo luận Odoo, Zalo OA / Khách hàng Livechat trong `ChatV2Channel` (`isChannel`, `isZaloOA`, `isInternalDirect`, `isGroupChat`).
+  - [x] Subtitle AppBar Detail: Hiển thị "Kênh thảo luận • X thành viên" (`LucideIcons.hash`) và "Zalo OA • Khách hàng" (`LucideIcons.messageCircle`).
+  - [x] UI List Chat V2: Thanh 6 filter chips một chạm (Tất cả, Chưa đọc, Trực tiếp, Nhóm, Kênh, Zalo OA), SearchBar full-width, avatar badge phân loại.
+  - [x] Verify: 10/10 test cases trong `chat_v2_taxonomy_test.dart` pass; 160/160 tests Chat V2 pass 100%; `flutter analyze` 0 errors / 0 warnings.
 - [x] **[v2.9.10+141] Lock Odoo Discuss Channel Title & In-App Image Download (2026-09-26)**:
   - [x] Root Cause: Hàm `getCleanName()` ghép `$partnerName ($name)` quá rộng cho mọi kênh; `ChatV2Channel.fromJson` tự động gán `directPartnerName` từ thành viên đầu tiên của kênh Odoo Discuss khiến title kênh `Internal` bị biến dạng thành `Tên người gửi (Internal)` và nhảy theo người gửi mới nhất.
   - [x] Fix Title: Bổ sung guard clause `if (isChannel || channelType == 'channel' || isGroup) return name;` trong `ChatV2Channel.getCleanName()` và giới hạn `directPartnerName` chỉ cho chat 1-1 riêng tư.

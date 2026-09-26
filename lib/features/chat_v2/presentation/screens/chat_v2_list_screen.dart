@@ -31,11 +31,9 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   String _searchQuery = '';
-  int? _selectedFilterIndex; // null: Mặc định (Tất cả), 0: Chưa đọc, 1: Nội bộ, 2: Nhóm, 3: Kênh
+  int? _selectedFilterIndex; // null: Mặc định (Tất cả), 0: Chưa đọc, 1: Trực tiếp, 2: Nhóm, 3: Kênh, 4: Zalo OA
   Timer? _searchDebounceTimer;
   bool _dismissedVMobileWarning = false;
-
-  final List<String> _filters = ['Chưa đọc', 'Nội bộ', 'Nhóm', 'Kênh'];
 
   int? _resolveFilterIndex(String? filter) {
     if (filter == null || filter.isEmpty || filter == 'all' || filter == 'tatca') return null;
@@ -43,6 +41,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
     if (filter == 'internal' || filter == 'noibo' || filter == 'direct' || filter == 'dm' || filter == 'canhan' || filter == 'tructiep') return 1;
     if (filter == 'group' || filter == 'nhom') return 2;
     if (filter == 'channel' || filter == 'kenh') return 3;
+    if (filter == 'zalo' || filter == 'zalo_oa' || filter == 'oa' || filter == 'customer') return 4;
     return null;
   }
 
@@ -171,242 +170,152 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 12),
-                // ── 2. Search & Filter Bar ───────────────────────────────────
-                Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        height: 42,
-                        clipBehavior: Clip.antiAlias,
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? const Color(0xFF0F172A)
-                              : const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: isDark ? Colors.white10 : const Color(0xFFE2E8F0),
-                            width: 0.8,
-                          ),
-                        ),
-                        child: TextField(
-                          controller: _searchController,
-                          onChanged: _onSearchChanged,
-                          textAlignVertical: TextAlignVertical.center,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: isDark ? Colors.white : const Color(0xFF0F172A),
-                          ),
-                          decoration: InputDecoration(
-                            isDense: true,
-                            hintText: 'Tìm kiếm cuộc trò chuyện...',
-                            hintStyle: TextStyle(
-                              fontSize: 14,
-                              color: isDark
-                                  ? Colors.white38
-                                  : const Color(0xFF94A3B8),
-                            ),
-                            prefixIcon: Icon(
-                              LucideIcons.search,
-                              size: 18,
+                // ── 2. Search Bar (Full Width) ──────────────────────────────
+                Container(
+                  height: 42,
+                  clipBehavior: Clip.antiAlias,
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? const Color(0xFF0F172A)
+                        : const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isDark ? Colors.white10 : const Color(0xFFE2E8F0),
+                      width: 0.8,
+                    ),
+                  ),
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: _onSearchChanged,
+                    textAlignVertical: TextAlignVertical.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    ),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      hintText: 'Tìm kiếm cuộc trò chuyện...',
+                      hintStyle: TextStyle(
+                        fontSize: 14,
+                        color: isDark
+                            ? Colors.white38
+                            : const Color(0xFF94A3B8),
+                      ),
+                      prefixIcon: Icon(
+                        LucideIcons.search,
+                        size: 18,
+                        color: isDark
+                            ? Colors.white54
+                            : const Color(0xFF94A3B8),
+                      ),
+                      prefixIconConstraints: const BoxConstraints(
+                        minWidth: 40,
+                        minHeight: 42,
+                      ),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(LucideIcons.x, size: 16),
                               color: isDark
                                   ? Colors.white54
                                   : const Color(0xFF94A3B8),
-                            ),
-                            prefixIconConstraints: const BoxConstraints(
-                              minWidth: 40,
-                              minHeight: 42,
-                            ),
-                            suffixIcon: _searchQuery.isNotEmpty
-                                ? IconButton(
-                                    icon: const Icon(LucideIcons.x, size: 16),
-                                    color: isDark
-                                        ? Colors.white54
-                                        : const Color(0xFF94A3B8),
-                                    onPressed: () {
-                                      _searchController.clear();
-                                      setState(() => _searchQuery = '');
-                                    },
-                                  )
-                                : null,
-                            suffixIconConstraints: const BoxConstraints(
-                              minWidth: 36,
-                              minHeight: 42,
-                            ),
-                            border: InputBorder.none,
-                            enabledBorder: InputBorder.none,
-                            focusedBorder: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 10,
-                            ),
-                          ),
-                        ),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() => _searchQuery = '');
+                              },
+                            )
+                          : null,
+                      suffixIconConstraints: const BoxConstraints(
+                        minWidth: 36,
+                        minHeight: 42,
+                      ),
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    // ── Nút Filter Icon ─────────────────────────────────────
-                    channelsAsync.maybeWhen(
-                      data: (channels) {
-                        final unreadCount = ref.watch(chatV2TotalUnreadProvider);
-                        final internalCount = channels
-                            .where((c) => c.isInternalDirect(currentUserName))
-                            .length;
-                        final groupCount = channels
-                            .where((c) => c.isGroupChat(currentUserName))
-                            .length;
-                        final channelCount = channels
-                            .where((c) => c.isChannel)
-                            .length;
-                        final archivedCount = ref.watch(chatV2ArchivedChannelsProvider).valueOrNull?.length ?? 0;
-                        final counts = [unreadCount, internalCount, groupCount, channelCount, archivedCount];
-                        final isFilterActive = _selectedFilterIndex != null;
-
-                        return Material(
-                          color: isFilterActive
-                              ? const Color(0xFF00C83A)
-                              : (isDark
-                                  ? const Color(0xFF0F172A)
-                                  : const Color(0xFFF1F5F9)),
-                          borderRadius: BorderRadius.circular(12),
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(12),
-                            onTap: () => _showFilterSheet(
-                              context: context,
-                              channels: channels,
-                              counts: counts,
-                              currentUserName: currentUserName,
-                            ),
-                            child: Container(
-                              width: 42,
-                              height: 42,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: isFilterActive
-                                      ? Colors.transparent
-                                      : (isDark
-                                          ? Colors.white10
-                                          : const Color(0xFFE2E8F0)),
-                                  width: 0.8,
-                                ),
-                              ),
-                              alignment: Alignment.center,
-                              child: Stack(
-                                alignment: Alignment.center,
-                                children: [
-                                  Icon(
-                                    LucideIcons.slidersHorizontal,
-                                    size: 18,
-                                    color: isFilterActive
-                                        ? Colors.white
-                                        : (isDark
-                                            ? Colors.white70
-                                            : const Color(0xFF475569)),
-                                  ),
-                                  if (isFilterActive)
-                                    Positioned(
-                                      top: 8,
-                                      right: 8,
-                                      child: Container(
-                                        width: 6,
-                                        height: 6,
-                                        decoration: const BoxDecoration(
-                                          color: Colors.white,
-                                          shape: BoxShape.circle,
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                      orElse: () => Container(
-                        width: 42,
-                        height: 42,
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? const Color(0xFF0F172A)
-                              : const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: isDark
-                                ? Colors.white10
-                                : const Color(0xFFE2E8F0),
-                            width: 0.8,
-                          ),
-                        ),
-                        child: Icon(
-                          LucideIcons.slidersHorizontal,
-                          size: 18,
-                          color: isDark
-                              ? Colors.white38
-                              : const Color(0xFF94A3B8),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                // ── 3. Active Filter Mini Indicator (khi đang lọc) ──────────
-                if (_selectedFilterIndex != null) ...[
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? const Color(0xFF00C83A).withValues(alpha: 0.18)
-                              : const Color(0xFFE8F9EE),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: const Color(0xFF00C83A).withValues(alpha: 0.35),
-                            width: 0.8,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              LucideIcons.filter,
-                              size: 12,
-                              color: Color(0xFF00C83A),
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              'Đang lọc: ${_filters[_selectedFilterIndex!]}',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF00C83A),
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            InkWell(
-                              onTap: () =>
-                                  setState(() => _selectedFilterIndex = null),
-                              borderRadius: BorderRadius.circular(10),
-                              child: Container(
-                                padding: const EdgeInsets.all(2),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF00C83A).withValues(alpha: 0.2),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  LucideIcons.x,
-                                  size: 11,
-                                  color: Color(0xFF00C83A),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
                   ),
-                ],
+                ),
+                const SizedBox(height: 12),
+                // ── 3. Horizontal Filter Chips (6 Chips một chạm) ───────────
+                channelsAsync.maybeWhen(
+                  data: (channels) {
+                    final unreadCount = ref.watch(chatV2TotalUnreadProvider);
+                    final directCount = channels
+                        .where((c) => c.isInternalDirect(currentUserName))
+                        .length;
+                    final groupCount = channels
+                        .where((c) => c.isGroupChat(currentUserName))
+                        .length;
+                    final channelCount = channels
+                        .where((c) => c.isChannel)
+                        .length;
+                    final zaloCount = channels
+                        .where((c) => c.isZaloOA)
+                        .length;
+
+                    return SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      child: Row(
+                        children: [
+                          _buildChip(
+                            label: 'Tất cả',
+                            count: channels.length,
+                            isSelected: _selectedFilterIndex == null,
+                            isDark: isDark,
+                            onTap: () => setState(() => _selectedFilterIndex = null),
+                          ),
+                          const SizedBox(width: 8),
+                          _buildChip(
+                            label: 'Chưa đọc',
+                            count: unreadCount,
+                            isSelected: _selectedFilterIndex == 0,
+                            isDark: isDark,
+                            badgeColor: const Color(0xFFEF4444),
+                            onTap: () => setState(() => _selectedFilterIndex = 0),
+                          ),
+                          const SizedBox(width: 8),
+                          _buildChip(
+                            label: 'Trực tiếp',
+                            count: directCount,
+                            isSelected: _selectedFilterIndex == 1,
+                            isDark: isDark,
+                            onTap: () => setState(() => _selectedFilterIndex = 1),
+                          ),
+                          const SizedBox(width: 8),
+                          _buildChip(
+                            label: 'Nhóm',
+                            count: groupCount,
+                            isSelected: _selectedFilterIndex == 2,
+                            isDark: isDark,
+                            onTap: () => setState(() => _selectedFilterIndex = 2),
+                          ),
+                          const SizedBox(width: 8),
+                          _buildChip(
+                            label: 'Kênh',
+                            count: channelCount,
+                            isSelected: _selectedFilterIndex == 3,
+                            isDark: isDark,
+                            onTap: () => setState(() => _selectedFilterIndex = 3),
+                          ),
+                          const SizedBox(width: 8),
+                          _buildChip(
+                            label: 'Zalo OA',
+                            count: zaloCount,
+                            isSelected: _selectedFilterIndex == 4,
+                            isDark: isDark,
+                            badgeColor: const Color(0xFF0068FF),
+                            onTap: () => setState(() => _selectedFilterIndex = 4),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                  orElse: () => const SizedBox.shrink(),
+                ),
               ],
             ),
           ),
@@ -640,7 +549,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                       );
                       if (!isUnread) return false;
                     } else if (_selectedFilterIndex == 1) {
-                      // 1: Nội bộ (1-1 trực tiếp)
+                      // 1: Trực tiếp (1-1)
                       if (!c.isInternalDirect(currentUserName)) {
                         return false;
                       }
@@ -652,6 +561,11 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                     } else if (_selectedFilterIndex == 3) {
                       // 3: Kênh
                       if (!c.isChannel) {
+                        return false;
+                      }
+                    } else if (_selectedFilterIndex == 4) {
+                      // 4: Zalo OA
+                      if (!c.isZaloOA) {
                         return false;
                       }
                     }
@@ -837,302 +751,70 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
     );
   }
 
-  void _showFilterSheet({
-    required BuildContext context,
-    required List<ChatV2Channel> channels,
-    required List<int> counts,
-    required String? currentUserName,
-  }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setModalState) {
-            return Container(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1E293B) : Colors.white,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.15),
-                blurRadius: 20,
-                offset: const Offset(0, -4),
-              ),
-            ],
-          ),
-          child: SafeArea(
-            top: false,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Drag Handle
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: isDark ? Colors.white24 : const Color(0xFFCBD5E1),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                // Sheet Header
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF00C83A).withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Icon(
-                            LucideIcons.slidersHorizontal,
-                            size: 18,
-                            color: Color(0xFF00C83A),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          'Lọc cuộc trò chuyện',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            color: isDark ? Colors.white : const Color(0xFF0F172A),
-                            letterSpacing: -0.3,
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (_selectedFilterIndex != null)
-                      TextButton(
-                        onPressed: () {
-                          setModalState(() => _selectedFilterIndex = null);
-                          setState(() => _selectedFilterIndex = null);
-                          Navigator.pop(ctx);
-                        },
-                        style: TextButton.styleFrom(
-                          visualDensity: VisualDensity.compact,
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        ),
-                        child: const Text(
-                          'Đặt lại',
-                          style: TextStyle(
-                            color: Color(0xFF00C83A),
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      )
-                    else
-                      IconButton(
-                        icon: Icon(
-                          LucideIcons.x,
-                          size: 20,
-                          color: isDark ? Colors.white60 : const Color(0xFF64748B),
-                        ),
-                        onPressed: () => Navigator.pop(ctx),
-                        visualDensity: VisualDensity.compact,
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                // Option 1: Tất cả
-                _buildFilterOption(
-                  ctx: ctx,
-                  isDark: isDark,
-                  title: 'Tất cả cuộc trò chuyện',
-                  subtitle: 'Toàn bộ danh sách trò chuyện',
-                  count: channels.length,
-                  icon: LucideIcons.messageSquare,
-                  iconColor: const Color(0xFF3B82F6),
-                  isSelected: _selectedFilterIndex == null,
-                  onTap: () {
-                    setModalState(() => _selectedFilterIndex = null);
-                    setState(() => _selectedFilterIndex = null);
-                    Navigator.pop(ctx);
-                  },
-                ),
-                const SizedBox(height: 8),
-                // Option 2: Chưa đọc (index 0)
-                _buildFilterOption(
-                  ctx: ctx,
-                  isDark: isDark,
-                  title: 'Chưa đọc',
-                  subtitle: 'Tin nhắn mới chưa xem',
-                  count: counts[0],
-                  icon: LucideIcons.bellRing,
-                  iconColor: const Color(0xFFEF4444),
-                  isSelected: _selectedFilterIndex == 0,
-                  onTap: () {
-                    setModalState(() => _selectedFilterIndex = 0);
-                    setState(() => _selectedFilterIndex = 0);
-                    Navigator.pop(ctx);
-                  },
-                ),
-                const SizedBox(height: 8),
-                // Option 3: Nội bộ 1-1 (index 1)
-                _buildFilterOption(
-                  ctx: ctx,
-                  isDark: isDark,
-                  title: 'Trò chuyện nội bộ',
-                  subtitle: 'Tin nhắn trực tiếp 1-1',
-                  count: counts[1],
-                  icon: LucideIcons.user,
-                  iconColor: const Color(0xFF10B981),
-                  isSelected: _selectedFilterIndex == 1,
-                  onTap: () {
-                    setModalState(() => _selectedFilterIndex = 1);
-                    setState(() => _selectedFilterIndex = 1);
-                    Navigator.pop(ctx);
-                  },
-                ),
-                const SizedBox(height: 8),
-                // Option 4: Nhóm (index 2)
-                _buildFilterOption(
-                  ctx: ctx,
-                  isDark: isDark,
-                  title: 'Nhóm trò chuyện',
-                  subtitle: 'Nhóm thảo luận nhiều người',
-                  count: counts[2],
-                  icon: LucideIcons.users,
-                  iconColor: const Color(0xFF8B5CF6),
-                  isSelected: _selectedFilterIndex == 2,
-                  onTap: () {
-                    setModalState(() => _selectedFilterIndex = 2);
-                    setState(() => _selectedFilterIndex = 2);
-                    Navigator.pop(ctx);
-                  },
-                ),
-                const SizedBox(height: 8),
-                // Option 5: Kênh (index 3)
-                _buildFilterOption(
-                  ctx: ctx,
-                  isDark: isDark,
-                  title: 'Kênh thảo luận',
-                  subtitle: 'Kênh phòng ban & dự án',
-                  count: counts[3],
-                  icon: LucideIcons.hash,
-                  iconColor: const Color(0xFFF59E0B),
-                  isSelected: _selectedFilterIndex == 3,
-                  onTap: () {
-                    setModalState(() => _selectedFilterIndex = 3);
-                    setState(() => _selectedFilterIndex = 3);
-                    Navigator.pop(ctx);
-                  },
-                ),
-              ],
-            ),
-          ),
-        );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildFilterOption({
-    required BuildContext ctx,
-    required bool isDark,
-    required String title,
-    required String subtitle,
+  Widget _buildChip({
+    required String label,
     required int count,
-    required IconData icon,
-    required Color iconColor,
     required bool isSelected,
+    required bool isDark,
     required VoidCallback onTap,
+    Color? badgeColor,
   }) {
+    const activeBg = Color(0xFF00C83A);
+    final inactiveBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9);
+    final borderColor = isSelected
+        ? const Color(0xFF00C83A)
+        : (isDark ? Colors.white12 : const Color(0xFFE2E8F0));
+
     return Material(
-      color: isSelected
-          ? (isDark
-              ? const Color(0xFF00C83A).withValues(alpha: 0.15)
-              : const Color(0xFFE8F9EE))
-          : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC)),
-      borderRadius: BorderRadius.circular(14),
+      color: isSelected ? activeBg : inactiveBg,
+      borderRadius: BorderRadius.circular(20),
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(20),
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: isSelected
-                  ? const Color(0xFF00C83A)
-                  : (isDark ? Colors.white10 : const Color(0xFFE2E8F0)),
-              width: isSelected ? 1.4 : 0.8,
-            ),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: borderColor, width: 0.8),
           ),
           child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: iconColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, color: iconColor, size: 18),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                        color: isDark ? Colors.white : const Color(0xFF0F172A),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: isDark ? Colors.white54 : const Color(0xFF64748B),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                   color: isSelected
-                      ? const Color(0xFF00C83A).withValues(alpha: 0.2)
-                      : (isDark ? Colors.white12 : const Color(0xFFE2E8F0)),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  count.toString(),
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: isSelected
-                        ? const Color(0xFF00C83A)
-                        : (isDark ? Colors.white70 : const Color(0xFF64748B)),
-                  ),
+                      ? Colors.white
+                      : (isDark ? Colors.white70 : const Color(0xFF475569)),
                 ),
               ),
-              if (isSelected) ...[
-                const SizedBox(width: 8),
-                const Icon(
-                  LucideIcons.check,
-                  color: Color(0xFF00C83A),
-                  size: 18,
+              if (count > 0) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? Colors.white.withValues(alpha: 0.25)
+                        : (badgeColor ??
+                            (isDark ? Colors.white12 : const Color(0xFFE2E8F0))),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    count.toString(),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: isSelected
+                          ? Colors.white
+                          : (badgeColor != null
+                              ? Colors.white
+                              : (isDark
+                                  ? Colors.white70
+                                  : const Color(0xFF64748B))),
+                    ),
+                  ),
                 ),
               ],
             ],
@@ -1356,7 +1038,55 @@ class _ChannelListItem extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  if (isGroup)
+                  if (channel.isZaloOA)
+                    Positioned(
+                      right: -1,
+                      bottom: -1,
+                      child: Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Container(
+                          padding: const EdgeInsets.all(2.5),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF0068FF),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            LucideIcons.messageCircle,
+                            size: 11,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    )
+                  else if (channel.isChannel)
+                    Positioned(
+                      right: -1,
+                      bottom: -1,
+                      child: Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Container(
+                          padding: const EdgeInsets.all(2.5),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF0284C7),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            LucideIcons.hash,
+                            size: 11,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    )
+                  else if (isGroup)
                     Positioned(
                       right: -1,
                       bottom: -1,

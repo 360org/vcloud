@@ -277,8 +277,16 @@ class ChatV2Channel {
   /// Kiểm tra có phải kênh thảo luận Odoo (channel) hay không
   bool get isChannel => channelType == 'channel';
 
-  /// Kiểm tra có phải hội thoại 1-1 nội bộ giữa 2 người hay không (loại trừ nhóm và kênh)
+  /// Kiểm tra có phải kênh Zalo OA hoặc Livechat hay không
+  bool get isZaloOA =>
+      channelType == 'zalo' ||
+      channelType == 'zalo_oa' ||
+      channelType == 'livechat' ||
+      name.toLowerCase().contains('zalo');
+
+  /// Kiểm tra có phải hội thoại 1-1 trực tiếp giữa 2 người hay không (loại trừ nhóm, kênh và Zalo OA)
   bool isInternalDirect(String? currentUserName) {
+    if (isZaloOA) return false;
     if (channelType == 'channel') return false;
     if (getActualIsGroup(currentUserName)) return false;
 

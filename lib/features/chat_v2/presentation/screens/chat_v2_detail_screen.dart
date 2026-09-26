@@ -56,6 +56,11 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
   Timer? _highlightTimer;
   bool _showScrollToBottom = false;
 
+  bool _isSearching = false;
+  final TextEditingController _searchController = TextEditingController();
+  List<int> _matchedIndices = [];
+  int _currentMatchIndex = 0;
+
   @override
   void initState() {
     super.initState();
@@ -171,6 +176,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
     _scrollController.dispose();
     _inputController.dispose();
     _inputFocusNode.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -224,6 +230,194 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
         curve: Curves.easeOutCubic,
       );
     }
+  }
+
+  void _onSearchQueryChanged(String query, List<ChatV2Message> messages) {
+    final clean = query.trim().toLowerCase();
+    if (clean.isEmpty) {
+      setState(() {
+        _matchedIndices = [];
+        _currentMatchIndex = 0;
+      });
+      return;
+    }
+
+    final matches = <int>[];
+    for (var i = 0; i < messages.length; i++) {
+      if (messages[i].content.toLowerCase().contains(clean)) {
+        matches.add(i);
+      }
+    }
+
+    setState(() {
+      _matchedIndices = matches;
+      _currentMatchIndex = 0;
+    });
+
+    if (matches.isNotEmpty) {
+      _jumpToMessage(messages[matches[0]].id);
+    }
+  }
+
+  void _nextSearchResult(List<ChatV2Message> messages) {
+    if (_matchedIndices.isEmpty) return;
+    setState(() {
+      _currentMatchIndex = (_currentMatchIndex + 1) % _matchedIndices.length;
+    });
+    _jumpToMessage(messages[_matchedIndices[_currentMatchIndex]].id);
+  }
+
+  void _prevSearchResult(List<ChatV2Message> messages) {
+    if (_matchedIndices.isEmpty) return;
+    setState(() {
+      _currentMatchIndex = (_currentMatchIndex - 1 + _matchedIndices.length) % _matchedIndices.length;
+    });
+    _jumpToMessage(messages[_matchedIndices[_currentMatchIndex]].id);
+  }
+
+  PreferredSizeWidget _buildSearchAppBar(
+    BuildContext context,
+    List<ChatV2Message> messages,
+    bool isDark,
+  ) {
+    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final totalMatches = _matchedIndices.length;
+    final currentIndex = totalMatches > 0 ? _currentMatchIndex + 1 : 0;
+
+    return AppBar(
+      elevation: 0,
+      backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+      foregroundColor: textColor,
+      leading: IconButton(
+        icon: const Icon(LucideIcons.arrowLeft, size: 22),
+        onPressed: () {
+          setState(() {
+            _isSearching = false;
+            _searchController.clear();
+            _matchedIndices = [];
+            _currentMatchIndex = 0;
+          });
+        },
+        tooltip: 'Đóng tìm kiếm',
+      ),
+      title: TextField(
+        controller: _searchController,
+        autofocus: true,
+        style: TextStyle(fontSize: 15, color: textColor),
+        decoration: InputDecoration(
+          hintText: 'Tìm kiếm tin nhắn...',
+          hintStyle: TextStyle(
+            color: isDark ? Colors.white54 : const Color(0xFF94A3B8),
+            fontSize: 14.5,
+          ),
+          border: InputBorder.none,
+        ),
+        onChanged: (val) => _onSearchQueryChanged(val, messages),
+      ),
+      actions: [
+        if (totalMatches > 0)
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text(
+                '$currentIndex/$totalMatches',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                ),
+              ),
+            ),
+          ),
+        IconButton(
+          icon: const Icon(LucideIcons.chevronUp, size: 20),
+          onPressed: totalMatches > 0 ? () => _prevSearchResult(messages) : null,
+          tooltip: 'Kết quả trước',
+        ),
+        IconButton(
+          icon: const Icon(LucideIcons.chevronDown, size: 20),
+          onPressed: totalMatches > 0 ? () => _nextSearchResult(messages) : null,
+          tooltip: 'Kết quả tiếp theo',
+        ),
+        const SizedBox(width: 4),
+      ],
+    );
+  }
+
+  Widget _buildPinnedMessageBar(
+    BuildContext context,
+    WidgetRef ref,
+    ChatV2Message message,
+    bool isDark,
+  ) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        border: Border(
+          bottom: BorderSide(
+            color: isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFE2E8F0),
+            width: 1,
+          ),
+          left: const BorderSide(
+            color: Color(0xFF00C83A),
+            width: 3.5,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            LucideIcons.pin,
+            size: 16,
+            color: Color(0xFF00C83A),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: InkWell(
+              onTap: () => _jumpToMessage(message.id),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Tin nhắn đã ghim: ${message.authorName}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF00C83A),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    message.content.isNotEmpty
+                        ? message.content
+                        : (message.attachments.isNotEmpty ? '[Đính kèm]' : '...'),
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: isDark ? Colors.white70 : const Color(0xFF475569),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(LucideIcons.pinOff, size: 16),
+            color: isDark ? Colors.white54 : const Color(0xFF94A3B8),
+            tooltip: 'Bỏ ghim',
+            onPressed: () {
+              ref.read(chatV2MessagesProvider(widget.channelId).notifier).togglePinMessage(message.id);
+            },
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _handleSendMessage(
@@ -589,49 +783,57 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
       },
       child: Scaffold(
       backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        elevation: 0,
-        scrolledUnderElevation: 0.5,
-        backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
-        foregroundColor: headerTextColor,
-        iconTheme: IconThemeData(color: headerTextColor),
-        actionsIconTheme: IconThemeData(
-          color: isDark ? Colors.white70 : const Color(0xFF475569),
-        ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(
-            height: 1,
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.08)
-                : const Color(0xFFE2E8F0),
-          ),
-        ),
-        leading: IconButton(
-          icon: Icon(
-            LucideIcons.chevronLeft,
-            size: 24,
-            color: headerTextColor,
-          ),
-          onPressed: () {
-            ensureRetainedInCache();
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go('/chat');
-            }
-          },
-          tooltip: 'Quay lại',
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(LucideIcons.phone, size: 21),
-            color: isDark ? Colors.white70 : const Color(0xFF475569),
-            tooltip: 'Gọi thoại',
-            onPressed: () => _handleVoiceCall(context, currentChannel, displayTitle, resolvedAvatarUrl),
-          ),
-          const SizedBox(width: 4),
-        ],
+      appBar: _isSearching
+          ? _buildSearchAppBar(context, messages, isDark)
+          : AppBar(
+              elevation: 0,
+              scrolledUnderElevation: 0.5,
+              backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+              foregroundColor: headerTextColor,
+              iconTheme: IconThemeData(color: headerTextColor),
+              actionsIconTheme: IconThemeData(
+                color: isDark ? Colors.white70 : const Color(0xFF475569),
+              ),
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(1),
+                child: Container(
+                  height: 1,
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.08)
+                      : const Color(0xFFE2E8F0),
+                ),
+              ),
+              leading: IconButton(
+                icon: Icon(
+                  LucideIcons.chevronLeft,
+                  size: 24,
+                  color: headerTextColor,
+                ),
+                onPressed: () {
+                  ensureRetainedInCache();
+                  if (context.canPop()) {
+                    context.pop();
+                  } else {
+                    context.go('/chat');
+                  }
+                },
+                tooltip: 'Quay lại',
+              ),
+              actions: [
+                IconButton(
+                  icon: const Icon(LucideIcons.search, size: 20),
+                  color: isDark ? Colors.white70 : const Color(0xFF475569),
+                  tooltip: 'Tìm kiếm tin nhắn',
+                  onPressed: () => setState(() => _isSearching = true),
+                ),
+                IconButton(
+                  icon: const Icon(LucideIcons.phone, size: 21),
+                  color: isDark ? Colors.white70 : const Color(0xFF475569),
+                  tooltip: 'Gọi thoại',
+                  onPressed: () => _handleVoiceCall(context, currentChannel, displayTitle, resolvedAvatarUrl),
+                ),
+                const SizedBox(width: 4),
+              ],
         titleSpacing: 0,
         title: InkWell(
           onTap: () => _handleHeaderTap(context, currentChannel, isDark),
@@ -711,6 +913,55 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                       const SizedBox(height: 2),
                       Consumer(
                         builder: (context, ref, _) {
+                          if (currentChannel != null && currentChannel.isZaloOA) {
+                            return Row(
+                              children: [
+                                const Icon(
+                                  LucideIcons.messageCircle,
+                                  size: 13,
+                                  color: Color(0xFF0068FF),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Zalo OA • Khách hàng',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                  ),
+                                ),
+                              ],
+                            );
+                          }
+
+                          if (currentChannel != null && currentChannel.isChannel) {
+                            final count = (currentChannel.memberCount > 0)
+                                ? currentChannel.memberCount
+                                : (currentChannel.members.isNotEmpty)
+                                    ? currentChannel.members.length
+                                    : (currentChannel.memberNames.isNotEmpty)
+                                        ? currentChannel.memberNames.length
+                                        : 2;
+                            return Row(
+                              children: [
+                                const Icon(
+                                  LucideIcons.hash,
+                                  size: 13,
+                                  color: Color(0xFF0284C7),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Kênh thảo luận • $count thành viên',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                  ),
+                                ),
+                              ],
+                            );
+                          }
+
                           final isActualGroup = currentChannel?.isGroup == true ||
                               (currentChannel != null &&
                                   currentChannel.getActualIsGroup(currentUserName));
@@ -822,6 +1073,13 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
               bottom: false,
               child: Column(
                 children: [
+                  () {
+                    final pinnedMsg = messages.firstWhereOrNull((m) => m.isPinned);
+                    if (pinnedMsg != null && !_isSearching) {
+                      return _buildPinnedMessageBar(context, ref, pinnedMsg, isDark);
+                    }
+                    return const SizedBox.shrink();
+                  }(),
                   Expanded(
                     child: Center(
                       child: ConstrainedBox(
@@ -1011,6 +1269,22 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                                   ScaffoldMessenger.of(context).showSnackBar(
                                                     const SnackBar(content: Text('Đã sao chép văn bản')),
                                                   );
+                                                },
+                                              ),
+                                              ListTile(
+                                                leading: Icon(
+                                                  message.isPinned ? LucideIcons.pinOff : LucideIcons.pin,
+                                                  color: message.isPinned ? const Color(0xFFEF4444) : (isDark ? Colors.white : Colors.black),
+                                                ),
+                                                title: Text(
+                                                  message.isPinned ? 'Bỏ ghim tin nhắn' : 'Ghim tin nhắn',
+                                                  style: TextStyle(
+                                                    color: message.isPinned ? const Color(0xFFEF4444) : (isDark ? Colors.white : Colors.black),
+                                                  ),
+                                                ),
+                                                onTap: () {
+                                                  Navigator.pop(sheetContext);
+                                                  ref.read(chatV2MessagesProvider(widget.channelId).notifier).togglePinMessage(message.id);
                                                 },
                                               ),
                                               if (message.isMine)
