@@ -74,6 +74,11 @@
 - [ ] Audit dependency upgrade riêng: `golden_toolkit` discontinued, `record_linux` override, major packages outdated.
 
 ## 10. Verification Checklist & Milestones (Audit Tracker)
+- [x] **[v2.9.10+141] Lock Odoo Discuss Channel Title & In-App Image Download (2026-09-26)**:
+  - [x] Root Cause: Hàm `getCleanName()` ghép `$partnerName ($name)` quá rộng cho mọi kênh; `ChatV2Channel.fromJson` tự động gán `directPartnerName` từ thành viên đầu tiên của kênh Odoo Discuss khiến title kênh `Internal` bị biến dạng thành `Tên người gửi (Internal)` và nhảy theo người gửi mới nhất.
+  - [x] Fix Title: Bổ sung guard clause `if (isChannel || channelType == 'channel' || isGroup) return name;` trong `ChatV2Channel.getCleanName()` và giới hạn `directPartnerName` chỉ cho chat 1-1 riêng tư.
+  - [x] Nút Tải Ảnh: Thêm `IconButton` icon `LucideIcons.download` trên Floating Header của `ChatV2ImageViewerScreen`, tích hợp `MobileAttachmentRepository.fetchBytes()` và `file_download.dart` (`saveBytesToFile` cho Web Blob & Mobile Storage).
+  - [x] Verify: `test/features/chat_v2/chat_v2_display_name_test.dart` pass 11/11 (bao gồm Test Case 11 TDD đa người gửi); `test/features/chat_v2/chat_v2_image_viewer_test.dart` pass 2/2; `flutter analyze` 0 errors / 0 warnings; 182/182 tests Chat V2 pass 100%.
 - [x] **[v2.9.9+138] FCM Foreground Instant Sync & Delta Fetch for Chat V2 (2026-09-22)**:
   - [x] Root Cause: App chỉ invalidate danh sách kênh khi FCM Foreground Push bay về, không đánh thức phòng chat đang mở làm người dùng phải chờ hết 8 giây polling.
   - [x] Fix: Bổ sung `triggerImmediateFetch()` trong `chat_v2_messages_controller.dart` và gọi từ `_onForegroundPush` trong `lib/app.dart`.
