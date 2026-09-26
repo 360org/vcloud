@@ -2,7 +2,28 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
-## [v2.9.11+142] — 2026-09-26 (Tích Hợp Trình Mở Tài Liệu Trực Tiếp In-App Document Viewer Với open_filex - Loại Bỏ Fallback Trình Duyệt Ngoài)
+## [v2.9.11+142] — 2026-09-26 (Khắc Phục Triệt Để Hiện Tượng Rò Rỉ Dữ Liệu Ticket & State Khi Logout / Switch User - Protocol V2.1)
+
+> [!IMPORTANT]
+> **Khắc phục triệt để Session & State Leakage across User Switch (Anti-Sycophancy Protocol V2.1 & Ponytail Rules)**:
+> - **Phạm vi**: `vclients` (`GlobalStateResetService`, `AuthController`, `TicketRepository`, `TaskRepository`, `TimesheetRepository`, `AttendanceRepository`, `ChatV2Repository`, `ChatV2ChannelLocalCache`, `ChatV2MessageLocalCache`, `ChatV2ReadStateNotifier`, `ChatV2AttachmentImage`, `OdooApiClient`, `logout_session_wipe_test.dart`)
+> - **Nguyên nhân gốc rễ (Root Cause)**:
+>   * Khi người dùng Logout tài khoản A, hệ thống chỉ xóa session token và điều hướng về LoginScreen nhưng bỏ quên việc dọn dẹp biến static RAM cache (`TicketRepository._cachedTickets`, `TaskRepository._cachedTodayTasks`, `AttendanceRepository.cachedShiftConfig`, `ChatV2Repository`, `ChatV2AttachmentImage.imageCache`) và các StateProvider của Riverpod (`ticketFilterProvider`, `ticketOverrideProvider`, `_completedTaskIdsProvider`, `mobileDashboardSummaryProvider` với `ref.keepAlive()`).
+>   * Cơ chế SWR (Stale-While-Revalidate) phát ngay dữ liệu tĩnh trong RAM khi stream lắng nghe khiến tài khoản B sau khi đăng nhập lập tức nhìn thấy danh sách Ticket và Task của tài khoản A.
+> - **Giải pháp kiến trúc 4 phân lớp (Architectural Solution)**:
+>   1. **[Tạo mới `GlobalStateResetService`]**:
+>      - *Phân lớp 1 (In-Memory RAM Wipe)*: Gọi `clearCache()` dọn sạch toàn bộ static list/map trong `TicketRepository`, `TaskRepository`, `TimesheetRepository`, `AttendanceRepository`, `ChatV2Repository`, `ChatV2ReadStateNotifier`, `ChatV2AttachmentImage` và xóa Flutter engine image memory cache (`PaintingBinding.instance.imageCache.clear()`).
+>      - *Phân lớp 2 (Disk & Local Storage Wipe)*: Xóa sạch danh sách kênh chat cache & unread dưới secure storage qua `ChatV2ChannelLocalCache.clear()`, xóa tin nhắn offline dưới disk qua `ChatV2MessageLocalCache.clear()`, xóa file đính kèm local qua `LocalAttachmentCache.clearAllCache()`.
+>      - *Phân lớp 3 (State Management Reset)*: Reset `ticketFilterProvider`, `ticketOverrideProvider`, `_completedTaskIdsProvider`, `completedTaskLogsProvider`; reset `timesheetTimerControllerProvider`; xóa `dismissedNotificationIdsProvider`; invalidate `mobileDashboardSummaryProvider`, `homeSummaryProvider`, `chatV2ChannelsProvider`, `ticketsProvider`.
+>      - *Phân lớp 4 (Peripheral & Background Services Isolation)*: Xóa mapping `OdooApiClient._partnerToUserMap`, ngắt kết nối WebSocket Bus `OdooBusService`, dập tất cả cuộc gọi CallKit `ChatV2CallKitService.instance.endAllCalls()`, hủy thông báo nhắc chấm công `AttendanceLocalReminderService.instance.cancelAllAttendanceReminders()`.
+>   2. **[Tích hợp luồng xác thực `AuthController`]**:
+>      - Gọi bắt buộc `GlobalStateResetService.clearAllUserDataOnLogout(ref: ref)` tại `signOut()`, `authenticateOnClient()`, `signIn()`, và sự kiện `OdooApiClient.onSessionExpired`.
+>   3. **[Kiểm thử TDD Toàn Diện]**:
+>      - Viết mới 12 test case trong `test/features/auth/logout_session_wipe_test.dart` bao phủ toàn diện 4 phân lớp và mô phỏng luồng User Switch: Nạp Ticket User A ➔ Bấm Logout ➔ Wipe RAM/State ➔ Đăng nhập User B ➔ Xác minh 100% không còn dấu vết ticket User A trong RAM hoặc State của User B.
+>      - 12/12 test case mới đạt PASS (44/44 tests trong `test/features/auth/` đạt PASS).
+>      - `flutter analyze`: 0 errors / 0 warnings.
+
+---
 
 > [!IMPORTANT]
 > **Tích Hợp Trình Mở Tài Liệu Trực Tiếp In-App Document Viewer Với `open_filex` (Anti-Sycophancy Protocol V2.1)**:
