@@ -4,6 +4,7 @@ import 'package:lucide_flutter/lucide_flutter.dart';
 
 import '../../../../core/api/mobile_attachment_repository.dart';
 import '../../../../core/api/odoo_api_client.dart';
+import '../../../../core/utils/file_download.dart';
 import '../../../../core/utils/local_attachment_cache.dart';
 import '../../../../shared/widgets/html_network_image.dart';
 import '../widgets/chat_v2_message_item.dart';
@@ -67,6 +68,7 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
     with TickerProviderStateMixin {
   Uint8List? _bytes;
   bool _loading = true;
+  bool _downloading = false;
   bool _showControls = true;
   double _dragOffsetY = 0.0;
   double _dragScale = 1.0;
@@ -172,6 +174,114 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
       setState(() {
         _loading = false;
       });
+    }
+  }
+
+  String _getSuggestedFileName() {
+    final t = widget.title.trim();
+    if (t.isNotEmpty &&
+        (t.toLowerCase().endsWith('.png') ||
+            t.toLowerCase().endsWith('.jpg') ||
+            t.toLowerCase().endsWith('.jpeg') ||
+            t.toLowerCase().endsWith('.webp') ||
+            t.toLowerCase().endsWith('.gif'))) {
+      return t;
+    }
+    final uri = Uri.tryParse(widget.imageUrl);
+    if (uri != null && uri.pathSegments.isNotEmpty) {
+      final lastSeg = uri.pathSegments.last;
+      if (lastSeg.contains('.') &&
+          (lastSeg.toLowerCase().endsWith('.png') ||
+              lastSeg.toLowerCase().endsWith('.jpg') ||
+              lastSeg.toLowerCase().endsWith('.jpeg') ||
+              lastSeg.toLowerCase().endsWith('.webp') ||
+              lastSeg.toLowerCase().endsWith('.gif'))) {
+        return lastSeg;
+      }
+    }
+    final ext = widget.imageUrl.toLowerCase().endsWith('.png') ? 'png' : 'jpg';
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    return 'vcloud_image_$timestamp.$ext';
+  }
+
+  Future<void> _downloadImage() async {
+    if (_downloading) return;
+    setState(() => _downloading = true);
+
+    try {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Đang tải ảnh...'),
+          duration: Duration(seconds: 1),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+
+      Uint8List? fileBytes = _bytes;
+
+      // 1. Nếu chưa có bytes trong RAM, nạp qua MobileAttachmentRepository hoặc odooApiClient
+      if (fileBytes == null || fileBytes.isEmpty) {
+        final attId = int.tryParse(widget.attachmentId ?? '');
+        if (attId != null) {
+          try {
+            fileBytes = await MobileAttachmentRepository().fetchBytes(attId);
+          } catch (_) {}
+        }
+      }
+
+      if (fileBytes == null || fileBytes.isEmpty) {
+        final cleanUrl = widget.imageUrl.trim();
+        if (cleanUrl.isNotEmpty &&
+            (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://'))) {
+          try {
+            fileBytes = await odooApiClient.fetchBytes(cleanUrl);
+          } catch (_) {}
+        }
+      }
+
+      if (fileBytes == null || fileBytes.isEmpty) {
+        throw Exception('Không tìm thấy dữ liệu ảnh để tải về');
+      }
+
+      final fileName = _getSuggestedFileName();
+      final success = await saveBytesToFile(fileBytes, fileName);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Đã lưu ảnh thành công'),
+              duration: Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Không thể lưu ảnh vào thiết bị'),
+              duration: Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi khi tải ảnh: ${e.toString().replaceAll("Exception: ", "")}'),
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _downloading = false);
+      }
     }
   }
 
@@ -351,6 +461,20 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
                     ),
                   ] else
                     const Spacer(),
+                  IconButton(
+                    icon: _downloading
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(LucideIcons.download, color: Colors.white, size: 20),
+                    tooltip: 'Tải ảnh về máy',
+                    onPressed: _downloading ? null : _downloadImage,
+                  ),
                   IconButton(
                     icon: const Icon(LucideIcons.rotateCcw, color: Colors.white, size: 20),
                     tooltip: 'Đặt lại thu phóng',
