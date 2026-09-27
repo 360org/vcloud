@@ -203,29 +203,81 @@ class ChatV2Channel {
     return pLower == uLower || uLower.contains(pLower) || pLower.contains(uLower);
   }
 
+  /// Bóc tách hoàn toàn tiền tố/hậu tố rác từ Odoo ORM (ví dụ: 'Users + Internal', 'Users + ')
+  static String cleanChannelName(String rawName) {
+    var clean = rawName.trim();
+    if (clean.isEmpty) return 'Cuộc trò chuyện';
+
+    // 1. Khớp chính xác các biến thể của Users + Internal
+    final lower = clean.toLowerCase();
+    if (lower == 'users + internal' ||
+        lower == 'users/internal' ||
+        lower == 'users - internal' ||
+        lower == 'users+internal') {
+      return 'Internal';
+    }
+
+    // 2. Bóc tách ngoặc đơn/vuông rác chứa Users + Internal: e.g. "Dự án A (Users + Internal)" -> "Dự án A"
+    final bracketRegex = RegExp(r'\s*[\(\[]\s*users\s*([+/|-]|và|&)\s*internal\s*[\)\]]', caseSensitive: false);
+    if (bracketRegex.hasMatch(clean)) {
+      final stripped = clean.replaceAll(bracketRegex, '').trim();
+      if (stripped.isNotEmpty) {
+        clean = stripped;
+      }
+    }
+
+    // 3. Bóc tách tiền tố rác "Users + ", "Users / ", "Users - "
+    // Ví dụ: "Users + General" -> "General", "Users + Kênh A" -> "Kênh A"
+    final prefixRegex = RegExp(r'^users\s*([+/|-]|và|&)\s*', caseSensitive: false);
+    if (prefixRegex.hasMatch(clean)) {
+      final stripped = clean.replaceFirst(prefixRegex, '').trim();
+      if (stripped.isNotEmpty) {
+        clean = stripped;
+      }
+    }
+
+    // 4. Bóc tách hậu tố rác " + Internal", " / Internal", " - Internal" (nếu phía trước đã có tên kênh)
+    // Ví dụ: "Ban Giám Đốc + Internal" -> "Ban Giám Đốc"
+    final suffixRegex = RegExp(r'\s*([+/|-]|và|&)\s*internal$', caseSensitive: false);
+    if (clean.toLowerCase() != 'internal' && suffixRegex.hasMatch(clean)) {
+      final stripped = clean.replaceFirst(suffixRegex, '').trim();
+      if (stripped.isNotEmpty) {
+        clean = stripped;
+      }
+    }
+
+    return clean;
+  }
+
   /// Lấy tên hiển thị sạch:
-  /// - Nếu là kênh (channelType == 'channel') hoặc nhóm (isGroup): luôn giữ nguyên 100% tên kênh/nhóm gốc.
+  /// - Nếu là kênh (channelType == 'channel') hoặc nhóm (isGroup): luôn giữ nguyên 100% tên kênh/nhóm gốc đã làm sạch.
   /// - Nếu là chat 1-1 ghép tên thì chỉ lấy tên người đối diện.
   String getCleanName(String? currentUserName) {
-    if (name.isEmpty) return 'Cuộc trò chuyện';
-    if (currentUserName == null || currentUserName.trim().isEmpty) return name;
+    final cleaned = cleanChannelName(name);
+    if (cleaned.isEmpty || cleaned == 'Cuộc trò chuyện') {
+      if (name.isNotEmpty && name != 'Cuộc trò chuyện') {
+        return name;
+      }
+      return 'Cuộc trò chuyện';
+    }
+    if (currentUserName == null || currentUserName.trim().isEmpty) return cleaned;
 
-    // Kênh thảo luận Odoo hoặc nhóm cố định: giữ nguyên tên gốc tuyệt đối,
+    // Kênh thảo luận Odoo hoặc nhóm cố định: giữ nguyên tên gốc đã làm sạch tuyệt đối,
     // không bao giờ ghép tên người tham gia hay người gửi vào title.
     if (isChannel || channelType == 'channel' || isGroup) {
-      return name;
+      return cleaned;
     }
 
     if (!isGroup) {
       if (directPartnerName != null && directPartnerName!.isNotEmpty) {
-        return directPartnerName!;
+        return cleanChannelName(directPartnerName!);
       }
       final uTrim = currentUserName.trim();
       final uLower = uTrim.toLowerCase();
-      final nLower = name.toLowerCase();
+      final nLower = cleaned.toLowerCase();
 
       if (nLower.contains(uLower)) {
-        var clean = name;
+        var clean = cleaned;
         final patterns = [
           RegExp('^\\s*${RegExp.escape(uTrim)}\\s*([,/|-]|và|&)\\s*', caseSensitive: false),
           RegExp('\\s*([,/|-]|và|&)\\s*${RegExp.escape(uTrim)}\\s*\$', caseSensitive: false),
@@ -237,19 +289,19 @@ class ChatV2Channel {
           }
         }
         if (clean.isNotEmpty && clean.toLowerCase() != uLower) {
-          return clean;
+          return cleanChannelName(clean);
         }
       }
 
-      final parts = name.split(RegExp(r'\s*[,/|-]\s*|\s+và\s+|\s+&\s+'));
+      final parts = cleaned.split(RegExp(r'\s*[,/|-]\s*|\s+và\s+|\s+&\s+'));
       if (parts.length >= 2) {
         final otherParts = parts.where((p) => !matchesUser(p, currentUserName)).toList();
         if (otherParts.isNotEmpty) {
-          return otherParts.join(', ').trim();
+          return cleanChannelName(otherParts.join(', ').trim());
         }
       }
     }
-    return name;
+    return cleaned;
   }
 
   bool getActualIsGroup(String? currentUserName) {
@@ -330,7 +382,10 @@ class ChatV2Channel {
     final map = raw;
 
     final id = _stringOr(map['id'] ?? map['channel_id'], '');
-    final name = _stringOr(map['name'] ?? map['display_name'], 'Cuộc trò chuyện');
+    final rawDisplayName = _stringOrNull(map['display_name']);
+    final rawName = _stringOrNull(map['name']);
+    final effectiveName = rawDisplayName ?? rawName ?? 'Cuộc trò chuyện';
+    final name = cleanChannelName(effectiveName);
     final channelType = _stringOr(map['channel_type'] ?? map['type'], 'chat');
     final rawIsGroup = map['is_group'];
     final bool isGroup;

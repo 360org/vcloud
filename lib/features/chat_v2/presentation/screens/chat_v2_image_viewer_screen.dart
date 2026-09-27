@@ -4,7 +4,7 @@ import 'package:lucide_flutter/lucide_flutter.dart';
 
 import '../../../../core/api/mobile_attachment_repository.dart';
 import '../../../../core/api/odoo_api_client.dart';
-import '../../../../core/utils/file_download.dart';
+import '../../../../core/utils/gallery_saver.dart';
 import '../../../../core/utils/local_attachment_cache.dart';
 import '../../../../shared/widgets/html_network_image.dart';
 import '../widgets/chat_v2_message_item.dart';
@@ -245,22 +245,49 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
       }
 
       final fileName = _getSuggestedFileName();
-      final success = await saveBytesToFile(fileBytes, fileName);
+      final success = await GallerySaver.saveImage(
+        bytes: fileBytes,
+        fileName: fileName,
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
         if (success) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Đã lưu ảnh thành công'),
-              duration: Duration(seconds: 2),
+            SnackBar(
               behavior: SnackBarBehavior.floating,
+              backgroundColor: const Color(0xFF1E293B),
+              elevation: 4,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              duration: const Duration(seconds: 2),
+              content: const Row(
+                children: [
+                  Icon(
+                    LucideIcons.checkCircle2,
+                    color: Color(0xFF22C55E),
+                    size: 20,
+                  ),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Đã lưu ảnh vào Thư viện',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Không thể lưu ảnh vào thiết bị'),
+              content: Text('Không thể lưu ảnh vào Thư viện'),
               duration: Duration(seconds: 2),
               behavior: SnackBarBehavior.floating,
             ),

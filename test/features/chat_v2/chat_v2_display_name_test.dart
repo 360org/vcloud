@@ -215,5 +215,77 @@ void main() {
       expect(currentCh.getCleanName(currentUserName), equals('Internal'));
       expect(currentCh.lastMessageAuthorName, equals('Sếp Tân'));
     });
+
+    test('12. Kênh có tên thô "Users + Internal" được bóc tách sạch thành "Internal"', () {
+      const channel = ChatV2Channel(
+        id: '202',
+        name: 'Users + Internal',
+        channelType: 'channel',
+        isGroup: true,
+      );
+
+      expect(ChatV2Channel.cleanChannelName('Users + Internal'), equals('Internal'));
+      expect(channel.getCleanName(currentUserName), equals('Internal'));
+    });
+
+    test('13. Tiền tố rác "Users +", "Users /", "Users -" được bóc tách hoàn toàn', () {
+      expect(ChatV2Channel.cleanChannelName('Users + General'), equals('General'));
+      expect(ChatV2Channel.cleanChannelName('Users / Marketing'), equals('Marketing'));
+      expect(ChatV2Channel.cleanChannelName('Users - Hỗ Trợ Kỹ Thuật'), equals('Hỗ Trợ Kỹ Thuật'));
+      expect(ChatV2Channel.cleanChannelName('users + internal'), equals('Internal'));
+      expect(ChatV2Channel.cleanChannelName('USERS + INTERNAL'), equals('Internal'));
+    });
+
+    test('14. Hậu tố rác "+ Internal", "- Internal" được bóc tách nếu phía trước đã có tên kênh', () {
+      expect(ChatV2Channel.cleanChannelName('Ban Giám Đốc + Internal'), equals('Ban Giám Đốc'));
+      expect(ChatV2Channel.cleanChannelName('Phòng Kinh Doanh - Internal'), equals('Phòng Kinh Doanh'));
+      // Nếu chỉ có duy nhất "Internal" thì giữ nguyên
+      expect(ChatV2Channel.cleanChannelName('Internal'), equals('Internal'));
+    });
+
+    test('15. Tên kênh chứa ngoặc rác "(Users + Internal)" được bóc tách chuẩn xác', () {
+      expect(ChatV2Channel.cleanChannelName('Dự án ERP (Users + Internal)'), equals('Dự án ERP'));
+      expect(ChatV2Channel.cleanChannelName('Thông báo chung [Users + Internal]'), equals('Thông báo chung'));
+    });
+
+    test('16. ChatV2Channel.fromJson ưu tiên display_name đã làm sạch hơn name thô và loại bỏ Users + Internal', () {
+      final jsonWithDirtyName = {
+        'id': 301,
+        'name': 'Users + Internal',
+        'display_name': 'Internal',
+        'channel_type': 'channel',
+        'is_group': true,
+      };
+
+      final parsed = ChatV2Channel.fromJson(jsonWithDirtyName);
+      expect(parsed.name, equals('Internal'));
+      expect(parsed.getCleanName(currentUserName), equals('Internal'));
+
+      final jsonWithOnlyDirtyName = {
+        'id': 302,
+        'name': 'Users + Internal',
+        'channel_type': 'channel',
+        'is_group': true,
+      };
+
+      final parsedOnlyDirty = ChatV2Channel.fromJson(jsonWithOnlyDirtyName);
+      expect(parsedOnlyDirty.name, equals('Internal'));
+      expect(parsedOnlyDirty.getCleanName(currentUserName), equals('Internal'));
+    });
+
+    test('17. Dữ liệu kênh cũ trong Cache đĩa chứa Users + Internal tự động được làm sạch khi deserialize', () {
+      final cachedJsonMap = {
+        'id': '303',
+        'name': 'Users + Internal',
+        'channel_type': 'channel',
+        'is_group': true,
+        'member_count': 10,
+      };
+
+      final restoredFromCache = ChatV2Channel.fromJson(cachedJsonMap);
+      expect(restoredFromCache.name, equals('Internal'));
+      expect(restoredFromCache.getCleanName(currentUserName), equals('Internal'));
+    });
   });
 }
+

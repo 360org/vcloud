@@ -5,6 +5,30 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 ## [v2.9.12+143] — 2026-09-26 (Multi-DB Authentication & Timesheet Tabs Production Verification - Protocol V2.1)
 
 > [!IMPORTANT]
+> **Khắc phục lỗi Lưu Ảnh vào Thư viện hệ thống (Native MediaStore/Photos Album) & Bóc tách triệt để tiền tố/hậu tố rác `Users + Internal`**:
+> - **Phạm vi**: `vclients` (Flutter Mobile & Web)
+> - **Chi tiết khắc phục theo chuẩn AIaC 3.0 & Ponytail**:
+>   1. **[LỖI 1 — LƯU ẢNH THƯ VIỆN HỆ THỐNG (NATIVE GALLERY SAVER)]**:
+>      - **Root Cause**: `saveBytesToFile` trong `file_download_mobile.dart` chỉ lưu file bytes vào thư mục sandbox của app (`getApplicationDocumentsDirectory()`) mà không đăng ký với MediaStore (Android) hay Photos Album (iOS), khiến ứng dụng Thư viện mặc định không thể quét thấy ảnh.
+>      - **Solution**:
+>        * Tích hợp thư viện `gal: ^2.3.3`, xây dựng module `GallerySaver` (`lib/core/utils/gallery_saver.dart`) quản lý kiểm tra và xin quyền `Gal.requestAccess()`, ghi file ảnh trực tiếp vào Thư viện hệ thống qua `Gal.putImageBytes()`. Hỗ trợ fallback tải xuống trình duyệt an toàn trên Web.
+>        * Bổ sung quyền `WRITE_EXTERNAL_STORAGE` (maxSdkVersion=29) và `READ_MEDIA_IMAGES` trong `android/app/src/main/AndroidManifest.xml` (trên iOS đã có sẵn `NSPhotoLibraryAddUsageDescription`).
+>        * Trong `ChatV2ImageViewerScreen`: Kết nối `GallerySaver.saveImage()`, khi lưu xong thành công hiển thị Floating SnackBar *"Đã lưu ảnh vào Thư viện"* kèm icon check xanh (`LucideIcons.checkCircle2` #22C55E).
+>   2. **[LỖI 2 — CHUẨN HÓA TÊN KÊNH ODOO DISCUSS (BÓC TÁCH RÁC `Users + Internal`)]**:
+>      - **Root Cause & Đối soát Git**: Khi Odoo Discuss tạo kênh nhóm phân quyền hoặc trả về tên kênh có nhóm, Odoo ORM sinh ra chuỗi có tiền tố `Users + ` (ví dụ `Users + Internal`, `Users + General`). Các commit trước chỉ khóa không cho tin nhắn người gửi làm đổi tên kênh nhưng chưa có bộ lọc bóc tách tiền tố/hậu tố rác này, đồng thời `ChatV2Channel.fromJson` chưa ưu tiên `display_name` đã làm sạch.
+>      - **Solution**:
+>        * Xây dựng hàm tĩnh `ChatV2Channel.cleanChannelName(String rawName)` bóc tách triệt để: chuỗi chính xác `Users + Internal` (và các biến thể `Users/Internal`, `Users - Internal`), tiền tố `Users + `, `Users / `, `Users - `, hậu tố ` + Internal`, và ngoặc rác `(Users + Internal)`.
+>        * Trong `ChatV2Channel.fromJson`: Ưu tiên `display_name` sạch hơn `name` thô, luôn chuẩn hóa qua `cleanChannelName`.
+>        * Trong `ChatV2Channel.getCleanName`: Đảm bảo mọi nhánh trả về của kênh và nhóm đều được làm sạch qua `cleanChannelName`.
+>        * Invalidation & Cache: Dữ liệu kênh cũ trong Cache đĩa khi nạp lại tự động được làm sạch ngay tại bước deserialize, đồng thời nạp fresh channels từ API sẽ ghi đè và dọn sạch tên rác cũ.
+>   3. **[VERIFICATION & TESTS]**:
+>      - 17/17 test cases trong `test/features/chat_v2/chat_v2_display_name_test.dart` PASSED 100% (bổ sung test cases 12-17 kiểm thử toàn diện bóc tách `Users + Internal`, tiền tố, hậu tố, ngoặc và cache deserialize).
+>      - 5/5 test cases trong `test/core/utils/gallery_saver_test.dart` PASSED 100% với MockGalPlatform.
+>      - `flutter analyze` đạt 0 issues (0 errors, 0 warnings).
+
+---
+
+> [!IMPORTANT]
 > **Triển Khai Phương Án 1: Xác Thực Đa Database & Xóa Sạch RAM Ngay Lập Tức (Immediate Token Wipe - Protocol V2.1)**:
 > - **Phạm vi**: `vclients` (`OdooApiClient`, `AuthRepository`, `AuthController`, `AuthMemoryState`, `LoginScreen`, `multi_db_ram_wipe_test.dart`, `multi_db_ram_wipe_standalone_test.dart`)
 > - **Mục tiêu & Nguyên tắc kiến trúc**:
