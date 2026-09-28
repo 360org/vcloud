@@ -123,7 +123,8 @@ class Ticket {
 
   bool get isOverdue {
     if (status == TicketStatus.done) return false;
-    final target = deadline ?? createdAt;
+    final target = deadline;
+    if (target == null) return false;
     final now = DateTime.now();
     final todayStart = DateTime(now.year, now.month, now.day);
     final targetDay = DateTime(target.year, target.month, target.day);

@@ -7,8 +7,8 @@ import '../../../core/api/mobile_attachment_repository.dart';
 import '../../../core/api/odoo_api_client.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/date_format.dart';
-import '../../../core/utils/file_download.dart';
 import '../../../core/utils/html_text.dart';
+import '../../chat_v2/presentation/widgets/chat_v2_attachment_viewer.dart';
 import '../../../shared/models/ticket.dart';
 import '../../../shared/models/ticket_activity.dart';
 import '../../../shared/models/ticket_comment.dart';
@@ -651,16 +651,22 @@ class _TicketInfoCard extends StatelessWidget {
                   label: 'Trạng thái: ${_statusText(ticket.status)}',
                   color: _statusColor(ticket.status),
                 ),
-                if (ticket.isOverdue)
+                if (ticket.isOverdue && ticket.deadline != null)
                   _InfoChip(
                     icon: LucideIcons.alertTriangle,
-                    label: 'SLA: ${Dates.slaLabelVi(ticket.deadline ?? ticket.createdAt)} (${Dates.dateVi(ticket.deadline ?? ticket.createdAt)})',
+                    label: 'SLA: ${Dates.slaLabelVi(ticket.deadline!)} (${Dates.dateVi(ticket.deadline!)})',
                     color: AppColors.danger,
                   )
-                else
+                else if (ticket.deadline != null)
                   _InfoChip(
                     icon: LucideIcons.clock,
-                    label: 'SLA: ${Dates.dateVi(ticket.deadline ?? ticket.createdAt)}',
+                    label: 'SLA: ${Dates.dateVi(ticket.deadline!)}',
+                    color: AppColors.textSecondary,
+                  )
+                else
+                  const _InfoChip(
+                    icon: LucideIcons.clock,
+                    label: 'SLA: Không giới hạn',
                     color: AppColors.textSecondary,
                   ),
               ],
@@ -1265,13 +1271,18 @@ class _AttachmentTile extends StatelessWidget {
     final displayName = isInvalidName ? 'Tệp đính kèm #${attachment.id}' : rawName;
 
     return PressableScale(
-      onTap: () {
+      onTap: () async {
         final downloadUrl = odooApiClient.authenticatedUrl(
           attachment.downloadUrl ??
               '/api/v1/mobile/attachments/${attachment.id}/download',
           accessToken: attachment.accessToken,
         );
-        openDownloadUrl(downloadUrl);
+        await ChatV2AttachmentViewer.open(
+          context: context,
+          filename: displayName,
+          attachmentId: attachment.id,
+          downloadUrl: downloadUrl,
+        );
       },
       child: Row(
         children: [

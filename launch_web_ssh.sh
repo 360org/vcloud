@@ -34,7 +34,27 @@ SSH_ALIAS="${SSH_ALIAS:-local}"
 # 1. Cấu hình Backend: Mặc định chạy thẳng Multi-Database (Zero-Prompt)
 # ------------------------------------------------------------------------------
 
-INPUT_ARG="${1:-}"
+DO_PULL=true
+TARGET_ARG=""
+MODE_FLAG=""
+
+for arg in "$@"; do
+    case "$arg" in
+        --no-pull)
+            DO_PULL=false
+            ;;
+        --release|--profile)
+            MODE_FLAG="$arg"
+            ;;
+        *)
+            if [[ -z "$TARGET_ARG" && "$arg" != -* ]]; then
+                TARGET_ARG="$arg"
+            fi
+            ;;
+    esac
+done
+
+INPUT_ARG="$TARGET_ARG"
 
 case "$INPUT_ARG" in
     1|17|"17.0")
@@ -43,6 +63,7 @@ case "$INPUT_ARG" in
         DB_NAME="demo-17"
         WEB_PORT="${PORT:-8088}"
         CHROME_PROFILE="/tmp/flutter_chrome_ssh_17"
+        SYNC_TARGET="17"
         ;;
     1-2|"17-2"|"17_tenant2"|"demo-17-tenant2")
         ODOO_VERSION="17.0 Tenant 2 Cố Định"
@@ -50,6 +71,7 @@ case "$INPUT_ARG" in
         DB_NAME="demo-17-tenant2"
         WEB_PORT="${PORT:-8088}"
         CHROME_PROFILE="/tmp/flutter_chrome_ssh_17_tenant2"
+        SYNC_TARGET="17"
         ;;
     2|19|"19.0"|vcloud|"vcloud_test_v19")
         ODOO_VERSION="19.0 Cố Định"
@@ -57,6 +79,7 @@ case "$INPUT_ARG" in
         DB_NAME="vcloud_test_v19"
         WEB_PORT="${PORT:-8089}"
         CHROME_PROFILE="/tmp/flutter_chrome_ssh_19"
+        SYNC_TARGET="19"
         ;;
     2-2|"19-2"|"19_tenant2"|"vcloud_test_v19_tenant2")
         ODOO_VERSION="19.0 Tenant 2 Cố Định"
@@ -64,6 +87,7 @@ case "$INPUT_ARG" in
         DB_NAME="vcloud_test_v19_tenant2"
         WEB_PORT="${PORT:-8089}"
         CHROME_PROFILE="/tmp/flutter_chrome_ssh_19_tenant2"
+        SYNC_TARGET="19"
         ;;
     3|davita|"davita_v19")
         ODOO_VERSION="19.0 Davita Cố Định"
@@ -71,6 +95,7 @@ case "$INPUT_ARG" in
         DB_NAME="davita_v19"
         WEB_PORT="${PORT:-8089}"
         CHROME_PROFILE="/tmp/flutter_chrome_ssh_19"
+        SYNC_TARGET="19"
         ;;
     4|18|"18.0")
         ODOO_VERSION="18.0 Cố Định"
@@ -78,6 +103,7 @@ case "$INPUT_ARG" in
         DB_NAME="odoo_18"
         WEB_PORT="${PORT:-8087}"
         CHROME_PROFILE="/tmp/flutter_chrome_ssh_18"
+        SYNC_TARGET="all"
         ;;
     *)
         # Mặc định khi không truyền tham số: Chạy thẳng chế độ Đa Database thông minh
@@ -86,6 +112,7 @@ case "$INPUT_ARG" in
         DB_NAME=""
         WEB_PORT="${PORT:-8089}"
         CHROME_PROFILE="/tmp/flutter_chrome_ssh_multi"
+        SYNC_TARGET="all"
         ;;
 esac
 
@@ -103,39 +130,23 @@ echo "==========================================================================
 echo
 
 # ------------------------------------------------------------------------------
-# 2. Tự động đồng bộ code v_mobile lên Server Local (Auto-Sync Zero-Touch)
+# 1.5. Tự động kiểm tra độ mới mã nguồn & chống đè code (Code Freshness Guard)
 # ------------------------------------------------------------------------------
-
-echo "🔄 [1/3] Kiểm tra & Tự động đồng bộ mã nguồn Backend lên Server Local..."
-
 PARENT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-SYNC_ERROR=0
-
-# A. Đồng bộ Odoo 17 (Nguồn chuẩn duy nhất: /mnt/DATA/work/17.0/extra/v_mobile và dev_env)
-if [[ -d "$PARENT_DIR/v_mobile_17" ]]; then
-    echo "   📦 Đang đồng bộ v_mobile_17 -> Server Local ($SERVER_HOST:/mnt/DATA/work/17.0/extra/v_mobile)..."
-    rsync -aq --delete \
-        --exclude='.git' --exclude='__pycache__' --exclude='*.pyc' --exclude='.claude' --exclude='.codegraph' \
-        "$PARENT_DIR/v_mobile_17/" "$SSH_ALIAS:/mnt/DATA/work/17.0/extra/v_mobile/" 2>/dev/null || SYNC_ERROR=1
-    rsync -aq --delete \
-        --exclude='.git' --exclude='__pycache__' --exclude='*.pyc' --exclude='.claude' --exclude='.codegraph' \
-        "$PARENT_DIR/v_mobile_17/" "$SSH_ALIAS:/home/corp360/DATA/save/dev_env/17.0/modules/extra/v_mobile/" 2>/dev/null || true
+if [[ -f "$PARENT_DIR/scripts/check_code_freshness.sh" ]]; then
+    bash "$PARENT_DIR/scripts/check_code_freshness.sh" vclients || true
 fi
 
-# B. Đồng bộ Odoo 19 (Container odoo_dev_v19 nạp từ /mnt/DATA/work/19.0/default/v_mobile)
-if [[ -d "$PARENT_DIR/v_mobile_19" ]]; then
-    echo "   📦 Đang đồng bộ v_mobile_19 -> Server Local ($SERVER_HOST:/mnt/DATA/work/19.0/default/v_mobile)..."
-    ssh "$SSH_ALIAS" "echo odoo | sudo -S chown -R corp360:corp360 /mnt/DATA/work/19.0/default/v_mobile" 2>/dev/null || true
-    rsync -aq --delete \
-        --exclude='.git' --exclude='__pycache__' --exclude='*.pyc' --exclude='.claude' --exclude='.codegraph' \
-        "$PARENT_DIR/v_mobile_19/" "$SSH_ALIAS:/mnt/DATA/work/19.0/default/v_mobile/" 2>/dev/null || SYNC_ERROR=1
-    ssh "$SSH_ALIAS" "echo odoo | sudo -S chown -R 101:101 /mnt/DATA/work/19.0/default/v_mobile" 2>/dev/null || true
-fi
-
-if [[ $SYNC_ERROR -eq 0 ]]; then
-    echo "   ✅ PASS: Đồng bộ mã nguồn hoàn tất thành công 100%"
+# ------------------------------------------------------------------------------
+# 2. Đồng bộ Backend qua Server Local (Chuẩn Zero-Bypass Promotion Pipeline)
+# ------------------------------------------------------------------------------
+if [[ "$DO_PULL" == "true" ]]; then
+    echo "🔄 [1/3] Kiểm tra & Cập nhật mã nguồn Backend trên Local Server (GitLab origin)..."
+    ssh -o ConnectTimeout=4 "$SSH_ALIAS" "echo odoo | sudo -S sync-vmobile $SYNC_TARGET" 2>&1 | sed 's/^/   /' || {
+        echo "   ⚠️ CẢNH BÁO: Không thể chạy sync-vmobile trên server (offline hoặc timeout). Dùng backend hiện có."
+    }
 else
-    echo "   ⚠️ CẢNH BÁO: Quá trình rsync gặp cảnh báo nhẹ quyền hạn, tiếp tục kiểm tra..."
+    echo "⚡ [1/3] Bỏ qua bước cập nhật Backend theo yêu cầu (--no-pull)."
 fi
 echo
 

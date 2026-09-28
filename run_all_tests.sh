@@ -5,7 +5,20 @@
 set -e
 
 export PATH="$HOME/flutter/bin:$PATH"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+    DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+    SOURCE="$(readlink "$SOURCE")"
+    [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# 0. Tự động kiểm tra độ mới mã nguồn & chống đè code trước khi chạy test
+if [[ -f "$ROOT_DIR/scripts/check_code_freshness.sh" ]]; then
+    bash "$ROOT_DIR/scripts/check_code_freshness.sh" vclients
+fi
+
 cd "$SCRIPT_DIR"
 
 echo "================================================================================"
