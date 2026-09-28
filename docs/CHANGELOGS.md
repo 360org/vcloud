@@ -2,8 +2,38 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
-## [v2.9.12+143] — 2026-09-28 (Audit & Fix Triệt Để Bộ Lọc Bóc Tách Tên Kênh Rác Odoo Discuss - Protocol V2.1)
+## [v2.9.12+143] — 2026-09-28 (Audit & Fix Toàn Diện Bộ Lọc & Phân Trang Timesheet, Home Dashboard & Ticket SLA - Protocol V2.1)
 
+> [!IMPORTANT]
+> **Khắc phục Triệt để 5 Lỗi Logic & UI Module Timesheet (RC-01 đến RC-05), Home Dashboard & Ticket SLA**:
+> - **Phạm vi**: `vclients` (`TimesheetEntry`, `TimesheetRepository`, `TimesheetController`, `TimesheetListScreen`, `CreateEntryScreen`, `HomeScreen`, `TicketDetailScreen`, `Ticket`, `timesheet_fix_rc01_05_test.dart`)
+> - **Chi tiết 5 Lỗi Timesheet & Giải pháp khắc phục**:
+>   1. **[RC-01: PHANTOM LOAD MORE (PHÂN TRANG ẢO)]**:
+>      * *Root Cause*: Phương thức `_loadMore()` gọi API phân trang thành công nhưng kết quả trả về không được tích lũy vào danh sách hiển thị trên UI.
+>      * *Solution*: Bổ sung `_extraLoadedEntries` trong `_TimesheetListScreenState`, nối trực tiếp `[...baseEntries, ..._extraLoadedEntries]`. Khi người dùng Pull-to-Refresh hoặc đổi bộ lọc, tự động reset `_offset = 0`, `_hasMore = true` và dọn sạch `_extraLoadedEntries`.
+>   2. **[RC-02: TAB NHẬT KÝ GIỜ BỎ QUÊN BỘ LỌC DỰ ÁN]**:
+>      * *Root Cause*: Model `TimesheetEntry` không map trường `project_id` Many2One `[id, name]` trả về từ Odoo backend, khiến Tab Nhật ký giờ không thể lọc theo dự án.
+>      * *Solution*: Thêm `projectId` và `projectName` vào `TimesheetEntry`, bổ sung parser helper `_parseMany2OneId` và `_parseMany2OneName`. Cập nhật Tab 2 lọc chính xác theo `projectId` và fallback so khớp tên dự án không phân biệt hoa thường.
+>   3. **[RC-03: LỆCH DỮ LIỆU SUMMARY VS DANH SÁCH (CACHE 100 DÒNG TĨNH)]**:
+>      * *Root Cause*: UI dùng `timesheetStreamProvider` với cache 100 dòng tĩnh trong RAM khiến chọn mốc ngày quá khứ bị trống danh sách dù Summary Card vẫn báo có giờ.
+>      * *Solution*: Xây dựng `filteredTimesheetEntriesProvider` (FutureProvider) gọi trực tiếp `fetchPage(limit: 50, offset: 0, dateFrom, dateTo, projectId)` lên Odoo API khi bộ lọc thay đổi, đồng bộ 100% với `timesheetSummaryProvider`.
+>   4. **[RC-04: MẤT THÔNG TIN TASK DETAIL SHEET TRÊN TIMESHEET]**:
+>      * *Root Cause*: Khi mở Task Detail Bottom Sheet, việc hydrate từ model rút gọn sang chi tiết bị thiếu các trường quan hệ.
+>      * *Solution*: Giữ nguyên và truyền đầy đủ `projectId`, `userId`, `dueDate`, `createdAt`, `timesheetId`, `lastLogDate` khi gọi `_loadTaskDetail()`.
+>   5. **[RC-05: TRÔI MÚI GIỜ KHI PARSE YYYY-MM-DD]**:
+>      * *Root Cause*: `DateTime.parse(str).toLocal()` với định dạng thuần ngày `YYYY-MM-DD` bị trôi sang ngày hôm trước ở múi giờ âm.
+>      * *Solution*: Tách chuỗi component `[year, month, day]` và khởi tạo trực tiếp `DateTime(parts[0], parts[1], parts[2])` tại 00:00:00 local time.
+> - **Các cải tiến Home Dashboard & Ticket**:
+>   * `BUG-008 & BUG-009`: Chuẩn hóa câu chào, hiển thị metadata người dùng và hiệu ứng pháo hoa chúc mừng khi chấm công nhanh.
+>   * `BUG-011 & BUG-012`: Loại bỏ cảnh báo quá hạn giả (SLA False Alarm) bằng cách chỉ tính quá hạn khi có `deadline` xác định, không fallback vào `createdAt`; hỗ trợ xem tài liệu đính kèm in-app.
+> - **Kiểm thử & Chất lượng**:
+>   * 10/10 test cases mới trong `test/features/timesheet/timesheet_fix_rc01_05_test.dart` PASSED 100%.
+>   * 24/24 tests trong `test/features/timesheet/` PASSED 100%.
+>   * 12/12 tests liên quan Task & SLA PASSED 100%.
+>   * `flutter analyze` đạt **0 errors, 0 warnings (No issues found)**.
+>
+> ---
+>
 > [!IMPORTANT]
 > **Audit & Khắc Phục Triệt Để Bộ Lọc Tên Kênh Rác Odoo Discuss (`Users + Internal /`, `Users /`, `Users -`, `(Users + Internal)`)**:
 > - **Phạm vi**: `vclients` (Flutter Mobile iOS & Android: `ChatV2Channel`, `ChatV2InputBar`, `ChatV2DetailScreen`, `ChatV2ListScreen`, `ChatV2ChannelsController`, `VCloudApp`, `HomeScreen`)
