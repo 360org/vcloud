@@ -1011,7 +1011,10 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
                                     member.name.trim().toLowerCase() ==
                                         widget.currentUserName!.trim().toLowerCase());
                             final isOnline = member.imStatus == 'online';
-                            final isLeader = idx == 0;
+                            final isLeader = member.isLeader ||
+                                (idx == 0 && !_members.any((m) => m.isLeader));
+                            final amILeader = _members.any((m) => m.isMe && m.isLeader) ||
+                                (_members.isNotEmpty && _members.first.isMe && !_members.any((m) => m.isLeader));
 
                             return ListTile(
                               leading: Stack(
@@ -1117,7 +1120,7 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
                                       : (isDark ? Colors.white54 : const Color(0xFF94A3B8)),
                                 ),
                               ),
-                              trailing: isGroup && !isMe
+                              trailing: isGroup && !isMe && amILeader
                                   ? IconButton(
                                       icon: const Icon(
                                         LucideIcons.userMinus,

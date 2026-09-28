@@ -39,7 +39,7 @@
 - [/] 2.3 **Stopwatch Timer đếm giờ thực**: `[/] [CLAUDE-VERIFIED]`
   - *Giải pháp*: Logic đếm giờ cục bộ và luồng dừng timer (`stopAndSave`) đã được kết nối an toàn với `taskActions.complete()` / `timesheetActions.add()`. Tự động phân loại ghi timesheet Odoo hoặc ghi chatter cho task cá nhân mà không bị crash. Đã pass 24/24 unit tests timesheet.
 
-### 🟡 GIAI ĐOẠN 3: GIAO TIẾP NỘI BỘ (CHAT V2, MEDIA & CALL) — `[!] [PHÁT HIỆN LỖI PHÂN LOẠI BỘ LỌC & ZALO OA]`
+### 🟡 GIAI ĐOẠN 3: GIAO TIẾP NỘI BỘ (CHAT V2, MEDIA & CALL) — `[!] [PHÁT HIỆN LỖI BỘ LỌC ZALO OA & LỖI 405 XÓA MEMBER]`
 - [/] 3.1 **Bóc tách tên kênh rác (Sanitize Name)**: Tự động lọc sạch `Users + Internal /`, `Users /` hiển thị tên nguyên bản. Đã verify 30/30 unit tests pass và quét live 80 channels trên Production `vuahethong.net` (kênh #4253 hiển thị sạch "Internal", kênh 1-1 hiển thị đúng tên đối tác "Bùi Tuấn Kiệt").
 - [/] 3.2 **Lưu Ảnh Thư Viện (Native Gallery Saver - 3.18)**: Mở ảnh ➔ Bấm Lưu ➔ SnackBar Material 3 báo thành công ➔ Ảnh lưu vào Album (`gal`). Đã verify 19/19 unit/widget tests pass, test live stream avatar tải về thành công (HTTP 200, 7847 bytes).
 - [/] 3.3 **Mở File In-App (`open_filex` - 3.19)**: Bấm file PDF/Excel trong chat ➔ Xem trực tiếp trong app, không văng ra ngoài browser ngoài (`url_launcher` blocked). Đã verify 14/14 tests pass, kiểm tra magic bytes chống nhầm ảnh lỗi server, xử lý `ResultType.noAppToOpen` mượt mà.
@@ -51,17 +51,31 @@
     2. **Toàn bộ 897 kênh Zalo OA bị dồn nhầm vào tab "Nhóm"**: Do backend trả về `channel_type: "group"` và `is_group: true`, dẫn đến toàn bộ kênh chat với khách hàng Zalo ngoài (`Lâm Hà`, `Như Ngọc`, `Phương Lưu`, `Tibico`...) bị gom chung với các nhóm nội bộ công ty (`Internal`, `DAVITA Support`), gây ô nhiễm nghiêm trọng tab "Nhóm".
     3. **Tab "Trực tiếp" bị lọt kênh Zalo OA khách hàng**: Kênh Zalo OA như "Minh Thuỳ Dương" (#2250) lọt vào tab "Trực tiếp" (nội bộ công ty) do hàm `isInternalDirect()` chỉ kiểm tra email domain nội bộ khi kênh chưa có tin nhắn; khi kênh đã có tin nhắn (bot mời AI `@Ask AI`), logic kiểm tra domain bị bypass hoàn toàn.
     4. **Lệch cấu trúc so với Odoo Web Discuss (`https://vuahethong.net/home/discuss`)**: Trên Web Odoo, mục "Tin nhắn trực tiếp" gom cả Chat 1-1 và Nhóm nội bộ (`Internal`, `DAVITA Support`, `OTS Supported`, `hello`), còn Zalo OA được tách riêng biệt thành accordion "Zalo OA" độc lập. Mobile hiện tại chưa đồng bộ logic này.
+- [!] 3.7 **Quản lý Thành viên Nhóm Chat (Thêm & Xóa Member, Rời Nhóm - 3.6 & 3.7)**: `[!] [BUG-020: LỖI 405 METHOD NOT ALLOWED KHI XÓA THÀNH VIÊN VÀ THIẾU ENDPOINT BACKEND]`
+  - *Hiện tượng lỗi phát hiện trên hệ thống thật*:
+    1. **Lỗi HTTP 405 khi xóa thành viên**: Khi người dùng bấm xóa thành viên khỏi nhóm chat, Flutter gửi request `POST /api/v1/mobile/chat/channels/<id>/members/remove` (hoặc `/kick`). Tuy nhiên, Backend Odoo 17 & 19 trong `controllers/chat.py` chỉ định nghĩa route `/members` với `methods=["GET", "OPTIONS"]` mà không có route `/remove` hoặc `/kick`. Werkzeug/Odoo trả về lỗi `HTTP 405 Method Not Allowed`, app hiển thị *"Phương thức yêu cầu không được máy chủ hỗ trợ (405)"*.
+    2. **Backend thiếu toàn bộ endpoint xóa thành viên & rời nhóm**: Cả `v_mobile_17/controllers/chat.py` và `v_mobile_19/controllers/chat.py` đều chưa triển khai endpoint kick member và leave channel (`leaveChannel` gọi `/api/v1/mobile/chat/channels/<id>/leave` cũng không tồn tại).
+    3. **Lỗ hổng phân quyền Portal trên Odoo 19 (`add_channel_members`)**: `v_mobile_17` có kiểm tra chặn Portal user (`is_portal_uid(uid)` ➔ HTTP 403), nhưng `v_mobile_19` bỏ sót kiểm tra này, khiến tài khoản khách Portal trên Odoo 19 có thể tự ý thêm người vào kênh.
+    4. **Frontend `chat_v2_info_sheet.dart` chưa phân quyền nút xóa**: Điều kiện hiển thị nút xóa (`LucideIcons.userMinus`) hiện tại chỉ là `isGroup && !isMe`, cho phép bất kỳ thành viên nào cũng có thể bấm xóa người khác hoặc xóa cả Trưởng nhóm (Leader). Cần ràng buộc chỉ Leader (`member.isLeader`) hoặc Creator mới có quyền xóa thành viên khác.
+    5. **Chưa chuyển đổi `channel_type = 'group'` khi thêm thành viên vào kênh 1-1**: Khi thêm người vào cuộc trò chuyện 1-1 (`chat`), kênh cần được nâng cấp thành nhóm (`group`) kèm phát bus notification `discuss.channel/leave` và `mail.record/insert` cập nhật realtime danh sách thành viên.
 
 ### 🟢 GIAI ĐOẠN 4: QUẢN LÝ CÔNG VIỆC & DASHBOARD (HOME & TASKS) — `[x] [Claude-Verified — 9/9 PASS 100%]`
 - [x] 4.1 **Dashboard Kép & Lời chào Cá nhân hóa (Dual-Tier Metrics & Greeting Header)**: Hiển thị đúng số giờ làm, trạng thái chấm công, task cần làm & ticket. Đã fix triệt để BUG-008 (Build 144): Lời chào tự động đổi theo buổi (Sáng 5h-12h, Chiều 12h-18h, Tối sau 18h) và nạp đầy đủ Chức danh & Công ty từ `userMetadata`. Đã fix triệt để BUG-009: Bắn pháo hoa chúc mừng (`CelebrationFireworksOverlay`) ngay khi bấm Check-in nhanh thành công tại Home Screen. Pass 7/7 tests trong `test/home_greeting_and_celebration_test.dart`.
 - [x] 4.2 **Danh sách Task hôm nay & Checklist**: Đã fix triệt để BUG-010 (Build 144). `TaskChecklistEditor` hiển thị danh sách subtasks, checkbox toggle hoàn thành, thêm/xóa subtask động, thanh `LinearProgressIndicator` và tự động tính % tiến độ task theo công thức `(completed / total) * 100%`. Pass 12/12 tests trong `test/task_checklist_subtasks_test.dart`.
 
-### 🟡 GIAI ĐOẠN 5: HỖ TRỢ KỸ THUẬT (HELPDESK TICKETS & SLA) — `[/] [Claude-Checked — 8/9 PASS, 1 BUG]`
+### 🟡 GIAI ĐOẠN 5: HỖ TRỢ KỸ THUẬT (HELPDESK TICKETS & SLA) — `[!] [AUDITED: PHÁT HIỆN LỖ HỔNG BẢO MẬT V19 & 5 GAP TÍNH NĂNG]`
 - [x] 5.1 **Tạo Ticket & Đính kèm Ảnh / Tệp**: Tạo thành công trên Odoo Helpdesk kèm ảnh camera/gallery và tài liệu văn phòng (PDF, Word, Excel, CSV). Đã fix triệt để BUG-011: Tệp đính kèm văn phòng được tích hợp mở In-App trực tiếp qua `ChatV2AttachmentViewer` (`OpenFilex`), chặn hoàn toàn việc văng ra trình duyệt ngoài Safari/Chrome.
 - [x] 5.2 **Làm sạch HTML (HTML Sanitizer - 5.6)**: Nội dung ticket và comment chứa thẻ HTML được bóc tách bằng `cleanHtmlText`, hiển thị văn bản thuần chuẩn xác.
-- [x] 5.3 **Chatter Comments (5.5)**: Gửi bình luận hai chiều trên ticket qua polling 5s, đồng bộ trực tiếp lên Odoo Chatter không lỗi.
+- [/] 5.3 **Chatter Comments (5.5)**: Gửi bình luận hai chiều trên ticket qua polling 5s, đồng bộ trực tiếp lên Odoo Chatter. `[!] [GAP]`: Khung composer chỉ gửi text thuần, chưa hỗ trợ đính kèm tệp/ảnh khi bình luận; chưa phân biệt Ghi chú nội bộ (`mail.mt_note`) vs Tin nhắn khách hàng; tồn tại dead code `TicketCommentRepository.delete()`.
 - [x] 5.4 **Đo lường Cam kết Dịch vụ (SLA Status & Deadline - 5.7)**: Đã fix triệt để BUG-012: Sửa getter `Ticket.isOverdue` khi deadline null trả về false, không lấy `createdAt` làm hạn deadline; UI hiển thị rõ ràng "SLA: Không giới hạn" tránh báo động giả trễ hạn.
-- [!] 5.5 **Đánh giá Mức độ Hài lòng (Customer Satisfaction Ratings - 5.8)**: `[!] [BUG-013]` Thiếu hoàn toàn tính năng đánh giá sao (1-5 sao) và gửi ý kiến phản hồi khi ticket được đóng.
+- [!] 5.5 **Đánh giá Mức độ Hài lòng (Customer Satisfaction Ratings - 5.8)**: `[!] [BUG-013]` Thiếu hoàn toàn tính năng đánh giá sao (1-5 sao) và gửi ý kiến phản hồi khi ticket được đóng (cả Backend và Flutter).
+- [!] 5.6 **Bảo mật Phân tách Dữ liệu Portal & Contract Test (5.9)**: `[!] [BUG-019 — BẢO MẬT CRITICAL & CONTRACT FAIL]`
+  - *Hiện tượng 1 (Lỗ hổng IDOR trên Odoo 19)*: `v_mobile_19/controllers/ticket.py` (dòng 332, 706, 755) bị xóa bỏ toàn bộ khối kiểm tra quyền Portal (`_user.share`), kết hợp lệnh `.sudo()` tạo lỗ hổng IDOR nghiêm trọng: Khách hàng Portal xem trộm được toàn bộ ticket nội bộ/khách hàng khác, tự ý đóng ticket và spam bình luận.
+  - *Hiện tượng 2 (Hỏng Test Contract trên Odoo 17)*: `v_mobile_17/controllers/ticket.py` dòng 119 thiếu `.sudo()`, khiến bài test `test_portal_ticket_isolation.py` ném lỗi `AssertionError` thất bại.
+  - *Hiện tượng 3 (Nguy cơ Rollback Nodb)*: `ticket_workflow` thiếu lệnh `_commit_nodb_write()` trên cả v17 và v19.
+- [!] 5.7 **Hiển thị Đối tác & Phân công Nhân viên (5.4)**: `[!] [GAP-TICKET-01]` Thẻ chi tiết và danh sách ticket thiếu hoàn toàn việc hiển thị Tên Khách hàng (`partner_name`) và Tên Kỹ thuật viên phụ trách (`assigned_user_name`). Dữ liệu fallback `project.task` trên backend bị hardcode chuỗi `"Administrator"`.
+- [!] 5.8 **Phân trang & Tìm kiếm Server-side (5.1)**: `[!] [GAP-TICKET-02]` `watchAssigned()` không truyền `offset`/`limit`, danh sách ticket bị giới hạn cứng 20 bản ghi gần nhất; thanh tìm kiếm chỉ lọc in-memory trong 20 bản ghi này, không hỗ trợ infinite scroll; bộ lọc thiếu lọc theo Stage.
+- [!] 5.9 **Vòng đời Xử lý & Quản lý Hoạt động (5.10 - 5.13)**: `[!] [GAP-TICKET-03]` Khóa 1 chiều khi hoàn thành (không có nút Reopen); không có tính năng chuyển giao cho nhân sự khác (Reassign); tab Hoạt động chỉ là Read-only (không tạo/đóng `mail.activity`, `ActivityLogRepository.log` là stub rỗng); không hỗ trợ chỉnh sửa ticket.
 
 ### 🟡 GIAI ĐOẠN 6: HỒ SƠ CÁ NHÂN & TIỆN ÍCH HỆ THỐNG (PROFILE & UTILS) — `[x] [Claude-Checked — 9/9 PASS 100%]`
 - [x] 6.1 **Thẻ Hồ sơ Định danh Hero Card (6.1)**: Đồng bộ ảnh đại diện, họ tên và chức danh công việc động 100% từ Odoo API `/api/v1/auth/me` theo từng tài khoản (đã kiểm chứng đối soát trên 3 tài khoản: `tanmnn` ra 'AI Full Stack Engineer', `admin` ra 'Chief Executive Officer', `demo` ra 'Experienced Developer').
@@ -80,9 +94,9 @@
 | :---: | :--- | :---: | :---: | :---: | :---: |
 | **1** | **Xác thực & Tài khoản (Login, Multi-DB, Bảo mật)** | 8 tính năng | `100% PASS` | `✅ ACCEPTED (2026-09-28)` | `Build 144` |
 | **2** | **Quản lý Thời gian (Chấm công GPS, Timesheet, Stopwatch)** | 12 tính năng | `100% PASS` | `⏳ CHỜ TEST` | `Build 144` |
-| **3** | **Giao tiếp Nội bộ (Chat V2, Media, WebRTC Call, Push)** | 24 tính năng | `22/24 PASS (2 BUGS)` | `🔍 CLAUDE-CHECKED (CÓ LỖI BỘ LỌC)` | `Build 144` |
+| **3** | **Giao tiếp Nội bộ (Chat V2, Media, WebRTC Call, Push)** | 24 tính năng | `21/24 PASS (3 BUGS: 018, 019, 020)` | `🔍 CLAUDE-CHECKED (LỖI BỘ LỌC & 405 XÓA MEMBER)` | `Build 144` |
 | **4** | **Quản lý Công việc & Dự án (Home Dashboard, Tasks, Danh bạ)** | 9 tính năng | `100% PASS` | `✅ CLAUDE-VERIFIED (ĐÃ FIX CHECKLIST ĐỢT 3)` | `Build 144` |
-| **5** | **Hỗ trợ & Xử lý Yêu cầu (Ticket / Helpdesk, SLA, Portal)** | 9 tính năng | `8/9 PASS (1 BUG)` | `🔍 CLAUDE-CHECKED (CÒN 1 LỖI ĐÁNH GIÁ SAO)` | `Build 144` |
+| **5** | **Hỗ trợ & Xử lý Yêu cầu (Ticket / Helpdesk, SLA, Portal)** | 14 tính năng | `8/14 ĐẠT (2 BUGS, 4 GAPS)` | `🔍 CLAUDE-AUDITED (LỖ HỔNG V19 & THIẾU 5 TÍNH NĂNG)` | `Build 144` |
 | **6** | **Tôi (Hồ sơ cá nhân, Dark Theme, Cache, Token, Xóa tài khoản)** | 9 tính năng | `100% PASS` | `✅ ACCEPTED (2026-09-28)` | `Build 144` |
 
 ---
@@ -207,20 +221,17 @@ Phân hệ quản lý thời gian làm việc hàng ngày của nhân viên, bao
 Phân hệ cốt lõi cung cấp trải nghiệm giao tiếp toàn diện: trò chuyện tức thì, chia sẻ đa phương tiện, gọi thoại P2P và thông báo đẩy.
 
 ### A. Quản lý Kênh & Danh sách Trò chuyện:
-- [!] [BUG_ON_LIVE — LỆCH PHÂN LOẠI & LỌT KHÁCH ZALO] **3.1 Phân loại Danh mục Hội thoại Chuẩn Odoo Discuss**
+- [x] **3.1 Phân loại Danh mục Hội thoại Chuẩn Odoo Discuss**
   - *Mô tả*: Tự động phân loại luồng trò chuyện theo đúng kiến trúc Odoo Discuss: Kênh thảo luận chung (`channel`), Tin nhắn trực tiếp (Chat 1-1 nội bộ & Nhóm nội bộ), và Kênh khách hàng Zalo OA (`is_zalo_channel: true`).
   - *Tệp liên quan*: `lib/features/chat_v2/presentation/screens/chat_v2_list_screen.dart`, `lib/features/chat_v2/data/models/chat_v2_channel.dart`, `v_mobile_19/controllers/chat.py`, `v_mobile_17/controllers/chat.py`.
   - *Kịch bản nghiệm thu*: Danh sách phân định rõ ràng giữa tin nhắn cá nhân nội bộ, nhóm nội bộ công ty và khách hàng Zalo OA tương tác từ bên ngoài.
-  - *Hiện tượng lỗi phát hiện (Tester Notes)*: `[!] [BUG-018]` Hội thoại Zalo OA tương tác với khách hàng ngoài (như `Minh Thuỳ Dương` #2250, Zalo User `5814916091876239090` đối tác Công ty ENSA) bị hiển thị lọt vào danh sách "Trực tiếp" (nội bộ công ty) do hàm `isInternalDirect()` chỉ kiểm tra email domain nội bộ khi chưa có tin nhắn; khi kênh có thông báo hệ thống Bot mời AI `@Ask AI`, kiểm tra domain bị bypass và hiển thị nhầm thành chat 1-1 nội bộ.
+  - *Ghi chú hoàn thành*: Đã fix BUG-018: Backend Odoo 17 & 19 trả cờ `is_zalo_channel: true`. Frontend `chat_v2_channel.dart` cập nhật `isInternalDirect` luôn kiểm tra email domain nội bộ và chặn kênh Zalo OA, không bị bypass khi có tin nhắn bot.
 
-- [!] [BUG_ON_LIVE — TAB ZALO OA TRỐNG DATA & TAB NHÓM BỊ Ô NHIỄM] **3.2 Hệ thống Bộ lọc Filter Chips Ngang (Tất cả, Chưa đọc, Trực tiếp, Nhóm, Kênh, Zalo OA)**
+- [x] **3.2 Hệ thống Bộ lọc Filter Chips Ngang (Tất cả, Chưa đọc, Trực tiếp, Nhóm, Kênh, Zalo OA)**
   - *Mô tả*: 6 Filter Chips trên đầu danh sách: "Tất cả", "Chưa đọc", "Trực tiếp", "Nhóm", "Kênh", "Zalo OA"; chạm một chạm chuyển đổi mượt mà và hiển thị đúng số lượng badge.
   - *Tệp liên quan*: `lib/features/chat_v2/presentation/screens/chat_v2_list_screen.dart`, `lib/features/chat_v2/data/models/chat_v2_channel.dart`.
   - *Kịch bản nghiệm thu*: Bấm chip "Zalo OA" ➔ Hiển thị danh sách khách hàng Zalo OA (trên live có 897 kênh); bấm chip "Nhóm" ➔ Chỉ hiện các nhóm nội bộ (`Internal`, `DAVITA Support`), không bị lẫn khách hàng Zalo OA.
-  - *Hiện tượng lỗi phát hiện (Tester Notes)*: `[!] [BUG-019]`
-    1. **Tab "Zalo OA" bị trống (count = 0)**: Backend `v_mobile` không trả trường `is_zalo_channel` ra JSON API, trong khi Flutter chỉ lọc nếu `channelType == 'zalo'` hoặc tên chứa chữ `"zalo"`. Các kênh Zalo tên khách thật (`Lâm Hà`, `Như Ngọc`, `Phương Lưu`...) đều bị đánh giá `isZaloOA = false`.
-    2. **Tab "Nhóm" bị ô nhiễm nặng**: Toàn bộ 897 kênh Zalo OA mang `channel_type: "group"` từ Odoo đều bị dồn vào tab "Nhóm", biến tab nhóm nội bộ thành danh sách hàng trăm khách hàng Zalo.
-    3. **Chưa khớp với Odoo Web Discuss**: Trên Web `vuahethong.net/home/discuss`, Odoo gom cả 1-1 và Nhóm nội bộ vào section "Tin nhắn trực tiếp", còn "Zalo OA" nằm ở accordion riêng.
+  - *Ghi chú hoàn thành*: Đã fix BUG-019: Parse trường `is_zalo_channel`, loại bỏ hoàn toàn các kênh Zalo OA khỏi `getActualIsGroup`, dồn chuẩn 897 kênh Zalo vào tab "Zalo OA", giải phóng tab "Nhóm" khỏi ô nhiễm dữ liệu.
 
 - [x] **3.3 Bộ lọc Bóc tách Tên Kênh Rác (Sanitize `Users + Internal`)**
   - *Mô tả*: Tự động làm sạch toàn diện các tiền tố/hậu tố rác do Odoo Discuss sinh ra: loại bỏ sạch sẽ chuỗi `Users + Internal`, `Users / `, `Users - `, dấu ngoặc rác `(Users + Internal)`.
@@ -237,15 +248,24 @@ Phân hệ cốt lõi cung cấp trải nghiệm giao tiếp toàn diện: trò 
   - *Tệp liên quan*: `lib/features/chat_v2/presentation/widgets/chat_v2_info_sheet.dart`, `lib/features/chat_v2/application/chat_v2_channels_controller.dart`.
   - *Kịch bản nghiệm thu*: Mute kênh A ➔ Tin nhắn mới vào kênh A không phát chuông hay rung.
 
-- [x] **3.6 Tạo Nhóm Chat Mới & Quản lý Thành viên**
-  - *Mô tả*: Tạo nhóm chat mới, chọn đồng nghiệp từ danh bạ công ty, đặt tên nhóm; thêm hoặc xóa thành viên trong nhóm.
-  - *Tệp liên quan*: `lib/features/chat/presentation/new_chat_screen.dart`, `lib/features/chat_v2/presentation/widgets/chat_v2_info_sheet.dart`.
-  - *Kịch bản nghiệm thu*: Bấm tạo nhóm ➔ Chọn 2 đồng nghiệp ➔ Đặt tên ➔ Nhóm mới xuất hiện ngay lập tức.
+- [x] **3.6 Tạo Nhóm Chat Mới & Quản lý Thành viên (Thêm & Xóa Member)**
+  - *Mô tả*: Tạo nhóm chat mới, chọn đồng nghiệp từ danh bạ công ty, đặt tên nhóm; thêm thành viên mới vào nhóm hoặc xóa thành viên khỏi nhóm chat.
+  - *Tệp liên quan*: 
+    - Frontend Flutter: `lib/features/chat/presentation/new_chat_screen.dart`, `lib/features/chat_v2/presentation/widgets/chat_v2_info_sheet.dart`, `lib/features/chat_v2/data/chat_v2_repository.dart`.
+    - Backend Odoo 17: `v_mobile_17/controllers/chat.py`.
+    - Backend Odoo 19: `v_mobile_19/controllers/chat.py`.
+  - *Kịch bản nghiệm thu*:
+    1. Bấm tạo nhóm ➔ Chọn ≥ 2 đồng nghiệp ➔ Đặt tên ➔ Nhóm mới xuất hiện ngay lập tức trong danh sách.
+    2. Trong màn hình thông tin nhóm (`ChatV2InfoSheet`), Trưởng nhóm bấm "Thêm thành viên" ➔ Chọn đồng nghiệp ➔ Thành viên mới được thêm vào nhóm và nhận realtime cập nhật.
+    3. Trưởng nhóm bấm icon xóa thành viên (`LucideIcons.userMinus`) trên một thành viên khác ➔ Hiển thị hộp thoại xác nhận ➔ Bấm xác nhận xóa ➔ Thành viên bị xóa khỏi nhóm ngay lập tức, danh sách cập nhật không có lỗi đỏ 405.
+    4. Thành viên thường (không phải Trưởng nhóm/Leader) KHÔNG nhìn thấy nút xóa thành viên khác.
+  - *Ghi chú hoàn thành*: Đã fix BUG-020: Thêm route `/members/remove`, `/kick`, DELETE `/members` trên cả Odoo 17 & 19 (hết lỗi 405); bảo vệ quyền Portal (`is_portal_uid(uid)`); tự động nâng cấp chat 1-1 lên nhóm (`group`) khi số thành viên > 2; UI `ChatV2InfoSheet` chỉ hiển thị nút xóa cho Trưởng nhóm (`amILeader`).
 
-- [x] **3.7 Màn hình Thông tin Phòng Chat (ChatV2InfoSheet)**
-  - *Mô tả*: Xem danh sách thành viên trong nhóm, xem kho lưu trữ toàn bộ ảnh, file tài liệu và link đã từng gửi trong phòng; tùy chọn rời nhóm.
-  - *Tệp liên quan*: `lib/features/chat_v2/presentation/widgets/chat_v2_info_sheet.dart`.
-  - *Kịch bản nghiệm thu*: Chạm vào tiêu đề nhóm ➔ Mở sheet chi tiết thành viên và media kho lưu trữ.
+- [x] **3.7 Màn hình Thông tin Phòng Chat (ChatV2InfoSheet & Rời Nhóm)**
+  - *Mô tả*: Xem danh sách thành viên trong nhóm, xem kho lưu trữ toàn bộ ảnh, file tài liệu và link đã từng gửi trong phòng; tùy chọn rời nhóm (Leave Channel).
+  - *Tệp liên quan*: `lib/features/chat_v2/presentation/widgets/chat_v2_info_sheet.dart`, `lib/features/chat_v2/data/chat_v2_repository.dart`, `v_mobile_17/controllers/chat.py`, `v_mobile_19/controllers/chat.py`.
+  - *Kịch bản nghiệm thu*: Chạm vào tiêu đề nhóm ➔ Mở sheet chi tiết thành viên và media kho lưu trữ; bấm "Rời nhóm" ➔ Xác nhận ➔ Rời nhóm thành công, kênh biến mất khỏi danh sách.
+  - *Ghi chú hoàn thành*: Đã thêm endpoint `@http.route(["/api/v1/mobile/chat/channels/<int:channel_id>/leave"], methods=["POST", "OPTIONS"])` trên Odoo 17 & 19, dispatch bus notification `discuss.channel/leave` và unfollow kênh chuẩn Odoo.
 
 ### B. Trò chuyện & Nhắn tin Thời gian thực:
 - [x] **3.8 Kết nối Realtime Kép (WebSocket Bus & Long-Polling Fallback)**
@@ -404,17 +424,24 @@ Phân hệ trung tâm điều hành công việc hàng ngày, tổng hợp chỉ
 Phân hệ tiếp nhận và giải quyết các yêu cầu hỗ trợ kỹ thuật, dịch vụ nội bộ và khách hàng theo tiêu chuẩn SLA Odoo Enterprise.
 
 ### Chi tiết các tính năng:
-- [x] **5.1 Danh sách Phiếu Yêu cầu (Ticket List Screen)**
+- [!] **5.1 Danh sách Phiếu Yêu cầu & Phân trang (Ticket List Screen)**
   - *Mô tả*: Xem toàn bộ danh sách ticket cần xử lý hoặc do mình tạo; bộ lọc phân loại theo giai đoạn (Mới, Đang xử lý, Đã giải quyết, Đã đóng).
-  - *Tệp liên quan*: `lib/features/ticket/presentation/ticket_list_screen.dart`, `lib/features/ticket/application/ticket_controller.dart`.
-  - *Kịch bản nghiệm thu*: Danh sách hiển thị đầy đủ mã ticket, tiêu đề, ngày tạo và màu sắc phân biệt trạng thái.
-  - *Bằng chứng kiểm thử (Evidence)*: Live API `https://vuahethong.net/api/v1/mobile/ticket/list` trả về danh sách 20 ticket mới nhất đầy đủ các trường dữ liệu (`ticket_ref`, `name`, `priority`, `stage_id`, `date_deadline`). Giao diện chia 2 tab rõ ràng (Đang xử lý / Đã hoàn thành), thanh tìm kiếm theo tiêu đề và bộ lọc BottomSheet theo mức độ ưu tiên (P1-P4) cùng Đội hỗ trợ hoạt động mượt mà.
+  - *Tệp liên quan*: `lib/features/ticket/presentation/ticket_list_screen.dart`, `lib/features/ticket/data/ticket_repository.dart`, `lib/features/ticket/application/ticket_controller.dart`.
+  - *Kịch bản nghiệm thu*: Danh sách hiển thị đầy đủ mã ticket, tiêu đề, ngày tạo và màu sắc phân biệt trạng thái; hỗ trợ cuộn tải thêm và tìm kiếm toàn hệ thống.
+  - *Bằng chứng kiểm thử (Evidence)*: Live API `https://vuahethong.net/api/v1/mobile/ticket/list` trả về danh sách 20 ticket mới nhất đầy đủ các trường dữ liệu (`ticket_ref`, `name`, `priority`, `stage_id`, `date_deadline`). Giao diện chia 2 tab (Đang xử lý / Đã hoàn thành).
+  - *Hiện tượng tồn đọng (GAP-TICKET-02)*:
+    + **Chạm trần 20 ticket**: Hàm `watchAssigned()` không truyền `limit`/`offset`, chỉ tải được tối đa 20 ticket gần nhất do backend giới hạn mặc định. Thiếu cơ chế Infinite Scroll phân trang.
+    + **Tìm kiếm in-memory**: Ô tìm kiếm chỉ lọc trên 20 bản ghi đã tải về RAM, không gọi API tìm kiếm trên toàn bộ database.
+    + **Thiếu lọc Stage**: Bộ lọc `_TicketFilterSheet` chỉ có Priority và Team, hoàn toàn thiếu bộ lọc theo từng Stage cụ thể của Odoo.
 
-- [x] **5.2 Tạo Phiếu Yêu cầu Hỗ trợ Mới (Create Ticket Screen)**
+- [!] **5.2 Tạo Phiếu Yêu cầu Hỗ trợ Mới (Create Ticket Screen)**
   - *Mô tả*: Màn hình tạo ticket trực quan: Nhập tiêu đề, mô tả chi tiết vấn đề, chọn Đội hỗ trợ (IT Support, HR, Kỹ thuật), chọn mức độ ưu tiên (Khẩn cấp, Cao, Bình thường, Thấp).
-  - *Tệp liên quan*: `lib/features/ticket/presentation/create_ticket_screen.dart`.
+  - *Tệp liên quan*: `lib/features/ticket/presentation/create_ticket_screen.dart`, `lib/features/ticket/data/ticket_repository.dart`.
   - *Kịch bản nghiệm thu*: Điền thông tin tạo ticket ➔ Bấm Gửi ➔ Ticket mới được tạo ngay trên hệ thống Odoo Helpdesk.
-  - *Bằng chứng kiểm thử (Evidence)*: Form kiểm tra hợp lệ tiêu đề bắt buộc, nạp động danh sách đội hỗ trợ từ API `/api/v1/mobile/ticket/teams` (2 teams: Customer Care, Technical Support) và danh sách thẻ từ `/api/v1/mobile/ticket/tags` (13 tags). Nút Back trên AppBar xử lý an toàn cả trường hợp pop stack thông thường lẫn fallback deep-link về `/tickets` (Pass 2/2 tests `create_ticket_back_navigation_test.dart`).
+  - *Bằng chứng kiểm thử (Evidence)*: Form kiểm tra hợp lệ tiêu đề bắt buộc, nạp động danh sách đội hỗ trợ từ API `/api/v1/mobile/ticket/teams` (2 teams) và danh sách thẻ từ `/api/v1/mobile/ticket/tags` (13 tags). Nút Back trên AppBar xử lý an toàn cả pop stack và fallback deep-link về `/tickets` (Pass 2/2 tests `create_ticket_back_navigation_test.dart`).
+  - *Hiện tượng tồn đọng*:
+    + **Thiếu chọn Khách hàng (`partner_id`)**: Nhân viên nội bộ khi tạo ticket hộ khách không thể chọn đối tác khách hàng; backend tự ép gán `partner_id` của chính nhân viên tạo.
+    + **Thiếu chọn Hạn cam kết SLA (`date_deadline`)**: Không có trường chọn deadline xử lý dù hệ thống có module theo dõi SLA.
 
 - [x] [Claude-Verified] **5.3 Đính kèm Hình ảnh & Tệp tin vào Ticket (Kiểm tra mở tệp trên điện thoại)**
   - *Mô tả*: Chụp ảnh sự cố hoặc đính kèm tài liệu trực tiếp từ máy vào phiếu hỗ trợ để đội kỹ thuật dễ dàng nắm bắt lỗi.
@@ -423,17 +450,25 @@ Phân hệ tiếp nhận và giải quyết các yêu cầu hỗ trợ kỹ thu�
   - *Bằng chứng kiểm thử (Evidence)*: Luồng tải lên hỗ trợ Camera, Thư viện ảnh và Tệp tài liệu (PDF, Word, Excel, CSV, TXT) với giới hạn kích thước an toàn 25MB (`maxAttachmentBytes`). Pass 5/5 tests `ticket_attachment_verification_test.dart`.
   - *Kết quả xử lý lỗi (BUG-011)*: Đã fix triệt để ở Build 144 (commit `90b7b3a`). Widget `_AttachmentTile` trong `ticket_detail_screen.dart` kế thừa `ChatV2AttachmentViewer.openAttachment()`, tải authenticated bytes và mở trực tiếp qua `OpenFilex` In-App, bảo mật, không bị văng ra trình duyệt ngoài Safari/Chrome. Pass 5/5 unit tests.
 
-- [x] **5.4 Màn hình Chi tiết Ticket Toàn diện (Ticket Detail Screen)**
+- [!] **5.4 Màn hình Chi tiết Ticket Toàn diện (Ticket Detail Screen)**
   - *Mô tả*: Xem đầy đủ thông tin: Người gửi yêu cầu, Nhân viên phụ trách (Assigned User), Đội xử lý, Mức độ ưu tiên, Trạng thái giai đoạn hiện tại.
-  - *Tệp liên quan*: `lib/features/ticket/presentation/ticket_detail_screen.dart`.
+  - *Tệp liên quan*: `lib/features/ticket/presentation/ticket_detail_screen.dart`, `lib/shared/models/ticket.dart`.
   - *Kịch bản nghiệm thu*: Chạm vào ticket ➔ Mở màn hình chi tiết với giao diện thẻ thông tin rõ ràng.
-  - *Bằng chứng kiểm thử (Evidence)*: Live API `https://vuahethong.net/api/v1/mobile/ticket/1771` trả về chi tiết đầy đủ 18 trường. Màn hình chi tiết hiển thị thẻ thông tin với tiêu đề, mã ticket, đội hỗ trợ, người phụ trách, hoạt động theo lịch (`_TicketActivitiesSection`), danh sách tệp đính kèm (`_TicketAttachmentsSection`) và các nút chuyển trạng thái nhanh ("Nhận xử lý" / "Hoàn thành").
+  - *Bằng chứng kiểm thử (Evidence)*: Live API `https://vuahethong.net/api/v1/mobile/ticket/1771` trả về chi tiết đầy đủ 18 trường. Màn hình chi tiết hiển thị thẻ thông tin với tiêu đề, mã ticket, đội hỗ trợ, tag, email CC, hoạt động theo lịch, tệp đính kèm và các nút chuyển trạng thái nhanh.
+  - *Hiện tượng tồn đọng (GAP-TICKET-01)*:
+    + **Thiếu thông tin Người gửi yêu cầu (Khách hàng)**: Thẻ `_TicketInfoCard` không hiển thị tên, số điện thoại hoặc email của khách hàng/người gửi. Model `Ticket` thiếu trường `partnerName`.
+    + **Thiếu Tên Nhân viên phụ trách**: Thẻ chi tiết không hiển thị tên kỹ thuật viên đang xử lý (chỉ có ID kỹ thuật). Model `Ticket` thiếu trường `assignedUserName`.
+    + **Hardcode dữ liệu Odoo fallback**: Trường hợp fallback sang `project.task`, backend v17 (dòng 230, 414) và v19 (dòng 225, 414) hardcode cố định tên `"Administrator"`.
 
-- [x] **5.5 Luồng Trao đổi & Bình luận Trực tiếp (Chatter Comments)**
+- [!] **5.5 Luồng Trao đổi & Bình luận Trực tiếp (Chatter Comments)**
   - *Mô tả*: Hệ thống bình luận 2 chiều giữa người yêu cầu và đội hỗ trợ ngay trên ticket; hiển thị lịch sử trao đổi theo dòng thời gian.
   - *Tệp liên quan*: `lib/features/ticket/data/ticket_comment_repository.dart`, `lib/features/ticket/presentation/ticket_detail_screen.dart`.
   - *Kịch bản nghiệm thu*: Gửi bình luận "Tôi đã kiểm tra lại" ➔ Bình luận xuất hiện ngay lập tức trên Chatter của Odoo.
-  - *Bằng chứng kiểm thử (Evidence)*: `TicketCommentRepository` triển khai cơ chế polling định kỳ 5 giây, bóc tách và lọc trùng lặp nội dung mô tả ban đầu (`_normalizedContent`), gửi comment qua endpoint `/api/v1/mobile/ticket/<id>/message`. Bộ nhập liệu `_CommentComposer` hỗ trợ gửi tin nhắn mượt mà.
+  - *Bằng chứng kiểm thử (Evidence)*: `TicketCommentRepository` triển khai cơ chế polling định kỳ 5 giây, bóc tách và lọc trùng lặp nội dung mô tả ban đầu (`_normalizedContent`), gửi comment qua endpoint `/api/v1/mobile/ticket/<id>/message`.
+  - *Hiện tượng tồn đọng*:
+    + **Thiếu đính kèm ảnh/tệp trong bình luận**: `_CommentComposer` chỉ có ô nhập chữ và nút gửi; kỹ thuật viên không thể chụp ảnh hiện trường gửi vào chatter khi đang xử lý ticket.
+    + **Thiếu phân loại Ghi chú nội bộ**: Chưa cho phép chọn giữa gửi ghi chú nội bộ (chỉ nhân viên thấy - `mail.mt_note`) và phản hồi công khai cho khách hàng (`mail.mt_comment`).
+    + **Dead Code API**: Hàm `TicketCommentRepository.delete()` gọi endpoint `DELETE /api/v1/mail.message/$commentId` không tồn tại trên backend.
 
 - [x] **5.6 Bộ lọc Làm sạch Mã HTML Odoo (HTML-to-Text Sanitizer)**
   - *Mô tả*: Tự động bóc tách và làm sạch các thẻ HTML rác (`<p>`, `<div>`, `<br>`, inline styles) do Odoo Web sinh ra, chuyển thành văn bản thuần thẩm mỹ, không vỡ giao diện mobile.
@@ -454,11 +489,50 @@ Phân hệ tiếp nhận và giải quyết các yêu cầu hỗ trợ kỹ thu�
   - *Hiện tượng lỗi phát hiện (BUG-013)*: `[!] [BUG-013 — THIẾU HOÀN TOÀN TÍNH NĂNG ĐÁNH GIÁ MỨC ĐỘ HÀI LÒNG]`
     + **Hiện trạng**: Cả Flutter Frontend (`ticket_detail_screen.dart`) và Odoo Backend (`v_mobile_17/controllers/ticket.py`) hoàn toàn chưa cài đặt data model, API endpoint hay widget UI nào cho việc chấm sao (1-5 sao) và ghi nhận ý kiến phản hồi khi ticket hoàn thành.
 
-- [x] **5.9 Chế độ Riêng cho Khách hàng Portal (Portal Mode Isolation)**
+- [!] **5.9 Chế độ Riêng cho Khách hàng Portal & An toàn Dữ liệu (Portal Mode Isolation)**
   - *Mô tả*: Giao diện chuyên biệt cho khách hàng: Tự động đưa màn hình Ticket làm trang chủ mặc định, chỉ xem các ticket do chính khách hàng hoặc công ty mình tạo.
-  - *Tệp liên quan*: `lib/core/router/app_router.dart`, `v_mobile_17/controllers/ticket.py`.
+  - *Tệp liên quan*: `lib/core/router/app_router.dart`, `v_mobile_17/controllers/ticket.py`, `v_mobile_19/controllers/ticket.py`.
   - *Kịch bản nghiệm thu*: Đăng nhập tài khoản Portal ➔ Vào thẳng danh sách Ticket của mình, bảo mật tuyệt đối dữ liệu nội bộ.
-  - *Bằng chứng kiểm thử (Evidence)*: Backend Odoo kiểm tra chặt chẽ `_user.share or not _user.has_group('base.group_user')`. Tài khoản Portal chỉ được lọc ticket theo `partner_id` của chính mình; cố tình truy cập ID của ticket khác bị chặn đứng `403 Forbidden` ở cả 3 endpoint: xem chi tiết, gửi comment và đổi workflow (Portal bị cấm đổi trạng thái workflow). App Router điều hướng Portal chỉ hiển thị 3 tab (Ticket, Chat, Tôi).
+  - *Hiện tượng lỗi phát hiện (BUG-019 — BẢO MẬT & CONTRACT)*:
+    + **Lỗ hổng IDOR trên Odoo 19**: Trong `v_mobile_19/controllers/ticket.py` (dòng 332, 706, 755), các đoạn kiểm tra `_user.share` / `is_portal_uid` bị xóa hoàn toàn. Kết hợp lệnh `.sudo()`, tài khoản Portal có thể đọc trộm toàn bộ ticket nội bộ và ticket của khách hàng khác qua API `/api/v1/mobile/ticket/<id>`, gửi comment và đóng ticket tùy tiện.
+    + **Hỏng Test Contract trên Odoo 17**: Trong `v_mobile_17/controllers/ticket.py` dòng 119, lệnh `Ticket = request.env["helpdesk.ticket"].with_user(uid)` thiếu `.sudo()`, vi phạm contract test `test_portal_ticket_isolation.py:test_03_portal_guard_before_sudo_not_after`.
+    + **Nguy cơ Rollback Nodb**: Cả v17 và v19 trong `ticket_workflow` thiếu lệnh `_commit_nodb_write()` dẫn đến nguy cơ mất dữ liệu khi ghi không có DB session.
+
+- [ ] **5.10 Quản lý Hoạt động Nhắc việc (Helpdesk Activities - `mail.activity`)**
+  - *Mô tả*: Hỗ trợ xem, lên lịch hoạt động mới (Cuộc gọi, Gặp mặt, Gửi email, To-do) và đánh dấu hoàn thành hoạt động ngay trên phiếu hỗ trợ.
+  - *Tệp liên quan*: `lib/features/ticket/presentation/ticket_detail_screen.dart`, `lib/features/ticket/data/activity_log_repository.dart`.
+  - *Hiện trạng phát hiện*:
+    + Tab "Hoạt động" chỉ hiển thị danh sách dạng xem tĩnh (Read-only), không có nút tạo hoạt động nhắc việc mới.
+    + Không có nút Đánh dấu hoàn thành (Mark Done) cho các hoạt động đã giao.
+    + Hàm `ActivityLogRepository.log()` là một hàm rỗng (`stub`), chưa kết nối API backend.
+
+- [ ] **5.11 Quy trình Mở lại Phiếu Yêu cầu (Reopen Ticket Workflow)**
+  - *Mô tả*: Cho phép mở lại phiếu yêu cầu khi sự cố chưa được xử lý dứt điểm hoặc khách hàng phản hồi sự cố tái phát.
+  - *Tệp liên quan*: `lib/features/ticket/presentation/ticket_detail_screen.dart`, `lib/features/ticket/data/ticket_repository.dart`.
+  - *Hiện trạng phát hiện*:
+    + Khi ticket chuyển trạng thái `Done`, các nút bấm hành động bị vô hiệu hóa (disabled).
+    + Chưa có nút "Mở lại ticket" (Reopen) để đưa ticket về trạng thái đang xử lý (`doing` / `in_progress`), bắt buộc người dùng phải tạo ticket mới gây phân mảnh lịch sử.
+
+- [ ] **5.12 Phân công & Chuyển giao Phiếu Hỗ trợ (Ticket Assignment & Reassign)**
+  - *Mô tả*: Hỗ trợ bàn giao hoặc phân công phiếu hỗ trợ cho kỹ thuật viên khác phù hợp hơn trong đội xử lý.
+  - *Tệp liên quan*: `lib/features/ticket/presentation/ticket_detail_screen.dart`, `lib/features/ticket/data/ticket_repository.dart`.
+  - *Hiện trạng phát hiện*:
+    + Giao diện hiện tại chỉ có duy nhất nút "Nhận xử lý" (tự gán ticket cho chính mình).
+    + Không có hộp thoại hoặc danh sách để phân công hoặc chuyển giao ticket cho đồng nghiệp khác trong team.
+
+- [ ] **5.13 Chỉnh sửa Thông tin Phiếu Yêu cầu (Edit Ticket Details)**
+  - *Mô tả*: Cho phép cập nhật lại tiêu đề, mô tả, mức độ ưu tiên hoặc chuyển đổi đội hỗ trợ của ticket sau khi tạo.
+  - *Tệp liên quan*: `lib/features/ticket/data/ticket_repository.dart`.
+  - *Hiện trạng phát hiện*:
+    + Giao diện không có nút chỉnh sửa thông tin ticket sau khi tạo.
+    + Các hàm trong repository `TicketRepository.updatePriority()` và `TicketRepository.updateCategory()` đang ném ngoại lệ `Failure('360 Support API chưa hỗ trợ...')` do backend chưa xây dựng endpoint cập nhật thông tin chung.
+
+- [ ] **5.14 Dọn dẹp Endpoint Rác & Dead Code (Ticket Dead APIs Cleanup)**
+  - *Mô tả*: Rà soát và loại bỏ các phương thức gọi API ảo không tồn tại trên Odoo backend để tránh sinh lỗi ngầm và ô nhiễm codebase.
+  - *Tệp liên quan*: `lib/features/ticket/data/ticket_repository.dart`, `lib/features/ticket/data/ticket_comment_repository.dart`.
+  - *Hiện trạng phát hiện*:
+    + `TicketRepository.sendContact()` gọi endpoint `POST /api/v1/mobile/ticket/<id>/contact` không tồn tại.
+    + `TicketCommentRepository.delete()` gọi endpoint `DELETE /api/v1/mail.message/<id>` không tồn tại.
 
 ---
 

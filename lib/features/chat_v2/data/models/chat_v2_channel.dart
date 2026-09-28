@@ -13,6 +13,7 @@ class ChatV2Member {
   final String? avatarUrl;
   final String imStatus;
   final bool isMe;
+  final bool isLeader;
 
   const ChatV2Member({
     required this.id,
@@ -21,6 +22,7 @@ class ChatV2Member {
     this.avatarUrl,
     this.imStatus = 'offline',
     this.isMe = false,
+    this.isLeader = false,
   });
 
   factory ChatV2Member.fromJson(dynamic json) {
@@ -36,6 +38,10 @@ class ChatV2Member {
       final isMeFlag = json['is_me'] == true ||
           (currentPartnerId != null && currentPartnerId.isNotEmpty && id == currentPartnerId) ||
           (currentUserId != null && currentUserId.isNotEmpty && id == currentUserId);
+      final isLeaderFlag = json['is_leader'] == true ||
+          json['is_admin'] == true ||
+          json['role'] == 'leader' ||
+          json['role'] == 'admin';
       return ChatV2Member(
         id: id,
         name: json['name']?.toString() ?? '',
@@ -43,6 +49,7 @@ class ChatV2Member {
         avatarUrl: avatarUrl,
         imStatus: json['im_status']?.toString() ?? 'offline',
         isMe: isMeFlag,
+        isLeader: isLeaderFlag,
       );
     }
     return ChatV2Member(
@@ -58,6 +65,7 @@ class ChatV2Member {
     'avatar_url': avatarUrl,
     'im_status': imStatus,
     'is_me': isMe,
+    'is_leader': isLeader,
   };
 }
 
@@ -82,6 +90,7 @@ class ChatV2Channel {
   final String? directPartnerName;
   final String? directPartnerStatus;
   final bool isMuted;
+  final bool isZaloChannel;
 
   const ChatV2Channel({
     required this.id,
@@ -103,6 +112,7 @@ class ChatV2Channel {
     this.directPartnerName,
     this.directPartnerStatus,
     this.isMuted = false,
+    this.isZaloChannel = false,
   });
 
   ChatV2Channel copyWith({
@@ -125,6 +135,7 @@ class ChatV2Channel {
     String? directPartnerName,
     String? directPartnerStatus,
     bool? isMuted,
+    bool? isZaloChannel,
   }) {
     return ChatV2Channel(
       id: id ?? this.id,
@@ -146,6 +157,7 @@ class ChatV2Channel {
       directPartnerName: directPartnerName ?? this.directPartnerName,
       directPartnerStatus: directPartnerStatus ?? this.directPartnerStatus,
       isMuted: isMuted ?? this.isMuted,
+      isZaloChannel: isZaloChannel ?? this.isZaloChannel,
     );
   }
 
@@ -193,6 +205,7 @@ class ChatV2Channel {
     'last_message_author_id': lastMessageAuthorId,
     'partner_id': partnerId,
     'is_muted': isMuted,
+    'is_zalo_channel': isZaloChannel,
   };
 
   static bool matchesUser(String part, String? currentUserName) {
@@ -329,6 +342,9 @@ class ChatV2Channel {
   }
 
   bool getActualIsGroup(String? currentUserName) {
+    // Kênh Zalo OA tuyệt đối không phải là nhóm nội bộ
+    if (isZaloOA) return false;
+
     // 0. Kênh thảo luận Odoo (channelType == 'channel' hoặc 'group') luôn là nhóm/kênh
     if (channelType == 'channel' || channelType == 'group') return true;
 
@@ -360,6 +376,7 @@ class ChatV2Channel {
 
   /// Kiểm tra có phải kênh Zalo OA hoặc Livechat hay không
   bool get isZaloOA =>
+      isZaloChannel ||
       channelType == 'zalo' ||
       channelType == 'zalo_oa' ||
       channelType == 'livechat' ||
@@ -371,20 +388,18 @@ class ChatV2Channel {
     if (channelType == 'channel') return false;
     if (getActualIsGroup(currentUserName)) return false;
 
-    // Nếu là kênh 1-1 nhưng chưa từng có tin nhắn trao đổi (lastMessage == null)
-    if (lastMessage == null || lastMessage!.trim().isEmpty) {
-      if (members.isNotEmpty) {
-        final other = members.firstWhereOrNull((m) => !m.isMe);
-        if (other != null && other.email != null && other.email!.isNotEmpty) {
-          final emailLower = other.email!.toLowerCase().trim();
-          final isInternalDomain = emailLower.endsWith('@360.org.vn') ||
-              emailLower.endsWith('@vuahethong.net') ||
-              emailLower.endsWith('@vuaoffice.vn') ||
-              emailLower.endsWith('@w360s.com') ||
-              emailLower.endsWith('@activesolution.vn');
-          if (!isInternalDomain) {
-            return false;
-          }
+    // Siết chặt kiểm tra email domain nội bộ cho mọi kênh trực tiếp
+    if (members.isNotEmpty) {
+      final other = members.firstWhereOrNull((m) => !m.isMe);
+      if (other != null && other.email != null && other.email!.isNotEmpty) {
+        final emailLower = other.email!.toLowerCase().trim();
+        final isInternalDomain = emailLower.endsWith('@360.org.vn') ||
+            emailLower.endsWith('@vuahethong.net') ||
+            emailLower.endsWith('@vuaoffice.vn') ||
+            emailLower.endsWith('@w360s.com') ||
+            emailLower.endsWith('@activesolution.vn');
+        if (!isInternalDomain) {
+          return false;
         }
       }
     }
@@ -548,6 +563,12 @@ class ChatV2Channel {
     final rawIsMuted = map['is_muted'];
     final bool isMuted = rawIsMuted == true || rawIsMuted == 1 || rawIsMuted == 'true';
 
+    final rawIsZaloChannel = map['is_zalo_channel'] ?? map['is_zalo'];
+    final bool isZaloChannel = rawIsZaloChannel == true ||
+        rawIsZaloChannel == 1 ||
+        rawIsZaloChannel == 'true' ||
+        map['zalo_oa_id'] != null;
+
     return ChatV2Channel(
       id: id,
       name: name,
@@ -568,6 +589,7 @@ class ChatV2Channel {
       directPartnerName: directPartnerName,
       directPartnerStatus: directPartnerStatus,
       isMuted: isMuted,
+      isZaloChannel: isZaloChannel,
     );
   }
 
