@@ -39,6 +39,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   bool _statusBusy = false;
+  final GlobalKey _fireworksChildKey = GlobalKey();
 
   @override
   void initState() {
@@ -108,6 +109,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         await actions.checkOut();
       } else {
         await actions.checkIn();
+        if (mounted) {
+          CelebrationFireworksOverlay.trigger(_fireworksChildKey.currentContext ?? context);
+        }
       }
       ref.invalidate(homeSummaryProvider);
       ref.invalidate(attendanceTodayProvider);
@@ -153,6 +157,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final displayName = (name != null && name.isNotEmpty)
         ? name
         : (user?.email?.split('@').first ?? 'Người dùng');
+    final rawRole = meta?['role'] ?? meta?['function'] ?? meta?['job_title'];
+    final jobTitle = (rawRole is String && rawRole.trim().isNotEmpty)
+        ? rawRole.trim()
+        : (rawRole != null && rawRole != false ? rawRole.toString().trim() : null);
+    final rawCompany = meta?['company'] ?? meta?['company_name'];
+    final companyName = (rawCompany is String && rawCompany.trim().isNotEmpty)
+        ? rawCompany.trim()
+        : (rawCompany != null && rawCompany != false ? rawCompany.toString().trim() : null);
     final allTasks = ref.watch(todayTasksProvider).valueOrNull ?? const <Task>[];
     final totalOpenTasksCount = allTasks.where((task) => !task.isCompleted).length;
     final todayTasks = allTasks
@@ -203,6 +215,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       body: CelebrationFireworksOverlay(
         autoTrigger: shiftProgress?.isCompleted ?? (todayMinutes >= ShiftConfig.forDate(DateTime.now()).targetWorkMinutes),
         child: RefreshIndicator(
+          key: _fireworksChildKey,
           onRefresh: () async {
             ref.invalidate(homeSummaryProvider);
             ref.invalidate(mobileDashboardSummaryProvider);
@@ -224,6 +237,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 displayName: displayName,
                 email: user?.email,
                 avatarUrl: avatarUrl,
+                jobTitle: jobTitle,
+                companyName: companyName,
                 isOnline: isOnline,
                 statusBusy: statusBusy,
                 onStatusTap: () => _toggleAttendance(isOnline),
@@ -266,6 +281,8 @@ class _GreetingHeader extends ConsumerWidget {
     required this.displayName,
     required this.email,
     required this.avatarUrl,
+    this.jobTitle,
+    this.companyName,
     required this.isOnline,
     required this.statusBusy,
     required this.onStatusTap,
@@ -281,6 +298,8 @@ class _GreetingHeader extends ConsumerWidget {
   final String displayName;
   final String? email;
   final String? avatarUrl;
+  final String? jobTitle;
+  final String? companyName;
   final bool isOnline;
   final bool statusBusy;
   final VoidCallback onStatusTap;
@@ -295,6 +314,11 @@ class _GreetingHeader extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final today = _vietnameseDateTime(DateTime.now());
+    final subtitleParts = [
+      if (jobTitle != null && jobTitle!.isNotEmpty) jobTitle!,
+      if (companyName != null && companyName!.isNotEmpty) companyName!,
+    ];
+    final jobAndCompany = subtitleParts.isNotEmpty ? subtitleParts.join(' · ') : null;
     final shiftConfig = ref.watch(currentShiftConfigProvider);
     final targetMinutes = shiftConfig.targetWorkMinutes;
     final shiftProgress = (isOnline && checkinTime != null)
@@ -346,7 +370,7 @@ class _GreetingHeader extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Xin chào, $displayName',
+                      '${greetingForHour()}, $displayName',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -356,6 +380,19 @@ class _GreetingHeader extends ConsumerWidget {
                         height: 1.12,
                       ),
                     ),
+                    if (jobAndCompany != null) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        jobAndCompany,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: isDark ? AppColors.darkTextMuted : AppColors.primary,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 4),
                     Text(
                       today,
@@ -1869,4 +1906,16 @@ String _durationVi(Duration duration) {
   if (h == 0) return '$m phút';
   if (m == 0) return '$h giờ';
   return '$h giờ $m phút';
+}
+
+@visibleForTesting
+String greetingForHour([DateTime? time]) {
+  final hour = (time ?? DateTime.now()).hour;
+  if (hour >= 5 && hour < 12) {
+    return 'Chào buổi sáng';
+  } else if (hour >= 12 && hour < 18) {
+    return 'Chào buổi chiều';
+  } else {
+    return 'Chào buổi tối';
+  }
 }
