@@ -168,6 +168,8 @@ class TimesheetRepository {
   Map<String, dynamic> _entryFromOdoo(Map<String, dynamic> map) {
     final date = map['date'] as String? ?? _isoDate(DateTime.now());
     final hours = (map['unit_amount'] as num?)?.toDouble() ?? 1;
+    final projId = _many2OneId(map['project_id']);
+    final projName = _many2OneName(map['project_id']) ?? map['project_name']?.toString();
     return <String, dynamic>{
       'id': map['id'].toString(),
       'user_id': _many2OneId(map['employee_id']) ?? '',
@@ -178,6 +180,8 @@ class TimesheetRepository {
       'worked_date': date,
       'created_at': '${date}T00:00:00.000Z',
       'task_id': _many2OneId(map['task_id']),
+      'project_id': projId,
+      'project_name': projName,
     };
   }
 
@@ -211,6 +215,11 @@ class TimesheetRepository {
   String? _many2OneId(Object? value) {
     if (value is List && value.isNotEmpty) return value.first.toString();
     if (value is int) return value.toString();
+    return null;
+  }
+
+  String? _many2OneName(Object? value) {
+    if (value is List && value.length > 1) return value[1].toString();
     return null;
   }
 

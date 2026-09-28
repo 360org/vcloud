@@ -228,11 +228,13 @@ class TimesheetActions {
       workedDate: workedDate,
     );
     _ref.invalidate(timesheetStreamProvider);
+    _ref.invalidate(filteredTimesheetEntriesProvider);
   }
 
   Future<void> delete(String id) async {
     await _repo.delete(id);
     _ref.invalidate(timesheetStreamProvider);
+    _ref.invalidate(filteredTimesheetEntriesProvider);
   }
 }
 
@@ -309,9 +311,34 @@ final timesheetSummaryProvider = FutureProvider<TimesheetSummary>((ref) async {
   );
 });
 
+final filteredTimesheetEntriesProvider = FutureProvider<List<TimesheetEntry>>((ref) async {
+  final repo = ref.watch(timesheetRepositoryProvider);
+  final filter = ref.watch(timesheetFilterProvider);
+
+  String? dateFromStr;
+  if (filter.dateFrom != null) {
+    final d = filter.dateFrom!;
+    dateFromStr = '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  }
+  String? dateToStr;
+  if (filter.dateTo != null) {
+    final d = filter.dateTo!;
+    dateToStr = '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  }
+
+  return repo.fetchPage(
+    limit: 50,
+    offset: 0,
+    dateFrom: dateFromStr,
+    dateTo: dateToStr,
+    projectId: filter.projectId,
+  );
+});
+
 /// Làm mới toàn bộ dữ liệu timesheet (tasks, logs, summary)
 void refreshTimesheetData(WidgetRef ref) {
   ref.invalidate(todayTasksProvider);
   ref.invalidate(timesheetStreamProvider);
+  ref.invalidate(filteredTimesheetEntriesProvider);
   ref.invalidate(timesheetSummaryProvider);
 }

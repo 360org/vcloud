@@ -86,6 +86,8 @@ class TimesheetEntry {
     required this.createdAt,
     this.taskId,
     this.task,
+    this.projectId,
+    this.projectName,
   });
 
   final String id;
@@ -105,6 +107,10 @@ class TimesheetEntry {
   /// the `tasks` table. Null on the base stream.
   final Task? task;
 
+  /// Project ID and Name from Odoo account.analytic.line
+  final String? projectId;
+  final String? projectName;
+
   factory TimesheetEntry.fromMap(Map<String, dynamic> map) => TimesheetEntry(
     id: (map['id'] ?? '').toString(),
     userId: (map['user_id'] ?? map['employee_id'] ?? '').toString(),
@@ -115,7 +121,24 @@ class TimesheetEntry {
     workedDate: _parseTimesheetDate(map['worked_date'] ?? map['date']),
     createdAt: _parseTimesheetDate(map['created_at'] ?? map['create_date']),
     taskId: map['task_id'] != null && map['task_id'] != false ? map['task_id'].toString() : null,
+    projectId: _parseMany2OneId(map['project_id']),
+    projectName: _parseMany2OneName(map['project_id']) ?? (map['project_name'] is String ? map['project_name'].toString() : null),
   );
+}
+
+String? _parseMany2OneId(Object? value) {
+  if (value == null || value == false) return null;
+  if (value is List && value.isNotEmpty) return value.first.toString();
+  if (value is num || value is String) {
+    final s = value.toString().trim();
+    return s.isNotEmpty ? s : null;
+  }
+  return null;
+}
+
+String? _parseMany2OneName(Object? value) {
+  if (value is List && value.length > 1) return value[1].toString();
+  return null;
 }
 
 int _parseDurationMinutes(Map<String, dynamic> map) {
@@ -134,6 +157,12 @@ DateTime _parseTimesheetDate(Object? v) {
   final str = v.toString().trim();
   if (str.isEmpty) return DateTime.now();
   try {
+    // Nếu là định dạng thuần ngày YYYY-MM-DD (từ Odoo fields.Date)
+    // Parse các thành phần để tạo local DateTime tại 00:00:00, tránh DateTime.parse().toLocal() làm trôi sang ngày hôm trước ở múi giờ âm
+    if (RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(str)) {
+      final parts = str.split('-').map(int.parse).toList();
+      return DateTime(parts[0], parts[1], parts[2]);
+    }
     return DateTime.parse(str).toLocal();
   } catch (_) {
     return DateTime.now();

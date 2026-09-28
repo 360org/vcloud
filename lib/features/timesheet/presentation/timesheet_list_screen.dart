@@ -44,6 +44,7 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
   String _searchQuery = '';
   final _taskStatusOverrides = <String, _TaskWorkflowStatus>{};
   final _scrollController = ScrollController();
+  final List<TimesheetEntry> _extraLoadedEntries = [];
   bool _isLoadingMore = false;
   bool _hasMore = true;
   int _offset = 0;
@@ -63,6 +64,11 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
   }
 
   Future<void> _onRefresh() async {
+    setState(() {
+      _offset = 0;
+      _hasMore = true;
+      _extraLoadedEntries.clear();
+    });
     refreshTimesheetData(ref);
     await Future.delayed(const Duration(milliseconds: 300));
   }
@@ -96,6 +102,9 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
         _hasMore = false;
       } else {
         _offset += newEntries.length;
+        setState(() {
+          _extraLoadedEntries.addAll(newEntries);
+        });
       }
     } catch (_) {
     } finally {
@@ -620,12 +629,31 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
             .where((t) => _matchesQuery(t) && _matchesFilter(t, filter))
             .toList();
 
-        final timesheetAsync = ref.watch(timesheetStreamProvider);
-        final rawEntries = timesheetAsync.valueOrNull ?? const <TimesheetEntry>[];
+        final timesheetAsync = ref.watch(filteredTimesheetEntriesProvider);
+        final baseEntries = timesheetAsync.valueOrNull ??
+            ref.watch(timesheetStreamProvider).valueOrNull ??
+            const <TimesheetEntry>[];
+        final rawEntries = [...baseEntries, ..._extraLoadedEntries];
         final filteredEntries = rawEntries.where((e) {
           if (_searchQuery.trim().isNotEmpty) {
             final q = _searchQuery.trim().toLowerCase();
             if (!e.taskName.toLowerCase().contains(q)) return false;
+          }
+          if (filter.projectId != null && filter.projectId!.trim().isNotEmpty) {
+            final targetProjectId = filter.projectId!.trim();
+            final entryProjectId = e.projectId?.trim();
+            final matchesId = entryProjectId != null &&
+                (entryProjectId == targetProjectId ||
+                    (int.tryParse(entryProjectId) != null &&
+                        int.tryParse(entryProjectId) == int.tryParse(targetProjectId)));
+            final filterProjectName = filter.projectName?.trim().toLowerCase();
+            final entryProjectName = e.projectName?.trim().toLowerCase();
+            final matchesName = filterProjectName != null &&
+                filterProjectName.isNotEmpty &&
+                filterProjectName != 'tất cả dự án' &&
+                entryProjectName != null &&
+                entryProjectName == filterProjectName;
+            if (!matchesId && !matchesName) return false;
           }
           if (filter.presetName != 'Tất cả' && (filter.dateFrom != null || filter.dateTo != null)) {
             final fromDay = filter.dateFrom != null
@@ -2059,12 +2087,14 @@ class _TaskDetailSheetState extends ConsumerState<_TaskDetailSheet> {
         setState(() {
           _detailedTask = _TodayTask(
             id: fullTask.id,
+            userId: fullTask.userId,
             title: fullTask.title,
             description: (fullTask.description != null &&
                     fullTask.description!.trim().isNotEmpty)
                 ? fullTask.description
                 : widget.task.description,
             tag: fullTask.category.label,
+            projectId: fullTask.projectId ?? widget.task.projectId,
             projectName: fullTask.projectName ?? widget.task.projectName,
             userName: fullTask.userName ?? widget.task.userName,
             partnerName: fullTask.partnerName ?? widget.task.partnerName,
@@ -2079,10 +2109,14 @@ class _TaskDetailSheetState extends ConsumerState<_TaskDetailSheet> {
             workflowStatus: widget.task.workflowStatus,
             accent: widget.task.accent,
             icon: widget.task.icon,
+            dueDate: fullTask.dueDate,
+            createdAt: fullTask.createdAt,
             done: widget.task.done,
             logged: lastLogDuration,
             note: lastLogNote,
             completedAt: fullTask.completedAt ?? widget.task.completedAt,
+            lastLogDate: widget.task.lastLogDate,
+            timesheetId: widget.task.timesheetId,
           );
           if (_noteController.text.trim().isEmpty && lastLogNote.isNotEmpty) {
             _noteController.text = lastLogNote;
@@ -4848,6 +4882,8 @@ class _TimesheetFilterSheetState extends ConsumerState<_TimesheetFilterSheet> {
                       // Kích hoạt làm mới dữ liệu để cập nhật summary & task tương ứng filter mới
                       ref.invalidate(timesheetSummaryProvider);
                       ref.invalidate(todayTasksProvider);
+                      ref.invalidate(timesheetStreamProvider);
+                      ref.invalidate(filteredTimesheetEntriesProvider);
                       Navigator.pop(context);
                     },
                     style: ElevatedButton.styleFrom(
