@@ -1,6 +1,9 @@
 import '../../core/utils/html_text.dart';
+import 'task_checklist_item.dart';
 import 'task_message.dart';
 import 'timesheet.dart';
+
+export 'task_checklist_item.dart';
 
 class TimesheetProjectOption {
   const TimesheetProjectOption({required this.id, required this.name});
@@ -41,6 +44,7 @@ class Task {
     this.stageName,
     this.state,
     this.messages = const <TaskMessage>[],
+    this.subtasks = const <TaskChecklistItem>[],
     this.completedAt,
     this.timesheetId,
     this.isDone = false,
@@ -66,6 +70,7 @@ class Task {
   final String? stageName;
   final String? state;
   final List<TaskMessage> messages;
+  final List<TaskChecklistItem> subtasks;
   final TimesheetCategory category;
   final DateTime dueDate;
   final DateTime? completedAt;
@@ -73,6 +78,9 @@ class Task {
   final bool isDone;
   final DateTime createdAt;
   final DateTime updatedAt;
+
+  /// Percentage (0..100) of subtasks marked completed: `(completed / total) * 100%`.
+  double get subtaskProgressPercent => calculateSubtaskProgress(subtasks);
 
   /// True once the user has logged time against this task or marked done.
   bool get isCompleted => isDone || completedAt != null;
@@ -98,6 +106,7 @@ class Task {
     String? stageName,
     String? state,
     List<TaskMessage>? messages,
+    List<TaskChecklistItem>? subtasks,
     TimesheetCategory? category,
     DateTime? dueDate,
     DateTime? completedAt,
@@ -127,6 +136,7 @@ class Task {
       stageName: stageName ?? this.stageName,
       state: state ?? this.state,
       messages: messages ?? this.messages,
+      subtasks: subtasks ?? this.subtasks,
       category: category ?? this.category,
       dueDate: dueDate ?? this.dueDate,
       completedAt: completedAt ?? this.completedAt,
@@ -168,6 +178,12 @@ class Task {
     messages: (map['messages'] as List? ?? const <Object?>[])
         .whereType<Map>()
         .map((m) => TaskMessage.fromMap(Map<String, dynamic>.from(m)))
+        .toList(),
+    subtasks: (map['subtasks'] as List? ??
+            map['checklist'] as List? ??
+            const <Object?>[])
+        .whereType<Map>()
+        .map((m) => TaskChecklistItem.fromMap(Map<String, dynamic>.from(m)))
         .toList(),
     category: TimesheetCategoryDb.fromDb((map['category'] ?? 'other').toString()),
     dueDate: map['due_date'] == null || map['due_date'] == false

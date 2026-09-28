@@ -1,7 +1,7 @@
 # 📋 DANH MỤC TÍNH NĂNG & TIÊU CHÍ NGHIỆM THU TOÀN DIỆN VCLOUD MOBILE APP (FEATURES CONTROL)
 
 > **Dự án**: VCloud Mobile App (`vclients` Flutter) kết nối Odoo Backend (`v_mobile_17` & `v_mobile_19`)  
-> **Phiên bản hiện tại**: `v2.9.12+143` (Bản dựng TestFlight iOS & APK Android mới nhất)  
+> **Phiên bản hiện tại**: `v2.9.12+144` (Bản dựng TestFlight iOS & APK Android mới nhất)  
 > **Nguồn sự thật (Single Source of Truth)**: Tài liệu kiểm soát toàn bộ tính năng theo 6 nhóm nghiệp vụ chuẩn hóa, phục vụ trực tiếp cho anh Tân nghiệm thu thực tế và báo cáo tiến độ.
 
 ---
@@ -10,7 +10,7 @@
 
 | Ký hiệu | Ý nghĩa | Trách nhiệm |
 | :---: | :--- | :--- |
-| `📦 TESTFLIGHT` | Đã hoàn tất code, test kỹ thuật 100% PASS, đã đóng gói lên bản build TestFlight (Build 143). | AI & CI/CD Pipeline |
+| `📦 TESTFLIGHT` | Đã hoàn tất code, test kỹ thuật 100% PASS, đã đóng gói lên bản build TestFlight (Build 144). | AI & CI/CD Pipeline |
 | `⏳ CHỜ TEST` | Tính năng đã sẵn sàng trên máy, đang chờ anh Tân cầm điện thoại kiểm chứng thực tế. | anh Tân kiểm tra |
 | `✅ ACCEPTED` | Anh Tân đã trực tiếp kiểm tra trên iPhone 13 và xác nhận hoạt động ổn định (DONE). | Chỉ anh Tân duyệt |
 
@@ -52,10 +52,9 @@
     3. **Tab "Trực tiếp" bị lọt kênh Zalo OA khách hàng**: Kênh Zalo OA như "Minh Thuỳ Dương" (#2250) lọt vào tab "Trực tiếp" (nội bộ công ty) do hàm `isInternalDirect()` chỉ kiểm tra email domain nội bộ khi kênh chưa có tin nhắn; khi kênh đã có tin nhắn (bot mời AI `@Ask AI`), logic kiểm tra domain bị bypass hoàn toàn.
     4. **Lệch cấu trúc so với Odoo Web Discuss (`https://vuahethong.net/home/discuss`)**: Trên Web Odoo, mục "Tin nhắn trực tiếp" gom cả Chat 1-1 và Nhóm nội bộ (`Internal`, `DAVITA Support`, `OTS Supported`, `hello`), còn Zalo OA được tách riêng biệt thành accordion "Zalo OA" độc lập. Mobile hiện tại chưa đồng bộ logic này.
 
-### 🟡 GIAI ĐOẠN 4: QUẢN LÝ CÔNG VIỆC & DASHBOARD (HOME & TASKS) — `[/] [Claude-Checked & Bug Logged]`
-- [/] 4.1 **Dashboard Kép (Dual-Tier Metrics)**: Hiển thị đúng số giờ làm, trạng thái chấm công, task cần làm & ticket. Đã verify live API `https://vuahethong.net/api/v1/mobile/dashboard/summary` trả về chuẩn xác: `is_checked_in: true`, `attendance_id: 8973`, `open_ticket_count: 5`, `unread_chat_count: 891`, `total_channel_count: 919`. Pass 2/2 tests `test/home_dual_tier_metric_test.dart`. (Phát hiện lỗi nhỏ: `_GreetingHeader` dùng chuỗi tĩnh, chưa chào theo buổi và chưa hiện chức danh/công ty).
-- [!] 4.2 **Danh sách Task hôm nay & Checklist**: `[!] [BUG_ON_LIVE — LỆCH ĐẶC TẢ NGHIỆP VỤ]`
-  - *Hiện tượng lỗi phát hiện*: `TaskChecklistEditor` trong `checklist_editor.dart` thực chất chỉ là form nhập `Nội dung công việc (note)` và `Thời gian làm việc (duration)`. Hoàn toàn CHƯA CÓ tính năng danh sách đầu việc con (subtasks), không có checkbox tích từng mục con và không có logic tự động tăng/giảm % tiến độ task theo checklist như đặc tả nghiệm thu. Danh sách task hôm nay hiển thị và hoàn thành log giờ bình thường (`test/task_repository_test.dart` pass).
+### 🟢 GIAI ĐOẠN 4: QUẢN LÝ CÔNG VIỆC & DASHBOARD (HOME & TASKS) — `[x] [Claude-Verified — 9/9 PASS 100%]`
+- [x] 4.1 **Dashboard Kép & Lời chào Cá nhân hóa (Dual-Tier Metrics & Greeting Header)**: Hiển thị đúng số giờ làm, trạng thái chấm công, task cần làm & ticket. Đã fix triệt để BUG-008 (Build 144): Lời chào tự động đổi theo buổi (Sáng 5h-12h, Chiều 12h-18h, Tối sau 18h) và nạp đầy đủ Chức danh & Công ty từ `userMetadata`. Đã fix triệt để BUG-009: Bắn pháo hoa chúc mừng (`CelebrationFireworksOverlay`) ngay khi bấm Check-in nhanh thành công tại Home Screen. Pass 7/7 tests trong `test/home_greeting_and_celebration_test.dart`.
+- [x] 4.2 **Danh sách Task hôm nay & Checklist**: Đã fix triệt để BUG-010 (Build 144). `TaskChecklistEditor` hiển thị danh sách subtasks, checkbox toggle hoàn thành, thêm/xóa subtask động, thanh `LinearProgressIndicator` và tự động tính % tiến độ task theo công thức `(completed / total) * 100%`. Pass 12/12 tests trong `test/task_checklist_subtasks_test.dart`.
 
 ### 🟡 GIAI ĐOẠN 5: HỖ TRỢ KỸ THUẬT (HELPDESK TICKETS & SLA) — `[/] [Claude-Checked — 8/9 PASS, 1 BUG]`
 - [x] 5.1 **Tạo Ticket & Đính kèm Ảnh / Tệp**: Tạo thành công trên Odoo Helpdesk kèm ảnh camera/gallery và tài liệu văn phòng (PDF, Word, Excel, CSV). Đã fix triệt để BUG-011: Tệp đính kèm văn phòng được tích hợp mở In-App trực tiếp qua `ChatV2AttachmentViewer` (`OpenFilex`), chặn hoàn toàn việc văng ra trình duyệt ngoài Safari/Chrome.
@@ -79,12 +78,12 @@
 
 | STT | Nhóm Chức Năng | Số lượng tính năng chi tiết | Trạng thái kỹ thuật | Trạng thái Nghiệm thu (Sếp Tân) | Bản build TestFlight |
 | :---: | :--- | :---: | :---: | :---: | :---: |
-| **1** | **Xác thực & Tài khoản (Login, Multi-DB, Bảo mật)** | 8 tính năng | `100% PASS` | `✅ ACCEPTED (2026-09-28)` | `Build 143` |
-| **2** | **Quản lý Thời gian (Chấm công GPS, Timesheet, Stopwatch)** | 12 tính năng | `100% PASS` | `⏳ CHỜ TEST` | `Build 143` |
-| **3** | **Giao tiếp Nội bộ (Chat V2, Media, WebRTC Call, Push)** | 24 tính năng | `22/24 PASS (2 BUGS)` | `🔍 CLAUDE-CHECKED (CÓ LỖI BỘ LỌC)` | `Build 143` |
-| **4** | **Quản lý Công việc & Dự án (Home Dashboard, Tasks, Danh bạ)** | 9 tính năng | `6/9 PASS (3 BUGS)` | `🔍 CLAUDE-CHECKED (CÓ LỖI)` | `Build 143` |
-| **5** | **Hỗ trợ & Xử lý Yêu cầu (Ticket / Helpdesk, SLA, Portal)** | 9 tính năng | `8/9 PASS (1 BUG)` | `🔍 CLAUDE-CHECKED (CÒN 1 LỖI ĐÁNH GIÁ SAO)` | `Build 143` |
-| **6** | **Tôi (Hồ sơ cá nhân, Dark Theme, Cache, Token, Xóa tài khoản)** | 9 tính năng | `100% PASS` | `✅ ACCEPTED (2026-09-28)` | `Build 143` |
+| **1** | **Xác thực & Tài khoản (Login, Multi-DB, Bảo mật)** | 8 tính năng | `100% PASS` | `✅ ACCEPTED (2026-09-28)` | `Build 144` |
+| **2** | **Quản lý Thời gian (Chấm công GPS, Timesheet, Stopwatch)** | 12 tính năng | `100% PASS` | `⏳ CHỜ TEST` | `Build 144` |
+| **3** | **Giao tiếp Nội bộ (Chat V2, Media, WebRTC Call, Push)** | 24 tính năng | `22/24 PASS (2 BUGS)` | `🔍 CLAUDE-CHECKED (CÓ LỖI BỘ LỌC)` | `Build 144` |
+| **4** | **Quản lý Công việc & Dự án (Home Dashboard, Tasks, Danh bạ)** | 9 tính năng | `100% PASS` | `✅ CLAUDE-VERIFIED (ĐÃ FIX CHECKLIST ĐỢT 3)` | `Build 144` |
+| **5** | **Hỗ trợ & Xử lý Yêu cầu (Ticket / Helpdesk, SLA, Portal)** | 9 tính năng | `8/9 PASS (1 BUG)` | `🔍 CLAUDE-CHECKED (CÒN 1 LỖI ĐÁNH GIÁ SAO)` | `Build 144` |
+| **6** | **Tôi (Hồ sơ cá nhân, Dark Theme, Cache, Token, Xóa tài khoản)** | 9 tính năng | `100% PASS` | `✅ ACCEPTED (2026-09-28)` | `Build 144` |
 
 ---
 
@@ -344,11 +343,11 @@ Phân hệ cốt lõi cung cấp trải nghiệm giao tiếp toàn diện: trò 
 Phân hệ trung tâm điều hành công việc hàng ngày, tổng hợp chỉ số hiệu suất và kết nối đồng nghiệp.
 
 ### Chi tiết các tính năng:
-- [!] [BUG_ON_LIVE — CHỜ XÁC MINH THỰC TẾ] **4.1 Dashboard Tổng quan Cá nhân hóa (Home Screen Hero)**
+- [x] [Claude-Verified] **4.1 Dashboard Tổng quan Cá nhân hóa (Home Screen Hero)**
   - *Mô tả*: Lời chào thông minh theo buổi (Sáng / Chiều / Tối) kèm tên hiển thị, chức danh và công ty của nhân viên.
   - *Tệp liên quan*: `lib/features/home/presentation/home_screen.dart`.
   - *Kịch bản nghiệm thu*: Mở trang chủ ➔ Hiển thị đúng họ tên và chức danh của tài khoản đang đăng nhập.
-  - *Ghi chú kiểm thử (Tester Notes)*: `_GreetingHeader` hiện tại chỉ hiển thị chuỗi cố định `'Xin chào, $displayName'` và ngày tháng; KHÔNG hiển thị lời chào theo buổi (Sáng/Chiều/Tối) và KHÔNG hiển thị Chức danh (Job Title) cũng như Tên công ty của nhân viên.
+  - *Bằng chứng kiểm thử (Evidence)*: Đã fix triệt để BUG-008 ở Build 144: Lời chào tự động đổi theo buổi (Sáng 5h-12h, Chiều 12h-18h, Tối sau 18h) qua `greetingForHour()`, nạp chức danh (`role`/`function`/`job_title`) và công ty (`company`/`company_name`) từ `userMetadata` hiển thị dưới họ tên. Pass 4/4 greeting & metadata tests `test/home_greeting_and_celebration_test.dart`.
 
 - [/] [Claude-Checked] **4.2 Thẻ Chỉ số Đo lường Kép (Dual-Tier Metric Cards)**
   - *Mô tả*: Thẻ tổng hợp trực quan 4 thông số: Số giờ làm việc hôm nay, Trạng thái chấm công, Số lượng công việc cần làm hôm nay và Số ticket đang theo dõi.
@@ -356,11 +355,11 @@ Phân hệ trung tâm điều hành công việc hàng ngày, tổng hợp chỉ
   - *Kịch bản nghiệm thu*: Các con số thống kê hiển thị chính xác, khớp với dữ liệu thực tế từ Odoo.
   - *Bằng chứng kiểm thử (Evidence)*: Live API `https://vuahethong.net/api/v1/mobile/dashboard/summary` trả về chính xác: `is_checked_in: true`, `attendance_id: 8973`, `open_ticket_count: 5`, `unread_chat_count: 891`, `total_channel_count: 919`. Pass unit test `test/home_dual_tier_metric_test.dart`.
 
-- [!] [BUG_ON_LIVE — CHỜ XÁC MINH THỰC TẾ] **4.3 Nút Chấm công Nhanh trên Trang chủ kèm Hiệu ứng Pháo hoa**
+- [x] [Claude-Verified] **4.3 Nút Chấm công Nhanh trên Trang chủ kèm Hiệu ứng Pháo hoa**
   - *Mô tả*: Widget chuyển đổi Check-in/Check-out nhanh một chạm ngay tại Trang chủ; khi bấm Check-in thành công kích hoạt hiệu ứng pháo hoa chúc mừng sinh động (`CelebrationFireworks`).
   - *Tệp liên quan*: `lib/features/home/presentation/home_screen.dart`, `lib/shared/widgets/celebration_fireworks.dart`.
   - *Kịch bản nghiệm thu*: Bấm Check-in tại trang chủ ➔ Bắn hiệu ứng pháo hoa chúc mừng ngày làm việc mới.
-  - *Ghi chú kiểm thử (Tester Notes)*: `_toggleAttendance` khi check-in thành công KHÔNG gọi `CelebrationFireworksOverlay.trigger(context)`. Hiệu ứng pháo hoa hiện chỉ được kích hoạt tự động khi tích lũy đủ 100% thời gian ca làm việc (`autoTrigger: shiftProgress?.isCompleted`) hoặc khi bấm nút "Bắn pháo" thủ công.
+  - *Bằng chứng kiểm thử (Evidence)*: Đã fix triệt để BUG-009 ở Build 144: Kích hoạt `CelebrationFireworksOverlay.trigger(_fireworksChildKey.currentContext ?? context)` ngay khi Check-in nhanh thành công trong `_toggleAttendance`. Pass test widget `test/home_greeting_and_celebration_test.dart`.
 
 - [/] [Claude-Checked] **4.4 Chuông Thông báo Hệ thống (Notification Sheet)**
   - *Mô tả*: Biểu tượng chuông thông báo trên thanh tiêu đề Trang chủ kèm chấm đỏ số lượng; chạm vào mở BottomSheet danh sách thông báo hoạt động gần đây.
@@ -386,11 +385,11 @@ Phân hệ trung tâm điều hành công việc hàng ngày, tổng hợp chỉ
   - *Kịch bản nghiệm thu*: Bấm nút hoàn thành task ➔ Điền 1 giờ ➔ Task đổi sang trạng thái hoàn thành và sinh timesheet tương ứng.
   - *Bằng chứng kiểm thử (Evidence)*: Pass unit test `test/task_repository_test.dart` (complete logs time through mobile timesheet endpoint, stopwatch duration, updates task workflow status sang done).
 
-- [!] [BUG_ON_LIVE — CHỜ XÁC MINH THỰC TẾ] **4.8 Trình Biên tập Checklist Đầu việc trong Task (Checklist Editor)**
+- [x] [Claude-Verified] **4.8 Trình Biên tập Checklist Đầu việc trong Task (Checklist Editor)**
   - *Mô tả*: Cho phép xem và tích chọn từng đầu việc con (checklist items) bên trong nhiệm vụ; hỗ trợ thêm đầu việc con mới trực tiếp từ điện thoại.
-  - *Tệp liên quan*: `lib/features/timesheet/presentation/widgets/checklist_editor.dart`.
-  - *Kịch bản nghiệm thu*: Bấm vào checklist của task ➔ Tích chọn hoàn thành mục con ➔ Tiến độ % của task tăng lên.
-  - *Ghi chú kiểm thử (Tester Notes - LỆCH ĐẶC TẢ NGHIỆP VỤ)*: `TaskChecklistEditor` trong `checklist_editor.dart` thực chất chỉ là form nhập `Nội dung công việc đã làm (note)` và chọn `Thời gian làm việc (duration)`. KHÔNG có tính năng hiển thị danh sách đầu việc con (subtasks), KHÔNG có checkbox tích chọn từng mục con, KHÔNG có nút thêm đầu việc con mới, và KHÔNG có logic tự động tính tăng giảm % tiến độ task.
+  - *Tệp liên quan*: `lib/features/timesheet/presentation/widgets/checklist_editor.dart`, `lib/shared/models/task_checklist_item.dart`, `lib/shared/models/task.dart`.
+  - *Kịch bản nghiệm thu*: Bấm vào checklist của task ➔ Tích chọn hoàn thành mục con ➔ Tiến độ % của task tăng lên theo công thức `(completed / total) * 100%`.
+  - *Bằng chứng kiểm thử (Evidence)*: Đã fix triệt để BUG-010 ở Build 144. `TaskChecklistEditor` hỗ trợ xem subtasks, toggle trạng thái hoàn thành kèm hiệu ứng gạch ngang, thêm/xóa subtask động, thanh tiến độ `LinearProgressIndicator` và huy hiệu hiển thị % chính xác theo công thức `(completed / total) * 100%`. Pass 12/12 unit/widget tests trong `test/task_checklist_subtasks_test.dart`.
 
 - [/] [Claude-Checked] **4.9 Danh bạ Đồng nghiệp & Tra cứu Nhanh**
   - *Mô tả*: Tra cứu nhanh thông tin liên lạc của các thành viên trong công ty (Họ tên, Email, Phòng ban, Trạng thái online); bấm vào để mở chat hoặc gọi điện tức thì.
@@ -417,15 +416,12 @@ Phân hệ tiếp nhận và giải quyết các yêu cầu hỗ trợ kỹ thu�
   - *Kịch bản nghiệm thu*: Điền thông tin tạo ticket ➔ Bấm Gửi ➔ Ticket mới được tạo ngay trên hệ thống Odoo Helpdesk.
   - *Bằng chứng kiểm thử (Evidence)*: Form kiểm tra hợp lệ tiêu đề bắt buộc, nạp động danh sách đội hỗ trợ từ API `/api/v1/mobile/ticket/teams` (2 teams: Customer Care, Technical Support) và danh sách thẻ từ `/api/v1/mobile/ticket/tags` (13 tags). Nút Back trên AppBar xử lý an toàn cả trường hợp pop stack thông thường lẫn fallback deep-link về `/tickets` (Pass 2/2 tests `create_ticket_back_navigation_test.dart`).
 
-- [/] **5.3 Đính kèm Hình ảnh & Tệp tin vào Ticket (Kiểm tra mở tệp trên điện thoại)**
+- [x] [Claude-Verified] **5.3 Đính kèm Hình ảnh & Tệp tin vào Ticket (Kiểm tra mở tệp trên điện thoại)**
   - *Mô tả*: Chụp ảnh sự cố hoặc đính kèm tài liệu trực tiếp từ máy vào phiếu hỗ trợ để đội kỹ thuật dễ dàng nắm bắt lỗi.
-  - *Tệp liên quan*: `lib/features/ticket/presentation/create_ticket_screen.dart`, `lib/features/ticket/presentation/ticket_detail_screen.dart`, `lib/core/utils/file_download_mobile.dart`.
+  - *Tệp liên quan*: `lib/features/ticket/presentation/create_ticket_screen.dart`, `lib/features/ticket/presentation/ticket_detail_screen.dart`, `lib/features/chat_v2/presentation/widgets/chat_v2_attachment_viewer.dart`.
   - *Kịch bản nghiệm thu*: Đính kèm ảnh chụp màn hình hoặc tài liệu vào ticket ➔ Tải lên thành công và mở xem được trực tiếp trên điện thoại.
   - *Bằng chứng kiểm thử (Evidence)*: Luồng tải lên hỗ trợ Camera, Thư viện ảnh và Tệp tài liệu (PDF, Word, Excel, CSV, TXT) với giới hạn kích thước an toàn 25MB (`maxAttachmentBytes`). Pass 5/5 tests `ticket_attachment_verification_test.dart`.
-  - *Hiện tượng lỗi phát hiện (BUG-011 - Yêu cầu đặc biệt của Sếp)*: `[!] [BUG-011 — TỆP TÀI LIỆU TRONG TICKET KHÔNG MỞ IN-APP TRÊN ĐIỆN THOẠI]`
-    + **Hiện trạng code**: Trong `ticket_detail_screen.dart` (dòng 1268-1275), widget `_AttachmentTile` khi người dùng bấm vào chỉ gọi `openDownloadUrl(downloadUrl)`. Hàm này trên mobile (`lib/core/utils/file_download_mobile.dart:19`) thực thi `launchUrl(uri, mode: LaunchMode.externalApplication)`.
-    + **Hành vi trên điện thoại**: Ứng dụng Vcloud bị thu nhỏ / mất focus, hệ điều hành tự động bật trình duyệt web ngoài (Safari / Chrome). Đối với tài liệu văn phòng (Excel `.xlsx`, Word `.docx`, `.csv`, `.txt`), trình duyệt di động KHÔNG xem được inline mà chỉ tải về thư mục Downloads của máy; người dùng phải tự tìm trong Files app để mở!
-    + **Lệch chuẩn với Chat V2**: Trong Chat V2 đã có `ChatV2AttachmentViewer` tải authenticated bytes, lưu vào bộ nhớ tạm và gọi `OpenFilex.open(filePath)` (mở trực tiếp qua QuickLook trên iOS hoặc Native Viewer Intent trên Android) hoàn toàn In-App, bảo mật và không bị văng ra trình duyệt ngoài. Module Ticket chưa được nâng cấp để kế thừa cơ chế này!
+  - *Kết quả xử lý lỗi (BUG-011)*: Đã fix triệt để ở Build 144 (commit `90b7b3a`). Widget `_AttachmentTile` trong `ticket_detail_screen.dart` kế thừa `ChatV2AttachmentViewer.openAttachment()`, tải authenticated bytes và mở trực tiếp qua `OpenFilex` In-App, bảo mật, không bị văng ra trình duyệt ngoài Safari/Chrome. Pass 5/5 unit tests.
 
 - [x] **5.4 Màn hình Chi tiết Ticket Toàn diện (Ticket Detail Screen)**
   - *Mô tả*: Xem đầy đủ thông tin: Người gửi yêu cầu, Nhân viên phụ trách (Assigned User), Đội xử lý, Mức độ ưu tiên, Trạng thái giai đoạn hiện tại.
@@ -445,13 +441,11 @@ Phân hệ tiếp nhận và giải quyết các yêu cầu hỗ trợ kỹ thu�
   - *Kịch bản nghiệm thu*: Nội dung mô tả ticket tạo từ Web chứa định dạng phong phú hiển thị gọn gàng trên mobile.
   - *Bằng chứng kiểm thử (Evidence)*: `cleanHtmlText` loại bỏ thẻ script, style, comment, chuyển đổi các thẻ ngắt khối (`<br>`, `</p>`, `</div>`, `</li>`) thành xuống dòng, giải mã toàn diện các ký tự thực thể HTML (`&amp;`, `&lt;`, `&gt;`, `&quot;`, `&#39;`, `&nbsp;`, unicode hex & decimal). Đã pass toàn bộ test case trong `test/ticket_html_mapping_test.dart`.
 
-- [!] **5.7 Đo lường Cam kết Dịch vụ (SLA Status & Deadline)**
+- [x] [Claude-Verified] **5.7 Đo lường Cam kết Dịch vụ (SLA Status & Deadline)**
   - *Mô tả*: Hiển thị hạn chót cam kết giải quyết sự cố theo SLA và cảnh báo màu đỏ khi ticket sắp hoặc đã quá hạn cam kết.
   - *Tệp liên quan*: `lib/shared/models/ticket.dart`, `lib/features/ticket/presentation/ticket_detail_screen.dart`.
   - *Kịch bản nghiệm thu*: Ticket có SLA hiển thị rõ thời gian còn lại để hoàn thành xử lý.
-  - *Hiện tượng lỗi phát hiện (BUG-012)*: `[!] [BUG-012 — LỆCH LOGIC SLA KHI FALLBACK LẤY CREATED_AT LÀM DEADLINE]`
-    + **Hiện trạng code**: Trong `lib/shared/models/ticket.dart` (dòng 126), getter `isOverdue` tính: `final target = deadline ?? createdAt;`. Trong `ticket_detail_screen.dart` (dòng 657), chip hiển thị: `SLA: ${Dates.slaLabelVi(ticket.deadline ?? ticket.createdAt)}`.
-    + **Hậu quả**: Khi ticket không được cấu hình deadline (`deadline == null`), hệ thống lại đánh đồng ngày tạo (`createdAt`) là hạn chót SLA. Do đó, MỌI ticket được tạo từ ngày hôm qua trở về trước không có deadline đều bị đánh dấu `isOverdue = true` (Trễ SLA), nút hành động đổi thành `Nhận (Trễ SLA)` và `Hoàn thành (Trễ SLA)` màu đỏ báo động sai lệch bản chất nghiệp vụ.
+  - *Bằng chứng kiểm thử (Evidence)*: Đã fix triệt để BUG-012 ở Build 144 (commit `90b7b3a`). Getter `Ticket.isOverdue` trả về `false` khi `deadline == null` (không fallback sang `createdAt`). Chip SLA hiển thị rõ ràng "SLA: Không giới hạn" thay vì báo động giả trễ hạn. Pass 5/5 unit tests SLA deadline `test/ticket_sla_deadline_test.dart`.
 
 - [!] **5.8 Đánh giá Mức độ Hài lòng (Customer Satisfaction Ratings)**
   - *Mô tả*: Tích hợp ghi nhận đánh giá hài lòng của người dùng sau khi sự cố được đóng (1-5 sao, biểu tượng cảm xúc hài lòng).

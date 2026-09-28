@@ -3,12 +3,15 @@ import 'package:flutter/services.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
 import '../../../../core/theme/app_theme.dart';
+import '../../../../shared/models/task_checklist_item.dart';
 import '../../../../shared/models/timesheet.dart';
 import '../../../../shared/widgets/ui_kit.dart';
 
+export '../../../../shared/models/task_checklist_item.dart';
+
 /// Reusable "what I did + how long" form for a task.
 ///
-/// Renders the note TextField + interactive Stepper/Textbox + 4 duration-preset chips + gradient save button.
+/// Renders subtask checklist + % progress bar + note TextField + interactive Stepper/Textbox + duration-preset chips + gradient save button.
 class TaskChecklistEditor extends StatefulWidget {
   const TaskChecklistEditor({
     super.key,
@@ -17,6 +20,9 @@ class TaskChecklistEditor extends StatefulWidget {
     required this.saving,
     required this.onDurationChanged,
     required this.onSave,
+    this.initialSubtasks = const <TaskChecklistItem>[],
+    this.onSubtasksChanged,
+    this.onProgressChanged,
     this.saveLabel = 'Lưu & đánh dấu hoàn thành',
     this.noteLabelText = 'Nội dung công việc đã làm',
     this.noteHintText = 'Ghi ngắn gọn kết quả, phần đã xử lý...',
@@ -30,6 +36,10 @@ class TaskChecklistEditor extends StatefulWidget {
   final ValueChanged<TimesheetDuration>? onDurationChanged;
   final VoidCallback? onSave;
 
+  final List<TaskChecklistItem> initialSubtasks;
+  final ValueChanged<List<TaskChecklistItem>>? onSubtasksChanged;
+  final ValueChanged<double>? onProgressChanged;
+
   final String saveLabel;
   final String noteLabelText;
   final String noteHintText;
@@ -42,13 +52,17 @@ class TaskChecklistEditor extends StatefulWidget {
 
 class _TaskChecklistEditorState extends State<TaskChecklistEditor> {
   late TextEditingController _minutesController;
+  late TextEditingController _newSubtaskController;
   late int _minutes;
+  late List<TaskChecklistItem> _subtasks;
 
   @override
   void initState() {
     super.initState();
     _minutes = _durationToMinutes(widget.duration);
     _minutesController = TextEditingController(text: '$_minutes');
+    _newSubtaskController = TextEditingController();
+    _subtasks = List<TaskChecklistItem>.from(widget.initialSubtasks);
   }
 
   @override
@@ -60,12 +74,57 @@ class _TaskChecklistEditorState extends State<TaskChecklistEditor> {
         _minutesController.text = '$_minutes';
       }
     }
+    if (oldWidget.initialSubtasks != widget.initialSubtasks) {
+      _subtasks = List<TaskChecklistItem>.from(widget.initialSubtasks);
+    }
   }
 
   @override
   void dispose() {
     _minutesController.dispose();
+    _newSubtaskController.dispose();
     super.dispose();
+  }
+
+  double get _progressPercent => calculateSubtaskProgress(_subtasks);
+  int get _completedCount => _subtasks.where((s) => s.isCompleted).length;
+
+  void _addSubtask() {
+    final text = _newSubtaskController.text.trim();
+    if (text.isEmpty) return;
+    setState(() {
+      _subtasks.add(
+        TaskChecklistItem(
+          id: 'subtask_${DateTime.now().microsecondsSinceEpoch}',
+          title: text,
+          isCompleted: false,
+        ),
+      );
+      _newSubtaskController.clear();
+    });
+    _notifySubtasks();
+  }
+
+  void _toggleSubtask(int index) {
+    if (index < 0 || index >= _subtasks.length) return;
+    setState(() {
+      final current = _subtasks[index];
+      _subtasks[index] = current.copyWith(isCompleted: !current.isCompleted);
+    });
+    _notifySubtasks();
+  }
+
+  void _removeSubtask(int index) {
+    if (index < 0 || index >= _subtasks.length) return;
+    setState(() {
+      _subtasks.removeAt(index);
+    });
+    _notifySubtasks();
+  }
+
+  void _notifySubtasks() {
+    widget.onSubtasksChanged?.call(List.unmodifiable(_subtasks));
+    widget.onProgressChanged?.call(_progressPercent);
   }
 
   int _durationToMinutes(TimesheetDuration d) {
@@ -123,20 +182,181 @@ class _TaskChecklistEditorState extends State<TaskChecklistEditor> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Icon(LucideIcons.listChecks, color: Color(0xFF00C83A), size: 18),
+              Row(
+                children: [
+                  const Icon(LucideIcons.listChecks, color: Color(0xFF00C83A), size: 18),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Đầu việc & tiến độ',
+                    style: TextStyle(
+                      color: isDark ? Colors.white : AppColors.textPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
+              ),
+              if (_subtasks.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF00C83A).withValues(alpha: isDark ? 0.25 : 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: const Color(0xFF00C83A).withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Text(
+                    '${_progressPercent.toStringAsFixed(0)}% ($_completedCount/${_subtasks.length})',
+                    style: const TextStyle(
+                      color: Color(0xFF00C83A),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          if (_subtasks.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: LinearProgressIndicator(
+                value: _subtasks.isEmpty ? 0.0 : (_completedCount / _subtasks.length),
+                minHeight: 6,
+                backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.black.withValues(alpha: 0.06),
+                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF00C83A)),
+              ),
+            ),
+          ],
+          const SizedBox(height: 10),
+
+          // ── Subtask List ──────────────────────────────────────────────
+          if (_subtasks.isNotEmpty) ...[
+            for (int i = 0; i < _subtasks.length; i++) ...[
+              () {
+                final item = _subtasks[i];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: widget.saving ? null : () => _toggleSubtask(i),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+                      child: Row(
+                        children: [
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            width: 22,
+                            height: 22,
+                            decoration: BoxDecoration(
+                              color: item.isCompleted ? const Color(0xFF00C83A) : Colors.transparent,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: item.isCompleted
+                                    ? const Color(0xFF00C83A)
+                                    : (isDark ? Colors.white38 : AppColors.border),
+                                width: 1.5,
+                              ),
+                            ),
+                            child: item.isCompleted
+                                ? const Icon(LucideIcons.check, size: 14, color: Colors.white)
+                                : null,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              item.title,
+                              style: TextStyle(
+                                color: item.isCompleted
+                                    ? (isDark ? Colors.white38 : AppColors.textSecondary)
+                                    : (isDark ? Colors.white : AppColors.textPrimary),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                decoration: item.isCompleted ? TextDecoration.lineThrough : null,
+                              ),
+                            ),
+                          ),
+                          if (!widget.saving)
+                            IconButton(
+                              icon: const Icon(LucideIcons.trash2, size: 16),
+                              color: isDark ? Colors.white38 : AppColors.textSecondary,
+                              splashRadius: 16,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                              onPressed: () => _removeSubtask(i),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }(),
+            ],
+            const SizedBox(height: 6),
+          ],
+
+          // ── Add Subtask Field ─────────────────────────────────────────
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _newSubtaskController,
+                  enabled: !widget.saving,
+                  style: TextStyle(
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    fontSize: 13,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Thêm đầu việc con (subtask)...',
+                    hintStyle: TextStyle(
+                      color: isDark ? Colors.white38 : AppColors.textSecondary,
+                      fontSize: 13,
+                    ),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    filled: true,
+                    fillColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(
+                        color: isDark ? Colors.white12 : AppColors.border,
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(
+                        color: isDark ? Colors.white12 : AppColors.border,
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(
+                        color: Color(0xFF00C83A),
+                      ),
+                    ),
+                  ),
+                  onSubmitted: (_) => _addSubtask(),
+                ),
+              ),
               const SizedBox(width: 8),
-              Text(
-                'Nội dung & thời gian',
-                style: TextStyle(
-                  color: isDark ? Colors.white : AppColors.textPrimary,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w900,
+              PressableScale(
+                onTap: widget.saving ? null : _addSubtask,
+                child: Container(
+                  height: 38,
+                  width: 38,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF00C83A),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(LucideIcons.plus, color: Colors.white, size: 18),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           if (widget.errorMessage != null &&
               widget.errorMessage!.isNotEmpty) ...[
             Container(

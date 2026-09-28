@@ -1522,6 +1522,7 @@ _TodayTaskPreview _todayTaskPreviewFromTask(Task task) {
     icon: _taskCategoryIcon(task.category),
     note: null,
     logged: null,
+    subtasks: task.subtasks,
   );
 }
 
@@ -1566,6 +1567,7 @@ class _TodayTaskPreview {
     required this.icon,
     this.note,
     this.logged,
+    this.subtasks = const <TaskChecklistItem>[],
   });
 
   /// Odoo task id — needed so the quick-edit popup can route saves
@@ -1583,6 +1585,8 @@ class _TodayTaskPreview {
   /// Last logged duration, if any. Same purpose — defaults the
   /// duration picker to a sensible bucket when re-opening.
   final Duration? logged;
+
+  final List<TaskChecklistItem> subtasks;
 }
 
 class _TodayWork extends StatelessWidget {
@@ -1866,6 +1870,7 @@ class _TaskQuickEditSheetState extends ConsumerState<_TaskQuickEditSheet> {
                   saving: _saving,
                   hasError: _hasError,
                   errorMessage: _errorMessage,
+                  initialSubtasks: widget.task.subtasks,
                   onDurationChanged: _saving
                       ? null
                       : (dur) => setState(() => _duration = dur),

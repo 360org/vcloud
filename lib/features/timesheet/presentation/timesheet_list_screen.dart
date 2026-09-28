@@ -367,6 +367,7 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
                 stageName: task.stageName,
               )),
       done: done,
+      subtasks: task.subtasks,
       // Ưu tiên entry hôm nay -> log hoàn thành local -> lần log gần nhất từ Odoo backend
       logged: entry != null
           ? Duration(minutes: entry.durationMinutes)
@@ -2117,6 +2118,9 @@ class _TaskDetailSheetState extends ConsumerState<_TaskDetailSheet> {
             completedAt: fullTask.completedAt ?? widget.task.completedAt,
             lastLogDate: widget.task.lastLogDate,
             timesheetId: widget.task.timesheetId,
+            subtasks: fullTask.subtasks.isNotEmpty
+                ? fullTask.subtasks
+                : widget.task.subtasks,
           );
           if (_noteController.text.trim().isEmpty && lastLogNote.isNotEmpty) {
             _noteController.text = lastLogNote;
@@ -2467,6 +2471,7 @@ class _TaskDetailSheetState extends ConsumerState<_TaskDetailSheet> {
                   saving: _saving,
                   hasError: _noteError,
                   errorMessage: _validationError,
+                  initialSubtasks: task.subtasks,
                   onDurationChanged: _saving
                       ? null
                       : (duration) {
@@ -4096,6 +4101,7 @@ class _TodayTask {
     this.completedAt,
     this.lastLogDate,
     this.timesheetId,
+    this.subtasks = const <TaskChecklistItem>[],
   });
 
   final String id;
@@ -4127,6 +4133,7 @@ class _TodayTask {
   final DateTime? completedAt;
   final DateTime? lastLogDate;
   final String? timesheetId;
+  final List<TaskChecklistItem> subtasks;
 
   _TodayTask copyWith({
     String? userId,
@@ -4138,6 +4145,7 @@ class _TodayTask {
     DateTime? dueDate,
     DateTime? createdAt,
     String? timesheetId,
+    List<TaskChecklistItem>? subtasks,
   }) {
     return _TodayTask(
       id: id,
@@ -4168,6 +4176,7 @@ class _TodayTask {
       completedAt: completedAt ?? this.completedAt,
       lastLogDate: lastLogDate ?? this.lastLogDate,
       timesheetId: timesheetId ?? this.timesheetId,
+      subtasks: subtasks ?? this.subtasks,
     );
   }
 }
