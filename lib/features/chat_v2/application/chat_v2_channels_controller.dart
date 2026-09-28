@@ -463,7 +463,9 @@ class ChatV2ChannelLocalCache {
         final existing = map[c.id]!;
         // Giữ nguyên channelType/isGroup/memberCount từ API (hoặc từ pinned nếu API chưa có)
         map[c.id] = existing.copyWith(
-          name: (c.name.isNotEmpty && c.name != 'Trò chuyện') ? c.name : existing.name,
+          name: ChatV2Channel.cleanChannelName(
+            (c.name.isNotEmpty && c.name != 'Trò chuyện') ? c.name : existing.name,
+          ),
           avatarUrl: (existing.avatarUrl != null && existing.avatarUrl!.isNotEmpty)
               ? existing.avatarUrl
               : c.avatarUrl,
@@ -633,7 +635,7 @@ class ChatV2ChannelsNotifier
               final isMuted = ChatV2ChannelLocalCache.isUserMuted(f.id);
               if (!isMuted) {
                 ref.read(inAppNotificationProvider.notifier).show(
-                  title: f.directPartnerName ?? f.name,
+                  title: f.directPartnerName ?? f.displayName,
                   body: f.lastMessage ?? '',
                   channelId: f.id,
                 );

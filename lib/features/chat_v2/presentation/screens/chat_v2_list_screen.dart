@@ -506,7 +506,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                     if (_searchQuery.isNotEmpty) {
                       final q = _searchQuery.replaceAll('#', '').trim().toLowerCase();
                       final matchCleanName = cleanName.replaceAll('#', '').toLowerCase().contains(q);
-                      final matchRawName = c.name.replaceAll('#', '').toLowerCase().contains(q);
+                      final matchRawName = c.displayName.replaceAll('#', '').toLowerCase().contains(q);
                       final matchMsg = (c.lastMessage ?? '').toLowerCase().contains(q);
                       final matchMembers = c.memberNames.any((m) => m.toLowerCase().contains(q));
                       final matchDirect = (c.directPartnerName ?? '').toLowerCase().contains(q);

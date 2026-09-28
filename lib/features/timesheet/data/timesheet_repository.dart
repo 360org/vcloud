@@ -115,7 +115,7 @@ class TimesheetRepository {
     int? targetProjectId = projectIdOverride;
     if (targetProjectId == null) {
       try {
-        final projRes = _cachedProjects ?? await _client.get('/api/v1/mobile/project/list');
+        final projRes = _cachedProjects ?? await _client.get('/api/v1/mobile/timesheet/projects');
         if (projRes is List && projRes.isNotEmpty) {
           _cachedProjects = projRes;
           final first = projRes.first;
@@ -125,10 +125,20 @@ class TimesheetRepository {
         }
       } catch (_) {}
     }
-    final projectId = targetProjectId ?? 1;
+    if (targetProjectId == null) {
+      try {
+        final projRes = await _client.get('/api/v1/mobile/project/list');
+        if (projRes is List && projRes.isNotEmpty) {
+          final first = projRes.first;
+          if (first is Map && first['id'] != null) {
+            targetProjectId = int.tryParse(first['id'].toString());
+          }
+        }
+      } catch (_) {}
+    }
 
     final body = <String, dynamic>{
-      'project_id': projectId,
+      'project_id': ?targetProjectId,
       if (taskId != null && int.tryParse(taskId) != null)
         'task_id': int.parse(taskId),
       'unit_amount': hours,

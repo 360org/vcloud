@@ -14,6 +14,7 @@ import 'features/chat_v2/application/chat_v2_call_controller.dart';
 import 'features/chat_v2/application/chat_v2_call_watcher.dart';
 import 'features/chat_v2/application/chat_v2_callkit_service.dart';
 import 'features/chat_v2/application/chat_v2_channels_controller.dart';
+import 'features/chat_v2/data/models/chat_v2_channel.dart';
 import 'features/chat_v2/application/chat_v2_messages_controller.dart';
 import 'features/chat_v2/domain/models/chat_v2_call_session.dart';
 import 'features/chat_v2/presentation/screens/chat_v2_call_screen.dart';
@@ -242,9 +243,10 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
         resId != null &&
         resId.toString().isNotEmpty &&
         resId.toString() != '0') {
-      final channelName = data['channel_name'] ?? data['name'] ?? message.notification?.title ?? '';
+      final rawChannelName = data['channel_name'] ?? data['name'] ?? message.notification?.title ?? '';
+      final cleanChannelName = ChatV2Channel.cleanChannelName(rawChannelName.toString());
       ref.read(routerProvider).go(
-            '/chat/$resId?name=${Uri.encodeComponent(channelName.toString())}',
+            '/chat/$resId?name=${Uri.encodeComponent(cleanChannelName)}',
           );
     } else if (ticketId != null && ticketId.toString().isNotEmpty) {
       ref.read(routerProvider).go('/tickets/$ticketId');

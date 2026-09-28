@@ -203,47 +203,71 @@ class ChatV2Channel {
     return pLower == uLower || uLower.contains(pLower) || pLower.contains(uLower);
   }
 
-  /// Bóc tách hoàn toàn tiền tố/hậu tố rác từ Odoo ORM (ví dụ: 'Users + Internal', 'Users + ')
+  /// Tên hiển thị sạch chuẩn hóa (không phụ thuộc user context)
+  String get displayName => cleanChannelName(name);
+
+  /// Alias tương thích
+  String get cleanName => displayName;
+
+  /// Bóc tách hoàn toàn tiền tố/hậu tố rác từ Odoo ORM (ví dụ: 'Users + Internal /', 'Users /', 'Users -', '(Users + Internal)')
   static String cleanChannelName(String rawName) {
     var clean = rawName.trim();
     if (clean.isEmpty) return 'Cuộc trò chuyện';
 
-    // 1. Khớp chính xác các biến thể của Users + Internal
+    // 0. Chuẩn hóa khoảng trắng Unicode / tabs / nhiều khoảng trắng liên tiếp
+    clean = clean.replaceAll(RegExp(r'\s+'), ' ');
+
+    // 1. Khớp chính xác các biến thể của Users + Internal độc lập
     final lower = clean.toLowerCase();
     if (lower == 'users + internal' ||
         lower == 'users/internal' ||
         lower == 'users - internal' ||
-        lower == 'users+internal') {
+        lower == 'users+internal' ||
+        lower == '(users + internal)' ||
+        lower == '[users + internal]') {
       return 'Internal';
     }
 
-    // 2. Bóc tách ngoặc đơn/vuông rác chứa Users + Internal: e.g. "Dự án A (Users + Internal)" -> "Dự án A"
-    final bracketRegex = RegExp(r'\s*[\(\[]\s*users\s*([+/|-]|và|&)\s*internal\s*[\)\]]', caseSensitive: false);
+    // 2. Bóc tách ngoặc đơn/vuông rác chứa Users + Internal ở bất kỳ đâu trong chuỗi:
+    // Ví dụ: "Dự án ERP (Users + Internal)" -> "Dự án ERP", "(Users + Internal) Phòng Kỹ Thuật" -> "Phòng Kỹ Thuật"
+    final bracketRegex = RegExp(
+      r'[\(\[]\s*users\s*[\+\-\/|và&]\s*internal\s*[\)\]]',
+      caseSensitive: false,
+    );
     if (bracketRegex.hasMatch(clean)) {
-      final stripped = clean.replaceAll(bracketRegex, '').trim();
-      if (stripped.isNotEmpty) {
-        clean = stripped;
-      }
+      clean = clean.replaceAll(bracketRegex, ' ').trim();
     }
 
-    // 3. Bóc tách tiền tố rác "Users + ", "Users / ", "Users - "
-    // Ví dụ: "Users + General" -> "General", "Users + Kênh A" -> "Kênh A"
-    final prefixRegex = RegExp(r'^users\s*([+/|-]|và|&)\s*', caseSensitive: false);
-    if (prefixRegex.hasMatch(clean)) {
-      final stripped = clean.replaceFirst(prefixRegex, '').trim();
-      if (stripped.isNotEmpty) {
-        clean = stripped;
-      }
+    // 3. Sử dụng Master Regex theo chỉ thị để bóc tách triệt để các tiền tố rác Odoo Discuss:
+    // r'\(?\s*Users\s*[\+\-\/]\s*Internal\s*\)?\s*[\/\-]?|Users\s*[\+\-\/]\s*'
+    // Khớp:
+    // - "Users + Internal /", "Users + Internal -", "(Users + Internal) /", "Users + Internal"
+    // - "Users /", "Users -", "Users +"
+    final odooDiscussPrefixRegex = RegExp(
+      r'\(?\s*Users\s*[\+\-\/]\s*Internal\s*\)?\s*[\/\-]?|Users\s*[\+\-\/]\s*',
+      caseSensitive: false,
+    );
+    if (odooDiscussPrefixRegex.hasMatch(clean)) {
+      clean = clean.replaceAll(odooDiscussPrefixRegex, ' ').trim();
     }
 
-    // 4. Bóc tách hậu tố rác " + Internal", " / Internal", " - Internal" (nếu phía trước đã có tên kênh)
+    // 4. Bóc tách hậu tố rác "+ Internal", "- Internal", "/ Internal" (nếu phía trước đã có tên kênh)
     // Ví dụ: "Ban Giám Đốc + Internal" -> "Ban Giám Đốc"
-    final suffixRegex = RegExp(r'\s*([+/|-]|và|&)\s*internal$', caseSensitive: false);
+    final suffixRegex = RegExp(r'\s*[\+\-\/|và&]\s*internal$', caseSensitive: false);
     if (clean.toLowerCase() != 'internal' && suffixRegex.hasMatch(clean)) {
-      final stripped = clean.replaceFirst(suffixRegex, '').trim();
-      if (stripped.isNotEmpty) {
-        clean = stripped;
-      }
+      clean = clean.replaceFirst(suffixRegex, '').trim();
+    }
+
+    // 5. Lột sạch các ký tự phân cách thừa ở đầu và cuối chuỗi (/ - + | , :)
+    clean = clean.replaceAll(RegExp(r'^[\s\/\-\+\|,:]+|[\s\/\-\+\|,:]+$'), '').trim();
+
+    // 6. Gom khoảng trắng thừa bên trong chuỗi
+    clean = clean.replaceAll(RegExp(r'\s+'), ' ').trim();
+
+    // 7. Fallback an toàn: nếu sau khi làm sạch bị rỗng
+    if (clean.isEmpty) {
+      if (lower.contains('internal')) return 'Internal';
+      return rawName.trim().isNotEmpty ? rawName.trim() : 'Cuộc trò chuyện';
     }
 
     return clean;

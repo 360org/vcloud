@@ -19,6 +19,7 @@ import '../../attendance/application/attendance_controller.dart';
 import '../../attendance/domain/shift_calculator.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../chat_v2/application/chat_v2_channels_controller.dart';
+import '../../chat_v2/data/models/chat_v2_channel.dart';
 import '../../timesheet/application/task_controller.dart';
 
 
@@ -999,7 +1000,7 @@ String? _notificationRoute(Map<String, dynamic> data, {String? title}) {
   if (conversationId != null &&
       conversationId.toString().isNotEmpty &&
       conversationId.toString() != '0') {
-    final cleanTitle = title != null ? _cleanNotificationText(title) : null;
+    final cleanTitle = title != null ? ChatV2Channel.cleanChannelName(_cleanNotificationText(title)) : null;
     if (cleanTitle != null && cleanTitle.isNotEmpty) {
       return '/chat/$conversationId?name=${Uri.encodeComponent(cleanTitle)}';
     }

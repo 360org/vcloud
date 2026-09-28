@@ -106,7 +106,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
       final currentChannel = ref.read(chatV2ChannelsProvider.select(
         (async) => async.valueOrNull?.where((c) => c.id == widget.channelId).firstOrNull,
       ));
-      if (currentChannel == null || currentChannel.name == 'Trò chuyện' || currentChannel.name.isEmpty) {
+      if (currentChannel == null || currentChannel.displayName == 'Trò chuyện' || currentChannel.displayName.isEmpty) {
         try {
           final ch = await ref.read(chatV2RepositoryProvider).getChannel(widget.channelId);
           if (ch != null && mounted) {
@@ -676,19 +676,21 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
     final currentChannel = ref.watch(chatV2ChannelsProvider.select(
       (async) => async.valueOrNull?.where((c) => c.id == widget.channelId).firstOrNull,
     ));
-    final rawTitle = widget.title ?? currentChannel?.name ?? 'Trò chuyện';
+    final rawTitle = widget.title ?? currentChannel?.displayName ?? 'Trò chuyện';
     final displayTitle = currentChannel != null
         ? currentChannel.getCleanName(currentUserName)
         : (rawTitle.contains(',')
-            ? rawTitle
-                .split(',')
-                .map((s) => s.trim())
-                .where((s) =>
-                    s.isNotEmpty &&
-                    s.toLowerCase() != (currentUserName ?? '').toLowerCase())
-                .firstOrNull ??
+            ? ChatV2Channel.cleanChannelName(
                 rawTitle
-            : rawTitle);
+                    .split(',')
+                    .map((s) => s.trim())
+                    .where((s) =>
+                        s.isNotEmpty &&
+                        s.toLowerCase() != (currentUserName ?? '').toLowerCase())
+                    .firstOrNull ??
+                    rawTitle,
+              )
+            : ChatV2Channel.cleanChannelName(rawTitle));
 
     final headerTextColor = isDark ? Colors.white : const Color(0xFF0F172A);
     final messages = messagesAsync.valueOrNull ??

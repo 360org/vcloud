@@ -1,0 +1,156 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:vcloud/features/chat_v2/application/chat_v2_channels_controller.dart';
+import 'package:vcloud/features/chat_v2/data/models/chat_v2_channel.dart';
+
+void main() {
+  group('ChatV2Channel Odoo Discuss Channel Name Sanitization Tests', () {
+    const currentUserName = 'Sếp Tân';
+
+    // -------------------------------------------------------------------------
+    // 1. BỐN KỊCH BẢN BẮT BUỘC THEO MASTER DIRECTIVE
+    // -------------------------------------------------------------------------
+    test('1.1. "Users + Internal / Ban Giám Đốc" bóc tách thành "Ban Giám Đốc"', () {
+      const raw = 'Users + Internal / Ban Giám Đốc';
+      final cleaned = ChatV2Channel.cleanChannelName(raw);
+      expect(cleaned, equals('Ban Giám Đốc'));
+
+      const channel = ChatV2Channel(id: '1', name: raw, channelType: 'channel', isGroup: true);
+      expect(channel.displayName, equals('Ban Giám Đốc'));
+      expect(channel.cleanName, equals('Ban Giám Đốc'));
+      expect(channel.getCleanName(currentUserName), equals('Ban Giám Đốc'));
+    });
+
+    test('1.2. "(Users + Internal) Phòng Kỹ Thuật" bóc tách thành "Phòng Kỹ Thuật"', () {
+      const raw = '(Users + Internal) Phòng Kỹ Thuật';
+      final cleaned = ChatV2Channel.cleanChannelName(raw);
+      expect(cleaned, equals('Phòng Kỹ Thuật'));
+
+      const channel = ChatV2Channel(id: '2', name: raw, channelType: 'channel', isGroup: true);
+      expect(channel.displayName, equals('Phòng Kỹ Thuật'));
+      expect(channel.cleanName, equals('Phòng Kỹ Thuật'));
+      expect(channel.getCleanName(currentUserName), equals('Phòng Kỹ Thuật'));
+    });
+
+    test('1.3. "Users / Dịch Vụ Khách Hàng" bóc tách thành "Dịch Vụ Khách Hàng"', () {
+      const raw = 'Users / Dịch Vụ Khách Hàng';
+      final cleaned = ChatV2Channel.cleanChannelName(raw);
+      expect(cleaned, equals('Dịch Vụ Khách Hàng'));
+
+      const channel = ChatV2Channel(id: '3', name: raw, channelType: 'channel', isGroup: true);
+      expect(channel.displayName, equals('Dịch Vụ Khách Hàng'));
+      expect(channel.cleanName, equals('Dịch Vụ Khách Hàng'));
+      expect(channel.getCleanName(currentUserName), equals('Dịch Vụ Khách Hàng'));
+    });
+
+    test('1.4. "Users - Kinh Doanh" bóc tách thành "Kinh Doanh"', () {
+      const raw = 'Users - Kinh Doanh';
+      final cleaned = ChatV2Channel.cleanChannelName(raw);
+      expect(cleaned, equals('Kinh Doanh'));
+
+      const channel = ChatV2Channel(id: '4', name: raw, channelType: 'channel', isGroup: true);
+      expect(channel.displayName, equals('Kinh Doanh'));
+      expect(channel.cleanName, equals('Kinh Doanh'));
+      expect(channel.getCleanName(currentUserName), equals('Kinh Doanh'));
+    });
+
+    // -------------------------------------------------------------------------
+    // 2. CÁC BIẾN THỂ ODOO 17 & 19 MỞ RỘNG
+    // -------------------------------------------------------------------------
+    test('2.1. Tiền tố "Users +" và "Users + Internal -"', () {
+      expect(ChatV2Channel.cleanChannelName('Users + Kinh Doanh'), equals('Kinh Doanh'));
+      expect(ChatV2Channel.cleanChannelName('Users + Internal - General'), equals('General'));
+      expect(ChatV2Channel.cleanChannelName('Users / Internal / Ban Giám Đốc'), equals('Ban Giám Đốc'));
+    });
+
+    test('2.2. Hậu tố "(Users + Internal)", "[Users + Internal]", "+ Internal", "- Internal"', () {
+      expect(ChatV2Channel.cleanChannelName('Ban Giám Đốc (Users + Internal)'), equals('Ban Giám Đốc'));
+      expect(ChatV2Channel.cleanChannelName('Thông Báo Nội Bộ [Users + Internal]'), equals('Thông Báo Nội Bộ'));
+      expect(ChatV2Channel.cleanChannelName('Phòng Nhân Sự + Internal'), equals('Phòng Nhân Sự'));
+      expect(ChatV2Channel.cleanChannelName('Hỗ Trợ - Internal'), equals('Hỗ Trợ'));
+    });
+
+    test('2.3. Biến thể độc lập chỉ gồm Users & Internal', () {
+      expect(ChatV2Channel.cleanChannelName('Users + Internal'), equals('Internal'));
+      expect(ChatV2Channel.cleanChannelName('users + internal'), equals('Internal'));
+      expect(ChatV2Channel.cleanChannelName('USERS + INTERNAL'), equals('Internal'));
+      expect(ChatV2Channel.cleanChannelName('Users/Internal'), equals('Internal'));
+      expect(ChatV2Channel.cleanChannelName('Users - Internal'), equals('Internal'));
+      expect(ChatV2Channel.cleanChannelName('(Users + Internal)'), equals('Internal'));
+      expect(ChatV2Channel.cleanChannelName('[Users + Internal]'), equals('Internal'));
+      expect(ChatV2Channel.cleanChannelName('Users + Internal / '), equals('Internal'));
+      expect(ChatV2Channel.cleanChannelName('Internal'), equals('Internal'));
+    });
+
+    test('2.4. Xử lý khoảng trắng thừa, Unicode tabs, ký tự phân cách thừa', () {
+      expect(ChatV2Channel.cleanChannelName('   Users   +   Internal   /   Ban Giám Đốc   '), equals('Ban Giám Đốc'));
+      expect(ChatV2Channel.cleanChannelName('/ Users / Marketing /'), equals('Marketing'));
+      expect(ChatV2Channel.cleanChannelName('- Users - Kế Toán -'), equals('Kế Toán'));
+    });
+
+    test('2.5. Fallback an toàn khi chuỗi rỗng', () {
+      expect(ChatV2Channel.cleanChannelName(''), equals('Cuộc trò chuyện'));
+      expect(ChatV2Channel.cleanChannelName('   '), equals('Cuộc trò chuyện'));
+    });
+
+    // -------------------------------------------------------------------------
+    // 3. KIỂM THỬ DESERIALIZATION TỪ API VÀ LOCAL CACHE
+    // -------------------------------------------------------------------------
+    test('3.1. fromJson tự động làm sạch chuỗi rác từ field "name"', () {
+      final json = {
+        'id': 501,
+        'name': 'Users + Internal / Ban Giám Đốc',
+        'channel_type': 'channel',
+        'is_group': true,
+      };
+
+      final channel = ChatV2Channel.fromJson(json);
+      expect(channel.name, equals('Ban Giám Đốc'));
+      expect(channel.displayName, equals('Ban Giám Đốc'));
+      expect(channel.cleanName, equals('Ban Giám Đốc'));
+    });
+
+    test('3.2. fromJson tự động làm sạch chuỗi rác từ field "display_name"', () {
+      final json = {
+        'id': 502,
+        'name': 'General',
+        'display_name': '(Users + Internal) Phòng Kỹ Thuật',
+        'channel_type': 'channel',
+        'is_group': true,
+      };
+
+      final channel = ChatV2Channel.fromJson(json);
+      expect(channel.name, equals('Phòng Kỹ Thuật'));
+      expect(channel.displayName, equals('Phòng Kỹ Thuật'));
+    });
+
+    test('3.3. Dữ liệu từ Disk Cache nạp lên RAM được tự động làm sạch', () {
+      final legacyDiskCacheMap = {
+        'id': '503',
+        'name': 'Users / Dịch Vụ Khách Hàng',
+        'channel_type': 'channel',
+        'is_group': true,
+        'member_count': 5,
+      };
+
+      final channel = ChatV2Channel.fromMap(legacyDiskCacheMap);
+      expect(channel.name, equals('Dịch Vụ Khách Hàng'));
+      expect(channel.displayName, equals('Dịch Vụ Khách Hàng'));
+    });
+
+    test('3.4. ChatV2ChannelLocalCache.set lưu trữ và cung cấp danh sách kênh đã được làm sạch', () {
+      final rawChannel = ChatV2Channel(
+        id: '504',
+        name: ChatV2Channel.cleanChannelName('Users - Kinh Doanh'),
+        channelType: 'channel',
+        isGroup: true,
+      );
+
+      ChatV2ChannelLocalCache.set([rawChannel]);
+      final cached = ChatV2ChannelLocalCache.cached.firstWhere((c) => c.id == '504');
+
+      expect(cached.name, equals('Kinh Doanh'));
+      expect(cached.displayName, equals('Kinh Doanh'));
+      expect(cached.cleanName, equals('Kinh Doanh'));
+    });
+  });
+}

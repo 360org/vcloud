@@ -229,7 +229,7 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
         final channelMatches = allChannels.where((c) {
           if (c.id == widget.channelId) return false;
           if (qLower.isEmpty) return true;
-          final cLower = c.name.toLowerCase();
+          final cLower = c.displayName.toLowerCase();
           final cNormalized = _removeVietnameseDiacritics(cLower);
           return cLower.contains(qLower) || cNormalized.contains(qNormalized);
         }).toList();
@@ -300,7 +300,7 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
     final prefix = text.substring(0, _channelQueryStartIndex);
     final suffix = text.substring(endIdx);
 
-    final insertText = '#${channel.name} ';
+    final insertText = '#${channel.displayName} ';
     final newText = '$prefix$insertText$suffix';
 
     _controller.value = TextEditingValue(
@@ -1621,7 +1621,7 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              channel.name,
+                              channel.displayName,
                               style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,

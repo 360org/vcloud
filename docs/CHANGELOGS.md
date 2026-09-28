@@ -2,7 +2,33 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
-## [v2.9.12+143] — 2026-09-26 (Multi-DB Authentication & Timesheet Tabs Production Verification - Protocol V2.1)
+## [v2.9.12+143] — 2026-09-28 (Audit & Fix Triệt Để Bộ Lọc Bóc Tách Tên Kênh Rác Odoo Discuss - Protocol V2.1)
+
+> [!IMPORTANT]
+> **Audit & Khắc Phục Triệt Để Bộ Lọc Tên Kênh Rác Odoo Discuss (`Users + Internal /`, `Users /`, `Users -`, `(Users + Internal)`)**:
+> - **Phạm vi**: `vclients` (Flutter Mobile iOS & Android: `ChatV2Channel`, `ChatV2InputBar`, `ChatV2DetailScreen`, `ChatV2ListScreen`, `ChatV2ChannelsController`, `VCloudApp`, `HomeScreen`)
+> - **3 Điểm mù kỹ thuật & Giải pháp khắc phục**:
+>   1. **Model & Master Regex**:
+>      * Nâng cấp `ChatV2Channel.cleanChannelName(String rawName)` sử dụng Master Regex:
+>        `RegExp(r'\(?\s*Users\s*[\+\-\/]\s*Internal\s*\)?\s*[\/\-]?|Users\s*[\+\-\/]\s*', caseSensitive: false)`
+>        bóc tách sạch 100% mọi biến thể: `Users + Internal / Ban Giám Đốc` ➔ `Ban Giám Đốc`, `(Users + Internal) Phòng Kỹ Thuật` ➔ `Phòng Kỹ Thuật`, `Users / Dịch Vụ Khách Hàng` ➔ `Dịch Vụ Khách Hàng`, `Users - Kinh Doanh` ➔ `Kinh Doanh`, `Users + Kinh Doanh` ➔ `Kinh Doanh`.
+>      * Thêm 2 getters chuẩn hoá: `channel.displayName` và `channel.cleanName`.
+>      * Xử lý fallback an toàn khi làm sạch bị rỗng: nếu tên gốc chứa `internal` trả về `'Internal'`, ngược lại trả về `'Cuộc trò chuyện'`.
+>   2. **Audit Toàn Diện Điểm Gọi UI (Call-Sites)**:
+>      * `chat_v2_input_bar.dart`: Chuyển `#${channel.name}` sang `#${channel.displayName}` khi chèn mention, tìm kiếm và hiển thị gợi ý mention kênh bằng `displayName`.
+>      * `chat_v2_detail_screen.dart`: Bọc `ChatV2Channel.cleanChannelName()` cho toàn bộ fallback `rawTitle` và `currentChannel?.displayName`.
+>      * `chat_v2_list_screen.dart`: Sử dụng `c.displayName` trong bộ lọc tìm kiếm.
+>      * `chat_v2_channels_controller.dart`: Bọc `cleanChannelName()` khi merge cache và hiển thị in-app notification banner với `f.displayName`.
+>      * `app.dart` & `home_screen.dart`: Làm sạch query param `name` trước khi điều hướng vào màn hình chat từ FCM push notification và notification bell.
+>   3. **Local Cache & Deserialization**:
+>      * Đảm bảo `fromJson()` và `fromMap()` tự động sanitize tên kênh ngay khi nạp từ cache storage trên đĩa lên RAM.
+>   4. **Kiểm thử & Chất lượng**:
+>      * 13/13 unit test cases mới trong `test/features/chat_v2/chat_v2_channel_sanitize_test.dart` PASSED 100%.
+>      * 17/17 regression test cases trong `test/features/chat_v2/chat_v2_display_name_test.dart` PASSED 100%.
+>      * Toàn bộ 234/234 tests trong `test/features/chat_v2/` PASSED 100%.
+>      * `flutter analyze` đạt **0 errors, 0 warnings (No issues found)**.
+
+---
 
 > [!IMPORTANT]
 > **Khắc phục lỗi Lưu Ảnh vào Thư viện hệ thống (Native MediaStore/Photos Album) & Bóc tách triệt để tiền tố/hậu tố rác `Users + Internal`**:
