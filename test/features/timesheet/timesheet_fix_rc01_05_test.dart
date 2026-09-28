@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vcloud/shared/models/timesheet.dart';
 import 'package:vcloud/features/timesheet/application/timesheet_controller.dart';
-import 'package:vcloud/features/timesheet/data/timesheet_repository.dart';
 
 void main() {
   group('Timesheet & Filter Bug Fixes (RC-01 to RC-05) - 10 Test Cases', () {
@@ -56,8 +55,7 @@ void main() {
     });
 
     test('Case 4: TimesheetRepository._entryFromOdoo preserves project_id and project_name', () {
-      final repo = TimesheetRepository();
-      // Using reflection/fromMap to verify that project mapping preserves data
+      // Mapping preserves project_id and project_name data
       final odooMap = <String, dynamic>{
         'id': 505,
         'employee_id': [3, 'Admin'],
@@ -114,7 +112,7 @@ void main() {
         }),
       ];
 
-      final filterProjectName = 'crm mobile';
+      const filterProjectName = 'crm mobile';
       final matched = entries.where((e) {
         return e.projectName?.trim().toLowerCase() == filterProjectName;
       }).toList();
