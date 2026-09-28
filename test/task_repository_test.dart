@@ -52,6 +52,59 @@ void main() {
     expect(body['unit_amount'], closeTo(5 / 60, 0.000001));
   });
 
+  test(
+    'complete on private task (projectId == null) skips timesheet log API and completes cleanly',
+    () async {
+      final client = _FakeOdooApiClient();
+      final repo = TaskRepository(client: client);
+
+      final task = await repo.complete(
+        taskId: '999',
+        summary: 'Finished personal task',
+        duration: TimesheetDuration.thirty,
+      );
+
+      final timesheetPosts = client.posts.where(
+        (p) => p.path == '/api/v1/mobile/timesheet/log',
+      );
+      expect(timesheetPosts, isEmpty);
+
+      final completePost = client.posts.firstWhere(
+        (p) => p.path == '/api/v1/project.task/999/complete',
+      );
+      expect(completePost.body, <String, dynamic>{
+        'note': 'Finished personal task',
+      });
+      expect(task.isCompleted, isTrue);
+      expect(task.timesheetId, isNull);
+    },
+  );
+
+  test(
+    'log on private task (projectId == null) skips timesheet log API and adds message to chatter',
+    () async {
+      final client = _FakeOdooApiClient();
+      final repo = TaskRepository(client: client);
+
+      final task = await repo.log(
+        taskId: '999',
+        summary: 'Progress on personal task',
+        duration: TimesheetDuration.fifteen,
+      );
+
+      final timesheetPosts = client.posts.where(
+        (p) => p.path == '/api/v1/mobile/timesheet/log',
+      );
+      expect(timesheetPosts, isEmpty);
+
+      final messagePosts = client.posts.where(
+        (p) => p.path == '/api/v1/mobile/project/task/999/message',
+      );
+      expect(messagePosts, hasLength(1));
+      expect(task.isCompleted, isFalse);
+    },
+  );
+
   test('update rewrites an existing timesheet entry in place', () async {
     final client = _FakeOdooApiClient();
     final repo = TaskRepository(client: client);
@@ -215,6 +268,25 @@ class _FakeOdooApiClient extends OdooApiClient {
         'user_id': 3,
         'state': isDone ? '1_done' : '01_in_progress',
         'timesheet_ids': <int>[99],
+      };
+    }
+    if (path == '/api/v1/mobile/project/task/999' ||
+        path == '/api/v1/project.task/999') {
+      final isDone = puts.any(
+            (p) =>
+                (p.path == '/api/v1/mobile/project/task/999/workflow' &&
+                    p.body is Map &&
+                    (p.body as Map)['status'] == 'done') ||
+                p.path == '/api/v1/project.task/999',
+          ) ||
+          posts.any((p) => p.path == '/api/v1/project.task/999/complete');
+      return <String, dynamic>{
+        'id': 999,
+        'name': 'Private task',
+        'project_id': false,
+        'user_id': 3,
+        'state': isDone ? '1_done' : '01_in_progress',
+        'timesheet_ids': <int>[],
       };
     }
     if (path == '/api/v1/project.task/11') {

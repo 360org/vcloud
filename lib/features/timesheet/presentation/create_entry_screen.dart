@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/models/task.dart';
 import '../../../shared/models/timesheet.dart';
 import '../../../shared/widgets/primary_button.dart';
+import '../application/task_controller.dart';
 import '../application/timesheet_controller.dart';
 
 class CreateEntryScreen extends ConsumerStatefulWidget {
@@ -19,7 +21,15 @@ class _CreateEntryScreenState extends ConsumerState<CreateEntryScreen> {
   final _task = TextEditingController();
   TimesheetCategory _category = TimesheetCategory.other;
   TimesheetDuration _duration = TimesheetDuration.thirty;
+  TimesheetProjectOption? _selectedProject;
+  late Future<List<TimesheetProjectOption>> _projectsFuture;
   bool _submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _projectsFuture = ref.read(taskActionsProvider).listProjects();
+  }
 
   @override
   void dispose() {
@@ -37,6 +47,7 @@ class _CreateEntryScreenState extends ConsumerState<CreateEntryScreen> {
             taskName: _task.text.trim(),
             category: _category,
             duration: _duration,
+            projectIdOverride: int.tryParse(_selectedProject?.id ?? ''),
           );
       if (mounted) context.pop();
     } catch (e) {
@@ -63,6 +74,44 @@ class _CreateEntryScreenState extends ConsumerState<CreateEntryScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                FutureBuilder<List<TimesheetProjectOption>>(
+                  future: _projectsFuture,
+                  builder: (context, snapshot) {
+                    final projects = snapshot.data ?? const <TimesheetProjectOption>[];
+                    if (projects.isEmpty) return const SizedBox.shrink();
+                    final currentId = _selectedProject?.id ?? projects.first.id;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: DropdownButtonFormField<String>(
+                        initialValue: currentId,
+                        decoration: const InputDecoration(
+                          labelText: 'Dự án',
+                          prefixIcon: Icon(Icons.folder_outlined),
+                        ),
+                        items: [
+                          for (final p in projects)
+                            DropdownMenuItem(
+                              value: p.id,
+                              child: Text(
+                                p.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                        ],
+                        onChanged: (val) {
+                          if (val == null) return;
+                          setState(() {
+                            _selectedProject = projects.firstWhere(
+                              (p) => p.id == val,
+                              orElse: () => projects.first,
+                            );
+                          });
+                        },
+                      ),
+                    );
+                  },
+                ),
                 TextFormField(
                   controller: _task,
                   maxLength: 120,

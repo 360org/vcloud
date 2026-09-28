@@ -24,11 +24,13 @@ class CompletedTaskLog {
     required this.summary,
     required this.duration,
     required this.completedAt,
+    this.timesheetId,
   });
 
   final String summary;
   final Duration duration;
   final DateTime completedAt;
+  final String? timesheetId;
 }
 
 final completedTaskLogsProvider = StateProvider<Map<String, CompletedTaskLog>>(
@@ -127,6 +129,7 @@ class TaskActions {
               summary: summary,
               duration: elapsed ?? duration.duration,
               completedAt: DateTime.now(),
+              timesheetId: t.timesheetId,
             ),
           },
         );
@@ -203,6 +206,7 @@ class TaskActions {
           summary: summary,
           duration: durationValue,
           completedAt: existing?.completedAt ?? DateTime.now(),
+          timesheetId: timesheetEntryId.isNotEmpty ? timesheetEntryId : (t.timesheetId ?? existing?.timesheetId),
         ),
       };
     });

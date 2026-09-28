@@ -224,16 +224,29 @@ class TaskRepository {
   }) async {
     final projectId = await _projectIdForTask(taskId);
     final loggedDuration = elapsed ?? duration.duration;
-    await _client.post(
-      '/api/v1/mobile/timesheet/log',
-      body: <String, dynamic>{
-        'project_id': projectId,
-        'task_id': int.tryParse(taskId),
-        'unit_amount': loggedDuration.inSeconds / 3600.0,
-        'date': _isoDate(DateTime.now()),
-        'name': summary,
-      },
-    );
+    if (projectId != null) {
+      await _client.post(
+        '/api/v1/mobile/timesheet/log',
+        body: <String, dynamic>{
+          'project_id': projectId,
+          'task_id': int.tryParse(taskId),
+          'unit_amount': loggedDuration.inSeconds / 3600.0,
+          'date': _isoDate(DateTime.now()),
+          'name': summary,
+        },
+      );
+    } else {
+      // Private task: Odoo cấm tạo account.analytic.line trên task không có project.
+      // Ghi nhận note vào chatter và đánh dấu workflow in_progress.
+      if (summary.trim().isNotEmpty) {
+        try {
+          await addMessage(taskId: taskId, content: summary.trim());
+        } catch (_) {}
+      }
+      try {
+        await updateWorkflow(taskId: taskId, status: 'in_progress');
+      } catch (_) {}
+    }
     final res = await _client.get('/api/v1/project.task/$taskId');
     return Task.fromMap(
       _taskFromOdoo(
@@ -259,12 +272,38 @@ class TaskRepository {
     required TimesheetDuration duration,
   }) async {
     final hours = duration.duration.inMinutes / 60.0;
-    await _client.put(
-      '/api/v1/account.analytic.line/$timesheetEntryId',
-      body: <String, dynamic>{
-        'values': <String, dynamic>{'unit_amount': hours, 'name': summary},
-      },
-    );
+    if (timesheetEntryId.isNotEmpty) {
+      try {
+        await _client.put(
+          '/api/v1/account.analytic.line/$timesheetEntryId',
+          body: <String, dynamic>{
+            'values': <String, dynamic>{'unit_amount': hours, 'name': summary},
+          },
+        );
+      } catch (_) {}
+    } else {
+      // RC-05: Nếu timesheetEntryId chưa có trong cache, lưu entry mới để không mất giờ
+      final projectId = await _projectIdForTask(taskId);
+      if (projectId != null) {
+        try {
+          await _client.post(
+            '/api/v1/mobile/timesheet/log',
+            body: <String, dynamic>{
+              'project_id': projectId,
+              'task_id': int.tryParse(taskId),
+              'unit_amount': hours,
+              'date': _isoDate(DateTime.now()),
+              'name': summary,
+            },
+          );
+        } catch (_) {}
+      }
+    }
+    if (summary.trim().isNotEmpty) {
+      try {
+        await addMessage(taskId: taskId, content: summary.trim());
+      } catch (_) {}
+    }
     final res = await _client.get('/api/v1/project.task/$taskId');
     return Task.fromMap(
       _taskFromOdoo(Map<String, dynamic>.from(res as Map), DateTime.now()),
@@ -279,16 +318,19 @@ class TaskRepository {
   }) async {
     final projectId = await _projectIdForTask(taskId);
     final loggedDuration = elapsed ?? duration.duration;
-    final res = await _client.post(
-      '/api/v1/mobile/timesheet/log',
-      body: <String, dynamic>{
-        'project_id': projectId,
-        'task_id': int.tryParse(taskId),
-        'unit_amount': loggedDuration.inSeconds / 3600.0,
-        'date': _isoDate(DateTime.now()),
-        'name': summary,
-      },
-    );
+    Object? res;
+    if (projectId != null) {
+      res = await _client.post(
+        '/api/v1/mobile/timesheet/log',
+        body: <String, dynamic>{
+          'project_id': projectId,
+          'task_id': int.tryParse(taskId),
+          'unit_amount': loggedDuration.inSeconds / 3600.0,
+          'date': _isoDate(DateTime.now()),
+          'name': summary,
+        },
+      );
+    }
     try {
       await _client.post(
         '/api/v1/project.task/$taskId/complete',
@@ -302,8 +344,18 @@ class TaskRepository {
         );
       } catch (_) {}
     }
+    if (projectId == null && summary.trim().isNotEmpty) {
+      try {
+        await addMessage(taskId: taskId, content: summary.trim());
+      } catch (_) {}
+    }
+    final timesheetLineId = res is Map ? res['id']?.toString() : null;
     try {
-      return await getTaskDetail(taskId);
+      final detail = await getTaskDetail(taskId);
+      if (timesheetLineId != null && (detail.timesheetId == null || detail.timesheetId!.isEmpty)) {
+        return detail.copyWith(timesheetId: timesheetLineId, isDone: true);
+      }
+      return detail;
     } catch (_) {
       final task = await _client.get('/api/v1/project.task/$taskId');
       return Task.fromMap(
@@ -312,7 +364,7 @@ class TaskRepository {
           DateTime.now(),
           projectId: projectId,
           completed: true,
-          timesheetId: res is Map ? res['id']?.toString() : null,
+          timesheetId: timesheetLineId,
         ),
       );
     }
@@ -460,32 +512,52 @@ class TaskRepository {
 
 
   Future<int?> _projectIdForTask(String taskId) async {
-    final task = await _client.get('/api/v1/project.task/$taskId');
-    final projectId = _idOrNull((task as Map)['project_id']);
-    if (projectId != null) return int.parse(projectId);
-
-    final projects = await _client.get('/api/v1/mobile/timesheet/projects');
-    for (final project in (projects as List).cast<Map<String, dynamic>>()) {
-      final id = project['id'];
-      if (id == null) continue;
-      final tasks = await _client.get(
-        '/api/v1/mobile/timesheet/projects/$id/tasks',
-      );
-      final found = (tasks as List).cast<Map<String, dynamic>>().any(
-        (task) => task['id'].toString() == taskId,
-      );
-      if (found) return (id as num).toInt();
+    // 1. Kiểm tra cache RAM của Task hôm nay trước (RC-04: O(1), không tốn network)
+    for (final task in _cachedTodayTasks) {
+      if (task.id == taskId && task.projectId != null) {
+        final pId = int.tryParse(task.projectId!);
+        if (pId != null && pId > 0) return pId;
+      }
     }
+
+    // 2. Tra cứu chi tiết task qua mobile endpoint
+    try {
+      final task = await getTaskDetail(taskId);
+      if (task.projectId != null) {
+        final pId = int.tryParse(task.projectId!);
+        if (pId != null && pId > 0) return pId;
+      }
+    } catch (_) {}
+
+    // 3. Fallback qua generic CRUD
+    try {
+      final task = await _client.get('/api/v1/project.task/$taskId');
+      if (task is Map) {
+        final projectId = _idOrNull(task['project_id']);
+        if (projectId != null) {
+          final pId = int.tryParse(projectId);
+          if (pId != null && pId > 0) return pId;
+        }
+      }
+    } catch (_) {}
+
     return null;
   }
 
   String? _idOrNull(Object? value) {
     if (value == null || value == false) return null;
     if (value is num) return value.toInt().toString();
-    if (value is List && value.isNotEmpty) return _idOrNull(value.first);
-    if (value is Map && value['id'] != null) return _idOrNull(value['id']);
-    final text = value.toString();
-    return text.isEmpty ? null : text;
+    if (value is List) {
+      return value.isNotEmpty ? _idOrNull(value.first) : null;
+    }
+    if (value is Map) {
+      return value['id'] != null ? _idOrNull(value['id']) : null;
+    }
+    final text = value.toString().trim();
+    if (text.isEmpty || text == '[]' || text == '{}' || text == 'false') {
+      return null;
+    }
+    return text;
   }
 
   String? _stringOrNull(Object? value) {

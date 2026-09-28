@@ -111,8 +111,9 @@ class TimesheetRepository {
     int? projectIdOverride,
   }) async {
     final hours = duration.duration.inMinutes / 60.0;
-    // Tìm project_id hợp lệ, tránh int.tryParse('ERP') trả về null rồi fallback 1 sai DB
-    int? targetProjectId = projectIdOverride;
+    int? targetProjectId = (projectIdOverride != null && projectIdOverride > 0)
+        ? projectIdOverride
+        : null;
     if (targetProjectId == null) {
       try {
         final projRes = _cachedProjects ?? await _client.get('/api/v1/mobile/timesheet/projects');
@@ -137,8 +138,12 @@ class TimesheetRepository {
       } catch (_) {}
     }
 
+    if (targetProjectId == null || targetProjectId <= 0) {
+      throw Failure('Vui lòng chọn Dự án hợp lệ trước khi lưu nhật ký thời gian.');
+    }
+
     final body = <String, dynamic>{
-      'project_id': ?targetProjectId,
+      'project_id': targetProjectId,
       if (taskId != null && int.tryParse(taskId) != null)
         'task_id': int.parse(taskId),
       'unit_amount': hours,
