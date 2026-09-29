@@ -329,6 +329,27 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
                     }
                   }
                 },
+                onReopen: () async {
+                  final router = GoRouter.of(context);
+                  try {
+                    await ref.read(ticketActionsProvider).updateStatus(widget.ticketId, TicketStatus.doing);
+                    if (!mounted || !context.mounted) return;
+                    AppToast.success(
+                      context,
+                      title: 'Đã mở lại ticket',
+                      message: 'Ticket đã được chuyển về tab Đang xử lý thành công.',
+                    );
+                    if (router.canPop()) {
+                      router.pop();
+                    } else {
+                      _load();
+                    }
+                  } catch (e, st) {
+                    if (mounted && context.mounted) {
+                      showCopyableErrorDialog(context, title: 'Lỗi Mở Lại Ticket', error: e, stackTrace: st);
+                    }
+                  }
+                },
               ),
               _CommentComposer(
                 controller: _commentController,
@@ -348,11 +369,13 @@ class _TicketActionBar extends StatefulWidget {
     required this.ticket,
     required this.onTake,
     required this.onComplete,
+    required this.onReopen,
   });
 
   final Ticket ticket;
   final Future<void> Function() onTake;
   final Future<void> Function() onComplete;
+  final Future<void> Function() onReopen;
 
   @override
   State<_TicketActionBar> createState() => _TicketActionBarState();
@@ -361,23 +384,79 @@ class _TicketActionBar extends StatefulWidget {
 class _TicketActionBarState extends State<_TicketActionBar> {
   bool _loadingTake = false;
   bool _loadingComplete = false;
+  bool _loadingReopen = false;
 
   @override
   Widget build(BuildContext context) {
     final status = widget.ticket.status;
     final isDone = status == TicketStatus.done;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // UX Refinement Master Directive:
+    // Trên Tab/Trạng thái "Hoàn thành", ẩn 2 nút thừa ("Đã nhận", "Đã hoàn thành"),
+    // thay bằng DUY NHẤT 1 NÚT: "Mở lại ticket" màu cam / xanh nổi bật.
+    if (isDone) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1E293B) : Colors.white,
+          border: Border(
+            top: BorderSide(
+              color: isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFE2E8F0),
+            ),
+          ),
+        ),
+        child: SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFD97706), // Cam nổi bật
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 13),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              elevation: 2,
+            ),
+            onPressed: _loadingReopen
+                ? null
+                : () async {
+                    setState(() => _loadingReopen = true);
+                    try {
+                      await widget.onReopen();
+                    } finally {
+                      if (mounted) setState(() => _loadingReopen = false);
+                    }
+                  },
+            icon: _loadingReopen
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                : const Icon(LucideIcons.rotateCcw, size: 19),
+            label: Text(
+              _loadingReopen ? 'Đang mở lại ticket...' : 'Mở lại ticket',
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     final isOverdue = widget.ticket.isOverdue;
-    final isTaken = isDone || status == TicketStatus.doing || widget.ticket.assignedTo.trim().isNotEmpty;
-    final isTakeDisabled = isDone || isOverdue || isTaken;
+    final isTaken = status == TicketStatus.doing || widget.ticket.assignedTo.trim().isNotEmpty;
+    final isTakeDisabled = isOverdue || isTaken;
 
     String takeLabel = 'Nhận ticket';
     IconData takeIcon = LucideIcons.userCheck;
     if (_loadingTake) {
       takeLabel = 'Đang nhận...';
       takeIcon = LucideIcons.userCheck;
-    } else if (isDone) {
-      takeLabel = 'Đã nhận';
-      takeIcon = LucideIcons.checkCheck;
     } else if (isOverdue) {
       takeLabel = isTaken ? 'Đã nhận' : 'Nhận (Trễ SLA)';
       takeIcon = isTaken ? LucideIcons.checkCheck : LucideIcons.alertTriangle;
@@ -401,12 +480,6 @@ class _TicketActionBarState extends State<_TicketActionBar> {
       completeBgColor = const Color(0xFF2563EB);
       completeFgColor = Colors.white;
       enableComplete = false;
-    } else if (isDone) {
-      completeLabel = 'Đã hoàn thành';
-      completeIcon = LucideIcons.checkCheck;
-      completeBgColor = const Color(0xFF10B981); // Xanh lá thành công
-      completeFgColor = Colors.white;
-      enableComplete = false;
     } else if (isOverdue) {
       completeLabel = 'Hoàn thành (Trễ SLA)';
       completeIcon = LucideIcons.check;
@@ -415,7 +488,6 @@ class _TicketActionBarState extends State<_TicketActionBar> {
       enableComplete = true; // Cho phép hoàn thành kể cả khi quá hạn
     }
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
@@ -707,6 +779,18 @@ class _TicketInfoCard extends StatelessWidget {
             spacing: 10,
             runSpacing: 10,
             children: [
+              if (ticket.partnerName != null && ticket.partnerName!.trim().isNotEmpty)
+                _InfoChip(
+                  icon: LucideIcons.building2,
+                  label: 'Khách hàng: ${ticket.partnerName!.trim()}',
+                  color: AppColors.primary,
+                ),
+              if (ticket.assignedUserName != null && ticket.assignedUserName!.trim().isNotEmpty)
+                _InfoChip(
+                  icon: LucideIcons.user,
+                  label: 'Phụ trách: ${ticket.assignedUserName!.trim()}',
+                  color: AppColors.success,
+                ),
               _InfoChip(
                 icon: LucideIcons.tag,
                 label: detail.tags.isEmpty ? 'Không chọn tag' : detail.tags,

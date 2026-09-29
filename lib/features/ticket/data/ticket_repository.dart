@@ -52,11 +52,23 @@ class TicketRepository {
 
       try {
         final queryParams = <String, String>{};
-        if (filter?.priority != null) {
-          queryParams['priority'] = _priorityToOdoo(filter!.priority!);
-        }
-        if (filter?.teamId != null) {
-          queryParams['team_id'] = filter!.teamId.toString();
+        final f = filter;
+        if (f != null) {
+          if (f.priority != null) {
+            queryParams['priority'] = _priorityToOdoo(f.priority!);
+          }
+          if (f.teamId != null) {
+            queryParams['team_id'] = f.teamId.toString();
+          }
+          if (f.search != null && f.search!.trim().isNotEmpty) {
+            queryParams['search'] = f.search!.trim();
+          }
+          if (f.limit != null && f.limit! > 0) {
+            queryParams['limit'] = f.limit!.toString();
+          }
+          if (f.offset != null && f.offset! > 0) {
+            queryParams['offset'] = f.offset!.toString();
+          }
         }
         final queryString = queryParams.isNotEmpty
             ? '?${Uri(queryParameters: queryParams).query}'
@@ -250,6 +262,8 @@ class TicketRepository {
       'category': map['team_name'] as String?,
       'tag_labels': _tagLabels(map['tags']),
       'attachments': map['attachments'],
+      'partner_name': _many2OneName(map['partner_id']) ?? map['partner_name'] as String?,
+      'user_name': _many2OneName(map['user_id']) ?? map['user_name'] as String?,
     };
   }
 
@@ -299,6 +313,14 @@ class TicketRepository {
   String? _many2OneId(Object? value) {
     if (value is List && value.isNotEmpty) return value.first.toString();
     if (value is int) return value.toString();
+    return null;
+  }
+
+  String? _many2OneName(Object? value) {
+    if (value is List && value.length > 1) {
+      final name = value[1]?.toString().trim();
+      return (name != null && name.isNotEmpty) ? name : null;
+    }
     return null;
   }
 

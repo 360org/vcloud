@@ -9,6 +9,8 @@ import '../../../core/utils/date_format.dart';
 import '../../../core/utils/html_text.dart';
 import '../../../shared/models/ticket.dart';
 import '../../../shared/widgets/app_scaffold.dart';
+import '../../../shared/widgets/app_toast.dart';
+import '../../../shared/widgets/copyable_error_dialog.dart';
 import '../../../shared/widgets/error_view.dart';
 
 import '../../../shared/widgets/loading_view.dart';
@@ -605,6 +607,27 @@ class _TicketCard extends StatelessWidget {
                       fontWeight: FontWeight.w500,
                     ),
                   ),
+                  if (ticket.partnerName != null && ticket.partnerName!.trim().isNotEmpty) ...[
+                    const SizedBox(height: 5),
+                    Row(
+                      children: [
+                        const Icon(LucideIcons.building2, size: 13, color: AppColors.primary),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            ticket.partnerName!.trim(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: AppColors.primary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                   const SizedBox(height: 10),
                   Wrap(
                     spacing: 8,
@@ -615,7 +638,14 @@ class _TicketCard extends StatelessWidget {
                         label: _statusText(ticket.status),
                         color: _statusColor(ticket.status),
                       ),
-                      // 2. SLA / Deadline
+                      // 2. Kỹ thuật phụ trách
+                      if (ticket.assignedUserName != null && ticket.assignedUserName!.trim().isNotEmpty)
+                        _TicketPill(
+                          label: ticket.assignedUserName!.trim(),
+                          color: AppColors.success,
+                          icon: LucideIcons.user,
+                        ),
+                      // 3. SLA / Deadline
                       if (isOverdue)
                         _TicketPill(
                           label: Dates.slaLabelVi(displayDate),
@@ -628,13 +658,22 @@ class _TicketCard extends StatelessWidget {
                           color: AppColors.textMuted,
                           icon: LucideIcons.calendar,
                         ),
-                      // 3. Ưu tiên (Priority)
+                      // 4. Ưu tiên (Priority)
                       _TicketPill(
                         label: '${ticket.priority.label} · ${ticket.priority.displayName}',
                         color: _priorityColor(ticket.priority),
                       ),
                     ],
                   ),
+                  if (done) ...[
+                    const SizedBox(height: 12),
+                    const Divider(height: 1, thickness: 0.5),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: _ReopenTicketButton(ticket: ticket),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -643,6 +682,92 @@ class _TicketCard extends StatelessWidget {
               LucideIcons.chevronRight,
               color: AppColors.textMuted,
               size: 18,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ReopenTicketButton extends ConsumerStatefulWidget {
+  const _ReopenTicketButton({required this.ticket});
+
+  final Ticket ticket;
+
+  @override
+  ConsumerState<_ReopenTicketButton> createState() => _ReopenTicketButtonState();
+}
+
+class _ReopenTicketButtonState extends ConsumerState<_ReopenTicketButton> {
+  bool _loading = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return PressableScale(
+      onTap: _loading
+          ? null
+          : () async {
+              setState(() => _loading = true);
+              try {
+                await ref
+                    .read(ticketActionsProvider)
+                    .updateStatus(widget.ticket.id, TicketStatus.doing);
+                if (mounted && context.mounted) {
+                  AppToast.success(
+                    context,
+                    title: 'Đã mở lại ticket',
+                    message: 'Ticket "${widget.ticket.title}" đã chuyển về tab Đang xử lý.',
+                  );
+                }
+              } catch (e, st) {
+                if (mounted && context.mounted) {
+                  showCopyableErrorDialog(
+                    context,
+                    title: 'Lỗi Mở Lại Ticket',
+                    error: e,
+                    stackTrace: st,
+                  );
+                }
+              } finally {
+                if (mounted) setState(() => _loading = false);
+              }
+            },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: const Color(0xFFD97706).withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: const Color(0xFFD97706).withValues(alpha: 0.4),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_loading)
+              const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Color(0xFFD97706),
+                ),
+              )
+            else
+              const Icon(
+                LucideIcons.rotateCcw,
+                size: 14,
+                color: Color(0xFFD97706),
+              ),
+            const SizedBox(width: 6),
+            Text(
+              _loading ? 'Đang mở lại...' : 'Mở lại ticket',
+              style: const TextStyle(
+                color: Color(0xFFD97706),
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ],
         ),

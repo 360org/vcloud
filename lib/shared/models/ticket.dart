@@ -71,19 +71,36 @@ class TicketFilter {
   const TicketFilter({
     this.priority,
     this.teamId,
+    this.search,
+    this.limit,
+    this.offset,
   });
 
   final TicketPriority? priority;
   final int? teamId;
+  final String? search;
+  final int? limit;
+  final int? offset;
 
-  bool get isEmpty => priority == null && teamId == null;
+  bool get isEmpty =>
+      priority == null &&
+      teamId == null &&
+      (search == null || search!.isEmpty) &&
+      limit == null &&
+      offset == null;
 
   TicketFilter copyWith({
     Object? priority = _sentinel,
     Object? teamId = _sentinel,
+    Object? search = _sentinel,
+    Object? limit = _sentinel,
+    Object? offset = _sentinel,
   }) => TicketFilter(
     priority: priority == _sentinel ? this.priority : priority as TicketPriority?,
     teamId: teamId == _sentinel ? this.teamId : teamId as int?,
+    search: search == _sentinel ? this.search : search as String?,
+    limit: limit == _sentinel ? this.limit : limit as int?,
+    offset: offset == _sentinel ? this.offset : offset as int?,
   );
 
   static const _sentinel = Object();
@@ -105,6 +122,8 @@ class Ticket {
     this.category,
     this.tagLabels = const <String>[],
     this.attachments = const <MobileAttachment>[],
+    this.partnerName,
+    this.assignedUserName,
   });
 
   final String id;
@@ -120,6 +139,8 @@ class Ticket {
   final String? category;
   final List<String> tagLabels;
   final List<MobileAttachment> attachments;
+  final String? partnerName;
+  final String? assignedUserName;
 
   bool get isOverdue {
     if (status == TicketStatus.done) return false;
@@ -138,6 +159,8 @@ class Ticket {
     List<String>? tagLabels,
     DateTime? deadline,
     List<MobileAttachment>? attachments,
+    String? partnerName,
+    String? assignedUserName,
   }) => Ticket(
     id: id,
     title: title,
@@ -152,6 +175,8 @@ class Ticket {
     category: category ?? this.category,
     tagLabels: tagLabels ?? this.tagLabels,
     attachments: attachments ?? this.attachments,
+    partnerName: partnerName ?? this.partnerName,
+    assignedUserName: assignedUserName ?? this.assignedUserName,
   );
 
   factory Ticket.fromMap(Map<String, dynamic> map) {
@@ -175,6 +200,9 @@ class Ticket {
       }
     }
 
+    final rawPartnerName = map['partner_name'] ?? map['partner_id_name'];
+    final rawUserName = map['user_name'] ?? map['assigned_user_name'];
+
     return Ticket(
       id: rawId.toString(),
       title: rawTitle.toString(),
@@ -194,6 +222,8 @@ class Ticket {
           .where((tag) => tag.isNotEmpty)
           .toList(),
       attachments: attachmentsList,
+      partnerName: _parseString(rawPartnerName),
+      assignedUserName: _parseString(rawUserName),
     );
   }
 
