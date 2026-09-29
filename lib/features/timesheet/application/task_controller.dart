@@ -89,12 +89,18 @@ class TaskActions {
     String? description,
     TimesheetCategory category = TimesheetCategory.other,
     DateTime? dueDate,
+    String? projectId,
+    List<int>? userIds,
+    int? categoryId,
   }) async {
     final t = await _repo.create(
       title: title,
       description: description,
       category: category,
       dueDate: dueDate,
+      projectId: projectId,
+      userIds: userIds,
+      categoryId: categoryId,
     );
     _ref.invalidate(todayTasksProvider);
     return t;

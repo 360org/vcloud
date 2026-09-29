@@ -165,26 +165,67 @@ class TaskRepository {
     String? description,
     TimesheetCategory category = TimesheetCategory.other,
     DateTime? dueDate,
+    String? projectId,
+    List<int>? userIds,
+    int? categoryId,
   }) async {
     final values = <String, dynamic>{'name': title};
-    if (description != null) {
-      values['description'] = description;
+    if (description != null && description.trim().isNotEmpty) {
+      values['description'] = description.trim();
     }
     if (dueDate != null) {
       values['date_deadline'] = _isoDate(dueDate);
     }
+    if (projectId != null && projectId.isNotEmpty) {
+      final pId = int.tryParse(projectId);
+      if (pId != null && pId > 0) {
+        values['project_id'] = pId;
+      }
+    }
+    if (categoryId != null && categoryId > 0) {
+      values['category_id'] = categoryId;
+    }
+
+    // Auto-assign user_ids: [currentUid] hoặc userIds theo schema Many2many: [[6, 0, [uid]]]
+    final currentUid = _client.session?.uid;
+    if (userIds != null && userIds.isNotEmpty) {
+      values['user_ids'] = <dynamic>[
+        <dynamic>[6, 0, userIds],
+      ];
+    } else if (currentUid != null && currentUid > 0) {
+      values['user_ids'] = <dynamic>[
+        <dynamic>[6, 0, <int>[currentUid]],
+      ];
+    }
+
     final res = await _client.post(
       '/api/v1/project.task',
       body: <String, dynamic>{'values': values},
     );
     final id = (res['id'] as num).toInt();
-    final task = await _client.get('/api/v1/project.task/$id');
-    return Task.fromMap(
-      _taskFromOdoo(
-        Map<String, dynamic>.from(task as Map),
-        dueDate ?? DateTime.now(),
-      ),
-    );
+    try {
+      final task = await _client.get('/api/v1/project.task/$id');
+      return Task.fromMap(
+        _taskFromOdoo(
+          Map<String, dynamic>.from(task as Map),
+          dueDate ?? DateTime.now(),
+          projectId: projectId,
+          category: category,
+        ),
+      );
+    } catch (_) {
+      return Task(
+        id: id.toString(),
+        userId: currentUid?.toString() ?? '',
+        title: title,
+        category: category,
+        dueDate: dueDate ?? DateTime.now(),
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        description: description,
+        projectId: projectId,
+      );
+    }
   }
 
   Future<Task> getTaskDetail(String taskId) async {
@@ -405,6 +446,7 @@ class TaskRepository {
     String? projectName,
     bool completed = false,
     String? timesheetId,
+    TimesheetCategory? category,
   }) {
     final dueDate = map['date_deadline'] as String? ?? _isoDate(fallbackDate);
     final now = DateTime.now().toIso8601String();
@@ -439,14 +481,44 @@ class TaskRepository {
       isDone = false;
     }
 
-    final userId = _idOrNull(map['user_id']) ??
+    String userId = _idOrNull(map['user_id']) ??
         (map['user_id'] is num ? map['user_id'].toString() : null) ??
         _stringOrNull(map['user_id']) ??
         '';
+    if (userId.isEmpty && map['user_ids'] != null) {
+      final currentUid = _client.session?.uid.toString() ?? '';
+      final rawUserIds = map['user_ids'];
+      if (rawUserIds is List) {
+        final idList = rawUserIds
+            .map((e) => _idOrNull(e))
+            .whereType<String>()
+            .toList();
+        if (currentUid.isNotEmpty && idList.contains(currentUid)) {
+          userId = currentUid;
+        } else if (idList.isNotEmpty) {
+          userId = idList.first;
+        }
+      } else {
+        userId = _idOrNull(rawUserIds) ?? '';
+      }
+    }
+
+    String? userName = _many2OneName(map['user_id']);
+    if (userName == null && map['user_ids'] is List) {
+      final list = map['user_ids'] as List;
+      for (final item in list) {
+        final name = _many2OneName(item);
+        if (name != null && name.isNotEmpty) {
+          userName = name;
+          break;
+        }
+      }
+    }
 
     return <String, dynamic>{
       'id': map['id'].toString(),
       'user_id': userId,
+      'user_name': userName ?? _stringOrNull(map['user_name']),
       'title': (map['name'] ?? map['display_name'] ?? 'Task').toString(),
       'description': _stringOrNull(map['description']),
       'project_id': _idOrNull(map['project_id']) ?? _idOrNull(projectId),
@@ -475,7 +547,9 @@ class TaskRepository {
       'stage_name':
           _many2OneName(map['stage_id']) ?? _stringOrNull(map['stage_name']) ?? _stringOrNull(map['stage']),
       'state': _stringOrNull(map['state']),
-      'category': TimesheetCategory.other.dbValue,
+      'category': (category != null
+          ? category.dbValue
+          : (map['category'] ?? TimesheetCategory.other.dbValue)),
       'due_date': dueDate,
       'is_done': isDone,
       'completed_at': completed ? now : map['date_end']?.toString(),

@@ -195,6 +195,64 @@ void main() {
       expect(client.tagRequests, 0);
     },
   );
+
+  test('create posts project.task with project_id and user_ids Many2many tuple', () async {
+    final client = _FakeOdooApiClient();
+    final repo = TaskRepository(client: client);
+
+    final deadline = DateTime(2026, 7, 15);
+    final task = await repo.create(
+      title: 'New created task',
+      description: 'Task detail description',
+      category: TimesheetCategory.erp,
+      projectId: '7',
+      userIds: <int>[3],
+      dueDate: deadline,
+    );
+
+    expect(client.posts, hasLength(1));
+    final createPost = client.posts.single;
+    expect(createPost.path, '/api/v1/project.task');
+    final body = createPost.body as Map<String, dynamic>;
+    final values = body['values'] as Map<String, dynamic>;
+
+    expect(values['name'], 'New created task');
+    expect(values['description'], 'Task detail description');
+    expect(values['project_id'], 7);
+    expect(values['date_deadline'], '2026-07-15');
+    expect(values['user_ids'], <dynamic>[
+      <dynamic>[6, 0, <int>[3]],
+    ]);
+
+    expect(task.id, '99');
+    expect(task.title, 'New created task');
+    expect(task.projectId, '7');
+    expect(task.projectName, 'Project 7');
+    expect(task.userId, '3');
+    expect(task.userName, 'Admin User');
+    expect(task.category, TimesheetCategory.erp);
+  });
+
+  test('create falls back to Task with local data if subsequent get fails', () async {
+    final client = _FakeOdooApiClient()..failGetTask = true;
+    final repo = TaskRepository(client: client);
+
+    final deadline = DateTime(2026, 8, 20);
+    final task = await repo.create(
+      title: 'Fallback task',
+      description: 'Fallback desc',
+      category: TimesheetCategory.meeting,
+      projectId: '123',
+      dueDate: deadline,
+    );
+
+    expect(task.id, '99');
+    expect(task.title, 'Fallback task');
+    expect(task.description, 'Fallback desc');
+    expect(task.category, TimesheetCategory.meeting);
+    expect(task.projectId, '123');
+    expect(task.dueDate, deadline);
+  });
 }
 
 class _FakeOdooApiClient extends OdooApiClient {
@@ -203,6 +261,7 @@ class _FakeOdooApiClient extends OdooApiClient {
   final posts = <({String path, Object? body})>[];
   final puts = <({String path, Object? body})>[];
   int tagRequests = 0;
+  bool failGetTask = false;
 
   @override
   Future<dynamic> get(
@@ -210,6 +269,9 @@ class _FakeOdooApiClient extends OdooApiClient {
     Map<String, Object?> query = const <String, Object?>{},
     bool auth = true,
   }) async {
+    if (failGetTask && path.startsWith('/api/v1/project.task/')) {
+      throw StateError('Simulated 403 access_denied');
+    }
     if (path == '/api/v1/mobile/project/list' ||
         path == '/api/v1/mobile/timesheet/projects') {
       return <Map<String, dynamic>>[
@@ -310,6 +372,19 @@ class _FakeOdooApiClient extends OdooApiClient {
         'user_id': 3,
         'state': '01_in_progress',
         'tag_ids': <int>[9],
+      };
+    }
+    if (path == '/api/v1/project.task/99') {
+      return <String, dynamic>{
+        'id': 99,
+        'name': 'New created task',
+        'project_id': [7, 'Project 7'],
+        'user_ids': [
+          [3, 'Admin User'],
+        ],
+        'date_deadline': '2026-07-15',
+        'description': 'Task detail description',
+        'state': '01_in_progress',
       };
     }
     throw StateError('Unexpected GET $path');

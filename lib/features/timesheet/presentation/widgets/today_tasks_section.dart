@@ -345,31 +345,76 @@ class _CreateTaskSheet extends ConsumerStatefulWidget {
 
 class _CreateTaskSheetState extends ConsumerState<_CreateTaskSheet> {
   final _title = TextEditingController();
+  final _description = TextEditingController();
   TimesheetCategory _category = TimesheetCategory.other;
+  TimesheetProjectOption? _selectedProject;
+  late Future<List<TimesheetProjectOption>> _projectsFuture;
+  DateTime? _dueDate;
   bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _projectsFuture = ref.read(taskActionsProvider).listProjects();
+  }
 
   @override
   void dispose() {
     _title.dispose();
+    _description.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickDueDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _dueDate ?? now,
+      firstDate: now.subtract(const Duration(days: 365)),
+      lastDate: now.add(const Duration(days: 365 * 2)),
+    );
+    if (picked != null && mounted) {
+      setState(() => _dueDate = picked);
+    }
   }
 
   Future<void> _save() async {
     final t = _title.text.trim();
     if (t.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nhập tiêu đề task trước đã.')),
+        const SnackBar(content: Text('Vui lòng nhập tên công việc.')),
+      );
+      return;
+    }
+    if (_selectedProject == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng chọn Dự án cho công việc này.')),
       );
       return;
     }
     setState(() => _saving = true);
     try {
-      await ref.read(taskActionsProvider).create(title: t, category: _category);
+      await ref.read(taskActionsProvider).create(
+        title: t,
+        description: _description.text.trim().isNotEmpty ? _description.text.trim() : null,
+        category: _category,
+        projectId: _selectedProject?.id,
+        dueDate: _dueDate,
+      );
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
       if (mounted) {
+        final errorStr = e.toString();
+        String userMsg;
+        if (errorStr.contains('access_denied') || errorStr.contains('403')) {
+          userMsg = 'Không có quyền tạo task hoặc truy cập task (403 Access Denied).';
+        } else if (errorStr.contains('ValidationError')) {
+          userMsg = 'Lỗi dữ liệu từ Odoo: Vui lòng kiểm tra lại thông tin dự án.';
+        } else {
+          userMsg = errorStr.replaceFirst('Failure: ', '');
+        }
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString().replaceFirst('Failure: ', ''))),
+          SnackBar(content: Text(userMsg)),
         );
       }
     } finally {
@@ -416,7 +461,7 @@ class _CreateTaskSheetState extends ConsumerState<_CreateTaskSheet> {
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    'Tạo task',
+                    'Tạo công việc mới',
                     style: AppTextStyles.title.copyWith(
                       fontSize: 18,
                       color: AppColors.textPrimary,
@@ -425,77 +470,227 @@ class _CreateTaskSheetState extends ConsumerState<_CreateTaskSheet> {
                 ],
               ),
               const SizedBox(height: 12),
-            TextField(
-              controller: _title,
-              maxLength: 200,
-              maxLines: 2,
-              minLines: 1,
-              style: AppTextStyles.body.copyWith(fontSize: 16),
-              decoration: InputDecoration(
-                hintText: 'Tên công việc hôm nay',
-                hintStyle: const TextStyle(
-                  color: AppColors.textMuted,
-                  fontSize: 16,
-                ),
-                filled: true,
-                fillColor: AppColors.surface,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide.none,
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide.none,
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(
-                    color: AppColors.primary,
-                    width: 1.6,
+              // Dropdown Dự Án
+              FutureBuilder<List<TimesheetProjectOption>>(
+                future: _projectsFuture,
+                builder: (context, snapshot) {
+                  final projects = snapshot.data ?? const <TimesheetProjectOption>[];
+                  if (projects.isNotEmpty && _selectedProject == null) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted && _selectedProject == null) {
+                        setState(() => _selectedProject = projects.first);
+                      }
+                    });
+                  }
+                  final currentId = _selectedProject?.id ?? (projects.isNotEmpty ? projects.first.id : null);
+                  return DropdownButtonFormField<String>(
+                    initialValue: currentId,
+                    decoration: InputDecoration(
+                      labelText: 'Dự án *',
+                      labelStyle: const TextStyle(color: AppColors.textSecondary),
+                      hintText: snapshot.connectionState == ConnectionState.waiting
+                          ? 'Đang tải danh sách dự án...'
+                          : 'Chọn dự án',
+                      prefixIcon: const Icon(Icons.folder_outlined, color: AppColors.primary),
+                      filled: true,
+                      fillColor: AppColors.surface,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(
+                          color: AppColors.primary,
+                          width: 1.6,
+                        ),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                    ),
+                    items: [
+                      for (final p in projects)
+                        DropdownMenuItem(
+                          value: p.id,
+                          child: Text(
+                            p.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTextStyles.body.copyWith(fontSize: 15),
+                          ),
+                        ),
+                    ],
+                    onChanged: (val) {
+                      if (val == null) return;
+                      setState(() {
+                        _selectedProject = projects.firstWhere(
+                          (p) => p.id == val,
+                          orElse: () => projects.first,
+                        );
+                      });
+                    },
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _title,
+                maxLength: 200,
+                maxLines: 2,
+                minLines: 1,
+                style: AppTextStyles.body.copyWith(fontSize: 15),
+                decoration: InputDecoration(
+                  labelText: 'Tên công việc *',
+                  labelStyle: const TextStyle(color: AppColors.textSecondary),
+                  hintText: 'Nhập tên công việc cần làm',
+                  hintStyle: const TextStyle(
+                    color: AppColors.textMuted,
+                    fontSize: 15,
+                  ),
+                  filled: true,
+                  fillColor: AppColors.surface,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(
+                      color: AppColors.primary,
+                      width: 1.6,
+                    ),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
                   ),
                 ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _description,
+                maxLines: 3,
+                minLines: 1,
+                style: AppTextStyles.body.copyWith(fontSize: 14),
+                decoration: InputDecoration(
+                  labelText: 'Mô tả chi tiết (tùy chọn)',
+                  labelStyle: const TextStyle(color: AppColors.textSecondary),
+                  hintText: 'Thêm ghi chú, yêu cầu công việc...',
+                  hintStyle: const TextStyle(
+                    color: AppColors.textMuted,
+                    fontSize: 14,
+                  ),
+                  filled: true,
+                  fillColor: AppColors.surface,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(
+                      color: AppColors.primary,
+                      width: 1.6,
+                    ),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Phân loại',
-              style: AppTextStyles.bodyMedium.copyWith(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final c in TimesheetCategory.values)
-                  CategoryChip(
-                    label: categoryVi(c),
-                    icon: categoryIcon(c),
-                    color: categoryColor(c),
-                    selected: _category == c,
-                    onTap: () => setState(() => _category = c),
+              const SizedBox(height: 12),
+              InkWell(
+                onTap: _pickDueDate,
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(14),
                   ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            GradientButton(
-              label: 'Tạo',
-              icon: Icons.add_task,
-              loading: _saving,
-              gradient: AppColors.brand,
-              glowColor: AppColors.primary,
-              onPressed: _saving ? null : _save,
-            ),
-          ],
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.calendar_today_outlined,
+                        size: 20,
+                        color: _dueDate != null ? AppColors.primary : AppColors.textSecondary,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          _dueDate != null
+                              ? 'Hạn chót: ${_dueDate!.day.toString().padLeft(2, '0')}/${_dueDate!.month.toString().padLeft(2, '0')}/${_dueDate!.year}'
+                              : 'Chọn hạn chót (tùy chọn)',
+                          style: AppTextStyles.body.copyWith(
+                            fontSize: 14,
+                            color: _dueDate != null ? AppColors.textPrimary : AppColors.textMuted,
+                          ),
+                        ),
+                      ),
+                      if (_dueDate != null)
+                        GestureDetector(
+                          onTap: () => setState(() => _dueDate = null),
+                          child: const Icon(
+                            Icons.close_rounded,
+                            size: 18,
+                            color: AppColors.textMuted,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Phân loại',
+                style: AppTextStyles.bodyMedium.copyWith(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final c in TimesheetCategory.values)
+                    CategoryChip(
+                      label: categoryVi(c),
+                      icon: categoryIcon(c),
+                      color: categoryColor(c),
+                      selected: _category == c,
+                      onTap: () => setState(() => _category = c),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              GradientButton(
+                label: 'Tạo công việc',
+                icon: Icons.add_task,
+                loading: _saving,
+                gradient: AppColors.brand,
+                glowColor: AppColors.primary,
+                onPressed: _saving ? null : _save,
+              ),
+            ],
+          ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 }
