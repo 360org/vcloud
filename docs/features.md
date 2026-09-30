@@ -43,7 +43,7 @@
     3. **Đặt lại bộ đếm**: Bấm "🔄 Đặt lại bộ đếm" ➔ Xóa thời gian về 00:00:00 tức thì.
     4. **Ghi nhận an toàn**: Luồng dừng timer (`stopAndSave`) kết nối an toàn với `taskActions.complete()` / `timesheetActions.add()`. Tự động phân loại ghi timesheet Odoo hoặc ghi chatter cho task cá nhân mà không bị crash. Đã pass toàn bộ 29 tests liên quan.
 
-### 🟢 GIAI ĐOẠN 3: GIAO TIẾP NỘI BỘ (CHAT V2, MEDIA & CALL) — `[x] [Claude-Verified — 8/8 PASS 100%]`
+### 🟢 GIAI ĐOẠN 3: GIAO TIẾP NỘI BỘ (CHAT V2, MEDIA & CALL) — `[x] [Claude-Verified — 9/9 PASS 100%]`
 - [x] 3.1 **Bóc tách tên kênh rác (Sanitize Name)**: Tự động lọc sạch `Users + Internal /`, `Users /` hiển thị tên nguyên bản. Đã verify 30/30 unit tests pass và quét live 80 channels trên Production `vuahethong.net` (kênh #4253 hiển thị sạch "Internal", kênh 1-1 hiển thị đúng tên đối tác "Bùi Tuấn Kiệt").
 - [x] 3.2 **Lưu Ảnh Thư Viện (Native Gallery Saver - 3.18)**: Mở ảnh ➔ Bấm Lưu ➔ SnackBar Material 3 báo thành công ➔ Ảnh lưu vào Album (`gal`). Đã verify 19/19 unit/widget tests pass, test live stream avatar tải về thành công (HTTP 200, 7847 bytes).
 - [x] 3.3 **Mở File In-App (`open_filex` - 3.19)**: Bấm file PDF/Excel trong chat ➔ Xem trực tiếp trong app, không văng ra ngoài browser ngoài (`url_launcher` blocked). Đã verify 14/14 tests pass, kiểm tra magic bytes chống nhầm ảnh lỗi server, xử lý `ResultType.noAppToOpen` mượt mà.
@@ -62,6 +62,8 @@
     3. **Bảo mật hàng rào Portal**: Chặn hoàn toàn tài khoản Portal thao tác thêm/xóa thành viên qua `is_portal_uid(uid)` trên Odoo 19 & Odoo 17.
     4. **Phân quyền UI cho Leader**: `ChatV2InfoSheet` chỉ hiển thị nút xóa thành viên khi `isGroup && !isMe && amILeader`.
     5. **Tự động chuyển đổi sang Group**: Tự động chuyển `channel_type = 'group'` khi số thành viên > 2 người trong chat 1-1.
+- [x] 3.8 **Thông báo Đẩy Nổi trên Android (Heads-up Notification Banner — 3.25)**: `[x] [CLAUDE-VERIFIED — 4/4 TESTS PASS & FLUTTER ANALYZE 0 ISSUES]`
+  - *Kết quả khắc phục*: Khởi tạo `AndroidNotificationChannel` có ID `vcloud_high_importance_channel` với mức `Importance.max` trong `push_notification_service.dart`; khai báo `default_notification_channel_id` trong `AndroidManifest.xml`; kích hoạt banner cục bộ khi app mở (Foreground); đồng bộ fallback `channel_id` trên Odoo 17 & 19 backend sang `vcloud_high_importance_channel`. Xóa bỏ hoàn toàn lỗi thông báo Android chỉ hiện logo im lặng trên status bar.
 
 ### 🟢 GIAI ĐOẠN 4: QUẢN LÝ CÔNG VIỆC & DASHBOARD (HOME & TASKS) — `[x] [Claude-Verified — ĐÃ FIX TRIỆT ĐỂ BUG-021 & VERIFIED LIVE WAYDROID]`
 - [x] 4.1 **Dashboard Kép & Lời chào Cá nhân hóa (Dual-Tier Metrics & Greeting Header)**: Hiển thị đúng số giờ làm, trạng thái chấm công, task cần làm & ticket. Đã fix triệt để BUG-008 (Build 144): Lời chào tự động đổi theo buổi (Sáng 5h-12h, Chiều 12h-18h, Tối sau 18h) và nạp đầy đủ Chức danh & Công ty từ `userMetadata`. Đã fix triệt để BUG-009: Bắn pháo hoa chúc mừng (`CelebrationFireworksOverlay`) ngay khi bấm Check-in nhanh thành công tại Home Screen. Pass 7/7 tests trong `test/home_greeting_and_celebration_test.dart`.
@@ -129,7 +131,7 @@
 | :---: | :--- | :---: | :---: | :---: | :---: |
 | **1** | **Xác thực & Tài khoản (Login, Multi-DB, Bảo mật)** | 8 tính năng | `100% PASS` | `✅ ACCEPTED (2026-09-28)` | `Build 144` |
 | **2** | **Quản lý Thời gian (Chấm công GPS, Timesheet, Stopwatch)** | 12 tính năng | `100% PASS` | `✅ CLAUDE-VERIFIED (77/77 PASS 100%)` | `Build 144` |
-| **3** | **Giao tiếp Nội bộ (Chat V2, Media, WebRTC Call, Push)** | 24 tính năng | `100% PASS` | `✅ CLAUDE-VERIFIED (ĐÃ FIX CHAT V2 ĐỢT 4)` | `Build 144` |
+| **3** | **Giao tiếp Nội bộ (Chat V2, Media, WebRTC Call, Push)** | 25 tính năng | `100% PASS` | `✅ CLAUDE-VERIFIED (ĐÃ FIX PUSH HEADS-UP ANDROID & CHAT V2)` | `Build 144` |
 | **4** | **Quản lý Công việc & Dự án (Home Dashboard, Tasks, Danh bạ)** | 9 tính năng | `100% PASS` | `✅ CLAUDE-VERIFIED (ĐÃ FIX BUG-021 & LIVE WAYDROID)` | `Build 144` |
 | **5** | **Hỗ trợ & Xử lý Yêu cầu (Ticket / Helpdesk, SLA, Portal)** | 13 tính năng (đã bỏ 5.5) | `[!] CẦN SỬA` | `[!] PHÁT HIỆN LỖI MỞ TỆP IN-APP (AUDIT 2026-09-29)` | `Build 144` |
 | **6** | **Tôi (Hồ sơ cá nhân, Dark Theme, Cache, Token, Xóa tài khoản)** | 9 tính năng | `100% PASS` | `✅ CLAUDE-VERIFIED (18/18 TESTS & LIVE WAYDROID)` | `Build 144` |
@@ -391,6 +393,24 @@ Phân hệ cốt lõi cung cấp trải nghiệm giao tiếp toàn diện: trò 
   - *Mô tả*: Tích hợp CallKit (iOS) và ConnectionService (Android) hiển thị cuộc gọi đến toàn màn hình chuẩn điện thoại; nhạc chuông Odoo chính thức, âm quay số (dialing tone), tín hiệu máy bận nhanh (fast-busy); nút Bật/Tắt Mic, Loa ngoài (Speaker), Từ chối và Gác máy tức thì.
   - *Tệp liên quan*: `lib/features/chat_v2/application/chat_v2_callkit_service.dart`, `lib/features/chat_v2/presentation/widgets/chat_v2_incoming_call_dialog.dart`.
   - *Kịch bản nghiệm thu*: Có cuộc gọi đến khi khóa màn hình ➔ Màn hình bật sáng giao diện nhận cuộc gọi như cuộc gọi điện thoại thông thường.
+
+### F. Thông báo Đẩy Thời gian thực (Push Notifications & Heads-up Banner):
+- [x] **3.25 Thông báo Đẩy Nổi trên Android (Android Heads-up Notification Banner — Fix Build 144)**
+  - *Mô tả*: Cấu hình Notification Channel mức ưu tiên cao nhất (`Importance.max` / `Priority.high`) trên Android để thông báo tin nhắn và công việc tự động bật banner nổi (Heads-up notification / pop-up) từ cạnh trên màn hình giống iOS, thay vì chỉ hiện logo thu nhỏ trong khay kéo xuống (Notification Shade).
+  - *Tệp liên quan*: 
+    - Frontend Flutter: `lib/core/notifications/push_notification_service.dart`.
+    - Android Native: `android/app/src/main/AndroidManifest.xml`.
+    - Backend Odoo 17: `v_mobile_17/models/notification.py`, `v_mobile_17/models/res_config_settings.py`.
+    - Backend Odoo 19: `v_mobile_19/models/notification.py`, `v_mobile_19/models/res_config_settings.py`.
+  - *Kịch bản nghiệm thu*:
+    1. Khi có tin nhắn hoặc thông báo mới từ Odoo, điện thoại Android đang bật màn hình sẽ tự động hiển thị khung banner pop-up trượt từ cạnh trên xuống có tiêu đề, nội dung và icon app.
+    2. Khi app đang mở (Foreground), `flutter_local_notifications` bắt sự kiện `onMessage` và hiển thị pop-up cục bộ trên kênh `vcloud_high_importance_channel`.
+    3. Backend Odoo 17 & 19 gửi payload FCM mang `channel_id: "vcloud_high_importance_channel"` và `priority: "high"`.
+  - *Ghi chú hoàn thành*: Đã fix triệt để ngày 2026-09-30:
+    1. Khởi tạo `AndroidNotificationChannel` có ID `vcloud_high_importance_channel`, tên "Thông báo quan trọng VCloud" mức `Importance.max`.
+    2. Bổ sung `<meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="vcloud_high_importance_channel" />` vào `AndroidManifest.xml`.
+    3. Đồng bộ fallback `vmobile.push_default_android_channel_id` sang `vcloud_high_importance_channel` trên cả Odoo 17 và 19.
+    4. Kiểm thử: Pass `flutter analyze` (0 errors, 0 warnings), pass 4/4 tests trong `test/push_notification_repository_test.dart`.
 
 ---
 
