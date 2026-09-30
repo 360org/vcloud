@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:gal/gal.dart';
 
 import 'file_download.dart';
@@ -43,15 +44,34 @@ class GallerySaver {
       debugPrint('[GallerySaver] GalException: ${e.type.code} - ${e.type.message}');
       if (e.type == GalExceptionType.accessDenied) {
         throw Exception('Không có quyền truy cập Thư viện ảnh');
-      } else if (e.type == GalExceptionType.notEnoughSpace) {
+      }
+
+      // Fallback: Thử lưu bằng saveBytesToFile nếu Gal không ghi được MediaStore (vd trên Waydroid)
+      try {
+        final saved = await saveBytesToFile(bytes, fileName);
+        if (saved) return true;
+      } catch (_) {}
+
+      if (e.type == GalExceptionType.notEnoughSpace) {
         throw Exception('Bộ nhớ thiết bị không đủ dung lượng');
       } else if (e.type == GalExceptionType.notSupportedFormat) {
         throw Exception('Định dạng hình ảnh không được hỗ trợ');
       } else {
         throw Exception('Lỗi lưu ảnh: ${e.type.message}');
       }
+    } on PlatformException catch (e) {
+      debugPrint('[GallerySaver] PlatformException: ${e.code} - ${e.message}');
+      try {
+        final saved = await saveBytesToFile(bytes, fileName);
+        if (saved) return true;
+      } catch (_) {}
+      throw Exception('Không thể lưu ảnh vào thư viện: ${e.message ?? e.code}');
     } catch (e) {
       debugPrint('[GallerySaver] Error: $e');
+      try {
+        final saved = await saveBytesToFile(bytes, fileName);
+        if (saved) return true;
+      } catch (_) {}
       rethrow;
     }
   }

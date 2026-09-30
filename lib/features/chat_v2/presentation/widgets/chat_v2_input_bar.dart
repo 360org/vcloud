@@ -735,11 +735,60 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
 
     try {
       if (source == ImageSource.gallery) {
-        final List<XFile> rawFiles = await _picker.pickMultipleMedia(
-          maxWidth: 1600,
-          maxHeight: 1600,
-          imageQuality: 80,
-        );
+        List<XFile> rawFiles = [];
+        try {
+          // Tier 1: Thử pickMultipleMedia (Photo Picker chuẩn)
+          rawFiles = await _picker.pickMultipleMedia(
+            maxWidth: 1600,
+            maxHeight: 1600,
+            imageQuality: 80,
+          );
+        } on PlatformException catch (e1) {
+          debugPrint('[ChatInputBar] pickMultipleMedia fallback: ${e1.code} - ${e1.message}');
+          // Tier 2: Thử pickMultiImage (Gallery đa ảnh chuẩn)
+          try {
+            rawFiles = await _picker.pickMultiImage(
+              maxWidth: 1600,
+              maxHeight: 1600,
+              imageQuality: 80,
+            );
+          } on PlatformException catch (e2) {
+            debugPrint('[ChatInputBar] pickMultiImage fallback: ${e2.code} - ${e2.message}');
+            // Tier 3: Thử pickImage gallery (đơn ảnh)
+            try {
+              final single = await _picker.pickImage(
+                source: ImageSource.gallery,
+                maxWidth: 1600,
+                maxHeight: 1600,
+                imageQuality: 80,
+              );
+              if (single != null) rawFiles = [single];
+            } on PlatformException catch (e3) {
+              debugPrint('[ChatInputBar] pickImage gallery fallback: ${e3.code} - ${e3.message}');
+              // Tier 4: Fallback về FilePicker (SAF DocumentsUI - luôn luôn có sẵn trên Waydroid/Android giả lập)
+              try {
+                final filePickerRes = await FilePicker.platform.pickFiles(
+                  type: FileType.image,
+                  allowMultiple: true,
+                  withData: kIsWeb,
+                );
+                if (filePickerRes != null && filePickerRes.files.isNotEmpty) {
+                  rawFiles = filePickerRes.files.map((f) {
+                    if (f.path != null && f.path!.isNotEmpty) {
+                      return XFile(f.path!, name: f.name);
+                    } else if (f.bytes != null) {
+                      return XFile.fromData(f.bytes!, name: f.name);
+                    }
+                    return null;
+                  }).whereType<XFile>().toList();
+                }
+              } catch (e4) {
+                debugPrint('[ChatInputBar] FilePicker image fallback error: $e4');
+                rethrow;
+              }
+            }
+          }
+        }
 
         if (rawFiles.isEmpty) return;
 
@@ -913,13 +962,34 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
         return;
       }
 
-      // Nguồn Máy ảnh (Camera): Giữ nguyên chọn 1 ảnh
-      final XFile? file = await _picker.pickImage(
-        source: source,
-        maxWidth: 1600,
-        maxHeight: 1600,
-        imageQuality: 80,
-      );
+      // Nguồn Máy ảnh (Camera): Giữ nguyên chọn 1 ảnh với try-catch chuyên biệt
+      XFile? file;
+      try {
+        file = await _picker.pickImage(
+          source: source,
+          maxWidth: 1600,
+          maxHeight: 1600,
+          imageQuality: 80,
+        );
+      } on PlatformException catch (e) {
+        debugPrint('[ChatInputBar] Camera pickImage error: ${e.code} - ${e.message}');
+        if (mounted) {
+          final isNoActivity = e.code.toLowerCase().contains('activity') ||
+              (e.message?.toLowerCase().contains('activity') ?? false) ||
+              e.code == 'no_available_camera';
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                isNoActivity
+                    ? 'Không tìm thấy ứng dụng Máy ảnh trên thiết bị này'
+                    : 'Không thể mở máy ảnh: ${e.message ?? e.code}',
+              ),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return;
+      }
 
       if (file == null) return;
 
@@ -950,10 +1020,30 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
           _isSelectedImage = true;
         });
       }
-    } catch (e) {
+    } on PlatformException catch (e, stack) {
+      debugPrint('[ChatInputBar] _handlePickImage PlatformException: ${e.code} - ${e.message}\n$stack');
+      if (mounted) {
+        final isActivityNotFound = e.code.toLowerCase().contains('activity') ||
+            (e.message?.toLowerCase().contains('activity') ?? false) ||
+            e.code == 'photo_access_denied';
+        final msg = isActivityNotFound
+            ? 'Không tìm thấy ứng dụng Thư viện ảnh phù hợp trên thiết bị'
+            : 'Lỗi truy cập hình ảnh: ${e.message ?? e.code}';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(msg),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e, stack) {
+      debugPrint('[ChatInputBar] _handlePickImage Exception: $e\n$stack');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi chọn ảnh: $e')),
+          SnackBar(
+            content: Text('Lỗi chọn ảnh: ${e.toString().replaceAll("Exception: ", "")}'),
+            behavior: SnackBarBehavior.floating,
+          ),
         );
       }
     }
