@@ -78,8 +78,8 @@
        - Huy hiệu `Task cần làm hôm nay` tự động nhảy từ 62 lên 63; Task mới hiển thị ngay đầu danh sách với đầy đủ dự án `360 KPI` và người phụ trách `Ma Nguyễn Nhật Tân`.
        - Pass 11/11 unit tests trong `test/task_repository_test.dart` và 0 errors/warnings `flutter analyze`.
 
-### 🟢 GIAI ĐOẠN 5: HỖ TRỢ KỸ THUẬT (HELPDESK TICKETS & SLA) — `[x] [CLAUDE-VERIFIED 100% — FIX TRIỆT ĐỂ 7 LỖI MỤC 5.1]`
-- [x] 5.1 **Mở Tệp Đính kèm & Trình xem File In-App (Ticket Attachments & In-App Viewer — Audit 2026-09-30)**:
+### 🟢 GIAI ĐOẠN 5: HỖ TRỢ KỸ THUẬT (HELPDESK TICKETS & SLA) — `[x] [CLAUDE-VERIFIED 100% — FIX TRIỆT ĐỂ 7 LỖI MỤC 5.1 & VERIFIED LIVE WAYDROID]`
+- [x] 5.1 **Mở Tệp Đính kèm & Trình xem File In-App (Ticket Attachments & In-App Viewer — Audit 2026-09-30)**: `[CLAUDE-VERIFIED TRÊN LIVE WAYDROID KẾT NỐI PRODUCTION]`
   - *Kết quả khắc phục triệt để 7 lỗi*:
     1. **Tệp ảnh mở trực tiếp In-App**: Ảnh (`.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`) mở trực tiếp qua `ChatV2ImageViewerScreen` (pinch-to-zoom, pan, drag-to-dismiss), không còn bị ném ra app ngoài gây `noAppToOpen`.
     2. **Chuẩn hóa URL tải tệp với Bearer Token**: Backend Odoo 17 & 19 trả về `/api/v1/mobile/attachments/{id}/download`, nhận header `Authorization: Bearer <JWT>` và query param `access_token`, xóa bỏ hoàn toàn lỗi redirect 303 về `/web/login`.
@@ -88,6 +88,12 @@
     5. **Tách biệt hành vi Xem và Lưu**: Bấm thẻ để xem file trực tiếp In-App; bấm nút download để lưu vào máy/thư viện ảnh (`GallerySaver.saveImage` / `saveBytesToFile`).
     6. **Truyền accessToken khi fallback**: Cả `ChatV2AttachmentViewer` và `MobileAttachmentRepository` đều truyền `accessToken` trong fallback, tài khoản Portal tải tệp thông suốt.
     7. **Tương thích Flutter Web**: Kiểm tra `kIsWeb` dùng `saveBytesToFile` tải tệp qua trình duyệt, tránh crash `dart:io` và `open_filex`.
+  - *Bằng chứng kiểm chứng thực tế trên Live Waydroid kết nối Production vuahethong.net*:
+    * Đã kiểm chứng trực tiếp trên ticket `[Davita] YC-032: Tinh chỉnh lại file pdf báo giá cho hoàn thiện (29/9/2026)` (Attachment ID `117573`, `image.png`, 863.8 KB / 884,562 bytes).
+    * Logcat xác nhận HTTP streaming thành công: `Target: /api/v1/mobile/attachments/117573/download`, `Status: 200`, `Content-Type: image/png`, `Raw BodyBytes: 884562`.
+    * Chạm thẻ tệp: Mở trực tiếp màn hình In-App `ChatV2ImageViewerScreen`, hiển thị đầy đủ hình ảnh đơn bán hàng DAVITA sắc nét kèm nút Zoom, Pan, Quay và Tải về.
+    * Chạm nút download: SnackBar / Toast thông báo `"✅ Đã lưu ảnh vào Thư viện"` xuất hiện ngay lập tức.
+    * Thumbnail xem trước: Sau khi xem, thẻ tệp đính kèm render thumbnail thực tế 40x40 thu nhỏ của tài liệu DAVITA thay cho icon màu xanh tĩnh 38x38 ban đầu.
   - *Kiểm thử*: Pass 8/8 tests trong `test/ticket_attachment_verification_test.dart` và 2/2 tests trong `test/features/ticket/`.
   - *Đính kèm khi tạo ticket*: Luồng đính kèm khi tạo ticket hoạt động tốt, đã pass 6/6 tests trong `test/ticket_attachment_verification_test.dart`.
 - [x] 5.2 **Làm sạch HTML (HTML Sanitizer - 5.6)**: Nội dung ticket và comment chứa thẻ HTML được bóc tách bằng `cleanHtmlText`, hiển thị văn bản thuần chuẩn xác. Pass 2/2 tests trong `test/ticket_html_mapping_test.dart`.
