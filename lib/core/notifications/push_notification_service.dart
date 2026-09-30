@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:uuid/uuid.dart';
@@ -14,6 +15,14 @@ import 'push_notification_repository.dart';
 
 const _installationIdKey = 'vcloud_push_installation_id';
 const _deviceTokenKey = 'vcloud_push_device_token';
+
+const AndroidNotificationChannel vcloudHighImportanceChannel =
+    AndroidNotificationChannel(
+  'vcloud_high_importance_channel',
+  'Thông báo quan trọng VCloud',
+  description: 'Kênh nhận thông báo tin nhắn và phiếu hỗ trợ nổi',
+  importance: Importance.max,
+);
 
 @pragma('vm:entry-point')
 Future<void> vcloudFirebaseMessagingBackgroundHandler(
@@ -100,6 +109,27 @@ class PushNotificationService {
             debugPrint('║ 💬 Nội dung: $body');
             debugPrint('║ 📦 Payload: ${message.data}');
             debugPrint('╚══════════════════════════════════════════════════════════════════╝');
+            if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+              final notification = message.notification;
+              if (notification != null) {
+                FlutterLocalNotificationsPlugin().show(
+                  id: notification.hashCode,
+                  title: title,
+                  body: body,
+                  notificationDetails: NotificationDetails(
+                    android: AndroidNotificationDetails(
+                      vcloudHighImportanceChannel.id,
+                      vcloudHighImportanceChannel.name,
+                      channelDescription:
+                          vcloudHighImportanceChannel.description,
+                      importance: Importance.max,
+                      priority: Priority.high,
+                      icon: '@mipmap/ic_launcher',
+                    ),
+                  ),
+                );
+              }
+            }
             _onMessageController.add(message);
           },
           onError: (e) {
@@ -321,6 +351,13 @@ class PushNotificationService {
         badge: true,
         sound: true,
       );
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+        final flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+        await flutterLocalNotificationsPlugin
+            .resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin>()
+            ?.createNotificationChannel(vcloudHighImportanceChannel);
+      }
       _initialized = true;
       return true;
     } catch (e) {
