@@ -24,7 +24,7 @@ plugins {
 
 android {
     namespace = "com.mobile.vloud"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

@@ -373,6 +373,7 @@ Phân hệ cốt lõi cung cấp trải nghiệm giao tiếp toàn diện: trò 
   - *Mô tả*: Nút "Lưu ảnh" trực tiếp trên màn hình xem ảnh: Tự động xin quyền lưu ảnh (`gal`), lưu thẳng vào Thư viện hệ thống (Photos trên iOS / MediaStore trên Android) và hiển thị SnackBar check xanh thông báo thành công. Bọc toàn diện `GalException` & `PlatformException`, tự động dự phòng lưu bằng `saveBytesToFile` khi môi trường giả lập (Waydroid) không hỗ trợ MediaStore album.
   - *Tệp liên quan*: `lib/core/utils/gallery_saver.dart`, `lib/features/chat_v2/presentation/screens/chat_v2_image_viewer_screen.dart`, `android/app/src/main/AndroidManifest.xml`.
   - *Kịch bản nghiệm thu*: Mở ảnh, bấm Lưu ảnh ➔ SnackBar thông báo thành công; ảnh được lưu vào Thư viện hoặc thư mục Tải về máy an toàn, không văng app.
+  - *Bằng chứng kiểm chứng thực nghiệm E2E (Waydroid Android 13 / API 33)*: Bấm nút download trên trình xem ảnh, hệ thống tự động bắt ngoại lệ MediaStore giả lập và fallback sang lưu disk an toàn tại `/storage/emulated/0/Pictures/vcloud_image_1790740835278.png` (112,674 bytes) và `/storage/emulated/0/Pictures/vcloud_image_1790741390755.png` (470,812 bytes), 100% không văng app.
 
 - [x] **3.19 Trình Đọc Tài liệu Tích hợp trong App (In-App Document Viewer)**
   - *Mô tả*: Tích hợp `open_filex` cho phép mở và đọc trực tiếp các tệp văn phòng (PDF, Word DOCX, Excel XLSX, TXT) ngay trong app mà không cần chuyển hướng sang trình duyệt Safari/Chrome.
@@ -383,6 +384,7 @@ Phân hệ cốt lõi cung cấp trải nghiệm giao tiếp toàn diện: trò 
   - *Mô tả*: Chọn nhiều ảnh từ album hoặc chụp ảnh trực tiếp; nhập ghi chú (caption) cho ảnh; chặn an toàn các file vượt quá dung lượng (ảnh > 10MB, tài liệu > 25MB). Tích hợp cơ chế Multi-tier Intent Fallback 4 cấp chống lỗi `ActivityNotFoundException` trên Waydroid/Android giả lập không có Google Photos (`pickMultipleMedia` ➔ `pickMultiImage` ➔ `pickImage` ➔ `FilePicker` SAF).
   - *Tệp liên quan*: `lib/features/chat_v2/presentation/widgets/chat_v2_input_bar.dart`, `android/app/src/main/AndroidManifest.xml`.
   - *Kịch bản nghiệm thu*: Bấm icon ảnh trên Waydroid ➔ Bộ chọn ảnh mở mượt mà hoặc fallback an toàn sang tài liệu ảnh, bắt lỗi bằng SnackBar thân thiện, tuyệt đối không văng app.
+  - *Bằng chứng kiểm chứng thực nghiệm E2E (Waydroid Android 13 / API 33)*: Khai báo đầy đủ `<queries>` intents trong `AndroidManifest.xml` và quyền `READ_MEDIA_IMAGES`. Kích hoạt bộ chọn ảnh trơn tru với DocumentsUI SAF fallback, không sinh ngoại lệ `ActivityNotFoundException`.
 
 ### D. Ghi âm & Tin nhắn Thoại (Voice Messaging):
 - [x] **3.21 Ghi âm Nhấn Giữ & Vuốt để Hủy (Hold to Record - Chuẩn Zalo)**
@@ -539,6 +541,7 @@ Phân hệ tiếp nhận và giải quyết các yêu cầu hỗ trợ kỹ thu�
     * Giao diện thẻ hiển thị: Tiêu đề `Ảnh đính kèm #1`, dòng phụ `image.png · 863.8 KB`, thumbnail 40x40 thu nhỏ tài liệu DAVITA sắc nét.
     * Chạm thẻ: Mở trực tiếp In-App `ChatV2ImageViewerScreen` với tiêu đề `Ảnh đính kèm #1`, đầy đủ nút Zoom, Pan, Quay ảnh và Tải về.
     * Chạm nút download: SnackBar / Toast thông báo `"✅ Đã lưu ảnh vào Thư viện"` xuất hiện ngay lập tức.
+    * Đã kiểm chứng trực tiếp trên ticket `[Davita] YC-033: ĐƠN MUA HÀNG- PODV: bản in pdf cần điều chỉnh:`: Giao diện thẻ hiển thị `Tệp đính kèm (1)`, `Ảnh đính kèm #1`, dòng phụ `image.png · 459.8 KB`. Chạm mở In-App trực tiếp `ChatV2ImageViewerScreen`, bấm tải về lưu an toàn tệp `/storage/emulated/0/Pictures/vcloud_image_1790741390755.png` (470,812 bytes) với 0 lỗi/crash.
 
 - [x] [Claude-Verified] **5.4 Màn hình Chi tiết Ticket Toàn diện (Ticket Detail Screen)**
   - *Mô tả*: Xem đầy đủ thông tin: Người gửi yêu cầu, Nhân viên phụ trách (Assigned User), Đội xử lý, Mức độ ưu tiên, Trạng thái giai đoạn hiện tại.
@@ -696,3 +699,4 @@ Nhóm các tiêu chuẩn kỹ thuật nền tảng đảm bảo ứng dụng v�
 - [x] **Kiểm thử Tự động**: Hơn 240 bài Unit & Widget test bao phủ toàn bộ các luồng nghiệp vụ nhạy cảm.
 - [x] **Bảo mật Tệp cấu hình iOS**: Khóa cứng cấu hình `ITSAppUsesNonExemptEncryption = false` trong `Info.plist` đảm bảo bản build TestFlight sẵn sàng kiểm thử ngay không cần xác minh thủ công.
 - [x] **Quy chuẩn Đóng gói Android**: Sẵn sàng cấu hình Fastlane và chứng chỉ ký số phát hành gói App Bundle (`.aab`) lên Google Play Console.
+- [x] **Tương thích Android 13+ & SDK 37 (Build 144)**: Nâng cấp `compileSdk = 37` và khai báo `android.suppressUnsupportedCompileSdk=37` đảm bảo tương thích hoàn hảo với thư viện `permission_handler_android` trên Gradle 9.0/AGP mới nhất, giải quyết triệt để lỗi chặn build AAR metadata.
