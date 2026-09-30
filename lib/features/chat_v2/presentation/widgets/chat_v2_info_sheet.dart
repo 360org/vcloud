@@ -72,6 +72,7 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
   bool _isPinned = false;
   bool _isLeaving = false;
   bool _isLoadingMembers = false;
+  String? _customName;
 
   List<ChatV2Member> _members = [];
   int _memberCount = 0;
@@ -535,15 +536,250 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
     );
   }
 
+  void _handleRenameTap(BuildContext context, {required bool isGroup, required String currentName}) {
+    final currentUser = ref.read(authControllerProvider).valueOrNull;
+    final isPortalUser = currentUser?.isPortal == true;
+
+    if (isGroup && isPortalUser) {
+      AppToast.error(
+        context,
+        title: 'Không có quyền',
+        message: 'Tài khoản Portal không có quyền đổi tên nhóm nội bộ.',
+      );
+      return;
+    }
+
+    _showRenameDialog(context, isGroup: isGroup, currentName: currentName);
+  }
+
+  Future<void> _showRenameDialog(
+    BuildContext context, {
+    required bool isGroup,
+    required String currentName,
+  }) async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final initialText = currentName == 'Cuộc trò chuyện' ? '' : currentName;
+    final textController = TextEditingController(text: initialText);
+    textController.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: textController.text.length,
+    );
+    String? errorMessage;
+    bool isSaving = false;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: !isSaving,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final title = isGroup ? 'Đổi tên nhóm' : 'Đặt biệt danh';
+          final hint = isGroup ? 'Nhập tên nhóm mới' : 'Nhập biệt danh cuộc trò chuyện';
+          final helper = isGroup
+              ? 'Tên nhóm sẽ hiển thị với tất cả thành viên trong nhóm.'
+              : 'Biệt danh này chỉ hiển thị riêng với bạn.';
+
+          Future<void> submit() async {
+            final trimmed = textController.text.trim();
+            if (trimmed.isEmpty) {
+              setDialogState(() {
+                errorMessage = isGroup ? 'Tên nhóm không được để trống' : 'Biệt danh không được để trống';
+              });
+              return;
+            }
+            if (trimmed.length > 100) {
+              setDialogState(() {
+                errorMessage = 'Tên không được vượt quá 100 ký tự';
+              });
+              return;
+            }
+            if (trimmed == currentName) {
+              Navigator.of(dialogCtx).pop();
+              return;
+            }
+
+            setDialogState(() {
+              isSaving = true;
+              errorMessage = null;
+            });
+
+            try {
+              await ref.read(chatV2ChannelsProvider.notifier).renameChannel(
+                widget.channel.id,
+                trimmed,
+                isGroup: isGroup,
+              );
+              if (dialogCtx.mounted) {
+                Navigator.of(dialogCtx).pop();
+              }
+              if (mounted) {
+                setState(() {
+                  _customName = trimmed;
+                });
+                AppToast.success(
+                  this.context,
+                  title: 'Thành công',
+                  message: isGroup ? 'Đã đổi tên nhóm thành công' : 'Đã lưu biệt danh thành công',
+                );
+              }
+            } catch (e) {
+              if (dialogCtx.mounted) {
+                setDialogState(() {
+                  isSaving = false;
+                  errorMessage = 'Lỗi cập nhật: ${e.toString().replaceFirst("Exception: ", "")}';
+                });
+              }
+            }
+          }
+
+          return AlertDialog(
+            backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Row(
+              children: [
+                const Icon(
+                  LucideIcons.pencil,
+                  color: Color(0xFF00C83A),
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 17,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  ),
+                ),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    helper,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: textController,
+                    autofocus: true,
+                    enabled: !isSaving,
+                    maxLength: 100,
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    ),
+                    decoration: InputDecoration(
+                      hintText: hint,
+                      hintStyle: TextStyle(
+                        fontSize: 14,
+                        color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                      ),
+                      errorText: errorMessage,
+                      filled: true,
+                      fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(
+                          color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(
+                          color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(
+                          color: Color(0xFF00C83A),
+                          width: 1.5,
+                        ),
+                      ),
+                      suffixIcon: textController.text.isNotEmpty && !isSaving
+                          ? IconButton(
+                              icon: const Icon(LucideIcons.x, size: 16),
+                              onPressed: () {
+                                textController.clear();
+                                setDialogState(() {
+                                  errorMessage = null;
+                                });
+                              },
+                            )
+                          : null,
+                    ),
+                    onChanged: (_) {
+                      if (errorMessage != null) {
+                        setDialogState(() {
+                          errorMessage = null;
+                        });
+                      }
+                    },
+                    onSubmitted: (_) => submit(),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: isSaving ? null : () => Navigator.pop(dialogCtx),
+                child: Text(
+                  'Hủy',
+                  style: TextStyle(
+                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF00C83A),
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                ),
+                onPressed: isSaving ? null : submit,
+                child: isSaving
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : const Text(
+                        'Lưu',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final activeChannel = ref.watch(chatV2ChannelsProvider.select(
+      (async) => async.valueOrNull?.where((c) => c.id == widget.channel.id).firstOrNull,
+    )) ?? widget.channel;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final isGroup = widget.channel.getActualIsGroup(widget.currentUserName);
+    final isGroup = activeChannel.getActualIsGroup(widget.currentUserName);
     final currentUser = ref.watch(authControllerProvider).valueOrNull;
     final isPortalUser = currentUser?.isPortal == true;
-    final cleanName = widget.channel.getCleanName(widget.currentUserName);
+    final cleanName = _customName ?? activeChannel.getCleanName(widget.currentUserName);
     final avatarGrad = ChatV2InfoSheet.getAvatarGradient(cleanName);
-    final isOnline = widget.channel.imStatus == 'online';
+    final isOnline = activeChannel.imStatus == 'online';
 
     final effectiveMemberCount = _members.length > _memberCount
         ? _members.length
@@ -610,15 +846,12 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
               size: 19,
               color: isDark ? Colors.white70 : const Color(0xFF475569),
             ),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Tính năng đổi tên & ảnh nhóm đang sẵn sàng'),
-                  duration: Duration(seconds: 2),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            },
+            tooltip: isGroup ? 'Đổi tên nhóm' : 'Đặt biệt danh',
+            onPressed: () => _handleRenameTap(
+              context,
+              isGroup: isGroup,
+              currentName: cleanName,
+            ),
           ),
         ],
         bottom: PreferredSize(

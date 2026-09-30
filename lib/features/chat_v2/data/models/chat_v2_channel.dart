@@ -91,6 +91,7 @@ class ChatV2Channel {
   final String? directPartnerStatus;
   final bool isMuted;
   final bool isZaloChannel;
+  final String? customNickname;
 
   const ChatV2Channel({
     required this.id,
@@ -113,6 +114,7 @@ class ChatV2Channel {
     this.directPartnerStatus,
     this.isMuted = false,
     this.isZaloChannel = false,
+    this.customNickname,
   });
 
   ChatV2Channel copyWith({
@@ -136,6 +138,8 @@ class ChatV2Channel {
     String? directPartnerStatus,
     bool? isMuted,
     bool? isZaloChannel,
+    String? customNickname,
+    bool clearCustomNickname = false,
   }) {
     return ChatV2Channel(
       id: id ?? this.id,
@@ -158,6 +162,7 @@ class ChatV2Channel {
       directPartnerStatus: directPartnerStatus ?? this.directPartnerStatus,
       isMuted: isMuted ?? this.isMuted,
       isZaloChannel: isZaloChannel ?? this.isZaloChannel,
+      customNickname: clearCustomNickname ? null : (customNickname ?? this.customNickname),
     );
   }
 
@@ -206,6 +211,7 @@ class ChatV2Channel {
     'partner_id': partnerId,
     'is_muted': isMuted,
     'is_zalo_channel': isZaloChannel,
+    'custom_nickname': customNickname,
   };
 
   static bool matchesUser(String part, String? currentUserName) {
@@ -217,7 +223,12 @@ class ChatV2Channel {
   }
 
   /// Tên hiển thị sạch chuẩn hóa (không phụ thuộc user context)
-  String get displayName => cleanChannelName(name);
+  String get displayName {
+    if (!isGroup && customNickname != null && customNickname!.trim().isNotEmpty) {
+      return customNickname!.trim();
+    }
+    return cleanChannelName(name);
+  }
 
   /// Alias tương thích
   String get cleanName => displayName;
@@ -288,8 +299,12 @@ class ChatV2Channel {
 
   /// Lấy tên hiển thị sạch:
   /// - Nếu là kênh (channelType == 'channel') hoặc nhóm (isGroup): luôn giữ nguyên 100% tên kênh/nhóm gốc đã làm sạch.
+  /// - Nếu là chat 1-1 có customNickname thì luôn ưu tiên hiển thị customNickname.
   /// - Nếu là chat 1-1 ghép tên thì chỉ lấy tên người đối diện.
   String getCleanName(String? currentUserName) {
+    if (!isGroup && customNickname != null && customNickname!.trim().isNotEmpty) {
+      return customNickname!.trim();
+    }
     final cleaned = cleanChannelName(name);
     if (cleaned.isEmpty || cleaned == 'Cuộc trò chuyện') {
       if (name.isNotEmpty && name != 'Cuộc trò chuyện') {
@@ -597,6 +612,8 @@ class ChatV2Channel {
         map['zalo_oa_id'] != null ||
         map['zalo_user_id'] != null;
 
+    final customNickname = _stringOrNull(map['custom_nickname'] ?? map['custom_channel_name']);
+
     return ChatV2Channel(
       id: id,
       name: name,
@@ -618,6 +635,7 @@ class ChatV2Channel {
       directPartnerStatus: directPartnerStatus,
       isMuted: isMuted,
       isZaloChannel: isZaloChannel,
+      customNickname: customNickname,
     );
   }
 

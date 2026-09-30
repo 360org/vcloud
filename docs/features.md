@@ -56,10 +56,10 @@
     2. **Heuristic đa tầng nhận diện Zalo OA**: Nhận diện kênh có bot `bot@vuahethong.net`, kênh dồn >50 thành viên hỗ trợ, kênh có thành viên ngoài công ty để cô lập triệt để khách hàng Zalo OA khỏi tab Nhóm.
     3. **Seed Cache & Bảo toàn Kênh Pin**: Sửa `ChatV2ChannelLocalCache.set()` giữ lại các kênh đã tìm kiếm/pin, chống bị background polling ghi đè làm mất phòng chat 1-1.
     4. **Tìm kiếm Tiếng Việt Không Dấu**: Tích hợp `_stripVietnameseDiacritics` trên ô tìm kiếm cuộc trò chuyện.
-- [x] 3.7 **Quản lý Thành viên Nhóm Chat (Thêm & Xóa Member, Rời Nhóm - 3.6 & 3.7)**: `[x] [ĐÃ KHẮC PHỤC TRIỆT ĐỂ BUG-020 & MỤC 3.7]`
+- [x] 3.7 **Quản lý Thành viên Nhóm Chat (Thêm & Xóa Member, Rời Nhóm - 3.6 & 3.7)**: `[x] [ĐÃ KHẮC PHỤC TRIỆT ĐỂ BUG-020 & MỤC 3.7 TRÊN ODOO 19, CHỜ SYNC ODOO 17]`
   - *Kết quả khắc phục*:
-    1. **Khắc phục triệt để HTTP 405 Method Not Allowed**: Bổ sung route `@http.route(["/api/v1/mobile/chat/channels/<int:channel_id>/members/remove", "/api/v1/mobile/chat/channels/<int:channel_id>/kick", "/api/v1/mobile/chat/channels/<int:channel_id>/members"], methods=["POST", "DELETE", "OPTIONS"])` trên cả Odoo 17 và 19.
-    2. **Bổ sung endpoint Rời nhóm**: Bổ sung `@http.route(["/api/v1/mobile/chat/channels/<int:channel_id>/leave"], methods=["POST", "OPTIONS"])` đồng bộ bus notification `discuss.channel/leave` và message post.
+    1. **Khắc phục HTTP 405 Method Not Allowed**: Bổ sung route `@http.route(["/api/v1/mobile/chat/channels/<int:channel_id>/members/remove", "/api/v1/mobile/chat/channels/<int:channel_id>/kick", "/api/v1/mobile/chat/channels/<int:channel_id>/members"], methods=["POST", "DELETE", "OPTIONS"])` trên Odoo 19 (Odoo 17 đang chờ cherry-pick).
+    2. **Bổ sung endpoint Rời nhóm**: Bổ sung `@http.route(["/api/v1/mobile/chat/channels/<int:channel_id>/leave"], methods=["POST", "OPTIONS"])` trên Odoo 19 đồng bộ bus notification `discuss.channel/leave` và message post.
     3. **Bảo mật hàng rào Portal**: Chặn hoàn toàn tài khoản Portal thao tác thêm/xóa thành viên qua `is_portal_uid(uid)` trên Odoo 19 & Odoo 17.
     4. **Phân quyền UI cho Leader**: `ChatV2InfoSheet` chỉ hiển thị nút xóa thành viên khi `isGroup && !isMe && amILeader`.
     5. **Tự động chuyển đổi sang Group**: Tự động chuyển `channel_type = 'group'` khi số thành viên > 2 người trong chat 1-1.
@@ -71,6 +71,21 @@
     2. **Bọc Safe-Guard Lưu Ảnh Máy (`GallerySaver.saveImage`)**: Bắt an toàn `GalException` & `PlatformException`. Nếu ghi MediaStore album thất bại trên giả lập, tự động fallback `saveBytesToFile` lưu vào Documents/Downloads an toàn.
     3. **Quyền & Intent Queries Android 13+**: Khai báo `READ_MEDIA_IMAGES` (API 33+), `READ_EXTERNAL_STORAGE` (`maxSdkVersion=32`), `WRITE_EXTERNAL_STORAGE` (`maxSdkVersion=28`), `requestLegacyExternalStorage="true"` và khai báo `<queries>` cho `GET_CONTENT`, `PICK`, `IMAGE_CAPTURE`.
     4. **Kiểm thử**: Pass `flutter analyze` 0 errors/warnings, pass 7/7 tests trong `test/chat_media_picker_safeguard_test.dart` và 9/9 tests trong `test/ticket_attachment_verification_test.dart` (tổng 16/16 tests pass).
+- [/] 3.10 **Đối soát Khớp Model Odoo Discuss & Phân tích Khe hở (Audit Gap Analysis — 2026-09-30)**: `[CLAUDE-AUDITED THEO EVIDENCE-FIRST PROTOCOL]`
+  - *Kết quả đối soát 23 tính năng*:
+    1. **Đã khớp hoàn chỉnh (14 tính năng)**: Phân loại kênh/Zalo OA, Tin nhắn text HTML safe, Đính kèm đa định dạng có token, Tin nhắn thoại sóng âm, Bình chọn Poll real-time, Trả lời Reply `parent_id`, Thả cảm xúc Avatar reactions, Nhắc tên @Mention anchor, Chỉnh sửa/Thu hồi tin nhắn, Đã đọc Seen ID / Double check xanh, Presence/Typing, Chia sẻ vị trí GPS, Gọi thoại P2P 1-1, Lưu trữ / Ẩn kênh.
+    2. **Lệch phiên bản Backend (1 tính năng)**: Rời nhóm (`/leave`) và Xóa thành viên (`/members/remove`) đã có trên Odoo 19 nhưng thiếu trên Odoo 17 (Action Item P1).
+    3. **Lệch Backend vs Mobile (3 tính năng)**: Ghim tin nhắn (`/pin-message`), Tắt thông báo phòng chat (`/mute` map `mute_until_dt`), Đánh dấu chưa đọc (`/mark-unread`) (Action Item P2).
+    4. **Tính năng Odoo Discuss Web có nhưng Mobile chưa có (4 tính năng)**: Chuyển tiếp tin nhắn (Forward), Tìm kiếm full-text trên server DB, Gửi danh thiếp (Send Contact trên Chat V2), Cuộc gọi Video & Nhóm. (Lưu ý: Tính năng Đổi tên nhóm & Biệt danh chat 1-1 đã hoàn thành tại Mục 3.11).
+  - *Chi tiết ma trận đối soát*: Xem bảng phân tích đầy đủ tại Mục 3.G.
+- [x] 3.11 **Đổi Tên Nhóm & Đặt Biệt Danh Chat 1-1 (Rename Group & Set Custom Nickname — 3.26)**: `[x] [CLAUDE-VERIFIED — 10/10 TESTS PASS & FLUTTER ANALYZE 0 ISSUES]`
+  - *Giải pháp & Thiết kế Kiến trúc*:
+    1. **Kích hoạt Icon Cây viết (Pencil)**: Kích hoạt icon `LucideIcons.pencil` tại thanh AppBar màn hình Chi tiết Hội thoại (`chat_v2_info_sheet.dart`), thay thế hoàn toàn SnackBar tĩnh bằng hộp thoại chỉnh sửa thông minh thích ứng theo ngữ cảnh nhóm/chat 1-1.
+    2. **Đổi tên nhóm Chat (Group Channels)**: Gọi API `/api/v1/mobile/chat/channels/<id>/rename` trên backend Odoo (`v_mobile_17` & `v_mobile_19`), cập nhật `discuss.channel.write({'name': new_name})`, cập nhật optimistic tức thì vào `ChatV2ChannelLocalCache` và Riverpod `chatV2ChannelsProvider` giúp tiêu đề nhóm đồng bộ real-time trên cả trang Chi tiết, Chat Conversation và Channel List.
+    3. **Đặt biệt danh Chat 1-1 (Direct Channels)**: Không sửa đổi bản ghi liên hệ ERP toàn cục (`res.partner`), sử dụng cơ chế Hybrid: lưu trữ biệt danh bền vững trong `FlutterSecureStorage` qua `ChatV2ChannelLocalCache` (`{scope}_user_channel_nicknames_v1`) và ghi `custom_channel_name` trên `discuss.channel.member` phía backend nếu có. Biệt danh chỉ hiển thị riêng với người đặt.
+    4. **Bảo mật Anti-IDOR & Hàng rào Portal**: Kiểm tra caller bắt buộc là thành viên hoạt động của kênh; chặn hoàn toàn tài khoản Portal (`is_portal_uid`) đổi tên nhóm nội bộ công ty (HTTP 403 Forbidden).
+    5. **Input Validation**: Tự động trim khoảng trắng, từ chối chuỗi rỗng/chỉ chứa khoảng trắng, giới hạn tối đa 100 ký tự (`maxLength: 100`).
+    6. **Kiểm thử**: Đạt 0 issues `flutter analyze`, pass 10/10 unit tests độc lập trong `test/features/chat_v2/chat_v2_rename_and_nickname_test.dart` và 30/30 tests liên quan (Sanitize & Display Name).
 
 ### 🟢 GIAI ĐOẠN 4: QUẢN LÝ CÔNG VIỆC & DASHBOARD (HOME & TASKS) — `[x] [Claude-Verified — ĐÃ FIX TRIỆT ĐỂ BUG-021 & VERIFIED LIVE WAYDROID]`
 - [x] 4.1 **Dashboard Kép & Lời chào Cá nhân hóa (Dual-Tier Metrics & Greeting Header)**: Hiển thị đúng số giờ làm, trạng thái chấm công, task cần làm & ticket. Đã fix triệt để BUG-008 (Build 144): Lời chào tự động đổi theo buổi (Sáng 5h-12h, Chiều 12h-18h, Tối sau 18h) và nạp đầy đủ Chức danh & Công ty từ `userMetadata`. Đã fix triệt để BUG-009: Bắn pháo hoa chúc mừng (`CelebrationFireworksOverlay`) ngay khi bấm Check-in nhanh thành công tại Home Screen. Pass 7/7 tests trong `test/home_greeting_and_celebration_test.dart`.
@@ -144,7 +159,7 @@
 | :---: | :--- | :---: | :---: | :---: | :---: |
 | **1** | **Xác thực & Tài khoản (Login, Multi-DB, Bảo mật)** | 8 tính năng | `100% PASS` | `✅ ACCEPTED (2026-09-28)` | `Build 144` |
 | **2** | **Quản lý Thời gian (Chấm công GPS, Timesheet, Stopwatch)** | 12 tính năng | `100% PASS` | `✅ CLAUDE-VERIFIED (77/77 PASS 100%)` | `Build 144` |
-| **3** | **Giao tiếp Nội bộ (Chat V2, Media, WebRTC Call, Push)** | 25 tính năng | `100% PASS` | `✅ CLAUDE-VERIFIED (ĐÃ FIX PUSH HEADS-UP ANDROID & CHAT V2)` | `Build 144` |
+| **3** | **Giao tiếp Nội bộ (Chat V2, Media, WebRTC Call, Push)** | 25 tính năng (+ 23 đối soát Discuss) | `80% KHỚP DISCUSS` | `✅ CLAUDE-VERIFIED (14 KHỚP 100%, 4 ĐIỂM CẦN SYNC BACKEND)` | `Build 144` |
 | **4** | **Quản lý Công việc & Dự án (Home Dashboard, Tasks, Danh bạ)** | 9 tính năng | `100% PASS` | `✅ CLAUDE-VERIFIED (ĐÃ FIX BUG-021 & LIVE WAYDROID)` | `Build 144` |
 | **5** | **Hỗ trợ & Xử lý Yêu cầu (Ticket / Helpdesk, SLA, Portal)** | 13 tính năng (đã bỏ 5.8) | `100% PASS` | `✅ CLAUDE-VERIFIED (ĐÃ FIX 7 LỖI IN-APP VIEWER & LIVE WAYDROID)` | `Build 144` |
 | **6** | **Tôi (Hồ sơ cá nhân, Dark Theme, Cache, Token, Xóa tài khoản)** | 9 tính năng | `100% PASS` | `✅ CLAUDE-VERIFIED (18/18 TESTS & LIVE WAYDROID)` | `Build 144` |

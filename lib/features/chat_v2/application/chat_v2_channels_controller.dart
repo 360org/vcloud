@@ -45,10 +45,12 @@ class ChatV2ChannelLocalCache {
   static String get _unreadCacheKey => _key('cached_unread_count_v3');
   static String get _pinnedIdsKey => _key('user_pinned_channel_ids');
   static String get _mutedIdsKey => _key('user_muted_channel_ids');
+  static String get _nicknamesKey => _key('user_channel_nicknames_v1');
   static bool _initialized = false;
   static List<String> _userPinnedOrder = [];
   static Set<String> _userPinnedIds = {};
   static Set<String> _userMutedIds = {};
+  static Map<String, String> _customNicknames = {};
 
   static List<ChatV2Channel> get cached => _cached;
   static String? _mergeLastMessage(ChatV2Channel local, ChatV2Channel api) {
@@ -100,9 +102,16 @@ class ChatV2ChannelLocalCache {
     _userPinnedOrder = [];
     _userPinnedIds = {};
     _userMutedIds = {};
+    _customNicknames = {};
     _lastKnownUnread = 0;
 
     try {
+      final nicknamesData = await _storage.read(key: _nicknamesKey);
+      if (nicknamesData != null && nicknamesData.isNotEmpty) {
+        final Map<String, dynamic> decoded = jsonDecode(nicknamesData);
+        _customNicknames = decoded.map((k, v) => MapEntry(k.toString(), v.toString()));
+      }
+
       final data = await _storage.read(key: _storageKey);
       if (data != null && data.isNotEmpty) {
         final List<dynamic> decoded = jsonDecode(data);
@@ -205,6 +214,37 @@ class ChatV2ChannelLocalCache {
     try {
       await _storage.write(key: _mutedIdsKey, value: jsonEncode(_userMutedIds.toList()));
     } catch (_) {}
+  }
+
+  static String? getCustomNickname(String channelId) => _customNicknames[channelId];
+
+  static Future<void> setCustomNickname(String channelId, String nickname) async {
+    final trimmed = nickname.trim();
+    if (trimmed.isEmpty) {
+      _customNicknames.remove(channelId);
+    } else {
+      _customNicknames[channelId] = trimmed;
+    }
+    await _storage.write(key: _nicknamesKey, value: jsonEncode(_customNicknames)).catchError((_) {});
+
+    final currentCached = List<ChatV2Channel>.from(_cached);
+    final idx = currentCached.indexWhere((c) => c.id == channelId);
+    if (idx != -1) {
+      final old = currentCached[idx];
+      currentCached[idx] = old.copyWith(
+        customNickname: trimmed.isNotEmpty ? trimmed : null,
+        clearCustomNickname: trimmed.isEmpty,
+      );
+      set(currentCached);
+    } else if (_pinnedDirectChannels.containsKey(channelId)) {
+      final old = _pinnedDirectChannels[channelId]!;
+      _pinnedDirectChannels[channelId] = old.copyWith(
+        customNickname: trimmed.isNotEmpty ? trimmed : null,
+        clearCustomNickname: trimmed.isEmpty,
+      );
+      _saveToStorage();
+      onCacheUpdated?.call();
+    }
   }
 
   static void pinDirectChannel(ChatV2Channel channel) {
@@ -482,6 +522,16 @@ class ChatV2ChannelLocalCache {
         map[c.id] = c;
       }
     }
+    if (_customNicknames.isNotEmpty) {
+      for (final entry in _customNicknames.entries) {
+        if (map.containsKey(entry.key)) {
+          final ch = map[entry.key]!;
+          if (!ch.isGroup) {
+            map[entry.key] = ch.copyWith(customNickname: entry.value);
+          }
+        }
+      }
+    }
     final merged = map.values.toList();
     merged.sort((a, b) {
       // Ghim lên đầu theo đúng thứ tự ghim cố định (1, 2, 3, 4, 5)
@@ -536,6 +586,7 @@ class ChatV2ChannelLocalCache {
     _userPinnedOrder = [];
     _userPinnedIds = {};
     _userMutedIds = {};
+    _customNicknames = {};
     _lastKnownUnread = 0;
     _initialized = false;
     _activeScope = '';
@@ -1039,6 +1090,46 @@ class ChatV2ChannelsNotifier
   void toggleMute(String channelId) {
     ChatV2ChannelLocalCache.toggleUserMute(channelId);
     state = AsyncData(ChatV2ChannelLocalCache.cached);
+  }
+
+  Future<void> renameChannel(String channelId, String newName, {bool isGroup = true}) async {
+    final trimmed = newName.trim();
+    if (trimmed.isEmpty) return;
+
+    if (!isGroup) {
+      await ChatV2ChannelLocalCache.setCustomNickname(channelId, trimmed);
+      state = AsyncData(ChatV2ChannelLocalCache.cached);
+    } else {
+      final current = state.valueOrNull ?? ChatV2ChannelLocalCache.cached;
+      final idx = current.indexWhere((c) => c.id == channelId);
+      if (idx != -1) {
+        final old = current[idx];
+        final updatedChannel = old.copyWith(name: trimmed);
+        ChatV2ChannelLocalCache.updateSingleChannel(updatedChannel);
+        state = AsyncData(ChatV2ChannelLocalCache.cached);
+      }
+    }
+
+    try {
+      await ref.read(chatV2RepositoryProvider).renameChannel(
+        channelId: channelId,
+        name: trimmed,
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[ChatV2ChannelsNotifier] renameChannel backend error: $e');
+      }
+      if (isGroup) {
+        final current = state.valueOrNull ?? ChatV2ChannelLocalCache.cached;
+        final idx = current.indexWhere((c) => c.id == channelId);
+        if (idx != -1) {
+          final old = current[idx];
+          ChatV2ChannelLocalCache.updateSingleChannel(old);
+          state = AsyncData(ChatV2ChannelLocalCache.cached);
+        }
+        rethrow;
+      }
+    }
   }
 }
 

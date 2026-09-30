@@ -879,5 +879,43 @@ class ChatV2Repository {
       }
     }
   }
+
+  Future<Map<String, dynamic>> renameChannel({
+    required String channelId,
+    required String name,
+  }) async {
+    final cid = int.tryParse(channelId) ?? 0;
+    final trimmedName = name.trim();
+    final body = {
+      'channel_id': cid,
+      'name': trimmedName,
+    };
+    try {
+      final res = await _client.post(
+        '/api/v1/mobile/chat/channels/$channelId/rename',
+        body: body,
+      );
+      if (res is Map<String, dynamic>) {
+        return res;
+      }
+      return {'status': 'success', 'name': trimmedName};
+    } catch (_) {
+      try {
+        final fallbackRes = await _client.post(
+          '/api/v1/mobile/chat/rename_channel',
+          body: body,
+        );
+        if (fallbackRes is Map<String, dynamic>) {
+          return fallbackRes;
+        }
+        return {'status': 'success', 'name': trimmedName};
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint('[ChatV2Repository] renameChannel error: $e');
+        }
+        rethrow;
+      }
+    }
+  }
 }
 
