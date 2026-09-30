@@ -137,7 +137,7 @@ class AboutScreen extends ConsumerWidget {
             child: InkWell(
               borderRadius: BorderRadius.circular(12),
               onTap: () => launchUrl(
-                Uri.parse('https://360.org.vn/privacy'),
+                Uri.parse('https://vuahethong.net/privacy'),
                 mode: LaunchMode.externalApplication,
               ),
               child: const Padding(

@@ -669,7 +669,7 @@ Tab "Tôi" quản lý thông tin nhân sự cá nhân, tùy chỉnh giao diện 
   - *Mô tả*: Xem thông tin số hiệu phiên bản hiện tại (VD: `v2.9.12 (Build 143)`), logo nhận diện thương hiệu 360 CORP và thông tin liên hệ hỗ trợ.
   - *Tệp liên quan*: `lib/features/profile/presentation/about_screen.dart`, `lib/shared/widgets/brand_logo.dart`.
   - *Kịch bản nghiệm thu*: Mở trang About ➔ Xem đúng số build 143 và bản quyền.
-  - *Bằng chứng kiểm thử (Evidence)*: `appVersionProvider` đọc động phiên bản từ hệ thống qua `package_info_plus` (`v$version+$build`), hiển thị logo BrandLogo sắc nét, danh sách các phân hệ chính (Chấm công, Timesheet, Ticket, Tin nhắn), liên kết mở chính sách riêng tư `https://360.org.vn/privacy` qua trình duyệt ngoài, bản quyền © 2026 360 CORP.
+  - *Bằng chứng kiểm thử (Evidence)*: `appVersionProvider` đọc động phiên bản từ hệ thống qua `package_info_plus` (`v$version+$build`), hiển thị logo BrandLogo sắc nét, danh sách các phân hệ chính (Chấm công, Timesheet, Ticket, Tin nhắn), liên kết mở chính sách riêng tư `https://vuahethong.net/privacy` qua trình duyệt ngoài, bản quyền © 2026 360 CORP.
 
 - [x] **6.7 Bảng Tính năng Mới theo Phiên bản (What's New Sheet)**
   - *Mô tả*: Xem nhật ký tóm tắt các tính năng mới và cải tiến nổi bật của phiên bản đang sử dụng để người dùng nắm bắt nhanh.

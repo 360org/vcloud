@@ -99,7 +99,7 @@ export_options_hash = {
 * **Quy định Apple**: Phải có đường dẫn rõ ràng dẫn tới Chính sách Quyền riêng tư (Privacy Policy) ở cả trang thông tin App Store Connect và bên trong giao diện ứng dụng.
 * **Giải pháp khắc phục (Đã triển khai trong `about_screen.dart`)**:
   - Thêm mục **"Chính sách quyền riêng tư"** trong màn hình Thông tin (About).
-  - Khi nhấn, mở trình duyệt tới liên kết chính thức: `https://360.org.vn/privacy`.
+  - Khi nhấn, mở trình duyệt tới liên kết chính thức: `https://vuahethong.net/privacy`.
 
 ---
 
