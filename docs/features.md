@@ -34,8 +34,9 @@
   - *Hiện tượng cũ & Giải pháp đã xử lý triệt để trong code*:
     1. **Task cá nhân (`projectId == null`)**: `task_repository.dart` tự động nhận diện nếu không có `projectId` sẽ bỏ qua gọi `/api/v1/mobile/timesheet/log` (chống lỗi bắt buộc `project_id` trên Odoo `account.analytic.line`), chuyển sang ghi nhận nội dung qua Odoo Chatter (`addMessage`) và cập nhật workflow. Đã pass 2 tests độc lập trong `test/task_repository_test.dart`.
     2. **Cập nhật task chưa có entry timesheet**: Hàm `update()` tự động tạo entry mới nếu chưa có `timesheetEntryId`, loại bỏ hoàn toàn thông báo lỗi đỏ.
-    3. **Tab và nút xóa log thời gian**: Đã bổ sung Tab thứ 3 "Nhật ký giờ" trên `timesheet_list_screen.dart`, hỗ trợ nút xóa từng dòng ghi giờ có hộp thoại xác nhận và gọi `timesheetActions.delete()`.
-    4. **Bộ lỗi RC-01 đến RC-05 (Filter & Pagination)**: Sửa dứt điểm phân trang ảo (Phantom Load More), lọc đúng theo dự án trên Tab Nhật ký giờ, đồng bộ dữ liệu Summary với danh sách động, hydrate đầy đủ task detail và parse ngày an toàn không lệch múi giờ.
+    3. **Tab và nút xóa log thời gian**: Đã bổ sung Tab thứ 3 "Nhật ký" trên `timesheet_list_screen.dart`, hỗ trợ nút xóa từng dòng ghi giờ có hộp thoại xác nhận và gọi `timesheetActions.delete()`.
+    4. **Bộ lỗi RC-01 đến RC-05 (Filter & Pagination)**: Sửa dứt điểm phân trang ảo (Phantom Load More), lọc đúng theo dự án trên Tab Nhật ký, đồng bộ dữ liệu Summary với danh sách động, hydrate đầy đủ task detail và parse ngày an toàn không lệch múi giờ.
+    5. **Tối ưu UX Tab Nhật ký & Nút chuyển nhanh Tháng này (Audit 2026-09-30)**: Đổi tên Tab 3 thành `Nhật ký` (tránh tràn chữ `Nhật ký ...` trên điện thoại hẹp). Thêm trạng thái rỗng thông minh: khi ở bộ lọc "Hôm nay" chưa có log, hiển thị thông báo rõ ràng kèm nút "Xem nhật ký tháng này" giúp nhân viên bấm 1 chạm để nạp ngay toàn bộ nhật ký trong tháng (pass 13/13 unit tests `timesheet_filter_test.dart`).
 - [x] 2.3 **Stopwatch Timer đếm giờ thực**: `[x] [CLAUDE-VERIFIED — ĐÃ KIỂM CHỨNG LIVE TRÊN THIẾT BỊ & PASS 29/29 TESTS]`
   - *Giải pháp & Bằng chứng kiểm chứng thực tế*:
     1. **Đếm giờ thực tế**: Bấm "▶ Bắt đầu" ➔ Trạng thái chuyển "🟢 Đang chạy", đồng hồ đếm chuẩn từng giây (đã verify live trên Waydroid đạt 00:00:03).
@@ -64,6 +65,12 @@
     5. **Tự động chuyển đổi sang Group**: Tự động chuyển `channel_type = 'group'` khi số thành viên > 2 người trong chat 1-1.
 - [x] 3.8 **Thông báo Đẩy Nổi trên Android (Heads-up Notification Banner — 3.25)**: `[x] [CLAUDE-VERIFIED — 4/4 TESTS PASS & FLUTTER ANALYZE 0 ISSUES]`
   - *Kết quả khắc phục*: Khởi tạo `AndroidNotificationChannel` có ID `vcloud_high_importance_channel` với mức `Importance.max` trong `push_notification_service.dart`; khai báo `default_notification_channel_id` trong `AndroidManifest.xml`; kích hoạt banner cục bộ khi app mở (Foreground); đồng bộ fallback `channel_id` trên Odoo 17 & 19 backend sang `vcloud_high_importance_channel`. Xóa bỏ hoàn toàn lỗi thông báo Android chỉ hiện logo im lặng trên status bar.
+- [x] 3.9 **Chống Văng App Khi Chọn & Lưu Ảnh Chat Internal (Image Picker & Gallery Safe-Guard — 3.18 & 3.20)**: `[x] [CLAUDE-VERIFIED — 16/16 TESTS PASS & FLUTTER ANALYZE 0 ISSUES]`
+  - *Kết quả khắc phục triệt để*:
+    1. **Multi-tier Intent Fallback 4 cấp**: Chống văng app (`ActivityNotFoundException`) trên Waydroid/Android giả lập thiếu Google Photos. Tự động rơi tầng: `pickMultipleMedia` ➔ `pickMultiImage` ➔ `pickImage(gallery)` ➔ `FilePicker.platform.pickFiles` (SAF DocumentsUI native).
+    2. **Bọc Safe-Guard Lưu Ảnh Máy (`GallerySaver.saveImage`)**: Bắt an toàn `GalException` & `PlatformException`. Nếu ghi MediaStore album thất bại trên giả lập, tự động fallback `saveBytesToFile` lưu vào Documents/Downloads an toàn.
+    3. **Quyền & Intent Queries Android 13+**: Khai báo `READ_MEDIA_IMAGES` (API 33+), `READ_EXTERNAL_STORAGE` (`maxSdkVersion=32`), `WRITE_EXTERNAL_STORAGE` (`maxSdkVersion=28`), `requestLegacyExternalStorage="true"` và khai báo `<queries>` cho `GET_CONTENT`, `PICK`, `IMAGE_CAPTURE`.
+    4. **Kiểm thử**: Pass `flutter analyze` 0 errors/warnings, pass 7/7 tests trong `test/chat_media_picker_safeguard_test.dart` và 9/9 tests trong `test/ticket_attachment_verification_test.dart` (tổng 16/16 tests pass).
 
 ### 🟢 GIAI ĐOẠN 4: QUẢN LÝ CÔNG VIỆC & DASHBOARD (HOME & TASKS) — `[x] [Claude-Verified — ĐÃ FIX TRIỆT ĐỂ BUG-021 & VERIFIED LIVE WAYDROID]`
 - [x] 4.1 **Dashboard Kép & Lời chào Cá nhân hóa (Dual-Tier Metrics & Greeting Header)**: Hiển thị đúng số giờ làm, trạng thái chấm công, task cần làm & ticket. Đã fix triệt để BUG-008 (Build 144): Lời chào tự động đổi theo buổi (Sáng 5h-12h, Chiều 12h-18h, Tối sau 18h) và nạp đầy đủ Chức danh & Công ty từ `userMetadata`. Đã fix triệt để BUG-009: Bắn pháo hoa chúc mừng (`CelebrationFireworksOverlay`) ngay khi bấm Check-in nhanh thành công tại Home Screen. Pass 7/7 tests trong `test/home_greeting_and_celebration_test.dart`.
@@ -113,6 +120,11 @@
 - [x] 5.9 **Vòng đời Xử lý & Quản lý Hoạt động (5.10 - 5.13)**:
   - Nút **Mở lại ticket (Reopen)**: Đã kiểm chứng xuất hiện trực tiếp trên từng thẻ ticket trong Tab "Hoàn thành" trên Waydroid thực tế (bác bỏ claim thiếu nút Reopen).
   - Nút **Nhận ticket** và **Hoàn thành**: Đã kiểm chứng xuất hiện ở thanh hành động cuối màn hình chi tiết ticket.
+- [x] 5.10 **Tối ưu Hiệu ứng Chuyển cảnh Ticket (Ticket Transition UX — Refactor 2026-09-30)**: `[CLAUDE-VERIFIED — LOẠI BỎ HERO TAG, ĐỒNG BỘ NATIVE SLIDE]`
+  - *Hiện tượng cũ*: Khi bấm vào xem chi tiết ticket rồi bấm quay lại (out ra), dòng chữ tiêu đề ticket bị bốc tách khỏi giao diện và rơi thẳng từ đỉnh màn hình xuống thẻ card ("từ trời rơi xuống"), gây cảm giác giật cục và xung đột hướng chuyển động.
+  - *Nguyên nhân*: Thẻ `Hero(tag: 'ticket-title-${ticket.id}')` bọc quanh `Text(ticket.title)` ở cả 2 màn hình `ticket_list_screen.dart` và `ticket_detail_screen.dart` bị `HeroController` đưa lên tầng Overlay nổi, tự động bay giữa 2 toạ độ Y lệch nhau (Y=120px trên màn hình chi tiết và Y=500px trên danh sách) trong khi router đang trượt ngang (`SlideTransition`).
+  - *Giải pháp*: Gỡ bỏ hoàn toàn khối bọc `Hero` trên tiêu đề ở cả 2 file, trả về `Text(ticket.title)` phẳng tối giản chuẩn Ponytail.
+  - *Kết quả*: Màn hình vào/ra trượt ngang đồng nhất 100% chuẩn Native Mobile (iOS/Android), tiêu đề gắn chặt theo thân thẻ card, xóa sổ triệt để lỗi chữ rơi từ trên trời xuống. Đã pass 26/26 tests phân hệ Ticket và 0 errors/warnings `flutter analyze` (commit `9d3e9f8`).
 
 ### 🟢 GIAI ĐOẠN 6: HỒ SƠ CÁ NHÂN & TIỆN ÍCH HỆ THỐNG (PROFILE & UTILS) — `[x] [Claude-Verified — 18/18 PASS 100% & Live Waydroid]`
 - [x] 6.1 **Thẻ Hồ sơ Định danh Hero Card (6.1)**: Đồng bộ ảnh đại diện, họ tên và chức danh công việc động 100% từ Odoo API `/api/v1/auth/me` theo từng tài khoản (đã kiểm chứng đối soát trên Waydroid thực tế: `Ma Nguyễn Nhật Tân`, chức vụ `AI Full Stack Engineer (Agentic AI Platform)`, công ty `CÔNG TY CỔ PHẦN ĐẦU TƯ PHÁT TRIỂN CÔNG NGHỆ 360`, email `tanmnn@360.org.vn`). Pass 1/1 test trong `test/auth_avatar_mapping_test.dart`.
@@ -357,20 +369,20 @@ Phân hệ cốt lõi cung cấp trải nghiệm giao tiếp toàn diện: trò 
   - *Tệp liên quan*: `lib/features/chat_v2/presentation/screens/chat_v2_image_viewer_screen.dart`.
   - *Kịch bản nghiệm thu*: Bấm vào ảnh trong chat ➔ Mở toàn màn hình xem sắc nét, zoom mượt mà.
 
-- [x] **3.18 Lưu Ảnh Trực tiếp vào Thư viện Máy (Native Gallery Saver)**
-  - *Mô tả*: Nút "Lưu ảnh" trực tiếp trên màn hình xem ảnh: Tự động xin quyền lưu ảnh (`gal`), lưu thẳng vào Thư viện hệ thống (Photos trên iOS / MediaStore trên Android) và hiển thị SnackBar check xanh thông báo thành công.
-  - *Tệp liên quan*: `lib/core/utils/gallery_saver.dart`, `lib/features/chat_v2/presentation/screens/chat_v2_image_viewer_screen.dart`.
-  - *Kịch bản nghiệm thu*: Mở ảnh, bấm Lưu ảnh ➔ Mở ứng dụng Ảnh (Photos) của iPhone 13 lên thấy ảnh xuất hiện ngay lập tức.
+- [x] **3.18 Lưu Ảnh Trực tiếp vào Thư viện Máy (Native Gallery Saver — Safe-Guard 2026-09-30)**
+  - *Mô tả*: Nút "Lưu ảnh" trực tiếp trên màn hình xem ảnh: Tự động xin quyền lưu ảnh (`gal`), lưu thẳng vào Thư viện hệ thống (Photos trên iOS / MediaStore trên Android) và hiển thị SnackBar check xanh thông báo thành công. Bọc toàn diện `GalException` & `PlatformException`, tự động dự phòng lưu bằng `saveBytesToFile` khi môi trường giả lập (Waydroid) không hỗ trợ MediaStore album.
+  - *Tệp liên quan*: `lib/core/utils/gallery_saver.dart`, `lib/features/chat_v2/presentation/screens/chat_v2_image_viewer_screen.dart`, `android/app/src/main/AndroidManifest.xml`.
+  - *Kịch bản nghiệm thu*: Mở ảnh, bấm Lưu ảnh ➔ SnackBar thông báo thành công; ảnh được lưu vào Thư viện hoặc thư mục Tải về máy an toàn, không văng app.
 
 - [x] **3.19 Trình Đọc Tài liệu Tích hợp trong App (In-App Document Viewer)**
   - *Mô tả*: Tích hợp `open_filex` cho phép mở và đọc trực tiếp các tệp văn phòng (PDF, Word DOCX, Excel XLSX, TXT) ngay trong app mà không cần chuyển hướng sang trình duyệt Safari/Chrome.
   - *Tệp liên quan*: `lib/features/chat_v2/presentation/widgets/chat_v2_attachment_viewer.dart`.
   - *Kịch bản nghiệm thu*: Bấm vào file PDF hoặc Excel trong chat ➔ Ứng dụng mở xem file trực tiếp mượt mà.
 
-- [x] **3.20 Gửi Nhiều Ảnh kèm Chú thích & Chặn File quá tải**
-  - *Mô tả*: Chọn nhiều ảnh từ album hoặc chụp ảnh trực tiếp; nhập ghi chú (caption) cho ảnh; chặn an toàn các file vượt quá dung lượng (ảnh > 10MB, tài liệu > 25MB).
-  - *Tệp liên quan*: `lib/features/chat_v2/presentation/widgets/chat_v2_input_bar.dart`.
-  - *Kịch bản nghiệm thu*: Chọn 3 ảnh, gõ chú thích ➔ Gửi cùng lúc, ảnh hiển thị theo cụm đẹp mắt.
+- [x] **3.20 Gửi Nhiều Ảnh kèm Chú thích & Chống Văng App (Chat Media Picker Safe-Guard — 2026-09-30)**
+  - *Mô tả*: Chọn nhiều ảnh từ album hoặc chụp ảnh trực tiếp; nhập ghi chú (caption) cho ảnh; chặn an toàn các file vượt quá dung lượng (ảnh > 10MB, tài liệu > 25MB). Tích hợp cơ chế Multi-tier Intent Fallback 4 cấp chống lỗi `ActivityNotFoundException` trên Waydroid/Android giả lập không có Google Photos (`pickMultipleMedia` ➔ `pickMultiImage` ➔ `pickImage` ➔ `FilePicker` SAF).
+  - *Tệp liên quan*: `lib/features/chat_v2/presentation/widgets/chat_v2_input_bar.dart`, `android/app/src/main/AndroidManifest.xml`.
+  - *Kịch bản nghiệm thu*: Bấm icon ảnh trên Waydroid ➔ Bộ chọn ảnh mở mượt mà hoặc fallback an toàn sang tài liệu ảnh, bắt lỗi bằng SnackBar thân thiện, tuyệt đối không văng app.
 
 ### D. Ghi âm & Tin nhắn Thoại (Voice Messaging):
 - [x] **3.21 Ghi âm Nhấn Giữ & Vuốt để Hủy (Hold to Record - Chuẩn Zalo)**
@@ -530,10 +542,14 @@ Phân hệ tiếp nhận và giải quyết các yêu cầu hỗ trợ kỹ thu�
 
 - [x] [Claude-Verified] **5.4 Màn hình Chi tiết Ticket Toàn diện (Ticket Detail Screen)**
   - *Mô tả*: Xem đầy đủ thông tin: Người gửi yêu cầu, Nhân viên phụ trách (Assigned User), Đội xử lý, Mức độ ưu tiên, Trạng thái giai đoạn hiện tại.
-  - *Tệp liên quan*: `lib/features/ticket/presentation/ticket_detail_screen.dart`, `lib/shared/models/ticket.dart`.
-  - *Kịch bản nghiệm thu*: Chạm vào ticket ➔ Mở màn hình chi tiết với giao diện thẻ thông tin rõ ràng.
+  - *Tệp liên quan*: `lib/features/ticket/presentation/ticket_detail_screen.dart`, `lib/features/ticket/presentation/ticket_list_screen.dart`, `lib/shared/models/ticket.dart`.
+  - *Kịch bản nghiệm thu*: Chạm vào ticket ➔ Mở màn hình chi tiết với giao diện thẻ thông tin rõ ràng. Chạm quay lại (back) ➔ Màn hình trượt ra êm ái, không có hiệu ứng lạ.
   - *Bằng chứng kiểm thử (Evidence)*: Live API `https://vuahethong.net/api/v1/mobile/ticket/1771` trả về chi tiết đầy đủ 18 trường. Màn hình chi tiết hiển thị thẻ thông tin với tiêu đề, mã ticket, đội hỗ trợ, tag, email CC, hoạt động theo lịch, tệp đính kèm và các nút chuyển trạng thái nhanh.
   - *Kết quả xử lý lỗi (GAP-TICKET-01)*: Đã giải quyết hoàn tất ở commit `65dbb65` và `1bf5a3c`. Thẻ chi tiết và danh sách ticket đã hiển thị đầy đủ Tên Khách hàng (`partner_name`) và Tên Kỹ thuật viên phụ trách (`assigned_user_name`). Đã đối soát trực tiếp trên Waydroid kết nối Production: Hiển thị đúng Khách hàng `CÔNG TY CỔ PHẦN KỸ THUẬT DAVITA, Vũ Việt Hùng` và Phụ trách `Bùi Tuấn Kiệt`, `Trinity`.
+  - *Tối ưu Hiệu ứng Chuyển cảnh Ticket (Refactor 2026-09-30)*:
+    + Loại bỏ triệt để thẻ `Hero(tag: 'ticket-title-${ticket.id}')` tại `ticket_list_screen.dart:574` và `ticket_detail_screen.dart:678` (commit `9d3e9f8`).
+    + Triệt tiêu hiện tượng chữ tiêu đề bị `HeroController` kéo lên Overlay nổi và rơi tự do từ Y=120px xuống Y=500px ("từ trời rơi xuống") khi pop route.
+    + Toàn bộ luồng chuyển trang đồng bộ 100% với chuyển động trượt ngang (`SlideTransition`) chuẩn Native Mobile, 0 errors `flutter analyze`, 26/26 tests ticket pass.
 
 - [!] **5.5 Luồng Trao đổi & Bình luận Trực tiếp (Chatter Comments)**
   - *Mô tả*: Hệ thống bình luận 2 chiều giữa người yêu cầu và đội hỗ trợ ngay trên ticket; hiển thị lịch sử trao đổi theo dòng thời gian.
