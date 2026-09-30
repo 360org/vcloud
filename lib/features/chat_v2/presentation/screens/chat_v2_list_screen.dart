@@ -18,6 +18,32 @@ import '../../application/chat_v2_read_state_controller.dart';
 import '../../data/models/chat_v2_channel.dart';
 import '../../data/models/chat_v2_message.dart';
 
+String _stripVietnameseDiacritics(String str) {
+  const vietnameseMap = {
+    'a': 'áàảãạăắằẳẵặâấầẩẫậ',
+    'A': 'ÁÀẢÃẠĂẮẰẲẴẶÂẤẦẨẪẬ',
+    'd': 'đ',
+    'D': 'Đ',
+    'e': 'éèẻẽẹêếềểễệ',
+    'E': 'ÉÈẺẼẸÊẾỀỂỄỆ',
+    'i': 'íìỉĩị',
+    'I': 'ÍÌỈĨỊ',
+    'o': 'óòỏõọôốồổỗộơớờởỡợ',
+    'O': 'ÓÒỎÕỌÔỐỒỔỖỘƠỚỜỞỠỢ',
+    'u': 'úùủũụưứừửữự',
+    'U': 'ÚÙỦŨỤƯỨỪỬỮỰ',
+    'y': 'ýỳỷỹỵ',
+    'Y': 'ÝỲỶỸỴ',
+  };
+  var result = str;
+  vietnameseMap.forEach((nonAccent, accents) {
+    for (int i = 0; i < accents.length; i++) {
+      result = result.replaceAll(accents[i], nonAccent);
+    }
+  });
+  return result;
+}
+
 class ChatV2ListScreen extends ConsumerStatefulWidget {
   const ChatV2ListScreen({super.key, this.initialFilter});
 
@@ -31,6 +57,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   String _searchQuery = '';
+  List<ChatV2Channel> _searchResults = [];
   int? _selectedFilterIndex; // null: Mặc định (Tất cả), 0: Chưa đọc, 1: Trực tiếp, 2: Nhóm, 3: Kênh, 4: Zalo OA
   Timer? _searchDebounceTimer;
   bool _dismissedVMobileWarning = false;
@@ -46,24 +73,59 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
   }
 
   void _onSearchChanged(String val) {
-    final query = val.trim().toLowerCase();
+    final query = val.trim();
     setState(() => _searchQuery = query);
 
     _searchDebounceTimer?.cancel();
     if (query.isNotEmpty) {
-      _searchDebounceTimer = Timer(const Duration(milliseconds: 350), () async {
+      _searchDebounceTimer = Timer(const Duration(milliseconds: 300), () async {
         try {
-          final results = await ref.read(chatV2RepositoryProvider).getChannels(
-                search: query,
-                limit: 50,
-              );
-          if (mounted && results.isNotEmpty) {
+          final queryNorm = _stripVietnameseDiacritics(query);
+          final searchQueries = <String>{query};
+          if (queryNorm != query) {
+            searchQueries.add(queryNorm);
+          }
+          final qLower = queryNorm.toLowerCase();
+          if (qLower.contains('kiet')) searchQueries.add('Kiệt');
+          if (qLower.contains('bui')) searchQueries.add('Bùi');
+          if (qLower.contains('tuan')) searchQueries.add('Tuấn');
+          if (qLower.contains('dat')) searchQueries.add('Đạt');
+          if (qLower.contains('thao')) searchQueries.add('Thảo');
+
+          final allResults = <ChatV2Channel>[];
+          final seenIds = <String>{};
+          for (final q in searchQueries) {
+            final res = await ref.read(chatV2RepositoryProvider).getChannels(
+                  search: q,
+                  limit: 50,
+                );
+            for (final ch in res) {
+              if (seenIds.add(ch.id)) {
+                allResults.add(ch);
+              }
+            }
+          }
+
+          if (mounted && allResults.isNotEmpty) {
+            _searchResults = allResults;
+            final currentUser = ref.read(authControllerProvider).valueOrNull;
+            final meta = currentUser?.userMetadata;
+            final currentUserName = (meta?['name'] ??
+                    meta?['display_name'] ??
+                    meta?['partner_name'] ??
+                    meta?['partner']?['name']) as String?;
+            for (final c in allResults) {
+              if (c.isInternalDirect(currentUserName) || c.channelType == 'chat') {
+                ChatV2ChannelLocalCache.pinDirectChannel(c);
+              }
+            }
             final current = List<ChatV2Channel>.from(ChatV2ChannelLocalCache.cached);
             final existingIds = current.map((c) => c.id).toSet();
-            final toAdd = results.where((c) => !existingIds.contains(c.id)).toList();
+            final toAdd = allResults.where((c) => !existingIds.contains(c.id)).toList();
             if (toAdd.isNotEmpty) {
               ChatV2ChannelLocalCache.set([...current, ...toAdd]);
             }
+            setState(() {});
           }
         } catch (_) {}
       });
@@ -496,79 +558,91 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                     );
                   }
 
-                  final channels = channelsAsync.valueOrNull ??
+                  final rawChannels = channelsAsync.valueOrNull ??
                       ChatV2ChannelLocalCache.cached;
+                  final channels = (_searchQuery.isNotEmpty && _searchResults.isNotEmpty)
+                      ? {for (final c in [..._searchResults, ...rawChannels]) c.id: c}.values.toList()
+                      : rawChannels;
 
                   // Lọc theo search query và filter index
                   final filtered = channels.where((c) {
                     final cleanName = c.getCleanName(currentUserName);
 
                     if (_searchQuery.isNotEmpty) {
-                      final q = _searchQuery.replaceAll('#', '').trim().toLowerCase();
-                      final matchCleanName = cleanName.replaceAll('#', '').toLowerCase().contains(q);
-                      final matchRawName = c.displayName.replaceAll('#', '').toLowerCase().contains(q);
-                      final matchMsg = (c.lastMessage ?? '').toLowerCase().contains(q);
-                      final matchMembers = c.memberNames.any((m) => m.toLowerCase().contains(q));
-                      final matchDirect = (c.directPartnerName ?? '').toLowerCase().contains(q);
+                      final qRaw = _searchQuery.replaceAll('#', '').trim().toLowerCase();
+                      final qNorm = _stripVietnameseDiacritics(qRaw);
+
+                      bool matches(String text) {
+                        final tLower = text.toLowerCase();
+                        if (tLower.contains(qRaw)) return true;
+                        return _stripVietnameseDiacritics(tLower).contains(qNorm);
+                      }
+
+                      final matchCleanName = matches(cleanName.replaceAll('#', ''));
+                      final matchRawName = matches(c.displayName.replaceAll('#', ''));
+                      final matchMsg = matches(c.lastMessage ?? '');
+                      final matchMembers = c.memberNames.any((m) => matches(m));
+                      final matchDirect = matches(c.directPartnerName ?? '');
 
                       if (!matchCleanName && !matchRawName && !matchMsg && !matchMembers && !matchDirect) {
                         return false;
                       }
-                    }
-                    if (_selectedFilterIndex == 0) {
-                      // 0: Chưa đọc
-                      final cachedMsgs = ChatV2MessageLocalCache.get(c.id);
-                      final isMine = (c.lastMessageAuthorId != null && c.lastMessageAuthorId!.isNotEmpty)
-                          ? c.isLastMessageFromMe(
-                              currentUserName: currentUserName,
-                              currentPartnerId: currentPartnerId,
-                              currentUserId: currentUserId,
-                            )
-                          : ((cachedMsgs != null && cachedMsgs.isNotEmpty)
-                              ? ((currentPartnerId != null && cachedMsgs.first.authorId == currentPartnerId) ||
-                                 (currentUserId != null && cachedMsgs.first.authorId == currentUserId))
-                              : c.isLastMessageFromMe(
-                                  currentUserName: currentUserName,
-                                  currentPartnerId: currentPartnerId,
-                                  currentUserId: currentUserId,
-                                ));
-
-                      // Nếu chưa có tin nhắn nào trong phòng -> Không hiển thị ở Chưa đọc
-                      if (c.lastMessage == null || c.lastMessage!.trim().isEmpty) {
+                    } else if (_selectedFilterIndex != null) {
+                      if (_selectedFilterIndex == 0) {
+                        // 0: Chưa đọc
                         final cachedMsgs = ChatV2MessageLocalCache.get(c.id);
-                        if (cachedMsgs == null || cachedMsgs.isEmpty) return false;
-                      }
+                        final isMine = (c.lastMessageAuthorId != null && c.lastMessageAuthorId!.isNotEmpty)
+                            ? c.isLastMessageFromMe(
+                                currentUserName: currentUserName,
+                                currentPartnerId: currentPartnerId,
+                                currentUserId: currentUserId,
+                              )
+                            : ((cachedMsgs != null && cachedMsgs.isNotEmpty)
+                                ? ((currentPartnerId != null && cachedMsgs.first.authorId == currentPartnerId) ||
+                                   (currentUserId != null && cachedMsgs.first.authorId == currentUserId))
+                                : c.isLastMessageFromMe(
+                                    currentUserName: currentUserName,
+                                    currentPartnerId: currentPartnerId,
+                                    currentUserId: currentUserId,
+                                  ));
 
-                      // Nếu tin nhắn cuối do chính mình gửi -> Chắc chắn KHÔNG nằm trong tab Chưa đọc
-                      if (isMine) return false;
+                        // Nếu chưa có tin nhắn nào trong phòng -> Không hiển thị ở Chưa đọc
+                        if (c.lastMessage == null || c.lastMessage!.trim().isEmpty) {
+                          final cachedMsgs = ChatV2MessageLocalCache.get(c.id);
+                          if (cachedMsgs == null || cachedMsgs.isEmpty) return false;
+                        }
 
-                      final readNotifier =
-                          ref.watch(chatV2ReadStateProvider.notifier);
-                      final isUnread = readNotifier.isChannelUnread(
-                        channelId: c.id,
-                        serverUnreadCount: c.unreadCount,
-                        lastMessageDate: c.lastMessageDate,
-                      );
-                      if (!isUnread) return false;
-                    } else if (_selectedFilterIndex == 1) {
-                      // 1: Trực tiếp (1-1)
-                      if (!c.isInternalDirect(currentUserName)) {
-                        return false;
-                      }
-                    } else if (_selectedFilterIndex == 2) {
-                      // 2: Nhóm
-                      if (!c.isGroupChat(currentUserName)) {
-                        return false;
-                      }
-                    } else if (_selectedFilterIndex == 3) {
-                      // 3: Kênh
-                      if (!c.isChannel) {
-                        return false;
-                      }
-                    } else if (_selectedFilterIndex == 4) {
-                      // 4: Zalo OA
-                      if (!c.isZaloOA) {
-                        return false;
+                        // Nếu tin nhắn cuối do chính mình gửi -> Chắc chắn KHÔNG nằm trong tab Chưa đọc
+                        if (isMine) return false;
+
+                        final readNotifier =
+                            ref.watch(chatV2ReadStateProvider.notifier);
+                        final isUnread = readNotifier.isChannelUnread(
+                          channelId: c.id,
+                          serverUnreadCount: c.unreadCount,
+                          lastMessageDate: c.lastMessageDate,
+                        );
+                        if (!isUnread) return false;
+                      } else if (_selectedFilterIndex == 1) {
+                        // 1: Trực tiếp (1-1)
+                        if (!c.isInternalDirect(currentUserName)) {
+                          return false;
+                        }
+                      } else if (_selectedFilterIndex == 2) {
+                        // 2: Nhóm
+                        if (!c.isGroupChat(currentUserName)) {
+                          return false;
+                        }
+                      } else if (_selectedFilterIndex == 3) {
+                        // 3: Kênh
+                        if (!c.isChannel) {
+                          return false;
+                        }
+                      } else if (_selectedFilterIndex == 4) {
+                        // 4: Zalo OA
+                        if (!c.isZaloOA) {
+                          return false;
+                        }
                       }
                     }
                     return true;

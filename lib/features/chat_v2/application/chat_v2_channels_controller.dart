@@ -345,7 +345,7 @@ class ChatV2ChannelLocalCache {
   }
 
   static void set(List<ChatV2Channel> channels) {
-    final map = <String, ChatV2Channel>{};
+    final map = <String, ChatV2Channel>{for (final c in _cached) c.id: c};
     for (final c in channels) {
       final cachedMsgs = ChatV2MessageLocalCache.get(c.id);
       final cachedFirst = (cachedMsgs != null && cachedMsgs.isNotEmpty) ? cachedMsgs.first : null;
@@ -500,6 +500,7 @@ class ChatV2ChannelLocalCache {
     });
     _cached = List.unmodifiable(merged);
     _saveCachedChannelsToStorage();
+    onCacheUpdated?.call();
   }
 
   static void archive(String channelId) {

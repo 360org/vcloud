@@ -301,5 +301,24 @@ void main() {
       expect(openList[1].id, '16487');
       expect(openList.last.id, '16461');
     });
+
+    test('Case 13: Quick switch from Hôm nay to Tháng này updates dateFrom and dateTo boundaries', () {
+      final now = DateTime(2026, 9, 30);
+      final todayFilter = TimesheetFilterState(
+        presetName: 'Hôm nay',
+        dateFrom: now,
+        dateTo: now,
+      );
+
+      final monthFilter = todayFilter.copyWith(
+        presetName: 'Tháng này',
+        dateFrom: DateTime(now.year, now.month, 1),
+        dateTo: DateTime(now.year, now.month + 1, 0),
+      );
+
+      expect(monthFilter.presetName, 'Tháng này');
+      expect(monthFilter.dateFrom, DateTime(2026, 9, 1));
+      expect(monthFilter.dateTo, DateTime(2026, 9, 30));
+    });
   });
 }

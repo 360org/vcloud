@@ -375,12 +375,39 @@ class ChatV2Channel {
   bool get isChannel => channelType == 'channel';
 
   /// Kiểm tra có phải kênh Zalo OA hoặc Livechat hay không
-  bool get isZaloOA =>
-      isZaloChannel ||
-      channelType == 'zalo' ||
-      channelType == 'zalo_oa' ||
-      channelType == 'livechat' ||
-      name.toLowerCase().contains('zalo');
+  bool get isZaloOA {
+    if (isZaloChannel ||
+        channelType == 'zalo' ||
+        channelType == 'zalo_oa' ||
+        channelType == 'livechat' ||
+        name.toLowerCase().contains('zalo')) {
+      return true;
+    }
+    // Tự động nhận diện kênh Zalo OA / Livechat từ Odoo khi server chưa set cờ is_zalo_channel:
+    // 1. Kênh có bot tự động (Bot / bot@vuahethong.net) tham gia
+    if (members.any((m) =>
+        m.name.toLowerCase() == 'bot' ||
+        (m.email != null && m.email!.toLowerCase().contains('bot@')))) {
+      return true;
+    }
+    // 2. Kênh Zalo Odoo tự động dồn danh sách > 50 thành viên hỗ trợ
+    if (memberCount > 50 && channelType != 'channel') {
+      return true;
+    }
+    // 3. Kênh hỗ trợ nhiều người (>=15) nhưng thành viên chính đầu tiên là khách hàng ngoài
+    if (memberCount >= 15 && channelType != 'channel' && members.isNotEmpty) {
+      final firstMem = members.first;
+      if (!firstMem.isMe && firstMem.email != null && firstMem.email!.isNotEmpty) {
+        final emailLower = firstMem.email!.toLowerCase();
+        final isInternal = emailLower.endsWith('@360.org.vn') ||
+            emailLower.endsWith('@vuahethong.net') ||
+            emailLower.endsWith('@vuaoffice.vn') ||
+            emailLower.endsWith('@w360s.com');
+        if (!isInternal) return true;
+      }
+    }
+    return false;
+  }
 
   /// Kiểm tra có phải hội thoại 1-1 trực tiếp giữa 2 người hay không (loại trừ nhóm, kênh và Zalo OA)
   bool isInternalDirect(String? currentUserName) {
@@ -567,7 +594,8 @@ class ChatV2Channel {
     final bool isZaloChannel = rawIsZaloChannel == true ||
         rawIsZaloChannel == 1 ||
         rawIsZaloChannel == 'true' ||
-        map['zalo_oa_id'] != null;
+        map['zalo_oa_id'] != null ||
+        map['zalo_user_id'] != null;
 
     return ChatV2Channel(
       id: id,

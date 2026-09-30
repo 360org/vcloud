@@ -671,6 +671,11 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
     final currentUserId = currentUser?.id;
     final currentPartnerId = currentUser?.userMetadata['partner_id']?.toString() ??
         currentUser?.userMetadata['partner']?['id']?.toString();
+    final meta = currentUser?.userMetadata;
+    final currentUserAvatar = meta?['avatar_128_url']?.toString() ??
+        meta?['image_128_url']?.toString() ??
+        meta?['avatar_url']?.toString() ??
+        (currentUser != null ? '/api/v1/mobile/avatar/users/${currentUser.id}' : null);
 
     // Lấy thông tin kênh từ cache nếu có (chỉ watch duy nhất kênh hiện tại)
     final currentChannel = ref.watch(chatV2ChannelsProvider.select(
@@ -1203,6 +1208,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                         builder: (_) => ChatV2ReactionDetailsSheet(
                                           reactions: message.reactions,
                                           currentUserName: currentUserName,
+                                          currentUserAvatar: currentUserAvatar,
                                         ),
                                       );
                                     },

@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
+import '../../../../core/api/odoo_api_client.dart';
 import '../../data/models/chat_v2_reaction.dart';
 
 class ChatV2ReactionDetailsSheet extends StatelessWidget {
   final List<ChatV2Reaction> reactions;
   final String? currentUserName;
+  final String? currentUserAvatar;
 
   const ChatV2ReactionDetailsSheet({
     super.key,
     required this.reactions,
     this.currentUserName,
+    this.currentUserAvatar,
   });
 
   static const List<List<Color>> _avatarGradients = [
@@ -44,11 +47,14 @@ class ChatV2ReactionDetailsSheet extends StatelessWidget {
     final List<Map<String, dynamic>> allMembers = [];
     for (var r in reactions) {
       for (var p in r.partners) {
-        allMembers.add({
-          'id': p['id'],
-          'name': p['name'],
-          'emoji': r.content,
-        });
+        if (p is Map) {
+          allMembers.add({
+            'id': p['id'],
+            'name': p['name'],
+            'avatar_url': p['avatar_url'] ?? p['avatar'],
+            'emoji': r.content,
+          });
+        }
       }
     }
 
@@ -99,9 +105,10 @@ class ChatV2ReactionDetailsSheet extends StatelessWidget {
                 children: [
                   _buildMemberList(allMembers, isDark),
                   ...reactions.map((r) {
-                    final members = r.partners.map((p) => {
+                    final members = r.partners.whereType<Map>().map((p) => {
                       'id': p['id'],
                       'name': p['name'],
+                      'avatar_url': p['avatar_url'] ?? p['avatar'],
                       'emoji': r.content,
                     }).toList();
                     return _buildMemberList(members, isDark);
@@ -132,35 +139,78 @@ class ChatV2ReactionDetailsSheet extends StatelessWidget {
         final member = members[index];
         final name = member['name'] as String? ?? 'Unknown';
         final emoji = member['emoji'] as String? ?? '';
+        final memberId = member['id'];
+        final rawAvatarUrl = member['avatar_url']?.toString();
         final grad = getAvatarGradient(name);
 
         final isMe = currentUserName != null &&
                      currentUserName!.trim().isNotEmpty &&
                      name.trim().toLowerCase() == currentUserName!.trim().toLowerCase();
 
+        // Tự động phân giải URL avatar:
+        // 1. Dùng URL avatar có sẵn từ partner nếu có
+        // 2. Nếu là chính mình (isMe), ưu tiên dùng currentUserAvatar
+        // 3. Nếu có partner id > 0, gọi API partner avatar chuẩn Odoo (/api/v1/mobile/avatar/partners/$id)
+        String? avatarUrl;
+        if (rawAvatarUrl != null && rawAvatarUrl.isNotEmpty) {
+          avatarUrl = odooApiClient.resolveAvatarUrl(rawAvatarUrl);
+        } else if (isMe && currentUserAvatar != null && currentUserAvatar!.isNotEmpty) {
+          avatarUrl = odooApiClient.resolveAvatarUrl(currentUserAvatar);
+        } else if (memberId != null) {
+          final pid = int.tryParse(memberId.toString());
+          if (pid != null && pid > 0) {
+            avatarUrl = odooApiClient.resolveAvatarUrl('/api/v1/mobile/avatar/partners/$pid');
+          }
+        }
+
+        final avatarCacheSize = (44 * MediaQuery.devicePixelRatioOf(context)).round();
+
         return ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
           leading: Stack(
             clipBehavior: Clip.none,
             children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: grad,
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  shape: BoxShape.circle,
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  getInitial(name),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
+              ClipOval(
+                child: SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: grad,
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          shape: BoxShape.circle,
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          getInitial(name),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                      if (avatarUrl != null && avatarUrl.isNotEmpty)
+                        Image.network(
+                          avatarUrl,
+                          width: 44,
+                          height: 44,
+                          fit: BoxFit.cover,
+                          cacheWidth: avatarCacheSize,
+                          cacheHeight: avatarCacheSize,
+                          headers: odooApiClient.authHeaders,
+                          errorBuilder: (context, error, stackTrace) =>
+                              const SizedBox.shrink(),
+                        ),
+                    ],
                   ),
                 ),
               ),

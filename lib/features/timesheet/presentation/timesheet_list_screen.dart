@@ -741,6 +741,16 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
                       : _TimesheetEntriesSection(
                           key: const ValueKey('timesheet_entries_section'),
                           entries: filteredEntries,
+                          filter: filter,
+                          onSwitchToMonth: () {
+                            HapticFeedback.selectionClick();
+                            final now = DateTime.now();
+                            ref.read(timesheetFilterProvider.notifier).state = filter.copyWith(
+                              presetName: 'Tháng này',
+                              dateFrom: DateTime(now.year, now.month, 1),
+                              dateTo: DateTime(now.year, now.month + 1, 0),
+                            );
+                          },
                           onDelete: _confirmDeleteEntry,
                         )),
             ),
@@ -800,7 +810,7 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
           Expanded(
             child: _buildFilterTabItem(
               index: 2,
-              title: 'Nhật ký giờ',
+              title: 'Nhật ký',
               count: entriesCount,
               icon: LucideIcons.history,
               activeColor: const Color(0xFF0284C7),
@@ -1680,16 +1690,21 @@ class _TimesheetEntriesSection extends StatelessWidget {
     super.key,
     required this.entries,
     required this.onDelete,
+    this.filter,
+    this.onSwitchToMonth,
   });
 
   final List<TimesheetEntry> entries;
   final ValueChanged<String> onDelete;
+  final TimesheetFilterState? filter;
+  final VoidCallback? onSwitchToMonth;
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     if (entries.isEmpty) {
+      final isToday = filter?.presetName == 'Hôm nay';
       return GlassCard(
         radius: 20,
         padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
@@ -1704,7 +1719,7 @@ class _TimesheetEntriesSection extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               Text(
-                'Chưa có nhật ký giờ nào',
+                isToday ? 'Chưa có nhật ký hôm nay' : 'Chưa có nhật ký giờ nào',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
@@ -1713,13 +1728,54 @@ class _TimesheetEntriesSection extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                'Bấm vào đồng hồ đếm giờ hoặc chọn task cần làm để ghi nhận thời gian.',
+                isToday
+                    ? 'Bạn chưa ghi nhận giờ làm việc nào hôm nay. Bấm nút dưới để xem nhật ký của tháng này.'
+                    : 'Bấm vào đồng hồ đếm giờ hoặc chọn task cần làm để ghi nhận thời gian.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 13,
                   color: isDark ? Colors.white60 : AppColors.textSecondary,
                 ),
               ),
+              if (isToday && onSwitchToMonth != null) ...[
+                const SizedBox(height: 16),
+                PressableScale(
+                  onTap: onSwitchToMonth,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF00C83A), Color(0xFF009D2E)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF00C83A).withValues(alpha: 0.25),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(LucideIcons.calendarRange, size: 16, color: Colors.white),
+                        SizedBox(width: 8),
+                        Text(
+                          'Xem nhật ký tháng này',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
