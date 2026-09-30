@@ -574,25 +574,19 @@ class _TicketCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Hero(
-                    tag: 'ticket-title-${ticket.id}',
-                    child: Material(
-                      color: Colors.transparent,
-                      child: Text(
-                        ticket.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: done
-                              ? (isDark
-                                  ? AppColors.darkTextMuted
-                                  : AppColors.textSecondary)
-                              : Theme.of(context).colorScheme.onSurface,
-                          fontSize: 15,
-                          height: 1.2,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
+                  Text(
+                    ticket.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: done
+                          ? (isDark
+                              ? AppColors.darkTextMuted
+                              : AppColors.textSecondary)
+                          : Theme.of(context).colorScheme.onSurface,
+                      fontSize: 15,
+                      height: 1.2,
+                      fontWeight: FontWeight.w900,
                     ),
                   ),
 

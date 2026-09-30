@@ -678,19 +678,13 @@ class _TicketInfoCard extends StatelessWidget {
           _DetailField(
             label: 'Tiêu đề',
             icon: LucideIcons.type,
-            child: Hero(
-              tag: 'ticket-title-${ticket.id}',
-              child: Material(
-                color: Colors.transparent,
-                child: Text(
-                  ticket.title,
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurface,
-                    fontSize: 21,
-                    fontWeight: FontWeight.w900,
-                    height: 1.18,
-                  ),
-                ),
+            child: Text(
+              ticket.title,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
+                fontSize: 21,
+                fontWeight: FontWeight.w900,
+                height: 1.18,
               ),
             ),
           ),
