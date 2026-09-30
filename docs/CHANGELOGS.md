@@ -2,6 +2,37 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.12+144] — 2026-09-30 (Đổi Tên Nhóm & Biệt Danh Chat 1-1, Khắc Phục Media Picker Waydroid, Create Task Sheet & In-App Attachment Viewer)
+
+> [!IMPORTANT]
+> **Hoàn tất Tính năng Đổi Tên Nhóm & Biệt Danh Chat 1-1 (Mục 3.11), Fix Chọn/Lưu Ảnh Android 13+ (Mục 3.9), Create Task Sheet (BUG-021) & Trình Xem Đính Kèm Ticket In-App**:
+> - **Phạm vi**: `vclients` (`ChatV2InfoSheet`, `ChatV2ChannelLocalCache`, `ChatV2ChannelsNotifier`, `ChatV2Repository`, `ChatV2Channel`, `TaskRepository`, `TaskChecklistEditor`, `ChatV2ImageViewerScreen`, `GallerySaver`)
+> - **Chi tiết các hạng mục nâng cấp & khắc phục**:
+>   1. **[NEW — ĐỔI TÊN NHÓM & BIỆT DANH CHAT 1-1 (MỤC 3.11)]**:
+>      * *Kích hoạt Icon Cây viết (`LucideIcons.pencil`)*: Kích hoạt nút chỉnh sửa trên AppBar của `ChatV2InfoSheet`, hiển thị Dialog thích ứng:
+>        - Với nhóm (`isGroup: true`): Cho phép đổi tên nhóm thảo luận, gọi backend API `POST /api/v1/mobile/chat/channels/<id>/rename`, cập nhật đồng bộ tức thì trên Cache và State Riverpod.
+>        - Với chat 1-1 (`isGroup: false`): Đặt biệt danh cá nhân hóa không làm đổi `res.partner.name` danh bạ ERP toàn cục; lưu bền vững trong `FlutterSecureStorage` (`{scope}_user_channel_nicknames_v1`) và ghi nhận `custom_channel_name` trên `discuss.channel.member` phía backend nếu hỗ trợ.
+>      * *Bảo mật & Phân quyền*: Chặn tài khoản Portal (`is_portal_uid`) đổi tên nhóm nội bộ công ty (HTTP 403 Forbidden). Rào chắn Anti-IDOR bắt buộc caller là thành viên kênh.
+>      * *Input Validation*: Tự động trim khoảng trắng, từ chối chuỗi rỗng/chỉ chứa khoảng trắng, giới hạn độ dài tối đa 100 ký tự.
+>      * *Kiểm thử*: Pass 10/10 tests trong `test/features/chat_v2/chat_v2_rename_and_nickname_test.dart` và 247/247 tests phân hệ Chat V2.
+>   2. **[FIX — CHỐNG VĂNG APP KHI CHỌN/LƯU ẢNH TRÊN WAYDROID & ANDROID 13+ (MỤC 3.9)]**:
+>      * *Multi-tier Intent Fallback 4 cấp*: `pickMultipleMedia` ➔ `pickMultiImage` ➔ `pickImage(gallery)` ➔ `FilePicker.platform.pickFiles` (SAF DocumentsUI), ngăn chặn hoàn toàn lỗi `ActivityNotFoundException` trên giả lập/Waydroid thiếu Google Photos.
+>      * *Safe-Guard Lưu Ảnh*: Bắt an toàn ngoại lệ `GalException` & `PlatformException`, tự động rơi tầng lưu file vào thư mục Documents/Downloads thay thế khi MediaStore album lỗi.
+>      * *Android 13+ Permissions & Queries*: Bổ sung quyền `READ_MEDIA_IMAGES` và khai báo `<queries>` intent trong `AndroidManifest.xml`.
+>      * *Kiểm thử*: Pass 16/16 tests liên quan media picker & attachment verification.
+>   3. **[FIX — TẠO CÔNG VIỆC MỚI VÀ PHÂN BỔ DỰ ÁN (BUG-021)]**:
+>      * Khắc phục lỗi 403 `access_denied` khi tạo task bằng cách gán tuple Many2many chuẩn Odoo `user_ids = [[6, 0, [uid]]]`.
+>      * Tích hợp dropdown chọn dự án động từ Odoo, ngăn chặn lỗi `task_project_mismatch` / `ValidationError`.
+>      * Pass 11/11 tests trong `test/task_repository_test.dart` và kiểm chứng tạo task thực tế trên live Waydroid.
+>   4. **[FIX — XEM TỆP ĐÍNH KÈM TICKET IN-APP & BEARER STREAMING (MỤC 5.1)]**:
+>      * Mở ảnh đính kèm ticket trực tiếp trong `ChatV2ImageViewerScreen` (pinch-to-zoom, pan, drag-to-dismiss).
+>      * Tải tệp qua `/api/v1/mobile/attachments/{id}/download` với Bearer JWT token, xóa bỏ hoàn toàn lỗi redirect 303 về `/web/login`.
+> - **Chất lượng mã nguồn**:
+>   * `flutter analyze` đạt **0 errors, 0 warnings (No issues found)**.
+>   * Biên dịch Release APK sạch: `Vcloud_v2.9.12_Build144_Prod.apk` (106.6MB) xuất bản thành công.
+>
+> ---
+
 ## [v2.9.12+143] — 2026-09-28 (Audit & Fix Toàn Diện Bộ Lọc & Phân Trang Timesheet, Home Dashboard & Ticket SLA - Protocol V2.1)
 
 > [!IMPORTANT]
