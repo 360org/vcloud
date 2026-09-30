@@ -1319,7 +1319,10 @@ class _TicketAttachmentsSection extends StatelessWidget {
                     height: 16,
                     color: isDark ? Colors.white12 : AppColors.border,
                   ),
-                _AttachmentTile(attachment: attachments[i]),
+                _AttachmentTile(
+                  attachment: attachments[i],
+                  index: i + 1,
+                ),
               ],
             ],
           ),
@@ -1330,9 +1333,13 @@ class _TicketAttachmentsSection extends StatelessWidget {
 }
 
 class _AttachmentTile extends StatelessWidget {
-  const _AttachmentTile({required this.attachment});
+  const _AttachmentTile({
+    required this.attachment,
+    this.index,
+  });
 
   final MobileAttachment attachment;
+  final int? index;
 
   @override
   Widget build(BuildContext context) {
@@ -1355,12 +1362,32 @@ class _AttachmentTile extends StatelessWidget {
     final fileSizeText = _formatFileSize(attachment.fileSize);
 
     final rawName = attachment.name.trim();
+    final lowerName = rawName.toLowerCase();
     final isInvalidName = rawName.isEmpty ||
-        rawName.toLowerCase() == 'undefined' ||
-        rawName.toLowerCase() == 'null' ||
-        rawName.toLowerCase() == 'false' ||
-        rawName.toLowerCase() == 'none';
-    final displayName = isInvalidName ? 'Tệp đính kèm #${attachment.id}' : rawName;
+        lowerName == 'undefined' ||
+        lowerName == 'null' ||
+        lowerName == 'false' ||
+        lowerName == 'none';
+
+    final isGenericClipboardImage = isImage &&
+        RegExp(r'^(image|screenshot|clipboard|pasted_image|untitled)(\.[a-z0-9]+)?$')
+            .hasMatch(lowerName);
+
+    final String displayName;
+    final String subtitleText;
+
+    if (isInvalidName) {
+      final label = index != null ? 'Tệp đính kèm #$index' : 'Tệp đính kèm #${attachment.id}';
+      displayName = label;
+      subtitleText = fileSizeText;
+    } else if (isGenericClipboardImage) {
+      final label = index != null ? 'Ảnh đính kèm #$index' : 'Ảnh đính kèm';
+      displayName = label;
+      subtitleText = fileSizeText.isNotEmpty ? '$rawName · $fileSizeText' : rawName;
+    } else {
+      displayName = rawName;
+      subtitleText = fileSizeText;
+    }
 
     Widget thumbnail;
     if (isImage) {
@@ -1497,10 +1524,10 @@ class _AttachmentTile extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                if (fileSizeText.isNotEmpty) ...[
+                if (subtitleText.isNotEmpty) ...[
                   const SizedBox(height: 2),
                   Text(
-                    fileSizeText,
+                    subtitleText,
                     style: TextStyle(
                       color: isDark ? Colors.white60 : AppColors.textMuted,
                       fontSize: 12,

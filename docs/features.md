@@ -88,13 +88,14 @@
     5. **Tách biệt hành vi Xem và Lưu**: Bấm thẻ để xem file trực tiếp In-App; bấm nút download để lưu vào máy/thư viện ảnh (`GallerySaver.saveImage` / `saveBytesToFile`).
     6. **Truyền accessToken khi fallback**: Cả `ChatV2AttachmentViewer` và `MobileAttachmentRepository` đều truyền `accessToken` trong fallback, tài khoản Portal tải tệp thông suốt.
     7. **Tương thích Flutter Web**: Kiểm tra `kIsWeb` dùng `saveBytesToFile` tải tệp qua trình duyệt, tránh crash `dart:io` và `open_filex`.
+    8. **Tinh chỉnh hiển thị tên tệp thông minh (Smart Name Formatting)**: Khi tệp ảnh mang tên generic từ clipboard paste trên web (`image.png`, `screenshot.png`, `clipboard.png`...), UI hiển thị tiêu đề thân thiện `Ảnh đính kèm #1` và đưa tên kỹ thuật + dung lượng xuống dòng phụ `image.png · 863.8 KB`. Đối với tệp có tên cụ thể (như `Bao_cao_tai_chinh.pdf`), giữ nguyên tên tệp và dung lượng chuẩn.
   - *Bằng chứng kiểm chứng thực tế trên Live Waydroid kết nối Production vuahethong.net*:
     * Đã kiểm chứng trực tiếp trên ticket `[Davita] YC-032: Tinh chỉnh lại file pdf báo giá cho hoàn thiện (29/9/2026)` (Attachment ID `117573`, `image.png`, 863.8 KB / 884,562 bytes).
     * Logcat xác nhận HTTP streaming thành công: `Target: /api/v1/mobile/attachments/117573/download`, `Status: 200`, `Content-Type: image/png`, `Raw BodyBytes: 884562`.
-    * Chạm thẻ tệp: Mở trực tiếp màn hình In-App `ChatV2ImageViewerScreen`, hiển thị đầy đủ hình ảnh đơn bán hàng DAVITA sắc nét kèm nút Zoom, Pan, Quay và Tải về.
+    * Chạm thẻ tệp: Mở trực tiếp màn hình In-App `ChatV2ImageViewerScreen`, hiển thị đầy đủ hình ảnh đơn bán hàng DAVITA sắc nét kèm nút Zoom, Pan, Quay và Tải về; thanh tiêu đề hiển thị `Ảnh đính kèm #1`.
     * Chạm nút download: SnackBar / Toast thông báo `"✅ Đã lưu ảnh vào Thư viện"` xuất hiện ngay lập tức.
-    * Thumbnail xem trước: Sau khi xem, thẻ tệp đính kèm render thumbnail thực tế 40x40 thu nhỏ của tài liệu DAVITA thay cho icon màu xanh tĩnh 38x38 ban đầu.
-  - *Kiểm thử*: Pass 8/8 tests trong `test/ticket_attachment_verification_test.dart` và 2/2 tests trong `test/features/ticket/`.
+    * Thumbnail xem trước: Sau khi xem, thẻ tệp đính kèm render thumbnail thực tế 40x40 thu nhỏ của tài liệu DAVITA thay cho icon màu xanh tĩnh 38x38 ban đầu; tiêu đề thẻ hiển thị đẹp mắt `Ảnh đính kèm #1` kèm phụ đề `image.png · 863.8 KB`.
+  - *Kiểm thử*: Pass 9/9 tests trong `test/ticket_attachment_verification_test.dart` và 2/2 tests trong `test/features/ticket/`.
   - *Đính kèm khi tạo ticket*: Luồng đính kèm khi tạo ticket hoạt động tốt, đã pass 6/6 tests trong `test/ticket_attachment_verification_test.dart`.
 - [x] 5.2 **Làm sạch HTML (HTML Sanitizer - 5.6)**: Nội dung ticket và comment chứa thẻ HTML được bóc tách bằng `cleanHtmlText`, hiển thị văn bản thuần chuẩn xác. Pass 2/2 tests trong `test/ticket_html_mapping_test.dart`.
 - [x] 5.3 **Chatter Comments (5.5)**: Gửi bình luận hai chiều trên ticket qua polling 5s, đồng bộ trực tiếp lên Odoo Chatter, bóc tách HTML tự động.

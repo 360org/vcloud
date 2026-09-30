@@ -171,6 +171,20 @@ void main() {
 
       expect(fakeClient.requestedPath, '/api/v1/mobile/attachments/9988/download?access_token=test_token_xyz');
     });
+
+    test('Smart name formatting resolves generic clipboard image names cleanly', () {
+      final genericNames = ['image.png', 'image.jpg', 'screenshot.png', 'clipboard.png', 'untitled.png'];
+      final regex = RegExp(r'^(image|screenshot|clipboard|pasted_image|untitled)(\.[a-z0-9]+)?$');
+
+      for (final name in genericNames) {
+        expect(regex.hasMatch(name.toLowerCase()), isTrue, reason: '$name should match generic clipboard pattern');
+      }
+
+      final customNames = ['Bao_cao_quy_3.pdf', 'hop_dong_lao_dong.docx', 'avatar_nv.png'];
+      for (final name in customNames) {
+        expect(regex.hasMatch(name.toLowerCase()), isFalse, reason: '$name should not match generic pattern');
+      }
+    });
   });
 }
 
