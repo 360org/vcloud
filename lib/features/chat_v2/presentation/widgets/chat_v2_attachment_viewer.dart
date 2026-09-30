@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../../../core/api/mobile_attachment_repository.dart';
 import '../../../../core/api/odoo_api_client.dart';
+import '../../../../core/utils/file_download.dart';
 import '../../../../core/utils/magic_bytes_validator.dart';
 
 /// Trình xử lý mở tài liệu trực tiếp trong ứng dụng (In-App Document Viewer)
@@ -34,6 +35,7 @@ class ChatV2AttachmentViewer {
     required String filename,
     int? attachmentId,
     String? downloadUrl,
+    String? accessToken,
     Uint8List? directBytes,
   }) async {
     final cleanName = filename.trim();
@@ -91,14 +93,21 @@ class ChatV2AttachmentViewer {
           }
 
           if (targetUrl != null && targetUrl.isNotEmpty) {
+            final effectiveUrl = odooApiClient.authenticatedUrl(
+              targetUrl,
+              accessToken: accessToken,
+            );
             try {
-              bytes = await odooApiClient.fetchBytes(targetUrl);
+              bytes = await odooApiClient.fetchBytes(effectiveUrl);
             } catch (err) {
               debugPrint('[ChatV2AttachmentViewer] odooApiClient.fetchBytes error: $err');
               // Fallback qua MobileAttachmentRepository
               if (attachmentId != null && attachmentId > 0) {
                 try {
-                  bytes = await MobileAttachmentRepository().fetchBytes(attachmentId);
+                  bytes = await MobileAttachmentRepository().fetchBytes(
+                    attachmentId,
+                    accessToken: accessToken,
+                  );
                 } catch (repoErr) {
                   debugPrint('[ChatV2AttachmentViewer] MobileAttachmentRepository error: $repoErr');
                 }
@@ -106,7 +115,10 @@ class ChatV2AttachmentViewer {
             }
           } else if (attachmentId != null && attachmentId > 0) {
             try {
-              bytes = await MobileAttachmentRepository().fetchBytes(attachmentId);
+              bytes = await MobileAttachmentRepository().fetchBytes(
+                attachmentId,
+                accessToken: accessToken,
+              );
             } catch (e) {
               debugPrint('[ChatV2AttachmentViewer] Fallback fetchBytes by ID error: $e');
             }
@@ -146,6 +158,29 @@ class ChatV2AttachmentViewer {
         return OpenResult(type: ResultType.error, message: 'invalid_image_placeholder');
       }
 
+      // Hỗ trợ Flutter Web: Lưu/tải tệp qua trình duyệt thay vì dart:io và open_filex
+      if (kIsWeb) {
+        if (context.mounted) {
+          messenger.hideCurrentSnackBar();
+        }
+        final saved = await saveBytesToFile(bytes, cleanName);
+        if (context.mounted) {
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text(
+                saved
+                    ? 'Đang tải tệp tin: $cleanName'
+                    : 'Không thể tải tệp tin.',
+                style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500),
+              ),
+              duration: const Duration(seconds: 3),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return OpenResult(type: saved ? ResultType.done : ResultType.error);
+      }
+
       // 5. Lưu tệp tin vào thư mục lưu trữ cục bộ tạm thời của ứng dụng
       String dirPath;
       if (customDirResolver != null) {
@@ -161,7 +196,8 @@ class ChatV2AttachmentViewer {
       }
 
       final safeName = cleanName.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
-      final filePath = '$dirPath/$safeName';
+      final prefix = attachmentId != null ? 'att_${attachmentId}_' : '';
+      final filePath = '$dirPath/$prefix$safeName';
       final file = File(filePath);
       file.writeAsBytesSync(bytes, flush: true);
 

@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:vcloud/core/api/mobile_attachment_repository.dart';
@@ -111,5 +113,75 @@ void main() {
       ChatV2AttachmentViewer.customOpener = null;
       ChatV2AttachmentViewer.customFetcher = null;
     });
+
+    testWidgets('ChatV2AttachmentViewer prefixes saved file with att_{id}_ to prevent cache collisions', (tester) async {
+      String? recordedPath;
+      ChatV2AttachmentViewer.customOpener = (filePath, {type}) async {
+        recordedPath = filePath;
+        return OpenResult(type: ResultType.done);
+      };
+      ChatV2AttachmentViewer.customFetcher = (target) async {
+        return Uint8List.fromList([0x25, 0x50, 0x44, 0x46, 0x2D]); // %PDF-
+      };
+      final tempDir = Directory.systemTemp.createTempSync('vcloud_test_');
+      ChatV2AttachmentViewer.customDirResolver = () async => tempDir.path;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(
+            useMaterial3: false,
+            splashFactory: NoSplash.splashFactory,
+          ),
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => GestureDetector(
+                onTap: () {
+                  ChatV2AttachmentViewer.open(
+                    context: context,
+                    filename: 'document.pdf',
+                    attachmentId: 12345,
+                    accessToken: 'mock_token',
+                  );
+                },
+                child: const Text('Open'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(recordedPath, isNotNull);
+      expect(recordedPath, endsWith('att_12345_document.pdf'));
+
+      ChatV2AttachmentViewer.customOpener = null;
+      ChatV2AttachmentViewer.customFetcher = null;
+      ChatV2AttachmentViewer.customDirResolver = null;
+      tempDir.deleteSync(recursive: true);
+    });
+
+    test('MobileAttachmentRepository.fetchBytes includes access_token when supplied', () async {
+      final fakeClient = _MockOdooApiClient();
+      final repo = MobileAttachmentRepository(client: fakeClient);
+
+      await repo.fetchBytes(9988, accessToken: 'test_token_xyz');
+
+      expect(fakeClient.requestedPath, '/api/v1/mobile/attachments/9988/download?access_token=test_token_xyz');
+    });
   });
+}
+
+class _MockOdooApiClient extends OdooApiClient {
+  _MockOdooApiClient() : super(baseUrl: 'https://vuahethong.net');
+
+  String? requestedPath;
+
+  @override
+  Future<Uint8List> fetchBytes(String path, {bool auth = true}) async {
+    requestedPath = path;
+    return Uint8List.fromList([1, 2, 3]);
+  }
 }

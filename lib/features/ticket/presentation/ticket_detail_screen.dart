@@ -7,8 +7,12 @@ import '../../../core/api/mobile_attachment_repository.dart';
 import '../../../core/api/odoo_api_client.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/date_format.dart';
+import '../../../core/utils/file_download.dart';
+import '../../../core/utils/gallery_saver.dart';
 import '../../../core/utils/html_text.dart';
+import '../../chat_v2/presentation/screens/chat_v2_image_viewer_screen.dart';
 import '../../chat_v2/presentation/widgets/chat_v2_attachment_viewer.dart';
+import '../../chat_v2/presentation/widgets/chat_v2_message_item.dart';
 import '../../../shared/models/ticket.dart';
 import '../../../shared/models/ticket_activity.dart';
 import '../../../shared/models/ticket_comment.dart';
@@ -1336,6 +1340,10 @@ class _AttachmentTile extends StatelessWidget {
     final ext = attachment.name.contains('.')
         ? attachment.name.split('.').last.toLowerCase()
         : '';
+    final isImage = switch (ext) {
+      'jpg' || 'jpeg' || 'png' || 'gif' || 'webp' => true,
+      _ => (attachment.mimetype?.startsWith('image/') ?? false),
+    };
     final IconData icon = switch (ext) {
       'pdf' => LucideIcons.fileText,
       'jpg' || 'jpeg' || 'png' || 'gif' || 'webp' => LucideIcons.image,
@@ -1354,37 +1362,126 @@ class _AttachmentTile extends StatelessWidget {
         rawName.toLowerCase() == 'none';
     final displayName = isInvalidName ? 'Tệp đính kèm #${attachment.id}' : rawName;
 
-    return PressableScale(
-      onTap: () async {
-        final downloadUrl = odooApiClient.authenticatedUrl(
-          attachment.downloadUrl ??
-              '/api/v1/mobile/attachments/${attachment.id}/download',
-          accessToken: attachment.accessToken,
+    Widget thumbnail;
+    if (isImage) {
+      final key = 'att_${attachment.id}';
+      final memBytes = ChatV2AttachmentImage.imageCache[key] ??
+          ChatV2AttachmentImage.imageCache[displayName];
+      final fullUrl = odooApiClient.authenticatedUrl(
+        attachment.downloadUrl ??
+            '/api/v1/mobile/attachments/${attachment.id}/download',
+        accessToken: attachment.accessToken,
+      );
+
+      thumbnail = ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: SizedBox(
+          width: 40,
+          height: 40,
+          child: memBytes != null && memBytes.isNotEmpty
+              ? Image.memory(
+                  memBytes,
+                  fit: BoxFit.cover,
+                  gaplessPlayback: true,
+                )
+              : (fullUrl.isNotEmpty
+                  ? Image.network(
+                      fullUrl,
+                      fit: BoxFit.cover,
+                      headers: odooApiClient.authHeaders,
+                      errorBuilder: (context, error, stackTrace) => _buildFallbackIcon(isDark, icon),
+                      loadingBuilder: (context, child, progress) {
+                        if (progress == null) return child;
+                        return _buildFallbackIcon(isDark, icon);
+                      },
+                    )
+                  : _buildFallbackIcon(isDark, icon)),
+        ),
+      );
+    } else {
+      thumbnail = _buildFallbackIcon(isDark, icon);
+    }
+
+    Future<void> openInApp() async {
+      final effectiveUrl = odooApiClient.authenticatedUrl(
+        attachment.downloadUrl ??
+            '/api/v1/mobile/attachments/${attachment.id}/download',
+        accessToken: attachment.accessToken,
+      );
+
+      if (isImage) {
+        Navigator.of(context).push(
+          ChatV2ImageViewerScreen.route(
+            imageUrl: effectiveUrl,
+            title: displayName,
+            attachmentId: attachment.id.toString(),
+          ),
         );
+      } else {
         await ChatV2AttachmentViewer.open(
           context: context,
           filename: displayName,
           attachmentId: attachment.id,
-          downloadUrl: downloadUrl,
+          downloadUrl: effectiveUrl,
+          accessToken: attachment.accessToken,
         );
-      },
+      }
+    }
+
+    Future<void> saveToDevice() async {
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Đang tải tệp: $displayName...'),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      try {
+        final bytes = await MobileAttachmentRepository().fetchBytes(
+          attachment.id,
+          accessToken: attachment.accessToken,
+        );
+        if (isImage) {
+          await GallerySaver.saveImage(
+            bytes: bytes,
+            fileName: displayName,
+          );
+        } else {
+          await saveBytesToFile(bytes, displayName);
+        }
+        if (context.mounted) {
+          messenger.hideCurrentSnackBar();
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text('Đã lưu tệp: $displayName'),
+              duration: const Duration(seconds: 3),
+              backgroundColor: const Color(0xFF00C83A),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          messenger.hideCurrentSnackBar();
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text('Lỗi tải tệp: $e'),
+              duration: const Duration(seconds: 3),
+              backgroundColor: const Color(0xFFE11D48),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    }
+
+    return PressableScale(
+      onTap: openInApp,
       child: Row(
         children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: isDark
-                  ? const Color(0xFF00C83A).withValues(alpha: 0.15)
-                  : AppColors.soft(AppColors.primary),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              icon,
-              color: isDark ? const Color(0xFF00C83A) : AppColors.primary,
-              size: 20,
-            ),
-          ),
+          thumbnail,
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -1415,12 +1512,42 @@ class _AttachmentTile extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          Icon(
-            LucideIcons.download,
-            color: isDark ? Colors.white70 : AppColors.textMuted,
-            size: 18,
+          PressableScale(
+            onTap: saveToDevice,
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.06)
+                    : Colors.black.withValues(alpha: 0.04),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                LucideIcons.download,
+                color: isDark ? Colors.white70 : AppColors.textMuted,
+                size: 18,
+              ),
+            ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildFallbackIcon(bool isDark, IconData icon) {
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: isDark
+            ? const Color(0xFF00C83A).withValues(alpha: 0.15)
+            : AppColors.soft(AppColors.primary),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Icon(
+        icon,
+        color: isDark ? const Color(0xFF00C83A) : AppColors.primary,
+        size: 20,
       ),
     );
   }
