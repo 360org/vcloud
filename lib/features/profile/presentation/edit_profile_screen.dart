@@ -58,8 +58,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   }
 
   void _showAvatarPickerSheet() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     showModalBottomSheet<void>(
       context: context,
+      backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -70,18 +72,24 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Thay đổi ảnh đại diện',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
-                  color: AppColors.textPrimary,
+                  color: isDark ? const Color(0xFFF1F5F9) : AppColors.textPrimary,
                 ),
               ),
               const SizedBox(height: 16),
               ListTile(
                 leading: const Icon(LucideIcons.camera, color: AppColors.primary),
-                title: const Text('Chụp ảnh mới', style: TextStyle(fontWeight: FontWeight.w600)),
+                title: Text(
+                  'Chụp ảnh mới',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? const Color(0xFFF1F5F9) : AppColors.textPrimary,
+                  ),
+                ),
                 onTap: () {
                   Navigator.pop(ctx);
                   _pickAndUploadAvatar(ImageSource.camera);
@@ -89,7 +97,13 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
               ),
               ListTile(
                 leading: const Icon(LucideIcons.image, color: AppColors.primary),
-                title: const Text('Chọn từ thư viện ảnh', style: TextStyle(fontWeight: FontWeight.w600)),
+                title: Text(
+                  'Chọn từ thư viện ảnh',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? const Color(0xFFF1F5F9) : AppColors.textPrimary,
+                  ),
+                ),
                 onTap: () {
                   Navigator.pop(ctx);
                   _pickAndUploadAvatar(ImageSource.gallery);
@@ -238,35 +252,59 @@ class _ProfileDisplayField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return GlassCard(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: AppTextStyles.bodyMedium.copyWith(
-              fontWeight: FontWeight.w600,
-              color: AppColors.textSecondary,
-            ),
+          Row(
+            children: [
+              Container(
+                width: 3.5,
+                height: 14,
+                margin: const EdgeInsets.only(right: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.1,
+                  color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
-              color: AppColors.bg,
+              color: isDark ? const Color(0xFF0F172A) : AppColors.bg,
               borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isDark ? const Color(0xFF334155) : AppColors.border,
+                width: 1,
+              ),
             ),
             child: Row(
               children: [
-                Icon(icon, size: 18, color: AppColors.textSecondary),
+                Icon(
+                  icon,
+                  size: 18,
+                  color: isDark ? AppColors.primary : AppColors.textSecondary,
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     value.isNotEmpty ? value : '—',
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
+                    style: TextStyle(
+                      color: isDark ? Colors.white : AppColors.textPrimary,
                       fontSize: 15,
                       fontWeight: FontWeight.w500,
                     ),

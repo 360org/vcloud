@@ -103,24 +103,38 @@ class AppScaffold extends ConsumerWidget {
               )
             : null);
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       appBar: showAppBar
           ? AppBar(
               centerTitle: true,
               elevation: 0,
+              scrolledUnderElevation: 0,
               leading: effectiveLeading,
               title: Text(
                 title,
                 style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w600,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
                   color: Colors.white,
                   letterSpacing: -0.2,
                 ),
               ),
               actions: actions,
               flexibleSpace: Container(
-                decoration: const BoxDecoration(gradient: AppColors.brand),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1E293B) : null,
+                  gradient: isDark ? null : AppColors.brand,
+                  border: isDark
+                      ? Border(
+                          bottom: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.08),
+                            width: 1,
+                          ),
+                        )
+                      : null,
+                ),
               ),
             )
           : null,

@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## [2.9.12 - Build 146] - 2026-10-01
+
+### 🎨 Tối Ưu Theme & Độ Tương Phản Màn Hình "Hồ Sơ Cá Nhân" (Edit Profile Screen)
+- **Làm Nổi Bật Tiêu Đề Trường Thông Tin**: Thêm thanh chỉ báo màu xanh thương hiệu (`AppColors.primary`) và nâng cấp màu chữ tiêu đề ("Họ và tên", "Chức vụ", "Công ty", "Email") lên màu trắng sáng `Color(0xFFF1F5F9)` kèm font weight `FontWeight.w700` trong Dark Mode, chống hiện tượng tiêu đề bị chìm vào nền card tối.
+- **Sửa Lỗi Nền Khung Giá Trị Bị Biến Thành Màu Trắng**: Sửa container hiển thị giá trị trường thông tin từ màu trắng cố định (`AppColors.bg`) sang màu nền tối `Color(0xFF0F172A)` với đường viền tinh tế `Color(0xFF334155)` khi ở Dark Mode. Chữ giá trị chuyển sang màu trắng sắc nét.
+- **Chuẩn Hóa Giao Diện Đổi Avatar & AppBar**:
+  - `_showAvatarPickerSheet`: BottomSheet hiển thị nền tối `Color(0xFF1E293B)` và chữ màu sáng `Color(0xFFF1F5F9)` trong Dark Mode.
+  - `AppScaffold`: AppBar tự động nhận biết Dark Mode, sử dụng nền phẳng tối `Color(0xFF1E293B)` với đường viền tóc 1px thay vì dải gradient xanh neon chói mắt.
+- **Kiểm Thử Toàn Diện**: Mở rộng `test/features/profile/profile_edit_test.dart` lên 11 test cases độc lập (tất cả pass 100%).
+
 ## [2.9.12 - Build 145] - 2026-10-01
 
 ### 🐛 Sửa Lỗi Tiêu Đề Kênh Nhóm "Internal" Bị Biến Thành "Chau, Le Ba (Internal)" Trên iPhone (TestFlight)

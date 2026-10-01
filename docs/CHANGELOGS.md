@@ -2,6 +2,18 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.12+146] — 2026-10-01 (Tối Ưu Theme & Độ Tương Phản Hồ Sơ Cá Nhân Dark Mode)
+
+> [!IMPORTANT]
+> **Bản Nâng Cấp Build 146 (`v2.9.12+146`) — Khắc Phục Triệt Để Lỗi Theme & Làm Nổi Bật Tiêu Đề Màn Hình Hồ Sơ Cá Nhân**:
+> - **Yêu cầu & Hiện tượng**: Sếp Tân cung cấp ảnh chụp thực tế màn hình Hồ sơ cá nhân trong Dark Mode: tiêu đề các trường ("Họ và tên", "Chức vụ", "Công ty", "Email") bị chìm màu xám tối vào nền card, khung hiển thị giá trị lại mang màu trắng (`AppColors.bg`) gây lóa mắt và lệch chuẩn thiết kế Refined Tech Luxury.
+> - **Bản vá UI/UX**:
+>   1. `_ProfileDisplayField`: Bổ sung thanh chỉ báo điểm nhấn thương hiệu màu xanh (`AppColors.primary`), chữ tiêu đề chuyển sang `Color(0xFFF1F5F9)` với `FontWeight.w700`, đạt tỷ lệ tương phản chuẩn WCAG (> 10:1).
+>   2. Khung giá trị: Chuyển sang nền tối `Color(0xFF0F172A)` với viền `Color(0xFF334155)` trong Dark Mode, chữ giá trị màu trắng sáng.
+>   3. `_showAvatarPickerSheet`: Modal BottomSheet tự động áp dụng nền `Color(0xFF1E293B)` và text màu sáng.
+>   4. `AppScaffold`: AppBar thích ứng Dark Mode với nền tối `Color(0xFF1E293B)` và đường viền hairline 1px dưới, Light Mode giữ dải gradient thương hiệu `AppColors.brand`.
+>   5. Kiểm thử: Pass toàn bộ 11/11 tests trong `test/features/profile/profile_edit_test.dart`, 12/12 tests profile feature; `flutter analyze` đạt 0 errors, 0 warnings.
+
 ## [v2.9.12+145] — 2026-10-01 (Hotfix Tiêu Đề Kênh Nhóm "Internal" & Chống Ghi Đè Cache Client-side)
 
 > [!IMPORTANT]
