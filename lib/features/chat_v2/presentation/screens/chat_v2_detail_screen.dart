@@ -71,12 +71,19 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       ref.read(chatV2ReadStateProvider.notifier).markChannelAsRead(widget.channelId);
-      if (widget.title != null && widget.title!.isNotEmpty) {
+
+      final cleanTitle = widget.title != null ? ChatV2Channel.cleanChannelName(widget.title!) : null;
+      final isLikelyGroupOrInternal = (cleanTitle?.toLowerCase() == 'internal') ||
+          (widget.title?.toLowerCase().contains('internal') ?? false);
+
+      if (isLikelyGroupOrInternal) {
+        ChatV2ChannelLocalCache.removePinnedDirectChannel(widget.channelId);
+      } else if (cleanTitle != null && cleanTitle.isNotEmpty) {
         final existing = ChatV2ChannelLocalCache.getPinnedDirectChannel(widget.channelId);
         // Nếu đã có channel, cập nhật thông tin và GIỮ NGUYÊN lastMessage nếu có
         if (existing != null) {
           final updatedCh = existing.copyWith(
-            name: widget.title!,
+            name: cleanTitle,
             avatarUrl: widget.initialAvatarUrl ?? existing.avatarUrl,
             lastMessage: existing.lastMessage,
             lastMessageDate: existing.lastMessageDate ?? DateTime.now(),
@@ -88,13 +95,13 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
         } else {
           final directCh = ChatV2Channel(
             id: widget.channelId,
-            name: widget.title!,
+            name: cleanTitle,
             channelType: 'chat',
             isGroup: false,
             memberCount: 2,
             avatarUrl: widget.initialAvatarUrl,
             directPartnerId: widget.initialPartnerId,
-            directPartnerName: widget.title,
+            directPartnerName: cleanTitle,
             lastMessageDate: DateTime.now(),
             unreadCount: 0,
           );
@@ -111,7 +118,11 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
           final ch = await ref.read(chatV2RepositoryProvider).getChannel(widget.channelId);
           if (ch != null && mounted) {
             ChatV2ChannelLocalCache.updateChannel(ch, addIfMissing: true);
-            ChatV2ChannelLocalCache.pinDirectChannel(ch);
+            if (!ch.isGroup && ch.channelType == 'chat' && ch.memberCount <= 2 && ch.name.toLowerCase() != 'internal') {
+              ChatV2ChannelLocalCache.pinDirectChannel(ch);
+            } else {
+              ChatV2ChannelLocalCache.removePinnedDirectChannel(widget.channelId);
+            }
             final pId = ch.partnerId ?? ch.directPartnerId;
             if (pId != null && pId.isNotEmpty && ch.imStatus.isNotEmpty) {
               ref.read(chatV2PresenceProvider.notifier).updatePresence(pId, ch.imStatus);
@@ -119,8 +130,11 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
           }
         } catch (_) {}
       } else {
-        // Luôn bảo đảm kênh này được lưu trữ trong danh sách pinned direct channels
-        ChatV2ChannelLocalCache.pinDirectChannel(currentChannel);
+        if (!currentChannel.isGroup && currentChannel.channelType == 'chat' && currentChannel.memberCount <= 2 && currentChannel.name.toLowerCase() != 'internal') {
+          ChatV2ChannelLocalCache.pinDirectChannel(currentChannel);
+        } else {
+          ChatV2ChannelLocalCache.removePinnedDirectChannel(widget.channelId);
+        }
       }
 
       // Kích hoạt nạp messages sớm nếu kênh chưa có lastMessage để cập nhật ngay vào Chat List

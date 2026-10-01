@@ -152,5 +152,97 @@ void main() {
       expect(cached.displayName, equals('Kinh Doanh'));
       expect(cached.cleanName, equals('Kinh Doanh'));
     });
+
+    // -------------------------------------------------------------------------
+    // 4. KIỂM THỬ ĐẶC TRỊ: "Chau, Le Ba (Internal)" & CHỐNG GHI ĐÈ CACHE
+    // -------------------------------------------------------------------------
+    test('4.1. cleanChannelName bóc tách "Chau, Le Ba (Internal)" thành "Internal"', () {
+      const raw = 'Chau, Le Ba (Internal)';
+      final cleaned = ChatV2Channel.cleanChannelName(raw);
+      expect(cleaned, equals('Internal'));
+    });
+
+    test('4.2. cleanChannelName bóc tách các biến thể author push notification', () {
+      expect(ChatV2Channel.cleanChannelName('Chau, Le Ba [Internal]'), equals('Internal'));
+      expect(ChatV2Channel.cleanChannelName('Le Ba Chau (Internal)'), equals('Internal'));
+      expect(ChatV2Channel.cleanChannelName('Internal / Chau, Le Ba'), equals('Internal'));
+      expect(ChatV2Channel.cleanChannelName('Internal - Chau, Le Ba'), equals('Internal'));
+    });
+
+    test('4.3. Kênh nhóm Odoo (ID 4253) với tên dính push title hiển thị chuẩn "Internal"', () {
+      const channel = ChatV2Channel(
+        id: '4253',
+        name: 'Chau, Le Ba (Internal)',
+        channelType: 'channel',
+        isGroup: true,
+      );
+      expect(channel.displayName, equals('Internal'));
+      expect(channel.cleanName, equals('Internal'));
+      expect(channel.getCleanName(currentUserName), equals('Internal'));
+    });
+
+    test('4.4. Kênh chat 1-1 nếu dính đuôi "(Internal)" chỉ hiển thị tên người chat', () {
+      const channel = ChatV2Channel(
+        id: '4244',
+        name: 'Chau, Le Ba (Internal)',
+        channelType: 'chat',
+        isGroup: false,
+      );
+      expect(channel.getCleanName(currentUserName), equals('Chau, Le Ba'));
+    });
+
+    test('4.5. ChatV2ChannelLocalCache.set chống ghi đè cache và tự động dọn dẹp rác pinned', () {
+      // Giả lập rác trong pinned direct channels
+      const dirtyPinnedChannel = ChatV2Channel(
+        id: '4253',
+        name: 'Chau, Le Ba (Internal)',
+        channelType: 'chat',
+        isGroup: false,
+      );
+      ChatV2ChannelLocalCache.pinDirectChannel(dirtyPinnedChannel);
+
+      // Kênh nhóm thật từ API Odoo
+      const apiChannel = ChatV2Channel(
+        id: '4253',
+        name: 'Internal',
+        channelType: 'group',
+        isGroup: true,
+      );
+
+      // Gọi set với dữ liệu API
+      ChatV2ChannelLocalCache.set([apiChannel]);
+
+      // 1. Tên kênh trong cached BẮT BUỘC là "Internal", không bị đè bởi pinned cache
+      final channelInCache = ChatV2ChannelLocalCache.cached.firstWhere((c) => c.id == '4253');
+      expect(channelInCache.name, equals('Internal'));
+      expect(channelInCache.displayName, equals('Internal'));
+
+      // 2. Kênh nhóm ID 4253 BẮT BUỘC bị xóa khỏi pinned direct channels
+      expect(ChatV2ChannelLocalCache.getPinnedDirectChannel('4253'), isNull);
+    });
+
+    test('4.6. pinDirectChannel từ chối lưu Group Channel hoặc kênh "Internal"', () {
+      const groupChannel = ChatV2Channel(
+        id: '4253',
+        name: 'Internal',
+        channelType: 'group',
+        isGroup: true,
+      );
+      ChatV2ChannelLocalCache.pinDirectChannel(groupChannel);
+      expect(ChatV2ChannelLocalCache.getPinnedDirectChannel('4253'), isNull);
+    });
+
+    test('4.7. fromJson tự động nhận diện kênh "Internal" là isGroup = true', () {
+      final json = {
+        'id': 4253,
+        'name': 'Internal',
+        'channel_type': 'group',
+        'is_group': false, // Giả lập trường hợp API hoặc cache cũ lưu sai
+      };
+      final ch = ChatV2Channel.fromJson(json);
+      expect(ch.isGroup, isTrue);
+      expect(ch.name, equals('Internal'));
+      expect(ch.displayName, equals('Internal'));
+    });
   });
 }

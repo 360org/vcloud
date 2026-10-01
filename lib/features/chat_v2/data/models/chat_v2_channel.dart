@@ -237,6 +237,16 @@ class ChatV2Channel {
     if (!isGroup && customNickname != null && customNickname!.trim().isNotEmpty) {
       return customNickname!.trim();
     }
+    if (!isGroup) {
+      final authorInternalPattern = RegExp(r'^(.+?)\s*[\(\[]\s*internal\s*[\)\]]$', caseSensitive: false);
+      final aiMatch = authorInternalPattern.firstMatch(name);
+      if (aiMatch != null) {
+        final prefix = aiMatch.group(1)?.trim() ?? '';
+        if (prefix.isNotEmpty) {
+          return prefix;
+        }
+      }
+    }
     return cleanChannelName(name);
   }
 
@@ -285,8 +295,44 @@ class ChatV2Channel {
       clean = clean.replaceAll(odooDiscussPrefixRegex, ' ').trim();
     }
 
-    // 4. Bóc tách hậu tố rác "+ Internal", "- Internal", "/ Internal" (nếu phía trước đã có tên kênh)
-    // Ví dụ: "Ban Giám Đốc + Internal" -> "Ban Giám Đốc"
+    // 4. Bóc tách hậu tố rác "+ Internal", "- Internal", "/ Internal", "(Internal)", "[Internal]"
+    // - Ví dụ: "Ban Giám Đốc + Internal" -> "Ban Giám Đốc"
+    // - Ví dụ: "Phòng Kỹ Thuật (Internal)" -> "Phòng Kỹ Thuật"
+    // - Ví dụ: "Chau, Le Ba (Internal)" -> "Internal" (format push notification Odoo {author_name} ({channel.name}))
+    final authorInternalPattern = RegExp(r'^(.+?)\s*[\(\[]\s*internal\s*[\)\]]$', caseSensitive: false);
+    final aiMatch = authorInternalPattern.firstMatch(clean);
+    if (aiMatch != null) {
+      final prefix = aiMatch.group(1)?.trim() ?? '';
+      final pLower = prefix.toLowerCase();
+      // Nếu prefix là tên phòng/ban/dự án/nhóm -> giữ prefix
+      if (pLower.contains('phòng') ||
+          pLower.contains('ban') ||
+          pLower.contains('dự án') ||
+          pLower.contains('kỹ thuật') ||
+          pLower.contains('kinh doanh') ||
+          pLower.contains('marketing') ||
+          pLower.contains('kế toán') ||
+          pLower.contains('nhân sự') ||
+          pLower.contains('team') ||
+          pLower.contains('group') ||
+          pLower.contains('dept')) {
+        clean = prefix;
+      } else {
+        // Định dạng push notification Odoo: "{author_name} ({channel.name})" -> Tên kênh thực sự là "Internal"
+        return 'Internal';
+      }
+    }
+
+    // 4.1 Bóc tách tiền tố "Internal / Chau, Le Ba", "Internal - Chau, Le Ba"
+    final internalAuthorPrefixPattern = RegExp(r'^internal\s*[\+\-\/|:]\s*(.+)$', caseSensitive: false);
+    final iapMatch = internalAuthorPrefixPattern.firstMatch(clean);
+    if (iapMatch != null) {
+      final rest = iapMatch.group(1)?.trim() ?? '';
+      if (rest.contains(',')) {
+        return 'Internal';
+      }
+    }
+
     final suffixRegex = RegExp(r'\s*[\+\-\/|và&]\s*internal$', caseSensitive: false);
     if (clean.toLowerCase() != 'internal' && suffixRegex.hasMatch(clean)) {
       clean = clean.replaceFirst(suffixRegex, '').trim();
@@ -315,6 +361,16 @@ class ChatV2Channel {
     if (!isGroup && customNickname != null && customNickname!.trim().isNotEmpty) {
       return customNickname!.trim();
     }
+    if (!isGroup) {
+      final authorInternalPattern = RegExp(r'^(.+?)\s*[\(\[]\s*internal\s*[\)\]]$', caseSensitive: false);
+      final aiMatch = authorInternalPattern.firstMatch(name);
+      if (aiMatch != null) {
+        final prefix = aiMatch.group(1)?.trim() ?? '';
+        if (prefix.isNotEmpty) {
+          return prefix;
+        }
+      }
+    }
     final cleaned = cleanChannelName(name);
     if (cleaned.isEmpty || cleaned == 'Cuộc trò chuyện') {
       if (name.isNotEmpty && name != 'Cuộc trò chuyện') {
@@ -327,19 +383,40 @@ class ChatV2Channel {
     // Kênh thảo luận Odoo hoặc nhóm cố định: giữ nguyên tên gốc đã làm sạch tuyệt đối,
     // không bao giờ ghép tên người tham gia hay người gửi vào title.
     if (isChannel || channelType == 'channel' || isGroup) {
+      // Nếu tên kênh nhóm bị dính định dạng Push Notification: "{author_name} ({channel_name})"
+      // Ví dụ: "Chau, Le Ba (Internal)" -> lấy tên kênh trong ngoặc: "Internal"
+      final pushNotificationPattern = RegExp(r'^.+?\s*[\(\[]\s*(internal|[^\)\]]+)\s*[\)\]]$', caseSensitive: false);
+      final match = pushNotificationPattern.firstMatch(cleaned);
+      if (match != null) {
+        final inside = match.group(1)?.trim();
+        if (inside != null && inside.isNotEmpty) {
+          if (inside.toLowerCase() == 'internal') {
+            return 'Internal';
+          }
+        }
+      }
       return cleaned;
     }
 
     if (!isGroup) {
+      // Đối với chat 1-1: nếu tên kênh bị dính đuôi "(Internal)" do push notification hoặc cache,
+      // loại bỏ "(Internal)" để chỉ hiển thị tên người chat đối diện.
+      // Ví dụ: "Chau, Le Ba (Internal)" -> "Chau, Le Ba"
+      var directClean = cleaned.replaceAll(
+        RegExp(r'\s*[\(\[]\s*internal\s*[\)\]]', caseSensitive: false),
+        '',
+      ).trim();
+      if (directClean.isEmpty) directClean = cleaned;
+
       if (directPartnerName != null && directPartnerName!.isNotEmpty) {
         return cleanChannelName(directPartnerName!);
       }
       final uTrim = currentUserName.trim();
       final uLower = uTrim.toLowerCase();
-      final nLower = cleaned.toLowerCase();
+      final nLower = directClean.toLowerCase();
 
       if (nLower.contains(uLower)) {
-        var clean = cleaned;
+        var clean = directClean;
         final patterns = [
           RegExp('^\\s*${RegExp.escape(uTrim)}\\s*([,/|-]|và|&)\\s*', caseSensitive: false),
           RegExp('\\s*([,/|-]|và|&)\\s*${RegExp.escape(uTrim)}\\s*\$', caseSensitive: false),
@@ -355,13 +432,14 @@ class ChatV2Channel {
         }
       }
 
-      final parts = cleaned.split(RegExp(r'\s*[,/|-]\s*|\s+và\s+|\s+&\s+'));
+      final parts = directClean.split(RegExp(r'\s*[,/|-]\s*|\s+và\s+|\s+&\s+'));
       if (parts.length >= 2) {
         final otherParts = parts.where((p) => !matchesUser(p, currentUserName)).toList();
         if (otherParts.isNotEmpty) {
           return cleanChannelName(otherParts.join(', ').trim());
         }
       }
+      return directClean;
     }
     return cleaned;
   }
@@ -479,11 +557,15 @@ class ChatV2Channel {
     final name = cleanChannelName(effectiveName);
     final channelType = _stringOr(map['channel_type'] ?? map['type'], 'chat');
     final rawIsGroup = map['is_group'];
-    final bool isGroup;
+    bool isGroup;
     if (rawIsGroup is bool) {
       isGroup = rawIsGroup;
     } else {
-      isGroup = channelType == 'group';
+      isGroup = channelType == 'group' || channelType == 'channel';
+    }
+    final isInternalChannel = name.trim().toLowerCase() == 'internal';
+    if (isInternalChannel || channelType == 'channel' || channelType == 'group') {
+      isGroup = true;
     }
 
     final rawAvatar = _stringOrNull(
@@ -545,6 +627,14 @@ class ChatV2Channel {
           memberNamesList.add(m);
         }
       }
+    }
+
+    if (memberObjs.length > 2) {
+      isGroup = true;
+    }
+    String effectiveChannelType = channelType;
+    if (isGroup && (effectiveChannelType == 'chat' || effectiveChannelType.isEmpty)) {
+      effectiveChannelType = isInternalChannel ? 'channel' : 'group';
     }
 
     // Parse author of last message
@@ -629,7 +719,7 @@ class ChatV2Channel {
     return ChatV2Channel(
       id: id,
       name: name,
-      channelType: channelType,
+      channelType: effectiveChannelType,
       isGroup: isGroup,
       avatarUrl: finalAvatarUrl,
       lastMessage: lastMsgText,

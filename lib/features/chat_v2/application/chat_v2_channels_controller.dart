@@ -115,11 +115,24 @@ class ChatV2ChannelLocalCache {
       final data = await _storage.read(key: _storageKey);
       if (data != null && data.isNotEmpty) {
         final List<dynamic> decoded = jsonDecode(data);
+        bool dirtyPinned = false;
         for (final item in decoded) {
           if (item is Map<String, dynamic>) {
             final ch = ChatV2Channel.fromJson(item);
-            _pinnedDirectChannels[ch.id] = ch;
+            final isGroupOrInternal = ch.isGroup ||
+                ch.channelType == 'channel' ||
+                ch.channelType == 'group' ||
+                ch.memberCount > 2 ||
+                ch.name.toLowerCase().contains('internal');
+            if (isGroupOrInternal) {
+              dirtyPinned = true;
+            } else {
+              _pinnedDirectChannels[ch.id] = ch;
+            }
           }
+        }
+        if (dirtyPinned) {
+          _saveToStorage();
         }
       }
 
@@ -129,7 +142,10 @@ class ChatV2ChannelLocalCache {
         final loaded = <ChatV2Channel>[];
         for (final item in decoded) {
           if (item is Map<String, dynamic>) {
-            loaded.add(ChatV2Channel.fromJson(item));
+            final ch = ChatV2Channel.fromJson(item);
+            // Dọn dẹp tên kênh bị ô nhiễm trong disk cache
+            final cleanedName = ChatV2Channel.cleanChannelName(ch.name);
+            loaded.add(ch.copyWith(name: cleanedName));
           }
         }
         if (loaded.isNotEmpty) {
@@ -248,10 +264,30 @@ class ChatV2ChannelLocalCache {
   }
 
   static void pinDirectChannel(ChatV2Channel channel) {
+    final isGroup = channel.isGroup ||
+        channel.channelType == 'group' ||
+        channel.channelType == 'channel' ||
+        channel.memberCount > 2 ||
+        channel.name.trim().toLowerCase() == 'internal';
+    if (isGroup) {
+      if (_pinnedDirectChannels.containsKey(channel.id)) {
+        _pinnedDirectChannels.remove(channel.id);
+        _saveToStorage();
+      }
+      return;
+    }
     _pinnedDirectChannels[channel.id] = channel;
     set(_cached.isNotEmpty ? _cached : [channel]);
     _saveToStorage();
     onCacheUpdated?.call();
+  }
+
+  static void removePinnedDirectChannel(String channelId) {
+    if (_pinnedDirectChannels.containsKey(channelId)) {
+      _pinnedDirectChannels.remove(channelId);
+      _saveToStorage();
+      onCacheUpdated?.call();
+    }
   }
 
   static void updateChannel(ChatV2Channel channel, {bool addIfMissing = true}) {
@@ -490,37 +526,74 @@ class ChatV2ChannelLocalCache {
                 : (isImageAtt ? '[Hình ảnh]' : '[Tập tin]');
           }
         }
+        final cleanName = ChatV2Channel.cleanChannelName(c.name);
         map[c.id] = c.copyWith(
+          name: cleanName,
           lastMessageDate: cachedDate,
           lastMessage: cachedContent ?? c.lastMessage,
         );
       } else {
-        map[c.id] = c;
+        final cleanName = ChatV2Channel.cleanChannelName(c.name);
+        map[c.id] = c.copyWith(name: cleanName);
       }
     }
+    bool cleanedPinned = false;
     for (final c in _pinnedDirectChannels.values) {
       if (map.containsKey(c.id)) {
         final existing = map[c.id]!;
-        // Giữ nguyên channelType/isGroup/memberCount từ API (hoặc từ pinned nếu API chưa có)
-        map[c.id] = existing.copyWith(
-          name: ChatV2Channel.cleanChannelName(
-            (c.name.isNotEmpty && c.name != 'Trò chuyện') ? c.name : existing.name,
-          ),
-          avatarUrl: (existing.avatarUrl != null && existing.avatarUrl!.isNotEmpty)
-              ? existing.avatarUrl
-              : c.avatarUrl,
-          directPartnerId: (existing.directPartnerId != null && existing.directPartnerId!.isNotEmpty)
-              ? existing.directPartnerId
-              : c.directPartnerId,
-          directPartnerName: (existing.directPartnerName != null && existing.directPartnerName!.isNotEmpty)
-              ? existing.directPartnerName
-              : c.directPartnerName,
-          lastMessage: _mergeLastMessage(c, existing),
-          lastMessageDate: _mergeLastMessageDate(c, existing),
-        );
+        final isGroup = existing.isGroup ||
+            existing.channelType == 'channel' ||
+            existing.channelType == 'group' ||
+            existing.memberCount > 2 ||
+            existing.name.toLowerCase() == 'internal';
+
+        if (isGroup) {
+          cleanedPinned = true;
+          // Với kênh nhóm, tên từ API Odoo (existing.name) LUÔN là SSOT tuyệt đối
+          map[c.id] = existing.copyWith(
+            name: ChatV2Channel.cleanChannelName(existing.name),
+            lastMessage: _mergeLastMessage(c, existing),
+            lastMessageDate: _mergeLastMessageDate(c, existing),
+          );
+        } else {
+          map[c.id] = existing.copyWith(
+            name: ChatV2Channel.cleanChannelName(
+              (c.name.isNotEmpty && c.name != 'Trò chuyện') ? c.name : existing.name,
+            ),
+            avatarUrl: (existing.avatarUrl != null && existing.avatarUrl!.isNotEmpty)
+                ? existing.avatarUrl
+                : c.avatarUrl,
+            directPartnerId: (existing.directPartnerId != null && existing.directPartnerId!.isNotEmpty)
+                ? existing.directPartnerId
+                : c.directPartnerId,
+            directPartnerName: (existing.directPartnerName != null && existing.directPartnerName!.isNotEmpty)
+                ? existing.directPartnerName
+                : c.directPartnerName,
+            lastMessage: _mergeLastMessage(c, existing),
+            lastMessageDate: _mergeLastMessageDate(c, existing),
+          );
+        }
       } else {
-        map[c.id] = c;
+        final isGroup = c.isGroup ||
+            c.channelType == 'channel' ||
+            c.channelType == 'group' ||
+            c.memberCount > 2 ||
+            c.name.toLowerCase().contains('internal');
+        if (!isGroup) {
+          map[c.id] = c;
+        } else {
+          cleanedPinned = true;
+        }
       }
+    }
+    if (cleanedPinned) {
+      _pinnedDirectChannels.removeWhere((id, ch) =>
+          ch.isGroup ||
+          ch.channelType == 'channel' ||
+          ch.channelType == 'group' ||
+          ch.memberCount > 2 ||
+          ch.name.toLowerCase().contains('internal'));
+      _saveToStorage();
     }
     if (_customNicknames.isNotEmpty) {
       for (final entry in _customNicknames.entries) {

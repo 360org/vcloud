@@ -2,6 +2,19 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.12+145] — 2026-10-01 (Hotfix Tiêu Đề Kênh Nhóm "Internal" & Chống Ghi Đè Cache Client-side)
+
+> [!IMPORTANT]
+> **Hotfix Build 145 (`v2.9.12+145`) — Xử Lý Triệt Để Bug Tiêu Đề Kênh Nhóm "Internal" Bị Đổi Thành "Chau, Le Ba (Internal)" Trên iPhone (TestFlight)**:
+> - **Phát hiện & Bằng chứng thực tế**: Sếp Tân cung cấp ảnh chụp màn hình iPhone thực tế: kênh chat ghim đầu tiên hiển thị `Chau, Le Ba (Internal)` thay vì `Internal`, tin nhắn cuối cùng là của Nguyễn Đào Quốc Anh (Message ID 645247).
+> - **Root Cause xác minh**: Odoo backend API trả về đúng `name: "Internal"`. Tuy nhiên, khi Odoo gửi Push Notification FCM cho kênh nhóm, tiêu đề thông báo có định dạng `f"{author_name} ({channel.name})"`. Tiêu đề này bị router nạp vào query param `name`, `ChatV2DetailScreen` ghi đè thành kênh chat 1-1 giả lập lưu vào `_pinnedDirectChannels` của `FlutterSecureStorage`. Khi API trả về, `ChatV2ChannelLocalCache.set()` ưu tiên lấy tên trong pinned direct cache đè lên API.
+> - **Bản vá toàn diện 5 lớp**:
+>   1. `cleanChannelName()` & `getCleanName()`: Thêm Master Regex phát hiện và bóc tách chuẩn xác format Push Notification `{author_name} ({channel.name})` về `"Internal"` cho kênh nhóm.
+>   2. `ChatV2ChannelLocalCache.set()`: Với kênh nhóm, tên từ API Odoo luôn là SSOT tuyệt đối 100%, đồng thời tự động phát hiện và xóa kênh nhóm khỏi `_pinnedDirectChannels` trong bộ nhớ và disk storage.
+>   3. `ChatV2ChannelLocalCache.init()`: Tự động thanh lọc các bản ghi rác trong `pinned_direct_channels_v2` và làm sạch tên kênh lưu trong `cached_channels_v3`.
+>   4. `pinDirectChannel()` & `ChatV2DetailScreen`: Tuyệt đối không lưu Group Channel hoặc kênh `Internal` vào `_pinnedDirectChannels`.
+>   5. Kiểm thử: Pass toàn bộ 20/20 tests trong `test/features/chat_v2/chat_v2_channel_sanitize_test.dart` và 279/279 tests trong `test/features/chat_v2/`. `flutter analyze` đạt 0 errors, 0 warnings.
+
 ## [v2.9.12+144] — 2026-10-01 (Nghiệm Thu Local Server & Bản Phát Hành Toàn Diện 6 Phân Hệ)
 
 > [!IMPORTANT]
