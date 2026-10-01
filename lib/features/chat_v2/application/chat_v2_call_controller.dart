@@ -30,6 +30,8 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
 
   Timer? _durationTimer;
   Timer? _ringingTimeoutTimer;
+  Timer? _disconnectTimer;
+  Timer? _autoResetTimer;
   AudioPlayer? _audioPlayer;
 
   bool _isDisposed = false;
@@ -47,6 +49,7 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
   }) : super(null) {
     if (webrtcEngine != null) {
       _webrtc = webrtcEngine;
+      _webrtc!.onConnectionState = _handleWebrtcConnectionState;
     }
     if (bus != null) {
       _initBusListeners();
@@ -146,14 +149,7 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
 
         // 2. Khởi tạo WebRTC Engine
         _webrtc ??= webrtcEngine ?? ChatV2WebRtcEngine(repo: repo);
-        _webrtc!.onConnectionState = (connState) {
-          if (connState == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
-            _onCallConnected();
-          } else if (connState == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected ||
-              connState == RTCPeerConnectionState.RTCPeerConnectionStateFailed) {
-            _handleRemoteHangup();
-          }
-        };
+        _webrtc!.onConnectionState = _handleWebrtcConnectionState;
 
         await _webrtc!.initialize(
           localSessionId: joinResult.localSessionId,
@@ -252,15 +248,17 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
       if (_isDisposed) return;
 
       if (joinResult != null && joinResult.localSessionId > 0) {
-        state = current.copyWith(id: joinResult.localSessionId);
+        state = current.copyWith(
+          id: joinResult.localSessionId,
+          state: ChatV2CallState.connected,
+          connectedAt: DateTime.now(),
+          isCaller: false,
+        );
+        _startDurationTimer();
 
         // 2. Khởi tạo WebRTC Engine
         _webrtc ??= webrtcEngine ?? ChatV2WebRtcEngine(repo: repo);
-        _webrtc!.onConnectionState = (connState) {
-          if (connState == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
-            _onCallConnected();
-          }
-        };
+        _webrtc!.onConnectionState = _handleWebrtcConnectionState;
 
         await _webrtc!.initialize(
           localSessionId: joinResult.localSessionId,
@@ -311,8 +309,9 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
     _cleanupWebrtc();
     ChatV2CallKitService.instance.endAllCalls();
 
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (state?.state == ChatV2CallState.rejected) {
+    _autoResetTimer?.cancel();
+    _autoResetTimer = Timer(const Duration(milliseconds: 500), () {
+      if (!_isDisposed && mounted && state?.state == ChatV2CallState.rejected) {
         reset();
       }
     });
@@ -335,8 +334,9 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
     _cleanupWebrtc();
     ChatV2CallKitService.instance.endAllCalls();
 
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (state?.state == ChatV2CallState.cancelled) {
+    _autoResetTimer?.cancel();
+    _autoResetTimer = Timer(const Duration(milliseconds: 500), () {
+      if (!_isDisposed && mounted && state?.state == ChatV2CallState.cancelled) {
         reset();
       }
     });
@@ -397,14 +397,42 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
     }
   }
 
+  void _handleWebrtcConnectionState(RTCPeerConnectionState connState) {
+    debugPrint('[CallController] WebRTC connection state: $connState');
+    if (connState == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
+      _disconnectTimer?.cancel();
+      _disconnectTimer = null;
+      _onCallConnected();
+    } else if (connState == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected ||
+        connState == RTCPeerConnectionState.RTCPeerConnectionStateFailed) {
+      // Grace period 10s cho ICE restart / hồi phục kết nối mạng
+      if (_disconnectTimer == null) {
+        debugPrint('[CallController] WebRTC disconnected/failed -> Bắt đầu đếm ngược 10 giây chờ hồi phục...');
+        _disconnectTimer = Timer(const Duration(seconds: 10), () {
+          debugPrint('[CallController] Mất kết nối WebRTC quá 10 giây -> Tự động kết thúc cuộc gọi');
+          _handleRemoteHangup(endState: 'ended', reason: 'network_lost');
+        });
+      }
+    } else if (connState == RTCPeerConnectionState.RTCPeerConnectionStateClosed) {
+      _disconnectTimer?.cancel();
+      _disconnectTimer = null;
+      _handleRemoteHangup();
+    }
+  }
+
   void _onCallConnected() {
     _stopAudio();
     _ringingTimeoutTimer?.cancel();
+    _disconnectTimer?.cancel();
+    _disconnectTimer = null;
     state = state?.copyWith(
       state: ChatV2CallState.connected,
       connectedAt: DateTime.now(),
     );
     _startDurationTimer();
+    if (state != null && state!.id > 0) {
+      ChatV2CallKitService.instance.setCallConnected(state!.id.toString());
+    }
   }
 
   void _handleRemoteHangup({String? endState, String? reason}) {
@@ -423,13 +451,16 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
     _cleanupWebrtc();
     ChatV2CallKitService.instance.endAllCalls();
 
-    // Tự động dọn dẹp state sau 1.2s nếu bận, 1.5s nếu gác máy bình thường
+    // Tự động dọn dẹp state sau 1.2s nếu bận, 2.2s nếu mất mạng để kịp đọc thông báo, 1.5s nếu gác máy bình thường
     final cleanupDelay = (reason == 'busy')
         ? const Duration(milliseconds: 1200)
-        : const Duration(milliseconds: 1500);
+        : ((reason == 'network_lost')
+            ? const Duration(milliseconds: 2200)
+            : const Duration(milliseconds: 1500));
 
-    Future.delayed(cleanupDelay, () {
-      if (state?.state == targetState) {
+    _autoResetTimer?.cancel();
+    _autoResetTimer = Timer(cleanupDelay, () {
+      if (!_isDisposed && mounted && state?.state == targetState) {
         reset();
       }
     });
@@ -454,6 +485,7 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
   }
 
   void reset() {
+    if (_isDisposed || !mounted) return;
     _stopAudio();
     _stopTimers();
     _cleanupWebrtc();
@@ -525,6 +557,10 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
     _durationTimer = null;
     _ringingTimeoutTimer?.cancel();
     _ringingTimeoutTimer = null;
+    _disconnectTimer?.cancel();
+    _disconnectTimer = null;
+    _autoResetTimer?.cancel();
+    _autoResetTimer = null;
   }
 
   @override

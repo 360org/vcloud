@@ -40,9 +40,20 @@ class ChatV2WebRtcEngine {
     _localSessionId = localSessionId;
     _targetSessionIds = targetSessionIds;
 
-    // Chuyển đổi định dạng ICE servers từ Odoo sang WebRTC configuration
+    // Nếu phía Odoo joinCall không trả về ICE servers, nạp dynamic config từ API /call/config
+    List<dynamic> effectiveIceData = List<dynamic>.from(iceServersData);
+    if (effectiveIceData.isEmpty) {
+      try {
+        final dynamicIce = await repo.fetchCallConfig();
+        if (dynamicIce.isNotEmpty) {
+          effectiveIceData = dynamicIce;
+        }
+      } catch (_) {}
+    }
+
+    // Chuyển đổi định dạng ICE servers sang WebRTC configuration
     final iceServers = <Map<String, dynamic>>[];
-    for (final s in iceServersData) {
+    for (final s in effectiveIceData) {
       if (s is Map) {
         final serverMap = <String, dynamic>{};
         if (s['urls'] != null) {
@@ -56,10 +67,32 @@ class ChatV2WebRtcEngine {
       }
     }
 
-    // Fallback STUN Google nếu Odoo không cấu hình TURN
-    if (iceServers.isEmpty) {
-      iceServers.add({
+    // Đảm bảo luôn có STUN Google
+    final hasStun = iceServers.any((s) {
+      final u = s['urls'];
+      return (u is List && u.any((url) => url.toString().startsWith('stun:'))) ||
+          (u is String && u.startsWith('stun:'));
+    });
+    if (!hasStun) {
+      iceServers.insert(0, {
         'urls': ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'],
+      });
+    }
+
+    // Đảm bảo luôn có TURN Server (chống tịt tiếng trên 4G / Symmetric NAT)
+    final hasTurn = iceServers.any((s) {
+      final u = s['urls'];
+      return (u is List && u.any((url) => url.toString().startsWith('turn:'))) ||
+          (u is String && u.startsWith('turn:'));
+    });
+    if (!hasTurn) {
+      iceServers.add({
+        'urls': [
+          'turn:turn.vuahethong.net:3478?transport=udp',
+          'turn:turn.vuahethong.net:3478?transport=tcp',
+        ],
+        'username': 'vuahethong_webrtc',
+        'credential': '360corp_turn_pass_2026',
       });
     }
 
@@ -68,41 +101,45 @@ class ChatV2WebRtcEngine {
       'sdpSemantics': 'unified-plan',
     };
 
-    _peerConnection = await createPeerConnection(configuration);
+    try {
+      _peerConnection = await createPeerConnection(configuration);
 
-    _peerConnection!.onConnectionState = (RTCPeerConnectionState state) {
-      debugPrint('[WebRTC] Connection state: $state');
-      onConnectionState?.call(state);
-    };
+      _peerConnection!.onConnectionState = (RTCPeerConnectionState state) {
+        debugPrint('[WebRTC] Connection state: $state');
+        onConnectionState?.call(state);
+      };
 
-    // Khi tìm thấy ICE Candidate cục bộ -> gửi sang peer qua Odoo 19 notify_call_members
-    _peerConnection!.onIceCandidate = (RTCIceCandidate candidate) {
-      if (candidate.candidate == null) return;
-      _sendSignaling(
-        event: 'ice-candidate',
-        payload: {
-          'candidate': {
-            'candidate': candidate.candidate,
-            'sdpMid': candidate.sdpMid,
-            'sdpMLineIndex': candidate.sdpMLineIndex,
+      // Khi tìm thấy ICE Candidate cục bộ -> gửi sang peer qua Odoo 19 notify_call_members
+      _peerConnection!.onIceCandidate = (RTCIceCandidate candidate) {
+        if (candidate.candidate == null) return;
+        _sendSignaling(
+          event: 'ice-candidate',
+          payload: {
+            'candidate': {
+              'candidate': candidate.candidate,
+              'sdpMid': candidate.sdpMid,
+              'sdpMLineIndex': candidate.sdpMLineIndex,
+            },
           },
+        );
+      };
+
+      // Thu âm Micro cục bộ (Voice call only)
+      final mediaConstraints = <String, dynamic>{
+        'audio': {
+          'echoCancellation': true,
+          'noiseSuppression': true,
+          'autoGainControl': true,
         },
-      );
-    };
+        'video': false,
+      };
 
-    // Thu âm Micro cục bộ (Voice call only)
-    final mediaConstraints = <String, dynamic>{
-      'audio': {
-        'echoCancellation': true,
-        'noiseSuppression': true,
-        'autoGainControl': true,
-      },
-      'video': false,
-    };
-
-    _localStream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
-    for (final track in _localStream!.getAudioTracks()) {
-      await _peerConnection!.addTrack(track, _localStream!);
+      _localStream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
+      for (final track in _localStream!.getAudioTracks()) {
+        await _peerConnection!.addTrack(track, _localStream!);
+      }
+    } catch (e) {
+      debugPrint('[WebRTC] Native initialization error: $e');
     }
   }
 

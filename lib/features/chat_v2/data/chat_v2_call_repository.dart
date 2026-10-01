@@ -142,6 +142,19 @@ class ChatV2CallRepository {
     return response;
   }
 
+  /// Lấy cấu hình dynamic STUN & TURN server từ backend (/api/v1/mobile/chat/call/config)
+  Future<List<Map<String, dynamic>>> fetchCallConfig() async {
+    try {
+      final res = await client.get('/api/v1/mobile/chat/call/config');
+      if (res is Map && res['ice_servers'] is List) {
+        return List<Map<String, dynamic>>.from(
+          (res['ice_servers'] as List).map((e) => Map<String, dynamic>.from(e as Map)),
+        );
+      }
+    } catch (_) {}
+    return [];
+  }
+
   /// 1. Tham gia phòng RTC Call (Odoo 19 Core: /mail/rtc/channel/join_call)
   Future<OdooRtcJoinResult?> joinCall({
     required int channelId,

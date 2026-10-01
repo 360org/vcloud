@@ -134,6 +134,17 @@ class ChatV2CallKitService {
     }
   }
 
+  /// Đánh dấu cuộc gọi đã kết nối thành công (giữ Foreground Service trên Android/iOS)
+  Future<void> setCallConnected(String callUuid) async {
+    if (kIsWeb) return;
+    try {
+      await FlutterCallkitIncoming.setCallConnected(callUuid);
+      debugPrint('[CallKit] Đã setCallConnected cho UUID: $callUuid');
+    } catch (e) {
+      debugPrint('[CallKit] Lỗi setCallConnected: $e');
+    }
+  }
+
   /// Dập / Ẩn màn hình CallKit khi cuộc gọi đã kết thúc hoặc bị hủy
   Future<void> endCall(String callUuid) async {
     if (kIsWeb) return;

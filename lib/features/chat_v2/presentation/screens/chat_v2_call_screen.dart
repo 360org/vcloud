@@ -30,7 +30,10 @@ class _ChatV2CallScreenState extends ConsumerState<ChatV2CallScreen> {
             next.state == ChatV2CallState.cancelled ||
             next.state == ChatV2CallState.failed) {
           final nav = Navigator.of(context);
-          Future.delayed(const Duration(milliseconds: 1200), () {
+          final closeDelay = (next.endReason == 'network_lost')
+              ? const Duration(milliseconds: 2200)
+              : const Duration(milliseconds: 1200);
+          Future.delayed(closeDelay, () {
             if (mounted && nav.canPop()) {
               nav.pop();
             }
@@ -65,7 +68,12 @@ class _ChatV2CallScreenState extends ConsumerState<ChatV2CallScreen> {
           statusColor = const Color(0xFF10B981); // Emerald green
           break;
         case ChatV2CallState.ended:
-          statusText = 'Cuộc gọi đã kết thúc (${session.formattedDuration})';
+          if (session.endReason == 'network_lost') {
+            statusText = 'Cuộc gọi bị ngắt do mất kết nối mạng';
+            statusColor = const Color(0xFFEF4444);
+          } else {
+            statusText = 'Cuộc gọi đã kết thúc (${session.formattedDuration})';
+          }
           break;
         case ChatV2CallState.rejected:
           if (session.endReason == 'busy') {

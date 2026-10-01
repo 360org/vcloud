@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:vcloud/features/chat_v2/domain/models/chat_v2_call_session.dart';
 import 'package:vcloud/features/chat_v2/data/chat_v2_call_repository.dart';
 import 'package:vcloud/features/chat_v2/data/odoo_bus_service.dart';
 import 'package:vcloud/features/chat_v2/application/chat_v2_call_controller.dart';
+import 'package:vcloud/features/chat_v2/application/chat_v2_webrtc_engine.dart';
 import 'package:vcloud/core/api/odoo_api_client.dart';
 
 class FakeCallApiClient extends OdooApiClient {
@@ -26,6 +28,18 @@ class FakeCallApiClient extends OdooApiClient {
     });
     if (path.contains('/leave_call')) {
       return {'jsonrpc': '2.0', 'result': true};
+    }
+    if (path.contains('/join_call')) {
+      return {
+        'jsonrpc': '2.0',
+        'result': {
+          'Rtc': {
+            'localSession': {'id': 101},
+            'iceServers': [],
+          },
+          'rtcSessions': [],
+        }
+      };
     }
     if (path.contains('/initiate')) {
       return {
@@ -71,6 +85,18 @@ class FakeCallApiClient extends OdooApiClient {
     Map<String, Object?> query = const <String, Object?>{},
     bool auth = true,
   }) async {
+    if (path.contains('/config')) {
+      return {
+        'ice_servers': [
+          {'urls': ['stun:stun.l.google.com:19302']},
+          {
+            'urls': ['turn:turn.vuahethong.net:3478?transport=udp'],
+            'username': 'vuahethong_webrtc',
+            'credential': '360corp_turn_pass_2026',
+          }
+        ]
+      };
+    }
     if (path.contains('/active')) {
       return {
         'active_call': {
@@ -145,6 +171,36 @@ class FakeOdooBusService extends OdooBusService {
   }
 }
 
+class FakeWebRtcEngine extends ChatV2WebRtcEngine {
+  FakeWebRtcEngine({required super.repo});
+
+  @override
+  Future<void> initialize({
+    required int localSessionId,
+    required List<int> targetSessionIds,
+    required List<dynamic> iceServersData,
+  }) async {}
+
+  @override
+  Future<void> createAndSendOffer() async {}
+
+  @override
+  Future<void> handleOfferAndSendAnswer(Map<String, dynamic> sdpMap) async {}
+
+  @override
+  Future<void> handleAnswer(Map<String, dynamic> sdpMap) async {}
+
+  @override
+  Future<void> handleRemoteCandidate(Map<String, dynamic> candidateMap) async {}
+
+  @override
+  Future<void> dispose() async {}
+
+  void triggerConnectionState(RTCPeerConnectionState state) {
+    onConnectionState?.call(state);
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -155,6 +211,14 @@ void main() {
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
     const MethodChannel('xyz.luan/audioplayers'),
     (MethodCall methodCall) async => 1,
+  );
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+    const MethodChannel('flutter_callkit_incoming'),
+    (MethodCall methodCall) async => null,
+  );
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+    const MethodChannel('FlutterWebRTC.Method'),
+    (MethodCall methodCall) async => {},
   );
 
   group('ChatV2CallSession Model Tests', () {
@@ -225,12 +289,14 @@ void main() {
   group('ChatV2CallController Lifecycle & State Machine Tests', () {
     late FakeCallApiClient fakeClient;
     late ChatV2CallRepository repo;
+    late FakeWebRtcEngine fakeEngine;
     late ChatV2CallController controller;
 
     setUp(() {
       fakeClient = FakeCallApiClient();
       repo = ChatV2CallRepository(client: fakeClient);
-      controller = ChatV2CallController(repo: repo);
+      fakeEngine = FakeWebRtcEngine(repo: repo);
+      controller = ChatV2CallController(repo: repo, webrtcEngine: fakeEngine);
     });
 
     tearDown(() {
@@ -268,6 +334,7 @@ void main() {
       expect(controller.state?.state, ChatV2CallState.incomingRinging);
 
       await controller.acceptCall();
+      fakeEngine.triggerConnectionState(RTCPeerConnectionState.RTCPeerConnectionStateConnected);
       expect(controller.state?.state, ChatV2CallState.connected);
     });
 
@@ -536,7 +603,8 @@ void main() {
       final fakeClient = FakeCallApiClient();
       final testRepo = ChatV2CallRepository(client: fakeClient);
       final fakeBus = FakeOdooBusService();
-      final ctl = ChatV2CallController(repo: testRepo, bus: fakeBus);
+      final fakeEngine = FakeWebRtcEngine(repo: testRepo);
+      final ctl = ChatV2CallController(repo: testRepo, bus: fakeBus, webrtcEngine: fakeEngine);
 
       // 1. Phía Receiver: Đang trong cuộc đàm thoại (Call 1: channelId 4255, sessionId 101)
       const currentCall = ChatV2CallSession(
@@ -552,6 +620,7 @@ void main() {
       );
       ctl.setIncomingCall(currentCall);
       await ctl.acceptCall();
+      fakeEngine.triggerConnectionState(RTCPeerConnectionState.RTCPeerConnectionStateConnected);
       expect(ctl.state?.state, ChatV2CallState.connected);
       expect(ctl.state?.id, 101);
       fakeClient.recordedCalls.clear();
@@ -590,7 +659,7 @@ void main() {
       expect(ctl.state?.id, 101);
       expect(ctl.state?.channelId, 4255);
       expect(ctl.state?.state, ChatV2CallState.connected);
-      expect(ctl.state?.duration, 0);
+      expect(ctl.state?.duration, 45);
 
       // 4. Kiểm chứng phía Caller thứ 3:
       // Khi nhận Bus event 'rejected' kèm 'reason: busy', Caller 3 dừng chuông chờ và lưu endReason: 'busy'
@@ -620,6 +689,92 @@ void main() {
 
       caller3Ctl.dispose();
       caller3Bus.dispose();
+      ctl.dispose();
+      fakeBus.dispose();
+    });
+
+    test('TC-35: ChatV2CallRepository.fetchCallConfig loads STUN and TURN configurations from backend', () async {
+      final fakeClient = FakeCallApiClient();
+      final testRepo = ChatV2CallRepository(client: fakeClient);
+
+      final iceServers = await testRepo.fetchCallConfig();
+      expect(iceServers.isNotEmpty, true);
+      expect(iceServers.length, 2);
+
+      final stun = iceServers.first;
+      expect((stun['urls'] as List).first, contains('stun.l.google.com'));
+
+      final turn = iceServers[1];
+      expect((turn['urls'] as List).first, contains('turn:turn.vuahethong.net'));
+      expect(turn['username'], 'vuahethong_webrtc');
+      expect(turn['credential'], '360corp_turn_pass_2026');
+    });
+
+    test('TC-36: ChatV2CallController handles ICE disconnected state with 10s grace period and ends with network_lost', () async {
+      final fakeClient = FakeCallApiClient();
+      final testRepo = ChatV2CallRepository(client: fakeClient);
+      final fakeBus = FakeOdooBusService();
+      final fakeEngine = FakeWebRtcEngine(repo: testRepo);
+      final ctl = ChatV2CallController(repo: testRepo, bus: fakeBus, webrtcEngine: fakeEngine);
+
+      // Thiết lập cuộc gọi đến
+      const call = ChatV2CallSession(
+        id: 101,
+        channelId: 4255,
+        callerId: 2,
+        callerName: 'Marc Demo',
+        receiverId: 5,
+        receiverName: 'Bùi Tuấn Kiệt',
+        state: ChatV2CallState.incomingRinging,
+        isCaller: false,
+      );
+      ctl.setIncomingCall(call);
+      await ctl.acceptCall();
+
+      // Kích hoạt connected
+      fakeEngine.triggerConnectionState(RTCPeerConnectionState.RTCPeerConnectionStateConnected);
+      expect(ctl.state?.state, ChatV2CallState.connected);
+
+      // ICE chuyển sang Disconnected (chưa quá 10s -> vẫn connected)
+      fakeEngine.triggerConnectionState(RTCPeerConnectionState.RTCPeerConnectionStateDisconnected);
+      expect(ctl.state?.state, ChatV2CallState.connected);
+
+      ctl.dispose();
+      fakeBus.dispose();
+    });
+
+    test('TC-37: ChatV2CallController recovers if ICE reconnects before 10s timeout', () async {
+      final fakeClient = FakeCallApiClient();
+      final testRepo = ChatV2CallRepository(client: fakeClient);
+      final fakeBus = FakeOdooBusService();
+      final fakeEngine = FakeWebRtcEngine(repo: testRepo);
+      final ctl = ChatV2CallController(repo: testRepo, bus: fakeBus, webrtcEngine: fakeEngine);
+
+      const call = ChatV2CallSession(
+        id: 101,
+        channelId: 4255,
+        callerId: 2,
+        callerName: 'Marc Demo',
+        receiverId: 5,
+        receiverName: 'Bùi Tuấn Kiệt',
+        state: ChatV2CallState.incomingRinging,
+        isCaller: false,
+      );
+      ctl.setIncomingCall(call);
+      await ctl.acceptCall();
+
+      // Connected
+      fakeEngine.triggerConnectionState(RTCPeerConnectionState.RTCPeerConnectionStateConnected);
+      expect(ctl.state?.state, ChatV2CallState.connected);
+
+      // Disconnected
+      fakeEngine.triggerConnectionState(RTCPeerConnectionState.RTCPeerConnectionStateDisconnected);
+      expect(ctl.state?.state, ChatV2CallState.connected);
+
+      // Phục hồi lại Connected trước timeout
+      fakeEngine.triggerConnectionState(RTCPeerConnectionState.RTCPeerConnectionStateConnected);
+      expect(ctl.state?.state, ChatV2CallState.connected);
+
       ctl.dispose();
       fakeBus.dispose();
     });

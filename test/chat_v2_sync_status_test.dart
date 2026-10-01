@@ -32,6 +32,14 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('Chat V2 Sync Status & Transient Network Resilience Tests', () {
+    setUp(() {
+      ChatV2ChannelLocalCache.clear();
+    });
+
+    tearDown(() {
+      ChatV2ChannelLocalCache.clear();
+    });
+
     final sampleChannel = ChatV2Channel(
       id: '999',
       name: 'Tú Oanh - TAB',
@@ -132,7 +140,7 @@ void main() {
     });
 
     test('TEST D: Khi chưa có dữ liệu lần đầu (empty cache) và API lỗi -> State là AsyncError và throw error', () async {
-      ChatV2ChannelLocalCache.set([]);
+      ChatV2ChannelLocalCache.clear();
 
       final mockRepo = MockChatV2Repository(errorToThrow: Exception('Network down'));
       final container = ProviderContainer(
