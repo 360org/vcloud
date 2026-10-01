@@ -3,7 +3,7 @@
 > **Dự án**: VCloud Mobile App (`vclients` Flutter) kết nối Odoo Backend (`v_mobile_17` & `v_mobile_19`)  
 > **Phiên bản hiện tại**: `v2.9.12+144` (Bản dựng TestFlight iOS & APK Android mới nhất)  
 > **Nguồn sự thật (Single Source of Truth)**: Tài liệu kiểm soát toàn bộ tính năng theo 6 nhóm nghiệp vụ chuẩn hóa, phục vụ trực tiếp cho anh Tân nghiệm thu thực tế và báo cáo tiến độ.  
-> 🟢 **Phiên Kiểm Thử Hiện Tại**: `[x] [ACCEPTED TRÊN LOCAL SERVER — Share Link Discuss Channel 404 Fixed & Login Redirect]` (Sếp Tân kiểm tra & duyệt trên Local Server 2026-10-01; Chờ update module vmobile lên Production)
+> 🟡 **Phiên Kiểm Thử Hiện Tại**: `[/] [IN_PROGRESS - Calibrated Strict Audit & Realistic Scoring]` (Kiểm toán hệ thống khắt khe, bóc tách L4 Unit Test vs L5 Runtime Waydroid, chống tự khen)
 
 ---
 
