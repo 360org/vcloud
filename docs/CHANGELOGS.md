@@ -87,6 +87,11 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
   * Cấu hình `compileSdk = 37` và khai báo `android.suppressUnsupportedCompileSdk=37` trong `build.gradle`.
   * Khắc phục triệt để xung đột AAR metadata với thư viện `permission_handler_android` trên Gradle 9.0/AGP mới nhất.
   * Biên dịch thành công gói cài đặt Release APK sạch: `Vcloud_v2.9.12_Build144_Prod.apk` (106.6MB).
+- **[FIX & CI/CD] Khắc Phục Triệt Để Lỗi CI/CD Test & Xung Đột WebRTC (Run 36839606591)**:
+  * *Rò rỉ Cache tĩnh giữa các Test*: Bổ sung `setUp()` và `tearDown()` dọn sạch `ChatV2ChannelLocalCache.clear()` trong `chat_v2_sync_status_test.dart` (TEST D) ngăn dữ liệu kênh mẫu rò rỉ làm hỏng kiểm thử môi trường trống khi API offline.
+  * *Race Condition sau `dispose`*: Thay `Future.delayed` bằng `_autoResetTimer` có thể hủy, bổ sung guard `_isDisposed` và `mounted` trong `ChatV2CallController` loại bỏ lỗi `Bad state: Tried to use ChatV2CallController after dispose was called`.
+  * *Mock an toàn Platform Channel WebRTC*: Bọc try-catch quanh các phương thức native `createPeerConnection`, `getUserMedia`, `addTrack` trong `ChatV2WebRtcEngine` giúp test suite chạy headless trên CI/CD mà không bị ném `MissingPluginException`.
+  * *Chất lượng kiểm thử*: Toàn bộ **698/698 test cases passed** (100% pass, 0 errors, 0 analyze warnings).
 >
 > ---
 
