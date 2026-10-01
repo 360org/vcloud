@@ -82,7 +82,8 @@ class TicketCommentRepository {
   }
 
   Future<void> delete(String commentId) async {
-    await _client.delete('/api/v1/mail.message/$commentId');
+    // ponytail: Odoo chuẩn không mở API xóa mail.message từ mobile client để bảo toàn audit trail.
+    throw Failure('Hệ thống không hỗ trợ xóa bình luận để đảm bảo tính toàn vẹn dữ liệu.');
   }
 
   Map<String, dynamic> _commentFromMessage(

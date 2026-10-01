@@ -43,7 +43,53 @@ class ActivityLogRepository {
     required String? ticketId,
     required String action,
     Map<String, dynamic>? details,
-  }) async {}
+  }) async {
+    if (ticketId == null || ticketId.isEmpty) return;
+    try {
+      await _client.post(
+        '/api/v1/mobile/ticket/$ticketId/activities',
+        body: <String, dynamic>{
+          'summary': action,
+          if (details != null && details['note'] != null) 'note': details['note'],
+          if (details != null && details['activity_type_id'] != null)
+            'activity_type_id': details['activity_type_id'],
+          if (details != null && details['date_deadline'] != null)
+            'date_deadline': details['date_deadline'],
+          if (details != null && details['user_id'] != null)
+            'user_id': details['user_id'],
+        },
+      );
+    } catch (e) {
+      if (e is Failure) rethrow;
+      throw Failure('Không thể tạo hoạt động: $e');
+    }
+  }
+
+  Future<void> markDone(int activityId, {String? feedback}) async {
+    try {
+      await _client.post(
+        '/api/v1/mobile/ticket/activities/$activityId/done',
+        body: <String, dynamic>{
+          if (feedback != null && feedback.isNotEmpty) 'feedback': feedback,
+        },
+      );
+    } catch (e) {
+      if (e is Failure) rethrow;
+      throw Failure('Không thể hoàn thành hoạt động: $e');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> activityTypes() async {
+    try {
+      final res = await _client.get('/api/v1/mobile/ticket/activity-types');
+      if (res is List) {
+        return res.cast<Map<String, dynamic>>();
+      }
+      return const <Map<String, dynamic>>[];
+    } catch (_) {
+      return const <Map<String, dynamic>>[];
+    }
+  }
 
   ActivityLog _activityFromMobile(String ticketId, Map<dynamic, dynamic> map) {
     final createdAt =

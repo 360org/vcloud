@@ -352,17 +352,57 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
     }
   }
 
-  void _copyChannelLink() {
+  Future<void> _copyChannelLink() async {
     HapticFeedback.lightImpact();
-    final link = 'https://vuahethong.net/chat/${widget.channel.id}';
-    Clipboard.setData(ClipboardData(text: link));
-    if (mounted) {
-      AppToast.success(
-        context,
-        title: 'Đã sao chép liên kết',
-        message: 'Liên kết cuộc trò chuyện đã được sao chép vào bộ nhớ tạm.',
-      );
+    String? link = widget.channel.invitationUrl;
+    if (link == null || link.trim().isEmpty) {
+      final chUuid = widget.channel.uuid;
+      if (chUuid != null && chUuid.trim().isNotEmpty) {
+        link = odooApiClient.absoluteUrl('/chat/${widget.channel.id}/$chUuid');
+      }
+    } else {
+      link = odooApiClient.absoluteUrl(link.trim());
     }
+
+    // Lazy fallback: Nếu metadata local chưa có uuid, tự động fetch channel info từ backend
+    if (link == null || link.trim().isEmpty) {
+      try {
+        final repo = ref.read(chatV2RepositoryProvider);
+        final freshCh = await repo.getChannel(widget.channel.id);
+        if (freshCh != null) {
+          if (freshCh.invitationUrl != null && freshCh.invitationUrl!.trim().isNotEmpty) {
+            link = odooApiClient.absoluteUrl(freshCh.invitationUrl!.trim());
+          } else if (freshCh.uuid != null && freshCh.uuid!.trim().isNotEmpty) {
+            link = odooApiClient.absoluteUrl('/chat/${freshCh.id}/${freshCh.uuid}');
+          }
+        }
+      } catch (_) {
+        // Ignored fallback
+      }
+    }
+
+    // ponytail: Khi server backend chưa migrate UUID cho kênh legacy, fallback sang link Odoo Web nội bộ để chống HTTP 404
+    if (link == null || link.trim().isEmpty) {
+      link = odooApiClient.absoluteUrl('/web#action=mail.action_discuss&active_id=${widget.channel.id}');
+    }
+
+    if (!mounted) return;
+
+    if (link.trim().isEmpty) {
+      AppToast.error(
+        context,
+        title: 'Không thể tạo liên kết',
+        message: 'Cuộc trò chuyện này chưa có mã bảo mật chia sẻ.',
+      );
+      return;
+    }
+
+    Clipboard.setData(ClipboardData(text: link));
+    AppToast.success(
+      context,
+      title: 'Đã sao chép liên kết',
+      message: 'Liên kết cuộc trò chuyện đã được sao chép vào bộ nhớ tạm.',
+    );
   }
 
   void _openMediaHub() {
@@ -1022,7 +1062,7 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
                     icon: LucideIcons.search,
                     label: 'Tìm tin nhắn',
                     onTap: () {
-                      Navigator.maybePop(context);
+                      Navigator.of(context).pop();
                       widget.onSearchTap?.call();
                     },
                   ),

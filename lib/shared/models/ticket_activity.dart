@@ -27,6 +27,8 @@ class TicketActivity {
   final String? userName;
   final DateTime? createDate;
 
+  bool get isDone => dateDone != null || state == 'done';
+
   factory TicketActivity.fromMap(Map<String, dynamic> map) {
     return TicketActivity(
       id: (map['id'] as num).toInt(),

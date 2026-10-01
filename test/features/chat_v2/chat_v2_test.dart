@@ -1081,6 +1081,41 @@ void main() {
       expect(sentMentionedPartners?.first['id'], equals(2));
       expect(sentMentionedPartners?.first['name'], equals('Bùi Tuấn Kiệt'));
     });
+
+    test('40. Direct 1-1 chat channel has isGroup == false so leave option is hidden', () {
+      const directChannel = ChatV2Channel(
+        id: '123',
+        name: 'Nguyễn Đào Quốc Anh',
+        channelType: 'chat',
+        isGroup: false,
+        memberCount: 2,
+      );
+      expect(directChannel.isGroup, isFalse);
+      expect(directChannel.channelType, equals('chat'));
+      expect(directChannel.isInternalDirect('Lê Bá Châu'), isTrue);
+    });
+
+    test('41. Group and discuss channels have isGroup == true so leave option is enabled', () {
+      const groupChannel = ChatV2Channel(
+        id: '456',
+        name: 'Nhóm Phát Triển Dự Án',
+        channelType: 'group',
+        isGroup: true,
+        memberCount: 6,
+      );
+      expect(groupChannel.isGroup, isTrue);
+      expect(groupChannel.channelType, equals('group'));
+
+      const discussChannel = ChatV2Channel(
+        id: '789',
+        name: 'general',
+        channelType: 'channel',
+        isGroup: true,
+        memberCount: 25,
+      );
+      expect(discussChannel.isGroup, isTrue);
+    });
   });
 }
+
 

@@ -92,6 +92,8 @@ class ChatV2Channel {
   final bool isMuted;
   final bool isZaloChannel;
   final String? customNickname;
+  final String? uuid;
+  final String? invitationUrl;
 
   const ChatV2Channel({
     required this.id,
@@ -115,6 +117,8 @@ class ChatV2Channel {
     this.isMuted = false,
     this.isZaloChannel = false,
     this.customNickname,
+    this.uuid,
+    this.invitationUrl,
   });
 
   ChatV2Channel copyWith({
@@ -140,6 +144,8 @@ class ChatV2Channel {
     bool? isZaloChannel,
     String? customNickname,
     bool clearCustomNickname = false,
+    String? uuid,
+    String? invitationUrl,
   }) {
     return ChatV2Channel(
       id: id ?? this.id,
@@ -163,6 +169,8 @@ class ChatV2Channel {
       isMuted: isMuted ?? this.isMuted,
       isZaloChannel: isZaloChannel ?? this.isZaloChannel,
       customNickname: clearCustomNickname ? null : (customNickname ?? this.customNickname),
+      uuid: uuid ?? this.uuid,
+      invitationUrl: invitationUrl ?? this.invitationUrl,
     );
   }
 
@@ -212,6 +220,8 @@ class ChatV2Channel {
     'is_muted': isMuted,
     'is_zalo_channel': isZaloChannel,
     'custom_nickname': customNickname,
+    'uuid': uuid,
+    'invitation_url': invitationUrl,
   };
 
   static bool matchesUser(String part, String? currentUserName) {
@@ -613,6 +623,8 @@ class ChatV2Channel {
         map['zalo_user_id'] != null;
 
     final customNickname = _stringOrNull(map['custom_nickname'] ?? map['custom_channel_name']);
+    final uuid = _stringOrNull(map['uuid']);
+    final invitationUrl = _stringOrNull(map['invitation_url'] ?? map['invitationUrl']);
 
     return ChatV2Channel(
       id: id,
@@ -636,6 +648,8 @@ class ChatV2Channel {
       isMuted: isMuted,
       isZaloChannel: isZaloChannel,
       customNickname: customNickname,
+      uuid: uuid,
+      invitationUrl: invitationUrl,
     );
   }
 

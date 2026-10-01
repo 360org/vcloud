@@ -15,8 +15,6 @@
     "/Volumes/DATA/DEV/MOBILES/VCloud/*",
     "/media/tanma/DATA/auto_tool_android/*"
   ],
-  "env": {
-    "CLAUDE_CODE_MAX_CONTEXT_TOKENS": "200000"
-  },
+  "env": {},
   "allowedWorkspace": "/media/tanma/DATA/save/mobile_versions/vclients"
 }

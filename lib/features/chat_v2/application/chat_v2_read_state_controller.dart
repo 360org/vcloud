@@ -44,13 +44,15 @@ class ChatV2ReadStateNotifier extends Notifier<Map<String, DateTime>> {
     }());
   }
 
-  /// Đánh dấu kênh có tin nhắn mới (chuyển sang trạng thái chưa đọc)
+  /// Đánh dấu kênh chưa đọc (chuyển sang trạng thái chưa đọc)
   void markChannelAsUnread(String channelId) {
-    if (state.containsKey(channelId)) {
-      final updated = Map<String, DateTime>.from(state)..remove(channelId);
-      _memoryCache.remove(channelId);
-      state = updated;
-    }
+    final epoch = DateTime.fromMillisecondsSinceEpoch(0);
+    _memoryCache[channelId] = epoch;
+    state = {
+      ...state,
+      channelId: epoch,
+    };
+    ChatV2ChannelLocalCache.markChannelAsUnread(channelId);
   }
 
   /// Kiểm tra xem kênh có tin nhắn chưa đọc hay không

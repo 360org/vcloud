@@ -144,6 +144,356 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
     return comments;
   }
 
+  Future<void> _showEditDialog(Ticket ticket) async {
+    final titleCtrl = TextEditingController(text: ticket.title);
+    final descCtrl = TextEditingController(text: ticket.description ?? '');
+    var priority = ticket.priority;
+    String? category = ticket.category;
+
+    final updated = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          final isDark = Theme.of(ctx).brightness == Brightness.dark;
+          final teamsAsync = ref.watch(ticketTeamsProvider);
+          return AlertDialog(
+            backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Row(
+              children: [
+                Icon(LucideIcons.pencil, color: AppColors.ticket, size: 20),
+                SizedBox(width: 8),
+                Text('Chỉnh sửa Ticket', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: titleCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Tiêu đề *',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: descCtrl,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Mô tả',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text('Mức độ ưu tiên:', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 8,
+                    children: TicketPriority.values.map((p) {
+                      final isSelected = priority == p;
+                      return ChoiceChip(
+                        label: Text(p.displayName),
+                        selected: isSelected,
+                        onSelected: (val) {
+                          if (val) setDialogState(() => priority = p);
+                        },
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 12),
+                  teamsAsync.when(
+                    data: (teams) {
+                      if (teams.isEmpty) return const SizedBox.shrink();
+                      return DropdownButtonFormField<String>(
+                        initialValue: teams.any((t) => t.id.toString() == category) ? category : null,
+                        decoration: const InputDecoration(
+                          labelText: 'Đội xử lý',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: teams.map((t) => DropdownMenuItem(
+                          value: t.id.toString(),
+                          child: Text(t.name),
+                        )).toList(),
+                        onChanged: (val) => setDialogState(() => category = val),
+                      );
+                    },
+                    loading: () => const SizedBox.shrink(),
+                    error: (_, _) => const SizedBox.shrink(),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Hủy'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.ticket,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () async {
+                  if (titleCtrl.text.trim().isEmpty) {
+                    AppToast.error(ctx, title: 'Lỗi', message: 'Vui lòng nhập tiêu đề');
+                    return;
+                  }
+                  try {
+                    await ref.read(ticketActionsProvider).update(
+                      ticket.id,
+                      title: titleCtrl.text.trim(),
+                      description: descCtrl.text.trim(),
+                      priority: priority,
+                      category: category,
+                    );
+                    if (ctx.mounted) Navigator.pop(ctx, true);
+                  } catch (e) {
+                    if (ctx.mounted) AppToast.error(ctx, title: 'Lỗi', message: '$e');
+                  }
+                },
+                child: const Text('Lưu thay đổi'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    if (updated == true && mounted) {
+      AppToast.success(context, title: 'Thành công', message: 'Đã cập nhật thông tin ticket.');
+      _load();
+    }
+  }
+
+  Future<void> _showReassignDialog(Ticket ticket) async {
+    int? selectedId = ticket.assignedTo.isNotEmpty ? int.tryParse(ticket.assignedTo) : null;
+
+    final updated = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          final isDark = Theme.of(ctx).brightness == Brightness.dark;
+          final assigneesAsync = ref.watch(ticketAssigneesProvider);
+          return AlertDialog(
+            backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Row(
+              children: [
+                Icon(LucideIcons.userCheck, color: AppColors.ticket, size: 20),
+                SizedBox(width: 8),
+                Text('Chuyển giao Ticket', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+              ],
+            ),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: assigneesAsync.when(
+                data: (users) {
+                  if (users.isEmpty) {
+                    return const Text('Không tìm thấy danh sách nhân viên.');
+                  }
+                  return ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: users.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    itemBuilder: (ctx, i) {
+                      final u = users[i];
+                      final uid = u['id'] as int;
+                      final name = u['name']?.toString() ?? 'Nhân viên';
+                      final email = u['email']?.toString() ?? '';
+                      final isSelected = selectedId == uid;
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: isSelected ? AppColors.ticket : (isDark ? Colors.white12 : Colors.black12),
+                          foregroundColor: isSelected ? Colors.white : null,
+                          child: Text(name.isNotEmpty ? name[0].toUpperCase() : 'U'),
+                        ),
+                        title: Text(name, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                        subtitle: email.isNotEmpty ? Text(email, style: const TextStyle(fontSize: 12)) : null,
+                        trailing: isSelected ? const Icon(LucideIcons.check, color: AppColors.ticket) : null,
+                        onTap: () => setDialogState(() => selectedId = uid),
+                      );
+                    },
+                  );
+                },
+                loading: () => const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+                error: (e, _) => Text('Lỗi: $e'),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Hủy'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.ticket,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: selectedId == null
+                    ? null
+                    : () async {
+                        try {
+                          await ref.read(ticketActionsProvider).assignUser(ticket.id, selectedId!);
+                          if (ctx.mounted) Navigator.pop(ctx, true);
+                        } catch (e) {
+                          if (ctx.mounted) AppToast.error(ctx, title: 'Lỗi', message: '$e');
+                        }
+                      },
+                child: const Text('Xác nhận'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    if (updated == true && mounted) {
+      AppToast.success(context, title: 'Thành công', message: 'Đã chuyển giao ticket cho đồng nghiệp.');
+      _load();
+    }
+  }
+
+  Future<void> _showCreateActivityDialog(String ticketId) async {
+    final summaryCtrl = TextEditingController();
+    final noteCtrl = TextEditingController();
+    DateTime deadline = DateTime.now().add(const Duration(days: 1));
+    int? selectedTypeId;
+
+    final created = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          final isDark = Theme.of(ctx).brightness == Brightness.dark;
+          final typesAsync = ref.watch(ticketActivityTypesProvider);
+          return AlertDialog(
+            backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Row(
+              children: [
+                Icon(LucideIcons.calendarPlus, color: AppColors.ticket, size: 20),
+                SizedBox(width: 8),
+                Text('Thêm hoạt động', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  typesAsync.when(
+                    data: (types) {
+                      if (types.isEmpty) return const SizedBox.shrink();
+                      if (selectedTypeId == null && types.isNotEmpty) {
+                        selectedTypeId = types.first['id'] as int?;
+                      }
+                      return DropdownButtonFormField<int>(
+                        initialValue: selectedTypeId,
+                        decoration: const InputDecoration(
+                          labelText: 'Loại hoạt động *',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: types.map((t) => DropdownMenuItem<int>(
+                          value: t['id'] as int,
+                          child: Text(t['name']?.toString() ?? ''),
+                        )).toList(),
+                        onChanged: (val) => setDialogState(() => selectedTypeId = val),
+                      );
+                    },
+                    loading: () => const SizedBox.shrink(),
+                    error: (_, _) => const SizedBox.shrink(),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: summaryCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Tóm tắt công việc *',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: noteCtrl,
+                    maxLines: 2,
+                    decoration: const InputDecoration(
+                      labelText: 'Ghi chú chi tiết',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  InkWell(
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: ctx,
+                        initialDate: deadline,
+                        firstDate: DateTime.now().subtract(const Duration(days: 30)),
+                        lastDate: DateTime.now().add(const Duration(days: 365)),
+                      );
+                      if (picked != null) {
+                        setDialogState(() => deadline = picked);
+                      }
+                    },
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'Hạn chót hoàn thành',
+                        border: OutlineInputBorder(),
+                        suffixIcon: Icon(LucideIcons.calendar),
+                      ),
+                      child: Text(Dates.dateVi(deadline)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Hủy'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.ticket,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () async {
+                  if (summaryCtrl.text.trim().isEmpty) {
+                    AppToast.error(ctx, title: 'Lỗi', message: 'Vui lòng nhập tóm tắt hoạt động');
+                    return;
+                  }
+                  try {
+                    await ref.read(activityLogActionsProvider).log(
+                      ticketId: ticketId,
+                      action: summaryCtrl.text.trim(),
+                      details: {
+                        'note': noteCtrl.text.trim(),
+                        'activity_type_id': ?selectedTypeId,
+                        'date_deadline': deadline.toIso8601String().substring(0, 10),
+                      },
+                    );
+                    if (ctx.mounted) Navigator.pop(ctx, true);
+                  } catch (e) {
+                    if (ctx.mounted) AppToast.error(ctx, title: 'Lỗi', message: '$e');
+                  }
+                },
+                child: const Text('Tạo hoạt động'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    if (created == true && mounted) {
+      AppToast.success(context, title: 'Thành công', message: 'Đã tạo hoạt động mới.');
+      ref.invalidate(ticketActivitiesProvider(ticketId));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_error != null) {
@@ -183,7 +533,11 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            const _TicketDetailHeader(),
+            _TicketDetailHeader(
+              ticket: ticket,
+              onEdit: ticket == null ? null : () => _showEditDialog(ticket),
+              onReassign: ticket == null ? null : () => _showReassignDialog(ticket),
+            ),
             Expanded(
               child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 200),
@@ -202,13 +556,19 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
                         controller: _scrollController,
                         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                         children: [
-                          _TicketInfoCard(ticket: ticket),
+                          _TicketInfoCard(
+                            ticket: ticket,
+                            onReassign: () => _showReassignDialog(ticket),
+                          ),
                           if (ticket.attachments.isNotEmpty) ...[
                             const SizedBox(height: 16),
                             _TicketAttachmentsSection(attachments: ticket.attachments),
                           ],
                           const SizedBox(height: 16),
-                          _TicketActivitiesSection(ticketId: ticket.id),
+                          _TicketActivitiesSection(
+                            ticketId: ticket.id,
+                            onAddActivity: () => _showCreateActivityDialog(ticket.id),
+                          ),
                           const SizedBox(height: 16),
                           _SectionTitle(
                             key: _commentsKey,
@@ -592,7 +952,15 @@ class _TicketActionBarState extends State<_TicketActionBar> {
 }
 
 class _TicketDetailHeader extends StatelessWidget {
-  const _TicketDetailHeader();
+  const _TicketDetailHeader({
+    this.ticket,
+    this.onEdit,
+    this.onReassign,
+  });
+
+  final Ticket? ticket;
+  final VoidCallback? onEdit;
+  final VoidCallback? onReassign;
 
   @override
   Widget build(BuildContext context) {
@@ -650,7 +1018,43 @@ class _TicketDetailHeader extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          const SizedBox(width: 42),
+          if (ticket != null) ...[
+            PressableScale(
+              onTap: onReassign,
+              child: Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: _softHeaderColor(context),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  LucideIcons.userCheck,
+                  color: AppColors.ticket,
+                  size: 19,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            PressableScale(
+              onTap: onEdit,
+              child: Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: _softHeaderColor(context),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  LucideIcons.pencil,
+                  color: AppColors.ticket,
+                  size: 18,
+                ),
+              ),
+            ),
+          ] else ...[
+            const SizedBox(width: 42),
+          ],
         ],
       ),
     );
@@ -662,9 +1066,10 @@ Color _softHeaderColor(BuildContext context) {
 }
 
 class _TicketInfoCard extends StatelessWidget {
-  const _TicketInfoCard({required this.ticket});
+  const _TicketInfoCard({required this.ticket, this.onReassign});
 
   final Ticket ticket;
+  final VoidCallback? onReassign;
 
   @override
   Widget build(BuildContext context) {
@@ -784,10 +1189,22 @@ class _TicketInfoCard extends StatelessWidget {
                   color: AppColors.primary,
                 ),
               if (ticket.assignedUserName != null && ticket.assignedUserName!.trim().isNotEmpty)
-                _InfoChip(
-                  icon: LucideIcons.user,
-                  label: 'Phụ trách: ${ticket.assignedUserName!.trim()}',
-                  color: AppColors.success,
+                PressableScale(
+                  onTap: onReassign,
+                  child: _InfoChip(
+                    icon: LucideIcons.user,
+                    label: 'Phụ trách: ${ticket.assignedUserName!.trim()}',
+                    color: AppColors.success,
+                  ),
+                )
+              else if (onReassign != null)
+                PressableScale(
+                  onTap: onReassign,
+                  child: const _InfoChip(
+                    icon: LucideIcons.userPlus,
+                    label: 'Chưa giao · Phân công',
+                    color: AppColors.warning,
+                  ),
                 ),
               _InfoChip(
                 icon: LucideIcons.tag,
@@ -1582,9 +1999,13 @@ class _AttachmentTile extends StatelessWidget {
 }
 
 class _TicketActivitiesSection extends ConsumerWidget {
-  const _TicketActivitiesSection({required this.ticketId});
+  const _TicketActivitiesSection({
+    required this.ticketId,
+    this.onAddActivity,
+  });
 
   final String ticketId;
+  final VoidCallback? onAddActivity;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1594,9 +2015,29 @@ class _TicketActivitiesSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _SectionTitle(
-          icon: LucideIcons.history,
-          title: 'Hoạt động',
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const _SectionTitle(
+              icon: LucideIcons.history,
+              title: 'Hoạt động',
+            ),
+            if (onAddActivity != null)
+              TextButton.icon(
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.ticket,
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                onPressed: onAddActivity,
+                icon: const Icon(LucideIcons.plus, size: 15),
+                label: const Text(
+                  'Thêm',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                ),
+              ),
+          ],
         ),
         const SizedBox(height: 10),
         activitiesAsync.when(
@@ -1615,7 +2056,10 @@ class _TicketActivitiesSection extends ConsumerWidget {
                         height: 18,
                         color: isDark ? Colors.white12 : AppColors.border,
                       ),
-                    _ActivityItemTile(activity: activities[i]),
+                    _ActivityItemTile(
+                      activity: activities[i],
+                      ticketId: ticketId,
+                    ),
                   ],
                 ],
               ),
@@ -1655,14 +2099,89 @@ class _TicketActivitiesSection extends ConsumerWidget {
   }
 }
 
-class _ActivityItemTile extends StatelessWidget {
-  const _ActivityItemTile({required this.activity});
+class _ActivityItemTile extends ConsumerWidget {
+  const _ActivityItemTile({
+    required this.activity,
+    required this.ticketId,
+  });
 
   final TicketActivity activity;
+  final String ticketId;
+
+  Future<void> _handleComplete(BuildContext context, WidgetRef ref) async {
+    final feedbackCtrl = TextEditingController();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(LucideIcons.checkCircle2, color: AppColors.success, size: 20),
+            SizedBox(width: 8),
+            Text('Hoàn thành hoạt động', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Xác nhận hoàn thành "${activity.summary.isNotEmpty ? activity.summary : (activity.activityTypeName ?? 'hoạt động này')}"?',
+              style: const TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: feedbackCtrl,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                labelText: 'Ghi chú phản hồi (tùy chọn)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.success,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Hoàn tất'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && context.mounted) {
+      try {
+        await ref.read(activityLogActionsProvider).markDone(
+          activity.id,
+          ticketId: ticketId,
+          feedback: feedbackCtrl.text.trim().isNotEmpty ? feedbackCtrl.text.trim() : null,
+        );
+        if (context.mounted) {
+          AppToast.success(context, title: 'Thành công', message: 'Đã hoàn thành hoạt động.');
+        }
+      } catch (e) {
+        if (context.mounted) {
+          AppToast.error(context, title: 'Lỗi', message: '$e');
+        }
+      }
+    }
+  }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDone = activity.isDone;
     final dateStr = activity.createDate != null
         ? '${Dates.dateVi(activity.createDate!)} ${Dates.hm(activity.createDate!)}'
         : (activity.dateDeadline != null ? Dates.dateVi(activity.dateDeadline!) : '');
@@ -1675,12 +2194,16 @@ class _ActivityItemTile extends StatelessWidget {
           width: 28,
           height: 28,
           decoration: BoxDecoration(
-            color: isDark
-                ? AppColors.ticket.withValues(alpha: 0.15)
-                : AppColors.soft(AppColors.ticket),
+            color: isDone
+                ? (isDark ? AppColors.success.withValues(alpha: 0.2) : AppColors.soft(AppColors.success))
+                : (isDark ? AppColors.ticket.withValues(alpha: 0.15) : AppColors.soft(AppColors.ticket)),
             shape: BoxShape.circle,
           ),
-          child: const Icon(LucideIcons.clock, color: AppColors.ticket, size: 14),
+          child: Icon(
+            isDone ? LucideIcons.check : LucideIcons.clock,
+            color: isDone ? AppColors.success : AppColors.ticket,
+            size: 14,
+          ),
         ),
         const SizedBox(width: 10),
         Expanded(
@@ -1721,6 +2244,7 @@ class _ActivityItemTile extends StatelessWidget {
                   color: isDark ? const Color(0xFFCBD5E1) : AppColors.textSecondary,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
+                  decoration: isDone ? TextDecoration.lineThrough : null,
                 ),
               ),
               if (activity.note.isNotEmpty) ...[
@@ -1737,6 +2261,16 @@ class _ActivityItemTile extends StatelessWidget {
             ],
           ),
         ),
+        if (!isDone) ...[
+          const SizedBox(width: 8),
+          IconButton(
+            icon: const Icon(LucideIcons.checkCircle, color: AppColors.success, size: 20),
+            tooltip: 'Hoàn thành hoạt động',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            onPressed: () => _handleComplete(context, ref),
+          ),
+        ],
       ],
     );
   }

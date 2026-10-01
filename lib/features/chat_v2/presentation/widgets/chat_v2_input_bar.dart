@@ -1053,10 +1053,25 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
     if (widget.isSending || _isUploading) return;
 
     try {
-      final result = await FilePicker.platform.pickFiles(
-        allowMultiple: true,
-        withData: true,
-      );
+      FilePickerResult? result;
+      try {
+        result = await FilePicker.platform.pickFiles(
+          allowMultiple: true,
+          withData: true,
+        );
+      } on PlatformException catch (pe) {
+        debugPrint('[ChatInputBar] pickFiles withData=true failed: ${pe.code} - ${pe.message}');
+        // Fallback Tier 2: Thử withData: false để lấy đường dẫn tệp thực tế (SAF / DocumentsUI)
+        try {
+          result = await FilePicker.platform.pickFiles(
+            allowMultiple: false,
+            withData: false,
+          );
+        } on PlatformException catch (pe2) {
+          debugPrint('[ChatInputBar] pickFiles fallback withData=false failed: ${pe2.code} - ${pe2.message}');
+          rethrow;
+        }
+      }
 
       if (result == null || result.files.isEmpty) return;
 
@@ -1087,7 +1102,14 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
             }
             continue;
           }
-          final bytes = file.bytes;
+          Uint8List? bytes = file.bytes;
+          if (bytes == null && file.path != null && file.path!.isNotEmpty && !kIsWeb) {
+            try {
+              bytes = await File(file.path!).readAsBytes();
+            } catch (ioErr) {
+              debugPrint('[ChatInputBar] readAsBytes multi-file failed: $ioErr');
+            }
+          }
           if (bytes != null) {
             final ext = file.extension?.toLowerCase();
             final mime = _guessMimeType(ext);
@@ -1130,7 +1152,15 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
         return;
       }
 
-      final bytes = file.bytes;
+      Uint8List? bytes = file.bytes;
+      if (bytes == null && file.path != null && file.path!.isNotEmpty && !kIsWeb) {
+        try {
+          bytes = await File(file.path!).readAsBytes();
+        } catch (ioErr) {
+          debugPrint('[ChatInputBar] readAsBytes single file failed: $ioErr');
+        }
+      }
+
       if (bytes == null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -1185,8 +1215,14 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
       });
     } catch (e) {
       if (mounted) {
+        final errorMsg = e is PlatformException
+            ? 'Không thể truy cập tệp đã chọn. Vui lòng thử chọn tệp từ bộ nhớ máy.'
+            : 'Lỗi chọn tệp: ${e.toString().replaceAll("Exception: ", "")}';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi chọn tệp: $e')),
+          SnackBar(
+            content: Text(errorMsg),
+            behavior: SnackBarBehavior.floating,
+          ),
         );
       }
     }

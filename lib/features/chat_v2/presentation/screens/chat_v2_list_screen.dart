@@ -1041,6 +1041,7 @@ class _ChannelListItem extends ConsumerWidget {
             ref.read(chatV2ReadStateProvider.notifier).markChannelAsRead(channel.id);
             context.push('/chat/${channel.id}');
           },
+          onLongPress: () => _showChannelContextMenu(context, ref, isDark, hasUnread),
           child: Container(
           decoration: BoxDecoration(
             border: hasUnread
@@ -1248,7 +1249,7 @@ class _ChannelListItem extends ConsumerWidget {
                                     color: Color(0xFF00C83A),
                                   ),
                                 ),
-                              if (ChatV2ChannelLocalCache.isUserMuted(channel.id))
+                              if (ChatV2ChannelLocalCache.isUserMuted(channel.id) || channel.isMuted)
                                 const Padding(
                                   padding: EdgeInsets.only(left: 6),
                                   child: Icon(
@@ -1691,6 +1692,203 @@ class _ChannelListItem extends ConsumerWidget {
 
   String _formatDate(DateTime dt) {
     return Dates.chatTimestamp(dt);
+  }
+
+  void _showChannelContextMenu(
+    BuildContext context,
+    WidgetRef ref,
+    bool isDark,
+    bool hasUnread,
+  ) {
+    final cleanName = channel.getCleanName(currentUserName);
+    final isPinned = ChatV2ChannelLocalCache.isUserPinned(channel.id);
+    final isMuted = ChatV2ChannelLocalCache.isUserMuted(channel.id) || channel.isMuted;
+    final isGroup = channel.getActualIsGroup(currentUserName);
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        final bgColor = isDark ? const Color(0xFF1E293B) : Colors.white;
+        final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+
+        return Container(
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white24 : const Color(0xFFCBD5E1),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                cleanName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: textColor,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Divider(
+                height: 1,
+                color: isDark ? Colors.white12 : const Color(0xFFE2E8F0),
+              ),
+              const SizedBox(height: 8),
+
+              // 1. Đánh dấu chưa đọc / Đánh dấu đã đọc
+              ListTile(
+                leading: Icon(
+                  hasUnread ? LucideIcons.mailOpen : LucideIcons.mail,
+                  color: const Color(0xFF00C83A),
+                  size: 22,
+                ),
+                title: Text(
+                  hasUnread ? 'Đánh dấu đã đọc' : 'Đánh dấu chưa đọc',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: textColor),
+                ),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  if (hasUnread) {
+                    ref.read(chatV2ReadStateProvider.notifier).markChannelAsRead(channel.id);
+                  } else {
+                    ref.read(chatV2ReadStateProvider.notifier).markChannelAsUnread(channel.id);
+                    ref.read(chatV2RepositoryProvider).markAsUnread(channel.id);
+                  }
+                },
+              ),
+
+              // 2. Ghim / Bỏ ghim
+              ListTile(
+                leading: Icon(
+                  isPinned ? LucideIcons.pinOff : LucideIcons.pin,
+                  color: const Color(0xFF3B82F6),
+                  size: 22,
+                ),
+                title: Text(
+                  isPinned ? 'Bỏ ghim trò chuyện' : 'Ghim trò chuyện lên đầu',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: textColor),
+                ),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  ChatV2ChannelLocalCache.toggleUserPin(channel.id);
+                  ref.read(chatV2ChannelsProvider.notifier).refresh();
+                },
+              ),
+
+              // 3. Tắt / Bật thông báo
+              ListTile(
+                leading: Icon(
+                  isMuted ? LucideIcons.bell : LucideIcons.bellOff,
+                  color: const Color(0xFFF59E0B),
+                  size: 22,
+                ),
+                title: Text(
+                  isMuted ? 'Bật thông báo' : 'Tắt thông báo',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: textColor),
+                ),
+                onTap: () async {
+                  Navigator.pop(sheetContext);
+                  final newMuted = !isMuted;
+                  ChatV2ChannelLocalCache.setUserMuted(channel.id, newMuted);
+                  await ref.read(chatV2RepositoryProvider).muteChannel(channel.id, mute: newMuted);
+                  ref.read(chatV2ChannelsProvider.notifier).refresh();
+                },
+              ),
+
+              // 4. Rời nhóm trò chuyện (Chỉ hiển thị cho Nhóm, không áp dụng cho chat cá nhân 1-1)
+              if (isGroup) ...[
+                ListTile(
+                  leading: const Icon(
+                    LucideIcons.logOut,
+                    color: Color(0xFFEF4444),
+                    size: 22,
+                  ),
+                  title: const Text(
+                    'Rời nhóm trò chuyện',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Color(0xFFEF4444)),
+                  ),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (context.mounted) {
+                        _confirmLeaveChannel(context, ref, cleanName, isGroup);
+                      }
+                    });
+                  },
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _confirmLeaveChannel(
+    BuildContext context,
+    WidgetRef ref,
+    String cleanName,
+    bool isGroup,
+  ) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogCtx) {
+        return AlertDialog(
+          title: Text(isGroup ? 'Rời nhóm' : 'Rời cuộc trò chuyện'),
+          content: Text(
+            'Bạn có chắc chắn muốn rời khỏi "$cleanName"? Bạn sẽ không nhận được tin nhắn từ cuộc trò chuyện này nữa.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: const Text('Hủy'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFEF4444),
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () async {
+                Navigator.pop(dialogCtx);
+                try {
+                  await ref.read(chatV2ChannelsProvider.notifier).leaveChannel(channel.id);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Đã rời khỏi "$cleanName"'),
+                        backgroundColor: const Color(0xFF00C83A),
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Không thể rời: $e'),
+                        backgroundColor: const Color(0xFFEF4444),
+                      ),
+                    );
+                  }
+                }
+              },
+              child: const Text('Rời khỏi'),
+            ),
+          ],
+        );
+      },
+    );
   }
 }
 

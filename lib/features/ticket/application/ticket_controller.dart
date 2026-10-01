@@ -127,6 +127,32 @@ class TicketActions {
     _ref.invalidate(ticketsProvider);
   }
 
+  Future<Ticket> update(
+    String id, {
+    String? title,
+    String? description,
+    TicketPriority? priority,
+    String? category,
+    int? assigneeId,
+  }) async {
+    final t = await _repo.update(
+      id,
+      title: title,
+      description: description,
+      priority: priority,
+      category: category,
+      assigneeId: assigneeId,
+    );
+    _ref.invalidate(ticketsProvider);
+    return t;
+  }
+
+  Future<Ticket> assignUser(String id, int userId) async {
+    final t = await _repo.assignUser(id, userId);
+    _ref.invalidate(ticketsProvider);
+    return t;
+  }
+
   Future<void> sendContact(String ticketId, int partnerId) async {
     await _repo.sendContact(ticketId, partnerId);
     _ref.invalidate(ticketCommentsProvider(ticketId));
@@ -189,6 +215,44 @@ final activityLogProvider = StreamProvider.autoDispose
       (ref, ticketId) =>
           ref.read(activityLogRepositoryProvider).watchByTicket(ticketId),
     );
+
+final ticketAssigneesProvider = FutureProvider<List<Map<String, dynamic>>>(
+  (ref) => ref.read(ticketRepositoryProvider).assignees(),
+);
+
+final ticketActivityTypesProvider = FutureProvider<List<Map<String, dynamic>>>(
+  (ref) => ref.read(activityLogRepositoryProvider).activityTypes(),
+);
+
+class ActivityLogActions {
+  ActivityLogActions(this._repo, this._ref);
+  final ActivityLogRepository _repo;
+  final Ref _ref;
+
+  Future<void> log({
+    required String? ticketId,
+    required String action,
+    Map<String, dynamic>? details,
+  }) async {
+    await _repo.log(ticketId: ticketId, action: action, details: details);
+    if (ticketId != null) {
+      _ref.invalidate(activityLogProvider(ticketId));
+      _ref.invalidate(ticketActivitiesProvider(ticketId));
+    }
+  }
+
+  Future<void> markDone(int activityId, {String? ticketId, String? feedback}) async {
+    await _repo.markDone(activityId, feedback: feedback);
+    if (ticketId != null) {
+      _ref.invalidate(activityLogProvider(ticketId));
+      _ref.invalidate(ticketActivitiesProvider(ticketId));
+    }
+  }
+}
+
+final activityLogActionsProvider = Provider(
+  (ref) => ActivityLogActions(ref.read(activityLogRepositoryProvider), ref),
+);
 
 /// Reset toàn bộ state tạm thời của Ticket khi logout hoặc switch user (Protocol V2.1).
 void resetTicketState({Ref? ref, ProviderContainer? container}) {

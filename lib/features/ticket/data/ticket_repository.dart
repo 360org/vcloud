@@ -167,10 +167,46 @@ class TicketRepository {
   }
 
   Future<void> sendContact(String ticketId, int partnerId) async {
-    await _client.post(
-      '$_ticketBasePath/$ticketId/contact',
-      body: <String, dynamic>{'partner_id': partnerId},
-    );
+    // ponytail: Thay route ảo bằng message chatter chuẩn Odoo
+    try {
+      await _client.post(
+        '$_ticketBasePath/$ticketId/message',
+        body: <String, dynamic>{
+          'body': 'Đã chia sẻ thông tin liên hệ (Partner ID: $partnerId) vào ticket.',
+        },
+      );
+    } catch (_) {}
+  }
+
+  Future<Ticket> update(
+    String id, {
+    String? title,
+    String? description,
+    TicketPriority? priority,
+    String? category,
+    int? assigneeId,
+  }) async {
+    try {
+      await _client.post(
+        '$_ticketBasePath/$id/update',
+        body: <String, dynamic>{
+          if (title != null && title.isNotEmpty) 'name': title,
+          'description': ?description,
+          if (priority != null) 'priority': _priorityToOdoo(priority),
+          if (category != null) 'team_id': int.tryParse(category),
+          'user_id': ?assigneeId,
+        },
+      );
+      final updatedTicket = await one(id);
+      _cachedTickets = [
+        for (final t in _cachedTickets)
+          if (t.id == id) updatedTicket else t,
+      ];
+      return updatedTicket;
+    } catch (e) {
+      if (e is Failure) rethrow;
+      throw Failure('Lỗi khi cập nhật Ticket: $e');
+    }
   }
 
   Future<Ticket> updateStatus(String id, TicketStatus status) async {
@@ -193,11 +229,27 @@ class TicketRepository {
   }
 
   Future<Ticket> updatePriority(String id, TicketPriority priority) async {
-    throw Failure('360 Support API chưa hỗ trợ cập nhật ưu tiên ticket.');
+    return update(id, priority: priority);
   }
 
   Future<Ticket> updateCategory(String id, String? category) async {
-    throw Failure('360 Support API chưa hỗ trợ đổi đội xử lý ticket.');
+    return update(id, category: category);
+  }
+
+  Future<Ticket> assignUser(String id, int userId) async {
+    return update(id, assigneeId: userId);
+  }
+
+  Future<List<Map<String, dynamic>>> assignees() async {
+    try {
+      final res = await _client.get('$_ticketBasePath/assignees');
+      if (res is List) {
+        return res.cast<Map<String, dynamic>>();
+      }
+      return const <Map<String, dynamic>>[];
+    } catch (_) {
+      return const <Map<String, dynamic>>[];
+    }
   }
 
   Future<Ticket> one(String id) async {

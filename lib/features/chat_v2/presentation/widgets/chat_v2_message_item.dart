@@ -36,6 +36,8 @@ class ChatV2MessageItem extends StatelessWidget {
     this.onDelete,
     this.onMentionTap,
     this.isHighlighted = false,
+    this.searchQuery,
+    this.isSearchActiveMatch = false,
   });
 
   final ChatV2Message message;
@@ -49,6 +51,8 @@ class ChatV2MessageItem extends StatelessWidget {
   final VoidCallback? onDelete;
   final ValueChanged<String>? onMentionTap;
   final bool isHighlighted;
+  final String? searchQuery;
+  final bool isSearchActiveMatch;
 
   static final DateFormat _timeFormatter = DateFormat('HH:mm');
 
@@ -1567,12 +1571,25 @@ class ChatV2MessageItem extends StatelessWidget {
     );
 
     final matches = urlRegex.allMatches(rawText);
+    final hasSearch = searchQuery != null &&
+        searchQuery!.trim().isNotEmpty &&
+        rawText.toLowerCase().contains(searchQuery!.trim().toLowerCase());
+
     if (matches.isEmpty && !rawText.contains('@')) {
-      return Text(
+      if (!hasSearch) {
+        return Text(
+          rawText,
+          style: TextStyle(fontSize: 15, height: 1.38, color: textColor),
+          overflow: TextOverflow.visible,
+        );
+      }
+      final spans = <InlineSpan>[];
+      _addTextWithSearchHighlight(
+        spans,
         rawText,
-        style: TextStyle(fontSize: 15, height: 1.38, color: textColor),
-        overflow: TextOverflow.visible,
+        TextStyle(fontSize: 15, height: 1.38, color: textColor),
       );
+      return Text.rich(TextSpan(children: spans), overflow: TextOverflow.visible);
     }
 
     final spans = <InlineSpan>[];
@@ -1628,11 +1645,10 @@ class ChatV2MessageItem extends StatelessWidget {
       );
 
       if (trailingPunctuation.isNotEmpty) {
-        spans.add(
-          TextSpan(
-            text: trailingPunctuation,
-            style: TextStyle(color: textColor, fontSize: 15, height: 1.38),
-          ),
+        _addTextWithSearchHighlight(
+          spans,
+          trailingPunctuation,
+          TextStyle(color: textColor, fontSize: 15, height: 1.38),
         );
       }
 
@@ -1651,6 +1667,59 @@ class ChatV2MessageItem extends StatelessWidget {
     return Text.rich(TextSpan(children: spans), overflow: TextOverflow.visible);
   }
 
+  void _addTextWithSearchHighlight(
+    List<InlineSpan> spans,
+    String text,
+    TextStyle baseStyle,
+  ) {
+    final query = searchQuery?.trim();
+    if (query == null || query.isEmpty) {
+      spans.add(TextSpan(text: text, style: baseStyle));
+      return;
+    }
+
+    final queryLower = query.toLowerCase();
+    final textLower = text.toLowerCase();
+    int start = 0;
+    int index = textLower.indexOf(queryLower, start);
+
+    if (index == -1) {
+      spans.add(TextSpan(text: text, style: baseStyle));
+      return;
+    }
+
+    while (index != -1) {
+      if (index > start) {
+        spans.add(TextSpan(
+          text: text.substring(start, index),
+          style: baseStyle,
+        ));
+      }
+      final matchedText = text.substring(index, index + query.length);
+      spans.add(TextSpan(
+        text: matchedText,
+        style: baseStyle.copyWith(
+          fontWeight: FontWeight.w800,
+          backgroundColor: isSearchActiveMatch
+              ? const Color(0xFFF97316)
+              : const Color(0xFFFEF08A),
+          color: isSearchActiveMatch
+              ? Colors.white
+              : const Color(0xFF0F172A),
+        ),
+      ));
+      start = index + query.length;
+      index = textLower.indexOf(queryLower, start);
+    }
+
+    if (start < text.length) {
+      spans.add(TextSpan(
+        text: text.substring(start),
+        style: baseStyle,
+      ));
+    }
+  }
+
   void _addTextWithMentions(
     List<InlineSpan> spans,
     String segment,
@@ -1658,11 +1727,10 @@ class ChatV2MessageItem extends StatelessWidget {
     Color mentionColor,
   ) {
     if (!segment.contains('@')) {
-      spans.add(
-        TextSpan(
-          text: segment,
-          style: TextStyle(color: textColor, fontSize: 15, height: 1.38),
-        ),
+      _addTextWithSearchHighlight(
+        spans,
+        segment,
+        TextStyle(color: textColor, fontSize: 15, height: 1.38),
       );
       return;
     }
@@ -1706,11 +1774,10 @@ class ChatV2MessageItem extends StatelessWidget {
 
     final mentionMatches = mentionRegex.allMatches(segment);
     if (mentionMatches.isEmpty) {
-      spans.add(
-        TextSpan(
-          text: segment,
-          style: TextStyle(color: textColor, fontSize: 15, height: 1.38),
-        ),
+      _addTextWithSearchHighlight(
+        spans,
+        segment,
+        TextStyle(color: textColor, fontSize: 15, height: 1.38),
       );
       return;
     }
@@ -1718,11 +1785,10 @@ class ChatV2MessageItem extends StatelessWidget {
     int lastIdx = 0;
     for (final m in mentionMatches) {
       if (m.start > lastIdx) {
-        spans.add(
-          TextSpan(
-            text: segment.substring(lastIdx, m.start),
-            style: TextStyle(color: textColor, fontSize: 15, height: 1.38),
-          ),
+        _addTextWithSearchHighlight(
+          spans,
+          segment.substring(lastIdx, m.start),
+          TextStyle(color: textColor, fontSize: 15, height: 1.38),
         );
       }
       final mentionText = m.groupCount >= 1
@@ -1749,11 +1815,10 @@ class ChatV2MessageItem extends StatelessWidget {
       lastIdx = m.end;
     }
     if (lastIdx < segment.length) {
-      spans.add(
-        TextSpan(
-          text: segment.substring(lastIdx),
-          style: TextStyle(color: textColor, fontSize: 15, height: 1.38),
-        ),
+      _addTextWithSearchHighlight(
+        spans,
+        segment.substring(lastIdx),
+        TextStyle(color: textColor, fontSize: 15, height: 1.38),
       );
     }
   }

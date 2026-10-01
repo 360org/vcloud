@@ -246,7 +246,10 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
 
     final matches = <int>[];
     for (var i = 0; i < messages.length; i++) {
-      if (messages[i].content.toLowerCase().contains(clean)) {
+      final text = ChatV2Message.cleanHtml(messages[i].content).isNotEmpty
+          ? ChatV2Message.cleanHtml(messages[i].content)
+          : ChatV2Message.cleanHtml(messages[i].rawBody ?? '');
+      if (text.toLowerCase().contains(clean)) {
         matches.add(i);
       }
     }
@@ -288,10 +291,14 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
 
     return AppBar(
       elevation: 0,
+      scrolledUnderElevation: 0,
       backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
       foregroundColor: textColor,
+      iconTheme: IconThemeData(color: textColor),
+      actionsIconTheme: IconThemeData(color: textColor),
       leading: IconButton(
         icon: const Icon(LucideIcons.arrowLeft, size: 22),
+        color: textColor,
         onPressed: () {
           setState(() {
             _isSearching = false;
@@ -302,47 +309,129 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
         },
         tooltip: 'Đóng tìm kiếm',
       ),
-      title: TextField(
-        controller: _searchController,
-        autofocus: true,
-        style: TextStyle(fontSize: 15, color: textColor),
-        decoration: InputDecoration(
-          hintText: 'Tìm kiếm tin nhắn...',
-          hintStyle: TextStyle(
-            color: isDark ? Colors.white54 : const Color(0xFF94A3B8),
-            fontSize: 14.5,
+      titleSpacing: 0,
+      title: Container(
+        height: 38,
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(19),
+          border: Border.all(
+            color: isDark ? Colors.white12 : const Color(0xFFE2E8F0),
+            width: 0.8,
           ),
-          border: InputBorder.none,
         ),
-        onChanged: (val) => _onSearchQueryChanged(val, messages),
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        child: Row(
+          children: [
+            Icon(
+              LucideIcons.search,
+              size: 16,
+              color: isDark ? Colors.white60 : const Color(0xFF64748B),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: TextField(
+                controller: _searchController,
+                autofocus: true,
+                style: TextStyle(fontSize: 14, color: textColor),
+                decoration: InputDecoration(
+                  hintText: 'Tìm kiếm tin nhắn...',
+                  hintStyle: TextStyle(
+                    color: isDark ? Colors.white54 : const Color(0xFF94A3B8),
+                    fontSize: 13.5,
+                  ),
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                  filled: false,
+                ),
+                onChanged: (val) => _onSearchQueryChanged(val, messages),
+              ),
+            ),
+            if (_searchController.text.isNotEmpty)
+              GestureDetector(
+                onTap: () {
+                  _searchController.clear();
+                  _onSearchQueryChanged('', messages);
+                },
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Icon(
+                    LucideIcons.x,
+                    size: 16,
+                    color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
       actions: [
         if (totalMatches > 0)
           Center(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              margin: const EdgeInsets.symmetric(horizontal: 2),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(10),
+              ),
               child: Text(
-                '$currentIndex/$totalMatches',
+                '$currentIndex / $totalMatches',
                 style: TextStyle(
-                  fontSize: 12.5,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: isDark ? Colors.white70 : const Color(0xFF475569),
+                ),
+              ),
+            ),
+          )
+        else if (_searchController.text.trim().isNotEmpty)
+          Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+              margin: const EdgeInsets.symmetric(horizontal: 2),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                '0/0',
+                style: TextStyle(
+                  fontSize: 11,
                   fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                  color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
                 ),
               ),
             ),
           ),
         IconButton(
           icon: const Icon(LucideIcons.chevronUp, size: 20),
+          color: totalMatches > 0
+              ? textColor
+              : (isDark ? Colors.white24 : const Color(0xFFCBD5E1)),
           onPressed: totalMatches > 0 ? () => _prevSearchResult(messages) : null,
           tooltip: 'Kết quả trước',
         ),
         IconButton(
           icon: const Icon(LucideIcons.chevronDown, size: 20),
+          color: totalMatches > 0
+              ? textColor
+              : (isDark ? Colors.white24 : const Color(0xFFCBD5E1)),
           onPressed: totalMatches > 0 ? () => _nextSearchResult(messages) : null,
           tooltip: 'Kết quả tiếp theo',
         ),
         const SizedBox(width: 4),
       ],
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(1),
+        child: Container(
+          height: 1,
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : const Color(0xFFE2E8F0),
+        ),
+      ),
     );
   }
 
@@ -783,12 +872,20 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
     }
 
     return PopScope(
-      canPop: context.canPop(),
+      canPop: !_isSearching && context.canPop(),
       onPopInvokedWithResult: (didPop, result) {
-        ensureRetainedInCache();
-        if (!didPop) {
-          context.go('/chat');
+        if (didPop) return;
+        if (_isSearching) {
+          setState(() {
+            _isSearching = false;
+            _searchController.clear();
+            _matchedIndices = [];
+            _currentMatchIndex = 0;
+          });
+          return;
         }
+        ensureRetainedInCache();
+        context.go('/chat');
       },
       child: Scaffold(
       backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
@@ -829,12 +926,6 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                 tooltip: 'Quay lại',
               ),
               actions: [
-                IconButton(
-                  icon: const Icon(LucideIcons.search, size: 20),
-                  color: isDark ? Colors.white70 : const Color(0xFF475569),
-                  tooltip: 'Tìm kiếm tin nhắn',
-                  onPressed: () => setState(() => _isSearching = true),
-                ),
                 IconButton(
                   icon: const Icon(LucideIcons.phone, size: 21),
                   color: isDark ? Colors.white70 : const Color(0xFF475569),
@@ -1187,6 +1278,10 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                     showAvatar: showAvatar,
                                     isGroup: isActualGroup,
                                     isHighlighted: message.id == _highlightedMessageId,
+                                    searchQuery: _isSearching ? _searchController.text.trim() : null,
+                                    isSearchActiveMatch: _isSearching &&
+                                        _matchedIndices.isNotEmpty &&
+                                        _matchedIndices[_currentMatchIndex] == index,
                                     onRetry: () => ref
                                         .read(chatV2MessagesProvider(widget.channelId).notifier)
                                         .retryMessage(message.id),
@@ -1609,7 +1704,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                 ],
               ),
             ),
-            if (_showScrollToBottom)
+            if (_showScrollToBottom && !_isSearching)
               Positioned(
                 right: 16,
                 bottom: 80,
@@ -1727,13 +1822,9 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
           currentUserName: currentUserName,
           messages: currentMessages,
           onSearchTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Tính năng tìm kiếm trong hội thoại đang sẵn sàng'),
-                duration: Duration(seconds: 2),
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
+            setState(() {
+              _isSearching = true;
+            });
           },
         ),
       ),

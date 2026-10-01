@@ -225,8 +225,8 @@ void main() {
 
     await repo.sendContact('42', 7);
 
-    expect(client.calls.single, 'POST /api/v1/mobile/ticket/42/contact');
-    expect(client.postBodies.single, <String, dynamic>{'partner_id': 7});
+    expect(client.calls.single, 'POST /api/v1/mobile/ticket/42/message');
+    expect((client.postBodies.single as Map)['body'], contains('Partner ID: 7'));
   });
 
   test('TicketRepository parses attachments and activities from API response', () async {

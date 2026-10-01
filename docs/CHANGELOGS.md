@@ -2,34 +2,86 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
-## [v2.9.12+144] — 2026-09-30 (Đổi Tên Nhóm & Biệt Danh Chat 1-1, Khắc Phục Media Picker Waydroid, Create Task Sheet & In-App Attachment Viewer)
+## [v2.9.12+144] — 2026-10-01 (Nghiệm Thu Local Server & Bản Phát Hành Toàn Diện 6 Phân Hệ)
 
 > [!IMPORTANT]
-> **Hoàn tất Tính năng Đổi Tên Nhóm & Biệt Danh Chat 1-1 (Mục 3.11), Fix Chọn/Lưu Ảnh Android 13+ (Mục 3.9), Create Task Sheet (BUG-021) & Trình Xem Đính Kèm Ticket In-App**:
-> - **Phạm vi**: `vclients` (`ChatV2InfoSheet`, `ChatV2ChannelLocalCache`, `ChatV2ChannelsNotifier`, `ChatV2Repository`, `ChatV2Channel`, `TaskRepository`, `TaskChecklistEditor`, `ChatV2ImageViewerScreen`, `GallerySaver`)
-> - **Chi tiết các hạng mục nâng cấp & khắc phục**:
->   1. **[NEW — ĐỔI TÊN NHÓM & BIỆT DANH CHAT 1-1 (MỤC 3.11)]**:
->      * *Kích hoạt Icon Cây viết (`LucideIcons.pencil`)*: Kích hoạt nút chỉnh sửa trên AppBar của `ChatV2InfoSheet`, hiển thị Dialog thích ứng:
->        - Với nhóm (`isGroup: true`): Cho phép đổi tên nhóm thảo luận, gọi backend API `POST /api/v1/mobile/chat/channels/<id>/rename`, cập nhật đồng bộ tức thì trên Cache và State Riverpod.
->        - Với chat 1-1 (`isGroup: false`): Đặt biệt danh cá nhân hóa không làm đổi `res.partner.name` danh bạ ERP toàn cục; lưu bền vững trong `FlutterSecureStorage` (`{scope}_user_channel_nicknames_v1`) và ghi nhận `custom_channel_name` trên `discuss.channel.member` phía backend nếu hỗ trợ.
->      * *Bảo mật & Phân quyền*: Chặn tài khoản Portal (`is_portal_uid`) đổi tên nhóm nội bộ công ty (HTTP 403 Forbidden). Rào chắn Anti-IDOR bắt buộc caller là thành viên kênh.
->      * *Input Validation*: Tự động trim khoảng trắng, từ chối chuỗi rỗng/chỉ chứa khoảng trắng, giới hạn độ dài tối đa 100 ký tự.
->      * *Kiểm thử*: Pass 10/10 tests trong `test/features/chat_v2/chat_v2_rename_and_nickname_test.dart` và 247/247 tests phân hệ Chat V2.
->   2. **[FIX — CHỐNG VĂNG APP KHI CHỌN/LƯU ẢNH TRÊN WAYDROID & ANDROID 13+ (MỤC 3.9)]**:
->      * *Multi-tier Intent Fallback 4 cấp*: `pickMultipleMedia` ➔ `pickMultiImage` ➔ `pickImage(gallery)` ➔ `FilePicker.platform.pickFiles` (SAF DocumentsUI), ngăn chặn hoàn toàn lỗi `ActivityNotFoundException` trên giả lập/Waydroid thiếu Google Photos.
->      * *Safe-Guard Lưu Ảnh*: Bắt an toàn ngoại lệ `GalException` & `PlatformException`, tự động rơi tầng lưu file vào thư mục Documents/Downloads thay thế khi MediaStore album lỗi.
->      * *Android 13+ Permissions & Queries*: Bổ sung quyền `READ_MEDIA_IMAGES` và khai báo `<queries>` intent trong `AndroidManifest.xml`.
->      * *Kiểm thử*: Pass 16/16 tests liên quan media picker & attachment verification.
->   3. **[FIX — TẠO CÔNG VIỆC MỚI VÀ PHÂN BỔ DỰ ÁN (BUG-021)]**:
->      * Khắc phục lỗi 403 `access_denied` khi tạo task bằng cách gán tuple Many2many chuẩn Odoo `user_ids = [[6, 0, [uid]]]`.
->      * Tích hợp dropdown chọn dự án động từ Odoo, ngăn chặn lỗi `task_project_mismatch` / `ValidationError`.
->      * Pass 11/11 tests trong `test/task_repository_test.dart` và kiểm chứng tạo task thực tế trên live Waydroid.
->   4. **[FIX — XEM TỆP ĐÍNH KÈM TICKET IN-APP & BEARER STREAMING (MỤC 5.1)]**:
->      * Mở ảnh đính kèm ticket trực tiếp trong `ChatV2ImageViewerScreen` (pinch-to-zoom, pan, drag-to-dismiss).
->      * Tải tệp qua `/api/v1/mobile/attachments/{id}/download` với Bearer JWT token, xóa bỏ hoàn toàn lỗi redirect 303 về `/web/login`.
-> - **Chất lượng mã nguồn**:
->   * `flutter analyze` đạt **0 errors, 0 warnings (No issues found)**.
->   * Biên dịch Release APK sạch: `Vcloud_v2.9.12_Build144_Prod.apk` (106.6MB) xuất bản thành công.
+> **Bản Phát Hành Toàn Diện Build 144 (`v2.9.12+144`) — Nghiệm Thu Thành Công Trên Local Server & Khắc Phục Triệt Để Toàn Bộ Khe Hở Kỹ Thuật**:
+> - **Nghiệm thu Local Server (`192.168.1.100:8069`)**: Sếp Tân đã trực tiếp kiểm tra và xác nhận tính năng chia sẻ link chat Odoo Discuss hoạt động chuẩn xác (`ACCEPTED`), điều hướng đăng nhập thông minh 303 Redirect và chuyển thẳng vào phòng chat.
+> - **Trạng thái Production (`vuahethong.net`)**: Backend Odoo 17 & 19 đã commit (`c16ae03` & `039c946`) và push lên GitLab origin (`feat/17-chat-rename-nickname` & `feat/19-chat-rename-nickname`). Đang chờ cập nhật module `vmobile` lên Production server.
+> - **Chất lượng mã nguồn**: `flutter analyze` đạt **0 errors, 0 warnings**; pass toàn bộ test suite; đóng gói APK release `Vcloud_v2.9.12_Build144_Prod.apk` (106.6MB).
+
+### 1. Phân hệ Giao tiếp Nội bộ (Chat V2, Media & Call)
+- **[FIX & SECURITY] Chia sẻ Link Cuộc trò chuyện & Điều hướng Thông minh (Mục 3.15 / 3.30)**:
+  * *Odoo Backend (17 & 19)*: Bổ sung trích xuất token `uuid` và `invitation_url` chuẩn `/chat/<id>/<uuid>`; tự động sinh UUID v4 cho kênh cũ (`_ensure_channel_uuid`); mở rộng `VMobileDiscussPublicPage(PublicPageController)` chuyển hướng HTTP 303 sang `/web/login?redirect=...` cho khách chưa đăng nhập khi mở kênh nội bộ, bypass rào cản kiểm duyệt `360_support`.
+  * *Flutter Client*: Model `ChatV2Channel` nhận `uuid`/`invitationUrl`; refactor `_copyChannelLink()` ưu tiên lấy link từ server kèm lazy fallback; pass 10/10 tests `chat_v2_share_link_test.dart`.
+- **[IMPROVE & UX] Tối ưu Giao diện & Điểm Kích hoạt Tìm kiếm Tin nhắn (Mục 3.12 / 3.27)**:
+  * Khử trùng lặp entry point: Đưa nút "Tìm tin nhắn" duy nhất vào `ChatV2InfoSheet`, gỡ icon search trên AppBar Chat Room.
+  * Sửa lỗi icon tàng hình White-on-White (`arrowLeft`, `chevronUp`, `chevronDown`) trên nền AppBar trắng.
+  * Tích hợp Keyword Highlighting Engine trong `ChatV2MessageItem`: In đậm từ khóa, tô nền cam `#F97316` cho active match và nền vàng `#FEF08A` cho passive matches.
+  * Tái thiết kế Search Bar Capsule bo tròn 19px, tích hợp nút Clear `X`, badge đếm `[X / Y]`, ẩn nút FAB cuộn nhanh khi tìm kiếm; pass 10/10 tests `chat_v2_search_in_conversation_test.dart`.
+- **[NEW & SECURITY] Đổi Tên Nhóm & Đặt Biệt Danh Chat 1-1 (Mục 3.11 / 3.26)**:
+  * Kích hoạt icon cây viết `LucideIcons.pencil` tại AppBar `ChatV2InfoSheet`: Nhóm đổi qua API Odoo `/rename` đồng bộ toàn cục; Chat 1-1 đặt biệt danh cá nhân hóa lưu bền vững trong `FlutterSecureStorage` không làm đổi tên danh bạ ERP.
+  * Chặn tài khoản Portal (HTTP 403), kiểm tra Anti-IDOR, trim khoảng trắng; pass 10/10 tests `chat_v2_rename_and_nickname_test.dart`.
+- **[FIX & STABILITY] Chống Văng App Khi Chọn & Lưu Ảnh (Mục 3.9 / 3.20)**:
+  * Trang bị Multi-tier Intent Fallback 4 cấp (`pickMultipleMedia` ➔ `pickMultiImage` ➔ `pickImage` ➔ `FilePicker` SAF DocumentsUI) chống lỗi `ActivityNotFoundException` trên Waydroid/Android thiếu Google Photos.
+  * Bọc Safe-Guard `GallerySaver.saveImage` bắt ngoại lệ `GalException`/`PlatformException`, tự động lưu disk Documents/Downloads; pass 16/16 tests.
+- **[NEW] Thông báo Đẩy Nổi Heads-up Banner Android (Mục 3.25)**:
+  * Khởi tạo `AndroidNotificationChannel` có ID `vcloud_high_importance_channel` với mức `Importance.max`.
+  * Khai báo `default_notification_channel_id` trong `AndroidManifest.xml`, đồng bộ backend Odoo cờ `priority: "high"`; pass 4/4 tests.
+- **[IMPROVE & UX] Chuẩn Hóa Menu Ngữ Cảnh Chat 1-1 (Mục 3.14 / 3.29)**:
+  * Ẩn tùy chọn vô lý "Rời cuộc trò chuyện" ở chat cá nhân 1-1, thay bằng "Ẩn / Lưu trữ cuộc trò chuyện" (`archiveChannel`).
+  * Tách biệt luồng pop modal an toàn trước khi mở dialog xác nhận, loại bỏ triệt để hiện tượng đơ/nuốt giao diện.
+- **[FIX] Khắc Phục Lỗi Chọn Tệp Đính Kèm FilePicker (Mục 3.13 / 3.28)**:
+  * Bổ sung Multi-tier Fallback xử lý ngoại lệ `PlatformException(unknown_path)` khi đọc file từ bộ nhớ tạm FUSE/SAF trên Android; hiển thị thông báo lỗi thân thiện.
+
+### 2. Phân hệ Quản lý Công việc & Dashboard (Home & Tasks)
+- **[FIX & FEATURE] Thêm Công Việc Mới & Phân Bổ Dự Án (Mục 4.4 / BUG-021)**:
+  * Khắc phục triệt để lỗi 403 `access_denied`: Đóng gói tuple Many2many `values['user_ids'] = [[6, 0, [uid]]]`, tự động gán UID user đang đăng nhập.
+  * Nạp dropdown dự án động từ Odoo qua `listProjects()`, ngăn chặn lỗi `task_project_mismatch` / `ValidationError` khi log giờ.
+  * Bổ sung DatePicker hạn chót (`date_deadline`), mô tả (`description`), chip phân loại (`TimesheetCategory`); pass 11/11 tests `task_repository_test.dart`.
+- **[IMPROVE] Trình Biên Tập Checklist Đầu Việc Subtasks (Mục 4.8 / BUG-010)**:
+  * Nâng cấp `TaskChecklistEditor`: Xem danh sách subtasks, toggle hoàn thành kèm chữ gạch ngang, thêm/xóa subtask động.
+  * Tự động tính toán % tiến độ task theo công thức `(completed / total) * 100%` với thanh `LinearProgressIndicator`; pass 12/12 tests `task_checklist_subtasks_test.dart`.
+- **[IMPROVE & UX] Lời Chào Cá Nhân Hóa & Pháo Hoa Check-in (Mục 4.1 & 4.3 / BUG-008 & 009)**:
+  * Lời chào thông minh đổi theo buổi (Sáng 5h-12h, Chiều 12h-18h, Tối sau 18h) qua `greetingForHour()`, nạp chức danh và công ty từ `userMetadata`.
+  * Bắn hiệu ứng pháo hoa chúc mừng `CelebrationFireworksOverlay` ngay khi bấm Check-in nhanh thành công; pass 7/7 tests.
+- **[VERIFIED] Thẻ Chỉ Số Kép & Bảng Công Thực Tế (Mục 4.2)**:
+  * Hiển thị 4 thẻ chỉ số thời gian thực từ `/api/v1/mobile/dashboard/summary` (Giờ làm, Trạng thái Check-in, 63 tasks, 5 tickets; bảng công tháng 9 hiển thị 21.5/26 công).
+
+### 3. Phân hệ Hỗ trợ Kỹ thuật & SLA (Helpdesk Tickets)
+- **[FIX & UX] Xem Tệp Đính Kèm Ticket In-App & Bearer Streaming (Mục 5.1 / 5.3)**:
+  * Ảnh mở trực tiếp trong `ChatV2ImageViewerScreen` (pinch-to-zoom, pan, quay ảnh, tải gallery), không bị ném ra app ngoài gây `noAppToOpen`.
+  * Tải tệp qua `/api/v1/mobile/attachments/{id}/download` với Bearer JWT token và query `access_token`, xóa bỏ hoàn toàn lỗi redirect 303 về `/web/login`.
+  * Tiền tố hóa tên file lưu tạm `att_${id}_$safeName` chống xung đột; thumbnail 40x40 bo góc kèm cache RAM; tách riêng nút Xem và nút Tải.
+  * Định dạng tên tệp thông minh (Smart Name Formatting): Tự động đổi ảnh generic (`image.png`, `clipboard.png`) thành `Ảnh đính kèm #1`; pass 9/9 tests.
+- **[NEW & FIX] Khắc Phục Toàn Diện Khe Hở Phân Hệ Ticket (Mục 5.10 - 5.14 / Gaps V2)**:
+  * *Hoạt động Nhắc việc (`mail.activity`)*: Bổ sung endpoint tạo, đóng (`/done`) và nạp danh mục `mail.activity` trên cả Odoo 17 & 19; tích hợp `ActivityLogRepository` và dialog tạo/hoàn thành trên `TicketDetailScreen`.
+  * *Phân công & Chuyển giao*: Bổ sung route `GET /api/v1/mobile/ticket/assignees`, cập nhật `/workflow` và `/update` hỗ trợ gán `user_id`/`assignee_id`; tích hợp `_showReassignDialog` và chạm đổi trực tiếp trên chip `Phụ trách`.
+  * *Chỉnh sửa Thông tin Ticket*: Bổ sung route `POST/PUT /api/v1/mobile/ticket/<id>/update` trên Odoo 17 & 19; tích hợp icon cây viết mở dialog sửa tiêu đề, mô tả, mức ưu tiên P1-P4, đội xử lý.
+  * *Dọn dẹp API Rác & Bảo toàn Audit Trail*: `TicketCommentRepository.delete()` ném `Failure` chặn xóa comment bảo vệ lịch sử dữ liệu; `sendContact()` ghi nhận danh thiếp vào Chatter native.
+  * *Nút Reopen*: Hiển thị duy nhất nút nổi bật màu cam `Mở lại ticket` ở thanh thao tác đáy khi ticket ở trạng thái Done; pass 36/36 tests phân hệ Ticket.
+- **[FIX & UI] Tối Ưu Chuyển Cảnh & Chuẩn Hóa SLA Deadline (Mục 5.4 & 5.10 / BUG-012)**:
+  * Gỡ bỏ thẻ `Hero` trên tiêu đề ticket, triệt tiêu lỗi chữ rơi tự do từ trên trời xuống, đồng bộ trượt ngang `SlideTransition` chuẩn Native Mobile.
+  * Sửa getter `Ticket.isOverdue`: Trả về `false` khi `deadline == null` (không fallback sang `createdAt`), hiển thị "SLA: Không giới hạn" tránh báo động giả trễ hạn; pass 5/5 tests `ticket_sla_deadline_test.dart`.
+
+### 4. Phân hệ Quản lý Thời gian (Attendance & Timesheet)
+- **[VERIFIED] Chấm Công GPS & Đồng Hồ Bấm Giờ Stopwatch Thực Tế (Mục 2.1 & 2.3)**:
+  * Xác thực tọa độ GPS theo bán kính văn phòng; đồng hồ bấm giờ Start/Pause/Stop đếm thực tế từng giây kết nối an toàn với luồng ghi nhận giờ.
+- **[IMPROVE & UX] Tối Ưu Tab Nhật Ký & Nút Chuyển Nhanh Tháng Này (Mục 2.2)**:
+  * Đổi tên Tab 3 thành `Nhật ký` (tránh tràn chữ trên màn hình hẹp).
+  * Trạng thái rỗng thông minh: Khi bộ lọc "Hôm nay" chưa có log giờ, hiển thị thông báo kèm nút "Xem nhật ký tháng này" giúp nhân viên 1 chạm nạp ngay toàn bộ nhật ký trong tháng; pass 13/13 tests `timesheet_filter_test.dart`.
+
+### 5. Phân hệ Hồ sơ Cá nhân, Bảo mật & Xác thực (Profile & Auth)
+- **[VERIFIED] Thẻ Hồ Sơ Định Danh Nhân Sự Hero Card (Mục 6.1)**:
+  * Đồng bộ ảnh đại diện, họ tên, công ty và chức danh công việc động 100% từ Odoo API `/api/v1/auth/me` theo từng tài khoản.
+- **[SECURITY] Xóa Sạch Token RAM & Đăng Xuất An Toàn 4 Lớp (Mục 1.5 & 6.9)**:
+  * Cơ chế hủy token RAM trong 0ms khi bấm đăng xuất; dọn dẹp sạch sẽ 4 tầng: FCM push trên máy chủ, RAM cache 10 module, storage và Riverpod state; pass 12/12 tests `logout_session_wipe_test.dart`.
+
+### 6. Hạ tầng Kỹ thuật & Đóng gói Bản dựng (CI/CD & Native SDK)
+- **[INFRA] Nâng Cấp Tương Thích Android 13+ & SDK 37 (Build 144)**:
+  * Cấu hình `compileSdk = 37` và khai báo `android.suppressUnsupportedCompileSdk=37` trong `build.gradle`.
+  * Khắc phục triệt để xung đột AAR metadata với thư viện `permission_handler_android` trên Gradle 9.0/AGP mới nhất.
+  * Biên dịch thành công gói cài đặt Release APK sạch: `Vcloud_v2.9.12_Build144_Prod.apk` (106.6MB).
 >
 > ---
 
