@@ -462,7 +462,7 @@ Phân hệ cốt lõi cung cấp trải nghiệm giao tiếp toàn diện: trò 
   - *Kịch bản nghiệm thu*: Bấm Play ➔ Âm thanh phát rõ ràng qua loa điện thoại kèm thanh thời lượng chạy.
 
 ### E. Cuộc gọi Thoại P2P (Voice Call WebRTC - Odoo 19 RTC Core):
-- [x] **3.23 Cuộc gọi Thoại 1-1 WebRTC P2P (Native Odoo 19 RTC)**
+- [x] **3.23 Cuộc gọi Thoại 1-1 WebRTC P2P (Native Odoo 19 RTC)** `[COMPLETED - Pushed & Synchronized]`
   - *Mô tả*: Gọi điện thoại trực tiếp giữa App Mobile và Odoo 19 Web qua giao thức WebRTC P2P; truyền âm thanh hai chiều sắc nét, không độ trễ.
   - *Tệp liên quan*: `lib/features/chat_v2/application/chat_v2_webrtc_engine.dart`, `lib/features/chat_v2/presentation/screens/chat_v2_call_screen.dart`.
   - *Kịch bản nghiệm thu*: Bấm nút gọi trên mobile ➔ Trình duyệt Odoo 19 Web của đồng nghiệp đổ chuông và nhận cuộc gọi đàm thoại thông suốt.
