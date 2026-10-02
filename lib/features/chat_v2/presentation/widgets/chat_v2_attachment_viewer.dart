@@ -10,6 +10,7 @@ import '../../../../core/api/mobile_attachment_repository.dart';
 import '../../../../core/api/odoo_api_client.dart';
 import '../../../../core/utils/file_download.dart';
 import '../../../../core/utils/magic_bytes_validator.dart';
+import '../screens/chat_v2_video_player_screen.dart';
 
 /// Trình xử lý mở tài liệu trực tiếp trong ứng dụng (In-App Document Viewer)
 /// Sử dụng open_filex để mở tài liệu (PDF, Word, Excel, TXT,...) qua native viewer.
@@ -40,6 +41,36 @@ class ChatV2AttachmentViewer {
   }) async {
     final cleanName = filename.trim();
     final messenger = ScaffoldMessenger.of(context);
+
+    // 0. Nếu là tệp Video, mở trực tiếp trình phát Video In-App
+    final extLower = cleanName.toLowerCase();
+    final isVideo = extLower.endsWith('.mp4') ||
+        extLower.endsWith('.mov') ||
+        extLower.endsWith('.mkv') ||
+        extLower.endsWith('.avi') ||
+        extLower.endsWith('.3gp') ||
+        (extLower.endsWith('.webm') && !extLower.startsWith('voice_'));
+
+    if (isVideo) {
+      final targetUrl = downloadUrl ??
+          (attachmentId != null && attachmentId > 0
+              ? '/api/v1/mobile/attachments/$attachmentId/download'
+              : '');
+      final fullUrl = targetUrl.startsWith('http')
+          ? targetUrl
+          : odooApiClient.absoluteUrl(targetUrl);
+
+      Navigator.of(context).push(
+        ChatV2VideoPlayerScreen.route(
+          videoUrl: fullUrl,
+          title: cleanName,
+          headers: odooApiClient.authHeaders,
+          bytes: directBytes,
+          attachmentId: attachmentId != null ? '$attachmentId' : null,
+        ),
+      );
+      return OpenResult(type: ResultType.done);
+    }
 
     // 1. Hiển thị thông báo trạng thái tải tài liệu trực quan
     messenger.hideCurrentSnackBar();

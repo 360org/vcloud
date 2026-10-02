@@ -48,14 +48,28 @@ class ChatV2Attachment {
   bool get isAudio {
     final mime = mimetype?.toLowerCase() ?? '';
     if (mime.startsWith('audio/')) return true;
+    if (mime.startsWith('video/')) return false;
     final lowerName = name.toLowerCase();
     return lowerName.endsWith('.m4a') ||
         lowerName.endsWith('.aac') ||
         lowerName.endsWith('.mp3') ||
         lowerName.endsWith('.wav') ||
         lowerName.endsWith('.ogg') ||
-        lowerName.endsWith('.webm') ||
+        (lowerName.endsWith('.webm') && lowerName.startsWith('voice_')) ||
         lowerName.endsWith('.opus');
+  }
+
+  bool get isVideo {
+    final mime = mimetype?.toLowerCase() ?? '';
+    if (mime.startsWith('video/')) return true;
+    if (mime.startsWith('audio/')) return false;
+    final lowerName = name.toLowerCase();
+    return lowerName.endsWith('.mp4') ||
+        lowerName.endsWith('.mov') ||
+        lowerName.endsWith('.mkv') ||
+        lowerName.endsWith('.avi') ||
+        lowerName.endsWith('.3gp') ||
+        (lowerName.endsWith('.webm') && !lowerName.startsWith('voice_'));
   }
 
   String get extension {
@@ -207,6 +221,26 @@ class ChatV2Message {
   bool get isPinned => pinnedAt != null && pinnedAt!.isNotEmpty;
 
   bool get hasImageAttachment => attachments.any((a) => a.isImage);
+  bool get hasVideoAttachment => attachments.any((a) => a.isVideo);
+
+  bool get isVideoFilename {
+    final clean = content.trim().toLowerCase();
+    if (clean.isEmpty ||
+        clean.contains('\n') ||
+        clean.length > 250 ||
+        clean.startsWith('http://') ||
+        clean.startsWith('https://') ||
+        clean.startsWith('www.') ||
+        clean.contains('://')) {
+      return false;
+    }
+    return clean.endsWith('.mp4') ||
+        clean.endsWith('.mov') ||
+        clean.endsWith('.mkv') ||
+        clean.endsWith('.avi') ||
+        clean.endsWith('.3gp') ||
+        (clean.endsWith('.webm') && !clean.startsWith('voice_'));
+  }
 
   bool get isImageFilename {
     final clean = content.trim().toLowerCase();

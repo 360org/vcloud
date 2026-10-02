@@ -100,6 +100,7 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
   String? _selectedFilename;
   String? _selectedMimetype;
   bool _isSelectedImage = false;
+  bool _isSelectedVideo = false;
   Timer? _typingDebounce;
   bool _isTyping = false;
 
@@ -499,15 +500,19 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
     try {
       final text = _controller.text.trim();
 
-      // Nếu có tệp/ảnh đang được chọn -> gửi tệp kèm caption
+      // Nếu có tệp/ảnh/video đang được chọn -> gửi tệp kèm caption
       if (_selectedBytes != null) {
         final bytes = _selectedBytes!;
         final filename = _selectedFilename ??
             (_isSelectedImage
                 ? 'image_${DateTime.now().millisecondsSinceEpoch}.jpg'
-                : 'file_${DateTime.now().millisecondsSinceEpoch}');
+                : (_isSelectedVideo
+                    ? 'video_${DateTime.now().millisecondsSinceEpoch}.mp4'
+                    : 'file_${DateTime.now().millisecondsSinceEpoch}'));
         final mime = _selectedMimetype ??
-            (_isSelectedImage ? 'image/jpeg' : 'application/octet-stream');
+            (_isSelectedImage
+                ? 'image/jpeg'
+                : (_isSelectedVideo ? 'video/mp4' : 'application/octet-stream'));
         final isImage = _isSelectedImage;
         final caption = text.isNotEmpty ? text : null;
 
@@ -516,6 +521,7 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
           _selectedFilename = null;
           _selectedMimetype = null;
           _isSelectedImage = false;
+          _isSelectedVideo = false;
           _isUploading = true;
         });
 
@@ -855,6 +861,7 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
               _selectedFilename = filename;
               _selectedMimetype = mime;
               _isSelectedImage = !isVideo;
+              _isSelectedVideo = isVideo;
             });
           }
           return;
@@ -911,6 +918,7 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
           _selectedFilename = null;
           _selectedMimetype = null;
           _isSelectedImage = false;
+          _isSelectedVideo = false;
           _isUploading = false;
         });
 
@@ -1018,6 +1026,7 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
           _selectedFilename = filename;
           _selectedMimetype = mime;
           _isSelectedImage = true;
+          _isSelectedVideo = false;
         });
       }
     } on PlatformException catch (e, stack) {
@@ -1207,11 +1216,19 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
         finalMime = 'image/jpeg';
       }
 
+      final isVideo = ext == 'mp4' ||
+          ext == 'mov' ||
+          ext == 'mkv' ||
+          ext == 'avi' ||
+          ext == 'webm' ||
+          ext == '3gp';
+
       setState(() {
         _selectedBytes = finalBytes;
         _selectedFilename = finalFilename;
         _selectedMimetype = finalMime;
         _isSelectedImage = isImg;
+        _isSelectedVideo = isVideo;
       });
     } catch (e) {
       if (mounted) {
@@ -1226,6 +1243,236 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
         );
       }
     }
+  }
+
+  Future<void> _handlePickVideo(ImageSource source) async {
+    try {
+      Uint8List? bytes;
+      String? filename;
+      String? mime;
+
+      if (source == ImageSource.gallery) {
+        // ponytail: FilePicker an toàn hơn image_picker trên Android khi chọn video từ bộ nhớ
+        FilePickerResult? res;
+        try {
+          res = await FilePicker.platform.pickFiles(
+            type: FileType.video,
+            allowMultiple: false,
+            withData: true,
+          );
+        } on PlatformException catch (pe) {
+          debugPrint('[ChatInputBar] FilePicker pick video withData=true failed: $pe');
+          try {
+            res = await FilePicker.platform.pickFiles(
+              type: FileType.video,
+              allowMultiple: false,
+              withData: false,
+            );
+          } catch (pe2) {
+            debugPrint('[ChatInputBar] FilePicker pick video withData=false failed: $pe2');
+          }
+        } catch (e) {
+          debugPrint('[ChatInputBar] FilePicker pick video error: $e');
+        }
+
+        if (res == null || res.files.isEmpty) return;
+
+        final f = res.files.single;
+        if (f.size > maxDocumentSizeBytes) {
+          if (mounted) {
+            _showFileSizeExceededDialog(
+              context: context,
+              filename: f.name,
+              fileSizeBytes: f.size,
+              maxSizeBytes: maxDocumentSizeBytes,
+            );
+          }
+          return;
+        }
+
+        bytes = f.bytes;
+        if (bytes == null && f.path != null && f.path!.isNotEmpty && !kIsWeb) {
+          try {
+            bytes = await File(f.path!).readAsBytes();
+          } catch (ioErr) {
+            debugPrint('[ChatInputBar] readAsBytes video failed: $ioErr');
+          }
+        }
+
+        if (bytes != null) {
+          final ext = f.extension?.toLowerCase() ?? 'mp4';
+          filename = f.name.isNotEmpty
+              ? f.name
+              : 'video_${DateTime.now().millisecondsSinceEpoch}.$ext';
+          mime = _guessMimeType(ext);
+          if (mime == 'application/octet-stream') {
+            mime = ext == 'mov' ? 'video/quicktime' : 'video/mp4';
+          }
+        }
+      } else {
+        // source == ImageSource.camera: dùng máy ảnh quay video
+        XFile? file;
+        try {
+          file = await _picker.pickVideo(
+            source: ImageSource.camera,
+            maxDuration: const Duration(minutes: 10),
+          );
+        } on PlatformException catch (e) {
+          debugPrint('[ChatInputBar] pickVideo camera error: ${e.code} - ${e.message}');
+          if (mounted) {
+            final isNoActivity = e.code.toLowerCase().contains('activity') ||
+                (e.message?.toLowerCase().contains('activity') ?? false) ||
+                e.code == 'no_available_camera';
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  isNoActivity
+                      ? 'Không tìm thấy ứng dụng Máy ảnh trên thiết bị này'
+                      : 'Không thể mở trình quay video: ${e.message ?? e.code}',
+                ),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+          return;
+        }
+
+        if (file == null) return;
+
+        final sizeInBytes = await file.length();
+        if (sizeInBytes > maxDocumentSizeBytes) {
+          if (mounted) {
+            _showFileSizeExceededDialog(
+              context: context,
+              filename: file.name.isNotEmpty ? file.name : 'video.mp4',
+              fileSizeBytes: sizeInBytes,
+              maxSizeBytes: maxDocumentSizeBytes,
+            );
+          }
+          return;
+        }
+
+        bytes = await file.readAsBytes();
+        final ext = file.name.contains('.') ? file.name.split('.').last.toLowerCase() : 'mp4';
+        filename = file.name.isNotEmpty
+            ? file.name
+            : 'video_${DateTime.now().millisecondsSinceEpoch}.$ext';
+        mime = file.mimeType ?? (ext == 'mov' ? 'video/quicktime' : 'video/mp4');
+      }
+
+      if (bytes == null || filename == null) return;
+
+      if (mounted) {
+        setState(() {
+          _selectedBytes = bytes;
+          _selectedFilename = filename;
+          _selectedMimetype = mime;
+          _isSelectedImage = false;
+          _isSelectedVideo = true;
+        });
+      }
+    } catch (e, stack) {
+      debugPrint('[ChatInputBar] _handlePickVideo error: $e\n$stack');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi chọn video: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showVideoSourcePickerSheet() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Gửi Video',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A),
+                ),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF6366F1).withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: const Icon(LucideIcons.camera, color: Color(0xFF6366F1), size: 20),
+                ),
+                title: Text(
+                  'Quay video mới',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A),
+                  ),
+                ),
+                subtitle: Text(
+                  'Sử dụng máy ảnh để quay video trực tiếp',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _handlePickVideo(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF8B5CF6).withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: const Icon(LucideIcons.video, color: Color(0xFF8B5CF6), size: 20),
+                ),
+                title: Text(
+                  'Chọn video từ thư viện',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A),
+                  ),
+                ),
+                subtitle: Text(
+                  'Tải lên video có sẵn trong bộ sưu tập',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _handlePickVideo(ImageSource.gallery);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   String _guessMimeType(String? ext) {
@@ -1264,6 +1511,18 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
         return 'text/plain';
       case 'zip':
         return 'application/zip';
+      case 'mp4':
+        return 'video/mp4';
+      case 'mov':
+        return 'video/quicktime';
+      case 'mkv':
+        return 'video/x-matroska';
+      case 'avi':
+        return 'video/x-msvideo';
+      case 'webm':
+        return 'video/webm';
+      case '3gp':
+        return 'video/3gpp';
       default:
         return 'application/octet-stream';
     }
@@ -1426,6 +1685,16 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
                       onTap: () {
                         Navigator.pop(ctx);
                         _handlePickImage(ImageSource.camera);
+                      },
+                      isDark: isDark,
+                    ),
+                    _buildAttachmentActionButton(
+                      icon: LucideIcons.video,
+                      gradientColors: const [Color(0xFF6366F1), Color(0xFF4F46E5)],
+                      label: 'Video',
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _showVideoSourcePickerSheet();
                       },
                       isDark: isDark,
                     ),
@@ -1858,6 +2127,39 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
                                 fit: BoxFit.cover,
                               ),
                             )
+                          else if (_isSelectedVideo)
+                            Container(
+                              width: 46,
+                              height: 46,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF6366F1).withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: const Color(0xFF6366F1).withValues(alpha: 0.4),
+                                  width: 1,
+                                ),
+                              ),
+                              alignment: Alignment.center,
+                              child: const Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  Icon(
+                                    LucideIcons.video,
+                                    color: Color(0xFF6366F1),
+                                    size: 24,
+                                  ),
+                                  Positioned(
+                                    bottom: 0,
+                                    right: 0,
+                                    child: Icon(
+                                      LucideIcons.playCircle,
+                                      color: Color(0xFF4F46E5),
+                                      size: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
                           else
                             Container(
                               width: 46,
@@ -1881,7 +2183,9 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
                               children: [
                                 Text(
                                   _selectedFilename ??
-                                      (_isSelectedImage ? 'Hình ảnh' : 'Tệp tin'),
+                                      (_isSelectedVideo
+                                          ? 'Video'
+                                          : (_isSelectedImage ? 'Hình ảnh' : 'Tệp tin')),
                                   style: TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w700,
@@ -1892,7 +2196,9 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  '${(_selectedBytes!.length / 1024).toStringAsFixed(1)} KB',
+                                  _selectedBytes!.length >= 1024 * 1024
+                                      ? '${(_selectedBytes!.length / (1024 * 1024)).toStringAsFixed(1)} MB'
+                                      : '${(_selectedBytes!.length / 1024).toStringAsFixed(1)} KB',
                                   style: TextStyle(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w500,
@@ -1914,6 +2220,7 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
                                   _selectedFilename = null;
                                   _selectedMimetype = null;
                                   _isSelectedImage = false;
+                                  _isSelectedVideo = false;
                                 });
                               },
                               child: Padding(

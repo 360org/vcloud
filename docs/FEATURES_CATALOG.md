@@ -195,8 +195,8 @@
 ### 3.20. Mở & Xem Tệp Tài liệu Định dạng PDF, Excel, Word Trực tiếp In-App
 - Tích hợp bộ giải mã xem trực tiếp các tệp văn phòng phổ biến ngay trong ứng dụng mà không cần chuyển hướng sang trình duyệt bên ngoài.
 
-### 3.21. Tải & Lưu Ảnh vào Thư viện Ảnh Native của Thiết bị
-- Tải ảnh đính kèm từ cuộc trò chuyện và lưu trực tiếp vào Thư viện ảnh (Photo Gallery/Album) của máy với 1 chạm.
+### 3.21. Tải & Lưu Ảnh và Video vào Thư viện Native của Thiết bị (Photos Album / Gallery)
+- Tải ảnh và video từ cuộc trò chuyện / trình phát video in-app và lưu trực tiếp vào Thư viện hệ thống (Photo Gallery/Album/MediaStore) của máy với 1 chạm.
 
 ### 3.22. Tạo Bình chọn Khảo sát Ý kiến Thời gian thực (Poll Voting)
 - Cho phép tạo các cuộc thăm dò ý kiến trong nhóm với nhiều lựa chọn.

@@ -3,7 +3,8 @@
 > **Dự án**: VCloud Mobile App (`vclients` Flutter) kết nối Odoo Backend (`v_mobile_17` & `v_mobile_19`)  
 > **Phiên bản hiện tại**: `v2.9.12+144` (Bản dựng TestFlight iOS & APK Android mới nhất)  
 > **Nguồn sự thật (Single Source of Truth)**: Tài liệu kiểm soát toàn bộ tính năng theo 6 nhóm nghiệp vụ chuẩn hóa, phục vụ trực tiếp cho anh Tân nghiệm thu thực tế và báo cáo tiến độ.  
-> 🟢 **Phiên Kiểm Thử Hiện Tại**: `[x] [COMPLETED - Pushed All Repos]` (Đã hoàn tất đồng bộ an toàn 100% mã nguồn, đặc tả 78 tính năng SSOT và push thành công lên các nhánh chỉ định)
+> 🟢 **Phiên Kiểm Thử Hoàn Tất**: `[x] [L5 — VERIFIED (Local Server 192.168.1.100 & Waydroid Android 13 APK — Đạt 100% 4/4 Kịch Bản)]`  
+> 🟢 **Tính Năng Bổ Sung Hoàn Tất**: `[x] [L4 — VERIFIED - Save Video directly to Native Photos Album/Gallery via Gal.putVideo (16/16 Tests Pass)]`
 
 ---
 
@@ -47,7 +48,7 @@
 
 ### 🟢 GIAI ĐOẠN 3: GIAO TIẾP NỘI BỘ (CHAT V2, MEDIA & CALL) — `[x] [Claude-Verified — 9/9 PASS 100%]`
 - [x] 3.1 **Bóc tách tên kênh rác (Sanitize Name)**: Tự động lọc sạch `Users + Internal /`, `Users /` hiển thị tên nguyên bản. Đã verify 30/30 unit tests pass và quét live 80 channels trên Production `vuahethong.net` (kênh #4253 hiển thị sạch "Internal", kênh 1-1 hiển thị đúng tên đối tác "Bùi Tuấn Kiệt").
-- [x] 3.2 **Lưu Ảnh Thư Viện (Native Gallery Saver - 3.18)**: Mở ảnh ➔ Bấm Lưu ➔ SnackBar Material 3 báo thành công ➔ Ảnh lưu vào Album (`gal`). Đã verify 19/19 unit/widget tests pass, test live stream avatar tải về thành công (HTTP 200, 7847 bytes).
+- [x] 3.2 **Lưu Ảnh & Video Thư Viện (Native Gallery Saver - 3.18 & Video)**: Mở ảnh/video in-app ➔ Bấm Lưu ➔ SnackBar Material 3 báo thành công ➔ File ghi thẳng vào MediaStore / Photos Album (`gal.putImageBytes` / `gal.putVideo`). Đã verify 16/16 video tests pass, tự động dọn tệp tạm an toàn. Test live stream avatar tải về thành công (HTTP 200, 7847 bytes).
 - [x] 3.3 **Mở File In-App (`open_filex` - 3.19)**: Bấm file PDF/Excel trong chat ➔ Xem trực tiếp trong app, không văng ra ngoài browser ngoài (`url_launcher` blocked). Đã verify 14/14 tests pass, kiểm tra magic bytes chống nhầm ảnh lỗi server, xử lý `ResultType.noAppToOpen` mượt mà.
 - [x] 3.4 **Bình chọn (Poll) & Thả Cảm xúc (Reactions - 3.12, 3.13, 3.14)**: Tạo Poll vote % real-time; chạm badge cảm xúc mở BottomSheet chi tiết (`ChatV2ReactionDetailsSheet`). Đã fix triệt để hiển thị Avatar thực tế người thả reaction (kết nối endpoint avatar Odoo & `currentUserAvatar`, hiển thị ảnh đại diện thật thay vì chữ cái viết tắt, badge emoji đè góc dưới). Đã verify trên Waydroid live phòng Bùi Tuấn Kiệt (hiển thị ảnh avatar Sếp Tân kèm nhãn "(Bạn)" và tab lọc emoji ❤️) và pass 3/3 widget tests trong `test/features/chat_v2/chat_v2_reaction_details_test.dart`.
 - [x] 3.5 **Tín hiệu Máy bận VoIP (Fast-Busy)**: Cuộc gọi thứ 3 nhận tín hiệu bận ngầm (`reason: 'busy'`), hiển thị "Người dùng đang trong cuộc gọi khác", caller tự động thoát sau đúng 1.2s (`Duration(milliseconds: 1200)`). Đã verify 27/27 call tests pass, endpoint live `/api/v1/mobile/chat/call/active` phản hồi chuẩn HTTP 200.
@@ -167,6 +168,10 @@
     * Chạm thẻ tệp: Mở trực tiếp màn hình In-App `ChatV2ImageViewerScreen`, hiển thị đầy đủ hình ảnh đơn bán hàng DAVITA sắc nét kèm nút Zoom, Pan, Quay và Tải về; thanh tiêu đề hiển thị `Ảnh đính kèm #1`.
     * Chạm nút download: SnackBar / Toast thông báo `"✅ Đã lưu ảnh vào Thư viện"` xuất hiện ngay lập tức.
     * Thumbnail xem trước: Sau khi xem, thẻ tệp đính kèm render thumbnail thực tế 40x40 thu nhỏ của tài liệu DAVITA thay cho icon màu xanh tĩnh 38x38 ban đầu; tiêu đề thẻ hiển thị đẹp mắt `Ảnh đính kèm #1` kèm phụ đề `image.png · 863.8 KB`.
+  - *Bằng chứng kiểm chứng thực nghiệm L5 trên Local Server (192.168.1.100:8069, DB demo-17 & Waydroid)*:
+    * Kiểm thử trên Ticket 118 (`Ticket Portal Test 17 Thanh Cong`) với tệp đính kèm `vcloud_ticket_screenshot.png` (ID `1294`, `image/png`, 1,111 bytes).
+    * Chạm trực tiếp vào thẻ tệp tại tọa độ (x=180, y=360): Mở tức thì màn hình In-App `ChatV2ImageViewerScreen` toàn màn hình nền đen với hiệu ứng Fade mượt mà (không slide right), hiển thị ảnh sắc nét kèm nút Quay lại, Xoay và Lưu ảnh.
+    * Chạm nút download (x=400, y=70): SnackBar thông báo `Đã lưu ảnh vào Thư viện` xuất hiện kèm check xanh tròn. File đã được ghi nhận an toàn tại `/sdcard/Pictures/vcloud_ticket_screenshot.png` (1,111 bytes).
   - *Kiểm thử*: Pass 9/9 tests trong `test/ticket_attachment_verification_test.dart` và 2/2 tests trong `test/features/ticket/`.
   - *Đính kèm khi tạo ticket*: Luồng đính kèm khi tạo ticket hoạt động tốt, đã pass 6/6 tests trong `test/ticket_attachment_verification_test.dart`.
 - [x] 5.2 **Làm sạch HTML (HTML Sanitizer - 5.6)**: Nội dung ticket và comment chứa thẻ HTML được bóc tách bằng `cleanHtmlText`, hiển thị văn bản thuần chuẩn xác. Pass 2/2 tests trong `test/ticket_html_mapping_test.dart`.
@@ -709,6 +714,35 @@ Phân hệ cốt lõi cung cấp trải nghiệm giao tiếp toàn diện: trò 
    - Thêm nút "Gửi danh thiếp" trong menu dấu cộng của Chat V2 kết nối với `POST /api/v1/mobile/chat/channels/<id>/contact`.
    - Tìm kiếm full-text trên server DB qua API search channels.
    - Cuộc gọi Video 1-1 & Đàm thoại Nhóm.
+
+### N. Gửi & Phát Video In-App (Full In-App Video Sending & Player):
+- [x] [L5 — VERIFIED] **3.31 Gửi & Phát Video In-App (Full In-App Video Sending & Player)**: `[x] [L5-VERIFIED TRÊN LOCAL SERVER 192.168.1.100 & WAYDROID ANDROID 13]`
+  - *Mô tả*: Cung cấp tính năng quay/chọn video từ thư viện, hiển thị preview trên thanh nhập liệu, kết xuất Video Bubble với nút Play tròn trong hội thoại và phát video trực tiếp toàn màn hình trong ứng dụng (`ChatV2VideoPlayerScreen`) có đầy đủ điều khiển (Play/Pause, Seekbar, Timer, Mute/Unmute, Download).
+  - *Kết quả thi công & Khắc phục Lỗi Cốt Lõi (Bug Fix)*:
+    1. **Khắc phục lỗi Video Bubble bị nuốt mất (`SizedBox.shrink`)**: Trong `chat_v2_message_item.dart`, biến kiểm tra `isEmptyMessage` ban đầu thiếu điều kiện `!hasVideos` và `!message.isVideoFilename`. Khi tin nhắn video gửi không kèm chữ (caption rỗng), widget bị đánh giá là rỗng và trả về `const SizedBox.shrink()`. Đã khắc phục triệt để bằng cách bổ sung `!hasVideos`, `!message.isVideoFilename` và loại trừ `hasVideos` khỏi `isPureImage`.
+    2. **Nhận diện Tên tệp Video Lịch sử (`isVideoFilename`)**: Bổ sung getter `isVideoFilename` trong `chat_v2_message.dart` nhận diện các đuôi mở rộng `.mp4`, `.mov`, `.mkv`, `.avi`, `.3gp`, `.webm`. Khi tin nhắn nhận từ server chỉ có tên tệp, hệ thống tự động tái tạo `ChatV2Attachment` và nạp cache bộ nhớ tức thì.
+    3. **Odoo Backend 17 & 19 (`controllers/attachments.py`, `controllers/chat.py`)**: Đã bổ sung bộ phân giải MIME type tự động cho `.mp4`, `.mov`, `.mkv`, `.avi`, `.3gp`, `.webm`; chuẩn hóa label `[Video]` cho channel list preview và fallback MIME type cho message attachments serializer.
+    4. **Chat Bubble Render (`chat_v2_video_bubble.dart` & `chat_v2_message_item.dart`)**: Widget `ChatV2VideoBubble` chuẩn thiết kế Refined Tech Luxury với khung bo góc 12dp, overlay tối mờ 30%, nút Play hình tròn nổi bật ở chính giữa và badge thời lượng / dung lượng (MB/KB) ở góc dưới.
+    5. **Trình phát Video In-App (`chat_v2_video_player_screen.dart`)**: Toàn màn hình nền đen chuyên nghiệp, tự động phát video qua `VideoPlayerController`, hỗ trợ auth headers Odoo, tự động fallback tải offline nếu stream mạng bị chặn, thanh Appbar ẩn/hiện, nút Play/Pause/Replay trung tâm, thanh Seekbar progress, nhãn thời gian `00:00 / 00:00`, nút Mute/Unmute và nút Lưu video vào máy (`saveBytesToFile`).
+    6. **In-App Attachment Viewer Intercept (`chat_v2_attachment_viewer.dart`)**: Chặn toàn bộ tệp video không đẩy ra ứng dụng ngoài, điều hướng phát trực tiếp qua `ChatV2VideoPlayerScreen`.
+    7. **Kiểm thử Tự động**: Đạt 0 errors, 0 warnings trên `flutter analyze`; pass 14/14 test cases độc lập trong `test/features/chat_v2/chat_v2_video_messaging_test.dart` (bao gồm Case 13 kiểm thử `isVideoFilename` và Case 14 kiểm thử `ChatV2MessageItem` render video không bị `SizedBox.shrink`).
+  - *Bằng chứng Thực nghiệm L5 (Evidence Ledger L5 on Waydroid Android 13)*:
+    * **Gửi Video Thực tế**: Chọn tệp `test_video.mp4` (2.3 MB / 2,425,728 bytes) tại kênh `general` kết nối Local Server Odoo 17 (`http://192.168.1.100:8069`, DB `demo-17`). Khung xem trước hiển thị thumbnail kèm icon Play và nút hủy [X]. Bấm gửi ➔ Tải lên server Odoo và lưu trữ thành công.
+    * **Hiển thị Video Bubble**: Tin nhắn xuất hiện ngay trong dòng thời gian với `ChatV2VideoBubble`, hiển thị tên tệp `test_video.mp4`, biểu tượng Play hình tròn nổi bật và badge dung lượng `Video • 2.3 MB`.
+    * **Phát Video In-App Toàn màn hình**: Chạm vào bong bóng video ➔ Ứng dụng kích hoạt `ChatV2VideoPlayerScreen` chuyển cảnh fade mượt mà; video phát trực tiếp từ giây 00:00 đến 00:07 (100% thời lượng) trên nền đen chuyên nghiệp, hỗ trợ đầy đủ thanh trượt tiến trình (Seekbar) và các phím điều khiển.
+  - *Tệp liên quan*:
+    - `v_mobile_17/controllers/attachments.py`
+    - `v_mobile_17/controllers/chat.py`
+    - `v_mobile_19/controllers/attachments.py`
+    - `v_mobile_19/controllers/chat.py`
+    - `vclients/pubspec.yaml`
+    - `vclients/lib/features/chat_v2/data/models/chat_v2_message.dart`
+    - `vclients/lib/features/chat_v2/presentation/widgets/chat_v2_input_bar.dart`
+    - `vclients/lib/features/chat_v2/presentation/widgets/chat_v2_video_bubble.dart`
+    - `vclients/lib/features/chat_v2/presentation/widgets/chat_v2_message_item.dart`
+    - `vclients/lib/features/chat_v2/presentation/widgets/chat_v2_attachment_viewer.dart`
+    - `vclients/lib/features/chat_v2/presentation/screens/chat_v2_video_player_screen.dart`
+    - `vclients/test/features/chat_v2/chat_v2_video_messaging_test.dart`
 
 ---
 

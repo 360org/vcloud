@@ -16,6 +16,7 @@ import '../screens/chat_v2_image_viewer_screen.dart';
 import 'chat_v2_attachment_viewer.dart';
 import 'chat_v2_location_card.dart';
 import 'chat_v2_poll_card.dart';
+import 'chat_v2_video_bubble.dart';
 import 'chat_v2_voice_message_player.dart';
 
 final RegExp _attachmentIdPattern = RegExp(
@@ -89,6 +90,26 @@ class ChatV2MessageItem extends StatelessWidget {
     final imageAttachments = message.attachments
         .where((a) => a.isImage)
         .toList();
+    final videoAttachments = message.attachments
+        .where((a) => a.isVideo)
+        .toList();
+    if (videoAttachments.isEmpty &&
+        message.isVideoFilename &&
+        message.content.isNotEmpty) {
+      final name = message.content.trim();
+      final cached = LocalAttachmentCache.get(null, altKey: name);
+      final ext = name.contains('.') ? name.split('.').last.toLowerCase() : 'mp4';
+      videoAttachments.add(
+        ChatV2Attachment(
+          id: message.attachments.isNotEmpty
+              ? message.attachments.first.id
+              : '',
+          name: name,
+          mimetype: ext == 'mov' ? 'video/quicktime' : 'video/mp4',
+          bytes: cached,
+        ),
+      );
+    }
     final audioAttachments = message.attachments
         .where((a) => a.isAudio)
         .toList();
@@ -113,9 +134,10 @@ class ChatV2MessageItem extends StatelessWidget {
       );
     }
     final docAttachments = message.attachments
-        .where((a) => !a.isImage && !a.isAudio)
+        .where((a) => !a.isImage && !a.isVideo && !a.isAudio)
         .toList();
     final hasImages = imageAttachments.isNotEmpty;
+    final hasVideos = videoAttachments.isNotEmpty;
     final hasAudio = audioAttachments.isNotEmpty;
     final hasDocs = docAttachments.isNotEmpty;
     final isHistoricalImage = message.isImageFilename && !hasImages;
@@ -135,14 +157,16 @@ class ChatV2MessageItem extends StatelessWidget {
         cleanContent.isEmpty ||
         cleanContent == 'Sent attachment' ||
         cleanContent == '[Hình ảnh]' ||
+        cleanContent == '[Video]' ||
         cleanContent == '[Tập tin]' ||
         cleanContent == '[Tin nhắn thoại]' ||
         cleanContent == '[Ghi âm]' ||
         imageAttachments.any((a) => a.name.trim() == cleanContent) ||
+        videoAttachments.any((a) => a.name.trim() == cleanContent) ||
         audioAttachments.any((a) => a.name.trim() == cleanContent);
 
     final hasRealCaption = hasAnyImage && !isFileNameContent;
-    final isPureImage = hasAnyImage && !hasRealCaption && !hasDocs;
+    final isPureImage = hasAnyImage && !hasRealCaption && !hasDocs && !hasVideos;
 
     final isCallMessage =
         cleanContent.startsWith('📞') ||
@@ -161,6 +185,7 @@ class ChatV2MessageItem extends StatelessWidget {
         !message.isDocumentFilename &&
         !isCallMessage &&
         !hasImages &&
+        !hasVideos &&
         !hasDocs &&
         !hasAudio &&
         message.parentId == null &&
@@ -189,9 +214,11 @@ class ChatV2MessageItem extends StatelessWidget {
     final isEmptyMessage =
         cleanContent.isEmpty &&
         !hasAnyImage &&
+        !hasVideos &&
         !hasAudio &&
         !hasDocs &&
         !message.isImageFilename &&
+        !message.isVideoFilename &&
         !message.isDocumentFilename &&
         !isCallMessage &&
         message.parentId == null &&
@@ -348,7 +375,7 @@ class ChatV2MessageItem extends StatelessWidget {
                                 : (isDark
                                       ? const Color(0xFF202C33)
                                       : Colors.white),
-                            border: isMine || isDark || hasAnyImage
+                            border: isMine || isDark || hasAnyImage || hasVideos
                                 ? null
                                 : Border.all(
                                     color: const Color(0xFFE2E8F0),
@@ -378,7 +405,7 @@ class ChatV2MessageItem extends StatelessWidget {
                               bottomRight: Radius.circular(isMine ? 4 : 16),
                             ),
                             child: Padding(
-                              padding: hasAnyImage
+                              padding: (hasAnyImage || hasVideos)
                                   ? EdgeInsets.zero
                                   : const EdgeInsets.symmetric(
                                       horizontal: 12,
@@ -429,6 +456,20 @@ class ChatV2MessageItem extends StatelessWidget {
                                         isMine: isMine,
                                       ),
                                       if (audioAttachments.length > 1 ||
+                                          hasVideos ||
+                                          hasImages ||
+                                          hasDocs)
+                                        const SizedBox(height: 2),
+                                    ],
+
+                                  // 1.5. Render Video Attachments
+                                  if (hasVideos)
+                                    for (final att in videoAttachments) ...[
+                                      ChatV2VideoBubble(
+                                        attachment: att,
+                                        isMine: isMine,
+                                      ),
+                                      if (videoAttachments.length > 1 ||
                                           hasImages ||
                                           hasDocs)
                                         const SizedBox(height: 2),
@@ -484,9 +525,10 @@ class ChatV2MessageItem extends StatelessWidget {
                                         !message.isImageFilename &&
                                         !message.isDocumentFilename &&
                                         (!hasImages || !isFileNameContent) &&
+                                        (!hasVideos || !isFileNameContent) &&
                                         (!hasAudio || !isFileNameContent))
                                       Padding(
-                                        padding: (hasAnyImage || hasAudio)
+                                        padding: (hasAnyImage || hasVideos || hasAudio)
                                             ? const EdgeInsets.only(
                                                 top: 4,
                                                 left: 12,
@@ -507,7 +549,7 @@ class ChatV2MessageItem extends StatelessWidget {
                                     Align(
                                       alignment: Alignment.centerRight,
                                       child: Padding(
-                                        padding: hasAnyImage
+                                        padding: (hasAnyImage || hasVideos)
                                             ? const EdgeInsets.only(
                                                 bottom: 6,
                                                 right: 10,
