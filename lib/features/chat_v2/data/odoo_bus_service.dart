@@ -135,8 +135,8 @@ class OdooBusService {
       }
     }
 
-    // Sự kiện kênh kết thúc cuộc gọi (hỗ trợ cả VMobile format & Odoo 19 Core sessionId)
-    if (type == 'discuss.channel.rtc.session/ended') {
+    // Sự kiện kênh kết thúc cuộc gọi (hỗ trợ cả VMobile format vmobile.call/ended & Odoo 17/19 Core discuss.channel.rtc.session/ended)
+    if (type == 'discuss.channel.rtc.session/ended' || type == 'vmobile.call/ended') {
       if (payload is Map) {
         final chId = int.tryParse(payload['channel_id']?.toString() ?? '0') ?? 0;
         final sessionId = int.tryParse(payload['sessionId']?.toString() ?? '0') ?? 0;

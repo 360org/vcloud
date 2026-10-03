@@ -350,6 +350,65 @@ class ChatV2Message {
 
   bool get hasAudio => attachments.any((a) => a.isAudio) || isVoiceFilename;
 
+  /// Định dạng nội dung tin nhắn trích dẫn (Reply Preview) thân thiện,
+  /// không để lộ chuỗi tên file hệ thống dài dòng (BUG-024)
+  static String formatReplyPreviewBody(String? rawBody) {
+    if (rawBody == null || rawBody.trim().isEmpty) return '...';
+    final clean = rawBody.trim();
+    final lower = clean.toLowerCase();
+
+    // 1. Nếu là file ảnh
+    if (lower.startsWith('image_picker_') ||
+        lower.startsWith('scaled_') ||
+        lower.endsWith('.png') ||
+        lower.endsWith('.jpg') ||
+        lower.endsWith('.jpeg') ||
+        lower.endsWith('.webp') ||
+        lower.endsWith('.gif') ||
+        lower.endsWith('.heic') ||
+        lower.endsWith('.heif') ||
+        clean == 'Hình ảnh' ||
+        clean == '[Hình ảnh]') {
+      return '[Hình ảnh]';
+    }
+
+    // 2. Nếu là file video
+    if (lower.startsWith('video_') ||
+        lower.endsWith('.mp4') ||
+        lower.endsWith('.mov') ||
+        lower.endsWith('.mkv') ||
+        lower.endsWith('.avi') ||
+        lower.endsWith('.3gp') ||
+        clean == 'Video' ||
+        clean == '[Video]') {
+      return '[Video]';
+    }
+
+    // 3. Nếu là file ghi âm / tin nhắn thoại
+    if (lower.startsWith('voice_') ||
+        lower.endsWith('.m4a') ||
+        lower.endsWith('.opus') ||
+        lower.endsWith('.wav') ||
+        lower.endsWith('.mp3') ||
+        lower.endsWith('.webm') ||
+        clean == 'Tin nhắn thoại' ||
+        clean == '[Tin nhắn thoại]') {
+      return '[Tin nhắn thoại]';
+    }
+
+    // 4. Nếu là tài liệu đính kèm
+    if (lower.startsWith('file_') ||
+        lower.endsWith('.pdf') ||
+        lower.endsWith('.docx') ||
+        lower.endsWith('.xlsx') ||
+        lower.endsWith('.zip') ||
+        lower.endsWith('.rar')) {
+      return '[Tài liệu] $clean';
+    }
+
+    return clean;
+  }
+
   bool get isPollMessage => poll != null;
 
   ChatV2Poll? get poll => ChatV2Poll.tryParseFromBody(rawBody ?? content);

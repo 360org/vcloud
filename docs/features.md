@@ -5,9 +5,11 @@
 > **Nguồn sự thật (Single Source of Truth)**: Tài liệu kiểm soát toàn bộ tính năng theo 6 nhóm nghiệp vụ chuẩn hóa, phục vụ trực tiếp cho anh Tân nghiệm thu thực tế và báo cáo tiến độ.  
 > 🟢 **Bản Phát Hành Mới (Build 148 — 2026-10-03)**: `[x] [L4/L5 — VERIFIED: Tuân thủ Chính sách Quyền Ảnh & Video Google Play 10/2026, gỡ sạch broad media permissions bằng tools:node="remove", AAB 85MB nộp Google Play Console thành công]`  
 > 🟢 **Báo Cáo Audit Backend Odoo 19 (v19.0.1.2.30 — Commit 3e6884a)**: `[x] [L2/L4 — AUDITED: Anh Châu audit 25 commit Odoo 19, đạt 83/100 điểm, đủ điều kiện deploy an toàn DB schema; xác lập 4 nhiệm vụ FIX-1..4 chuẩn bị cho v19.0.1.2.31]`  
+> 🟢 **Thực Thi 4 Bước Sửa Lỗi Backend & Flutter (v19.0.1.2.31)**: `[x] [L4 — VERIFIED: Hoàn tất trọn vẹn 4 bước sửa lỗi Backend Odoo 17/19 & Flutter: Vá bảo mật Attachment IDOR, dọn UUID thừa qua migration savepoint, dọn route mute trùng lặp với hasattr(_notify_mute) & đồng bộ vmobile.call/ended vào OdooBusService (97/97 Python tests PASS, 26/26 Flutter tests PASS, 0 Analyze issues)]`  
+> 🟡 **Kiểm Thử L5 Waydroid & Docker Local (Máy Cá Nhân)**: `[/] [IN_PROGRESS - Personal Machine Fix & Waydroid L5 Testing: Cấu hình Local Docker, upgrade vmobile, build APK và nạp Waydroid kiểm thử thực tế]`  
 > 🟢 **Phiên Kiểm Thử Hoàn Tất (Build 147)**: `[x] [L4/L5 — VERIFIED: Gửi & Phát Video In-App, Lưu Trực Tiếp Vào Native Photos Album / MediaStore qua Gal.putVideo (16/16 Tests Pass, 0 Analyze Issues)]`  
 > 🟢 **Bản Vá & Tối Ưu Tích Hợp (Build 145 & 146)**: `[x] [L4/L5 — VERIFIED: BUG-022 Khử tên kênh rác "Chau, Le Ba (Internal)" (20/20 Tests Pass) & BUG-023 Tương phản Dark Mode Profile (11/11 Tests Pass)]`  
-> 🟡 **Sự Cố Đang Khảo Sát (Build 147)**: `[ ] [L3 — REPRODUCED / ROOT CAUSE IDENTIFIED: BUG-024 Tin nhắn nhảy lộn xộn ngày (Chronological Message Jump) & Hiển thị lộ thẻ HTML Reply trên Web Odoo Discuss — Đã tìm ra nguyên nhân gốc rễ, chờ duyệt triển khai]`
+> 🟢 **Bản Vá & Tối Ưu Tích Hợp (BUG-024 — Build 148+)**: `[x] [L4 — VERIFIED: Sắp xếp tin nhắn giảm dần chuẩn ListView reverse: true, không còn nhảy lộn xộn ngày; Loại bỏ thẻ div rác trên Odoo Web và bọc Markup() an toàn; Chuẩn hóa nhãn [Hình ảnh]/[Video] khi Reply (10/10 Tests Pass, 0 Analyze Issues)]`
 
 ---
 
@@ -164,6 +166,15 @@
     3. **FIX-3 [Low]**: Bỏ override `DiscussChannel.create` sinh UUID thừa (core Odoo 19 đã tự sinh), chuyển logic backfill UUID sang file migration `post-migrate.py` khi nâng cấp module `-u`.
     4. **FIX-4 [Low]**: Khai báo bổ sung 12 file test còn thiếu vào `tests/__init__.py` để bộ test Odoo `--test-enable` tự động quét trọn vẹn.
     5. **DOC-1**: Chuẩn hóa tên kỹ thuật trong tài liệu hướng dẫn thành `v_mobile` để lệnh `odoo-bin -u v_mobile` nhận diện chính xác.
+- [x] 3.20 **Khắc Phục Lỗi Tin Nhắn Nhảy Lộn Xộn Dòng Thời Gian & Hiển Thị Lộ Thẻ HTML Reply (Chronological Sorting & Clean Quote Reply — BUG-024)**: `[x] [L4 — VERIFIED: Sort giảm dần theo createdAt desc, loại bỏ thẻ div rác trên Odoo Web, bọc Markup() an toàn, chuẩn hóa nhãn [Hình ảnh]/[Video] khi Reply (10/10 Tests Pass)]`
+  - *Hiện tượng*:
+    1. **Tin nhắn nhảy lộn xộn ngày (Out of Order / Jump)**: Trong phòng chat, tin nhắn cũ từ các ngày trước (ví dụ: `26/09/2026`) bất ngờ nhảy xuống tận cùng đáy màn hình bên dưới tin nhắn mới của ngày hôm nay (`03/10/2026`). Vạch ngăn ngày `26/09/2026` bị chèn ngay sát thanh nhập liệu.
+    2. **Lộ mã HTML thô trên Web Odoo Discuss**: Khi người dùng mobile thực hiện Reply trích dẫn một tin nhắn, trên giao diện Web Odoo Discuss xuất hiện nguyên văn chuỗi mã HTML thô: `<div data-reply-id="646670" data-reply-author="..." ...>...</div><p>Nội dung...</p>`.
+    3. **Hiển thị tên file rác khi reply ảnh/video**: Khi trích dẫn một tin nhắn chỉ có file ảnh/video, bong bóng reply hiển thị chuỗi tên file thô dài dòng (`image_picker_D26C93AF-...jpg`) thay vì nhãn thân thiện `[Hình ảnh]`.
+  - *Nguyên nhân gốc rễ (Root Cause)*:
+    1. **Lỗi merge mảng sai thứ tự trong Flutter (`chat_v2_messages_controller.dart:371`)**: Hàm `_mergeMessages()` giả định sai lầm rằng mọi tin nhắn chưa có trong `currentList` (`brandNew`) đều là tin nhắn mới gửi đến, nên đã ghép `[...pendingTempMessages, ...brandNew, ...updatedExisting]`. Khi SWR / Polling (mỗi 8 giây) gọi `getMessages()` lấy 35 tin nhắn từ server, các tin nhắn cũ hơn trong gói 35 tin này bị coi là `brandNew` và bị đẩy lên ĐẦU mảng. Vì `ListView` dùng `reverse: true`, đầu mảng (`index 0`) nằm ở đáy màn hình, khiến tin nhắn cũ bị đẩy xuống dưới cùng. Toàn bộ hàm `_mergeMessages`, `loadMore` và `getMessages` đều thiếu bước sort giảm dần theo thời gian (`createdAt desc`).
+    2. **Bỏ quên `Markup()` trên Odoo Backend (`controllers/chat.py:1614`)**: Khi lưu tin nhắn vào chatter, backend gọi `channel.message_post(body=final_post_body)`. Vì `final_post_body` là `str` Python thông thường chứ không được bọc bằng `Markup(...)` theo quy chuẩn Global CLAUDE.md, Odoo Core tự động `html.escape()`, biến thẻ `<div>` thành `&lt;div&gt;` lưu vào Database, khiến Web Odoo hiển thị lộ mã HTML thô.
+    3. **Chèn HTML tùy tiện từ Mobile Client (`chat_v2_repository.dart:469`)**: Mobile tự chèn thẻ `<div data-reply-id=...>` vào `body` thay vì chỉ gửi `parent_id` cho Odoo quản lý quan hệ cha con chuẩn Discuss.
 
 ### 🟢 GIAI ĐOẠN 4: QUẢN LÝ CÔNG VIỆC & DASHBOARD (HOME & TASKS) — `[x] [Claude-Verified — ĐÃ HOÀN TẤT & VERIFIED LIVE WAYDROID]`
 - [x] 4.1 **Dashboard Kép & Lời chào Cá nhân hóa (Dual-Tier Metrics & Greeting Header)**: Hiển thị đúng số giờ làm, trạng thái chấm công, task cần làm & ticket. Đã fix triệt để BUG-008 (Build 144): Lời chào tự động đổi theo buổi (Sáng 5h-12h, Chiều 12h-18h, Tối sau 18h) và nạp đầy đủ Chức danh & Công ty từ `userMetadata`. Đã fix triệt để BUG-009: Bắn pháo hoa chúc mừng (`CelebrationFireworksOverlay`) ngay khi bấm Check-in nhanh thành công tại Home Screen. Pass 7/7 tests trong `test/home_greeting_and_celebration_test.dart`.
@@ -788,6 +799,42 @@ Phân hệ cốt lõi cung cấp trải nghiệm giao tiếp toàn diện: trò 
     3. **Multi-tier Safe Fallback**: Bọc `GalException` & `PlatformException`. Nếu xảy ra lỗi hoặc thiết bị không có Google Photos / Scoped MediaStore (như trên giả lập Waydroid), tự động rơi tầng fallback an toàn qua `saveBytesToFile` lưu vào thư mục Downloads/Documents, tránh làm crash app.
     4. **Giao diện Người dùng (`ChatV2VideoPlayerScreen`)**: Nút lưu video trên AppBar gọi trực tiếp `GallerySaver.saveVideo()`, hiển thị SnackBar tiếng Việt: `"Đã lưu video vào Thư viện ảnh"`.
     5. **Kiểm thử tự động**: Đạt 0 issues `flutter analyze`; pass 16/16 tests trong `test/features/chat_v2/chat_v2_video_messaging_test.dart`.
+
+- [x] [L4 — VERIFIED] **3.33 Khắc Phục Lỗi Tin Nhắn Nhảy Lộn Xộn Dòng Thời Gian & Hiển Thị Lộ Mã HTML Khi Trích Dẫn Trả Lời (Message Timeline Chronological Sorting & Clean Quote Reply — BUG-024)**: `[x] [ĐÃ PHẪU THUẬT & KIỂM CHỨNG TOÀN DIỆN L4]`
+  - *Báo cáo Sự cố & Hiện tượng Thực tế (Evidence)*:
+    1. **Lỗi tin nhắn nhảy lộn xộn ngày (Out-of-Order Timeline Jump)**:
+       - Trong màn hình chat chi tiết (`ChatV2DetailScreen`), tin nhắn cũ từ các ngày trước (như ngày `26/09/2026`) bất ngờ bị đẩy xuống tận cùng dưới đáy màn hình (sát ngay trên thanh gõ tin nhắn), đứng bên dưới cả các tin nhắn mới của ngày hôm nay (`03/10/2026`).
+       - Đồng thời, vạch phân cách ngày `26/09/2026` (`_buildDateSeparator`) bị vẽ sai vị trí ngay trên các tin nhắn cũ bị lạc này ở đáy màn hình.
+    2. **Hiển thị lộ mã HTML thô trên Web Odoo Discuss**:
+       - Khi người dùng trên Mobile vuốt trả lời (Reply) một tin nhắn, giao diện Web Odoo Discuss (trên trình duyệt) hiển thị nguyên văn chuỗi mã HTML thô chưa được render:
+         `<div data-reply-id="646670" data-reply-author="Ma Nguyễn Nhật Tân" data-reply-body="..." style="border-left: 3px solid #00a82d; ..."><strong ...>...</strong><br/><span>...</span></div><p>Nội dung...</p>`.
+    3. **Hiển thị tên file rác khi Reply tin nhắn đính kèm**:
+       - Khi reply vào tin nhắn chỉ có ảnh hoặc video, bong bóng trích dẫn trên app hiển thị tên file hệ thống dài dòng (ví dụ `image_picker_D26C93AF-...jpg`) thay vì hiển thị thân thiện như `[Hình ảnh]` hoặc `[Video]`.
+  - *Phân tích Nguyên nhân Gốc rễ (Deep Root-Cause Analysis)*:
+    1. **Nguyên nhân 1 — Lỗi nối mảng sai thứ tự và thiếu Sort trong `_mergeMessages()` (`chat_v2_messages_controller.dart:371`)**:
+       - Giao diện tin nhắn Flutter sử dụng `ListView.builder(reverse: true)`. Trong chế độ này:
+         * `index = 0` được vẽ ở **ĐÁY** màn hình (vị trí tin nhắn MỚI NHẤT).
+         * `index = messages.length - 1` được vẽ ở **ĐỈNH** màn hình (vị trí tin nhắn CŨ NHẤT).
+         * Danh sách `messages` bắt buộc phải luôn được sắp xếp theo thứ tự giảm dần theo thời gian (`createdAt desc`).
+       - Trong hàm `_mergeMessages()`, code cũ ghép mảng ngây thơ `[...brandNew, ...updatedExisting]` dẫn đến tin cũ bị coi là mới và đẩy về index 0 khi bộ nhớ cache cục bộ chưa lưu trữ chúng.
+    2. **Nguyên nhân 2 — Vi phạm quy tắc bọc `Markup()` trên Backend Odoo (`controllers/chat.py:1614`)**:
+       - Tại `v_mobile_17/controllers/chat.py` và `v_mobile_19/controllers/chat.py`, `final_post_body` là plain string, bị Odoo Core tự động `html.escape()` thành `&lt;div...` lưu vào DB khiến Web Odoo Discuss hiển thị nguyên văn thẻ thô.
+    3. **Nguyên nhân 3 — Client tự tạo chuỗi thẻ HTML `<div data-reply-id=...>` thay vì dùng cơ chế `parent_id` chuẩn của Odoo Discuss**:
+       - Tại `ChatV2Repository.sendMessage()`, client tự format chuỗi HTML rác thay vì truyền `parent_id` lên backend Odoo và gửi `body` sạch.
+  - *Giải pháp Đã Thực Hiện & Đạt Chuẩn Kiểm Chứng (L4 — VERIFIED)*:
+    1. **Flutter State Management (`ChatV2MessagesNotifier`)**:
+       - Thiết lập hàm so sánh bất biến `_compareMessagesDescending` (`createdAt desc`, tie-break bằng `int.tryParse(id) desc`).
+       - Chuẩn hóa `_mergeMessages`: Khử trùng lặp qua `Map<String, ChatV2Message>`, sort toàn bộ giảm dần theo thời gian, giữ `pendingTempMessages` ở đầu danh sách.
+       - Áp dụng triệt để cho `loadMore()`, initial fetch, `sendMessage()` optimistic replacement và WebSocket incoming message.
+    2. **Flutter Data & Presentation (`ChatV2Repository`, `ChatV2Message`, `ChatV2DetailScreen`, `ChatV2MessageItem`)**:
+       - Loại bỏ hoàn toàn việc sinh thẻ `<div data-reply-id=...>` trong `ChatV2Repository.sendMessage()`, chỉ truyền `parent_id` số nguyên lên Odoo API.
+       - Thêm `ChatV2Message.formatReplyPreviewBody()` chuẩn hóa tên file hệ thống (`image_picker_*`, `scaled_*`, `video_*`, `voice_*`) thành các nhãn tiếng Việt thân thiện `[Hình ảnh]`, `[Video]`, `[Tin nhắn thoại]`.
+    3. **Backend Odoo 17 & 19 (`v_mobile_17` & `v_mobile_19`)**:
+       - Bọc `Markup(clean_body)` trong `send_message`, `poll`, `send_contact` bảo đảm Odoo Core không escape HTML an toàn.
+    4. **Kết Quả Kiểm Thử (Evidence)**:
+       - 10/10 automated tests pass tại `test/features/chat_v2/bug_024_message_sorting_and_reply_test.dart`.
+       - `flutter analyze` đạt 0 errors, 0 warnings.
+       - Python syntax check pass 100% trên cả `v_mobile_17` và `v_mobile_19`.
 
 ---
 

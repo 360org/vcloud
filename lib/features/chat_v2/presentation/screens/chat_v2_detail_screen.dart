@@ -535,9 +535,10 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
     final replying = _replyingTo;
     final replyingId = replying?.id;
     final replyingAuthor = replying?.authorName;
-    final replyingBody = replying?.content.isNotEmpty == true
+    final replyingRawBody = replying?.content.isNotEmpty == true
         ? replying!.content
         : (replying?.attachments.isNotEmpty == true ? replying!.attachments.first.name : null);
+    final replyingBody = ChatV2Message.formatReplyPreviewBody(replyingRawBody);
 
     final editing = _editingMsg;
     setState(() {
@@ -1676,7 +1677,15 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                   ),
                                 ),
                                 Text(
-                                  _editingMsg != null ? _editingMsg!.content : _replyingTo!.content,
+                                  _editingMsg != null
+                                      ? _editingMsg!.content
+                                      : ChatV2Message.formatReplyPreviewBody(
+                                          _replyingTo!.content.isNotEmpty
+                                              ? _replyingTo!.content
+                                              : (_replyingTo!.attachments.isNotEmpty
+                                                  ? _replyingTo!.attachments.first.name
+                                                  : null),
+                                        ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(

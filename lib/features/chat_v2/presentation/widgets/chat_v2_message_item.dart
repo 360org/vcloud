@@ -1162,9 +1162,10 @@ class ChatV2MessageItem extends StatelessWidget {
             message.parentAuthorName!.isNotEmpty)
         ? message.parentAuthorName!
         : 'Tin nhắn';
-    final body = (message.parentBody != null && message.parentBody!.isNotEmpty)
+    final rawBody = (message.parentBody != null && message.parentBody!.isNotEmpty)
         ? message.parentBody!
         : '...';
+    final body = ChatV2Message.formatReplyPreviewBody(rawBody);
 
     final barColor = isMine
         ? (isDark ? const Color(0xFF00C83A) : const Color(0xFF00A82D))

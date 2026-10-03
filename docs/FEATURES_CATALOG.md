@@ -2,7 +2,7 @@
 
 > **Hệ sinh thái**: VCloud Mobile App (Flutter Client) & Odoo Mobile Addon (`vmobile` - Odoo 17 & Odoo 19)  
 > **Phiên bản chuẩn hóa**: `v2.9.12` (Build 144)  
-> **Nguồn sự thật duy nhất (Single Source of Truth - SSOT)**: Tài liệu đặc tả chức năng toàn diện cho 78 tính năng thuộc 6 phân hệ nghiệp vụ chuẩn mực.
+> **Nguồn sự thật duy nhất (Single Source of Truth - SSOT)**: Tài liệu đặc tả chức năng toàn diện cho 79 tính năng thuộc 6 phân hệ nghiệp vụ chuẩn mực.
 
 > 💡 **HƯỚNG DẪN KHI AUDIT MÃ NGUỒN ODOO BACKEND**:
 > Sau khi pull nhánh `17.0` (`v_mobile_17`) hoặc `19.0` (`v_mobile_19`), người vận hành cần thực hiện nâng cấp (upgrade) module **`vmobile`** trên Odoo Server để nạp toàn bộ các bản vá API và route mới nhất:
@@ -12,13 +12,13 @@
 
 ---
 
-## 📑 BẢNG TỔNG QUAN 6 PHÂN HỆ NGHIỆP VỤ (78 TÍNH NĂNG)
+## 📑 BẢNG TỔNG QUAN 6 PHÂN HỆ NGHIỆP VỤ (79 TÍNH NĂNG)
 
 | STT | Phân Hệ Nghiệp Vụ | Số Lượng Tính Năng | Phạm Vi Kiến Trúc |
 | :---: | :--- | :---: | :--- |
 | **1** | **Xác thực & Quản trị Phiên (Auth & Multi-DB)** | 8 tính năng | Flutter Auth, JWT Token, Odoo Session, Multi-DB Resolver |
 | **2** | **Quản lý Thời gian & Chấm công (Timesheet & HR)** | 12 tính năng | GPS Geofencing, `hr.attendance`, `account.analytic.line`, Stopwatch |
-| **3** | **Giao tiếp Nội bộ & Hội thoại Đa phương tiện (Chat V2 & Media)** | 26 tính năng | Odoo Discuss, WebRTC Audio, Coturn TURN, WebSocket Bus, SAF |
+| **3** | **Giao tiếp Nội bộ & Hội thoại Đa phương tiện (Chat V2 & Media)** | 27 tính năng | Odoo Discuss, WebRTC Audio, Coturn TURN, WebSocket Bus, SAF, Clean Reply |
 | **4** | **Quản lý Công việc & Bảng Điều khiển (Dashboard & Tasks)** | 9 tính năng | `project.task`, Subtasks Checklist, SWR Cache, Notification Center |
 | **5** | **Hỗ trợ Kỹ thuật & Phiếu Dịch vụ (Helpdesk Tickets)** | 14 tính năng | `helpdesk.ticket`, SLA Tracker, Odoo Chatter, In-App Attachment Viewer |
 | **6** | **Hồ sơ Cá nhân & Tiện ích Hệ thống (Profile & Settings)** | 9 tính năng | `res.users`, Dark Theme, Cache Cleaner, 4-Tier Secure Logout |
@@ -116,7 +116,7 @@
 
 ---
 
-## 💬 PHÂN HỆ 3: GIAO TIẾP NỘI BỘ & HỘI THOẠI ĐA PHƯƠNG TIỆN (26 TÍNH NĂNG)
+## 💬 PHÂN HỆ 3: GIAO TIẾP NỘI BỘ & HỘI THOẠI ĐA PHƯƠNG TIỆN (27 TÍNH NĂNG)
 
 ### 3.1. Hệ thống Lọc Kênh Trò chuyện Thông minh 6 Nhóm
 - Phân loại danh sách kênh thành 6 danh mục chuyên biệt: Tất cả, Chưa đọc, Trực tiếp (1-1), Nhóm nội bộ, Kênh thông tin, và Khách hàng Zalo OA.
@@ -217,6 +217,11 @@
 ### 3.26. Đánh dấu Đã đọc Tin nhắn & Đếm Số lượng Chưa đọc Tự động
 - Tự động đồng bộ trạng thái đọc tin nhắn lên máy chủ Odoo khi người dùng mở phòng trò chuyện.
 - Xóa huy hiệu số tin chưa đọc tức thời trên danh sách hội thoại.
+
+### 3.27. Sắp Xếp Dòng Thời Gian Tin Nhắn Chuẩn Xác & Trích Dẫn Trả Lời Sạch (Message Sorting & Clean Reply — BUG-024)
+- Thiết lập tính bất biến sắp xếp giảm dần theo thời gian (`createdAt desc`) và ID trong danh sách tin nhắn ngược (`ListView(reverse: true)`), triệt tiêu hoàn toàn hiện tượng nhảy xáo trộn ngày khi làm mới hoặc tải thêm tin nhắn.
+- Tích hợp chuẩn kiến trúc trích dẫn Odoo Discuss qua `parent_id` Many2one, loại bỏ triệt để mã HTML thô trên Odoo Web và bọc an toàn `Markup()` trên Backend Odoo.
+- Chuẩn hóa thông minh các tệp ảnh, video, âm thanh đính kèm khi reply thành các nhãn tiếng Việt `[Hình ảnh]`, `[Video]`, `[Tin nhắn thoại]`.
 
 ---
 

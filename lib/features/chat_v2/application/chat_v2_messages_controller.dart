@@ -197,7 +197,8 @@ class ChatV2MessagesNotifier
         ChatV2MessageLocalCache.prepend(channelId, newMsg);
         final currentList = state.valueOrNull ?? const [];
         if (!currentList.any((m) => m.id == newMsg.id)) {
-          state = AsyncData([newMsg, ...currentList]);
+          final merged = _mergeMessages(currentList, [newMsg]);
+          state = AsyncData(merged);
         }
       }
     });
@@ -295,9 +296,17 @@ class ChatV2MessagesNotifier
         currentUserId: userId,
       );
       debugPrint('🔴 [TRACE] ChatV2MessagesNotifier.build Initial getMessages() END');
-      ChatV2MessageLocalCache.set(channelId, fresh);
-      if (fresh.isNotEmpty) {
-        final topMsg = fresh.first;
+      final sortedFresh = fresh.map((m) {
+        final replyInfo = ChatV2ReplyCache.get(m.id);
+        return m.copyWith(
+          parentId: m.parentId ?? replyInfo?['parent_id'],
+          parentBody: m.parentBody ?? replyInfo?['parent_body'],
+          parentAuthorName: m.parentAuthorName ?? replyInfo?['parent_author_name'],
+        );
+      }).toList()..sort(_compareMessagesDescending);
+      ChatV2MessageLocalCache.set(channelId, sortedFresh);
+      if (sortedFresh.isNotEmpty) {
+        final topMsg = sortedFresh.first;
         ChatV2ChannelLocalCache.updateChannelLastMessage(
           channelId,
           lastMessage: topMsg.content.isNotEmpty
@@ -311,7 +320,7 @@ class ChatV2MessagesNotifier
         );
       }
       debugPrint('🔴 [TRACE] ChatV2MessagesNotifier.build() END (Returned Fresh)');
-      return fresh;
+      return sortedFresh;
     } catch (e) {
       if (e.toString().contains('channel_not_found')) {
         ChatV2ChannelLocalCache.remove(channelId);
@@ -319,6 +328,21 @@ class ChatV2MessagesNotifier
       }
       rethrow;
     }
+  }
+
+  static int _compareMessagesDescending(ChatV2Message a, ChatV2Message b) {
+    final aTime = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+    final bTime = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+    final timeComp = bTime.compareTo(aTime);
+    if (timeComp != 0) return timeComp;
+
+    // Fallback: nếu cùng mốc thời gian, tin nhắn ID lớn hơn (mới hơn) đứng trước
+    final aId = int.tryParse(a.id);
+    final bId = int.tryParse(b.id);
+    if (aId != null && bId != null) {
+      return bId.compareTo(aId);
+    }
+    return b.id.compareTo(a.id);
   }
 
   @visibleForTesting
@@ -332,7 +356,17 @@ class ChatV2MessagesNotifier
     List<ChatV2Message> freshList,
   ) {
     if (freshList.isEmpty) return currentList;
-    if (currentList.isEmpty) return freshList;
+    if (currentList.isEmpty) {
+      final sortedFresh = freshList.map((m) {
+        final replyInfo = ChatV2ReplyCache.get(m.id);
+        return m.copyWith(
+          parentId: m.parentId ?? replyInfo?['parent_id'],
+          parentBody: m.parentBody ?? replyInfo?['parent_body'],
+          parentAuthorName: m.parentAuthorName ?? replyInfo?['parent_author_name'],
+        );
+      }).toList()..sort(_compareMessagesDescending);
+      return sortedFresh;
+    }
 
     // Bảo vệ optimistic updates: giữ lại các tin nhắn tạm (temp_*) chưa đồng bộ xong
     final pendingTempMessages = currentList.where((m) => m.id.startsWith('temp_')).toList();
@@ -368,7 +402,15 @@ class ChatV2MessagesNotifier
       return m; // Giữ nguyên các trang tin nhắn cũ đã tải về
     }).toList();
 
-    return [...pendingTempMessages, ...brandNew, ...updatedExisting];
+    // 3. Khử trùng lặp và sắp xếp giảm dần theo thời gian (createdAt desc)
+    // Đảm bảo ListView(reverse: true) luôn hiển thị tin nhắn mới nhất ở đáy (index 0)
+    final Map<String, ChatV2Message> messageMap = {};
+    for (final msg in [...updatedExisting, ...brandNew]) {
+      messageMap[msg.id.toString()] = msg;
+    }
+    final sortedList = messageMap.values.toList()..sort(_compareMessagesDescending);
+
+    return [...pendingTempMessages, ...sortedList];
   }
 
   static bool _hasDifferences(List<ChatV2Message> a, List<ChatV2Message> b) {
@@ -466,7 +508,7 @@ class ChatV2MessagesNotifier
       );
 
       if (moreMessages.isNotEmpty) {
-        final newMessages = [...currentMessages, ...moreMessages];
+        final newMessages = _mergeMessages(currentMessages, moreMessages);
         ChatV2MessageLocalCache.set(channelId, newMessages);
         state = AsyncData(newMessages);
       }
@@ -572,14 +614,15 @@ class ChatV2MessagesNotifier
         return m;
       }).toList();
 
-      // Nếu không tìm thấy tempId để thay thế, đưa lên đầu
+      // Nếu không tìm thấy tempId để thay thế, đưa vào
       if (!updatedList.any((m) => m.id == resolvedSentMsg.id)) {
         updatedList.removeWhere((m) => m.id == tempId);
-        updatedList.insert(0, resolvedSentMsg);
+        updatedList.add(resolvedSentMsg);
       }
 
-      ChatV2MessageLocalCache.set(channelId, updatedList);
-      state = AsyncData(updatedList);
+      final sortedUpdatedList = _mergeMessages([], updatedList);
+      ChatV2MessageLocalCache.set(channelId, sortedUpdatedList);
+      state = AsyncData(sortedUpdatedList);
 
       // Báo sự kiện realtime an toàn
       try {
