@@ -2,6 +2,16 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.13+148] — 2026-10-03 (Tuân Thủ Chính Sách Photo Picker Google Play Console)
+
+> [!IMPORTANT]
+> **Bản Nâng Cấp Build 148 (`v2.9.13+148`) — Loại Bỏ Quyền `READ_MEDIA_IMAGES` & Chuyển Sang System Photo Picker Theo Chính Sách Google Play (03/10/2026)**:
+> - **Nguyên nhân**: Google Play Console từ ngày 03/10/2026 từ chối/cảnh báo ứng dụng yêu cầu quyền đọc toàn bộ thư viện ảnh (`READ_MEDIA_IMAGES`, `READ_EXTERNAL_STORAGE`) nếu không phải ứng dụng quản lý ảnh/gallery cốt lõi. Google yêu cầu sử dụng Android Photo Picker hệ thống.
+> - **Khắc phục**:
+>   1. `AndroidManifest.xml`: Loại bỏ hoàn toàn `READ_MEDIA_IMAGES` và `READ_EXTERNAL_STORAGE` (maxSdkVersion=32). Thư viện `image_picker` và `file_picker` tự động sử dụng Android Photo Picker (SAF) không cần cấp quyền diện rộng.
+>   2. Cập nhật `chat_media_picker_safeguard_test.dart` xác minh việc không xin quyền đọc ảnh diện rộng.
+>   3. Kiểm thử: Pass 100% tests liên quan, `flutter analyze` 0 errors / 0 warnings.
+
 ## [v2.9.12+146] — 2026-10-01 (Tối Ưu Theme & Độ Tương Phản Hồ Sơ Cá Nhân Dark Mode)
 
 > [!IMPORTANT]

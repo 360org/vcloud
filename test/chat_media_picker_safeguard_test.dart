@@ -52,25 +52,32 @@ void main() {
       expect(exceedsLimitImage > maxImageSizeBytes, isTrue);
     });
 
-    test('AndroidManifest.xml declares Android 13+ READ_MEDIA_IMAGES and legacy limits', () {
+    test('AndroidManifest.xml removes third-party media permissions per Google Play Oct 2026 policy', () {
       final manifestFile = File('android/app/src/main/AndroidManifest.xml');
       expect(manifestFile.existsSync(), isTrue);
 
       final content = manifestFile.readAsStringSync();
+      // Google Play policy rejects READ_MEDIA_IMAGES for non-gallery apps;
+      // Force remove media permissions injected by third-party plugins (open_filex, etc.)
       expect(
-        content.contains('android.permission.READ_MEDIA_IMAGES'),
+        content.contains('android.permission.READ_MEDIA_IMAGES" tools:node="remove"'),
         isTrue,
-        reason: 'Missing READ_MEDIA_IMAGES for Android 13+ (API 33+)',
+        reason: 'READ_MEDIA_IMAGES must be stripped with tools:node="remove"',
       );
       expect(
-        content.contains('android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"'),
+        content.contains('android.permission.READ_MEDIA_VIDEO" tools:node="remove"'),
         isTrue,
-        reason: 'Missing READ_EXTERNAL_STORAGE with maxSdkVersion=32',
+        reason: 'READ_MEDIA_VIDEO must be stripped with tools:node="remove"',
+      );
+      expect(
+        content.contains('android.permission.READ_EXTERNAL_STORAGE" tools:node="remove"'),
+        isTrue,
+        reason: 'READ_EXTERNAL_STORAGE must be stripped with tools:node="remove"',
       );
       expect(
         content.contains('android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28"'),
         isTrue,
-        reason: 'Missing WRITE_EXTERNAL_STORAGE with maxSdkVersion=28',
+        reason: 'Missing WRITE_EXTERNAL_STORAGE with maxSdkVersion=28 (needed for Gal save on old devices)',
       );
       expect(
         content.contains('android:requestLegacyExternalStorage="true"'),

@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <!-- Network + location permissions used by the attendance feature. -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
@@ -18,9 +19,14 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE"/>
     <uses-permission android:name="android.permission.MANAGE_OWN_CALLS"/>
-    <!-- Permissions required for picking and saving images to native gallery -->
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
+    <!-- ponytail: Force remove media permissions injected by third-party plugins (open_filex, etc.)
+         per Google Play Oct 2026 Photo and Video Permissions policy. Vcloud uses Android Photo Picker.
+         Upgrade path: if future feature requires broad media access, re-add with Play Console declaration. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" tools:node="remove"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" tools:node="remove"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" tools:node="remove"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" tools:node="remove"/>
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:node="remove"/>
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28"/>
 
     <application
