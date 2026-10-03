@@ -1,5 +1,25 @@
 # CHANGELOG
 
+## [2.9.13 - Build 147] - 2026-10-03
+
+### 🎬 Gửi & Phát Video In-App và Lưu Native Gallery
+- **Gửi & Xem Video Trực Tiếp Trong Chat V2**:
+  - Hỗ trợ chọn/quay video từ thiết bị, xem trước trên thanh nhập liệu kèm nút hủy.
+  - Hiển thị bong bóng video `ChatV2VideoBubble` tinh tế với biểu tượng Play hình tròn và huy hiệu hiển thị dung lượng (MB/KB) chuẩn Refined Tech Luxury.
+  - Sửa lỗi bubble video bị ẩn khi tin nhắn không kèm text (`isEmptyMessage` trong `ChatV2MessageItem`).
+  - Trình phát video toàn màn hình `ChatV2VideoPlayerScreen` chuyên nghiệp: thanh seekbar, hiển thị thời lượng, phím Play/Pause/Replay, bật/tắt tiếng (Mute/Unmute).
+- **Lưu Video Thẳng Vào Thư Viện Ảnh Gốc (Photos Album / MediaStore)**:
+  - Tích hợp package `gal: ^2.3.3` trong `GallerySaver.saveVideo()`, hỗ trợ lưu trực tiếp vào Photos Album (iOS) và MediaStore (Android).
+  - Tự động xin quyền thư viện ảnh (`Gal.requestAccess()`), lưu cache file tạm an toàn và tự động dọn dẹp sau khi ghi vào album.
+  - Multi-tier Fallback: Bọc an toàn `GalException`, tự động chuyển tầng lưu qua `saveBytesToFile` khi chạy trên giả lập thiếu MediaStore (Waydroid).
+  - Thêm nút Lưu video trên AppBar của `ChatV2VideoPlayerScreen` với thông báo Toast/SnackBar tiếng Việt trực quan.
+- **Backend Odoo 17 & 19 (`v_mobile_17` & `v_mobile_19`)**:
+  - Tự động nhận diện MIME types video (`.mp4`, `.mov`, `.mkv`, `.avi`, `.3gp`, `.webm`).
+  - Bổ sung định dạng xem trước `[Video]` cho danh sách kênh chat (`list_channels`).
+- **Kiểm Thử Độc Lập**:
+  - Pass 16/16 test cases trong `test/features/chat_v2/chat_v2_video_messaging_test.dart`.
+  - Khóa cổng kiểm soát `flutter analyze` đạt 0 errors, 0 warnings.
+
 ## [2.9.12 - Build 146] - 2026-10-01
 
 ### 🎨 Tối Ưu Theme & Độ Tương Phản Màn Hình "Hồ Sơ Cá Nhân" (Edit Profile Screen)

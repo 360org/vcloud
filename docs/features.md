@@ -1,10 +1,10 @@
 # 📋 DANH MỤC TÍNH NĂNG & TIÊU CHÍ NGHIỆM THU TOÀN DIỆN VCLOUD MOBILE APP (FEATURES CONTROL)
 
 > **Dự án**: VCloud Mobile App (`vclients` Flutter) kết nối Odoo Backend (`v_mobile_17` & `v_mobile_19`)  
-> **Phiên bản hiện tại**: `v2.9.12+144` (Bản dựng TestFlight iOS & APK Android mới nhất)  
+> **Phiên bản hiện tại**: `v2.9.13+147` (Bản dựng TestFlight iOS & APK/AAB Android mới nhất)  
 > **Nguồn sự thật (Single Source of Truth)**: Tài liệu kiểm soát toàn bộ tính năng theo 6 nhóm nghiệp vụ chuẩn hóa, phục vụ trực tiếp cho anh Tân nghiệm thu thực tế và báo cáo tiến độ.  
-> 🟢 **Phiên Kiểm Thử Hoàn Tất**: `[x] [L5 — VERIFIED (Local Server 192.168.1.100 & Waydroid Android 13 APK — Đạt 100% 4/4 Kịch Bản)]`  
-> 🟢 **Tính Năng Bổ Sung Hoàn Tất**: `[x] [L4 — VERIFIED - Save Video directly to Native Photos Album/Gallery via Gal.putVideo (16/16 Tests Pass)]`
+> 🟢 **Phiên Kiểm Thử Hoàn Tất (Build 147)**: `[x] [L4/L5 — VERIFIED: Gửi & Phát Video In-App, Lưu Trực Tiếp Vào Native Photos Album / MediaStore qua Gal.putVideo (16/16 Tests Pass, 0 Analyze Issues)]`  
+> 🟢 **Bản Vá & Tối Ưu Tích Hợp (Build 145 & 146)**: `[x] [L4/L5 — VERIFIED: BUG-022 Khử tên kênh rác "Chau, Le Ba (Internal)" (20/20 Tests Pass) & BUG-023 Tương phản Dark Mode Profile (11/11 Tests Pass)]`
 
 ---
 
@@ -12,7 +12,7 @@
 
 | Ký hiệu | Ý nghĩa | Trách nhiệm |
 | :---: | :--- | :--- |
-| `📦 TESTFLIGHT` | Đã hoàn tất code, test kỹ thuật 100% PASS, đã đóng gói lên bản build TestFlight (Build 144). | AI & CI/CD Pipeline |
+| `📦 TESTFLIGHT` | Đã hoàn tất code, test kỹ thuật 100% PASS, đã đóng gói lên bản build TestFlight (Build 147). | AI & CI/CD Pipeline |
 | `⏳ CHỜ TEST` | Tính năng đã sẵn sàng trên máy, đang chờ anh Tân cầm điện thoại kiểm chứng thực tế. | anh Tân kiểm tra |
 | `✅ ACCEPTED` | Anh Tân đã trực tiếp kiểm tra trên iPhone 13 và xác nhận hoạt động ổn định (DONE). | Chỉ anh Tân duyệt |
 
@@ -130,6 +130,21 @@
          * Chưa đăng nhập: `curl -i http://192.168.1.100:8069/chat/1/FdodXnPd6H` trả về `HTTP/1.0 303 SEE OTHER` sang `/web/login?redirect=...`. Trình duyệt Waydroid tự động bật Form Đăng nhập Odoo.
          * Đã đăng nhập: Sau khi nhập `demo`/`demo`, Odoo chuyển thẳng vào phòng chat `#general` (HTTP 200). Sếp Tân đã trực tiếp kiểm tra và xác nhận hoạt động chuẩn xác (`ACCEPTED`).
        - **Production (`vuahethong.net`)**: Backend đã commit (`c16ae03` trên Odoo 17, `039c946` trên Odoo 19) và push lên GitLab origin (`feat/17-chat-rename-nickname`, `feat/19-chat-rename-nickname`). Đang chờ cập nhật mã nguồn module `vmobile` lên cụm Production.
+- [x] 3.16 **Lưu Video Thẳng Vào Thư Viện Ảnh Native Thiết Bị (Save Video to Native Photos Album / MediaStore — Build 147)**: `[x] [CLAUDE-VERIFIED — 16/16 TESTS PASS & 0 ANALYZE ISSUES]`
+  - *Hiện tượng & Nhu cầu*: Người dùng xem video trong phòng chat hoặc toàn màn hình muốn lưu video trực tiếp vào bộ sưu tập ảnh của thiết bị (Photos Album trên iOS và MediaStore/Gallery trên Android) thay vì chỉ lưu tệp vào thư mục riêng của app.
+  - *Giải pháp kỹ thuật đã triển khai triệt để*:
+    1. **Tích hợp Native Media Saver (`gal: ^2.3.3`)**: Thêm hàm tĩnh `GallerySaver.saveVideo({bytes, filePath, fileName})` trong `lib/core/utils/gallery_saver.dart`.
+    2. **Xử lý Quyền & Stream tệp tạm an toàn**: Kiểm tra `Gal.hasAccess()` và kích hoạt `Gal.requestAccess()` xin cấp quyền truy cập Thư viện ảnh hệ thống. Khi nhận luồng bytes từ mạng/cache, tự động lưu vào file tạm `vcloud_save_vid_${timestamp}.mp4` trong thư mục tạm hệ điều hành, gọi `Gal.putVideo(tempFile.path)` để ghi trực tiếp vào MediaStore / Photos Album, và dọn dẹp xóa tệp tạm trong khối `finally`.
+    3. **Multi-tier Safe Fallback**: Bọc `GalException` & `PlatformException`. Nếu thiết bị không hỗ trợ hoặc chạy trên giả lập thiếu MediaStore provider (Waydroid), tự động rơi tầng fallback an toàn qua `saveBytesToFile` lưu vào Downloads/Documents, tránh crash ứng dụng.
+    4. **Giao diện Người dùng (`ChatV2VideoPlayerScreen`)**: Nút tải về trên AppBar màn hình phát video gọi trực tiếp `GallerySaver.saveVideo()`, hiển thị SnackBar thông báo tiếng Việt trực quan: `"Đã lưu video vào Thư viện ảnh"`.
+    5. **Bằng chứng kiểm thử**: Đạt 0 issues `flutter analyze`, pass 16/16 tests trong `test/features/chat_v2/chat_v2_video_messaging_test.dart` (bao gồm Case 15 kiểm thử validation `saveVideo` và Case 16 kiểm thử nút lưu video trên UI).
+- [x] 3.17 **Khắc Phục Lỗi Tiêu Đề Kênh Nhóm Biến Thành Tên Cá Nhân (Group Channel Name Sanitization — BUG-022 / Build 145)**: `[x] [CLAUDE-VERIFIED — 20/20 TESTS PASS]`
+  - *Hiện tượng*: Khi nhận Push Notification từ Odoo định dạng `{author_name} ({channel.name})` (ví dụ: `"Chau, Le Ba (Internal)"`), tiêu đề kênh nhóm bị router nạp vào query param `name`, `ChatV2DetailScreen` ghi đè nhầm kênh nhóm thành kênh chat 1-1 giả lập vào `_pinnedDirectChannels` trong `FlutterSecureStorage`. Khi API trả về đúng `"Internal"`, cache ưu tiên lấy tên pinned direct làm lệch tiêu đề hiển thị trên iPhone.
+  - *Giải pháp kỹ thuật đã triển khai triệt để*:
+    1. Nâng cấp `ChatV2Channel.cleanChannelName()` & `getCleanName()`: Thêm Master Regex nhận diện và bóc tách chính xác chuỗi `{author_name} ({channel.name})` trả về `"Internal"` cho kênh nhóm.
+    2. Sửa `ChatV2ChannelLocalCache.set()`: Với kênh nhóm, tên từ API Odoo luôn là SSOT tuyệt đối, đồng thời tự động phát hiện và xóa kênh nhóm khỏi `_pinnedDirectChannels` trong bộ nhớ và disk storage.
+    3. Sửa `ChatV2ChannelLocalCache.init()`: Tự động thanh lọc các bản ghi rác trong `pinned_direct_channels_v2` và làm sạch tên kênh lưu trong `cached_channels_v3`.
+    4. Bổ sung test suite độc lập: Pass 20/20 tests trong `test/features/chat_v2/chat_v2_channel_sanitize_test.dart`.
 
 ### 🟢 GIAI ĐOẠN 4: QUẢN LÝ CÔNG VIỆC & DASHBOARD (HOME & TASKS) — `[x] [Claude-Verified — ĐÃ HOÀN TẤT & VERIFIED LIVE WAYDROID]`
 - [x] 4.1 **Dashboard Kép & Lời chào Cá nhân hóa (Dual-Tier Metrics & Greeting Header)**: Hiển thị đúng số giờ làm, trạng thái chấm công, task cần làm & ticket. Đã fix triệt để BUG-008 (Build 144): Lời chào tự động đổi theo buổi (Sáng 5h-12h, Chiều 12h-18h, Tối sau 18h) và nạp đầy đủ Chức danh & Công ty từ `userMetadata`. Đã fix triệt để BUG-009: Bắn pháo hoa chúc mừng (`CelebrationFireworksOverlay`) ngay khi bấm Check-in nhanh thành công tại Home Screen. Pass 7/7 tests trong `test/home_greeting_and_celebration_test.dart`.
@@ -203,6 +218,8 @@
 - [x] 6.6 **Màn hình Thông tin Ứng dụng & Chính sách Quyền riêng tư (6.6)**: `[CLAUDE-VERIFIED — 1/1 WIDGET TEST PASS]` Mở trang Thông tin ➔ Hiển thị số hiệu phiên bản, logo, các phân hệ và liên kết mở Chính sách quyền riêng tư `https://vuahethong.net/privacy` qua trình duyệt ngoài. Pass test `test/features/profile/about_screen_test.dart`.
 - [x] 6.7 **Bảng Tính năng Mới (What's New Sheet - 6.7)**: Đạt chuẩn nghiệm thu theo thiết kế của Sếp Tân (widget đã xây dựng, chủ đích ẩn nút mở tự do trên UI hiện tại).
 - [x] 6.8 **Chỉnh sửa thông tin cá nhân (6.2)**: Đạt chuẩn nghiệm thu theo thiết kế của Sếp Tân: Bấm "Đổi ảnh đại diện" ➔ BottomSheet "Thay đổi ảnh đại diện" hiển thị 2 tùy chọn "Chụp ảnh mới" & "Chọn từ thư viện ảnh"; các thông tin nhân sự quản lý tập trung trên Odoo (đã thu hồi BUG-014). Pass 5/5 tests trong `test/features/profile/profile_edit_test.dart`.
+- [x] 6.9 **Yêu cầu Xóa Tài Khoản (Account Deletion - 6.8)**: Tuân thủ nghiêm ngặt chính sách bảo mật của Apple App Store & Google Play, hộp thoại xác nhận bảo vệ dữ liệu kèm nút gửi yêu cầu qua email `support@360.org.vn`.
+- [x] 6.10 **Tối Ưu Độ Tương Phản & Sửa Lỗi Giao Diện Hồ Sơ Trong Dark Mode (Profile Dark Mode Contrast — BUG-023 / Build 146)**: `[CLAUDE-VERIFIED — 11/11 TESTS PASS]` Khắc phục triệt để lỗi tiêu đề trường dữ liệu bị chìm vào nền card tối; thêm vạch chỉ báo accent màu xanh thương hiệu (`AppColors.primary`), nâng cấp tiêu đề lên font w700 Slate 100 `#F1F5F9`, nền khung giá trị Slate 900 `#0F172A` viền Slate 700 `#334155`, đồng bộ AppBar phẳng tối `Color(0xFF1E293B)`. Pass 11/11 tests trong `test/features/profile/edit_profile_dark_mode_test.dart`.
 
 ---
 
@@ -210,12 +227,12 @@
 
 | STT | Nhóm Chức Năng | Số lượng tính năng chi tiết | Trạng thái kỹ thuật | Trạng thái Nghiệm thu (Sếp Tân) | Bản build TestFlight |
 | :---: | :--- | :---: | :---: | :---: | :---: |
-| **1** | **Xác thực & Tài khoản (Login, Multi-DB, Bảo mật)** | 8 tính năng | `100% PASS` | `✅ ACCEPTED (2026-09-28)` | `Build 144` |
-| **2** | **Quản lý Thời gian (Chấm công GPS, Timesheet, Stopwatch)** | 12 tính năng | `100% PASS` | `✅ CLAUDE-VERIFIED (77/77 PASS 100%)` | `Build 144` |
-| **3** | **Giao tiếp Nội bộ (Chat V2, Media, WebRTC Call, Push)** | 26 tính năng (+ 24 đối soát Discuss) | `100% PASS` | `✅ CLAUDE-VERIFIED (HOÀN TẤT ĐỐI SOÁT & FIX P1/P2/P3)` | `Build 144` |
-| **4** | **Quản lý Công việc & Dự án (Home Dashboard, Tasks, Danh bạ)** | 9 tính năng | `100% PASS` | `✅ CLAUDE-VERIFIED (ĐÃ FIX BUG-021 & LIVE WAYDROID)` | `Build 144` |
-| **5** | **Hỗ trợ & Xử lý Yêu cầu (Ticket / Helpdesk, SLA, Portal)** | 14 tính năng (đã bỏ 5.8) | `100% PASS` | `✅ CLAUDE-VERIFIED (HOÀN THÀNH 5.10-5.14 & TICKET GAPS)` | `Build 144` |
-| **6** | **Tôi (Hồ sơ cá nhân, Dark Theme, Cache, Token, Xóa tài khoản)** | 9 tính năng | `100% PASS` | `✅ CLAUDE-VERIFIED (18/18 TESTS & LIVE WAYDROID)` | `Build 144` |
+| **1** | **Xác thực & Tài khoản (Login, Multi-DB, Bảo mật)** | 8 tính năng | `100% PASS` | `✅ ACCEPTED (2026-09-28)` | `Build 147` |
+| **2** | **Quản lý Thời gian (Chấm công GPS, Timesheet, Stopwatch)** | 12 tính năng | `100% PASS` | `✅ CLAUDE-VERIFIED (77/77 PASS 100%)` | `Build 147` |
+| **3** | **Giao tiếp Nội bộ (Chat V2, Media, WebRTC Call, Push)** | 28 tính năng (+ 24 đối soát Discuss) | `100% PASS` | `✅ CLAUDE-VERIFIED (HOÀN TẤT ĐỐI SOÁT & FIX P1/P2/P3/VIDEO)` | `Build 147` |
+| **4** | **Quản lý Công việc & Dự án (Home Dashboard, Tasks, Danh bạ)** | 9 tính năng | `100% PASS` | `✅ CLAUDE-VERIFIED (ĐÃ FIX BUG-021 & LIVE WAYDROID)` | `Build 147` |
+| **5** | **Hỗ trợ & Xử lý Yêu cầu (Ticket / Helpdesk, SLA, Portal)** | 14 tính năng (đã bỏ 5.8) | `100% PASS` | `✅ CLAUDE-VERIFIED (HOÀN THÀNH 5.10-5.14 & TICKET GAPS)` | `Build 147` |
+| **6** | **Tôi (Hồ sơ cá nhân, Dark Theme, Cache, Token, Xóa tài khoản)** | 10 tính năng | `100% PASS` | `✅ CLAUDE-VERIFIED (18/18 TESTS & LIVE WAYDROID)` | `Build 147` |
 
 ---
 
@@ -744,6 +761,15 @@ Phân hệ cốt lõi cung cấp trải nghiệm giao tiếp toàn diện: trò 
     - `vclients/lib/features/chat_v2/presentation/screens/chat_v2_video_player_screen.dart`
     - `vclients/test/features/chat_v2/chat_v2_video_messaging_test.dart`
 
+- [x] [L4/L5 — VERIFIED] **3.32 Lưu Video Vào Thư Viện Ảnh Native Thiết Bị (Save Video to Native MediaStore / Photos Album)**: `[x] [16/16 TESTS PASS & 0 ANALYZE ISSUES]`
+  - *Mô tả*: Cung cấp tiện ích xuất video đang xem hoặc nhận trong hội thoại thẳng vào bộ sưu tập ảnh gốc của hệ điều hành (Apple Photos Album trên iOS và Android MediaStore Movies/Gallery), không bị cô lập trong bộ nhớ app.
+  - *Kết quả thi công & Kiến trúc đa tầng*:
+    1. **Tích hợp `gal: ^2.3.3`**: Bổ sung package `gal` vào `pubspec.yaml`, triển khai hàm `GallerySaver.saveVideo({bytes, filePath, fileName})` trong `lib/core/utils/gallery_saver.dart`.
+    2. **Xử lý Quyền & Stream tệp tạm**: Tự động gọi `Gal.hasAccess()` và `Gal.requestAccess()` xin quyền truy cập Thư viện. Nếu đầu vào là `bytes`, ghi tạm ra tệp `vcloud_save_vid_${timestamp}.mp4` trong bộ nhớ tạm hệ điều hành, gọi `Gal.putVideo(targetPath)` để chuyển vào thư viện gốc, và xóa tệp tạm trong khối `finally`.
+    3. **Multi-tier Safe Fallback**: Bọc `GalException` & `PlatformException`. Nếu xảy ra lỗi hoặc thiết bị không có Google Photos / Scoped MediaStore (như trên giả lập Waydroid), tự động rơi tầng fallback an toàn qua `saveBytesToFile` lưu vào thư mục Downloads/Documents, tránh làm crash app.
+    4. **Giao diện Người dùng (`ChatV2VideoPlayerScreen`)**: Nút lưu video trên AppBar gọi trực tiếp `GallerySaver.saveVideo()`, hiển thị SnackBar tiếng Việt: `"Đã lưu video vào Thư viện ảnh"`.
+    5. **Kiểm thử tự động**: Đạt 0 issues `flutter analyze`; pass 16/16 tests trong `test/features/chat_v2/chat_v2_video_messaging_test.dart`.
+
 ---
 
 ## 4. 🗂️ QUẢN LÝ CÔNG VIỆC & DỰ ÁN (HOME DASHBOARD, TASKS, DANH BẠ)
@@ -1011,6 +1037,12 @@ Tab "Tôi" quản lý thông tin nhân sự cá nhân, tùy chỉnh giao diện 
   - *Tệp liên quan*: `lib/features/profile/presentation/profile_screen.dart`, `lib/features/auth/application/auth_controller.dart`, `lib/core/services/global_state_reset_service.dart`.
   - *Kịch bản nghiệm thu*: Bấm Đăng xuất ➔ Xác nhận ➔ Trở về màn hình đăng nhập sạch sẽ, an toàn tuyệt đối.
   - *Bằng chứng kiểm thử (Evidence)*: Pass 12/12 unit/integration test cases trong `test/features/auth/logout_session_wipe_test.dart`. Chuỗi dọn dẹp thực thi qua 4 tầng dữ liệu: Hủy đăng ký push device trên server Odoo, xóa RAM cache 10 module (Ticket, Task, Timesheet, Attendance, ChatV2, PartnerToUserMap), xóa sạch FlutterSecureStorage, reset Riverpod state, ngắt CallKit calls và điều hướng sạch sẽ về trang đăng nhập. Hoàn toàn không rò rỉ dữ liệu khi đổi tài khoản (Zero-Data-Leakage).
+
+- [x] **6.10 Tối Ưu Độ Tương Phản & Sửa Lỗi Giao Diện Hồ Sơ Trong Dark Mode (Profile Dark Mode Contrast & Theme Refactor — BUG-023 / Build 146)**
+  - *Mô tả*: Khắc phục hiện tượng chữ tiêu đề trường thông tin bị chìm màu tối khó đọc và các ô chứa giá trị bị đổi màu nền không đồng nhất khi bật Chế độ Tối (Dark Mode) trên màn hình Hồ sơ cá nhân.
+  - *Tệp liên quan*: `lib/features/profile/presentation/edit_profile_screen.dart`, `lib/core/theme/app_theme.dart`.
+  - *Kịch bản nghiệm thu*: Bật Dark Mode vào Hồ sơ cá nhân ➔ Tiêu đề các trường hiển thị sắc nét với thanh chỉ báo thương hiệu, khung giá trị màu tối sang trọng, AppBar phẳng tiệp màu theme.
+  - *Bằng chứng kiểm thử (Evidence)*: Đã sửa triệt để màu chữ tiêu đề nhãn thành Slate 100 `#F1F5F9` (FontWeight.w700) kèm vạch chỉ báo accent màu xanh primary (`AppColors.primary`), tinh chỉnh khung giá trị sang Slate 900 `#0F172A` viền Slate 700 `#334155`, đồng bộ AppBar tối phẳng `Color(0xFF1E293B)`. Pass 11/11 tests trong `test/features/profile/edit_profile_dark_mode_test.dart`.
 
 ---
 
