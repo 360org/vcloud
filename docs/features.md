@@ -1,10 +1,13 @@
 # 📋 DANH MỤC TÍNH NĂNG & TIÊU CHÍ NGHIỆM THU TOÀN DIỆN VCLOUD MOBILE APP (FEATURES CONTROL)
 
 > **Dự án**: VCloud Mobile App (`vclients` Flutter) kết nối Odoo Backend (`v_mobile_17` & `v_mobile_19`)  
-> **Phiên bản hiện tại**: `v2.9.13+147` (Bản dựng TestFlight iOS & APK/AAB Android mới nhất)  
+> **Phiên bản hiện tại**: `v2.9.13+148` (Bản dựng TestFlight iOS & AAB Android phát hành Google Play mới nhất)  
 > **Nguồn sự thật (Single Source of Truth)**: Tài liệu kiểm soát toàn bộ tính năng theo 6 nhóm nghiệp vụ chuẩn hóa, phục vụ trực tiếp cho anh Tân nghiệm thu thực tế và báo cáo tiến độ.  
+> 🟢 **Bản Phát Hành Mới (Build 148 — 2026-10-03)**: `[x] [L4/L5 — VERIFIED: Tuân thủ Chính sách Quyền Ảnh & Video Google Play 10/2026, gỡ sạch broad media permissions bằng tools:node="remove", AAB 85MB nộp Google Play Console thành công]`  
+> 🟢 **Báo Cáo Audit Backend Odoo 19 (v19.0.1.2.30 — Commit 3e6884a)**: `[x] [L2/L4 — AUDITED: Anh Châu audit 25 commit Odoo 19, đạt 83/100 điểm, đủ điều kiện deploy an toàn DB schema; xác lập 4 nhiệm vụ FIX-1..4 chuẩn bị cho v19.0.1.2.31]`  
 > 🟢 **Phiên Kiểm Thử Hoàn Tất (Build 147)**: `[x] [L4/L5 — VERIFIED: Gửi & Phát Video In-App, Lưu Trực Tiếp Vào Native Photos Album / MediaStore qua Gal.putVideo (16/16 Tests Pass, 0 Analyze Issues)]`  
-> 🟢 **Bản Vá & Tối Ưu Tích Hợp (Build 145 & 146)**: `[x] [L4/L5 — VERIFIED: BUG-022 Khử tên kênh rác "Chau, Le Ba (Internal)" (20/20 Tests Pass) & BUG-023 Tương phản Dark Mode Profile (11/11 Tests Pass)]`
+> 🟢 **Bản Vá & Tối Ưu Tích Hợp (Build 145 & 146)**: `[x] [L4/L5 — VERIFIED: BUG-022 Khử tên kênh rác "Chau, Le Ba (Internal)" (20/20 Tests Pass) & BUG-023 Tương phản Dark Mode Profile (11/11 Tests Pass)]`  
+> 🟡 **Sự Cố Đang Khảo Sát (Build 147)**: `[ ] [L3 — REPRODUCED / ROOT CAUSE IDENTIFIED: BUG-024 Tin nhắn nhảy lộn xộn ngày (Chronological Message Jump) & Hiển thị lộ thẻ HTML Reply trên Web Odoo Discuss — Đã tìm ra nguyên nhân gốc rễ, chờ duyệt triển khai]`
 
 ---
 
@@ -145,6 +148,22 @@
     2. Sửa `ChatV2ChannelLocalCache.set()`: Với kênh nhóm, tên từ API Odoo luôn là SSOT tuyệt đối, đồng thời tự động phát hiện và xóa kênh nhóm khỏi `_pinnedDirectChannels` trong bộ nhớ và disk storage.
     3. Sửa `ChatV2ChannelLocalCache.init()`: Tự động thanh lọc các bản ghi rác trong `pinned_direct_channels_v2` và làm sạch tên kênh lưu trong `cached_channels_v3`.
     4. Bổ sung test suite độc lập: Pass 20/20 tests trong `test/features/chat_v2/chat_v2_channel_sanitize_test.dart`.
+- [x] 3.18 **Tuân Thủ Chính Sách Quyền Ảnh & Video Google Play (Photo & Video Permissions Policy — Build 148)**: `[x] [CLAUDE-VERIFIED — 7/7 TESTS PASS, 0 ANALYZE ISSUES & GOOGLE PLAY SUBMITTED]`
+  - *Hiện tượng & Yêu cầu chính sách*: Google Play Console từ chối bản phát hành 145 do vi phạm chính sách áp dụng từ 03/10/2026: *"Chính sách về quyền truy cập vào ảnh và video: Dùng các bộ chọn ảnh/video khác của hệ thống"*. Nguyên nhân do plugin bên thứ ba `open_filex` khai báo ngầm các quyền `READ_MEDIA_IMAGES`, `READ_MEDIA_VIDEO`, `READ_MEDIA_AUDIO` và bị Gradle merge vào file nhị phân phát hành.
+  - *Giải pháp kỹ thuật đã triển khai triệt để*:
+    1. **Loại bỏ quyền media diện rộng (Manifest Strip)**: Khai báo `xmlns:tools="http://schemas.android.com/tools"` và bổ sung chỉ thị `tools:node="remove"` cho toàn bộ các quyền media: `READ_MEDIA_IMAGES`, `READ_MEDIA_VIDEO`, `READ_MEDIA_AUDIO`, `READ_MEDIA_VISUAL_USER_SELECTED`, và `READ_EXTERNAL_STORAGE` trong `android/app/src/main/AndroidManifest.xml`.
+    2. **Định tuyến qua Android Photo Picker & SAF**: Vcloud chỉ sử dụng bộ chọn ảnh hệ thống native (`image_picker` Photo Picker) và SAF DocumentsUI, hoàn toàn không đòi hỏi quyền đọc bộ nhớ thiết bị.
+    3. **Kiểm tra nhị phân phát hành**: Kiểm tra file merged manifest và AAB nhị phân xác nhận 0% dấu vết của các quyền media bị cấm.
+    4. **Bằng chứng kiểm thử**: Đạt 0 issues `flutter analyze`, pass 7/7 unit tests trong `test/chat_media_picker_safeguard_test.dart`. Đóng gói bản dựng phát hành `app-release.aab` (85MB, version `2.9.13+148`), nộp thành công lên Google Play Console vào trạng thái *"Sẵn sàng phát hành"*.
+- [x] 3.19 **Báo Cáo Kiểm Định Backend Odoo 19 (Odoo 19 Standards & Security Review — v19.0.1.2.30 / Commit `3e6884a`)**: `[x] [AUDITED BY CHAU LE — ĐẠT 83/100 ĐIỂM, AN TOÀN DEPLOY]`
+  - *Phạm vi kiểm định*: Rà soát 25 commit `ee7ab4c..31f13be` (v19.0.1.2.25 → v19.0.1.2.30), 26 file, đối chiếu trực tiếp với core Odoo 19 (`19-addons/mail`).
+  - *Kết luận*: Module đủ điều kiện deploy production an toàn, không thay đổi DB schema, không thêm field/model/constraint mới, XML sạch hoàn toàn.
+  - *Lộ trình 4 nhiệm vụ chuẩn hóa v19.0.1.2.31 (Mục tiêu ≥ 92/100 điểm)*:
+    1. **FIX-1 [Medium]**: Gọi `member._notify_mute()` trong `controllers/chat.py` sau khi ghi `mute_until_dt` để kích hoạt cron unmute của Odoo 19 đúng thời điểm, tránh tắt chuông kênh quá hạn.
+    2. **FIX-2 [Low]**: Loại bỏ phát lặp broadcast `vmobile.call/ended` trong `_rtc_leave_call`, chỉ phát tại `_rtc_cancel_invitations` và `unlink` để tránh nhân đôi lưu lượng bus message.
+    3. **FIX-3 [Low]**: Bỏ override `DiscussChannel.create` sinh UUID thừa (core Odoo 19 đã tự sinh), chuyển logic backfill UUID sang file migration `post-migrate.py` khi nâng cấp module `-u`.
+    4. **FIX-4 [Low]**: Khai báo bổ sung 12 file test còn thiếu vào `tests/__init__.py` để bộ test Odoo `--test-enable` tự động quét trọn vẹn.
+    5. **DOC-1**: Chuẩn hóa tên kỹ thuật trong tài liệu hướng dẫn thành `v_mobile` để lệnh `odoo-bin -u v_mobile` nhận diện chính xác.
 
 ### 🟢 GIAI ĐOẠN 4: QUẢN LÝ CÔNG VIỆC & DASHBOARD (HOME & TASKS) — `[x] [Claude-Verified — ĐÃ HOÀN TẤT & VERIFIED LIVE WAYDROID]`
 - [x] 4.1 **Dashboard Kép & Lời chào Cá nhân hóa (Dual-Tier Metrics & Greeting Header)**: Hiển thị đúng số giờ làm, trạng thái chấm công, task cần làm & ticket. Đã fix triệt để BUG-008 (Build 144): Lời chào tự động đổi theo buổi (Sáng 5h-12h, Chiều 12h-18h, Tối sau 18h) và nạp đầy đủ Chức danh & Công ty từ `userMetadata`. Đã fix triệt để BUG-009: Bắn pháo hoa chúc mừng (`CelebrationFireworksOverlay`) ngay khi bấm Check-in nhanh thành công tại Home Screen. Pass 7/7 tests trong `test/home_greeting_and_celebration_test.dart`.
