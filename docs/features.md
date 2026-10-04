@@ -325,6 +325,15 @@ Phân hệ quản lý toàn bộ luồng đăng nhập, định danh người d�
       3. **Module `project` (`project.project`, `project.task` với `privacy_visibility='portal'`)**: Hiển thị phân hệ Dự án & Công việc của tôi khi được cấp quyền chia sẻ.
       4. **Module `base` (`res.users`, `res.partner`)**: Hiển thị phân hệ Tôi (Thông tin tài khoản, đổi mật khẩu, đăng xuất).
       5. **Chặn tuyệt đối phân hệ nội bộ**: Tự động chặn và ẩn hoàn toàn Trang chủ (`Home`), Chấm công (`hr_attendance`) và Bảng chấm công (`hr_timesheet`) đối với tài khoản Portal.
+    * **Bảng Ma trận Phân hệ Ứng dụng & Model Odoo tương ứng**:
+      | Phân hệ / Màn hình trên App | Module Odoo | Model Odoo tương ứng | Quyền Nhân viên Nội bộ (`share=False`) | Quyền Khách hàng Portal (`share=True`) | Hành vi khi Tenant chưa cài Module |
+      |---|---|---|---|---|---|
+      | **Trang chủ (`Home`) & Chấm công GPS** | `hr_attendance` | `hr.attendance`, `hr.employee` | **Có** (Thẻ GPS, check-in/out, ca làm, đếm giờ, pháo hoa) | **Ẩn hoàn toàn** (Cấm truy cập Home) | Nếu chưa cài: Ẩn widget chấm công trên Home |
+      | **Bảng chấm công (`Timesheet`)** | `hr_timesheet` | `account.analytic.line`, `project.task` | **Có** (Bấm giờ Timer, nhật ký công, log giờ) | **Ẩn hoàn toàn** (Không có tab này) | Nếu chưa cài: Ẩn tab Timesheet |
+      | **Phiếu hỗ trợ (`Ticket`)** | `helpdesk` | `helpdesk.ticket`, `helpdesk.team` | **Có** (Xem, phân công, đổi stage, đóng ticket) | **Có** (Chỉ xem và tạo ticket của mình) | **Nếu chưa cài: Ẩn hoàn toàn tab Ticket khỏi App** |
+      | **Trò chuyện (`Chat`)** | `mail` | `discuss.channel`, `mail.message` | **Có** (Kênh nội bộ, nhóm, gọi thoại RTC) | **Có** (Chỉ chat với nhân viên CSKH/kỹ thuật) | Module mặc định Odoo Core |
+      | **Dự án của tôi (`Project`)** | `project` | `project.project`, `project.task` | **Có** (Widget Home & Task hôm nay) | **Có** (Chỉ xem task được share portal) | Ẩn widget Task trên Home nếu chưa cấu hình |
+      | **Tài khoản cá nhân (`Tôi`)** | `base` | `res.users`, `res.partner` | **Có** (Đổi mật khẩu, avatar, thông tin) | **Có** (Đổi mật khẩu, avatar, thông tin) | Luôn hiển thị (Module lõi Odoo) |
   - *Tệp liên quan*: `lib/core/router/app_router.dart`, `lib/shared/widgets/app_scaffold.dart`, `lib/features/home/presentation/home_screen.dart`, `lib/features/auth/application/auth_controller.dart`, `v_mobile_17/controllers/auth.py`, `v_mobile_19/controllers/auth.py`.
   - *Kịch bản nghiệm thu*:
     1. Đăng nhập tài khoản Nhân viên nội bộ ➔ Hiển thị đầy đủ 5 tab điều hướng, Tab Home với đầy đủ thẻ Chấm công GPS, Quick Nav Widget và Danh sách công việc hôm nay.

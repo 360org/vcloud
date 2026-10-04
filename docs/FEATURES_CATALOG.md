@@ -50,6 +50,16 @@
     - Module `base` (`res.users`, `res.partner`): Hiển thị tab Tài khoản (Tôi).
   * Tuyệt đối ẩn và chặn truy cập vào Trang chủ (`Home`), module Chấm công (`hr_attendance`) và Bảng chấm công (`hr_timesheet`).
 
+#### Ma trận Phân hệ Ứng dụng & Model Odoo tương ứng
+| Phân hệ / Màn hình trên App | Module Odoo | Model Odoo tương ứng | Quyền Nhân viên Nội bộ (`share=False`) | Quyền Khách hàng Portal (`share=True`) | Hành vi khi Tenant chưa cài Module |
+|---|---|---|---|---|---|
+| **Trang chủ (`Home`) & Chấm công GPS** | `hr_attendance` | `hr.attendance`, `hr.employee` | **Có** (Thẻ GPS, check-in/out, ca làm, đếm giờ, pháo hoa) | **Ẩn hoàn toàn** (Cấm truy cập Home) | Nếu chưa cài: Ẩn widget chấm công trên Home |
+| **Bảng chấm công (`Timesheet`)** | `hr_timesheet` | `account.analytic.line`, `project.task` | **Có** (Bấm giờ Timer, nhật ký công, log giờ) | **Ẩn hoàn toàn** (Không có tab này) | Nếu chưa cài: Ẩn tab Timesheet |
+| **Phiếu hỗ trợ (`Ticket`)** | `helpdesk` | `helpdesk.ticket`, `helpdesk.team` | **Có** (Xem, phân công, đổi stage, đóng ticket) | **Có** (Chỉ xem và tạo ticket của mình) | **Nếu chưa cài: Ẩn hoàn toàn tab Ticket khỏi App** |
+| **Trò chuyện (`Chat`)** | `mail` | `discuss.channel`, `mail.message` | **Có** (Kênh nội bộ, nhóm, gọi thoại RTC) | **Có** (Chỉ chat với nhân viên CSKH/kỹ thuật) | Module mặc định Odoo Core |
+| **Dự án của tôi (`Project`)** | `project` | `project.project`, `project.task` | **Có** (Widget Home & Task hôm nay) | **Có** (Chỉ xem task được share portal) | Ẩn widget Task trên Home nếu chưa cấu hình |
+| **Tài khoản cá nhân (`Tôi`)** | `base` | `res.users`, `res.partner` | **Có** (Đổi mật khẩu, avatar, thông tin) | **Có** (Đổi mật khẩu, avatar, thông tin) | Luôn hiển thị (Module lõi Odoo) |
+
 ### 1.4. Tự động Hủy Đăng ký Thiết bị & Thu hồi Push Token khi Đăng xuất
 - Khi người dùng đăng xuất, ứng dụng tự động gửi yêu cầu tới `/api/v1/mobile/notifications/unregister`.
 - Máy chủ Odoo hủy kích hoạt device token tương ứng, ngăn chặn tuyệt đối việc thiết bị cũ nhận thông báo của người dùng sau khi thoát tài khoản.
