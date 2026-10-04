@@ -1,7 +1,7 @@
 # 📋 DANH MỤC TÍNH NĂNG & TIÊU CHÍ NGHIỆM THU TOÀN DIỆN VCLOUD MOBILE APP (FEATURES CONTROL)
 
 > **Dự án**: VCloud Mobile App (`vclients` Flutter) kết nối Odoo Backend (`v_mobile_17` & `v_mobile_19`)  
-> **Phiên bản hiện tại**: `v2.9.13+148` (Bản dựng TestFlight iOS & AAB Android phát hành Google Play mới nhất)  
+> **Phiên bản hiện tại**: `v2.9.14+149` (Bản dựng TestFlight iOS & AAB Android phát hành Google Play mới nhất)  
 > **Nguồn sự thật (Single Source of Truth)**: Tài liệu kiểm soát toàn bộ tính năng theo 6 nhóm nghiệp vụ chuẩn hóa, phục vụ trực tiếp cho anh Tân nghiệm thu thực tế và báo cáo tiến độ.  
 > 🟢 **Bản Phát Hành Mới (Build 148 — 2026-10-03)**: `[x] [L4/L5 — VERIFIED: Tuân thủ Chính sách Quyền Ảnh & Video Google Play 10/2026, gỡ sạch broad media permissions bằng tools:node="remove", AAB 85MB nộp Google Play Console thành công]`  
 > 🟢 **Báo Cáo Audit Backend Odoo 19 (v19.0.1.2.30 — Commit 3e6884a)**: `[x] [L2/L4 — AUDITED: Anh Châu audit 25 commit Odoo 19, đạt 83/100 điểm, đủ điều kiện deploy an toàn DB schema; xác lập 4 nhiệm vụ FIX-1..4 chuẩn bị cho v19.0.1.2.31]`  

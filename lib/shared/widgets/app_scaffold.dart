@@ -56,17 +56,23 @@ class AppScaffold extends ConsumerWidget {
     _TabSpec(label: 'Tôi', path: '/profile', icon: LucideIcons.user),
   ];
 
-  static const _portalTabs = <_TabSpec>[
-    _TabSpec(label: 'Ticket', path: '/tickets', icon: LucideIcons.ticket),
-    _TabSpec(label: 'Chat', path: '/chat', icon: LucideIcons.messageCircle),
-    _TabSpec(label: 'Tôi', path: '/profile', icon: LucideIcons.user),
-  ];
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authUser = ref.watch(authControllerProvider).valueOrNull;
     final isPortal = authUser?.isPortal == true;
-    final tabs = isPortal ? _portalTabs : _employeeTabs;
+    final hasHelpdesk = authUser?.hasHelpdesk ?? true;
+
+    final List<_TabSpec> tabs;
+    if (isPortal) {
+      tabs = <_TabSpec>[
+        if (hasHelpdesk)
+          const _TabSpec(label: 'Ticket', path: '/tickets', icon: LucideIcons.ticket),
+        const _TabSpec(label: 'Chat', path: '/chat', icon: LucideIcons.messageCircle),
+        const _TabSpec(label: 'Tôi', path: '/profile', icon: LucideIcons.user),
+      ];
+    } else {
+      tabs = _employeeTabs;
+    }
 
     final loc = GoRouterState.of(context).matchedLocation;
     final activeIndex = () {
@@ -97,7 +103,8 @@ class AppScaffold extends ConsumerWidget {
                       if (context.canPop()) {
                         context.pop();
                       } else {
-                        context.go(isPortal ? '/tickets' : '/home');
+                        final portalFallback = hasHelpdesk ? '/tickets' : '/chat';
+                        context.go(isPortal ? portalFallback : '/home');
                       }
                     },
               )

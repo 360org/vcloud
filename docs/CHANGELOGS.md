@@ -2,6 +2,22 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.14+149] — 2026-10-04 (Bản Nâng Cấp Train Version App Store & Phân Luồng Portal Dynamic Model Discovery)
+
+> [!IMPORTANT]
+> **Bản Nâng Cấp Build 149 (`v2.9.14+149`) — Tuân Thủ Chuẩn Apple App Store Connect & Điều Hướng Động Portal User**:
+> - **1. Nâng Cấp Train Version App Store Connect (TestFlight Submission)**:
+>   * Nâng `CFBundleShortVersionString` từ `2.9.13` lên `2.9.14` (Build 149) theo yêu cầu bắt buộc của Apple (giải quyết lỗi `90186 - Invalid Pre-Release Train` và `90062 - CFBundleShortVersionString must contain a higher version than previously approved version`).
+> - **2. Phân Luồng & Điều Hướng Động Portal User (Dynamic Model Discovery)**:
+>   * `auth_user.dart`: Phân tích `installed_modules` từ metadata người dùng (`hasHelpdesk`, `hasTimesheet`, `hasAttendance`, `hasProject`).
+>   * `odoo_api_client.dart`: Thêm phương thức tra cứu động `getDiscovery()` từ endpoint `/api/v1/mobile/user/discovery`.
+>   * `app_scaffold.dart`: Ẩn/hiện linh hoạt tab Ticket cho tài khoản Portal — nếu hệ thống không cài module `helpdesk`, chỉ hiển thị 2 tab (Chat, Tôi) thay vì cố hiển thị tab Ticket trống.
+>   * `app_router.dart`: Điều hướng thông minh — Portal User khi đăng nhập vào hệ thống không có Helpdesk sẽ được chuyển hướng thẳng tới màn hình Chat (`/chat`), tự động chặn chuyển hướng vào `/tickets` khi không có quyền.
+>   * Pass toàn bộ 12/12 unit tests trong `test/features/auth/dynamic_discovery_portal_test.dart`.
+> - **3. Kiểm Thử & Kiểm Soát Chất Lượng**:
+>   * `flutter analyze`: Đạt **0 issues found** (0 errors, 0 warnings).
+>   * Sẵn sàng deploy tự động qua Fastlane / GitHub Actions lên TestFlight và Google Play.
+
 ## [v2.9.13+148] — 2026-10-04 (Bản Phát Hành Toàn Diện: Google Play Policy, Sắp Xếp Dòng Thời Gian BUG-024, Chat V2 Mute Picker & Báo Cáo Kiểm Toán v19.0.1.2.31)
 
 > [!IMPORTANT]

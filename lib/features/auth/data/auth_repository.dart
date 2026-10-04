@@ -265,6 +265,23 @@ class AuthRepository {
         profile?['share'] == true ||
         profile?['user_type'] == 'portal';
 
+    final rawModules = profile?['installed_modules'];
+    Map<String, dynamic> installedModules;
+    if (rawModules is Map<String, dynamic>) {
+      installedModules = rawModules;
+    } else if (rawModules is Map) {
+      installedModules = Map<String, dynamic>.from(rawModules);
+    } else {
+      // Fallback cho backend cũ chưa hỗ trợ dynamic discovery trong /auth/me
+      installedModules = <String, dynamic>{
+        'helpdesk': true,
+        'mail': true,
+        'project': true,
+        'hr_attendance': !isPortal,
+        'hr_timesheet': !isPortal,
+      };
+    }
+
     final metadata = <String, dynamic>{
       'display_name': name ?? login.split('@').first,
       'name': name ?? login.split('@').first,
@@ -273,6 +290,9 @@ class AuthRepository {
       'has_v_mobile': hasVMobile,
       'is_portal': isPortal,
       'user_type': isPortal ? 'portal' : 'internal',
+      'installed_modules': installedModules,
+      if (profile?['vmobile_enabled'] != null)
+        'vmobile_enabled': profile!['vmobile_enabled'] == true,
     };
     if (partnerId != null) metadata['partner_id'] = partnerId;
     if (companyName != null) metadata['company'] = companyName;

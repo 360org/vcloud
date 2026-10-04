@@ -95,22 +95,29 @@ final routerProvider = Provider<GoRouter>((ref) {
                 !decoded.startsWith('/signup') &&
                 !decoded.startsWith('/splash')) {
               if (user.isPortal && (decoded.startsWith('/home') || decoded.startsWith('/attendance') || decoded.startsWith('/timesheet'))) {
-                return '/tickets';
+                return user.hasHelpdesk ? '/tickets' : '/chat';
+              }
+              if (user.isPortal && !user.hasHelpdesk && decoded.startsWith('/tickets')) {
+                return '/chat';
               }
               return decoded;
             }
           } catch (_) {}
         }
-        return user.isPortal ? '/tickets' : '/chat';
+        return user.isPortal ? (user.hasHelpdesk ? '/tickets' : '/chat') : '/chat';
       }
 
       // Guard cho Portal User: chặn truy cập vào tính năng nội bộ (Home, Chấm công, Timesheet)
+      // và phân hệ chưa được cài đặt (Ticket khi chưa cài helpdesk)
       if (user.isPortal) {
         if (loc == '/home' ||
             loc.startsWith('/home') ||
             loc.startsWith('/attendance') ||
             loc.startsWith('/timesheet')) {
-          return '/tickets';
+          return user.hasHelpdesk ? '/tickets' : '/chat';
+        }
+        if (!user.hasHelpdesk && (loc == '/tickets' || loc.startsWith('/tickets'))) {
+          return '/chat';
         }
       }
 

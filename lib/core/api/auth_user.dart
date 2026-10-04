@@ -13,4 +13,16 @@ class AuthUser {
       userMetadata['is_portal'] == true ||
       userMetadata['share'] == true ||
       userMetadata['user_type'] == 'portal';
+
+  Map<String, dynamic> get installedModules {
+    final raw = userMetadata['installed_modules'];
+    if (raw is Map<String, dynamic>) return raw;
+    if (raw is Map) return Map<String, dynamic>.from(raw);
+    return const <String, dynamic>{};
+  }
+
+  bool get hasHelpdesk => installedModules['helpdesk'] == true;
+  bool get hasTimesheet => installedModules['hr_timesheet'] == true;
+  bool get hasAttendance => installedModules['hr_attendance'] == true;
+  bool get hasProject => installedModules['project'] == true;
 }

@@ -931,6 +931,15 @@ class OdooApiClient {
     return null;
   }
 
+  /// Tra cứu danh sách module động đã cài đặt (Dynamic Model Discovery).
+  Future<Map<String, dynamic>?> getDiscovery() async {
+    try {
+      final res = await get('/api/v1/mobile/user/discovery');
+      if (res is Map) return Map<String, dynamic>.from(res);
+    } catch (_) {}
+    return null;
+  }
+
   Future<dynamic> get(
     String path, {
     Map<String, Object?> query = const <String, Object?>{},
