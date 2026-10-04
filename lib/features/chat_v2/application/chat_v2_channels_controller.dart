@@ -13,6 +13,7 @@ import 'chat_v2_presence_controller.dart';
 import 'chat_v2_read_state_controller.dart';
 import '../data/chat_v2_realtime_service.dart';
 import '../data/chat_v2_repository.dart';
+import '../data/odoo_bus_service.dart';
 import '../data/models/chat_v2_channel.dart';
 import '../presentation/widgets/chat_v2_in_app_banner.dart';
 import 'chat_v2_messages_controller.dart';
@@ -213,17 +214,24 @@ class ChatV2ChannelLocalCache {
       _userMutedIds.remove(channelId);
     }
     _saveUserMutedIds();
-    set(_cached);
+    final currentCached = List<ChatV2Channel>.from(_cached);
+    final idx = currentCached.indexWhere((c) => c.id == channelId);
+    if (idx != -1) {
+      currentCached[idx] = currentCached[idx].copyWith(isMuted: isMuted);
+      set(currentCached);
+    } else {
+      set(_cached);
+    }
+    if (_pinnedDirectChannels.containsKey(channelId)) {
+      _pinnedDirectChannels[channelId] = _pinnedDirectChannels[channelId]!.copyWith(isMuted: isMuted);
+      _saveToStorage();
+    }
+    onCacheUpdated?.call();
   }
 
   static void toggleUserMute(String channelId) {
-    if (_userMutedIds.contains(channelId)) {
-      _userMutedIds.remove(channelId);
-    } else {
-      _userMutedIds.add(channelId);
-    }
-    _saveUserMutedIds();
-    set(_cached);
+    final nextMuted = !_userMutedIds.contains(channelId);
+    setUserMuted(channelId, nextMuted);
   }
 
   static Future<void> _saveUserMutedIds() async {
@@ -673,6 +681,7 @@ class ChatV2ChannelsNotifier
     extends AsyncNotifier<List<ChatV2Channel>> {
   StreamSubscription? _wsMessageSub;
   StreamSubscription? _wsUpdateSub;
+  StreamSubscription? _busMuteSub;
   Timer? _pollingTimer;
   Timer? _debounceTimer;
   Timer? _resumeRetryTimer;
@@ -850,6 +859,18 @@ class ChatV2ChannelsNotifier
       _debounceTimer = Timer(const Duration(milliseconds: 900), fetchFreshChannels);
     });
 
+    _busMuteSub?.cancel();
+    final busService = ref.read(odooBusServiceProvider);
+    busService.connect();
+    _busMuteSub = busService.onMuteNotification.listen((data) {
+      if (_isDisposed) return;
+      final chId = data['channel_id']?.toString();
+      final isMuted = data['is_muted'] == true;
+      if (chId != null && chId.isNotEmpty) {
+        ChatV2ChannelLocalCache.setUserMuted(chId, isMuted);
+      }
+    });
+
     void scheduleNextPoll() {
       if (_isDisposed) return;
       _pollingTimer?.cancel();
@@ -873,6 +894,7 @@ class ChatV2ChannelsNotifier
       ChatV2ChannelLocalCache.onCacheUpdated = null;
       _isDisposed = true;
       _resumeRetryTimer?.cancel();
+      _busMuteSub?.cancel();
       _wsUpdateSub?.cancel();
       _wsMessageSub?.cancel();
       _pollingTimer?.cancel();

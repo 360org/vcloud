@@ -17,6 +17,7 @@ import '../../application/chat_v2_presence_controller.dart';
 import '../../application/chat_v2_read_state_controller.dart';
 import '../../data/models/chat_v2_channel.dart';
 import '../../data/models/chat_v2_message.dart';
+import '../widgets/chat_v2_mute_duration_sheet.dart';
 
 String _stripVietnameseDiacritics(String str) {
   const vietnameseMap = {
@@ -1800,10 +1801,21 @@ class _ChannelListItem extends ConsumerWidget {
                 ),
                 onTap: () async {
                   Navigator.pop(sheetContext);
-                  final newMuted = !isMuted;
-                  ChatV2ChannelLocalCache.setUserMuted(channel.id, newMuted);
-                  await ref.read(chatV2RepositoryProvider).muteChannel(channel.id, mute: newMuted);
-                  ref.read(chatV2ChannelsProvider.notifier).refresh();
+                  if (isMuted) {
+                    ChatV2ChannelLocalCache.setUserMuted(channel.id, false);
+                    ref.read(chatV2ChannelsProvider.notifier).refresh();
+                    await ref.read(chatV2RepositoryProvider).muteChannel(channel.id, mute: false);
+                  } else {
+                    final minutes = await showMuteDurationPickerSheet(context);
+                    if (minutes == null) return;
+                    ChatV2ChannelLocalCache.setUserMuted(channel.id, true);
+                    ref.read(chatV2ChannelsProvider.notifier).refresh();
+                    await ref.read(chatV2RepositoryProvider).muteChannel(
+                          channel.id,
+                          mute: true,
+                          duration: minutes,
+                        );
+                  }
                 },
               ),
 

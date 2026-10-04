@@ -694,11 +694,12 @@ class ChatV2Repository {
     await _client.post('/api/v1/mobile/chat/channels/$channelId/unarchive');
   }
 
-  Future<bool> muteChannel(String channelId, {bool mute = true, int minutes = -1}) async {
+  Future<bool> muteChannel(String channelId, {bool mute = true, int minutes = -1, int? duration}) async {
+    final effectiveMinutes = duration ?? minutes;
     try {
       final res = await _client.post(
         '/api/v1/mobile/chat/channels/$channelId/mute',
-        body: {'mute': mute, 'minutes': minutes},
+        body: {'mute': mute, 'minutes': effectiveMinutes, 'duration': effectiveMinutes},
       );
       if (res is Map && res['is_muted'] != null) {
         return res['is_muted'] == true;

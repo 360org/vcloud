@@ -21,6 +21,7 @@ import '../../data/models/chat_v2_message.dart';
 import '../screens/chat_v2_image_viewer_screen.dart';
 import 'chat_v2_attachment_viewer.dart';
 import 'chat_v2_message_item.dart';
+import 'chat_v2_mute_duration_sheet.dart';
 
 class ChatV2InfoSheet extends ConsumerStatefulWidget {
   final ChatV2Channel channel;
@@ -297,36 +298,61 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
     }
   }
 
+  String _formatMuteDuration(int minutes) {
+    if (minutes <= 60) return '1 giờ';
+    if (minutes <= 480) return '8 giờ';
+    if (minutes <= 1440) return '24 giờ';
+    return 'khi bật lại';
+  }
+
   void _toggleMute() async {
     HapticFeedback.lightImpact();
-    final newMuted = !_isMuted;
-    ChatV2ChannelLocalCache.setUserMuted(widget.channel.id, newMuted);
-    setState(() {
-      _isMuted = newMuted;
-    });
-    if (mounted) {
-      if (_isMuted) {
-        AppToast.warning(
-          context,
-          title: 'Đã tắt thông báo',
-          message: 'Bạn sẽ không nhận được thông báo từ cuộc trò chuyện này.',
-        );
-      } else {
+    if (!_isMuted) {
+      final minutes = await showMuteDurationPickerSheet(context);
+      if (minutes == null) return;
+      if (!mounted) return;
+
+      ChatV2ChannelLocalCache.setUserMuted(widget.channel.id, true);
+      setState(() {
+        _isMuted = true;
+      });
+      AppToast.warning(
+        context,
+        title: 'Đã tắt thông báo',
+        message: minutes == -1
+            ? 'Bạn sẽ không nhận được thông báo từ cuộc trò chuyện này.'
+            : 'Đã tắt thông báo trong ${_formatMuteDuration(minutes)}.',
+      );
+      // Đồng bộ lên Server Odoo Backend
+      try {
+        await ref.read(chatV2RepositoryProvider).muteChannel(
+              widget.channel.id,
+              mute: true,
+              duration: minutes,
+            );
+        ref.invalidate(chatV2ChannelsProvider);
+      } catch (_) {}
+    } else {
+      ChatV2ChannelLocalCache.setUserMuted(widget.channel.id, false);
+      setState(() {
+        _isMuted = false;
+      });
+      if (mounted) {
         AppToast.success(
           context,
           title: 'Đã bật thông báo',
           message: 'Bạn sẽ nhận được thông báo khi có tin nhắn mới.',
         );
       }
+      // Đồng bộ lên Server Odoo Backend
+      try {
+        await ref.read(chatV2RepositoryProvider).muteChannel(
+              widget.channel.id,
+              mute: false,
+            );
+        ref.invalidate(chatV2ChannelsProvider);
+      } catch (_) {}
     }
-    // Đồng bộ lên Server Odoo Backend
-    try {
-      await ref.read(chatV2RepositoryProvider).muteChannel(
-            widget.channel.id,
-            mute: newMuted,
-          );
-      ref.invalidate(chatV2ChannelsProvider);
-    } catch (_) {}
   }
 
   void _togglePin() {

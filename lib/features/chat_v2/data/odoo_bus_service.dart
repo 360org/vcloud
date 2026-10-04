@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../../../core/api/odoo_api_client.dart';
+import '../application/chat_v2_channels_controller.dart';
 
 final odooBusServiceProvider = Provider<OdooBusService>((ref) {
   final service = OdooBusService();
@@ -28,10 +29,12 @@ class OdooBusService {
   final _peerNotificationController = StreamController<Map<String, dynamic>>.broadcast();
   final _callEndedController = StreamController<Map<String, dynamic>>.broadcast();
   final _incomingCallController = StreamController<Map<String, dynamic>>.broadcast();
+  final _muteNotificationController = StreamController<Map<String, dynamic>>.broadcast();
 
   Stream<Map<String, dynamic>> get onPeerNotification => _peerNotificationController.stream;
   Stream<Map<String, dynamic>> get onCallEnded => _callEndedController.stream;
   Stream<Map<String, dynamic>> get onIncomingCall => _incomingCallController.stream;
+  Stream<Map<String, dynamic>> get onMuteNotification => _muteNotificationController.stream;
   bool get isConnected => _isConnected;
 
   /// Khởi tạo kết nối WebSocket Bus với Odoo 19
@@ -169,10 +172,90 @@ class OdooBusService {
       }
     }
 
-    // Sự kiện Mail Record Insert: Mời tham gia hoặc hủy/kết thúc cuộc gọi (Odoo 19 & Odoo 17)
+    // Sự kiện Mute Channel realtime (discuss.channel.member/mute hoặc mail.channel.member/mute)
+    if (type == 'discuss.channel.member/mute' || type == 'mail.channel.member/mute') {
+      if (payload is Map) {
+        _handleMuteNotification(payload);
+      }
+    }
+
+    // Sự kiện Mail Record Insert: Mời tham gia hoặc hủy/kết thúc cuộc gọi hoặc mute (Odoo 19 & Odoo 17)
     if (type == 'mail.record/insert' && payload is Map) {
       _checkRtcInvitationInsert(payload);
       _checkRtcCallDelete(payload);
+      _checkMemberMuteInsert(payload);
+    }
+  }
+
+  void _handleMuteNotification(Map payload) {
+    try {
+      final chId = int.tryParse(
+            payload['channel_id']?.toString() ??
+            (payload['channel'] is Map ? payload['channel']['id']?.toString() : null) ??
+            payload['id']?.toString() ??
+            '0',
+          ) ??
+          0;
+      if (chId <= 0) return;
+
+      final muteUntil = payload['mute_until_dt'];
+      final isMuted = payload['is_muted'] == true ||
+          (muteUntil != null && muteUntil != false && muteUntil.toString().isNotEmpty);
+
+      debugPrint('🔕 [OdooBus] Mute notification: channel=$chId, isMuted=$isMuted, until=$muteUntil');
+      ChatV2ChannelLocalCache.setUserMuted(chId.toString(), isMuted);
+
+      _muteNotificationController.add({
+        'channel_id': chId,
+        'is_muted': isMuted,
+        'mute_until_dt': muteUntil?.toString(),
+      });
+    } catch (e) {
+      debugPrint('[OdooBus] Error handling mute notification: $e');
+    }
+  }
+
+  void _checkMemberMuteInsert(Map payload) {
+    try {
+      final members = payload['discuss.channel.member'] ?? payload['mail.channel.member'] ?? payload['ThreadMember'];
+      if (members is! List) return;
+
+      final myPartnerId = odooApiClient.session?.partnerId;
+
+      for (final m in members) {
+        if (m is! Map) continue;
+        final partnerId = int.tryParse(
+          (m['partner_id'] is Map ? m['partner_id']['id'] : m['partner_id'])?.toString() ??
+          (m['persona'] is Map && m['persona']['partner'] is Map ? m['persona']['partner']['id'] : null)?.toString() ??
+          '0',
+        );
+
+        if (myPartnerId != null && partnerId != null && partnerId > 0 && partnerId != myPartnerId) {
+          continue;
+        }
+
+        if (m.containsKey('mute_until_dt')) {
+          final chId = int.tryParse(
+            (m['channel_id'] is Map ? m['channel_id']['id'] : m['channel_id'])?.toString() ??
+            (m['channel'] is Map ? m['channel']['id'] : m['channel'])?.toString() ??
+            '0',
+          ) ?? 0;
+
+          if (chId > 0) {
+            final muteUntil = m['mute_until_dt'];
+            final isMuted = muteUntil != null && muteUntil != false && muteUntil.toString().isNotEmpty;
+            debugPrint('🔕 [OdooBus] Member mute insert: channel=$chId, isMuted=$isMuted, until=$muteUntil');
+            ChatV2ChannelLocalCache.setUserMuted(chId.toString(), isMuted);
+            _muteNotificationController.add({
+              'channel_id': chId,
+              'is_muted': isMuted,
+              'mute_until_dt': muteUntil?.toString(),
+            });
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[OdooBus] Error checking member mute insert: $e');
     }
   }
 
@@ -407,5 +490,6 @@ class OdooBusService {
     _peerNotificationController.close();
     _callEndedController.close();
     _incomingCallController.close();
+    _muteNotificationController.close();
   }
 }

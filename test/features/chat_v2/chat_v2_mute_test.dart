@@ -1,6 +1,9 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vcloud/features/chat_v2/data/models/chat_v2_channel.dart';
 import 'package:vcloud/features/chat_v2/application/chat_v2_channels_controller.dart';
+import 'package:vcloud/features/chat_v2/presentation/widgets/chat_v2_mute_duration_sheet.dart';
+import 'package:vcloud/features/chat_v2/data/odoo_bus_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -98,6 +101,126 @@ void main() {
 
       ChatV2ChannelLocalCache.setUserMuted('ch_1', false);
       expect(ChatV2ChannelLocalCache.isUserMuted('ch_1'), isFalse);
+    });
+
+    testWidgets('11. ChatV2MuteDurationSheet renders 4 duration options', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: ChatV2MuteDurationSheet(),
+          ),
+        ),
+      );
+
+      expect(find.text('Tắt thông báo'), findsOneWidget);
+      expect(find.text('Trong 1 giờ'), findsOneWidget);
+      expect(find.text('Trong 8 giờ'), findsOneWidget);
+      expect(find.text('Trong 24 giờ'), findsOneWidget);
+      expect(find.text('Cho đến khi tôi bật lại'), findsOneWidget);
+    });
+
+    testWidgets('12. ChatV2MuteDurationSheet tap returns selected duration', (tester) async {
+      int? selectedMinutes;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(
+            splashFactory: InkRipple.splashFactory,
+          ),
+          home: Scaffold(
+            body: Builder(
+              builder: (context) {
+                return ElevatedButton(
+                  onPressed: () async {
+                    selectedMinutes = await showMuteDurationPickerSheet(context);
+                  },
+                  child: const Text('Open'),
+                );
+              },
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Trong 1 giờ'), findsOneWidget);
+      await tester.tap(find.text('Trong 1 giờ'));
+      await tester.pumpAndSettle();
+
+      expect(selectedMinutes, 60);
+    });
+
+    test('13. OdooBusService handles discuss.channel.member/mute event', () async {
+      final bus = OdooBusService();
+      Map<String, dynamic>? received;
+      final sub = bus.onMuteNotification.listen((data) {
+        received = data;
+      });
+
+      bus.processBusNotificationForTesting({
+        'type': 'discuss.channel.member/mute',
+        'payload': {
+          'channel_id': 77,
+          'is_muted': true,
+          'mute_until_dt': '9999-12-31 23:59:59',
+        },
+      });
+
+      await Future.delayed(const Duration(milliseconds: 10));
+      expect(received, isNotNull);
+      expect(received!['channel_id'], 77);
+      expect(received!['is_muted'], isTrue);
+      expect(ChatV2ChannelLocalCache.isUserMuted('77'), isTrue);
+
+      // Unmute event
+      bus.processBusNotificationForTesting({
+        'type': 'discuss.channel.member/mute',
+        'payload': {
+          'channel_id': 77,
+          'is_muted': false,
+          'mute_until_dt': null,
+        },
+      });
+
+      await Future.delayed(const Duration(milliseconds: 10));
+      expect(received!['channel_id'], 77);
+      expect(received!['is_muted'], isFalse);
+      expect(ChatV2ChannelLocalCache.isUserMuted('77'), isFalse);
+
+      await sub.cancel();
+      bus.dispose();
+    });
+
+    test('14. OdooBusService handles mail.record/insert member mute event', () async {
+      final bus = OdooBusService();
+      Map<String, dynamic>? received;
+      final sub = bus.onMuteNotification.listen((data) {
+        received = data;
+      });
+
+      bus.processBusNotificationForTesting({
+        'type': 'mail.record/insert',
+        'payload': {
+          'discuss.channel.member': [
+            {
+              'id': 105,
+              'channel_id': 88,
+              'mute_until_dt': '2026-10-04 18:00:00',
+            }
+          ],
+        },
+      });
+
+      await Future.delayed(const Duration(milliseconds: 10));
+      expect(received, isNotNull);
+      expect(received!['channel_id'], 88);
+      expect(received!['is_muted'], isTrue);
+      expect(ChatV2ChannelLocalCache.isUserMuted('88'), isTrue);
+
+      await sub.cancel();
+      bus.dispose();
     });
   });
 }

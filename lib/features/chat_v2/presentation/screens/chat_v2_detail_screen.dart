@@ -801,6 +801,9 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
               )
             : ChatV2Channel.cleanChannelName(rawTitle));
 
+    final isChannelMuted = (currentChannel != null && currentChannel.isMuted) ||
+        ChatV2ChannelLocalCache.isUserMuted(widget.channelId);
+
     final headerTextColor = isDark ? Colors.white : const Color(0xFF0F172A);
     final messages = messagesAsync.valueOrNull ??
         ChatV2MessageLocalCache.get(widget.channelId) ??
@@ -1015,15 +1018,30 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        displayTitle,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: isDark ? Colors.white : const Color(0xFF0F172A),
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              displayTitle,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: isDark ? Colors.white : const Color(0xFF0F172A),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (isChannelMuted) ...[
+                            const SizedBox(width: 6),
+                            Icon(
+                              LucideIcons.bellOff,
+                              size: 15,
+                              color: isDark ? Colors.white54 : const Color(0xFF94A3B8),
+                            ),
+                          ],
+                        ],
                       ),
                       const SizedBox(height: 2),
                       Consumer(

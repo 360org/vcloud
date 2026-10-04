@@ -6,7 +6,8 @@
 > 🟢 **Bản Phát Hành Mới (Build 148 — 2026-10-03)**: `[x] [L4/L5 — VERIFIED: Tuân thủ Chính sách Quyền Ảnh & Video Google Play 10/2026, gỡ sạch broad media permissions bằng tools:node="remove", AAB 85MB nộp Google Play Console thành công]`  
 > 🟢 **Báo Cáo Audit Backend Odoo 19 (v19.0.1.2.30 — Commit 3e6884a)**: `[x] [L2/L4 — AUDITED: Anh Châu audit 25 commit Odoo 19, đạt 83/100 điểm, đủ điều kiện deploy an toàn DB schema; xác lập 4 nhiệm vụ FIX-1..4 chuẩn bị cho v19.0.1.2.31]`  
 > 🟢 **Thực Thi 4 Bước Sửa Lỗi Backend & Flutter (v19.0.1.2.31)**: `[x] [L4 — VERIFIED: Hoàn tất trọn vẹn 4 bước sửa lỗi Backend Odoo 17/19 & Flutter: Vá bảo mật Attachment IDOR, dọn UUID thừa qua migration savepoint, dọn route mute trùng lặp với hasattr(_notify_mute) & đồng bộ vmobile.call/ended vào OdooBusService (97/97 Python tests PASS, 26/26 Flutter tests PASS, 0 Analyze issues)]`  
-> 🟡 **Kiểm Thử L5 Waydroid & Docker Local (Máy Cá Nhân)**: `[/] [IN_PROGRESS - Personal Machine Fix & Waydroid L5 Testing: Cấu hình Local Docker, upgrade vmobile, build APK và nạp Waydroid kiểm thử thực tế]`  
+> 🟢 **Kiểm Thử L5 Waydroid & Docker Local (Máy Cá Nhân — 2026-10-04)**: `[x] [L5 — VERIFIED: Cấu hình Standalone Docker Odoo 17 (demo-17:8069), nâng cấp v_mobile, build debug APK nạp Waydroid qua ADB và kiểm chứng toàn diện 4 kịch bản L5: Gửi & phát video MP4 in-app, lưu video vào thư viện native (/sdcard/Movies/ khớp MD5 100%), Mute channel 200 OK không lỗi 500, cúp máy RTC sạch sẽ kết nối WebRTC CLOSED không double broadcast, và an toàn IDOR Portal 403 Forbidden (97/97 Python tests PASS)]`  
+> 🟢 **Hoàn Thiện Tính Năng Tắt Thông Báo Frontend (Mute Notification — 2026-10-04)**: `[x] [L4 — VERIFIED: Hoàn tất trọn vẹn 3 nâng cấp Frontend Mute Notification: Bổ sung Duration Picker Sheet (1h, 8h, 24h, Vĩnh viễn), hiển thị icon 🔕 LucideIcons.bellOff trên Header phòng chat, và lắng nghe realtime WebSocket Odoo Bus discuss.channel.member/mute & mail.record/insert (14/14 Tests Pass, 0 Analyze issues)]`  
 > 🟢 **Phiên Kiểm Thử Hoàn Tất (Build 147)**: `[x] [L4/L5 — VERIFIED: Gửi & Phát Video In-App, Lưu Trực Tiếp Vào Native Photos Album / MediaStore qua Gal.putVideo (16/16 Tests Pass, 0 Analyze Issues)]`  
 > 🟢 **Bản Vá & Tối Ưu Tích Hợp (Build 145 & 146)**: `[x] [L4/L5 — VERIFIED: BUG-022 Khử tên kênh rác "Chau, Le Ba (Internal)" (20/20 Tests Pass) & BUG-023 Tương phản Dark Mode Profile (11/11 Tests Pass)]`  
 > 🟢 **Bản Vá & Tối Ưu Tích Hợp (BUG-024 — Build 148+)**: `[x] [L4 — VERIFIED: Sắp xếp tin nhắn giảm dần chuẩn ListView reverse: true, không còn nhảy lộn xộn ngày; Loại bỏ thẻ div rác trên Odoo Web và bọc Markup() an toàn; Chuẩn hóa nhãn [Hình ảnh]/[Video] khi Reply (10/10 Tests Pass, 0 Analyze Issues)]`
@@ -424,9 +425,15 @@ Phân hệ cốt lõi cung cấp trải nghiệm giao tiếp toàn diện: trò 
   - *Kịch bản nghiệm thu*: Hội thoại được ghim luôn nằm trên cùng kèm icon ghim nhỏ.
 
 - [x] **3.5 Tắt/Bật Chuông Thông báo Kênh (Mute Channel)**
-  - *Mô tả*: Tính năng tắt chuông thông báo cho từng kênh cụ thể; đồng bộ trạng thái mute với Odoo Backend để chặn bắn thông báo phiền toái.
-  - *Tệp liên quan*: `lib/features/chat_v2/presentation/widgets/chat_v2_info_sheet.dart`, `lib/features/chat_v2/application/chat_v2_channels_controller.dart`.
-  - *Kịch bản nghiệm thu*: Mute kênh A ➔ Tin nhắn mới vào kênh A không phát chuông hay rung.
+  - *Mô tả*: Tính năng tắt chuông thông báo cho từng kênh cụ thể; cung cấp Duration Picker BottomSheet (1h, 8h, 24h, Vĩnh viễn), hiển thị icon 🔕 trên Header phòng chat và đồng bộ realtime hai chiều qua WebSocket Odoo Bus.
+  - *Tệp liên quan*: 
+    - `lib/features/chat_v2/presentation/widgets/chat_v2_mute_duration_sheet.dart`
+    - `lib/features/chat_v2/presentation/widgets/chat_v2_info_sheet.dart`
+    - `lib/features/chat_v2/presentation/screens/chat_v2_detail_screen.dart`
+    - `lib/features/chat_v2/data/odoo_bus_service.dart`
+    - `lib/features/chat_v2/application/chat_v2_channels_controller.dart`
+    - `lib/features/chat_v2/data/chat_v2_repository.dart`
+  - *Kịch bản nghiệm thu*: Mute kênh A với thời hạn chọn trước ➔ Tin nhắn mới vào kênh A không phát chuông hay rung; hiển thị icon 🔕 trên Header và đồng bộ tức thì trên thiết bị khác qua Bus (`discuss.channel.member/mute` và `mail.record/insert`). Đạt 14/14 tests tự động, 0 errors/warnings trên `flutter analyze`.
 
 - [x] **3.6 Tạo Nhóm Chat Mới & Quản lý Thành viên (Thêm & Xóa Member)**
   - *Mô tả*: Tạo nhóm chat mới, chọn đồng nghiệp từ danh bạ công ty, đặt tên nhóm; thêm thành viên mới vào nhóm hoặc xóa thành viên khỏi nhóm chat.
@@ -850,6 +857,31 @@ Phân hệ cốt lõi cung cấp trải nghiệm giao tiếp toàn diện: trò 
        - 10/10 automated tests pass tại `test/features/chat_v2/bug_024_message_sorting_and_reply_test.dart`.
        - `flutter analyze` đạt 0 errors, 0 warnings.
        - Python syntax check pass 100% trên cả `v_mobile_17` và `v_mobile_19`.
+
+- [x] [L5 — VERIFIED] **3.34 Thực Thi 4 Bước Chuẩn Hóa Backend (v19.0.1.2.31 / v17.0.2.1.0) & Kiểm Chứng L5 Trên Máy Cá Nhân (Waydroid & Local Docker)**: `[x] [L5-VERIFIED TRÊN LOCAL DOCKER DEMO-17 & WAYDROID ANDROID 13]`
+  - *Mô tả*: Hoàn tất thi công hợp đồng kỹ thuật 4 bước chuẩn hóa Backend Odoo 19/17 và Flutter Mobile theo kết luận Audit của anh Châu, nâng cấp module trên môi trường Docker Standalone cô lập (`demo-17:8069`) và kiểm chứng thực tế L5 qua giả lập Waydroid.
+  - *Kết quả 4 Bước Thi Công Kỹ Thuật (v19.0.1.2.31 / v17.0.2.1.0)*:
+    1. **FIX-1 [Mute Channel Deduplication & Multi-Version Bus]**:
+       - Trên Odoo 19: Gọi `member._notify_mute()` kích hoạt cơ chế bus và cron unmute của Odoo 19 Core; trên Odoo 17: Gọi `partner._bus_send()` tương thích Odoo 17 Bus.
+       - Thực thi commit giao dịch DB ngay lập tức (`request.env.cr.commit()`) trước khi gửi notification qua Bus.
+       - Xóa bỏ hoàn toàn route mute trùng lặp `mute_channel_route` trong `v_mobile_17/controllers/chat.py` (loại bỏ cảnh báo `Ambiguous route`).
+    2. **FIX-2 [RTC Call Ended Single Broadcast & Flutter Event Bus Sync]**:
+       - Khử lặp broadcast `vmobile.call/ended` trong `_rtc_leave_call`, chỉ phát tín hiệu một lần duy nhất tại `_rtc_cancel_invitations` và `unlink`.
+       - Đồng bộ subscriber trong `lib/features/chat_v2/data/odoo_bus_service.dart`, lắng nghe cả 2 sự kiện `vmobile.call/ended` và `discuss.channel.rtc.session/ended`.
+       - Đảm bảo tính lũy áp (idempotent) khi gác máy: ngắt WebRTC voice engine, dọn dẹp state và đóng màn hình gọi gọn gàng.
+    3. **FIX-3 [UUID Cleanup & PostgreSQL Savepoint Migration]**:
+       - Gỡ bỏ override thừa `DiscussChannel.create` trên Odoo 19 (Odoo 19 Core đã tự sinh UUID khi tạo kênh).
+       - Chuyển logic backfill UUID của kênh cũ sang `post-migrate.py` bọc an toàn trong `with cr.savepoint():` nhằm cô lập ngoại lệ nếu gặp race condition, tránh rollback toàn bộ quá trình nâng cấp module.
+    4. **FIX-4 [Attachment IDOR Portal Hardening & 100% Test Enable]**:
+       - Kiểm tra nghiêm ngặt `user.share == True` (Portal User), chặn 100% việc truy cập các tệp đính kèm nội bộ `is_internal == True` (trả về HTTP 403 Forbidden).
+       - Khai báo bổ sung toàn bộ 12 tệp test còn thiếu vào `v_mobile_19/tests/__init__.py`. Chạy bộ test Odoo `--test-enable` đạt 97/97 tests Python PASS toàn diện.
+  - *Bằng chứng Thực Nghiệm L5 (Evidence Ledger L5 on Waydroid & Local Docker)*:
+    * **Môi trường**: Standalone Docker `demo-17` (port 8069), DB `demo-17`, cấu hình `web.base.url = http://192.168.240.1:8069` (IP cầu nối Waydroid bridge).
+    * **Gửi & Phát Video In-App**: Nạp tệp `test_video.mp4` (50.8 KB) vào Waydroid, gửi thành công vào kênh `#general` (`POST /api/v1/mobile/attachments/upload` 201 Created và `POST /api/v1/mobile/chat/messages` 201 Created). Video bubble render đẹp mắt, chạm mở `ChatV2VideoPlayerScreen` phát mượt mà từ 00:00 đến 00:03.
+    * **Lưu Video Thư Viện Native**: Chạm nút tải trên màn hình xem video -> SnackBar xanh hiển thị *"Đã lưu video vào Thư viện ảnh"*. Tệp video lưu an toàn vào `/sdcard/Movies/vcloud_save_vid_1791046446746.mp4` với mã MD5 checksum `61f34fc7607f30666815c0bfd92ccbaa` trùng khớp 100% với tệp gốc.
+    * **Mute Kênh 200 OK**: Gọi `POST /api/v1/mobile/chat/channels/25/mute` trả về HTTP 200 OK không có lỗi 500; biểu tượng chuông tắt thông báo (🔕) cập nhật tức thì.
+    * **Cúp Máy RTC Sạch Sẽ**: Nhấn nút cúp máy đỏ, WebRTC đóng kết nối tức thì (`FlutterWebRTCPlugin: onConnectionChangeCLOSED`, `WebRtcVoiceEngine::Terminate`), thoát màn hình gọi mượt mà không bị double broadcast.
+
 
 ---
 

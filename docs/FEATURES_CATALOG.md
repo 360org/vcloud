@@ -2,7 +2,7 @@
 
 > **Hệ sinh thái**: VCloud Mobile App (Flutter Client) & Odoo Mobile Addon (`vmobile` - Odoo 17 & Odoo 19)  
 > **Phiên bản chuẩn hóa**: `v2.9.12` (Build 144)  
-> **Nguồn sự thật duy nhất (Single Source of Truth - SSOT)**: Tài liệu đặc tả chức năng toàn diện cho 79 tính năng thuộc 6 phân hệ nghiệp vụ chuẩn mực.
+> **Nguồn sự thật duy nhất (Single Source of Truth - SSOT)**: Tài liệu đặc tả chức năng toàn diện cho 80 tính năng thuộc 6 phân hệ nghiệp vụ chuẩn mực.
 
 > 💡 **HƯỚNG DẪN KHI AUDIT MÃ NGUỒN ODOO BACKEND**:
 > Sau khi pull nhánh `17.0` (`v_mobile_17`) hoặc `19.0` (`v_mobile_19`), người vận hành cần thực hiện nâng cấp (upgrade) module **`vmobile`** trên Odoo Server để nạp toàn bộ các bản vá API và route mới nhất:
@@ -12,13 +12,13 @@
 
 ---
 
-## 📑 BẢNG TỔNG QUAN 6 PHÂN HỆ NGHIỆP VỤ (79 TÍNH NĂNG)
+## 📑 BẢNG TỔNG QUAN 6 PHÂN HỆ NGHIỆP VỤ (80 TÍNH NĂNG)
 
 | STT | Phân Hệ Nghiệp Vụ | Số Lượng Tính Năng | Phạm Vi Kiến Trúc |
 | :---: | :--- | :---: | :--- |
 | **1** | **Xác thực & Quản trị Phiên (Auth & Multi-DB)** | 8 tính năng | Flutter Auth, JWT Token, Odoo Session, Multi-DB Resolver |
 | **2** | **Quản lý Thời gian & Chấm công (Timesheet & HR)** | 12 tính năng | GPS Geofencing, `hr.attendance`, `account.analytic.line`, Stopwatch |
-| **3** | **Giao tiếp Nội bộ & Hội thoại Đa phương tiện (Chat V2 & Media)** | 27 tính năng | Odoo Discuss, WebRTC Audio, Coturn TURN, WebSocket Bus, SAF, Clean Reply |
+| **3** | **Giao tiếp Nội bộ & Hội thoại Đa phương tiện (Chat V2 & Media)** | 28 tính năng | Odoo Discuss, WebRTC Audio, Coturn TURN, WebSocket Bus, SAF, Clean Reply, Mute |
 | **4** | **Quản lý Công việc & Bảng Điều khiển (Dashboard & Tasks)** | 9 tính năng | `project.task`, Subtasks Checklist, SWR Cache, Notification Center |
 | **5** | **Hỗ trợ Kỹ thuật & Phiếu Dịch vụ (Helpdesk Tickets)** | 14 tính năng | `helpdesk.ticket`, SLA Tracker, Odoo Chatter, In-App Attachment Viewer |
 | **6** | **Hồ sơ Cá nhân & Tiện ích Hệ thống (Profile & Settings)** | 9 tính năng | `res.users`, Dark Theme, Cache Cleaner, 4-Tier Secure Logout |
@@ -222,6 +222,11 @@
 - Thiết lập tính bất biến sắp xếp giảm dần theo thời gian (`createdAt desc`) và ID trong danh sách tin nhắn ngược (`ListView(reverse: true)`), triệt tiêu hoàn toàn hiện tượng nhảy xáo trộn ngày khi làm mới hoặc tải thêm tin nhắn.
 - Tích hợp chuẩn kiến trúc trích dẫn Odoo Discuss qua `parent_id` Many2one, loại bỏ triệt để mã HTML thô trên Odoo Web và bọc an toàn `Markup()` trên Backend Odoo.
 - Chuẩn hóa thông minh các tệp ảnh, video, âm thanh đính kèm khi reply thành các nhãn tiếng Việt `[Hình ảnh]`, `[Video]`, `[Tin nhắn thoại]`.
+
+### 3.28. Tắt Chuông Thông Báo Hội Thoại Linh Hoạt & Đồng Bộ Thời Gian Thực (Mute Notification & Real-Time Sync)
+- Cung cấp BottomSheet chọn thời hạn tắt thông báo linh hoạt theo 4 mốc: Trong 1 giờ (`60m`), Trong 8 giờ (`480m`), Trong 24 giờ (`1440m`) và Cho đến khi tôi bật lại (`-1`), đồng bộ API Backend `/api/v1/mobile/chat/channels/<id>/mute`.
+- Hiển thị biểu tượng chuông tắt thông báo `LucideIcons.bellOff` trên cả Danh sách kênh (`ChatV2ListScreen`) lẫn thanh Header phòng trò chuyện (`ChatV2DetailScreen`).
+- Lắng nghe và đồng bộ hai chiều thời gian thực qua WebSocket Odoo Bus (`discuss.channel.member/mute`, `mail.channel.member/mute`, và `mail.record/insert`), tự động cập nhật trạng thái UI tức thì không cần reload hay kéo làm mới.
 
 ---
 
