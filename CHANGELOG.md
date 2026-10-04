@@ -1,5 +1,38 @@
 # CHANGELOG
 
+## [2.9.14 - Build 149] - 2026-10-04
+
+### 🚀 Dynamic Model Discovery, Phân Luồng Portal 2-3-5 Tabs & Nâng Cấp Train Version App Store
+- **Nâng Cấp Train Version App Store Connect (TestFlight Submission)**:
+  - Nâng `CFBundleShortVersionString` từ `2.9.13` lên `2.9.14` (Build 149) theo yêu cầu bắt buộc của Apple (giải quyết lỗi `90186 - Invalid Pre-Release Train` và `90062 - CFBundleShortVersionString must contain a higher version than previously approved version`).
+- **Phân Luồng & Điều Hướng Động Portal User (Dynamic Model Discovery)**:
+  - `auth_user.dart`: Phân tích `installed_modules` từ metadata người dùng (`hasHelpdesk`, `hasTimesheet`, `hasAttendance`, `hasProject`).
+  - `odoo_api_client.dart`: Thêm phương thức tra cứu động `getDiscovery()` từ endpoint `/api/v1/mobile/user/discovery`.
+  - `app_scaffold.dart`: Thanh Floating Tab Bar co giãn đều bằng `Row` & `Expanded`. Tự động co về 2 tab (`Chat`, `Tôi`) hoặc 3 tab (`Ticket`, `Chat`, `Tôi`) cho Portal User, và 5 tab (`Home`, `Chat`, `Timesheet`, `Ticket`, `Tôi`) cho Nhân viên nội bộ.
+  - `app_router.dart`: Guard điều hướng thông minh — Portal User khi đăng nhập vào hệ thống không có Helpdesk sẽ được chuyển hướng thẳng tới màn hình Chat (`/chat`), tự động chặn chuyển hướng vào `/tickets` khi không có quyền.
+- **Kiểm Thử & Đảm Bảo Chất Lượng**:
+  - Pass 12/12 unit tests trong `test/features/auth/dynamic_discovery_portal_test.dart`.
+  - Kiểm chứng thực tế L5 trên Waydroid Android 13: Portal User đăng nhập co về 2 tab, Nhân viên nội bộ hiển thị đủ 5 tab.
+  - `flutter analyze`: Đạt 0 issues found (0 errors, 0 warnings).
+
+## [2.9.13 - Build 148] - 2026-10-04
+
+### 🛡️ Tuân Thủ Chính Sách Quyền Ảnh & Video Google Play, Sửa BUG-024 & Chat V2 Mute Picker
+- **Tuân Thủ Chính Sách Photo & Video Permissions Google Play (Tháng 10/2026)**:
+  - `AndroidManifest.xml`: Cấu hình `tools:node="remove"` loại bỏ triệt để các quyền media broad access (`READ_MEDIA_IMAGES`, `READ_MEDIA_VIDEO`, `READ_MEDIA_AUDIO`, `READ_EXTERNAL_STORAGE`) do thư viện bên ngoài inject.
+  - Chuyển đổi 100% sang Android Photo Picker (SAF) chuẩn hệ thống không cần cấp quyền diện rộng.
+  - Đóng gói bản ký số `app-release.aab` (85MB), versionCode 148 đạt chuẩn phê duyệt Google Play Console.
+- **Khắc Phục Lỗi Đảo Dòng Thời Gian & Quote Reply (BUG-024)**:
+  - `chat_v2_messages_controller.dart`: Chuẩn hóa hàm `_mergeMessages` duy trì quy tắc sắp xếp giảm dần `createdAt desc` (tie-break `id desc`) trên `ListView.builder(reverse: true)`, ghim tin nhắn tạm `temp_*` lên đỉnh. Khắc phục triệt để lỗi nhảy tin nhắn cũ xuống đáy khi polling.
+  - Backend Odoo Discuss: Bọc `Markup(clean_body)` trong controllers, ngăn core Odoo auto-escape làm lộ mã HTML thô trên Web khi người dùng reply.
+  - Chuẩn hóa nhãn Reply: Hiển thị nhãn người dùng thân thiện `[Hình ảnh]`, `[Video]`, `[Tin nhắn thoại]` thay vì tên tệp kỹ thuật thô (`image_picker_...jpg`).
+  - Pass 10/10 tests trong `test/features/chat_v2/chat_v2_messages_controller_test.dart`.
+- **Giao Diện Chọn Thời Gian Tắt Thông Báo Kênh (Chat V2 Mute Picker)**:
+  - Bổ sung Modal BottomSheet `ChatV2MuteDurationSheet` trực quan với 4 mức thời gian: 1 giờ, 8 giờ, 24 giờ, Vô thời hạn.
+  - Hiển thị icon chuông tắt tiếng `LucideIcons.bellOff` trên AppBar phòng chat khi kênh bị tắt thông báo.
+  - Đồng bộ realtime bus với Odoo 19 qua sự kiện `_notify_mute()` tự động kích hoạt cron unmute đúng hạn.
+  - Pass 14/14 tests trong `test/features/chat_v2/chat_v2_mute_test.dart`.
+
 ## [2.9.13 - Build 147] - 2026-10-03
 
 ### 🎬 Gửi & Phát Video In-App và Lưu Native Gallery
