@@ -34,13 +34,19 @@
 - [x] 1.1 **Đăng nhập Pre-Auth**: Nhập sai mật khẩu báo lỗi ngay (HTTP 401 `{"error": "invalid_credentials"}`); nhập đúng mở Popup DB (nếu ≥ 2 DB) hoặc vào thẳng (nếu 1 DB). Đã test live `vuahethong.net` (`tanmnn@360.org.vn`).
 - [x] 1.2 **Multi-DB Selection**: Chọn DB `vuahethong` ➔ Wipe Token RAM DB khác (`clearTemporaryMemory()`) ➔ Vào `HomeScreen`. Popup chỉ lọc và hiển thị đúng các DB đã pre-auth thành công (5 DB nếu đúng 5/18), tuyệt đối không hiển thị các DB sai mật khẩu.
 - [x] 1.3 **Phân luồng Portal vs Internal & Cấp quyền Model Động (Dynamic App Discovery theo Odoo 19)**:
-  - *Nhân viên nội bộ (`is_portal: false`)*: Hiển thị đầy đủ 5 Tab điều hướng (`Home`, `Chat`, `Timesheet`, `Ticket`, `Tôi`) và toàn bộ tính năng nội bộ.
-  - *Khách hàng ngoài Portal (`is_portal: true`)*: Hiển thị giao diện động theo đúng các Module/Model được cài đặt và phân quyền trên Tenant Database (Cài Model nào ➔ Hiển thị tính năng Model đó; Chưa cài ➔ Ẩn hoàn toàn khỏi giao diện App):
-    * `helpdesk` (`helpdesk.ticket`): Mở phân hệ Phiếu hỗ trợ / Ticket. Nếu DB chưa cài `helpdesk` ➔ Ẩn hoàn toàn tab Ticket.
+  - *Nhân viên nội bộ (`is_portal: false`)*: Hiển thị đầy đủ 5 Tab điều hướng (`Home`, `Chat`, `Timesheet`, `Ticket`, `Tôi`) và toàn bộ tính năng nội bộ:
+    * **Tab Trang chủ (`Home`)**: Tích hợp các Widget quản trị nghiệp vụ:
+      - Thẻ Chấm công GPS & Ca làm việc (`hr_attendance` - `hr.attendance`, `hr.employee`): Check-in/out 1 chạm, đo bán kính văn phòng, thanh tiến độ ca làm, đếm giờ làm việc, pháo hoa hoàn thành 8h.
+      - Khối Quick Nav Grid: Thống kê số lượng Ticket đang xử lý (`helpdesk`), tin nhắn chưa đọc (`mail`), công việc cần làm (`project`).
+      - Khối Công việc hôm nay (`project.task`, `account.analytic.line`): Checklist 3 task trọng tâm, tích hoàn thành nhanh.
+      - Hộp thoại Thông báo đẩy (`mobile.api.notification`): Xem thông báo nhắc chấm công, tin nhắn, phân công việc.
+    * **Tab Chấm công & Timesheet**: Độc quyền cho nhân sự nội bộ ghi nhận thời gian làm việc.
+  - *Khách hàng ngoài Portal (`is_portal: true`)*: Tuyệt đối chặn truy cập Tab Home và các module nội bộ. Hiển thị giao diện động theo đúng các Module/Model được cài đặt và phân quyền trên Tenant Database (Cài Model nào ➔ Hiển thị tính năng Model đó; Chưa cài ➔ Ẩn hoàn toàn khỏi giao diện App):
+    * `helpdesk` (`helpdesk.ticket`, `helpdesk.team`): Mở phân hệ Phiếu hỗ trợ / Ticket. Nếu DB chưa cài `helpdesk` ➔ Ẩn hoàn toàn tab Ticket.
     * `mail` (`discuss.channel`, `mail.message`): Mở phân hệ Chat trao đổi với nhân viên phụ trách.
     * `project` (`project.project`, `project.task` với `privacy_visibility='portal'`): Mở phân hệ Dự án & Công việc khi được chia sẻ cho Portal.
     * `base` (`res.users`, `res.partner`): Mở phân hệ Cá nhân (Tôi).
-    * Tuyệt đối không hiển thị Chấm công (`hr_attendance`) và Timesheet (`hr_timesheet`) cho Portal User.
+    * Tuyệt đối không hiển thị Trang chủ (`Home`), Chấm công (`hr_attendance`) và Timesheet (`hr_timesheet`) cho Portal User.
 - [x] 1.4 **Tự động hủy Push Token khi Logout**: Đăng xuất ➔ Server vô hiệu hóa FCM device token qua `/api/v1/mobile/notifications/unregister` (`HTTP 200 {"status": "unregistered"}`).
 
 ### 🟢 GIAI ĐOẠN 2: CHẤM CÔNG GPS & TIMESHEET (ATTENDANCE & TIMER) — `[x] [Claude-Verified — 77/77 PASS 100%]`
@@ -306,19 +312,25 @@ Phân hệ quản lý toàn bộ luồng đăng nhập, định danh người d�
 
 - [x] **1.3 Phân luồng vai trò Người dùng & Nhận diện Model Động (Internal Employee vs Portal User - Dynamic Model Discovery)**
   - *Mô tả*:
-    * **Người dùng nội bộ (`is_portal: false`)**: Luôn hiển thị đầy đủ tất cả các tab và tính năng nội bộ (Home, Chat, Timesheet, Ticket, Tôi).
-    * **Người dùng Portal (`is_portal: true`)**: Áp dụng cơ chế khám phá phân hệ động theo Odoo 19 (Dynamic Model Discovery). Ứng dụng chỉ hiển thị các module/model đã được cài đặt và cấp quyền trên Tenant Database của khách hàng; nếu Tenant chưa cài đặt thì module đó tự động ẩn hoàn toàn khỏi giao diện:
+    * **Người dùng nội bộ (`is_portal: false`)**: Luôn hiển thị đầy đủ tất cả các tab và tính năng nội bộ:
+      1. **Tab Trang chủ (`Home`)**: Tích hợp các Widget quản trị và tiện ích thời gian thực:
+         - **Thẻ Chấm công GPS & Ca làm việc** (`hr_attendance` - `hr.attendance`, `hr.employee`): Check-in/Check-out 1 chạm, kiểm tra bán kính văn phòng, thanh tiến độ ca làm việc, đồng hồ đếm giờ hôm nay, hiệu ứng pháo hoa chúc mừng hoàn thành 8 giờ.
+         - **Khối Điều hướng Nhanh (Quick Nav Grid)**: Thống kê tức thì số lượng Ticket đang xử lý (`helpdesk`), tin nhắn và số kênh chưa đọc (`mail`), số công việc cần giải quyết (`project`).
+         - **Khối Công việc Hôm nay (Today Work)**: Hiển thị 3 nhiệm vụ trọng tâm từ `project.task`, checklist tích hoàn thành nhanh, liên kết sang bộ đếm giờ Timesheet.
+         - **Hộp thoại Thông báo đẩy (`_NotificationSheet`)**: Tra cứu thông báo nhắc việc, nhắc check-in/out, tin nhắn mới (`mobile.api.notification`).
+      2. **Các Tab nghiệp vụ nội bộ**: Tin nhắn (`Chat`), Bảng chấm công (`Timesheet`), Phiếu hỗ trợ (`Ticket`), Cá nhân (`Tôi`).
+    * **Người dùng Portal (`is_portal: true`)**: Tuyệt đối chặn truy cập Tab Home và các module nội bộ. Áp dụng cơ chế khám phá phân hệ động theo Odoo 19 (Dynamic Model Discovery). Ứng dụng chỉ hiển thị các module/model đã được cài đặt và cấp quyền trên Tenant Database của khách hàng; nếu Tenant chưa cài đặt thì module đó tự động ẩn hoàn toàn khỏi giao diện:
       1. **Module `helpdesk` (`helpdesk.ticket`, `helpdesk.team`)**: Hiển thị phân hệ Ticket / Phiếu hỗ trợ. Nếu Tenant chưa cài đặt module `helpdesk` ➔ Ẩn hoàn toàn tab Ticket khỏi giao diện Mobile.
       2. **Module `mail` (`discuss.channel`, `mail.message`, `ir.attachment`)**: Hiển thị phân hệ Chat trao đổi trực tiếp với kỹ thuật/CSKH.
       3. **Module `project` (`project.project`, `project.task` với `privacy_visibility='portal'`)**: Hiển thị phân hệ Dự án & Công việc của tôi khi được cấp quyền chia sẻ.
       4. **Module `base` (`res.users`, `res.partner`)**: Hiển thị phân hệ Tôi (Thông tin tài khoản, đổi mật khẩu, đăng xuất).
-      5. **Chặn tuyệt đối phân hệ nội bộ**: Tự động chặn và ẩn hoàn toàn Chấm công (`hr_attendance`) và Bảng chấm công (`hr_timesheet`) đối với tài khoản Portal.
-  - *Tệp liên quan*: `lib/core/router/app_router.dart`, `lib/shared/widgets/app_scaffold.dart`, `lib/features/auth/application/auth_controller.dart`, `v_mobile_17/controllers/auth.py`, `v_mobile_19/controllers/auth.py`.
+      5. **Chặn tuyệt đối phân hệ nội bộ**: Tự động chặn và ẩn hoàn toàn Trang chủ (`Home`), Chấm công (`hr_attendance`) và Bảng chấm công (`hr_timesheet`) đối với tài khoản Portal.
+  - *Tệp liên quan*: `lib/core/router/app_router.dart`, `lib/shared/widgets/app_scaffold.dart`, `lib/features/home/presentation/home_screen.dart`, `lib/features/auth/application/auth_controller.dart`, `v_mobile_17/controllers/auth.py`, `v_mobile_19/controllers/auth.py`.
   - *Kịch bản nghiệm thu*:
-    1. Đăng nhập tài khoản Nhân viên nội bộ ➔ Hiển thị đầy đủ 5 tab điều hướng và toàn bộ tính năng.
-    2. Đăng nhập tài khoản Portal trên DB có cài `helpdesk` ➔ Hiển thị 3 tab (Ticket, Chat, Tôi).
+    1. Đăng nhập tài khoản Nhân viên nội bộ ➔ Hiển thị đầy đủ 5 tab điều hướng, Tab Home với đầy đủ thẻ Chấm công GPS, Quick Nav Widget và Danh sách công việc hôm nay.
+    2. Đăng nhập tài khoản Portal trên DB có cài `helpdesk` ➔ Hiển thị 3 tab (Ticket, Chat, Tôi), không có Tab Home.
     3. Đăng nhập tài khoản Portal trên DB chưa cài `helpdesk` ➔ Tab Ticket tự động ẩn, chỉ hiển thị (Chat, Tôi).
-    4. Không bao giờ xuất hiện Chấm công hay Timesheet trên tài khoản Portal.
+    4. Không bao giờ xuất hiện Trang chủ, Chấm công hay Timesheet trên tài khoản Portal.
 
 - [x] **1.4 Khôi phục phiên làm việc tự động (Auto-Restore Session)**
   - *Mô tả*: Tự động đọc và giải mã JWT token an toàn trong `FlutterSecureStorage` khi khởi động từ màn hình Splash; nếu còn hạn thì vào thẳng giao diện chính mà không bắt đăng nhập lại.
