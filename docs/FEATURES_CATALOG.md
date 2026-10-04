@@ -45,8 +45,6 @@
     - Module `helpdesk` (`helpdesk.ticket`): Hiển thị tab Phiếu hỗ trợ / Ticket. Nếu DB chưa cài ➔ Ẩn hoàn toàn tab Ticket.
     - Module `mail` (`discuss.channel`): Hiển thị tab Tin nhắn / Chat hỗ trợ.
     - Module `project` (`project.project`, `project.task`): Hiển thị danh mục Dự án/Công việc được chia sẻ cho Portal.
-    - Module `sale` (`sale.order`): Hiển thị Báo giá & Đơn hàng (mở rộng).
-    - Module `account` (`account.move`): Hiển thị Hóa đơn & Công nợ (mở rộng).
     - Module `base` (`res.users`, `res.partner`): Hiển thị tab Tài khoản (Tôi).
   * Tuyệt đối ẩn và chặn truy cập vào module Chấm công (`hr_attendance`) và Bảng chấm công (`hr_timesheet`).
 

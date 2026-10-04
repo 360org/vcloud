@@ -38,9 +38,7 @@
   - *Khách hàng ngoài Portal (`is_portal: true`)*: Hiển thị giao diện động theo đúng các Module/Model được cài đặt và phân quyền trên Tenant Database (Cài Model nào ➔ Hiển thị tính năng Model đó; Chưa cài ➔ Ẩn hoàn toàn khỏi giao diện App):
     * `helpdesk` (`helpdesk.ticket`): Mở phân hệ Phiếu hỗ trợ / Ticket. Nếu DB chưa cài `helpdesk` ➔ Ẩn hoàn toàn tab Ticket.
     * `mail` (`discuss.channel`, `mail.message`): Mở phân hệ Chat trao đổi với nhân viên phụ trách.
-    * `project` (`project.project`, `project.task` với `privacy_visibility='portal'`): Mở phân hệ Dự án & Công việc của tôi khi được chia sẻ.
-    * `sale` / `sale_management` (`sale.order`): Mở phân hệ Báo giá & Đơn hàng (mở rộng).
-    * `account` (`account.move`): Mở phân hệ Hóa đơn & Công nợ (mở rộng).
+    * `project` (`project.project`, `project.task` với `privacy_visibility='portal'`): Mở phân hệ Dự án & Công việc khi được chia sẻ cho Portal.
     * `base` (`res.users`, `res.partner`): Mở phân hệ Cá nhân (Tôi).
     * Tuyệt đối không hiển thị Chấm công (`hr_attendance`) và Timesheet (`hr_timesheet`) cho Portal User.
 - [x] 1.4 **Tự động hủy Push Token khi Logout**: Đăng xuất ➔ Server vô hiệu hóa FCM device token qua `/api/v1/mobile/notifications/unregister` (`HTTP 200 {"status": "unregistered"}`).
@@ -313,10 +311,8 @@ Phân hệ quản lý toàn bộ luồng đăng nhập, định danh người d�
       1. **Module `helpdesk` (`helpdesk.ticket`, `helpdesk.team`)**: Hiển thị phân hệ Ticket / Phiếu hỗ trợ. Nếu Tenant chưa cài đặt module `helpdesk` ➔ Ẩn hoàn toàn tab Ticket khỏi giao diện Mobile.
       2. **Module `mail` (`discuss.channel`, `mail.message`, `ir.attachment`)**: Hiển thị phân hệ Chat trao đổi trực tiếp với kỹ thuật/CSKH.
       3. **Module `project` (`project.project`, `project.task` với `privacy_visibility='portal'`)**: Hiển thị phân hệ Dự án & Công việc của tôi khi được cấp quyền chia sẻ.
-      4. **Module `sale` / `sale_management` (`sale.order`, `sale.order.line`)**: Hiển thị phân hệ Đơn hàng & Báo giá (mở rộng).
-      5. **Module `account` (`account.move`)**: Hiển thị phân hệ Hóa đơn & Công nợ (mở rộng).
-      6. **Module `base` (`res.users`, `res.partner`)**: Hiển thị phân hệ Tôi (Thông tin tài khoản, đổi mật khẩu, đăng xuất).
-      7. **Chặn tuyệt đối phân hệ nội bộ**: Tự động chặn và ẩn hoàn toàn Chấm công (`hr_attendance`) và Bảng chấm công (`hr_timesheet`) đối với tài khoản Portal.
+      4. **Module `base` (`res.users`, `res.partner`)**: Hiển thị phân hệ Tôi (Thông tin tài khoản, đổi mật khẩu, đăng xuất).
+      5. **Chặn tuyệt đối phân hệ nội bộ**: Tự động chặn và ẩn hoàn toàn Chấm công (`hr_attendance`) và Bảng chấm công (`hr_timesheet`) đối với tài khoản Portal.
   - *Tệp liên quan*: `lib/core/router/app_router.dart`, `lib/shared/widgets/app_scaffold.dart`, `lib/features/auth/application/auth_controller.dart`, `v_mobile_17/controllers/auth.py`, `v_mobile_19/controllers/auth.py`.
   - *Kịch bản nghiệm thu*:
     1. Đăng nhập tài khoản Nhân viên nội bộ ➔ Hiển thị đầy đủ 5 tab điều hướng và toàn bộ tính năng.
