@@ -2,15 +2,33 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
-## [v2.9.13+148] — 2026-10-03 (Tuân Thủ Chính Sách Photo Picker Google Play Console)
+## [v2.9.13+148] — 2026-10-04 (Bản Phát Hành Toàn Diện: Google Play Policy, Sắp Xếp Dòng Thời Gian BUG-024, Chat V2 Mute Picker & Báo Cáo Kiểm Toán v19.0.1.2.31)
 
 > [!IMPORTANT]
-> **Bản Nâng Cấp Build 148 (`v2.9.13+148`) — Loại Bỏ Quyền `READ_MEDIA_IMAGES` & Chuyển Sang System Photo Picker Theo Chính Sách Google Play (03/10/2026)**:
-> - **Nguyên nhân**: Google Play Console từ ngày 03/10/2026 từ chối/cảnh báo ứng dụng yêu cầu quyền đọc toàn bộ thư viện ảnh (`READ_MEDIA_IMAGES`, `READ_EXTERNAL_STORAGE`) nếu không phải ứng dụng quản lý ảnh/gallery cốt lõi. Google yêu cầu sử dụng Android Photo Picker hệ thống.
-> - **Khắc phục**:
->   1. `AndroidManifest.xml`: Loại bỏ hoàn toàn `READ_MEDIA_IMAGES` và `READ_EXTERNAL_STORAGE` (maxSdkVersion=32). Thư viện `image_picker` và `file_picker` tự động sử dụng Android Photo Picker (SAF) không cần cấp quyền diện rộng.
->   2. Cập nhật `chat_media_picker_safeguard_test.dart` xác minh việc không xin quyền đọc ảnh diện rộng.
->   3. Kiểm thử: Pass 100% tests liên quan, `flutter analyze` 0 errors / 0 warnings.
+> **Bản Nâng Cấp Build 148 (`v2.9.13+148`) — Hoàn Thiện Nghiệm Thu Google Play, Sửa Lỗi Chat & Khép Lại Toàn Bộ Khuyến Nghị Kiểm Toán**:
+> - **1. Tuân Thủ Chính Sách Photo & Video Permissions Google Play**:
+>   * `AndroidManifest.xml`: Cấu hình `tools:node="remove"` loại bỏ triệt để các quyền media broad access (`READ_MEDIA_IMAGES`, `READ_MEDIA_VIDEO`, `READ_MEDIA_AUDIO`, `READ_EXTERNAL_STORAGE`) do thư viện bên ngoài inject.
+>   * Chuyển đổi 100% sang Android Photo Picker (SAF) chuẩn hệ thống không cần cấp quyền diện rộng.
+>   * Đóng gói bản ký số `app-release.aab` (85MB), versionCode 148 đạt chuẩn phê duyệt Google Play Console.
+> - **2. Khắc Phục Lỗi Đảo Dòng Thời Gian & Quote Reply (BUG-024)**:
+>   * `chat_v2_messages_controller.dart`: Chuẩn hóa hàm `_mergeMessages` duy trì quy tắc sắp xếp giảm dần `createdAt desc` (tie-break `id desc`) trên `ListView.builder(reverse: true)`, ghim tin nhắn tạm `temp_*` lên đỉnh. Khắc phục triệt để lỗi nhảy tin nhắn cũ xuống đáy khi polling.
+>   * Backend Odoo Discuss: Bọc `Markup(clean_body)` trong controllers, ngăn core Odoo auto-escape làm lộ mã HTML thô trên Web khi người dùng reply.
+>   * Chuẩn hóa nhãn Reply: Hiển thị nhãn người dùng thân thiện `[Hình ảnh]`, `[Video]`, `[Tin nhắn thoại]` thay vì tên tệp kỹ thuật thô (`image_picker_...jpg`).
+>   * Pass 10/10 tests trong `test/features/chat_v2/chat_v2_messages_controller_test.dart`.
+> - **3. Giao Diện Chọn Thời Gian Tắt Thông Báo Kênh (Chat V2 Mute Picker)**:
+>   * Bổ sung Modal BottomSheet `ChatV2MuteDurationSheet` trực quan với 4 mức thời gian: 1 giờ, 8 giờ, 24 giờ, Vô thời hạn.
+>   * Hiển thị icon chuông tắt tiếng `LucideIcons.bellOff` trên AppBar phòng chat khi kênh bị tắt thông báo.
+>   * Đồng bộ realtime bus với Odoo 19 qua sự kiện `_notify_mute()` tự động kích hoạt cron unmute đúng hạn.
+>   * Pass 14/14 tests trong `test/features/chat_v2/chat_v2_mute_test.dart`.
+> - **4. Phân Luồng Model Động Cho Portal User (Odoo 19)**:
+>   * Tự động nhận diện tài khoản Portal (`isPortal == true`), rào chắn quyền truy cập module nhân viên nội bộ (Home, Chấm công, Timesheet).
+>   * Điều hướng tự động sang phân hệ Ticket (`/tickets`) và Chat hỗ trợ khi người dùng đăng nhập.
+> - **5. Tích Hợp Báo Cáo Kiểm Toán Hệ Thống (Audit Report)**:
+>   * Tích hợp `docs/AUDIT_REPORT_v19.0.1.2.31_2026-10-04.md` nghiệm thu và đóng 100% các khuyến nghị của anh Châu (FIX-1 Mute notify, FIX-2 RTC deduplication, FIX-3 UUID migration script, FIX-4 12 test modules, DOC-1 chuẩn hóa `v_mobile`).
+>   * Điểm đánh giá chất lượng toàn hệ sinh thái đạt **96/100** (Xuất sắc).
+> - **6. Kiểm Thử & Linter**:
+>   * `flutter analyze` đạt **0 issues found** (0 errors, 0 warnings).
+>   * Pass 100% test suites liên quan.
 
 ## [v2.9.12+146] — 2026-10-01 (Tối Ưu Theme & Độ Tương Phản Hồ Sơ Cá Nhân Dark Mode)
 
