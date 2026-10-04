@@ -33,7 +33,16 @@
 ### 🟢 GIAI ĐOẠN 1: XÁC THỰC & MULTI-DB (AUTH) — `[x] [ACCEPTED]` (Sếp Tân duyệt: 2026-09-28)
 - [x] 1.1 **Đăng nhập Pre-Auth**: Nhập sai mật khẩu báo lỗi ngay (HTTP 401 `{"error": "invalid_credentials"}`); nhập đúng mở Popup DB (nếu ≥ 2 DB) hoặc vào thẳng (nếu 1 DB). Đã test live `vuahethong.net` (`tanmnn@360.org.vn`).
 - [x] 1.2 **Multi-DB Selection**: Chọn DB `vuahethong` ➔ Wipe Token RAM DB khác (`clearTemporaryMemory()`) ➔ Vào `HomeScreen`. Popup chỉ lọc và hiển thị đúng các DB đã pre-auth thành công (5 DB nếu đúng 5/18), tuyệt đối không hiển thị các DB sai mật khẩu.
-- [x] 1.3 **Phân luồng Portal vs Internal**: Tài khoản `tanmnn` (`is_portal: false`) hiển thị đủ 5 Tab điều hướng (`Home`, `Chat`, `Timesheet`, `Ticket`, `Tôi`). Portal user hiển thị 3 tab.
+- [x] 1.3 **Phân luồng Portal vs Internal & Cấp quyền Model Động (Dynamic App Discovery theo Odoo 19)**:
+  - *Nhân viên nội bộ (`is_portal: false`)*: Hiển thị đầy đủ 5 Tab điều hướng (`Home`, `Chat`, `Timesheet`, `Ticket`, `Tôi`) và toàn bộ tính năng nội bộ.
+  - *Khách hàng ngoài Portal (`is_portal: true`)*: Hiển thị giao diện động theo đúng các Module/Model được cài đặt và phân quyền trên Tenant Database (Cài Model nào ➔ Hiển thị tính năng Model đó; Chưa cài ➔ Ẩn hoàn toàn khỏi giao diện App):
+    * `helpdesk` (`helpdesk.ticket`): Mở phân hệ Phiếu hỗ trợ / Ticket. Nếu DB chưa cài `helpdesk` ➔ Ẩn hoàn toàn tab Ticket.
+    * `mail` (`discuss.channel`, `mail.message`): Mở phân hệ Chat trao đổi với nhân viên phụ trách.
+    * `project` (`project.project`, `project.task` với `privacy_visibility='portal'`): Mở phân hệ Dự án & Công việc của tôi khi được chia sẻ.
+    * `sale` / `sale_management` (`sale.order`): Mở phân hệ Báo giá & Đơn hàng (mở rộng).
+    * `account` (`account.move`): Mở phân hệ Hóa đơn & Công nợ (mở rộng).
+    * `base` (`res.users`, `res.partner`): Mở phân hệ Cá nhân (Tôi).
+    * Tuyệt đối không hiển thị Chấm công (`hr_attendance`) và Timesheet (`hr_timesheet`) cho Portal User.
 - [x] 1.4 **Tự động hủy Push Token khi Logout**: Đăng xuất ➔ Server vô hiệu hóa FCM device token qua `/api/v1/mobile/notifications/unregister` (`HTTP 200 {"status": "unregistered"}`).
 
 ### 🟢 GIAI ĐOẠN 2: CHẤM CÔNG GPS & TIMESHEET (ATTENDANCE & TIMER) — `[x] [Claude-Verified — 77/77 PASS 100%]`
@@ -297,10 +306,23 @@ Phân hệ quản lý toàn bộ luồng đăng nhập, định danh người d�
   - *Tệp liên quan*: `lib/features/auth/presentation/tenant_selection_sheet.dart`, `lib/features/auth/data/db_info.dart`.
   - *Kịch bản nghiệm thu*: Khi cấu hình nhiều DB, mở app hiển thị danh sách tenant để chọn trực quan.
 
-- [x] **1.3 Phân luồng vai trò Người dùng (Internal Employee vs Portal User)**
-  - *Mô tả*: Tự động phân loại tài khoản: Người dùng nội bộ (Employee) được vào đầy đủ các tab (Home, Chat, Timesheet, Ticket, Tôi); Người dùng Portal (Khách hàng ngoài) được điều hướng riêng vào Ticket, Chat và Tôi, tự động chặn vào Chấm công và Timesheet.
-  - *Tệp liên quan*: `lib/core/router/app_router.dart`, `lib/features/auth/application/auth_controller.dart`.
-  - *Kịch bản nghiệm thu*: Đăng nhập bằng tài khoản Portal ➔ Thanh điều hướng đáy chỉ hiển thị 3 tab (Ticket, Chat, Tôi).
+- [x] **1.3 Phân luồng vai trò Người dùng & Nhận diện Model Động (Internal Employee vs Portal User - Dynamic Model Discovery)**
+  - *Mô tả*:
+    * **Người dùng nội bộ (`is_portal: false`)**: Luôn hiển thị đầy đủ tất cả các tab và tính năng nội bộ (Home, Chat, Timesheet, Ticket, Tôi).
+    * **Người dùng Portal (`is_portal: true`)**: Áp dụng cơ chế khám phá phân hệ động theo Odoo 19 (Dynamic Model Discovery). Ứng dụng chỉ hiển thị các module/model đã được cài đặt và cấp quyền trên Tenant Database của khách hàng; nếu Tenant chưa cài đặt thì module đó tự động ẩn hoàn toàn khỏi giao diện:
+      1. **Module `helpdesk` (`helpdesk.ticket`, `helpdesk.team`)**: Hiển thị phân hệ Ticket / Phiếu hỗ trợ. Nếu Tenant chưa cài đặt module `helpdesk` ➔ Ẩn hoàn toàn tab Ticket khỏi giao diện Mobile.
+      2. **Module `mail` (`discuss.channel`, `mail.message`, `ir.attachment`)**: Hiển thị phân hệ Chat trao đổi trực tiếp với kỹ thuật/CSKH.
+      3. **Module `project` (`project.project`, `project.task` với `privacy_visibility='portal'`)**: Hiển thị phân hệ Dự án & Công việc của tôi khi được cấp quyền chia sẻ.
+      4. **Module `sale` / `sale_management` (`sale.order`, `sale.order.line`)**: Hiển thị phân hệ Đơn hàng & Báo giá (mở rộng).
+      5. **Module `account` (`account.move`)**: Hiển thị phân hệ Hóa đơn & Công nợ (mở rộng).
+      6. **Module `base` (`res.users`, `res.partner`)**: Hiển thị phân hệ Tôi (Thông tin tài khoản, đổi mật khẩu, đăng xuất).
+      7. **Chặn tuyệt đối phân hệ nội bộ**: Tự động chặn và ẩn hoàn toàn Chấm công (`hr_attendance`) và Bảng chấm công (`hr_timesheet`) đối với tài khoản Portal.
+  - *Tệp liên quan*: `lib/core/router/app_router.dart`, `lib/shared/widgets/app_scaffold.dart`, `lib/features/auth/application/auth_controller.dart`, `v_mobile_17/controllers/auth.py`, `v_mobile_19/controllers/auth.py`.
+  - *Kịch bản nghiệm thu*:
+    1. Đăng nhập tài khoản Nhân viên nội bộ ➔ Hiển thị đầy đủ 5 tab điều hướng và toàn bộ tính năng.
+    2. Đăng nhập tài khoản Portal trên DB có cài `helpdesk` ➔ Hiển thị 3 tab (Ticket, Chat, Tôi).
+    3. Đăng nhập tài khoản Portal trên DB chưa cài `helpdesk` ➔ Tab Ticket tự động ẩn, chỉ hiển thị (Chat, Tôi).
+    4. Không bao giờ xuất hiện Chấm công hay Timesheet trên tài khoản Portal.
 
 - [x] **1.4 Khôi phục phiên làm việc tự động (Auto-Restore Session)**
   - *Mô tả*: Tự động đọc và giải mã JWT token an toàn trong `FlutterSecureStorage` khi khởi động từ màn hình Splash; nếu còn hạn thì vào thẳng giao diện chính mà không bắt đăng nhập lại.

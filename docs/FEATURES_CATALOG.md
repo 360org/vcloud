@@ -37,9 +37,18 @@
 - Lọc triệt để và chỉ hiển thị các cơ sở dữ liệu đã xác thực mật khẩu thành công.
 - Tự động bỏ qua bước chọn cơ sở dữ liệu và chuyển thẳng vào màn hình chính nếu người dùng chỉ thuộc về 1 database duy nhất.
 
-### 1.3. Phân luồng Quyền hạn Người dùng Nội bộ và Khách hàng
-- Người dùng nội bộ (`is_portal: false`): Cung cấp đầy đủ 5 tab điều hướng chính (Trang chủ, Tin nhắn, Chấm công, Phiếu hỗ trợ, Tài khoản).
-- Người dùng đối tác/khách hàng (`is_portal: true`): Tự động điều chỉnh giao diện còn 3 tab phục vụ hỗ trợ kỹ thuật, ẩn các module chấm công và quản trị nội bộ.
+### 1.3. Phân luồng Quyền hạn & Khám phá Model Động (Internal Employee vs Dynamic Portal Modules)
+- **Người dùng nội bộ (`is_portal: false`)**: Cung cấp đầy đủ 5 tab điều hướng chính (Trang chủ, Tin nhắn, Chấm công, Phiếu hỗ trợ, Tài khoản) và các phân hệ nội bộ công ty.
+- **Người dùng đối tác/khách hàng (`is_portal: true`)**: Áp dụng cơ chế cấp quyền theo Model cài đặt trên Tenant Database chuẩn Odoo 19:
+  * Cài module nào ➔ Hiển thị phân hệ tính năng của module đó trên Mobile App.
+  * Chưa cài module ➔ Tự động ẩn hoàn toàn phân hệ tương ứng khỏi giao diện Portal:
+    - Module `helpdesk` (`helpdesk.ticket`): Hiển thị tab Phiếu hỗ trợ / Ticket. Nếu DB chưa cài ➔ Ẩn hoàn toàn tab Ticket.
+    - Module `mail` (`discuss.channel`): Hiển thị tab Tin nhắn / Chat hỗ trợ.
+    - Module `project` (`project.project`, `project.task`): Hiển thị danh mục Dự án/Công việc được chia sẻ cho Portal.
+    - Module `sale` (`sale.order`): Hiển thị Báo giá & Đơn hàng (mở rộng).
+    - Module `account` (`account.move`): Hiển thị Hóa đơn & Công nợ (mở rộng).
+    - Module `base` (`res.users`, `res.partner`): Hiển thị tab Tài khoản (Tôi).
+  * Tuyệt đối ẩn và chặn truy cập vào module Chấm công (`hr_attendance`) và Bảng chấm công (`hr_timesheet`).
 
 ### 1.4. Tự động Hủy Đăng ký Thiết bị & Thu hồi Push Token khi Đăng xuất
 - Khi người dùng đăng xuất, ứng dụng tự động gửi yêu cầu tới `/api/v1/mobile/notifications/unregister`.
