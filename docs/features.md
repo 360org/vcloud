@@ -175,6 +175,21 @@
     1. **Lỗi merge mảng sai thứ tự trong Flutter (`chat_v2_messages_controller.dart:371`)**: Hàm `_mergeMessages()` giả định sai lầm rằng mọi tin nhắn chưa có trong `currentList` (`brandNew`) đều là tin nhắn mới gửi đến, nên đã ghép `[...pendingTempMessages, ...brandNew, ...updatedExisting]`. Khi SWR / Polling (mỗi 8 giây) gọi `getMessages()` lấy 35 tin nhắn từ server, các tin nhắn cũ hơn trong gói 35 tin này bị coi là `brandNew` và bị đẩy lên ĐẦU mảng. Vì `ListView` dùng `reverse: true`, đầu mảng (`index 0`) nằm ở đáy màn hình, khiến tin nhắn cũ bị đẩy xuống dưới cùng. Toàn bộ hàm `_mergeMessages`, `loadMore` và `getMessages` đều thiếu bước sort giảm dần theo thời gian (`createdAt desc`).
     2. **Bỏ quên `Markup()` trên Odoo Backend (`controllers/chat.py:1614`)**: Khi lưu tin nhắn vào chatter, backend gọi `channel.message_post(body=final_post_body)`. Vì `final_post_body` là `str` Python thông thường chứ không được bọc bằng `Markup(...)` theo quy chuẩn Global CLAUDE.md, Odoo Core tự động `html.escape()`, biến thẻ `<div>` thành `&lt;div&gt;` lưu vào Database, khiến Web Odoo hiển thị lộ mã HTML thô.
     3. **Chèn HTML tùy tiện từ Mobile Client (`chat_v2_repository.dart:469`)**: Mobile tự chèn thẻ `<div data-reply-id=...>` vào `body` thay vì chỉ gửi `parent_id` cho Odoo quản lý quan hệ cha con chuẩn Discuss.
+  - *Giải pháp kỹ thuật đã triển khai triệt để*:
+    1. **Tầng State / Controller Flutter (`chat_v2_messages_controller.dart`)**:
+       - Bổ sung hàm so sánh bất biến `_compareMessagesDescending` (`createdAt desc`, tie-break bằng `int.tryParse(id) desc`).
+       - Chuẩn hóa toàn bộ `_mergeMessages()`: Khử trùng lặp qua `Map<String, ChatV2Message>`, sort toàn bộ giảm dần theo thời gian, bảo toàn vị trí các tin nhắn tạm `pendingTempMessages` (`temp_*`) luôn ở index 0 cho `ListView(reverse: true)`.
+       - Đồng bộ hàm sort giảm dần này vào `loadMore()`, initial fetch trong `build()`, `sendMessage()` optimistic replacement và WebSocket incoming listener.
+    2. **Tầng Data & UI Flutter (`chat_v2_repository.dart`, `chat_v2_message.dart`, `chat_v2_detail_screen.dart`, `chat_v2_message_item.dart`)**:
+       - Xóa bỏ triệt để việc ghép chuỗi HTML `<div data-reply-id=...>` trong `ChatV2Repository.sendMessage()`, chỉ truyền `parent_id` kiểu số nguyên lên Odoo API và gửi `body` sạch.
+       - Thêm `ChatV2Message.formatReplyPreviewBody()` chuẩn hóa các tên file hệ thống (`image_picker_*`, `scaled_*`, `video_*`, `voice_*`) thành các nhãn tiếng Việt `[Hình ảnh]`, `[Video]`, `[Tin nhắn thoại]`.
+    3. **Tầng Backend Odoo 17 & 19 (`v_mobile_17` & `v_mobile_19` - `controllers/chat.py`)**:
+       - Bọc an toàn `Markup(clean_body)` trong `send_message`, `poll`, `send_contact` bảo đảm Odoo Core không escape HTML an toàn.
+  - *Bằng chứng kiểm thử (Evidence)*:
+    - Pass 10/10 automated tests độc lập trong `test/features/chat_v2/bug_024_message_sorting_and_reply_test.dart`.
+    - Pass 43/43 tests không hồi quy trong `test/features/chat_v2/chat_v2_test.dart`.
+    - `flutter analyze` đạt 0 errors, 0 warnings.
+    - Python syntax check pass 100% trên cả `v_mobile_17` và `v_mobile_19`.
 
 ### 🟢 GIAI ĐOẠN 4: QUẢN LÝ CÔNG VIỆC & DASHBOARD (HOME & TASKS) — `[x] [Claude-Verified — ĐÃ HOÀN TẤT & VERIFIED LIVE WAYDROID]`
 - [x] 4.1 **Dashboard Kép & Lời chào Cá nhân hóa (Dual-Tier Metrics & Greeting Header)**: Hiển thị đúng số giờ làm, trạng thái chấm công, task cần làm & ticket. Đã fix triệt để BUG-008 (Build 144): Lời chào tự động đổi theo buổi (Sáng 5h-12h, Chiều 12h-18h, Tối sau 18h) và nạp đầy đủ Chức danh & Công ty từ `userMetadata`. Đã fix triệt để BUG-009: Bắn pháo hoa chúc mừng (`CelebrationFireworksOverlay`) ngay khi bấm Check-in nhanh thành công tại Home Screen. Pass 7/7 tests trong `test/home_greeting_and_celebration_test.dart`.
