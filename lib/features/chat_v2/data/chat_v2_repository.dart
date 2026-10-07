@@ -901,5 +901,48 @@ class ChatV2Repository {
       }
     }
   }
+
+  Future<Map<String, dynamic>> updateMemberNickname({
+    required String channelId,
+    int? memberId,
+    int? partnerId,
+    required String nickname,
+  }) async {
+    final cid = int.tryParse(channelId) ?? 0;
+    final trimmed = nickname.trim();
+    final body = {
+      'channel_id': cid,
+      'member_id': ?memberId,
+      'partner_id': ?partnerId,
+      'nickname': trimmed,
+      'custom_channel_name': trimmed,
+    };
+    try {
+      final res = await _client.post(
+        '/api/v1/mobile/chat/channels/$channelId/nickname',
+        body: body,
+      );
+      if (res is Map<String, dynamic>) {
+        return res;
+      }
+      return {'status': 'success', 'nickname': trimmed};
+    } catch (_) {
+      try {
+        final fallbackRes = await _client.post(
+          '/api/v1/mobile/chat/nickname',
+          body: body,
+        );
+        if (fallbackRes is Map<String, dynamic>) {
+          return fallbackRes;
+        }
+        return {'status': 'success', 'nickname': trimmed};
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint('[ChatV2Repository] updateMemberNickname error: $e');
+        }
+        rethrow;
+      }
+    }
+  }
 }
 

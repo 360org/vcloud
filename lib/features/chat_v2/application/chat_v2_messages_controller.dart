@@ -14,6 +14,7 @@ import '../../../core/utils/local_attachment_cache.dart';
 import '../domain/models/chat_v2_poll_model.dart';
 import '../data/chat_v2_realtime_service.dart';
 import '../data/chat_v2_repository.dart';
+import '../data/odoo_bus_service.dart';
 import '../data/models/chat_v2_message.dart';
 import '../data/models/chat_v2_reaction.dart';
 import '../presentation/widgets/chat_v2_message_item.dart';
@@ -169,6 +170,7 @@ class ChatV2MessagesNotifier
     extends AutoDisposeFamilyAsyncNotifier<List<ChatV2Message>, String> {
   Timer? _pollingTimer;
   StreamSubscription? _wsSub;
+  StreamSubscription? _busNicknameSub;
 
   @override
   FutureOr<List<ChatV2Message>> build(String arg) async {
@@ -177,6 +179,7 @@ class ChatV2MessagesNotifier
     final repo = ref.watch(chatV2RepositoryProvider);
     final user = ref.watch(authControllerProvider).valueOrNull;
     final realtime = ref.watch(chatV2RealtimeServiceProvider);
+    final busService = ref.watch(odooBusServiceProvider);
 
     final currentDb = odooApiClient.session?.db;
     final currentUid = user?.id ?? odooApiClient.session?.uid.toString();
@@ -203,8 +206,41 @@ class ChatV2MessagesNotifier
       }
     });
 
-    // Smart Sequential Polling (8s): Chạy tuần tự, chỉ poll khi người dùng đang ở trong phòng chat
+    // Lắng nghe sự kiện cập nhật Biệt danh realtime từ Odoo Bus
     bool isDisposed = false;
+    _busNicknameSub?.cancel();
+    _busNicknameSub = busService.onNicknameNotification.listen((data) {
+      if (isDisposed) return;
+      final chId = data['channel_id']?.toString();
+      if (chId != channelId) return;
+
+      final pId = data['partner_id']?.toString();
+      final nickname = data['nickname']?.toString() ?? data['custom_channel_name']?.toString() ?? '';
+      if (nickname.isEmpty && (pId == null || pId == '0')) return;
+
+      final currentList = state.valueOrNull ?? const [];
+      if (currentList.isEmpty) return;
+
+      bool changed = false;
+      final updatedList = currentList.map((m) {
+        final matchAuthor = pId != null && pId != '0' && m.authorId == pId;
+        final isDirectOther = !m.isMine && (pId == null || pId == '0');
+        if (matchAuthor || isDirectOther) {
+          if (nickname.isNotEmpty && m.authorName != nickname) {
+            changed = true;
+            return m.copyWith(authorName: nickname);
+          }
+        }
+        return m;
+      }).toList();
+
+      if (changed) {
+        ChatV2MessageLocalCache.set(channelId, updatedList);
+        state = AsyncData(updatedList);
+      }
+    });
+
+    // Smart Sequential Polling (8s): Chạy tuần tự, chỉ poll khi người dùng đang ở trong phòng chat
 
     void scheduleNextPoll() {
       if (isDisposed) return;
@@ -242,6 +278,8 @@ class ChatV2MessagesNotifier
       isDisposed = true;
       _wsSub?.cancel();
       _wsSub = null;
+      _busNicknameSub?.cancel();
+      _busNicknameSub = null;
       _pollingTimer?.cancel();
       _pollingTimer = null;
     });

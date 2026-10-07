@@ -834,6 +834,221 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
     );
   }
 
+  Future<void> _showMemberNicknameDialog(
+    BuildContext context,
+    ChatV2Member member,
+  ) async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final currentNickname = member.nickname ?? member.customChannelName ?? '';
+    final textController = TextEditingController(text: currentNickname);
+    textController.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: textController.text.length,
+    );
+    String? errorMessage;
+    bool isSaving = false;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: !isSaving,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          Future<void> submit() async {
+            final trimmed = textController.text.trim();
+            if (trimmed == currentNickname) {
+              Navigator.of(dialogCtx).pop();
+              return;
+            }
+            if (trimmed.length > 100) {
+              setDialogState(() {
+                errorMessage = 'Biệt danh không được vượt quá 100 ký tự';
+              });
+              return;
+            }
+
+            setDialogState(() {
+              isSaving = true;
+              errorMessage = null;
+            });
+
+            try {
+              final memberId = int.tryParse(member.id);
+              final partnerId = member.partnerId;
+              await ref.read(chatV2ChannelsProvider.notifier).updateMemberNickname(
+                channelId: widget.channel.id,
+                memberId: memberId,
+                partnerId: partnerId,
+                nickname: trimmed,
+              );
+              if (dialogCtx.mounted) {
+                Navigator.of(dialogCtx).pop();
+              }
+              if (mounted) {
+                setState(() {
+                  final idx = _members.indexWhere((m) => m.id == member.id);
+                  if (idx != -1) {
+                    _members[idx] = _members[idx].copyWith(
+                      customChannelName: trimmed.isNotEmpty ? trimmed : null,
+                      nickname: trimmed.isNotEmpty ? trimmed : null,
+                      clearNickname: trimmed.isEmpty,
+                    );
+                  }
+                });
+                AppToast.success(
+                  this.context,
+                  title: 'Thành công',
+                  message: trimmed.isNotEmpty
+                      ? 'Đã cập nhật biệt danh cho ${member.name}'
+                      : 'Đã xóa biệt danh của ${member.name}',
+                );
+              }
+            } catch (e) {
+              if (dialogCtx.mounted) {
+                setDialogState(() {
+                  isSaving = false;
+                  errorMessage = 'Lỗi cập nhật: ${e.toString().replaceFirst("Exception: ", "")}';
+                });
+              }
+            }
+          }
+
+          return AlertDialog(
+            backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Row(
+              children: [
+                const Icon(
+                  LucideIcons.pencil,
+                  color: Color(0xFF00C83A),
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Biệt danh cho ${member.name}',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Biệt danh này sẽ đồng bộ trên toàn bộ thiết bị Web & Mobile.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: textController,
+                    autofocus: true,
+                    enabled: !isSaving,
+                    maxLength: 100,
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Nhập biệt danh (hoặc để trống để xóa)',
+                      errorText: errorMessage,
+                      filled: true,
+                      fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(
+                          color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(
+                          color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(
+                          color: Color(0xFF00C83A),
+                          width: 1.5,
+                        ),
+                      ),
+                      suffixIcon: textController.text.isNotEmpty && !isSaving
+                          ? IconButton(
+                              icon: const Icon(LucideIcons.x, size: 16),
+                              onPressed: () {
+                                textController.clear();
+                                setDialogState(() {
+                                  errorMessage = null;
+                                });
+                              },
+                            )
+                          : null,
+                    ),
+                    onChanged: (_) {
+                      if (errorMessage != null) {
+                        setDialogState(() {
+                          errorMessage = null;
+                        });
+                      }
+                    },
+                    onSubmitted: (_) => submit(),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: isSaving ? null : () => Navigator.pop(dialogCtx),
+                child: Text(
+                  'Hủy',
+                  style: TextStyle(
+                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF00C83A),
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                ),
+                onPressed: isSaving ? null : submit,
+                child: isSaving
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : const Text(
+                        'Lưu',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final activeChannel = ref.watch(chatV2ChannelsProvider.select(
@@ -1317,7 +1532,14 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
                             final amILeader = _members.any((m) => m.isMe && m.isLeader) ||
                                 (_members.isNotEmpty && _members.first.isMe && !_members.any((m) => m.isLeader));
 
+                            final hasCustomNickname = (member.nickname != null && member.nickname!.isNotEmpty && member.nickname != member.name) ||
+                                (member.customChannelName != null && member.customChannelName!.isNotEmpty && member.customChannelName != member.name);
+                            final subtitleText = hasCustomNickname
+                                ? '${member.name} • ${isOnline ? "Đang trực tuyến" : "Ngoại tuyến"}'
+                                : (isOnline ? 'Đang trực tuyến' : 'Ngoại tuyến');
+
                             return ListTile(
+                              onTap: isMe ? null : () => _showMemberNicknameDialog(context, member),
                               leading: Stack(
                                 children: [
                                   Container(
@@ -1382,7 +1604,7 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
                                 children: [
                                   Flexible(
                                     child: Text(
-                                      isMe ? '${member.name} (Bạn)' : member.name,
+                                      isMe ? '${member.displayName} (Bạn)' : member.displayName,
                                       style: TextStyle(
                                         fontSize: 14,
                                         fontWeight: isMe ? FontWeight.w700 : FontWeight.w600,
@@ -1413,7 +1635,7 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
                                 ],
                               ),
                               subtitle: Text(
-                                isOnline ? 'Đang trực tuyến' : 'Ngoại tuyến',
+                                subtitleText,
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: isOnline
@@ -1421,8 +1643,21 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
                                       : (isDark ? Colors.white54 : const Color(0xFF94A3B8)),
                                 ),
                               ),
-                              trailing: isGroup && !isMe && amILeader
-                                  ? IconButton(
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (!isMe)
+                                    IconButton(
+                                      icon: const Icon(
+                                        LucideIcons.pencil,
+                                        size: 16,
+                                        color: Color(0xFF00C83A),
+                                      ),
+                                      tooltip: 'Đặt biệt danh',
+                                      onPressed: () => _showMemberNicknameDialog(context, member),
+                                    ),
+                                  if (isGroup && !isMe && amILeader)
+                                    IconButton(
                                       icon: const Icon(
                                         LucideIcons.userMinus,
                                         size: 18,
@@ -1430,8 +1665,9 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
                                       ),
                                       tooltip: 'Xóa khỏi nhóm',
                                       onPressed: () => _handleRemoveMember(member),
-                                    )
-                                  : null,
+                                    ),
+                                ],
+                              ),
                             );
                           },
                         ),

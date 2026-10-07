@@ -682,6 +682,7 @@ class ChatV2ChannelsNotifier
   StreamSubscription? _wsMessageSub;
   StreamSubscription? _wsUpdateSub;
   StreamSubscription? _busMuteSub;
+  StreamSubscription? _busNicknameSub;
   Timer? _pollingTimer;
   Timer? _debounceTimer;
   Timer? _resumeRetryTimer;
@@ -871,6 +872,40 @@ class ChatV2ChannelsNotifier
       }
     });
 
+    _busNicknameSub?.cancel();
+    _busNicknameSub = busService.onNicknameNotification.listen((data) {
+      if (_isDisposed) return;
+      final chId = data['channel_id']?.toString();
+      final nickname = data['nickname']?.toString() ?? data['custom_channel_name']?.toString() ?? '';
+      if (chId != null && chId.isNotEmpty) {
+        ChatV2ChannelLocalCache.setCustomNickname(chId, nickname);
+        final current = state.valueOrNull ?? ChatV2ChannelLocalCache.cached;
+        final chIndex = current.indexWhere((c) => c.id == chId);
+        if (chIndex != -1) {
+          final target = current[chIndex];
+          final partnerId = data['partner_id']?.toString();
+          final updatedMembers = target.members.map((m) {
+            final matchesPartner = partnerId != null && partnerId != '0' && m.partnerId?.toString() == partnerId;
+            final isDirectOther = !target.isGroup && !m.isMe;
+            if (matchesPartner || isDirectOther) {
+              return m.copyWith(
+                customChannelName: nickname,
+                nickname: nickname,
+              );
+            }
+            return m;
+          }).toList();
+          final updatedChannel = target.copyWith(
+            customNickname: nickname.isNotEmpty ? nickname : null,
+            clearCustomNickname: nickname.isEmpty,
+            members: updatedMembers,
+          );
+          ChatV2ChannelLocalCache.updateSingleChannel(updatedChannel);
+          state = AsyncData(ChatV2ChannelLocalCache.cached);
+        }
+      }
+    });
+
     void scheduleNextPoll() {
       if (_isDisposed) return;
       _pollingTimer?.cancel();
@@ -895,6 +930,7 @@ class ChatV2ChannelsNotifier
       _isDisposed = true;
       _resumeRetryTimer?.cancel();
       _busMuteSub?.cancel();
+      _busNicknameSub?.cancel();
       _wsUpdateSub?.cancel();
       _wsMessageSub?.cancel();
       _pollingTimer?.cancel();
@@ -1224,6 +1260,58 @@ class ChatV2ChannelsNotifier
         }
         rethrow;
       }
+    }
+  }
+
+  Future<void> updateMemberNickname({
+    required String channelId,
+    int? memberId,
+    int? partnerId,
+    required String nickname,
+  }) async {
+    final trimmed = nickname.trim();
+    // 1. Cập nhật local cache tức thì (Optimistic UI)
+    await ChatV2ChannelLocalCache.setCustomNickname(channelId, trimmed);
+    final current = state.valueOrNull ?? ChatV2ChannelLocalCache.cached;
+    final idx = current.indexWhere((c) => c.id == channelId);
+    if (idx != -1) {
+      final target = current[idx];
+      final updatedMembers = target.members.map((m) {
+        final matchesPartner = partnerId != null && m.partnerId == partnerId;
+        final matchesMember = memberId != null && int.tryParse(m.id) == memberId;
+        final isDirectOther = !target.isGroup && !m.isMe;
+        if (matchesPartner || matchesMember || isDirectOther) {
+          return m.copyWith(
+            customChannelName: trimmed,
+            nickname: trimmed,
+          );
+        }
+        return m;
+      }).toList();
+      final updatedChannel = target.copyWith(
+        customNickname: trimmed.isNotEmpty ? trimmed : null,
+        clearCustomNickname: trimmed.isEmpty,
+        members: updatedMembers,
+      );
+      ChatV2ChannelLocalCache.updateSingleChannel(updatedChannel);
+      state = AsyncData(ChatV2ChannelLocalCache.cached);
+    } else {
+      state = AsyncData(ChatV2ChannelLocalCache.cached);
+    }
+
+    // 2. Gửi request đồng bộ lên Odoo Backend API
+    try {
+      await ref.read(chatV2RepositoryProvider).updateMemberNickname(
+        channelId: channelId,
+        memberId: memberId,
+        partnerId: partnerId,
+        nickname: trimmed,
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[ChatV2ChannelsNotifier] updateMemberNickname backend error: $e');
+      }
+      rethrow;
     }
   }
 }

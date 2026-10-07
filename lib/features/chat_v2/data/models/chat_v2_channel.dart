@@ -14,6 +14,9 @@ class ChatV2Member {
   final String imStatus;
   final bool isMe;
   final bool isLeader;
+  final String? customChannelName;
+  final String? nickname;
+  final int? partnerId;
 
   const ChatV2Member({
     required this.id,
@@ -23,11 +26,29 @@ class ChatV2Member {
     this.imStatus = 'offline',
     this.isMe = false,
     this.isLeader = false,
+    this.customChannelName,
+    this.nickname,
+    this.partnerId,
   });
+
+  String get displayName {
+    if (nickname != null && nickname!.trim().isNotEmpty) return nickname!.trim();
+    if (customChannelName != null && customChannelName!.trim().isNotEmpty) return customChannelName!.trim();
+    return name;
+  }
 
   factory ChatV2Member.fromJson(dynamic json) {
     if (json is Map) {
       final id = json['id']?.toString() ?? '';
+      final rawPartnerId = json['partner_id'] is Map
+          ? json['partner_id']['id']
+          : (json['partner_id'] ?? json['partnerId']);
+      final partnerId = rawPartnerId is num
+          ? rawPartnerId.toInt()
+          : (rawPartnerId != null ? int.tryParse(rawPartnerId.toString()) : int.tryParse(id));
+      final customChannelName = json['custom_channel_name']?.toString() ??
+          json['custom_name']?.toString();
+      final nickname = json['nickname']?.toString() ?? customChannelName;
       final rawAvatar = json['avatar_url']?.toString() ??
           json['avatar_128_url']?.toString() ??
           json['avatar_128']?.toString() ??
@@ -36,7 +57,7 @@ class ChatV2Member {
       final currentPartnerId = odooApiClient.session?.partnerId?.toString();
       final currentUserId = odooApiClient.session?.uid.toString();
       final isMeFlag = json['is_me'] == true ||
-          (currentPartnerId != null && currentPartnerId.isNotEmpty && id == currentPartnerId) ||
+          (currentPartnerId != null && currentPartnerId.isNotEmpty && (id == currentPartnerId || partnerId?.toString() == currentPartnerId)) ||
           (currentUserId != null && currentUserId.isNotEmpty && id == currentUserId);
       final isLeaderFlag = json['is_leader'] == true ||
           json['is_admin'] == true ||
@@ -50,6 +71,9 @@ class ChatV2Member {
         imStatus: json['im_status']?.toString() ?? 'offline',
         isMe: isMeFlag,
         isLeader: isLeaderFlag,
+        customChannelName: customChannelName,
+        nickname: nickname,
+        partnerId: partnerId,
       );
     }
     return ChatV2Member(
@@ -66,7 +90,37 @@ class ChatV2Member {
     'im_status': imStatus,
     'is_me': isMe,
     'is_leader': isLeader,
+    if (customChannelName != null) 'custom_channel_name': customChannelName,
+    if (nickname != null) 'nickname': nickname,
+    if (partnerId != null) 'partner_id': partnerId,
   };
+
+  ChatV2Member copyWith({
+    String? id,
+    String? name,
+    String? email,
+    String? avatarUrl,
+    String? imStatus,
+    bool? isMe,
+    bool? isLeader,
+    String? customChannelName,
+    String? nickname,
+    int? partnerId,
+    bool clearNickname = false,
+  }) {
+    return ChatV2Member(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      email: email ?? this.email,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+      imStatus: imStatus ?? this.imStatus,
+      isMe: isMe ?? this.isMe,
+      isLeader: isLeader ?? this.isLeader,
+      customChannelName: clearNickname ? null : (customChannelName ?? this.customChannelName),
+      nickname: clearNickname ? null : (nickname ?? this.nickname),
+      partnerId: partnerId ?? this.partnerId,
+    );
+  }
 }
 
 @immutable

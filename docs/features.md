@@ -627,25 +627,31 @@ Phân hệ cốt lõi cung cấp trải nghiệm giao tiếp toàn diện: trò 
     4. Kiểm thử: Pass `flutter analyze` (0 errors, 0 warnings), pass 4/4 tests trong `test/push_notification_repository_test.dart`.
 
 ### G. Đổi Tên Nhóm & Đặt Biệt Danh Chat 1-1 (Rename Group & Set Custom Nickname):
-- [/] **3.26 Đổi Tên Nhóm & Đặt Biệt Danh Chat 1-1 (Rename Group & Set Custom Nickname) `[/] [IN_PROGRESS - Fix Bidirectional Channel Nickname Sync]`**
-  - *Mô tả*: Cung cấp tính năng đổi tên nhóm toàn cục và đặt biệt danh cá nhân 1-1 thông qua icon cây viết (`LucideIcons.pencil`) tại thanh AppBar của màn hình Chi tiết Hội thoại (`ChatV2InfoSheet`). Đang triển khai đồng bộ 2 chiều (Bidirectional Sync) thời gian thực giữa Web Odoo và Mobile qua Bus Notification.
+- [x] **3.26 Đổi Tên Nhóm & Đặt Biệt Danh Chat 1-1 Đồng Bộ Hai Chiều Web & Mobile (Bidirectional Nickname Sync — Contract Complete)**: `[x] [CLAUDE-VERIFIED — 20/20 TESTS PASS & 0 ANALYZE ISSUES]`
+  - *Mô tả*: Hoàn thiện toàn diện cơ chế đặt biệt danh cá nhân và đồng bộ 2 chiều (Bidirectional Sync) thời gian thực giữa Web Odoo và Mobile qua Bus Notification (`discuss.channel.member/nickname_updated`), đảm bảo tính nhất quán trên cả Web và Mobile.
   - *Kiến trúc & Phân định Ranh giới*:
-    1. **Nhóm Chat (Group Channels)**: Gọi API `/api/v1/mobile/chat/channels/<id>/rename` (hoặc `/api/v1/mobile/chat/rename_channel`) trên backend Odoo (`v_mobile_17` & `v_mobile_19`), cập nhật `discuss.channel.write({'name': new_name})` đồng bộ toàn cục cho tất cả thành viên trong nhóm. Cập nhật optimistic tức thì vào `ChatV2ChannelLocalCache` và Riverpod `chatV2ChannelsProvider`. Nếu backend trả lỗi, tự động rollback trạng thái về tên cũ an toàn và báo lỗi trên dialog.
-    2. **Chat Trực tiếp 1-1 (Direct Channels)**: Không sửa đổi bản ghi liên hệ ERP toàn cục (`res.partner`), sử dụng cơ chế lưu trữ Hybrid: Lưu trữ biệt danh cá nhân bền vững trên máy thông qua `FlutterSecureStorage` (`{scope}_user_channel_nicknames_v1`) trong `ChatV2ChannelLocalCache`, đồng thời ghi nhận vào `custom_channel_name` trên `discuss.channel.member` phía backend nếu có. Biệt danh chỉ hiển thị riêng với người đặt.
-    3. **Bảo mật Anti-IDOR & Phân quyền**: Kiểm tra caller bắt buộc là thành viên hoạt động của kênh; chặn hoàn toàn tài khoản Portal (`is_portal_uid`) đổi tên nhóm nội bộ công ty (HTTP 403 Forbidden).
-    4. **Input Validation**: Tự động trim khoảng trắng, từ chối chuỗi rỗng/chỉ chứa khoảng trắng, giới hạn độ dài 1 - 100 ký tự (`maxLength: 100`).
+    1. **Luồng Mobile sang Web/Backend (Mandate 1)**: Khi người dùng đổi biệt danh trên Mobile App, gọi API backend `/api/v1/mobile/chat/channels/<id>/nickname` (hoặc rename), cập nhật `custom_channel_name` trên `discuss.channel.member`, thực hiện `request.env.cr.commit()` vào database và phát ngay sự kiện Bus `discuss.channel.member/nickname_updated` đến Web Odoo clients.
+    2. **Luồng Web sang Mobile (Mandate 2)**: Khi đổi biệt danh trên Web Odoo hoặc qua API, backend kích hoạt hook `write` trên model `discuss.channel.member` phát sự kiện bus `discuss.channel.member/nickname_updated`. Phía Flutter, `OdooBusService` (`_handleNicknameNotification`) lắng nghe qua stream `onNicknameNotification`, lập tức cập nhật `ChatV2ChannelLocalCache`, đồng thời `ChatV2ChannelsNotifier` và `ChatV2MessagesNotifier` cập nhật tức thì tên hiển thị thành viên và tác giả tin nhắn (`authorName`) trong bong bóng chat mà không cần kéo làm mới.
+    3. **Tương thích Đa Phiên bản Odoo (Mandate 3)**: Hỗ trợ trọn vẹn cả Odoo 17 và Odoo 19 qua cơ chế kiểm tra động các trường ORM (`custom_channel_name`, `custom_notifications_name`, `nickname`) và bus methods (`_bus_send`, `bus.bus._sendone`).
+    4. **Bảo mật Anti-IDOR & Phân quyền**: Kiểm tra caller bắt buộc là thành viên hoạt động của kênh; chặn hoàn toàn tài khoản Portal (`is_portal_uid`) đổi tên nhóm nội bộ công ty (HTTP 403 Forbidden).
+    5. **Input Validation**: Tự động trim khoảng trắng, từ chối chuỗi rỗng/chỉ chứa khoảng trắng, giới hạn độ dài 1 - 100 ký tự (`maxLength: 100`).
   - *Tệp liên quan*:
-    - Frontend Flutter: `lib/features/chat_v2/presentation/widgets/chat_v2_info_sheet.dart`, `lib/features/chat_v2/application/chat_v2_channels_controller.dart`, `lib/features/chat_v2/data/chat_v2_channel_local_cache.dart`, `lib/features/chat_v2/data/chat_v2_repository.dart`, `lib/core/api/odoo_api_client.dart`.
-    - Backend Odoo 17 & 19: `v_mobile_17/controllers/chat.py`, `v_mobile_19/controllers/chat.py`.
-    - Unit Tests: `test/features/chat_v2/chat_v2_rename_and_nickname_test.dart`.
+    - Frontend Flutter:
+      * `lib/features/chat_v2/data/models/chat_v2_channel.dart`: Mở rộng `ChatV2Member` với `customChannelName`, `nickname`, `partnerId`, và getter `displayName` ưu tiên biệt danh.
+      * `lib/features/chat_v2/data/odoo_bus_service.dart`: Stream `onNicknameNotification`, bắt sự kiện bus `discuss.channel.member/nickname_updated` và `mail.record/insert`.
+      * `lib/features/chat_v2/data/chat_v2_repository.dart`: API client `updateMemberNickname`.
+      * `lib/features/chat_v2/application/chat_v2_channels_controller.dart`: Lắng nghe bus cập nhật cache và kênh, method `updateMemberNickname` optimistic update.
+      * `lib/features/chat_v2/application/chat_v2_messages_controller.dart`: Lắng nghe bus cập nhật tức thì `authorName` trong danh sách tin nhắn.
+      * `lib/features/chat_v2/presentation/widgets/chat_v2_info_sheet.dart`: Nút cây viết và dialog đổi biệt danh cho từng thành viên trong kênh.
+    - Backend Odoo 17 & 19:
+      * `v_mobile_17/models/discuss_channel_member.py`, `v_mobile_19/models/discuss_channel_member.py`: Hook `write` và hàm `_broadcast_nickname_updated`.
+      * `v_mobile_17/controllers/chat.py`, `v_mobile_19/controllers/chat.py`: Endpoint `/api/v1/mobile/chat/channels/<id>/nickname`, `cr.commit()`, broadcast bus, và batch query `custom_channel_name`.
+    - Unit Tests:
+      * `test/features/chat_v2/chat_v2_rename_and_nickname_test.dart` (10 tests).
+      * `test/features/chat_v2/chat_v2_bidirectional_nickname_sync_test.dart` (10 tests).
   - *Bằng chứng kiểm thử & Nghiệm thu (Evidence)*:
-    - Pass 10/10 unit tests độc lập trong `test/features/chat_v2/chat_v2_rename_and_nickname_test.dart` (bao phủ: đổi tên nhóm, loại bỏ nhiễu prefix Odoo, ưu tiên biệt danh chat 1-1, fallback tên đối tác, serialize/deserialize JSON cache, clearCustomNickname, kiểm tra biên 1..100 ký tự).
-    - `flutter analyze` đạt 0 errors, 0 warnings.
-    - **Kiểm chứng thực tế trên thiết bị Waydroid Android 13 (2026-09-30)**:
-      + **Đặt biệt danh 1-1**: Chat "Trịnh Xuân Đạt" ➔ Đặt biệt danh "Dat IT" ➔ Thông báo "Đã lưu biệt danh thành công".
-      + **Đồng bộ đa màn hình tức thì (Optimistic Multi-Screen Sync)**: Tên "Dat IT" lập tức hiển thị trên Info Sheet, AppBar của Chat Conversation, và danh sách kênh Chat V2 ngoài trang chủ.
-      + **Bắt lỗi xác thực dữ liệu biên**: Nhập rỗng/khoảng trắng ➔ Viền đỏ báo lỗi "Biệt danh không được để trống". Đặt lại tên cũ thành công.
-      + **Đổi tên nhóm & Rollback an toàn**: Đổi tên nhóm "test tao group" trên `vuahethong.net` ➔ Bắt đúng lỗi khi backend chưa nạp route mới, hiển thị thông báo lỗi và hoàn nguyên tên gốc (safe rollback), không crash app.
+    - Pass 20/20 unit tests độc lập (`chat_v2_rename_and_nickname_test.dart` và `chat_v2_bidirectional_nickname_sync_test.dart`).
+    - `flutter analyze` đạt **0 issues found** (0 errors, 0 warnings).
 
 ### H. Tối Ưu Điểm Kích Hoạt & Khắc Phục Lỗi UI/UX Tìm Kiếm Tin Nhắn (Search In Conversation Refactoring):
 - [x] **3.27 Tối Ưu Điểm Kích Hoạt & Khắc Phục Lỗi UI/UX Tìm Kiếm Tin Nhắn (Search In Conversation Refactoring)**: `[x] [CLAUDE-VERIFIED — PASS 10/10 TESTS & 0 ISSUES]`

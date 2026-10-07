@@ -30,11 +30,13 @@ class OdooBusService {
   final _callEndedController = StreamController<Map<String, dynamic>>.broadcast();
   final _incomingCallController = StreamController<Map<String, dynamic>>.broadcast();
   final _muteNotificationController = StreamController<Map<String, dynamic>>.broadcast();
+  final _nicknameNotificationController = StreamController<Map<String, dynamic>>.broadcast();
 
   Stream<Map<String, dynamic>> get onPeerNotification => _peerNotificationController.stream;
   Stream<Map<String, dynamic>> get onCallEnded => _callEndedController.stream;
   Stream<Map<String, dynamic>> get onIncomingCall => _incomingCallController.stream;
   Stream<Map<String, dynamic>> get onMuteNotification => _muteNotificationController.stream;
+  Stream<Map<String, dynamic>> get onNicknameNotification => _nicknameNotificationController.stream;
   bool get isConnected => _isConnected;
 
   /// Khởi tạo kết nối WebSocket Bus với Odoo 19
@@ -179,11 +181,91 @@ class OdooBusService {
       }
     }
 
-    // Sự kiện Mail Record Insert: Mời tham gia hoặc hủy/kết thúc cuộc gọi hoặc mute (Odoo 19 & Odoo 17)
+    // Sự kiện Biệt danh/Tên tùy chỉnh realtime
+    if (type == 'discuss.channel.member/nickname_updated' ||
+        type == 'mail.channel.member/nickname_updated' ||
+        type == 'discuss.channel/renamed') {
+      if (payload is Map) {
+        _handleNicknameNotification(payload);
+      }
+    }
+
+    // Sự kiện Mail Record Insert: Mời tham gia hoặc hủy/kết thúc cuộc gọi hoặc mute/nickname (Odoo 19 & Odoo 17)
     if (type == 'mail.record/insert' && payload is Map) {
       _checkRtcInvitationInsert(payload);
       _checkRtcCallDelete(payload);
       _checkMemberMuteInsert(payload);
+      _checkMemberNicknameInsert(payload);
+    }
+  }
+
+  void _handleNicknameNotification(Map payload) {
+    try {
+      final chId = int.tryParse(
+            payload['channel_id']?.toString() ??
+            (payload['channel'] is Map ? payload['channel']['id']?.toString() : null) ??
+            payload['id']?.toString() ??
+            '0',
+          ) ??
+          0;
+      if (chId <= 0) return;
+
+      final partnerId = int.tryParse(
+            (payload['partner_id'] is Map ? payload['partner_id']['id'] : payload['partner_id'])?.toString() ??
+            (payload['persona'] is Map && payload['persona']['partner'] is Map
+                ? payload['persona']['partner']['id']?.toString()
+                : null) ??
+            '0',
+          ) ??
+          0;
+
+      final memberId = int.tryParse(
+            payload['member_id']?.toString() ??
+            payload['memberId']?.toString() ??
+            '0',
+          ) ??
+          0;
+
+      final nickname = (payload['nickname'] ??
+              payload['custom_channel_name'] ??
+              payload['custom_name'] ??
+              payload['name'])
+          ?.toString() ??
+          '';
+
+      debugPrint('🏷️ [OdooBus] Nickname notification: channel=$chId, partner=$partnerId, member=$memberId, nickname=$nickname');
+
+      if (nickname.isNotEmpty) {
+        ChatV2ChannelLocalCache.setCustomNickname(chId.toString(), nickname);
+      }
+
+      _nicknameNotificationController.add({
+        'channel_id': chId,
+        'partner_id': partnerId,
+        'member_id': memberId,
+        'nickname': nickname,
+        'custom_channel_name': nickname,
+      });
+    } catch (e) {
+      debugPrint('[OdooBus] Error handling nickname notification: $e');
+    }
+  }
+
+  void _checkMemberNicknameInsert(Map payload) {
+    try {
+      final members = payload['discuss.channel.member'] ??
+          payload['mail.channel.member'] ??
+          payload['ThreadMember'];
+      if (members is! List) return;
+
+      for (final m in members) {
+        if (m is! Map) continue;
+        if (m.containsKey('custom_channel_name') || m.containsKey('nickname')) {
+          _handleNicknameNotification(m);
+        }
+      }
+    } catch (e) {
+      debugPrint('[OdooBus] Error checking member nickname insert: $e');
     }
   }
 
@@ -491,5 +573,6 @@ class OdooBusService {
     _callEndedController.close();
     _incomingCallController.close();
     _muteNotificationController.close();
+    _nicknameNotificationController.close();
   }
 }

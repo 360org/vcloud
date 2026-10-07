@@ -15,8 +15,12 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 >   * Nút Chia sẻ ảnh native (`share_plus`) mở System Share Sheet (iOS UIActivityViewController / Android Intent ACTION_SEND) với popover origin cho iPad / Tablet.
 > - **3. Tương Thích Đồ Họa Android & Waydroid**:
 >   * Tắt Impeller Vulkan (`EnableImpeller = false`), chuyển về engine đồ họa Skia OpenGL tương thích 100% trên Android, sửa triệt để lỗi kẹt màn hình Splash trên giả lập/Waydroid.
-> - **4. Kiểm Thử & Kiểm Soát Chất Lượng**:
->   * Pass toàn bộ 37/37 unit & widget tests trong `test/features/chat_v2/` (`chat_v2_image_viewer_test.dart`, `chat_v2_image_viewer_transition_test.dart`, `chat_v2_image_viewer_gallery_test.dart`, `chat_v2_image_viewer_utilities_test.dart`).
+> - **4. Đồng Bộ Biệt Danh Hai Chiều Web & Mobile Thời Gian Thực (Bidirectional Nickname Sync)**:
+>   * **Mobile sang Web/Backend**: Đổi biệt danh gọi API `/api/v1/mobile/chat/channels/<id>/nickname`, thực thi `cr.commit()`, và phát bus notification `discuss.channel.member/nickname_updated` đến Web Odoo clients.
+>   * **Web sang Mobile**: Hook `DiscussChannelMember.write` trên Odoo 17 & 19 tự động phát bus notification khi sửa biệt danh trên web. `OdooBusService` trên Flutter lắng nghe qua `onNicknameNotification`, cập nhật tức thì `ChatV2ChannelLocalCache`, danh sách thành viên kênh và tên tác giả tin nhắn (`authorName`) trong bong bóng chat.
+>   * **Giao diện & Mô hình**: Bổ sung `customChannelName`, `nickname`, `partnerId` và getter `displayName` trong `ChatV2Member`; thêm dialog sửa biệt danh từng thành viên trong Info Sheet.
+> - **5. Kiểm Thử & Kiểm Soát Chất Lượng**:
+>   * Pass toàn bộ 37/37 unit & widget tests media viewer và 20/20 unit tests đồng bộ biệt danh (`chat_v2_rename_and_nickname_test.dart` & `chat_v2_bidirectional_nickname_sync_test.dart`).
 >   * Nghiệm thu L5 Waydroid Real-Device: Pass 100% 8/8 test points tiện ích trên thiết bị Waydroid Android 13 (`integration_test/chat_v2_media_viewer_utilities_e2e_test.dart`).
 >   * `flutter analyze`: Đạt **0 issues found** (0 errors, 0 warnings).
 
