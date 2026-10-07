@@ -597,6 +597,7 @@ Phân hệ cốt lõi cung cấp trải nghiệm giao tiếp toàn diện: trò 
   - *Kịch bản nghiệm thu*: Bấm Play ➔ Âm thanh phát rõ ràng qua loa điện thoại kèm thanh thời lượng chạy.
 
 ### E. Cuộc gọi Thoại P2P (Voice Call WebRTC - Odoo 19 RTC Core):
+> ⚠️ **Lưu ý phạm vi hiện tại**: Ứng dụng hiện mới chỉ hỗ trợ cuộc gọi thoại âm thanh 1-1 (Voice Call). Tính năng **Gọi Video 1-1 và Đàm thoại Video Nhóm chưa làm** (xem mục B.2 trong danh sách Backlog).
 - [x] **3.23 Cuộc gọi Thoại 1-1 WebRTC P2P (Native Odoo 19 RTC)** `[COMPLETED - Pushed & Synchronized]`
   - *Mô tả*: Gọi điện thoại trực tiếp giữa App Mobile và Odoo 19 Web qua giao thức WebRTC P2P; truyền âm thanh hai chiều sắc nét, không độ trễ.
   - *Tệp liên quan*: `lib/features/chat_v2/application/chat_v2_webrtc_engine.dart`, `lib/features/chat_v2/presentation/screens/chat_v2_call_screen.dart`.
@@ -1219,16 +1220,30 @@ Tab "Tôi" quản lý thông tin nhân sự cá nhân, tùy chỉnh giao diện 
   - *Bằng chứng kiểm thử (Evidence)*: Đã sửa triệt để màu chữ tiêu đề nhãn thành Slate 100 `#F1F5F9` (FontWeight.w700) kèm vạch chỉ báo accent màu xanh primary (`AppColors.primary`), tinh chỉnh khung giá trị sang Slate 900 `#0F172A` viền Slate 700 `#334155`, đồng bộ AppBar tối phẳng `Color(0xFF1E293B)`. Pass 11/11 tests trong `test/features/profile/edit_profile_dark_mode_test.dart`.
 
 ### 📋 Danh Sách Tính Năng Tồn Đọng / Chưa Triển Khai (Backlog / Chưa Làm Được):
-- [ ] **6.11 Đổi Mật Khẩu Cá Nhân Trực Tiếp Trên Mobile (In-App Change Password)**
+- [ ] **B.1 Đổi Mật Khẩu Cá Nhân Trực Tiếp Trên Mobile (In-App Change Password)**
   - *Mô tả*: Cho phép người dùng chủ động đổi mật khẩu đăng nhập trực tiếp ngay trên ứng dụng di động thay vì phải truy cập trình duyệt web Odoo. Bao gồm màn hình/dialog nhập mật khẩu hiện tại, mật khẩu mới và xác nhận mật khẩu mới.
   - *Hiện trạng kỹ thuật*: **Chưa triển khai ở cả Frontend lẫn Backend**.
     + **Backend (Odoo `v_mobile_17` & `v_mobile_19`)**: Chưa có API endpoint `/api/v1/auth/change_password` (cần nhận `current_password`, `new_password`, xác thực qua `res.users.change_password()`, thu hồi token cũ và sinh JWT token mới).
     + **Frontend (Flutter `vclients`)**: Chưa có UI/form đổi mật khẩu trong Tab "Tôi", chưa có controller và repository xử lý gọi API.
   - *Lộ trình*: Đưa vào danh sách tính năng cần phát triển ở các Sprint tiếp theo.
-- [ ] **6.12 Chỉnh Sửa Thông Tin Cá Nhân Mở Rộng Trên Mobile (Họ tên, Số điện thoại, Phòng ban)**
+
+- [ ] **B.2 Cuộc Gọi Video 1-1 & Đàm Thoại Video Nhóm (WebRTC Video Calling 1-1 & Group)**
+  - *Mô tả*: Cho phép gọi điện truyền hình ảnh (Video Call) trực tiếp giữa 2 người (1-1) và đàm thoại video nhóm nhiều thành viên trong kênh chat.
+  - *Hiện trạng kỹ thuật*: **Chưa triển khai ở cả Frontend lẫn Backend**.
+    + **Backend (Odoo `v_mobile_17` & `v_mobile_19`)**: Hiện tại module mới chỉ hỗ trợ đàm thoại âm thanh (Voice Call P2P qua `controllers/call.py`), chưa hỗ trợ video signaling, đàm thoại video nhiều điểm hoặc kết nối SFU/Mesh media server cho nhóm.
+    + **Frontend (Flutter `vclients`)**: Hiện tại chỉ có giao diện gọi thoại âm thanh (`ChatV2CallScreen`), chưa có màn hình hiển thị khung hình camera (`RTCVideoRenderer`), nút bật/tắt camera, chuyển camera trước/sau và lưới hiển thị video nhiều thành viên (Group Video Grid).
+
+- [ ] **B.3 Cấu Hình Phân Quyền Model Động Cho Portal Users Từ Odoo Web Admin (Dynamic Portal Model Permissions)**
+  - *Mô tả*: Cho phép Quản trị viên (Admin) trên giao diện Odoo Web tùy biến cài đặt/chọn danh sách model và phân hệ (Helpdesk Ticket, Timesheet, Chấm công, Task Dự án...) được phép hiển thị cho từng Portal User hoặc nhóm khách hàng Portal, thay vì bị khóa cứng theo code server.
+  - *Hiện trạng kỹ thuật*: **Chưa triển khai ở cả Frontend lẫn Backend**.
+    + **Backend (Odoo `v_mobile_17` & `v_mobile_19`)**: Hiện tại quy tắc phân luồng Portal đang cố định cứng trong code backend (`deny_portal()` chặn 14 endpoints chấm công & timesheet). Cần bổ sung bảng cấu hình `vmobile.portal.config` hoặc các trường phân quyền model trên `res.users`/`res.partner`/Cài đặt hệ thống trên Odoo Web, đồng thời API `/api/v1/mobile/user/discovery` trả về động danh sách model được Admin cấp phép để backend kiểm tra quyền động.
+    + **Frontend (Flutter `vclients`)**: Cần lắng nghe danh sách model được phép từ API discovery để render động các Tab điều hướng và widget tương ứng cho từng tài khoản Portal theo đúng thiết lập của Web Admin.
+
+- [ ] **B.4 Chỉnh Sửa Thông Tin Cá Nhân Mở Rộng Trên Mobile (Họ tên, Số điện thoại, Phòng ban)**
   - *Mô tả*: Cho phép chỉnh sửa thông tin nhân sự bổ sung ngoài ảnh đại diện.
   - *Hiện trạng kỹ thuật*: **Chưa làm** (Hiện tại các thông tin nhân sự được quản lý tập trung từ Odoo HR, ứng dụng chỉ mới hỗ trợ cập nhật ảnh đại diện cá nhân).
-- [ ] **6.13 Tùy Chọn Đa Ngôn Ngữ Giao Diện (Tiếng Việt / English)**
+
+- [ ] **B.5 Tùy Chọn Đa Ngôn Ngữ Giao Diện (Tiếng Việt / English)**
   - *Mô tả*: Cung cấp thiết lập chuyển đổi ngôn ngữ hiển thị giao diện giữa Tiếng Việt và Tiếng Anh trong phần Cài đặt.
   - *Hiện trạng kỹ thuật*: **Chưa làm** (Hiện tại toàn bộ giao diện app được cố định bằng Tiếng Việt).
 
