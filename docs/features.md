@@ -335,7 +335,7 @@ Phân hệ quản lý toàn bộ luồng đăng nhập, định danh người d�
       | **Phiếu hỗ trợ (`Ticket`)** | `helpdesk` | `helpdesk.ticket`, `helpdesk.team` | **Có** (Xem, phân công, đổi stage, đóng ticket) | **Có** (Chỉ xem và tạo ticket của mình) | **Nếu chưa cài: Ẩn hoàn toàn tab Ticket khỏi App** |
       | **Trò chuyện (`Chat`)** | `mail` | `discuss.channel`, `mail.message` | **Có** (Kênh nội bộ, nhóm, gọi thoại RTC) | **Có** (Chỉ chat với nhân viên CSKH/kỹ thuật) | Module mặc định Odoo Core |
       | **Dự án của tôi (`Project`)** | `project` | `project.project`, `project.task` | **Có** (Widget Home & Task hôm nay) | **Có** (Chỉ xem task được share portal) | Ẩn widget Task trên Home nếu chưa cấu hình |
-      | **Tài khoản cá nhân (`Tôi`)** | `base` | `res.users`, `res.partner` | **Có** (Đổi mật khẩu, avatar, thông tin) | **Có** (Đổi mật khẩu, avatar, thông tin) | Luôn hiển thị (Module lõi Odoo) |
+      | **Tài khoản cá nhân (`Tôi`)** | `base` | `res.users`, `res.partner` | **Có** (Đổi avatar, xem thông tin; *Đổi mật khẩu: Chưa làm/Backlog*) | **Có** (Đổi avatar, xem thông tin; *Đổi mật khẩu: Chưa làm/Backlog*) | Luôn hiển thị (Module lõi Odoo) |
   - *Tệp liên quan*: `lib/core/router/app_router.dart`, `lib/shared/widgets/app_scaffold.dart`, `lib/features/home/presentation/home_screen.dart`, `lib/features/auth/application/auth_controller.dart`, `v_mobile_17/controllers/auth.py`, `v_mobile_19/controllers/auth.py`.
   - *Kịch bản nghiệm thu*:
     1. Đăng nhập tài khoản Nhân viên nội bộ ➔ Hiển thị đầy đủ 5 tab điều hướng, Tab Home với đầy đủ thẻ Chấm công GPS, Quick Nav Widget và Danh sách công việc hôm nay.
@@ -1217,6 +1217,20 @@ Tab "Tôi" quản lý thông tin nhân sự cá nhân, tùy chỉnh giao diện 
   - *Tệp liên quan*: `lib/features/profile/presentation/edit_profile_screen.dart`, `lib/core/theme/app_theme.dart`.
   - *Kịch bản nghiệm thu*: Bật Dark Mode vào Hồ sơ cá nhân ➔ Tiêu đề các trường hiển thị sắc nét với thanh chỉ báo thương hiệu, khung giá trị màu tối sang trọng, AppBar phẳng tiệp màu theme.
   - *Bằng chứng kiểm thử (Evidence)*: Đã sửa triệt để màu chữ tiêu đề nhãn thành Slate 100 `#F1F5F9` (FontWeight.w700) kèm vạch chỉ báo accent màu xanh primary (`AppColors.primary`), tinh chỉnh khung giá trị sang Slate 900 `#0F172A` viền Slate 700 `#334155`, đồng bộ AppBar tối phẳng `Color(0xFF1E293B)`. Pass 11/11 tests trong `test/features/profile/edit_profile_dark_mode_test.dart`.
+
+### 📋 Danh Sách Tính Năng Tồn Đọng / Chưa Triển Khai (Backlog / Chưa Làm Được):
+- [ ] **6.11 Đổi Mật Khẩu Cá Nhân Trực Tiếp Trên Mobile (In-App Change Password)**
+  - *Mô tả*: Cho phép người dùng chủ động đổi mật khẩu đăng nhập trực tiếp ngay trên ứng dụng di động thay vì phải truy cập trình duyệt web Odoo. Bao gồm màn hình/dialog nhập mật khẩu hiện tại, mật khẩu mới và xác nhận mật khẩu mới.
+  - *Hiện trạng kỹ thuật*: **Chưa triển khai ở cả Frontend lẫn Backend**.
+    + **Backend (Odoo `v_mobile_17` & `v_mobile_19`)**: Chưa có API endpoint `/api/v1/auth/change_password` (cần nhận `current_password`, `new_password`, xác thực qua `res.users.change_password()`, thu hồi token cũ và sinh JWT token mới).
+    + **Frontend (Flutter `vclients`)**: Chưa có UI/form đổi mật khẩu trong Tab "Tôi", chưa có controller và repository xử lý gọi API.
+  - *Lộ trình*: Đưa vào danh sách tính năng cần phát triển ở các Sprint tiếp theo.
+- [ ] **6.12 Chỉnh Sửa Thông Tin Cá Nhân Mở Rộng Trên Mobile (Họ tên, Số điện thoại, Phòng ban)**
+  - *Mô tả*: Cho phép chỉnh sửa thông tin nhân sự bổ sung ngoài ảnh đại diện.
+  - *Hiện trạng kỹ thuật*: **Chưa làm** (Hiện tại các thông tin nhân sự được quản lý tập trung từ Odoo HR, ứng dụng chỉ mới hỗ trợ cập nhật ảnh đại diện cá nhân).
+- [ ] **6.13 Tùy Chọn Đa Ngôn Ngữ Giao Diện (Tiếng Việt / English)**
+  - *Mô tả*: Cung cấp thiết lập chuyển đổi ngôn ngữ hiển thị giao diện giữa Tiếng Việt và Tiếng Anh trong phần Cài đặt.
+  - *Hiện trạng kỹ thuật*: **Chưa làm** (Hiện tại toàn bộ giao diện app được cố định bằng Tiếng Việt).
 
 ---
 
