@@ -17,8 +17,8 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 >   * Hỗ trợ cử chỉ chạm nhẹ bật/tắt header controls, vuốt dọc xuống đóng trình xem ảnh khi không zoom.
 >   * Tích hợp nút Xoay ảnh 90° (`RotatedBox`), nút Chia sẻ ảnh hệ thống (`share_plus`) và nút Tải ảnh vào Gallery (`GallerySaver.saveImage`) nhắm chuẩn ảnh đang active.
 > - **2. Kiểm Thử & Kiểm Soát Chất Lượng**:
->   * Pass toàn bộ 26/26 unit & widget tests trong `test/features/chat_v2/` (`chat_v2_image_viewer_test.dart`, `chat_v2_image_viewer_transition_test.dart`, `chat_v2_image_viewer_gallery_test.dart`).
->   * Nghiệm thu L5 Waydroid Real-Device: Pass 100% 6/6 test points kịch bản E2E thực tế trên thiết bị Waydroid Android 13 (`integration_test/chat_v2_gallery_swipe_e2e_test.dart`).
+>   * Pass toàn bộ 37/37 unit & widget tests trong `test/features/chat_v2/` (`chat_v2_image_viewer_test.dart`, `chat_v2_image_viewer_transition_test.dart`, `chat_v2_image_viewer_gallery_test.dart`, `chat_v2_image_viewer_utilities_test.dart`).
+>   * Nghiệm thu L5 Waydroid Real-Device: Pass 100% 8/8 test points tiện ích trên thiết bị Waydroid Android 13 (`integration_test/chat_v2_media_viewer_utilities_e2e_test.dart`).
 >   * `flutter analyze`: Đạt **0 issues found** (0 errors, 0 warnings).
 
 ## [v2.9.14+149] — 2026-10-04 (Bản Nâng Cấp Train Version App Store & Phân Luồng Portal Dynamic Model Discovery)

@@ -12,7 +12,7 @@
   * Độc lập quản lý `TransformationController` theo từng trang (`Map<int, TransformationController>`), tự động đưa ảnh ngoài tầm nhìn về kích thước chuẩn.
   * **Bảo Vệ Bộ Nhớ Đệm (Memory Pruning)**: Tự động xả ảnh bitmap ngoài tầm nhìn (`_pruneOffscreenBytes`), duy trì tối đa 5 ảnh trong RAM, chống giật lag và chống tràn bộ nhớ (OOM) tuyệt đối.
   * Hỗ trợ thao tác Zoom 2 ngón (Pinch-to-zoom / Double-tap), nút Xoay ảnh 90° (`RotatedBox`), nút Chia sẻ ảnh (`share_plus`) và nút Lưu ảnh active vào Thư viện hệ thống (`GallerySaver.saveImage`).
-- **Nghiệm Thu L5 Waydroid**: Đã test pass 100% kịch bản cử chỉ lướt ảnh, zoom và lưu tệp trên thiết bị giả lập Waydroid Android 13 (`integration_test/chat_v2_gallery_swipe_e2e_test.dart`).
+- **Nghiệm Thu L5 Waydroid**: Đã test pass 100% toàn bộ kịch bản trên thiết bị thật Waydroid Android 13 (API 33): lướt ảnh PageView, zoom, xoay ảnh 90° chu kỳ 4 nấc, reset xoay khi swipe, reset zoom khi xoay và kích hoạt System Share Sheet (`integration_test/chat_v2_media_viewer_utilities_e2e_test.dart`).
 
 ## [2.9.14 - Build 149] - 2026-10-04
 
