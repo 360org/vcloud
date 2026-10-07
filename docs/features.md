@@ -627,8 +627,8 @@ Phân hệ cốt lõi cung cấp trải nghiệm giao tiếp toàn diện: trò 
     4. Kiểm thử: Pass `flutter analyze` (0 errors, 0 warnings), pass 4/4 tests trong `test/push_notification_repository_test.dart`.
 
 ### G. Đổi Tên Nhóm & Đặt Biệt Danh Chat 1-1 (Rename Group & Set Custom Nickname):
-- [x] **3.26 Đổi Tên Nhóm & Đặt Biệt Danh Chat 1-1 (Rename Group & Set Custom Nickname)**
-  - *Mô tả*: Cung cấp tính năng đổi tên nhóm toàn cục và đặt biệt danh cá nhân 1-1 thông qua icon cây viết (`LucideIcons.pencil`) tại thanh AppBar của màn hình Chi tiết Hội thoại (`ChatV2InfoSheet`).
+- [/] **3.26 Đổi Tên Nhóm & Đặt Biệt Danh Chat 1-1 (Rename Group & Set Custom Nickname) `[/] [IN_PROGRESS - Fix Bidirectional Channel Nickname Sync]`**
+  - *Mô tả*: Cung cấp tính năng đổi tên nhóm toàn cục và đặt biệt danh cá nhân 1-1 thông qua icon cây viết (`LucideIcons.pencil`) tại thanh AppBar của màn hình Chi tiết Hội thoại (`ChatV2InfoSheet`). Đang triển khai đồng bộ 2 chiều (Bidirectional Sync) thời gian thực giữa Web Odoo và Mobile qua Bus Notification.
   - *Kiến trúc & Phân định Ranh giới*:
     1. **Nhóm Chat (Group Channels)**: Gọi API `/api/v1/mobile/chat/channels/<id>/rename` (hoặc `/api/v1/mobile/chat/rename_channel`) trên backend Odoo (`v_mobile_17` & `v_mobile_19`), cập nhật `discuss.channel.write({'name': new_name})` đồng bộ toàn cục cho tất cả thành viên trong nhóm. Cập nhật optimistic tức thì vào `ChatV2ChannelLocalCache` và Riverpod `chatV2ChannelsProvider`. Nếu backend trả lỗi, tự động rollback trạng thái về tên cũ an toàn và báo lỗi trên dialog.
     2. **Chat Trực tiếp 1-1 (Direct Channels)**: Không sửa đổi bản ghi liên hệ ERP toàn cục (`res.partner`), sử dụng cơ chế lưu trữ Hybrid: Lưu trữ biệt danh cá nhân bền vững trên máy thông qua `FlutterSecureStorage` (`{scope}_user_channel_nicknames_v1`) trong `ChatV2ChannelLocalCache`, đồng thời ghi nhận vào `custom_channel_name` trên `discuss.channel.member` phía backend nếu có. Biệt danh chỉ hiển thị riêng với người đặt.
