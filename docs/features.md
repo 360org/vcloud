@@ -1,9 +1,11 @@
 # 📋 DANH MỤC TÍNH NĂNG & TIÊU CHÍ NGHIỆM THU TOÀN DIỆN VCLOUD MOBILE APP (FEATURES CONTROL)
 
 > **Dự án**: VCloud Mobile App (`vclients` Flutter) kết nối Odoo Backend (`v_mobile_17` & `v_mobile_19`)  
-> **Phiên bản hiện tại**: `v2.9.14+149` (Bản dựng TestFlight iOS & AAB Android phát hành Google Play mới nhất)  
+> **Phiên bản hiện tại**: `v2.9.15+150` (Bản dựng TestFlight iOS & AAB Android phát hành Google Play mới nhất)  
 > **Nguồn sự thật (Single Source of Truth)**: Tài liệu kiểm soát toàn bộ tính năng theo 6 nhóm nghiệp vụ chuẩn hóa, phục vụ trực tiếp cho anh Tân nghiệm thu thực tế và báo cáo tiến độ.  
-> 🟢 **Bản Phát Hành Mới (Build 148 — 2026-10-03)**: `[x] [L4/L5 — VERIFIED: Tuân thủ Chính sách Quyền Ảnh & Video Google Play 10/2026, gỡ sạch broad media permissions bằng tools:node="remove", AAB 85MB nộp Google Play Console thành công]`  
+> 🟢 **Bản Phát Hành Mới (Build 150 — 2026-10-07)**: `[x] [L5 — VERIFIED: Trình Xem & Lướt Ảnh Đa Điểm Chat V2 (Swipeable Image Gallery PageView), hỗ trợ PageView vuốt mượt mà, bộ đếm động, zoom không kẹt gesture, lưu ảnh active vào Gallery và nghiệm thu L5 Waydroid 6/6 test points đạt 100% (26/26 Flutter tests PASS, 0 Analyze issues)]`  
+> 🟢 **Bản Phát Hành Trước (Build 149 — 2026-10-04)**: `[x] [L4/L5 — VERIFIED: Dynamic Model Discovery, Phân luồng Portal User 2-3-5 tabs, nâng train version App Store 2.9.14+149 tuân thủ quy định Apple]`  
+> 🟢 **Bản Phát Hành Trước (Build 148 — 2026-10-03)**: `[x] [L4/L5 — VERIFIED: Tuân thủ Chính sách Quyền Ảnh & Video Google Play 10/2026, gỡ sạch broad media permissions bằng tools:node="remove", AAB 85MB nộp Google Play Console thành công]`  
 > 🟢 **Báo Cáo Audit Backend Odoo 19 (v19.0.1.2.30 — Commit 3e6884a)**: `[x] [L2/L4 — AUDITED: Anh Châu audit 25 commit Odoo 19, đạt 83/100 điểm, đủ điều kiện deploy an toàn DB schema; xác lập 4 nhiệm vụ FIX-1..4 chuẩn bị cho v19.0.1.2.31]`  
 > 🟢 **Thực Thi 4 Bước Sửa Lỗi Backend & Flutter (v19.0.1.2.31)**: `[x] [L4 — VERIFIED: Hoàn tất trọn vẹn 4 bước sửa lỗi Backend Odoo 17/19 & Flutter: Vá bảo mật Attachment IDOR, dọn UUID thừa qua migration savepoint, dọn route mute trùng lặp với hasattr(_notify_mute) & đồng bộ vmobile.call/ended vào OdooBusService (97/97 Python tests PASS, 26/26 Flutter tests PASS, 0 Analyze issues)]`  
 > 🟢 **Kiểm Thử L5 Waydroid & Docker Local (Máy Cá Nhân — 2026-10-04)**: `[x] [L5 — VERIFIED: Cấu hình Standalone Docker Odoo 17 (demo-17:8069), nâng cấp v_mobile, build debug APK nạp Waydroid qua ADB và kiểm chứng toàn diện 4 kịch bản L5: Gửi & phát video MP4 in-app, lưu video vào thư viện native (/sdcard/Movies/ khớp MD5 100%), Mute channel 200 OK không lỗi 500, cúp máy RTC sạch sẽ kết nối WebRTC CLOSED không double broadcast, và an toàn IDOR Portal 403 Forbidden (97/97 Python tests PASS)]`  
@@ -541,10 +543,10 @@ Phân hệ cốt lõi cung cấp trải nghiệm giao tiếp toàn diện: trò 
   - *Kịch bản nghiệm thu*: Đối phương gõ chữ trên Web ➔ Trên điện thoại hiện ngay thông báo "Đang soạn tin...".
 
 ### C. Hình ảnh, Tệp tin & Trình đọc Tài liệu:
-- [x] **3.17 Trình Xem Ảnh Toàn Màn hình (ChatV2ImageViewerScreen)**
-  - *Mô tả*: Xem ảnh toàn màn hình với nền đen chuyên nghiệp; hỗ trợ phóng to / thu nhỏ (Pinch-to-zoom), xoay, vuốt sang ảnh kế tiếp và vuốt xuống để đóng.
-  - *Tệp liên quan*: `lib/features/chat_v2/presentation/screens/chat_v2_image_viewer_screen.dart`.
-  - *Kịch bản nghiệm thu*: Bấm vào ảnh trong chat ➔ Mở toàn màn hình xem sắc nét, zoom mượt mà.
+- [x] **3.17 Trình Xem Ảnh Toàn Màn Hình Đa Ảnh & Lướt Chuyển Trang (Swipeable Image Gallery PageView — Chuẩn Zalo/Telegram)**
+  - *Mô tả*: Nâng cấp trình xem ảnh từ ảnh đơn sang bộ sưu tập đa ảnh vuốt ngang (PageView) mượt mà chuẩn Zalo/Telegram. Hiển thị bộ đếm trang năng động `[Trang hiện tại / Tổng số ảnh]` (VD `1 / 3`) trên header; chạm vào bất kỳ ảnh nào trong tin nhắn hoặc Info Sheet sẽ mở đúng vị trí `initialIndex`. Tự động khóa cuộn PageView (`NeverScrollableScrollPhysics`) khi phóng to (`scale > 1.05`) để tránh xung đột cử chỉ với `InteractiveViewer`. Độc lập quản lý `TransformationController` theo từng trang; lưu ảnh Thư viện nhắm chuẩn ảnh đang hiển thị; hỗ trợ cử chỉ vuốt dọc kéo xuống để thoát khi không thu phóng.
+  - *Tệp liên quan*: `lib/features/chat_v2/presentation/screens/chat_v2_image_viewer_screen.dart`, `lib/features/chat_v2/presentation/widgets/chat_v2_message_item.dart`, `lib/features/chat_v2/presentation/widgets/chat_v2_info_sheet.dart`, `test/features/chat_v2/chat_v2_image_viewer_gallery_test.dart`.
+  - *Kịch bản nghiệm thu*: Bấm vào ảnh trong tin nhắn có 3 ảnh ➔ Mở ảnh tương ứng, header hiện `1 / 3` hoặc `2 / 3`; vuốt trái/phải để lướt qua các ảnh khác mượt mà; phóng to ảnh không bị trượt trang ngoài ý muốn; vuốt dọc xuống đóng trình xem ảnh. Pass toàn diện 26/26 tests và `flutter analyze` 0 lỗi, 0 cảnh báo.
 
 - [x] **3.18 Lưu Ảnh Trực tiếp vào Thư viện Máy (Native Gallery Saver — Safe-Guard 2026-09-30)**
   - *Mô tả*: Nút "Lưu ảnh" trực tiếp trên màn hình xem ảnh: Tự động xin quyền lưu ảnh (`gal`), lưu thẳng vào Thư viện hệ thống (Photos trên iOS / MediaStore trên Android) và hiển thị SnackBar check xanh thông báo thành công. Bọc toàn diện `GalException` & `PlatformException`, tự động dự phòng lưu bằng `saveBytesToFile` khi môi trường giả lập (Waydroid) không hỗ trợ MediaStore album.

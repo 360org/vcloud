@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## [2.9.15 - Build 150] - 2026-10-07
+
+### 🚀 Nâng Cấp Giao Diện & Trải Nghiệm Khách Hàng
+- **Trình Xem & Lướt Ảnh Đa Điểm Chat V2 (Swipeable Image Gallery)**:
+  * Nâng cấp `ChatV2ImageViewerScreen` hỗ trợ `PageView.builder` vuốt chuyển ảnh trái/phải mượt mà chuẩn Zalo/Telegram.
+  * Mở đúng vị trí ảnh được chọn (`initialIndex`) từ danh sách đính kèm của tin nhắn hoặc Info Sheet Media.
+  * Tích hợp Bộ đếm chỉ số ảnh động `[Trang hiện tại / Tổng số ảnh]` (VD: `3 / 5`), tự động ẩn khi xem ảnh đơn lẻ.
+  * Xử lý xung đột cử chỉ (Gesture Disambiguation): Tự động chuyển PageView sang `NeverScrollableScrollPhysics` khi ảnh phóng to (`scale > 1.05`), cho phép pan/zoom tự do trong `InteractiveViewer`; chuyển lại `BouncingScrollPhysics` khi unzoomed.
+  * Độc lập quản lý `TransformationController` theo từng trang (`Map<int, TransformationController>`), tự động đưa ảnh ngoài tầm nhìn về kích thước chuẩn.
+  * Hỗ trợ thao tác Zoom 2 ngón (Pinch-to-zoom / Double-tap) và nút Lưu ảnh active vào Thư viện hệ thống (`GallerySaver.saveImage`).
+- **Nghiệm Thu L5 Waydroid**: Đã test pass 100% kịch bản cử chỉ lướt ảnh, zoom và lưu tệp trên thiết bị giả lập Waydroid Android 13 (`integration_test/chat_v2_gallery_swipe_e2e_test.dart`).
+
 ## [2.9.14 - Build 149] - 2026-10-04
 
 ### 🚀 Dynamic Model Discovery, Phân Luồng Portal 2-3-5 Tabs & Nâng Cấp Train Version App Store

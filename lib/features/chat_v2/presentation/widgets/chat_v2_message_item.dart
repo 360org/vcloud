@@ -477,11 +477,13 @@ class ChatV2MessageItem extends StatelessWidget {
 
                                   // 2. Render actual image attachments with caption
                                   if (hasImages) ...[
-                                    for (final att in imageAttachments) ...[
+                                    for (int i = 0; i < imageAttachments.length; i++) ...[
                                       _buildImageAttachment(
                                         context,
-                                        att,
+                                        imageAttachments[i],
                                         isMine,
+                                        allImages: imageAttachments,
+                                        initialIndex: i,
                                       ),
                                       if (imageAttachments.length > 1)
                                         const SizedBox(height: 2),
@@ -1023,6 +1025,8 @@ class ChatV2MessageItem extends StatelessWidget {
     double? width,
     double? height,
     BoxFit fit = BoxFit.contain,
+    List<ChatV2Attachment>? allImages,
+    int initialIndex = 0,
   }) {
     final fullUrl = att.resolveFullUrl(odooApiClient.absoluteUrl(''));
     final fallbackCard = _buildSimpleFilenameCard(context, isMine, att.name);
@@ -1038,6 +1042,8 @@ class ChatV2MessageItem extends StatelessWidget {
       onTap: () {
         Navigator.of(context).push(
           ChatV2ImageViewerScreen.route(
+            images: allImages,
+            initialIndex: initialIndex,
             imageUrl: fullUrl,
             title: '',
             bytes: att.bytes,
@@ -1061,6 +1067,8 @@ class ChatV2MessageItem extends StatelessWidget {
         attachments.first,
         isMine,
         fit: BoxFit.contain,
+        allImages: attachments,
+        initialIndex: 0,
       );
     }
 
@@ -1069,9 +1077,9 @@ class ChatV2MessageItem extends StatelessWidget {
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _buildImageAttachment(context, attachments[0], isMine, width: 142, height: 142, fit: BoxFit.cover),
+          _buildImageAttachment(context, attachments[0], isMine, width: 142, height: 142, fit: BoxFit.cover, allImages: attachments, initialIndex: 0),
           const SizedBox(width: 2),
-          _buildImageAttachment(context, attachments[1], isMine, width: 142, height: 142, fit: BoxFit.cover),
+          _buildImageAttachment(context, attachments[1], isMine, width: 142, height: 142, fit: BoxFit.cover, allImages: attachments, initialIndex: 1),
         ],
       );
     }
@@ -1080,14 +1088,14 @@ class ChatV2MessageItem extends StatelessWidget {
       return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _buildImageAttachment(context, attachments[0], isMine, width: 286, height: 140, fit: BoxFit.cover),
+          _buildImageAttachment(context, attachments[0], isMine, width: 286, height: 140, fit: BoxFit.cover, allImages: attachments, initialIndex: 0),
           const SizedBox(height: 2),
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildImageAttachment(context, attachments[1], isMine, width: 142, height: 110, fit: BoxFit.cover),
+              _buildImageAttachment(context, attachments[1], isMine, width: 142, height: 110, fit: BoxFit.cover, allImages: attachments, initialIndex: 1),
               const SizedBox(width: 2),
-              _buildImageAttachment(context, attachments[2], isMine, width: 142, height: 110, fit: BoxFit.cover),
+              _buildImageAttachment(context, attachments[2], isMine, width: 142, height: 110, fit: BoxFit.cover, allImages: attachments, initialIndex: 2),
             ],
           ),
         ],
@@ -1101,18 +1109,18 @@ class ChatV2MessageItem extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildImageAttachment(context, attachments[0], isMine, width: 142, height: 142, fit: BoxFit.cover),
+              _buildImageAttachment(context, attachments[0], isMine, width: 142, height: 142, fit: BoxFit.cover, allImages: attachments, initialIndex: 0),
               const SizedBox(width: 2),
-              _buildImageAttachment(context, attachments[1], isMine, width: 142, height: 142, fit: BoxFit.cover),
+              _buildImageAttachment(context, attachments[1], isMine, width: 142, height: 142, fit: BoxFit.cover, allImages: attachments, initialIndex: 1),
             ],
           ),
           const SizedBox(height: 2),
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildImageAttachment(context, attachments[2], isMine, width: 142, height: 142, fit: BoxFit.cover),
+              _buildImageAttachment(context, attachments[2], isMine, width: 142, height: 142, fit: BoxFit.cover, allImages: attachments, initialIndex: 2),
               const SizedBox(width: 2),
-              _buildImageAttachment(context, attachments[3], isMine, width: 142, height: 142, fit: BoxFit.cover),
+              _buildImageAttachment(context, attachments[3], isMine, width: 142, height: 142, fit: BoxFit.cover, allImages: attachments, initialIndex: 3),
             ],
           ),
         ],
@@ -1126,14 +1134,16 @@ class ChatV2MessageItem extends StatelessWidget {
         spacing: 2,
         runSpacing: 2,
         children: [
-          for (final att in attachments)
+          for (int i = 0; i < attachments.length; i++)
             _buildImageAttachment(
               context,
-              att,
+              attachments[i],
               isMine,
               width: 93,
               height: 93,
               fit: BoxFit.cover,
+              allImages: attachments,
+              initialIndex: i,
             ),
         ],
       ),

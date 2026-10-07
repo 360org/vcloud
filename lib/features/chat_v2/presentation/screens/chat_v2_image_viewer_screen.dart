@@ -7,10 +7,30 @@ import '../../../../core/api/odoo_api_client.dart';
 import '../../../../core/utils/gallery_saver.dart';
 import '../../../../core/utils/local_attachment_cache.dart';
 import '../../../../shared/widgets/html_network_image.dart';
+import '../../data/models/chat_v2_message.dart';
 import '../widgets/chat_v2_message_item.dart';
 
-class ChatV2ImageViewerScreen extends StatefulWidget {
+/// Đại diện cho 1 phần tử ảnh trong Gallery trình xem ảnh.
+class ChatV2ImageItem {
   final String imageUrl;
+  final String title;
+  final Uint8List? bytes;
+  final String? attachmentId;
+  final String? heroTag;
+
+  const ChatV2ImageItem({
+    required this.imageUrl,
+    this.title = 'Hình ảnh',
+    this.bytes,
+    this.attachmentId,
+    this.heroTag,
+  });
+}
+
+class ChatV2ImageViewerScreen extends StatefulWidget {
+  final List<ChatV2Attachment>? images;
+  final int initialIndex;
+  final String? imageUrl;
   final String title;
   final Uint8List? bytes;
   final String? attachmentId;
@@ -18,7 +38,9 @@ class ChatV2ImageViewerScreen extends StatefulWidget {
 
   const ChatV2ImageViewerScreen({
     super.key,
-    required this.imageUrl,
+    this.images,
+    this.initialIndex = 0,
+    this.imageUrl,
     this.title = 'Hình ảnh',
     this.bytes,
     this.attachmentId,
@@ -28,7 +50,9 @@ class ChatV2ImageViewerScreen extends StatefulWidget {
   /// Route mở ImageViewer với hiệu ứng Zoom/Hero và Fade mượt mà chuẩn Zalo/Telegram/Messenger,
   /// loại bỏ hoàn toàn hiệu ứng kéo trượt từ phải sang (slide from right).
   static Route<void> route({
-    required String imageUrl,
+    List<ChatV2Attachment>? images,
+    int initialIndex = 0,
+    String? imageUrl,
     String title = 'Hình ảnh',
     Uint8List? bytes,
     String? attachmentId,
@@ -40,6 +64,8 @@ class ChatV2ImageViewerScreen extends StatefulWidget {
       reverseTransitionDuration: const Duration(milliseconds: 200),
       pageBuilder: (context, animation, secondaryAnimation) {
         return ChatV2ImageViewerScreen(
+          images: images,
+          initialIndex: initialIndex,
           imageUrl: imageUrl,
           title: title,
           bytes: bytes,
@@ -66,31 +92,80 @@ class ChatV2ImageViewerScreen extends StatefulWidget {
 
 class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
     with TickerProviderStateMixin {
-  Uint8List? _bytes;
-  bool _loading = true;
+  late List<ChatV2ImageItem> _items;
+  late int _currentIndex;
+  late PageController _pageController;
+
+  final Map<int, Uint8List> _itemBytes = {};
+  final Set<int> _loadingIndices = {};
+  final Map<int, TransformationController> _transformationControllers = {};
+
+  bool _isZoomed = false;
   bool _downloading = false;
   bool _showControls = true;
   double _dragOffsetY = 0.0;
   double _dragScale = 1.0;
 
-  final TransformationController _transformationController =
-      TransformationController();
   late AnimationController _animationController;
   late AnimationController _dragResetController;
   Animation<Matrix4>? _zoomAnimation;
   Animation<double>? _dragOffsetAnimation;
   Animation<double>? _dragScaleAnimation;
-  TapDownDetails? _doubleTapDetails;
+
+  TransformationController _controllerFor(int index) {
+    return _transformationControllers.putIfAbsent(
+      index,
+      () => TransformationController(),
+    );
+  }
 
   @override
   void initState() {
     super.initState();
+
+    if (widget.images != null && widget.images!.isNotEmpty) {
+      _items = [];
+      for (int i = 0; i < widget.images!.length; i++) {
+        final att = widget.images![i];
+        final fullUrl = att.resolveFullUrl(odooApiClient.absoluteUrl(''));
+        final tag = (i == widget.initialIndex && widget.heroTag != null)
+            ? widget.heroTag
+            : 'chat_v2_gallery_${att.id.isNotEmpty ? att.id : i}_$i';
+        _items.add(ChatV2ImageItem(
+          imageUrl: fullUrl,
+          title: att.name,
+          bytes: att.bytes,
+          attachmentId: att.id.isNotEmpty ? att.id : null,
+          heroTag: tag,
+        ));
+      }
+    } else {
+      _items = [
+        ChatV2ImageItem(
+          imageUrl: widget.imageUrl ?? '',
+          title: widget.title,
+          bytes: widget.bytes,
+          attachmentId: widget.attachmentId,
+          heroTag: widget.heroTag,
+        ),
+      ];
+    }
+
+    _currentIndex = widget.initialIndex.clamp(0, _items.isEmpty ? 0 : _items.length - 1);
+    _pageController = PageController(initialPage: _currentIndex);
+
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 240),
     )..addListener(() {
         if (_zoomAnimation != null) {
-          _transformationController.value = _zoomAnimation!.value;
+          final controller = _controllerFor(_currentIndex);
+          controller.value = _zoomAnimation!.value;
+          final newScale = controller.value.getMaxScaleOnAxis();
+          final zoomed = newScale > 1.05;
+          if (_isZoomed != zoomed) {
+            setState(() => _isZoomed = zoomed);
+          }
         }
       });
 
@@ -108,49 +183,55 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
         });
       });
 
-    _loadBytes();
+    _loadItemBytes(_currentIndex);
+    if (_currentIndex > 0) _loadItemBytes(_currentIndex - 1);
+    if (_currentIndex < _items.length - 1) _loadItemBytes(_currentIndex + 1);
   }
 
   @override
   void dispose() {
+    _pageController.dispose();
     _animationController.dispose();
     _dragResetController.dispose();
-    _transformationController.dispose();
+    for (final controller in _transformationControllers.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
-  Future<void> _loadBytes() async {
-    if (widget.bytes != null && widget.bytes!.isNotEmpty) {
+  Future<void> _loadItemBytes(int index) async {
+    if (index < 0 || index >= _items.length) return;
+    if (_itemBytes.containsKey(index) || _loadingIndices.contains(index)) return;
+
+    final item = _items[index];
+    if (item.bytes != null && item.bytes!.isNotEmpty) {
       if (mounted) {
-        setState(() {
-          _bytes = widget.bytes;
-          _loading = false;
-        });
+        setState(() => _itemBytes[index] = item.bytes!);
       }
       return;
     }
 
-    final key = (widget.attachmentId != null && widget.attachmentId!.isNotEmpty)
-        ? 'att_${widget.attachmentId!}'
-        : (widget.imageUrl.isNotEmpty ? 'url_${widget.imageUrl}' : null);
+    _loadingIndices.add(index);
+
+    final key = (item.attachmentId != null && item.attachmentId!.isNotEmpty)
+        ? 'att_${item.attachmentId!}'
+        : (item.imageUrl.isNotEmpty ? 'url_${item.imageUrl}' : null);
 
     final cached = key != null
         ? (LocalAttachmentCache.get(key) ??
             ChatV2AttachmentImage.imageCache[key] ??
-            ChatV2AttachmentImage.imageCache[widget.attachmentId ?? ''])
+            ChatV2AttachmentImage.imageCache[item.attachmentId ?? ''])
         : null;
 
     if (cached != null && cached.isNotEmpty) {
+      _loadingIndices.remove(index);
       if (mounted) {
-        setState(() {
-          _bytes = cached;
-          _loading = false;
-        });
+        setState(() => _itemBytes[index] = cached);
       }
       return;
     }
 
-    final attId = int.tryParse(widget.attachmentId ?? '');
+    final attId = int.tryParse(item.attachmentId ?? '');
     if (attId != null) {
       try {
         final bytes = await MobileAttachmentRepository().fetchBytes(attId);
@@ -159,26 +240,23 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
             LocalAttachmentCache.save(key, bytes);
             ChatV2AttachmentImage.cacheBytes(key, bytes);
           }
+          _loadingIndices.remove(index);
           if (mounted) {
-            setState(() {
-              _bytes = bytes;
-              _loading = false;
-            });
+            setState(() => _itemBytes[index] = bytes);
           }
           return;
         }
       } catch (_) {}
     }
 
+    _loadingIndices.remove(index);
     if (mounted) {
-      setState(() {
-        _loading = false;
-      });
+      setState(() {});
     }
   }
 
-  String _getSuggestedFileName() {
-    final t = widget.title.trim();
+  String _getSuggestedFileName(ChatV2ImageItem item) {
+    final t = item.title.trim();
     if (t.isNotEmpty &&
         (t.toLowerCase().endsWith('.png') ||
             t.toLowerCase().endsWith('.jpg') ||
@@ -187,7 +265,7 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
             t.toLowerCase().endsWith('.gif'))) {
       return t;
     }
-    final uri = Uri.tryParse(widget.imageUrl);
+    final uri = Uri.tryParse(item.imageUrl);
     if (uri != null && uri.pathSegments.isNotEmpty) {
       final lastSeg = uri.pathSegments.last;
       if (lastSeg.contains('.') &&
@@ -199,13 +277,14 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
         return lastSeg;
       }
     }
-    final ext = widget.imageUrl.toLowerCase().endsWith('.png') ? 'png' : 'jpg';
+    final ext = item.imageUrl.toLowerCase().endsWith('.png') ? 'png' : 'jpg';
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     return 'vcloud_image_$timestamp.$ext';
   }
 
   Future<void> _downloadImage() async {
-    if (_downloading) return;
+    if (_downloading || _items.isEmpty) return;
+    final item = _items[_currentIndex];
     setState(() => _downloading = true);
 
     try {
@@ -218,11 +297,11 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
         ),
       );
 
-      Uint8List? fileBytes = _bytes;
+      Uint8List? fileBytes = _itemBytes[_currentIndex] ?? item.bytes;
 
       // 1. Nếu chưa có bytes trong RAM, nạp qua MobileAttachmentRepository hoặc odooApiClient
       if (fileBytes == null || fileBytes.isEmpty) {
-        final attId = int.tryParse(widget.attachmentId ?? '');
+        final attId = int.tryParse(item.attachmentId ?? '');
         if (attId != null) {
           try {
             fileBytes = await MobileAttachmentRepository().fetchBytes(attId);
@@ -231,7 +310,7 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
       }
 
       if (fileBytes == null || fileBytes.isEmpty) {
-        final cleanUrl = widget.imageUrl.trim();
+        final cleanUrl = item.imageUrl.trim();
         if (cleanUrl.isNotEmpty &&
             (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://'))) {
           try {
@@ -244,7 +323,7 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
         throw Exception('Không tìm thấy dữ liệu ảnh để tải về');
       }
 
-      final fileName = _getSuggestedFileName();
+      final fileName = _getSuggestedFileName(item);
       final success = await GallerySaver.saveImage(
         bytes: fileBytes,
         fileName: fileName,
@@ -312,15 +391,16 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
     }
   }
 
-  void _handleDoubleTap() {
-    final currentMatrix = _transformationController.value;
+  void _handleDoubleTap(int index, TapDownDetails? details) {
+    final controller = _controllerFor(index);
+    final currentMatrix = controller.value;
     final currentScale = currentMatrix.getMaxScaleOnAxis();
 
     final Matrix4 endMatrix;
     if (currentScale > 1.05) {
       endMatrix = Matrix4.identity();
     } else {
-      final position = _doubleTapDetails?.localPosition ?? Offset.zero;
+      final position = details?.localPosition ?? Offset.zero;
       endMatrix = Matrix4.identity()
         ..translateByDouble(-position.dx * 1.5, -position.dy * 1.5, 0.0, 1.0)
         ..scaleByDouble(2.5, 2.5, 1.0, 1.0);
@@ -339,9 +419,18 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
     _animationController.forward(from: 0);
   }
 
+  void _resetCurrentZoom() {
+    final controller = _controllerFor(_currentIndex);
+    if (controller.value != Matrix4.identity()) {
+      controller.value = Matrix4.identity();
+      if (_isZoomed) {
+        setState(() => _isZoomed = false);
+      }
+    }
+  }
+
   void _onVerticalDragUpdate(DragUpdateDetails details) {
-    final currentScale = _transformationController.value.getMaxScaleOnAxis();
-    if (currentScale > 1.05) return;
+    if (_isZoomed) return;
 
     if (_dragResetController.isAnimating) {
       _dragResetController.stop();
@@ -354,8 +443,7 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
   }
 
   void _onVerticalDragEnd(DragEndDetails details) {
-    final currentScale = _transformationController.value.getMaxScaleOnAxis();
-    if (currentScale > 1.05) return;
+    if (_isZoomed) return;
 
     if (_dragOffsetY.abs() > 80 || (details.primaryVelocity?.abs() ?? 0) > 500) {
       Navigator.of(context).pop();
@@ -380,8 +468,8 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
 
   /// Kiểm tra có hiển thị tiêu đề trên thanh header hay không.
   /// Ẩn hoàn toàn nếu rỗng hoặc là tên file ảnh kỹ thuật (image_picker_..., scaled_..., raw filename).
-  bool get _shouldShowTitle {
-    final t = widget.title.trim();
+  bool _shouldShowTitle(String title) {
+    final t = title.trim();
     if (t.isEmpty) return false;
     final lower = t.toLowerCase();
     if (lower.startsWith('image_picker') ||
@@ -410,7 +498,7 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Interactive image container with Gestures
+          // Interactive image container with PageView & Gestures
           GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: () {
@@ -418,26 +506,77 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
                 _showControls = !_showControls;
               });
             },
-            onDoubleTapDown: (details) => _doubleTapDetails = details,
-            onDoubleTap: _handleDoubleTap,
             onVerticalDragUpdate: _onVerticalDragUpdate,
             onVerticalDragEnd: _onVerticalDragEnd,
             child: Transform.translate(
               offset: Offset(0, _dragOffsetY),
               child: Transform.scale(
                 scale: _dragScale,
-                child: InteractiveViewer(
-                  transformationController: _transformationController,
-                  minScale: 0.8,
-                  maxScale: 6.0,
-                  panEnabled: true,
-                  scaleEnabled: true,
-                  clipBehavior: Clip.none,
-                  child: SizedBox.expand(
-                    child: Center(
-                      child: _buildImageContent(),
-                    ),
-                  ),
+                child: PageView.builder(
+                  controller: _pageController,
+                  physics: _isZoomed
+                      ? const NeverScrollableScrollPhysics()
+                      : const BouncingScrollPhysics(),
+                  itemCount: _items.length,
+                  onPageChanged: (index) {
+                    setState(() {
+                      _currentIndex = index;
+                      _isZoomed = false;
+                      _dragOffsetY = 0.0;
+                      _dragScale = 1.0;
+                    });
+                    _loadItemBytes(index);
+                    if (index > 0) _loadItemBytes(index - 1);
+                    if (index < _items.length - 1) _loadItemBytes(index + 1);
+
+                    for (final entry in _transformationControllers.entries) {
+                      if (entry.key != index && entry.value.value != Matrix4.identity()) {
+                        entry.value.value = Matrix4.identity();
+                      }
+                    }
+                  },
+                  itemBuilder: (context, index) {
+                    final controller = _controllerFor(index);
+                    TapDownDetails? pageTapDownDetails;
+
+                    return GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () {
+                        setState(() {
+                          _showControls = !_showControls;
+                        });
+                      },
+                      onDoubleTapDown: (details) => pageTapDownDetails = details,
+                      onDoubleTap: () => _handleDoubleTap(index, pageTapDownDetails),
+                      child: InteractiveViewer(
+                        transformationController: controller,
+                        minScale: 0.8,
+                        maxScale: 6.0,
+                        panEnabled: true,
+                        scaleEnabled: true,
+                        clipBehavior: Clip.none,
+                        onInteractionUpdate: (details) {
+                          final scale = controller.value.getMaxScaleOnAxis();
+                          final zoomed = scale > 1.05;
+                          if (_isZoomed != zoomed) {
+                            setState(() => _isZoomed = zoomed);
+                          }
+                        },
+                        onInteractionEnd: (details) {
+                          final scale = controller.value.getMaxScaleOnAxis();
+                          final zoomed = scale > 1.05;
+                          if (_isZoomed != zoomed) {
+                            setState(() => _isZoomed = zoomed);
+                          }
+                        },
+                        child: SizedBox.expand(
+                          child: Center(
+                            child: _buildImageContent(index),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
             ),
@@ -472,11 +611,26 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
                     icon: const Icon(LucideIcons.arrowLeft, color: Colors.white, size: 22),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
-                  if (_shouldShowTitle) ...[
+                  if (_items.length > 1) ...[
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Center(
+                        child: Text(
+                          '${_currentIndex + 1} / ${_items.length}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ] else if (_shouldShowTitle(_items.first.title)) ...[
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        widget.title,
+                        _items.first.title,
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 16,
@@ -505,9 +659,7 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
                   IconButton(
                     icon: const Icon(LucideIcons.rotateCcw, color: Colors.white, size: 20),
                     tooltip: 'Đặt lại thu phóng',
-                    onPressed: () {
-                      _transformationController.value = Matrix4.identity();
-                    },
+                    onPressed: _resetCurrentZoom,
                   ),
                 ],
               ),
@@ -518,34 +670,38 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
     );
   }
 
-  Widget _buildImageContent() {
+  Widget _buildImageContent(int index) {
+    final item = _items[index];
+    final bytes = _itemBytes[index] ?? item.bytes;
+    final isLoading = _loadingIndices.contains(index);
+
     final Widget content;
-    if (_loading) {
+    if (bytes != null && bytes.isNotEmpty) {
+      content = Image.memory(
+        bytes,
+        fit: BoxFit.contain,
+        gaplessPlayback: true,
+        errorBuilder: (context, error, stackTrace) => _buildNetworkOrError(item),
+      );
+    } else if (isLoading) {
       content = const Center(
         child: CircularProgressIndicator(color: Colors.white),
       );
-    } else if (_bytes != null) {
-      content = Image.memory(
-        _bytes!,
-        fit: BoxFit.contain,
-        gaplessPlayback: true,
-        errorBuilder: (context, error, stackTrace) => _buildNetworkOrError(),
-      );
     } else {
-      content = _buildNetworkOrError();
+      content = _buildNetworkOrError(item);
     }
 
-    if (widget.heroTag != null && widget.heroTag!.isNotEmpty) {
+    if (item.heroTag != null && item.heroTag!.isNotEmpty) {
       return Hero(
-        tag: widget.heroTag!,
+        tag: item.heroTag!,
         child: content,
       );
     }
     return content;
   }
 
-  Widget _buildNetworkOrError() {
-    final cleanUrl = widget.imageUrl.trim();
+  Widget _buildNetworkOrError(ChatV2ImageItem item) {
+    final cleanUrl = item.imageUrl.trim();
     if (cleanUrl.isNotEmpty && (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://'))) {
       if (kIsWeb) {
         final htmlImg = buildHtmlNetworkImage(url: cleanUrl, fit: BoxFit.contain);

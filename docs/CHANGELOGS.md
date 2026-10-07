@@ -2,6 +2,23 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.15+150] — 2026-10-07 (Trình Xem & Lướt Ảnh Đa Điểm Chat V2 Swipeable Image Gallery PageView)
+
+> [!IMPORTANT]
+> **Bản Nâng Cấp Build 150 (`v2.9.15+150`) — Trình Xem Ảnh Vuốt Ngang Chuẩn Zalo/Telegram & Nghiệm Thu L5 Waydroid**:
+> - **1. Nâng Cấp Trình Xem Ảnh Toàn Màn Hình Đa Điểm (Swipeable Image Gallery)**:
+>   * `ChatV2ImageViewerScreen`: Hỗ trợ `PageView.builder` vuốt chuyển ảnh trái/phải mượt mà.
+>   * Mở đúng vị trí ảnh được chọn (`initialIndex`) từ tin nhắn bong bóng chat hoặc Info Sheet Media.
+>   * Bộ đếm trang năng động `[Trang hiện tại / Tổng số ảnh]` (VD `3 / 5`), tự động ẩn khi chỉ xem 1 ảnh.
+>   * Xử lý xung đột cử chỉ (Gesture Disambiguation): Tự động chuyển PageView sang `NeverScrollableScrollPhysics` khi ảnh phóng to (`scale > 1.05`), cho phép pan/zoom tự do trong `InteractiveViewer`; chuyển lại `BouncingScrollPhysics` khi unzoomed.
+>   * Độc lập quản lý `TransformationController` theo từng trang (`Map<int, TransformationController>`), tự động đưa ảnh ngoài tầm nhìn về kích thước chuẩn.
+>   * Hỗ trợ cử chỉ chạm nhẹ bật/tắt header controls, vuốt dọc xuống đóng trình xem ảnh khi không zoom.
+>   * Nút Tải ảnh vào Gallery (`GallerySaver.saveImage`) nhắm chuẩn ảnh đang active.
+> - **2. Kiểm Thử & Kiểm Soát Chất Lượng**:
+>   * Pass toàn bộ 26/26 unit & widget tests trong `test/features/chat_v2/` (`chat_v2_image_viewer_test.dart`, `chat_v2_image_viewer_transition_test.dart`, `chat_v2_image_viewer_gallery_test.dart`).
+>   * Nghiệm thu L5 Waydroid Real-Device: Pass 100% 6/6 test points kịch bản E2E thực tế trên thiết bị Waydroid Android 13 (`integration_test/chat_v2_gallery_swipe_e2e_test.dart`).
+>   * `flutter analyze`: Đạt **0 issues found** (0 errors, 0 warnings).
+
 ## [v2.9.14+149] — 2026-10-04 (Bản Nâng Cấp Train Version App Store & Phân Luồng Portal Dynamic Model Discovery)
 
 > [!IMPORTANT]

@@ -1187,6 +1187,8 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
                                 onTap: () {
                                   Navigator.of(context).push(
                                     ChatV2ImageViewerScreen.route(
+                                      images: _images,
+                                      initialIndex: idx,
                                       imageUrl: fullUrl,
                                       title: '',
                                       bytes: memBytes,
@@ -1731,6 +1733,8 @@ class _ChatV2MediaHubScreenState extends State<ChatV2MediaHubScreen>
                       onTap: () {
                         Navigator.of(context).push(
                           ChatV2ImageViewerScreen.route(
+                            images: widget.images,
+                            initialIndex: idx,
                             imageUrl: fullUrl,
                             title: '',
                             bytes: memBytes,
