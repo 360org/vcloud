@@ -2,6 +2,24 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.15+151] — 2026-10-07 (Lướt Ảnh Từ Tin Nhắn Chat, Tiện Ích Media Viewer Xoay 90°, Share Sheet & Sửa Splash Android)
+
+> [!IMPORTANT]
+> **Bản Nâng Cấp Build 151 (`v2.9.15+151`) — Hoàn Thiện Trải Nghiệm Xem Ảnh Toàn Diện & Tương Thích Đồ Họa Android**:
+> - **1. Lướt Ảnh Trực Tiếp Từ Tin Nhắn Chat (In-Chat Feed Gallery Binding)**:
+>   * `ChatV2DetailScreen`: Kết nối `onImageTap` tự động gom toàn bộ ảnh của phòng chat theo trình tự thời gian; dù tin nhắn chỉ có 1 ảnh đơn lẻ vẫn vuốt chuyển ảnh qua lại mượt mà chuẩn Zalo/Telegram.
+>   * **Bảo Vệ Bộ Nhớ Đệm (Memory Pruning)**: Tự động xả ảnh bitmap ngoài tầm nhìn (`_pruneOffscreenBytes`), duy trì tối đa 5 ảnh giải mã trong RAM, chống tràn bộ nhớ (OOM) và giật lag trên thiết bị cấu hình yếu.
+> - **2. Tiện Ích Media Viewer Mới (Xoay 90° & Chia Sẻ Ảnh Native)**:
+>   * Nút Xoay ảnh 90° (`LucideIcons.rotateCw`) theo chu kỳ 4 nấc: `0° ➔ 90° ➔ 180° ➔ 270° ➔ 0°`.
+>   * Tự động đưa ma trận zoom về Identity khi xoay ảnh và tự động reset góc xoay về 0° khi vuốt chuyển trang.
+>   * Nút Chia sẻ ảnh native (`share_plus`) mở System Share Sheet (iOS UIActivityViewController / Android Intent ACTION_SEND) với popover origin cho iPad / Tablet.
+> - **3. Tương Thích Đồ Họa Android & Waydroid**:
+>   * Tắt Impeller Vulkan (`EnableImpeller = false`), chuyển về engine đồ họa Skia OpenGL tương thích 100% trên Android, sửa triệt để lỗi kẹt màn hình Splash trên giả lập/Waydroid.
+> - **4. Kiểm Thử & Kiểm Soát Chất Lượng**:
+>   * Pass toàn bộ 37/37 unit & widget tests trong `test/features/chat_v2/` (`chat_v2_image_viewer_test.dart`, `chat_v2_image_viewer_transition_test.dart`, `chat_v2_image_viewer_gallery_test.dart`, `chat_v2_image_viewer_utilities_test.dart`).
+>   * Nghiệm thu L5 Waydroid Real-Device: Pass 100% 8/8 test points tiện ích trên thiết bị Waydroid Android 13 (`integration_test/chat_v2_media_viewer_utilities_e2e_test.dart`).
+>   * `flutter analyze`: Đạt **0 issues found** (0 errors, 0 warnings).
+
 ## [v2.9.15+150] — 2026-10-07 (Trình Xem & Lướt Ảnh Đa Điểm Chat V2 Swipeable Image Gallery PageView)
 
 > [!IMPORTANT]

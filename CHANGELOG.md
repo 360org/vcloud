@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## [2.9.15 - Build 151] - 2026-10-07
+
+### 🚀 Nâng Cấp Giao Diện & Tiện Ích Media Viewer
+- **Lướt Ảnh Trực Tiếp Từ Tin Nhắn Chat (In-Chat Feed Gallery Binding)**:
+  * `ChatV2DetailScreen`: Kết nối `onImageTap` tự động gom toàn bộ ảnh của phòng chat theo trình tự thời gian; dù tin nhắn chỉ có 1 ảnh đơn lẻ vẫn vuốt chuyển ảnh qua lại mượt mà chuẩn Zalo/Telegram.
+  * **Bảo Vệ Bộ Nhớ Đệm (Memory Pruning)**: Tự động xả ảnh bitmap ngoài tầm nhìn (`_pruneOffscreenBytes`), duy trì tối đa 5 ảnh giải mã trong RAM, chống tràn bộ nhớ (OOM) và giật lag trên thiết bị cấu hình yếu.
+- **Tiện Ích Media Viewer (Xoay 90° & Chia Sẻ Ảnh Native)**:
+  * Nút Xoay ảnh 90° (`LucideIcons.rotateCw`) theo chu kỳ 4 nấc: `0° ➔ 90° ➔ 180° ➔ 270° ➔ 0°`.
+  * Tự động đưa ma trận zoom về Identity khi xoay ảnh và tự động reset góc xoay về 0° khi vuốt chuyển trang.
+  * Nút Chia sẻ ảnh native (`share_plus`) mở System Share Sheet (iOS UIActivityViewController / Android Intent ACTION_SEND) với popover origin cho iPad / Tablet.
+- **Tương Thích Đồ Họa Android & Waydroid**:
+  * Tắt Impeller Vulkan (`EnableImpeller = false`), chuyển về engine đồ họa Skia OpenGL tương thích 100% trên Android, sửa triệt để lỗi kẹt màn hình Splash trên giả lập/Waydroid.
+- **Nghiệm Thu L5 Waydroid Real-Device**: Pass 100% 8/8 test points cử chỉ xoay, reset, lướt và chia sẻ ảnh trên Waydroid Android 13 thật (`integration_test/chat_v2_media_viewer_utilities_e2e_test.dart`).
+
 ## [2.9.15 - Build 150] - 2026-10-07
 
 ### 🚀 Nâng Cấp Giao Diện & Trải Nghiệm Khách Hàng
