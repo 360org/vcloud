@@ -26,6 +26,8 @@ import '../widgets/chat_v2_info_sheet.dart';
 import '../widgets/chat_v2_reaction_details_sheet.dart';
 import '../../application/chat_v2_call_controller.dart';
 import 'chat_v2_call_screen.dart';
+import 'chat_v2_image_viewer_screen.dart';
+import '../../../../core/utils/local_attachment_cache.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class ChatV2DetailScreen extends ConsumerStatefulWidget {
@@ -719,6 +721,72 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
     }
   }
 
+  void _handleChannelImageTap(
+    ChatV2Attachment targetAtt,
+    String heroTag,
+    List<ChatV2Message> messages,
+  ) {
+    // Thu thập tất cả ảnh trong các tin nhắn hiện có của phòng chat theo thứ tự thời gian (cũ -> mới)
+    final channelImages = <ChatV2Attachment>[];
+    for (int i = messages.length - 1; i >= 0; i--) {
+      final msg = messages[i];
+      for (final a in msg.attachments) {
+        if (a.isImage) {
+          final existingBytes = a.bytes ??
+              ChatV2AttachmentImage.imageCache[a.id] ??
+              ChatV2AttachmentImage.imageCache[a.name] ??
+              ChatV2AttachmentImage.imageCache[msg.id] ??
+              LocalAttachmentCache.get(a.id.isNotEmpty ? a.id : null, altKey: a.name);
+          final resolved = existingBytes != null && (a.bytes == null || a.bytes!.isEmpty)
+              ? a.copyWith(bytes: existingBytes)
+              : a;
+          if (!channelImages.any((x) => x.id.isNotEmpty && resolved.id.isNotEmpty && x.id == resolved.id)) {
+            channelImages.add(resolved);
+          }
+        }
+      }
+      if (msg.attachments.isEmpty && msg.isImageFilename) {
+        final cleanName = msg.content.trim();
+        final memoryBytes = ChatV2AttachmentImage.imageCache[cleanName] ??
+            ChatV2AttachmentImage.imageCache[msg.id] ??
+            LocalAttachmentCache.get(null, altKey: cleanName);
+        final histAtt = ChatV2Attachment(
+          id: msg.id,
+          name: cleanName,
+          url: '',
+          bytes: memoryBytes,
+          mimetype: 'image/jpeg',
+        );
+        if (!channelImages.any((x) => x.name == histAtt.name || (x.id.isNotEmpty && x.id == histAtt.id))) {
+          channelImages.add(histAtt);
+        }
+      }
+    }
+
+    var initialIndex = channelImages.indexWhere((x) =>
+        (x.id.isNotEmpty && targetAtt.id.isNotEmpty && x.id == targetAtt.id) ||
+        (x.name.isNotEmpty && x.name == targetAtt.name) ||
+        (x.url != null && targetAtt.url != null && x.url == targetAtt.url));
+
+    if (initialIndex < 0) {
+      channelImages.add(targetAtt);
+      initialIndex = channelImages.length - 1;
+    }
+
+    final fullUrl = targetAtt.resolveFullUrl(odooApiClient.absoluteUrl(''));
+    Navigator.of(context).push(
+      ChatV2ImageViewerScreen.route(
+        images: channelImages,
+        initialIndex: initialIndex,
+        imageUrl: fullUrl,
+        title: '',
+        bytes: targetAtt.bytes,
+        attachmentId: targetAtt.id.isNotEmpty ? targetAtt.id : null,
+        heroTag: heroTag,
+      ),
+    );
+  }
+
   bool _isSameDay(DateTime? d1, DateTime? d2) {
     if (d1 == null || d2 == null) return false;
     return d1.year == d2.year && d1.month == d2.month && d1.day == d2.day;
@@ -1315,13 +1383,9 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                     isSearchActiveMatch: _isSearching &&
                                         _matchedIndices.isNotEmpty &&
                                         _matchedIndices[_currentMatchIndex] == index,
-                                    onRetry: () => ref
-                                        .read(chatV2MessagesProvider(widget.channelId).notifier)
-                                        .retryMessage(message.id),
-                                    onDelete: () => ref
-                                        .read(chatV2MessagesProvider(widget.channelId).notifier)
-                                        .deleteTempMessage(message.id),
                                     onMentionTap: _handleMentionTap,
+                                    onImageTap: (att, heroTag) =>
+                                        _handleChannelImageTap(att, heroTag, messages),
                                     onReplyTap: (parentId) {
                                       if (parentId != null) {
                                         _jumpToMessage(parentId);

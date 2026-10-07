@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/api/mobile_attachment_repository.dart';
 import '../../../../core/api/odoo_api_client.dart';
@@ -35,6 +36,7 @@ class ChatV2ImageViewerScreen extends StatefulWidget {
   final Uint8List? bytes;
   final String? attachmentId;
   final String? heroTag;
+  final Future<void> Function(Uint8List bytes, String fileName)? customShareHandler;
 
   const ChatV2ImageViewerScreen({
     super.key,
@@ -45,6 +47,7 @@ class ChatV2ImageViewerScreen extends StatefulWidget {
     this.bytes,
     this.attachmentId,
     this.heroTag,
+    this.customShareHandler,
   });
 
   /// Route mở ImageViewer với hiệu ứng Zoom/Hero và Fade mượt mà chuẩn Zalo/Telegram/Messenger,
@@ -57,6 +60,7 @@ class ChatV2ImageViewerScreen extends StatefulWidget {
     Uint8List? bytes,
     String? attachmentId,
     String? heroTag,
+    Future<void> Function(Uint8List bytes, String fileName)? customShareHandler,
   }) {
     return PageRouteBuilder<void>(
       opaque: true,
@@ -71,6 +75,7 @@ class ChatV2ImageViewerScreen extends StatefulWidget {
           bytes: bytes,
           attachmentId: attachmentId,
           heroTag: heroTag,
+          customShareHandler: customShareHandler,
         );
       },
       transitionsBuilder: (context, animation, secondaryAnimation, child) {
@@ -100,8 +105,10 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
   final Set<int> _loadingIndices = {};
   final Map<int, TransformationController> _transformationControllers = {};
 
+  int _rotationTurns = 0;
   bool _isZoomed = false;
   bool _downloading = false;
+  bool _sharing = false;
   bool _showControls = true;
   double _dragOffsetY = 0.0;
   double _dragScale = 1.0;
@@ -197,6 +204,17 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
       controller.dispose();
     }
     super.dispose();
+  }
+
+  void _pruneOffscreenBytes(int centerIndex) {
+    if (_itemBytes.length <= 5) return;
+    _itemBytes.removeWhere((idx, bytes) {
+      if ((idx - centerIndex).abs() > 2) {
+        final originalBytes = _items[idx].bytes;
+        return originalBytes == null || originalBytes.isEmpty;
+      }
+      return false;
+    });
   }
 
   Future<void> _loadItemBytes(int index) async {
@@ -391,6 +409,112 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
     }
   }
 
+  String _getMimeType(String fileName) {
+    final lower = fileName.toLowerCase();
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.webp')) return 'image/webp';
+    if (lower.endsWith('.gif')) return 'image/gif';
+    return 'image/jpeg';
+  }
+
+  void _rotateImage() {
+    setState(() {
+      _rotationTurns = (_rotationTurns + 1) % 4;
+    });
+    final controller = _controllerFor(_currentIndex);
+    if (controller.value != Matrix4.identity()) {
+      controller.value = Matrix4.identity();
+      if (_isZoomed) {
+        setState(() => _isZoomed = false);
+      }
+    }
+  }
+
+  Future<void> _shareImage() async {
+    if (_sharing || _items.isEmpty) return;
+    final item = _items[_currentIndex];
+    final box = context.findRenderObject() as RenderBox?;
+    final origin = box != null ? (box.localToGlobal(Offset.zero) & box.size) : null;
+
+    setState(() => _sharing = true);
+
+    try {
+      Uint8List? fileBytes = _itemBytes[_currentIndex] ?? item.bytes;
+
+      if (fileBytes == null || fileBytes.isEmpty) {
+        final attId = int.tryParse(item.attachmentId ?? '');
+        if (attId != null) {
+          try {
+            fileBytes = await MobileAttachmentRepository().fetchBytes(attId);
+          } catch (_) {}
+        }
+      }
+
+      if (fileBytes == null || fileBytes.isEmpty) {
+        final cleanUrl = item.imageUrl.trim();
+        if (cleanUrl.isNotEmpty &&
+            (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://'))) {
+          try {
+            fileBytes = await odooApiClient.fetchBytes(cleanUrl);
+          } catch (_) {}
+        }
+      }
+
+      if (fileBytes == null || fileBytes.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Không tìm thấy dữ liệu ảnh để chia sẻ'),
+              duration: Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return;
+      }
+
+      final fileName = _getSuggestedFileName(item);
+
+      if (widget.customShareHandler != null) {
+        await widget.customShareHandler!(fileBytes, fileName);
+        return;
+      }
+
+      final mimeType = _getMimeType(fileName);
+
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [
+            XFile.fromData(
+              fileBytes,
+              name: fileName,
+              mimeType: mimeType,
+            ),
+          ],
+          text: 'Chia sẻ hình ảnh từ VCloud Chat',
+          fileNameOverrides: [fileName],
+          sharePositionOrigin: origin,
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi khi chia sẻ ảnh: ${e.toString().replaceAll("Exception: ", "")}'),
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _sharing = false);
+      }
+    }
+  }
+
   void _handleDoubleTap(int index, TapDownDetails? details) {
     final controller = _controllerFor(index);
     final currentMatrix = controller.value;
@@ -521,6 +645,7 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
                   onPageChanged: (index) {
                     setState(() {
                       _currentIndex = index;
+                      _rotationTurns = 0;
                       _isZoomed = false;
                       _dragOffsetY = 0.0;
                       _dragScale = 1.0;
@@ -528,6 +653,7 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
                     _loadItemBytes(index);
                     if (index > 0) _loadItemBytes(index - 1);
                     if (index < _items.length - 1) _loadItemBytes(index + 1);
+                    _pruneOffscreenBytes(index);
 
                     for (final entry in _transformationControllers.entries) {
                       if (entry.key != index && entry.value.value != Matrix4.identity()) {
@@ -571,7 +697,10 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
                         },
                         child: SizedBox.expand(
                           child: Center(
-                            child: _buildImageContent(index),
+                            child: RotatedBox(
+                              quarterTurns: index == _currentIndex ? _rotationTurns : 0,
+                              child: _buildImageContent(index),
+                            ),
                           ),
                         ),
                       ),
@@ -642,6 +771,25 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
                     ),
                   ] else
                     const Spacer(),
+                  IconButton(
+                    icon: const Icon(LucideIcons.rotateCw, color: Colors.white, size: 20),
+                    tooltip: 'Xoay ảnh 90°',
+                    onPressed: _rotateImage,
+                  ),
+                  IconButton(
+                    icon: _sharing
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.share, color: Colors.white, size: 20),
+                    tooltip: 'Chia sẻ ảnh',
+                    onPressed: _sharing ? null : _shareImage,
+                  ),
                   IconButton(
                     icon: _downloading
                         ? const SizedBox(

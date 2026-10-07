@@ -9,11 +9,13 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 > - **1. Nâng Cấp Trình Xem Ảnh Toàn Màn Hình Đa Điểm (Swipeable Image Gallery)**:
 >   * `ChatV2ImageViewerScreen`: Hỗ trợ `PageView.builder` vuốt chuyển ảnh trái/phải mượt mà.
 >   * Mở đúng vị trí ảnh được chọn (`initialIndex`) từ tin nhắn bong bóng chat hoặc Info Sheet Media.
+>   * **Liên Kết Trực Tiếp Từ Tin Nhắn Chat (Chat Feed Gallery Binding)**: `ChatV2DetailScreen` kết nối `onImageTap` tự động gom toàn bộ ảnh của phòng chat theo trình tự thời gian; dù tin nhắn chỉ có 1 ảnh đơn lẻ vẫn vuốt xem được ảnh trước và sau của toàn bộ cuộc trò chuyện.
 >   * Bộ đếm trang năng động `[Trang hiện tại / Tổng số ảnh]` (VD `3 / 5`), tự động ẩn khi chỉ xem 1 ảnh.
 >   * Xử lý xung đột cử chỉ (Gesture Disambiguation): Tự động chuyển PageView sang `NeverScrollableScrollPhysics` khi ảnh phóng to (`scale > 1.05`), cho phép pan/zoom tự do trong `InteractiveViewer`; chuyển lại `BouncingScrollPhysics` khi unzoomed.
 >   * Độc lập quản lý `TransformationController` theo từng trang (`Map<int, TransformationController>`), tự động đưa ảnh ngoài tầm nhìn về kích thước chuẩn.
+>   * **Bảo Vệ Bộ Nhớ Đệm (Memory Pruning)**: Tự động xả ảnh bitmap ngoài tầm nhìn (`_pruneOffscreenBytes`), duy trì tối đa 5 ảnh trong RAM, chống giật lag và chống tràn bộ nhớ (OOM) tuyệt đối.
 >   * Hỗ trợ cử chỉ chạm nhẹ bật/tắt header controls, vuốt dọc xuống đóng trình xem ảnh khi không zoom.
->   * Nút Tải ảnh vào Gallery (`GallerySaver.saveImage`) nhắm chuẩn ảnh đang active.
+>   * Tích hợp nút Xoay ảnh 90° (`RotatedBox`), nút Chia sẻ ảnh hệ thống (`share_plus`) và nút Tải ảnh vào Gallery (`GallerySaver.saveImage`) nhắm chuẩn ảnh đang active.
 > - **2. Kiểm Thử & Kiểm Soát Chất Lượng**:
 >   * Pass toàn bộ 26/26 unit & widget tests trong `test/features/chat_v2/` (`chat_v2_image_viewer_test.dart`, `chat_v2_image_viewer_transition_test.dart`, `chat_v2_image_viewer_gallery_test.dart`).
 >   * Nghiệm thu L5 Waydroid Real-Device: Pass 100% 6/6 test points kịch bản E2E thực tế trên thiết bị Waydroid Android 13 (`integration_test/chat_v2_gallery_swipe_e2e_test.dart`).

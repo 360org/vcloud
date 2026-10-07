@@ -36,6 +36,7 @@ class ChatV2MessageItem extends StatelessWidget {
     this.onRetry,
     this.onDelete,
     this.onMentionTap,
+    this.onImageTap,
     this.isHighlighted = false,
     this.searchQuery,
     this.isSearchActiveMatch = false,
@@ -51,6 +52,7 @@ class ChatV2MessageItem extends StatelessWidget {
   final VoidCallback? onRetry;
   final VoidCallback? onDelete;
   final ValueChanged<String>? onMentionTap;
+  final void Function(ChatV2Attachment attachment, String heroTag)? onImageTap;
   final bool isHighlighted;
   final String? searchQuery;
   final bool isSearchActiveMatch;
@@ -1040,6 +1042,10 @@ class ChatV2MessageItem extends StatelessWidget {
       height: height,
       fit: fit,
       onTap: () {
+        if (onImageTap != null) {
+          onImageTap!(att, heroTag);
+          return;
+        }
         Navigator.of(context).push(
           ChatV2ImageViewerScreen.route(
             images: allImages,

@@ -548,6 +548,14 @@ Phân hệ cốt lõi cung cấp trải nghiệm giao tiếp toàn diện: trò 
   - *Tệp liên quan*: `lib/features/chat_v2/presentation/screens/chat_v2_image_viewer_screen.dart`, `lib/features/chat_v2/presentation/widgets/chat_v2_message_item.dart`, `lib/features/chat_v2/presentation/widgets/chat_v2_info_sheet.dart`, `test/features/chat_v2/chat_v2_image_viewer_gallery_test.dart`.
   - *Kịch bản nghiệm thu*: Bấm vào ảnh trong tin nhắn có 3 ảnh ➔ Mở ảnh tương ứng, header hiện `1 / 3` hoặc `2 / 3`; vuốt trái/phải để lướt qua các ảnh khác mượt mà; phóng to ảnh không bị trượt trang ngoài ý muốn; vuốt dọc xuống đóng trình xem ảnh. Pass toàn diện 26/26 tests và `flutter analyze` 0 lỗi, 0 cảnh báo.
 
+- [x] **3.17b Tiện Ích Trình Xem Ảnh: Xoay Ảnh 90° & Chia Sẻ Ảnh Ra Ngoài (Image Rotation & System Share Sheet — 2026-10-07)**
+  - *Mô tả*: Bổ sung tiện ích tương tác media nâng cao trên trình xem ảnh toàn màn hình (`ChatV2ImageViewerScreen`):
+    1. **Xoay ảnh 90° (QuarterTurns Rotation)**: Nút `LucideIcons.rotateCw` trên AppBar xoay ảnh theo chu kỳ 0° ➔ 90° ➔ 180° ➔ 270° ➔ 0°. Tự động reset ma trận zoom về Identity khi xoay ảnh để chống vỡ khung hình.
+    2. **Reset xoay khi lướt ảnh (PageView Reset)**: Khi vuốt chuyển trang sang ảnh khác, góc xoay tự động reset về 0° nhằm cách ly độc lập trạng thái từng ảnh.
+    3. **Chia sẻ ảnh ra ứng dụng ngoài (System Share Sheet)**: Tích hợp `share_plus` (`SharePlus.instance.share`) mở bảng chia sẻ native của hệ điều hành (iOS UIActivityViewController / Android Intent ACTION_SEND), tự động tính toán popover origin cho iPad / Tablet và hỗ trợ `customShareHandler` cho kiểm thử độc lập.
+  - *Tệp liên quan*: `lib/features/chat_v2/presentation/screens/chat_v2_image_viewer_screen.dart`, `pubspec.yaml`, `test/features/chat_v2/chat_v2_image_viewer_utilities_test.dart`.
+  - *Kịch bản nghiệm thu*: Bấm nút Xoay ➔ Ảnh xoay 90° mỗi lần bấm; lướt sang ảnh khác ➔ Góc xoay trở về 0°; bấm nút Chia sẻ ➔ Mở khay chia sẻ hệ thống hoặc gọi handler; `flutter analyze` đạt 0 lỗi 0 cảnh báo; Pass 100% 11/11 tests tiện ích độc lập.
+
 - [x] **3.18 Lưu Ảnh Trực tiếp vào Thư viện Máy (Native Gallery Saver — Safe-Guard 2026-09-30)**
   - *Mô tả*: Nút "Lưu ảnh" trực tiếp trên màn hình xem ảnh: Tự động xin quyền lưu ảnh (`gal`), lưu thẳng vào Thư viện hệ thống (Photos trên iOS / MediaStore trên Android) và hiển thị SnackBar check xanh thông báo thành công. Bọc toàn diện `GalException` & `PlatformException`, tự động dự phòng lưu bằng `saveBytesToFile` khi môi trường giả lập (Waydroid) không hỗ trợ MediaStore album.
   - *Tệp liên quan*: `lib/core/utils/gallery_saver.dart`, `lib/features/chat_v2/presentation/screens/chat_v2_image_viewer_screen.dart`, `android/app/src/main/AndroidManifest.xml`.
@@ -564,6 +572,18 @@ Phân hệ cốt lõi cung cấp trải nghiệm giao tiếp toàn diện: trò 
   - *Tệp liên quan*: `lib/features/chat_v2/presentation/widgets/chat_v2_input_bar.dart`, `android/app/src/main/AndroidManifest.xml`.
   - *Kịch bản nghiệm thu*: Bấm icon ảnh trên Waydroid ➔ Bộ chọn ảnh mở mượt mà hoặc fallback an toàn sang tài liệu ảnh, bắt lỗi bằng SnackBar thân thiện, tuyệt đối không văng app.
   - *Bằng chứng kiểm chứng thực nghiệm E2E (Waydroid Android 13 / API 33)*: Khai báo đầy đủ `<queries>` intents trong `AndroidManifest.xml` và quyền `READ_MEDIA_IMAGES`. Kích hoạt bộ chọn ảnh trơn tru với DocumentsUI SAF fallback, không sinh ngoại lệ `ActivityNotFoundException`.
+
+- [x] **3.20b Kiến Trúc Lưu Trữ Tệp & Ảnh Khách Hàng Zalo OA / Hệ Thống (Server Filestore vs Client Zero-Storage Lazy-Load)**
+  - *Mô tả & Cơ chế Lưu trữ 3 Tầng*:
+    1. **Phía Server (Odoo Filestore — Lưu Trữ Bền Vững)**: Khi khách hàng gửi ảnh hoặc tệp tin qua Zalo OA, liên kết CDN trên Zalo chỉ tồn tại tạm thời và sẽ hết hạn sau một khoảng thời gian. Webhook Odoo tiếp nhận lập tức tải tệp nhị phân về và lưu trữ vĩnh viễn trong Odoo Filestore (`~/.local/share/Odoo/filestore/<dbname>/` trên máy chủ), đồng thời metadata (checksum sha1, mimetype, file size, token bảo mật) được quản lý trong model `ir.attachment`. Đảm bảo dữ liệu tồn tại vĩnh viễn trên hệ thống, không phụ thuộc vào thời hạn của Zalo.
+    2. **Phía Điện Thoại Khi Chưa Mở / Không Tải (Zero-Storage — Tiết Kiệm Dung Lượng 100%)**: Nếu người dùng không bấm mở hoặc không tải tệp/ảnh xuống, **điện thoại hoàn toàn không lưu trữ tệp, không tốn bất kỳ dung lượng bộ nhớ nào**. Ứng dụng chỉ nạp dữ liệu text metadata siêu nhẹ (tên file, kích thước, định dạng, ID đính kèm) để hiển thị khung thông tin.
+    3. **Phía Điện Thoại Khi Mở Xem (Sandbox Cache Tạm Thời)**: Khi bấm vào xem, tệp được stream từ Odoo Server về và lưu tạm vào bộ nhớ đệm `LocalAttachmentCache` trong sandbox của app (`ApplicationDocumentsDirectory/attachments`) để mở lại tức thì, không tốn băng thông 4G/Wifi.
+    4. **Khi Bấm Nút "Lưu Ảnh / Tải Xuống"**: Ảnh/Video được ghi trực tiếp vào Thư viện hệ thống (Photos trên iOS / MediaStore trên Android); Tệp tài liệu (PDF, Word, Excel...) được ghi vào thư mục Tệp/Downloads của máy.
+  - *Tệp liên quan*: `v_mobile_17/controllers/attachments.py`, `v_mobile_19/controllers/attachments.py`, `vclients/lib/core/utils/local_attachment_cache.dart`, `vclients/lib/core/utils/gallery_saver.dart`, `vclients/lib/features/chat_v2/presentation/widgets/chat_v2_attachment_viewer.dart`.
+  - *Kịch bản nghiệm thu*:
+    - Khách hàng Zalo gửi ảnh/tệp ➔ Odoo Server lưu trữ bền vững vào `ir.attachment` trong Filestore máy chủ.
+    - Người dùng mở phòng chat nhưng không bấm vào ảnh/file ➔ Bộ nhớ máy không bị tăng dung lượng (Zero-storage).
+    - Người dùng bấm mở ảnh/file ➔ App stream từ server và cache sandbox; bấm Lưu ➔ Xuất vào Thư viện ảnh / Tệp của điện thoại.
 
 ### D. Ghi âm & Tin nhắn Thoại (Voice Messaging):
 - [x] **3.21 Ghi âm Nhấn Giữ & Vuốt để Hủy (Hold to Record - Chuẩn Zalo)**

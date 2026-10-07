@@ -298,5 +298,45 @@ void main() {
       final pageRoute = route as PageRouteBuilder<void>;
       expect(pageRoute.opaque, isTrue);
     });
+
+    testWidgets('TC-13: ChatV2MessageItem kích hoạt onImageTap với đúng target attachment và heroTag', (tester) async {
+      final message = ChatV2Message(
+        id: 'msg_test_tap',
+        channelId: 'channel_1',
+        content: 'Một ảnh đơn lẻ',
+        createdAt: DateTime.now(),
+        authorName: 'Sếp Tân',
+        attachments: [testAttachments[1]],
+      );
+
+      ChatV2Attachment? tappedAtt;
+      String? tappedHeroTag;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(useMaterial3: false),
+          home: Scaffold(
+            body: ChatV2MessageItem(
+              message: message,
+              onImageTap: (att, heroTag) {
+                tappedAtt = att;
+                tappedHeroTag = heroTag;
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final imgFinder = find.byType(ChatV2AttachmentImage);
+      expect(imgFinder, findsOneWidget);
+
+      await tester.tap(imgFinder);
+      await tester.pumpAndSettle();
+
+      expect(tappedAtt, isNotNull);
+      expect(tappedAtt!.id, equals('102'));
+      expect(tappedHeroTag, contains('102'));
+    });
   });
 }

@@ -208,7 +208,8 @@
 - Tự động chuyển đổi các chế độ chọn tệp khi gặp sự cố không tương thích của trình quản lý tệp trên thiết bị.
 
 ### 3.19. Trình Xem Ảnh Tương tác Đa điểm Trực tiếp In-App
-- Mở và xem hình ảnh với đầy đủ tính năng: Thu phóng đa điểm (Pinch-to-zoom), kéo di chuyển (Pan), xoay ảnh và vuốt xuống để đóng.
+- Mở và xem hình ảnh với đầy đủ tính năng: Thu phóng đa điểm (Pinch-to-zoom), kéo di chuyển (Pan), xoay ảnh 90° liên tục theo chu kỳ, chia sẻ ảnh qua System Share Sheet ra ứng dụng ngoài, và vuốt xuống để đóng.
+- Tự động reset ma trận zoom và góc xoay khi lướt chuyển đổi ảnh trong PageView.
 - Tải ảnh chất lượng cao kèm cơ chế đệm bộ nhớ mượt mà.
 
 ### 3.20. Mở & Xem Tệp Tài liệu Định dạng PDF, Excel, Word Trực tiếp In-App
