@@ -2,6 +2,23 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.15+152] — 2026-10-07 (Đồng Bộ Biệt Danh Hai Chiều Web & Mobile, Chuẩn Hóa Push Preview & Clean Title)
+
+> [!IMPORTANT]
+> **Bản Nâng Cấp Build 152 (`v2.9.15+152`) — Hoàn Thiện Đồng Bộ Biệt Danh Web & Mobile và Chuẩn Hóa Thông Báo Đẩy**:
+> - **1. Đồng Bộ Biệt Danh Hai Chiều Web & Mobile Thời Gian Thực (Bidirectional Nickname Sync)**:
+>   * **Mobile sang Web/Backend**: Đổi biệt danh gọi API `/api/v1/mobile/chat/channels/<id>/nickname`, thực thi `cr.commit()`, và phát bus notification `discuss.channel.member/nickname_updated` đến Web Odoo clients.
+>   * **Web sang Mobile**: Hook `DiscussChannelMember.write` trên Odoo 17 & 19 tự động phát bus notification khi sửa biệt danh trên web. `OdooBusService` trên Flutter lắng nghe qua `onNicknameNotification`, cập nhật tức thì `ChatV2ChannelLocalCache`, danh sách thành viên kênh và tên tác giả tin nhắn (`authorName`) trong bong bóng chat.
+>   * **Giao diện & Mô hình**: Bổ sung `customChannelName`, `nickname`, `partnerId` và getter `displayName` trong `ChatV2Member`; thêm dialog sửa biệt danh từng thành viên trong Info Sheet.
+> - **2. Chuẩn Hóa Tiêu Đề & Nội Dung Thông Báo Đẩy (Push Notification Contract Clean Preview)**:
+>   * **Direct Chat 1-1**: Tiêu đề là tên người gửi (`author_name`), nội dung là tin nhắn, loại bỏ hiện tượng lặp tên `Tên (Tên)`.
+>   * **Group Chat**: Tiêu đề là tên kênh nhóm (`channel_name`), nội dung là `Tên người gửi: Tin nhắn`.
+>   * **Lọc Chuỗi Hash Tệp Kỹ Thuật**: Thay thế các tên file băm rác (VD: `db83754e...mp4`, `image_picker_...jpg`) thành nhãn xem trước thân thiện: `🎙️ Tin nhắn thoại`, `🎬 Video`, `🖼️ Hình ảnh`, `📎 Tài liệu PDF`, `📎 Bảng tính Excel`,...
+> - **3. Kiểm Thử & Kiểm Soát Chất Lượng**:
+>   * Pass toàn bộ 20/20 unit tests đồng bộ biệt danh (`chat_v2_rename_and_nickname_test.dart` & `chat_v2_bidirectional_nickname_sync_test.dart`).
+>   * Pass 100% 11/11 contract tests tiêu đề và preview thông báo đẩy trên cả Odoo 17 và Odoo 19.
+>   * `flutter analyze`: Đạt **0 issues found** (0 errors, 0 warnings).
+
 ## [v2.9.15+151] — 2026-10-07 (Lướt Ảnh Từ Tin Nhắn Chat, Tiện Ích Media Viewer Xoay 90°, Share Sheet & Sửa Splash Android)
 
 > [!IMPORTANT]
@@ -15,12 +32,8 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 >   * Nút Chia sẻ ảnh native (`share_plus`) mở System Share Sheet (iOS UIActivityViewController / Android Intent ACTION_SEND) với popover origin cho iPad / Tablet.
 > - **3. Tương Thích Đồ Họa Android & Waydroid**:
 >   * Tắt Impeller Vulkan (`EnableImpeller = false`), chuyển về engine đồ họa Skia OpenGL tương thích 100% trên Android, sửa triệt để lỗi kẹt màn hình Splash trên giả lập/Waydroid.
-> - **4. Đồng Bộ Biệt Danh Hai Chiều Web & Mobile Thời Gian Thực (Bidirectional Nickname Sync)**:
->   * **Mobile sang Web/Backend**: Đổi biệt danh gọi API `/api/v1/mobile/chat/channels/<id>/nickname`, thực thi `cr.commit()`, và phát bus notification `discuss.channel.member/nickname_updated` đến Web Odoo clients.
->   * **Web sang Mobile**: Hook `DiscussChannelMember.write` trên Odoo 17 & 19 tự động phát bus notification khi sửa biệt danh trên web. `OdooBusService` trên Flutter lắng nghe qua `onNicknameNotification`, cập nhật tức thì `ChatV2ChannelLocalCache`, danh sách thành viên kênh và tên tác giả tin nhắn (`authorName`) trong bong bóng chat.
->   * **Giao diện & Mô hình**: Bổ sung `customChannelName`, `nickname`, `partnerId` và getter `displayName` trong `ChatV2Member`; thêm dialog sửa biệt danh từng thành viên trong Info Sheet.
-> - **5. Kiểm Thử & Kiểm Soát Chất Lượng**:
->   * Pass toàn bộ 37/37 unit & widget tests media viewer và 20/20 unit tests đồng bộ biệt danh (`chat_v2_rename_and_nickname_test.dart` & `chat_v2_bidirectional_nickname_sync_test.dart`).
+> - **4. Kiểm Thử & Kiểm Soát Chất Lượng**:
+>   * Pass toàn bộ 37/37 unit & widget tests media viewer.
 >   * Nghiệm thu L5 Waydroid Real-Device: Pass 100% 8/8 test points tiện ích trên thiết bị Waydroid Android 13 (`integration_test/chat_v2_media_viewer_utilities_e2e_test.dart`).
 >   * `flutter analyze`: Đạt **0 issues found** (0 errors, 0 warnings).
 

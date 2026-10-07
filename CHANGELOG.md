@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## [2.9.15 - Build 152] - 2026-10-07
+
+### 🚀 Đồng Bộ Biệt Danh Hai Chiều Web & Mobile & Chuẩn Hóa Thông Báo Đẩy
+- **Đồng Bộ Biệt Danh Hai Chiều Web & Mobile Thời Gian Thực (Bidirectional Nickname Sync)**:
+  * **Mobile sang Web**: Cập nhật biệt danh gọi API `/api/v1/mobile/chat/channels/<id>/nickname` hỗ trợ cả `nickname` và `custom_channel_name` (Odoo Discuss native), cam kết giao dịch DB tức thì và phát bus notification `discuss.channel.member/nickname_updated`.
+  * **Web sang Mobile**: Lắng nghe bus sự kiện Odoo Discuss từ Web Client, cập nhật tức thì vào `ChatV2ChannelLocalCache`, danh sách thành viên kênh và hiển thị tên tác giả tin nhắn (`authorName`) trong bong bóng chat.
+  * Cung cấp dialog đổi biệt danh từng thành viên trong Info Sheet và hỗ trợ xóa biệt danh trở về tên gốc.
+- **Chuẩn Hóa Tiêu Đề & Nội Dung Thông Báo Đẩy (Push Notification Contract Clean Preview)**:
+  * Chat 1-1 trực tiếp: Tiêu đề là tên người gửi (`author_name`), nội dung là tin nhắn sạch sẽ, loại bỏ trùng lặp tên.
+  * Chat nhóm/kênh: Tiêu đề là tên nhóm (`channel_name`), nội dung là `Tên người gửi: Nội dung tin nhắn`.
+  * Lọc sạch tên file hash kỹ thuật rác (VD `db83754e...mp4`), tự động hiển thị nhãn thân thiện: `🎙️ Tin nhắn thoại`, `🎬 Video`, `🖼️ Hình ảnh`, `📎 Tài liệu PDF`, `📎 Bảng tính Excel`,...
+- **Kiểm Thử & Đảm Bảo Chất Lượng**:
+  * Pass 100% 20/20 unit tests đồng bộ biệt danh và 11/11 contract tests định dạng push notification.
+  * `flutter analyze` đạt 0 errors, 0 warnings.
+
 ## [2.9.15 - Build 151] - 2026-10-07
 
 ### 🚀 Nâng Cấp Giao Diện & Tiện Ích Media Viewer
