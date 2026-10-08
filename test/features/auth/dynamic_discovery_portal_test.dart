@@ -122,7 +122,7 @@ void main() {
       expect(user.hasTimesheet, isFalse);
     });
 
-    test('Case 10: Dynamic Portal tab configuration: Ticket is hidden when hasHelpdesk is false', () {
+    test('Case 10: Dynamic Portal tab configuration: Home, Chat, Tôi when hasHelpdesk is false', () {
       const portalNoHelpdesk = AuthUser(
         id: '18',
         email: 'client@domain.com',
@@ -134,17 +134,19 @@ void main() {
 
       // Mô phỏng logic dựng tabs trong AppScaffold
       final tabs = <String>[
-        if (portalNoHelpdesk.hasHelpdesk) '/tickets',
+        '/home',
         '/chat',
+        if (portalNoHelpdesk.hasHelpdesk) '/tickets',
         '/profile',
       ];
 
-      expect(tabs, equals(['/chat', '/profile']));
+      expect(tabs, equals(['/home', '/chat', '/profile']));
+      expect(tabs.contains('/home'), isTrue);
       expect(tabs.contains('/tickets'), isFalse);
-      expect(tabs.length, equals(2));
+      expect(tabs.length, equals(3));
     });
 
-    test('Case 11: Dynamic Portal tab configuration: Ticket is visible when hasHelpdesk is true', () {
+    test('Case 11: Dynamic Portal tab configuration: Home, Chat, Ticket, Tôi when hasHelpdesk is true', () {
       const portalWithHelpdesk = AuthUser(
         id: '19',
         email: 'client@domain.com',
@@ -155,14 +157,16 @@ void main() {
       );
 
       final tabs = <String>[
-        if (portalWithHelpdesk.hasHelpdesk) '/tickets',
+        '/home',
         '/chat',
+        if (portalWithHelpdesk.hasHelpdesk) '/tickets',
         '/profile',
       ];
 
-      expect(tabs, equals(['/tickets', '/chat', '/profile']));
+      expect(tabs, equals(['/home', '/chat', '/tickets', '/profile']));
+      expect(tabs.contains('/home'), isTrue);
       expect(tabs.contains('/tickets'), isTrue);
-      expect(tabs.length, equals(3));
+      expect(tabs.length, equals(4));
     });
 
     test('Case 12: Internal employee navigation always has 5 tabs', () {
@@ -170,6 +174,33 @@ void main() {
       expect(internalTabs.length, equals(5));
       expect(internalTabs.contains('/home'), isTrue);
       expect(internalTabs.contains('/attendance') || internalTabs.contains('/timesheet'), isTrue);
+    });
+
+    test('Case 13: Portal user attendance lock logic when hr_attendance is not installed', () {
+      const portalUser = AuthUser(
+        id: '20',
+        email: 'portal_tenant@domain.com',
+        userMetadata: {
+          'is_portal': true,
+          'installed_modules': {'hr_attendance': false},
+        },
+      );
+
+      expect(portalUser.isPortal, isTrue);
+      expect(portalUser.hasAttendance, isFalse);
+    });
+
+    test('Case 14: Tenant with hr_attendance installed unlocks attendance widget', () {
+      const employeeUser = AuthUser(
+        id: '21',
+        email: 'emp@domain.com',
+        userMetadata: {
+          'is_portal': false,
+          'installed_modules': {'hr_attendance': true},
+        },
+      );
+
+      expect(employeeUser.hasAttendance, isTrue);
     });
   });
 }

@@ -65,9 +65,10 @@ class AppScaffold extends ConsumerWidget {
     final List<_TabSpec> tabs;
     if (isPortal) {
       tabs = <_TabSpec>[
+        const _TabSpec(label: 'Home', path: '/home', icon: LucideIcons.home),
+        const _TabSpec(label: 'Chat', path: '/chat', icon: LucideIcons.messageCircle),
         if (hasHelpdesk)
           const _TabSpec(label: 'Ticket', path: '/tickets', icon: LucideIcons.ticket),
-        const _TabSpec(label: 'Chat', path: '/chat', icon: LucideIcons.messageCircle),
         const _TabSpec(label: 'Tôi', path: '/profile', icon: LucideIcons.user),
       ];
     } else {
@@ -103,8 +104,7 @@ class AppScaffold extends ConsumerWidget {
                       if (context.canPop()) {
                         context.pop();
                       } else {
-                        final portalFallback = hasHelpdesk ? '/tickets' : '/chat';
-                        context.go(isPortal ? portalFallback : '/home');
+                        context.go('/home');
                       }
                     },
               )

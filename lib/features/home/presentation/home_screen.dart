@@ -101,6 +101,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Future<void> _toggleAttendance(bool isOnline) async {
+    final user = ref.read(authControllerProvider).valueOrNull;
+    if (user != null && !user.hasAttendance) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Tính năng yêu cầu cài đặt Module Chấm công'),
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+      return;
+    }
     if (_statusBusy) return;
     setState(() => _statusBusy = true);
     try {
@@ -213,7 +227,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       title: 'Home',
       showAppBar: false,
       body: CelebrationFireworksOverlay(
-        autoTrigger: shiftProgress?.isCompleted ?? (todayMinutes >= ShiftConfig.forDate(DateTime.now()).targetWorkMinutes),
+        autoTrigger: (user?.hasAttendance ?? true) && (shiftProgress?.isCompleted ?? (todayMinutes >= ShiftConfig.forDate(DateTime.now()).targetWorkMinutes)),
         child: RefreshIndicator(
           key: _fireworksChildKey,
           onRefresh: () async {
@@ -241,6 +255,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 companyName: companyName,
                 isOnline: isOnline,
                 statusBusy: statusBusy,
+                hasAttendance: user?.hasAttendance ?? true,
                 onStatusTap: () => _toggleAttendance(isOnline),
                 todayMinutes: todayMinutes,
                 checkinTime: openSession?.checkinTime,
@@ -285,6 +300,7 @@ class _GreetingHeader extends ConsumerWidget {
     this.companyName,
     required this.isOnline,
     required this.statusBusy,
+    this.hasAttendance = true,
     required this.onStatusTap,
     required this.todayMinutes,
     required this.checkinTime,
@@ -302,6 +318,7 @@ class _GreetingHeader extends ConsumerWidget {
   final String? companyName;
   final bool isOnline;
   final bool statusBusy;
+  final bool hasAttendance;
   final VoidCallback onStatusTap;
   final int todayMinutes;
   final DateTime? checkinTime;
@@ -408,8 +425,24 @@ class _GreetingHeader extends ConsumerWidget {
               ),
               const SizedBox(width: 12),
               PressableScale(
-                onTap: onOpenAttendance,
-                child: _PresenceIndicator(isOnline: isOnline),
+                onTap: () {
+                  if (!hasAttendance) {
+                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Tính năng yêu cầu cài đặt Module Chấm công'),
+                        behavior: SnackBarBehavior.floating,
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                    return;
+                  }
+                  onOpenAttendance();
+                },
+                child: _PresenceIndicator(
+                  isOnline: isOnline,
+                  hasAttendance: hasAttendance,
+                ),
               ),
               const SizedBox(width: 10),
               PressableScale(
@@ -463,17 +496,36 @@ class _GreetingHeader extends ConsumerWidget {
 
           // Work Shift Info Card - Ultra Clean & Spacious Apple HIG Design
           InkWell(
-            onTap: onOpenAttendance,
+            onTap: () {
+              if (!hasAttendance) {
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Tính năng yêu cầu cài đặt Module Chấm công'),
+                    behavior: SnackBarBehavior.floating,
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+                return;
+              }
+              onOpenAttendance();
+            },
             borderRadius: BorderRadius.circular(20),
             child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: isDark
-                    ? const Color(0xFF0F172A).withValues(alpha: 0.6)
-                    : (isOnline ? AppColors.soft(AppColors.success) : AppColors.soft(AppColors.primary)).withValues(alpha: 0.45),
+                color: !hasAttendance
+                    ? (isDark
+                        ? const Color(0xFF0F172A).withValues(alpha: 0.6)
+                        : const Color(0xFFF1F5F9))
+                    : isDark
+                        ? const Color(0xFF0F172A).withValues(alpha: 0.6)
+                        : (isOnline ? AppColors.soft(AppColors.success) : AppColors.soft(AppColors.primary)).withValues(alpha: 0.45),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: (isOnline ? AppColors.success : AppColors.primary).withValues(alpha: 0.2),
+                  color: !hasAttendance
+                      ? (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0))
+                      : (isOnline ? AppColors.success : AppColors.primary).withValues(alpha: 0.2),
                 ),
               ),
               child: Column(
@@ -490,11 +542,20 @@ class _GreetingHeader extends ConsumerWidget {
                               width: 8,
                               height: 8,
                               decoration: BoxDecoration(
-                                color: (isOnline || displayMinutes >= targetMinutes) ? AppColors.success : AppColors.primary,
+                                color: !hasAttendance
+                                    ? AppColors.textMuted
+                                    : (isOnline || displayMinutes >= targetMinutes)
+                                        ? AppColors.success
+                                        : AppColors.primary,
                                 shape: BoxShape.circle,
                                 boxShadow: [
                                   BoxShadow(
-                                    color: (isOnline || displayMinutes >= targetMinutes ? AppColors.success : AppColors.primary).withValues(alpha: 0.5),
+                                    color: (!hasAttendance
+                                            ? AppColors.textMuted
+                                            : (isOnline || displayMinutes >= targetMinutes)
+                                                ? AppColors.success
+                                                : AppColors.primary)
+                                        .withValues(alpha: 0.5),
                                     blurRadius: 6,
                                     spreadRadius: 1,
                                   ),
@@ -504,21 +565,27 @@ class _GreetingHeader extends ConsumerWidget {
                             const SizedBox(width: 8),
                             Flexible(
                               child: Text(
-                                shiftProgress != null
-                                    ? shiftProgress.badgeLabel
-                                    : (displayMinutes >= targetMinutes
-                                        ? 'Đã hoàn thành ca 🎉'
-                                        : (isOnline ? 'Đã vào ca' : 'Chưa vào ca làm')),
+                                !hasAttendance
+                                    ? 'Chấm công (Đã khóa 🔒)'
+                                    : (shiftProgress != null
+                                        ? shiftProgress.badgeLabel
+                                        : (displayMinutes >= targetMinutes
+                                            ? 'Đã hoàn thành ca 🎉'
+                                            : (isOnline ? 'Đã vào ca' : 'Chưa vào ca làm'))),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w800,
-                                  color: (isOnline || displayMinutes >= targetMinutes) ? AppColors.success : AppColors.primary,
+                                  color: !hasAttendance
+                                      ? AppColors.textMuted
+                                      : (isOnline || displayMinutes >= targetMinutes)
+                                          ? AppColors.success
+                                          : AppColors.primary,
                                 ),
                               ),
                             ),
-                            if (checkinTime != null) ...[
+                            if (checkinTime != null && hasAttendance) ...[
                               const SizedBox(width: 6),
                               Text(
                                 '• ${Dates.hm(checkinTime!)}',
@@ -536,7 +603,21 @@ class _GreetingHeader extends ConsumerWidget {
                       _CheckInStatusButton(
                         isOnline: isOnline,
                         busy: statusBusy,
-                        onTap: onStatusTap,
+                        hasAttendance: hasAttendance,
+                        onTap: () {
+                          if (!hasAttendance) {
+                            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Tính năng yêu cầu cài đặt Module Chấm công'),
+                                behavior: SnackBarBehavior.floating,
+                                duration: Duration(seconds: 2),
+                              ),
+                            );
+                            return;
+                          }
+                          onStatusTap();
+                        },
                       ),
                     ],
                   ),
@@ -638,14 +719,18 @@ class _GreetingHeader extends ConsumerWidget {
                   // Single Clear Footer Line (Zero text redundancy!)
                   Row(
                     children: [
-                      const Icon(LucideIcons.mapPin, size: 12, color: AppColors.success),
+                      Icon(
+                        !hasAttendance ? LucideIcons.lock : LucideIcons.mapPin,
+                        size: 12,
+                        color: !hasAttendance ? AppColors.textMuted : AppColors.success,
+                      ),
                       const SizedBox(width: 4),
-                      const Text(
-                        'GPS hợp lệ',
+                      Text(
+                        !hasAttendance ? 'Chưa kích hoạt' : 'GPS hợp lệ',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.success,
+                          color: !hasAttendance ? AppColors.textMuted : AppColors.success,
                         ),
                       ),
                       const SizedBox(width: 6),
@@ -656,30 +741,34 @@ class _GreetingHeader extends ConsumerWidget {
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
-                          shiftProgress != null
-                              ? (shiftProgress.remainingMinutes > 0
-                                  ? 'Còn ${_durationVi(Duration(minutes: shiftProgress.remainingMinutes))} đến mốc ${shiftConfig.shiftEndHour.toString().padLeft(2, '0')}:${shiftConfig.shiftEndMinute.toString().padLeft(2, '0')}'
-                                  : '🎉 Đã hoàn thành xuất sắc ${shiftConfig.targetHoursFormatted} làm việc!')
-                              : (displayMinutes >= targetMinutes
-                                  ? '🎉 Đã hoàn thành xuất sắc ca làm việc hôm nay (${_durationVi(Duration(minutes: displayMinutes))})'
-                                  : (displayMinutes > 0
-                                      ? 'Đã tích lũy ${_durationVi(Duration(minutes: displayMinutes))} • Chưa vào ca mới'
-                                      : 'Chưa bắt đầu ca làm việc')),
+                          !hasAttendance
+                              ? 'Chức năng chấm công tạm khóa (cần cài đặt Module hr_attendance)'
+                              : (shiftProgress != null
+                                  ? (shiftProgress.remainingMinutes > 0
+                                      ? 'Còn ${_durationVi(Duration(minutes: shiftProgress.remainingMinutes))} đến mốc ${shiftConfig.shiftEndHour.toString().padLeft(2, '0')}:${shiftConfig.shiftEndMinute.toString().padLeft(2, '0')}'
+                                      : '🎉 Đã hoàn thành xuất sắc ${shiftConfig.targetHoursFormatted} làm việc!')
+                                  : (displayMinutes >= targetMinutes
+                                      ? '🎉 Đã hoàn thành xuất sắc ca làm việc hôm nay (${_durationVi(Duration(minutes: displayMinutes))})'
+                                      : (displayMinutes > 0
+                                          ? 'Đã tích lũy ${_durationVi(Duration(minutes: displayMinutes))} • Chưa vào ca mới'
+                                          : 'Chưa bắt đầu ca làm việc'))),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
-                            color: (displayMinutes >= targetMinutes)
-                                ? AppColors.success
-                                : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.65),
+                            color: !hasAttendance
+                                ? AppColors.textMuted
+                                : (displayMinutes >= targetMinutes)
+                                    ? AppColors.success
+                                    : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.65),
                           ),
                         ),
                       ),
                       const Icon(LucideIcons.chevronRight, size: 14, color: AppColors.textMuted),
                     ],
                   ),
-                  if (shiftProgress?.isCompleted ?? (displayMinutes >= 480)) ...[
+                  if (hasAttendance && (shiftProgress?.isCompleted ?? (displayMinutes >= 480))) ...[
                     const SizedBox(height: 10),
                     InkWell(
                       onTap: () {
@@ -1433,14 +1522,55 @@ class _CheckInStatusButton extends StatelessWidget {
     required this.isOnline,
     required this.busy,
     required this.onTap,
+    this.hasAttendance = true,
   });
 
   final bool isOnline;
   final bool busy;
   final VoidCallback onTap;
+  final bool hasAttendance;
 
   @override
   Widget build(BuildContext context) {
+    if (!hasAttendance) {
+      return PressableScale(
+        onTap: onTap,
+        child: Container(
+          height: 38,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: BoxDecoration(
+            color: Theme.of(context).brightness == Brightness.dark
+                ? const Color(0xFF334155).withValues(alpha: 0.5)
+                : const Color(0xFFE2E8F0),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xFF475569)
+                  : const Color(0xFFCBD5E1),
+            ),
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                LucideIcons.lock,
+                color: AppColors.textMuted,
+                size: 15,
+              ),
+              SizedBox(width: 7),
+              Text(
+                'Khóa 🔒',
+                style: TextStyle(
+                  color: AppColors.textMuted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     final color = busy
         ? AppColors.warning
         : isOnline
@@ -1485,12 +1615,35 @@ class _CheckInStatusButton extends StatelessWidget {
 }
 
 class _PresenceIndicator extends StatelessWidget {
-  const _PresenceIndicator({required this.isOnline});
+  const _PresenceIndicator({
+    required this.isOnline,
+    this.hasAttendance = true,
+  });
 
   final bool isOnline;
+  final bool hasAttendance;
 
   @override
   Widget build(BuildContext context) {
+    if (!hasAttendance) {
+      return Container(
+        width: 42,
+        height: 42,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.soft(AppColors.textMuted),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.textMuted.withValues(alpha: 0.2)),
+        ),
+        child: const Center(
+          child: Icon(
+            LucideIcons.lock,
+            color: AppColors.textMuted,
+            size: 16,
+          ),
+        ),
+      );
+    }
     final color = isOnline ? AppColors.success : AppColors.danger;
     return Container(
       width: 42,

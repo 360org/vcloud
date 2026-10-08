@@ -41,13 +41,10 @@
 - **Người dùng nội bộ (`is_portal: false`)**: Cung cấp đầy đủ 5 tab điều hướng chính (Trang chủ, Tin nhắn, Chấm công, Phiếu hỗ trợ, Tài khoản):
   * **Tab Trang chủ (`Home`)**: Tích hợp các Widget quản trị nghiệp vụ thời gian thực: Thẻ Chấm công GPS & tiến độ ca làm việc (`hr_attendance`), Khối thống kê Quick Nav Grid (Ticket, Chat, Task), và Danh sách 3 công việc trọng tâm hôm nay (`project.task`).
   * **Tab Chấm công & Timesheet**: Độc quyền cho nhân viên nội bộ ghi nhận giờ công.
-- **Người dùng đối tác/khách hàng (`is_portal: true`)**: Tuyệt đối chặn truy cập Tab Home và các module nội bộ. Áp dụng cơ chế cấp quyền theo Model cài đặt trên Tenant Database chuẩn Odoo 19:
-  * Cài module nào ➔ Hiển thị phân hệ tính năng của module đó trên Mobile App.
-  * Chưa cài module ➔ Tự động ẩn hoàn toàn phân hệ tương ứng khỏi giao diện Portal:
-    - Module `helpdesk` (`helpdesk.ticket`): Hiển thị tab Phiếu hỗ trợ / Ticket. Nếu DB chưa cài ➔ Ẩn hoàn toàn tab Ticket.
-    - Module `mail` (`discuss.channel`): Hiển thị tab Tin nhắn / Chat hỗ trợ.
-    - Module `project` (`project.project`, `project.task`): Hiển thị danh mục Dự án/Công việc được chia sẻ cho Portal.
-    - Module `base` (`res.users`, `res.partner`): Hiển thị tab Tài khoản (Tôi).
+- **Người dùng đối tác/khách hàng (`is_portal: true`)**:
+  * **Thanh điều hướng TabBar động**: Mặc định hiển thị 3 tab (`Home`, `Chat`, `Tôi`) + `Ticket` nếu cơ sở dữ liệu tenant có cài đặt module `helpdesk`.
+  * **Tab Trang chủ (`Home`)**: Giữ nguyên layout chuẩn; Widget Chấm công hiển thị biểu tượng Khóa 🔒 (Disabled) khi tenant chưa cài đặt module `hr_attendance` (`hasAttendance == false`). Khi chạm vào hiển thị SnackBar: *"Tính năng yêu cầu cài đặt Module Chấm công"*.
+  * **Bảo vệ Điều hướng (Router Guard)**: Cho phép Portal User truy cập `/home`, tự động chặn và chuyển hướng an toàn về `/home` đối với `/timesheet` hoặc các phân hệ chưa cài đặt (`/attendance` khi `hasAttendance == false`, `/tickets` khi `hasHelpdesk == false`).
   * Tuyệt đối ẩn và chặn truy cập vào Trang chủ (`Home`), module Chấm công (`hr_attendance`) và Bảng chấm công (`hr_timesheet`).
 
 #### Ma trận Phân hệ Ứng dụng & Model Odoo tương ứng

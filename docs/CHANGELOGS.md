@@ -2,6 +2,26 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.15+153] — 2026-10-08 (Portal Home Tab & Attendance Lock 🔒)
+
+> [!IMPORTANT]
+> **Bản Nâng Cấp Build 153 (`v2.9.15+153`) — Mở Tab Trang Chủ Portal & Khóa Giao Diện Chấm Công Khi Chưa Cài Đặt Module**:
+> - **1. Cập Nhật TabBar Động Cho Portal User (`AppScaffold`)**:
+>   * Đưa Tab `Home` (`/home`) vào danh sách 3 Tabs mặc định của Portal User: `Home`, `Chat`, `Tôi` (kèm `Ticket` nếu tenant cài module `helpdesk`).
+>   * Fallback nút Quay lại (`onBack`): Điều hướng an toàn về `/home`.
+> - **2. Mở Khóa Truy Cập & Bảo Vệ Điều Hướng (`GoRouter` Guard)**:
+>   * Cho phép Portal User truy cập `/home`. Chặn và điều hướng an toàn về `/home` đối với `/timesheet` và các phân hệ chưa cài đặt (`/attendance` khi `hasAttendance == false`, `/tickets` khi `hasHelpdesk == false`).
+> - **3. Trạng Thái Khóa Giao Diện Chấm Công 🔒 (`HomeScreen`)**:
+>   * Khi tenant chưa cài module `hr_attendance` (`hasAttendance == false`):
+>     - Nút trạng thái chấm công (`_CheckInStatusButton`): Hiển thị biểu tượng `LucideIcons.lock` và nhãn `Khóa 🔒` với giao diện màu muted.
+>     - Thẻ thông tin ca làm việc (Work Shift Card): Badge hiển thị `Chấm công (Đã khóa 🔒)` và footer hiển thị `Chưa kích hoạt • Chức năng chấm công tạm khóa (cần cài đặt Module hr_attendance)`.
+>     - Biểu tượng hiện diện (`_PresenceIndicator`): Hiển thị icon khóa `LucideIcons.lock`.
+>     - Khi người dùng chạm vào thẻ hoặc nút chấm công: Hiển thị SnackBar nổi: `"Tính năng yêu cầu cài đặt Module Chấm công"`.
+>   * Khi tenant đã cài đặt `hr_attendance` (`hasAttendance == true`): Giữ nguyên toàn bộ hành vi check-in/out, GPS và thanh tiến độ làm việc chuẩn.
+> - **4. Kiểm Thử & Kiểm Soát Chất Lượng**:
+>   * Pass toàn bộ 17/17 tests kiểm thử tự động (`dynamic_discovery_portal_test.dart` & `portal_home_attendance_lock_test.dart`).
+>   * `flutter analyze`: Đạt **0 issues found** (0 errors, 0 warnings).
+
 ## [v2.9.15+152] — 2026-10-07 (Đồng Bộ Biệt Danh Hai Chiều Web & Mobile, Chuẩn Hóa Push Preview & Clean Title)
 
 > [!IMPORTANT]

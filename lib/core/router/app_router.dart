@@ -94,31 +94,34 @@ final routerProvider = Provider<GoRouter>((ref) {
                 !decoded.startsWith('/login') &&
                 !decoded.startsWith('/signup') &&
                 !decoded.startsWith('/splash')) {
-              if (user.isPortal && (decoded.startsWith('/home') || decoded.startsWith('/attendance') || decoded.startsWith('/timesheet'))) {
-                return user.hasHelpdesk ? '/tickets' : '/chat';
+              if (user.isPortal && decoded.startsWith('/timesheet')) {
+                return '/home';
+              }
+              if (!user.hasAttendance && decoded.startsWith('/attendance')) {
+                return '/home';
               }
               if (user.isPortal && !user.hasHelpdesk && decoded.startsWith('/tickets')) {
-                return '/chat';
+                return '/home';
               }
               return decoded;
             }
           } catch (_) {}
         }
-        return user.isPortal ? (user.hasHelpdesk ? '/tickets' : '/chat') : '/chat';
+        return user.isPortal ? '/home' : '/chat';
       }
 
-      // Guard cho Portal User: chặn truy cập vào tính năng nội bộ (Home, Chấm công, Timesheet)
-      // và phân hệ chưa được cài đặt (Ticket khi chưa cài helpdesk)
-      if (user.isPortal) {
-        if (loc == '/home' ||
-            loc.startsWith('/home') ||
-            loc.startsWith('/attendance') ||
-            loc.startsWith('/timesheet')) {
-          return user.hasHelpdesk ? '/tickets' : '/chat';
-        }
-        if (!user.hasHelpdesk && (loc == '/tickets' || loc.startsWith('/tickets'))) {
-          return '/chat';
-        }
+      // Guard cho Portal User & Module Guards:
+      // - Chặn Timesheet đối với Portal User
+      // - Chặn Attendance nếu tenant chưa cài hr_attendance (hasAttendance == false)
+      // - Chặn Ticket nếu chưa cài module helpdesk
+      if (user.isPortal && loc.startsWith('/timesheet')) {
+        return '/home';
+      }
+      if (!user.hasAttendance && (loc == '/attendance' || loc.startsWith('/attendance'))) {
+        return '/home';
+      }
+      if (user.isPortal && !user.hasHelpdesk && (loc == '/tickets' || loc.startsWith('/tickets'))) {
+        return '/home';
       }
 
       return null;

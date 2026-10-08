@@ -3,7 +3,9 @@
 > **Dự án**: VCloud Mobile App (`vclients` Flutter) kết nối Odoo Backend (`v_mobile_17` & `v_mobile_19`)  
 > **Phiên bản hiện tại**: `v2.9.15+150` (Bản dựng TestFlight iOS & AAB Android phát hành Google Play mới nhất)  
 > **Nguồn sự thật (Single Source of Truth)**: Tài liệu kiểm soát toàn bộ tính năng theo 6 nhóm nghiệp vụ chuẩn hóa, phục vụ trực tiếp cho anh Tân nghiệm thu thực tế và báo cáo tiến độ.  
-> 🟢 **Bản Phát Hành Mới (Build 150 — 2026-10-07)**: `[x] [L5 — VERIFIED: Trình Xem & Lướt Ảnh Đa Điểm Chat V2 (Swipeable Image Gallery PageView), hỗ trợ PageView vuốt mượt mà, bộ đếm động, zoom không kẹt gesture, lưu ảnh active vào Gallery và nghiệm thu L5 Waydroid 6/6 test points đạt 100% (26/26 Flutter tests PASS, 0 Analyze issues)]`  
+> 🟢 **Bản Phát Hành Mới (Build 152 — 2026-10-08)**: `[x] [L4 — VERIFIED: Portal Home Tabs & Attendance Lock UI: Cập nhật TabBar Portal gồm Home, Chat, Tôi (+ Ticket nếu có helpdesk), Tab Home giữ nguyên layout với Widget Chấm công hiển thị biểu tượng Khóa 🔒 (Disabled) & SnackBar thông báo khi chưa cài hr_attendance (hasAttendance == false)]`  
+> 🟢 **Bản Phát Hành Trước (Build 151 — 2026-10-07)**: `[x] [L5 — VERIFIED: Lướt Ảnh Từ Tin Nhắn Chat, Tiện Ích Media Viewer Xoay 90°, Share Sheet & Sửa Splash Android]`  
+> 🟢 **Bản Phát Hành Trước (Build 150 — 2026-10-07)**: `[x] [L5 — VERIFIED: Trình Xem & Lướt Ảnh Đa Điểm Chat V2 (Swipeable Image Gallery PageView), hỗ trợ PageView vuốt mượt mà, bộ đếm động, zoom không kẹt gesture, lưu ảnh active vào Gallery và nghiệm thu L5 Waydroid 6/6 test points đạt 100% (26/26 Flutter tests PASS, 0 Analyze issues)]`  
 > 🟢 **Bản Phát Hành Trước (Build 149 — 2026-10-04)**: `[x] [L4/L5 — VERIFIED: Dynamic Model Discovery, Phân luồng Portal User 2-3-5 tabs, nâng train version App Store 2.9.14+149 tuân thủ quy định Apple]`  
 > 🟢 **Bản Phát Hành Trước (Build 148 — 2026-10-03)**: `[x] [L4/L5 — VERIFIED: Tuân thủ Chính sách Quyền Ảnh & Video Google Play 10/2026, gỡ sạch broad media permissions bằng tools:node="remove", AAB 85MB nộp Google Play Console thành công]`  
 > 🟢 **Báo Cáo Audit Backend Odoo 19 (v19.0.1.2.30 — Commit 3e6884a)**: `[x] [L2/L4 — AUDITED: Anh Châu audit 25 commit Odoo 19, đạt 83/100 điểm, đủ điều kiện deploy an toàn DB schema; xác lập 4 nhiệm vụ FIX-1..4 chuẩn bị cho v19.0.1.2.31]`  
@@ -43,12 +45,10 @@
       - Khối Công việc hôm nay (`project.task`, `account.analytic.line`): Checklist 3 task trọng tâm, tích hoàn thành nhanh.
       - Hộp thoại Thông báo đẩy (`mobile.api.notification`): Xem thông báo nhắc chấm công, tin nhắn, phân công việc.
     * **Tab Chấm công & Timesheet**: Độc quyền cho nhân sự nội bộ ghi nhận thời gian làm việc.
-  - *Khách hàng ngoài Portal (`is_portal: true`)*: Tuyệt đối chặn truy cập Tab Home và các module nội bộ. Hiển thị giao diện động theo đúng các Module/Model được cài đặt và phân quyền trên Tenant Database (Cài Model nào ➔ Hiển thị tính năng Model đó; Chưa cài ➔ Ẩn hoàn toàn khỏi giao diện App):
-    * `helpdesk` (`helpdesk.ticket`, `helpdesk.team`): Mở phân hệ Phiếu hỗ trợ / Ticket. Nếu DB chưa cài `helpdesk` ➔ Ẩn hoàn toàn tab Ticket.
-    * `mail` (`discuss.channel`, `mail.message`): Mở phân hệ Chat trao đổi với nhân viên phụ trách.
-    * `project` (`project.project`, `project.task` với `privacy_visibility='portal'`): Mở phân hệ Dự án & Công việc khi được chia sẻ cho Portal.
-    * `base` (`res.users`, `res.partner`): Mở phân hệ Cá nhân (Tôi).
-    * Tuyệt đối không hiển thị Trang chủ (`Home`), Chấm công (`hr_attendance`) và Timesheet (`hr_timesheet`) cho Portal User.
+  - *Khách hàng ngoài Portal (`is_portal: true`)*:
+    * **Thanh điều hướng TabBar động**: Mặc định gồm 3 tabs (`Home`, `Chat`, `Tôi`) + `Ticket` nếu tenant có cài `helpdesk` (`hasHelpdesk == true`).
+    * **Tab Trang chủ (`Home`)**: Giữ nguyên layout nhất quán; Widget Chấm công (`_CheckInStatusButton`, `_PresenceIndicator`, Work Shift Card) hiển thị trạng thái Khóa 🔒 (Disabled) khi tenant chưa cài module `hr_attendance` (`hasAttendance == false`). Khi chạm vào widget khóa hiển thị SnackBar: *"Tính năng yêu cầu cài đặt Module Chấm công"*.
+    * **Bảo vệ Điều hướng (Router Guard)**: Cho phép Portal User truy cập `/home`. Chặn và chuyển hướng an toàn về `/home` nếu Portal User cố truy cập `/timesheet` hoặc tính năng chưa cài đặt (`/attendance` khi `hasAttendance == false`, `/tickets` khi `hasHelpdesk == false`).
 - [x] 1.4 **Tự động hủy Push Token khi Logout**: Đăng xuất ➔ Server vô hiệu hóa FCM device token qua `/api/v1/mobile/notifications/unregister` (`HTTP 200 {"status": "unregistered"}`).
 
 ### 🟢 GIAI ĐOẠN 2: CHẤM CÔNG GPS & TIMESHEET (ATTENDANCE & TIMER) — `[x] [Claude-Verified — 77/77 PASS 100%]`
