@@ -1,5 +1,25 @@
 # CHANGELOG
 
+## [2.9.15 - Build 153] - 2026-10-08
+
+### 🚀 Mở Tab Trang Chủ Portal, Khóa Chấm Công Động & Sửa Lỗi Lệch Ảnh Chat V2
+- **Cập Nhật TabBar Động Cho Portal User (`AppScaffold`)**:
+  * Bổ sung Tab `Home` (`/home`) vào danh sách 3 Tabs mặc định của Portal User: `Home`, `Chat`, `Tôi` (kèm `Ticket` nếu tenant cài module `helpdesk`).
+  * Fallback nút Quay lại (`onBack`) điều hướng an toàn về `/home`.
+- **Mở Khóa Truy Cập & Bảo Vệ Điều Hướng (`GoRouter` Guard)**:
+  * Cho phép Portal User truy cập `/home`. Chặn và điều hướng an toàn về `/home` đối với `/timesheet` và các phân hệ chưa cài đặt (`/attendance` khi `hasAttendance == false`, `/tickets` khi `hasHelpdesk == false`).
+- **Trạng Thái Khóa Giao Diện Chấm Công 🔒 (`HomeScreen`)**:
+  * Khi tenant chưa cài module `hr_attendance` (`hasAttendance == false`): Nút trạng thái chấm công hiển thị `LucideIcons.lock` và nhãn `Khóa 🔒` với giao diện muted; Thẻ ca làm việc hiển thị `Chấm công (Đã khóa 🔒)` và cảnh báo SnackBar khi chạm.
+  * Khi tenant đã cài đặt `hr_attendance`: Vận hành đầy đủ chức năng check-in/out, GPS và thanh tiến độ.
+- **Khắc Phục Dứt Điểm Lỗi Lệch Hình Ảnh Trong Chat V2 (`BUG-CHATV2-IMG-MISMATCH`)**:
+  * Áp dụng Strict Identity Matching ưu tiên theo ID, URL, Bytes, `messageId`, loại bỏ hoàn toàn so khớp lỏng lẻo theo tên file generic (`image.png`, `photo.jpg`).
+  * Bảo toàn `initialIndex`, `allImages`, `message.id` trong callback `onImageTap`.
+  * Khởi tạo Hero tag xác định tuyệt đối không chứa `hashCode` và kẹp an toàn trang đầu tại `ChatV2ImageViewerScreen`.
+  * Dọn dẹp cache RAM theo tên file chung `imageCache[a.name]`.
+- **Kiểm Thử & Đảm Bảo Chất Lượng**:
+  * Pass 100% 74/74 router & auth tests, 15/15 image viewer gallery tests, 345/345 chat v2 tests.
+  * `flutter analyze`: Đạt **0 issues found** (0 errors, 0 warnings).
+
 ## [2.9.15 - Build 152] - 2026-10-07
 
 ### 🚀 Đồng Bộ Biệt Danh Hai Chiều Web & Mobile & Chuẩn Hóa Thông Báo Đẩy

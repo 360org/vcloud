@@ -24,6 +24,13 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 > - **5. Kiểm Thử & Kiểm Soát Chất Lượng**:
 >   * Pass toàn bộ 74/74 tests kiểm thử tự động (`vclients/test/features/auth/`).
 >   * `flutter analyze`: Đạt **0 issues found** (0 errors, 0 warnings).
+> - **6. [FIX & VERIFY] Khắc Phục Dứt Điểm Lỗi Lệch Hình Ảnh Trong Chat V2 (`BUG-CHATV2-IMG-MISMATCH`)**:
+>   * Hoàn thành Pha 1 (Điều tra Root Cause) và Pha 2 (Phẫu thuật Fix Code).
+>   * **Strict Identity Matching**: Viết lại cơ chế định vị ảnh trong `_handleChannelImageTap` (`chat_v2_detail_screen.dart`), ưu tiên so khớp chính xác theo ID (`x.id == targetAtt.id`), URL, Bytes, `messageId`; loại bỏ hoàn toàn so sánh lỏng lẻo `x.name == targetAtt.name` gây bắt nhầm ảnh cũ có cùng tên (`image.png`, `photo.jpg`).
+>   * **Bảo toàn Chỉ mục & Mảng ảnh**: `ChatV2MessageItem` truyền đủ 5 tham số `(att, heroTag, initialIndex, allImages, message.id)` qua `onImageTap`.
+>   * **Deterministic Hero Tag & Clamped Page**: Định danh Hero Tag dạng `chat_v2_img_${message.id}_${uniqueAttKey}` (loại bỏ `hashCode`); kẹp `safeInitialIndex` an toàn tại `ChatV2ImageViewerScreen` gán đúng Hero Tag vào `initialPage`.
+>   * **Dọn dẹp RAM Cache Generic Name**: Xóa bỏ tra cứu fallback `imageCache[a.name]` trong `ChatV2AttachmentImage`, `_handleChannelImageTap` và `ChatV2InfoSheet`, triệt tiêu rủi ro lấy nhầm byte ảnh cũ.
+>   * **Kiểm thử**: Đạt 0 issues found trên `flutter analyze`; pass toàn bộ 15/15 tests tại `test/features/chat_v2/chat_v2_image_viewer_gallery_test.dart` (thêm TC-14 & TC-15) và pass 345/345 tests trong `test/features/chat_v2/`.
 
 ## [v2.9.15+152] — 2026-10-07 (Đồng Bộ Biệt Danh Hai Chiều Web & Mobile, Chuẩn Hóa Push Preview & Clean Title)
 
