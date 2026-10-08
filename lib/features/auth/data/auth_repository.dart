@@ -272,8 +272,20 @@ class AuthRepository {
     } else if (rawModules is Map) {
       installedModules = Map<String, dynamic>.from(rawModules);
     } else {
-      // Fallback cho backend cũ chưa hỗ trợ dynamic discovery trong /auth/me
-      installedModules = <String, dynamic>{
+      // Nếu profile chưa có installed_modules, thử gọi discovery endpoint
+      Map<String, dynamic>? discoveryModules;
+      if (hasVMobile) {
+        try {
+          final discovery = await _client.getDiscovery();
+          final dModules = discovery?['installed_modules'];
+          if (dModules is Map<String, dynamic>) {
+            discoveryModules = dModules;
+          } else if (dModules is Map) {
+            discoveryModules = Map<String, dynamic>.from(dModules);
+          }
+        } catch (_) {}
+      }
+      installedModules = discoveryModules ?? <String, dynamic>{
         'helpdesk': true,
         'mail': true,
         'project': true,

@@ -2,10 +2,10 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
-## [v2.9.15+153] — 2026-10-08 (Portal Home Tab & Attendance Lock 🔒)
+## [v2.9.15+153] — 2026-10-08 (Portal Home Tab & Attendance Lock 🔒 & Full Dynamic Modules Docking E2E)
 
 > [!IMPORTANT]
-> **Bản Nâng Cấp Build 153 (`v2.9.15+153`) — Mở Tab Trang Chủ Portal & Khóa Giao Diện Chấm Công Khi Chưa Cài Đặt Module**:
+> **Bản Nâng Cấp Build 153 (`v2.9.15+153`) — Mở Tab Trang Chủ Portal, Khóa Giao Diện Chấm Công & Kiểm Thử Toàn Diện Dynamic Modules Docking**:
 > - **1. Cập Nhật TabBar Động Cho Portal User (`AppScaffold`)**:
 >   * Đưa Tab `Home` (`/home`) vào danh sách 3 Tabs mặc định của Portal User: `Home`, `Chat`, `Tôi` (kèm `Ticket` nếu tenant cài module `helpdesk`).
 >   * Fallback nút Quay lại (`onBack`): Điều hướng an toàn về `/home`.
@@ -18,8 +18,11 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 >     - Biểu tượng hiện diện (`_PresenceIndicator`): Hiển thị icon khóa `LucideIcons.lock`.
 >     - Khi người dùng chạm vào thẻ hoặc nút chấm công: Hiển thị SnackBar nổi: `"Tính năng yêu cầu cài đặt Module Chấm công"`.
 >   * Khi tenant đã cài đặt `hr_attendance` (`hasAttendance == true`): Giữ nguyên toàn bộ hành vi check-in/out, GPS và thanh tiến độ làm việc chuẩn.
-> - **4. Kiểm Thử & Kiểm Soát Chất Lượng**:
->   * Pass toàn bộ 17/17 tests kiểm thử tự động (`dynamic_discovery_portal_test.dart` & `portal_home_attendance_lock_test.dart`).
+> - **4. Nghiệm Thu E2E & Waydroid Android 13 (Full Dynamic Modules Docking)**:
+>   * **TC-01 (Bật TẤT CẢ 4 modules trên Web Admin)**: `helpdesk=true, hr_attendance=true, hr_timesheet=true, project=true` ➔ Mobile Waydroid (`portal`) nhận đủ 4 tabs (`Home`, `Chat`, `Ticket`, `Tôi`), Thẻ Chấm công MỞ KHÓA bình thường (nút `Check in` active).
+>   * **TC-02 (Gỡ bỏ modules trên Web Admin)**: Gỡ `helpdesk` và `hr_attendance` qua System Parameters (`vmobile.disabled_modules`) ➔ Mobile Waydroid (`portal`) tự động ẨN Tab `Ticket` (còn 3 tabs `Home`, `Chat`, `Tôi`), Thẻ Chấm công chuyển sang trạng thái Khóa 🔒 với SnackBar cảnh báo khi chạm, Tab `Chat`/`Home`/`Tôi` vận hành bình thường.
+> - **5. Kiểm Thử & Kiểm Soát Chất Lượng**:
+>   * Pass toàn bộ 74/74 tests kiểm thử tự động (`vclients/test/features/auth/`).
 >   * `flutter analyze`: Đạt **0 issues found** (0 errors, 0 warnings).
 
 ## [v2.9.15+152] — 2026-10-07 (Đồng Bộ Biệt Danh Hai Chiều Web & Mobile, Chuẩn Hóa Push Preview & Clean Title)
