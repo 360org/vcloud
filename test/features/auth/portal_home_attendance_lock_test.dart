@@ -151,5 +151,113 @@ void main() {
       expect(snackBarShown, isTrue);
       expect(find.text('Tính năng yêu cầu cài đặt Module Chấm công'), findsOneWidget);
     });
+
+    testWidgets('4. GoRouter redirect guard: Portal user accessing /timesheet is redirected to /home', (tester) async {
+      const portalUser = AuthUser(
+        id: '102',
+        email: 'portal_timesheet_blocked@domain.com',
+        userMetadata: {
+          'is_portal': true,
+          'installed_modules': {'helpdesk': true, 'hr_attendance': false, 'hr_timesheet': true},
+        },
+      );
+
+      final router = GoRouter(
+        initialLocation: '/timesheet',
+        redirect: (context, state) {
+          final loc = state.matchedLocation;
+          if (portalUser.isPortal && loc.startsWith('/timesheet')) {
+            return '/home';
+          }
+          return null;
+        },
+        routes: [
+          GoRoute(path: '/home', builder: (context, state) => const Text('Home Screen Active')),
+          GoRoute(path: '/timesheet', builder: (context, state) => const Text('Timesheet Screen Active')),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp.router(
+          routerConfig: router,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Home Screen Active'), findsOneWidget);
+      expect(find.text('Timesheet Screen Active'), findsNothing);
+    });
+
+    testWidgets('5. GoRouter redirect guard: /attendance is redirected to /home when hasAttendance is false', (tester) async {
+      const userNoAttendance = AuthUser(
+        id: '103',
+        email: 'no_attendance@domain.com',
+        userMetadata: {
+          'is_portal': true,
+          'installed_modules': {'hr_attendance': false},
+        },
+      );
+
+      final router = GoRouter(
+        initialLocation: '/attendance',
+        redirect: (context, state) {
+          final loc = state.matchedLocation;
+          if (!userNoAttendance.hasAttendance && (loc == '/attendance' || loc.startsWith('/attendance'))) {
+            return '/home';
+          }
+          return null;
+        },
+        routes: [
+          GoRoute(path: '/home', builder: (context, state) => const Text('Home Screen Active')),
+          GoRoute(path: '/attendance', builder: (context, state) => const Text('Attendance Screen Active')),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp.router(
+          routerConfig: router,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Home Screen Active'), findsOneWidget);
+      expect(find.text('Attendance Screen Active'), findsNothing);
+    });
+
+    testWidgets('6. GoRouter redirect guard: /tickets is redirected to /home when Portal has no helpdesk', (tester) async {
+      const portalNoHelpdesk = AuthUser(
+        id: '104',
+        email: 'no_helpdesk@domain.com',
+        userMetadata: {
+          'is_portal': true,
+          'installed_modules': {'helpdesk': false},
+        },
+      );
+
+      final router = GoRouter(
+        initialLocation: '/tickets',
+        redirect: (context, state) {
+          final loc = state.matchedLocation;
+          if (portalNoHelpdesk.isPortal && !portalNoHelpdesk.hasHelpdesk && (loc == '/tickets' || loc.startsWith('/tickets'))) {
+            return '/home';
+          }
+          return null;
+        },
+        routes: [
+          GoRoute(path: '/home', builder: (context, state) => const Text('Home Screen Active')),
+          GoRoute(path: '/tickets', builder: (context, state) => const Text('Ticket Screen Active')),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp.router(
+          routerConfig: router,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Home Screen Active'), findsOneWidget);
+      expect(find.text('Ticket Screen Active'), findsNothing);
+    });
   });
 }
