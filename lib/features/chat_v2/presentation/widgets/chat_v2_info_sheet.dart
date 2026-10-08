@@ -173,10 +173,9 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
       // 1. Formal Attachments
       for (final att in msg.attachments) {
         final existingBytes = att.bytes ??
-            ChatV2AttachmentImage.imageCache[att.id] ??
-            ChatV2AttachmentImage.imageCache[att.name] ??
-            ChatV2AttachmentImage.imageCache[msg.id] ??
-            LocalAttachmentCache.get(att.id.isNotEmpty ? att.id : null, altKey: att.name);
+            (att.id.isNotEmpty ? ChatV2AttachmentImage.imageCache[att.id] : null) ??
+            (msg.id.isNotEmpty ? ChatV2AttachmentImage.imageCache[msg.id] : null) ??
+            LocalAttachmentCache.get(att.id.isNotEmpty ? att.id : null);
         final resolvedAtt = existingBytes != null && (att.bytes == null || att.bytes!.isEmpty)
             ? att.copyWith(bytes: existingBytes)
             : att;
@@ -1391,9 +1390,8 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
                             itemBuilder: (ctx, idx) {
                               final img = _images[idx];
                               final memBytes = img.bytes ??
-                                  ChatV2AttachmentImage.imageCache[img.id] ??
-                                  ChatV2AttachmentImage.imageCache[img.name] ??
-                                  LocalAttachmentCache.get(img.id.isNotEmpty ? img.id : null, altKey: img.name);
+                                  (img.id.isNotEmpty ? ChatV2AttachmentImage.imageCache[img.id] : null) ??
+                                  LocalAttachmentCache.get(img.id.isNotEmpty ? img.id : null);
                               final fullUrl = img.resolveFullUrl(odooApiClient.absoluteUrl(''));
 
                               final heroTag = 'info_preview_img_${img.id.isNotEmpty ? img.id : (fullUrl.isNotEmpty ? fullUrl : img.name)}';
@@ -1958,9 +1956,8 @@ class _ChatV2MediaHubScreenState extends State<ChatV2MediaHubScreen>
                   itemBuilder: (context, idx) {
                     final img = widget.images[idx];
                     final memBytes = img.bytes ??
-                        ChatV2AttachmentImage.imageCache[img.id] ??
-                        ChatV2AttachmentImage.imageCache[img.name] ??
-                        LocalAttachmentCache.get(img.id.isNotEmpty ? img.id : null, altKey: img.name);
+                        (img.id.isNotEmpty ? ChatV2AttachmentImage.imageCache[img.id] : null) ??
+                        LocalAttachmentCache.get(img.id.isNotEmpty ? img.id : null);
                     final fullUrl = img.resolveFullUrl(odooApiClient.absoluteUrl(''));
 
                     final heroTag = 'info_gallery_img_${img.id.isNotEmpty ? img.id : (fullUrl.isNotEmpty ? fullUrl : img.name)}';

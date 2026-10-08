@@ -724,8 +724,11 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
   void _handleChannelImageTap(
     ChatV2Attachment targetAtt,
     String heroTag,
-    List<ChatV2Message> messages,
-  ) {
+    List<ChatV2Message> messages, [
+    int initialIndex = -1,
+    List<ChatV2Attachment>? messageImages,
+    String? messageId,
+  ]) {
     // Thu thập tất cả ảnh trong các tin nhắn hiện có của phòng chat theo thứ tự thời gian (cũ -> mới)
     final channelImages = <ChatV2Attachment>[];
     for (int i = messages.length - 1; i >= 0; i--) {
@@ -733,22 +736,29 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
       for (final a in msg.attachments) {
         if (a.isImage) {
           final existingBytes = a.bytes ??
-              ChatV2AttachmentImage.imageCache[a.id] ??
-              ChatV2AttachmentImage.imageCache[a.name] ??
-              ChatV2AttachmentImage.imageCache[msg.id] ??
-              LocalAttachmentCache.get(a.id.isNotEmpty ? a.id : null, altKey: a.name);
+              (a.id.isNotEmpty ? ChatV2AttachmentImage.imageCache[a.id] : null) ??
+              (msg.id.isNotEmpty ? ChatV2AttachmentImage.imageCache[msg.id] : null) ??
+              LocalAttachmentCache.get(a.id.isNotEmpty ? a.id : null);
           final resolved = existingBytes != null && (a.bytes == null || a.bytes!.isEmpty)
               ? a.copyWith(bytes: existingBytes)
               : a;
-          if (!channelImages.any((x) => x.id.isNotEmpty && resolved.id.isNotEmpty && x.id == resolved.id)) {
+          final alreadyAdded = channelImages.any((x) {
+            if (x.id.isNotEmpty && resolved.id.isNotEmpty) {
+              return x.id == resolved.id;
+            }
+            if (x.url != null && resolved.url != null && x.url!.isNotEmpty) {
+              return x.url == resolved.url;
+            }
+            return identical(x, resolved);
+          });
+          if (!alreadyAdded) {
             channelImages.add(resolved);
           }
         }
       }
       if (msg.attachments.isEmpty && msg.isImageFilename) {
         final cleanName = msg.content.trim();
-        final memoryBytes = ChatV2AttachmentImage.imageCache[cleanName] ??
-            ChatV2AttachmentImage.imageCache[msg.id] ??
+        final memoryBytes = (msg.id.isNotEmpty ? ChatV2AttachmentImage.imageCache[msg.id] : null) ??
             LocalAttachmentCache.get(null, altKey: cleanName);
         final histAtt = ChatV2Attachment(
           id: msg.id,
@@ -757,27 +767,40 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
           bytes: memoryBytes,
           mimetype: 'image/jpeg',
         );
-        if (!channelImages.any((x) => x.name == histAtt.name || (x.id.isNotEmpty && x.id == histAtt.id))) {
+        if (!channelImages.any((x) => x.id.isNotEmpty && x.id == histAtt.id)) {
           channelImages.add(histAtt);
         }
       }
     }
 
-    var initialIndex = channelImages.indexWhere((x) =>
-        (x.id.isNotEmpty && targetAtt.id.isNotEmpty && x.id == targetAtt.id) ||
-        (x.name.isNotEmpty && x.name == targetAtt.name) ||
-        (x.url != null && targetAtt.url != null && x.url == targetAtt.url));
+    // Định vị ảnh mục tiêu: ƯU TIÊN ID ĐÍCH DANH -> URL -> Bytes -> messageId -> tuyệt đối không match lỏng lẻo x.name == targetAtt.name
+    var targetIndex = -1;
+    if (targetAtt.id.isNotEmpty && targetAtt.id != '0') {
+      targetIndex = channelImages.indexWhere((x) => x.id.isNotEmpty && x.id == targetAtt.id);
+    }
+    if (targetIndex < 0 && targetAtt.url != null && targetAtt.url!.isNotEmpty) {
+      targetIndex = channelImages.indexWhere((x) => x.url != null && x.url == targetAtt.url);
+    }
+    if (targetIndex < 0 && targetAtt.bytes != null && targetAtt.bytes!.isNotEmpty) {
+      targetIndex = channelImages.indexWhere((x) => x.bytes != null && (identical(x.bytes, targetAtt.bytes) || x.bytes == targetAtt.bytes));
+    }
+    if (targetIndex < 0 && messageId != null && messageId.isNotEmpty) {
+      targetIndex = channelImages.indexWhere((x) => x.id == messageId);
+    }
+    if (targetIndex < 0) {
+      targetIndex = channelImages.indexWhere((x) => identical(x, targetAtt));
+    }
 
-    if (initialIndex < 0) {
+    if (targetIndex < 0) {
       channelImages.add(targetAtt);
-      initialIndex = channelImages.length - 1;
+      targetIndex = channelImages.length - 1;
     }
 
     final fullUrl = targetAtt.resolveFullUrl(odooApiClient.absoluteUrl(''));
     Navigator.of(context).push(
       ChatV2ImageViewerScreen.route(
         images: channelImages,
-        initialIndex: initialIndex,
+        initialIndex: targetIndex,
         imageUrl: fullUrl,
         title: '',
         bytes: targetAtt.bytes,
@@ -1384,8 +1407,8 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                         _matchedIndices.isNotEmpty &&
                                         _matchedIndices[_currentMatchIndex] == index,
                                     onMentionTap: _handleMentionTap,
-                                    onImageTap: (att, heroTag) =>
-                                        _handleChannelImageTap(att, heroTag, messages),
+                                    onImageTap: (att, heroTag, [idx = -1, allImgs, msgId]) =>
+                                        _handleChannelImageTap(att, heroTag, messages, idx, allImgs, msgId),
                                     onReplyTap: (parentId) {
                                       if (parentId != null) {
                                         _jumpToMessage(parentId);

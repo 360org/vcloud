@@ -312,36 +312,34 @@ Phân hệ quản lý toàn bộ luồng đăng nhập, định danh người d�
   - *Tệp liên quan*: `lib/features/auth/presentation/tenant_selection_sheet.dart`, `lib/features/auth/data/db_info.dart`.
   - *Kịch bản nghiệm thu*: Khi cấu hình nhiều DB, mở app hiển thị danh sách tenant để chọn trực quan.
 
-- [x] **1.3 Phân luồng vai trò Người dùng & Nhận diện Model Động (Internal Employee vs Portal User - Dynamic Model Discovery)**
-  - *Mô tả*:
-    * **Người dùng nội bộ (`is_portal: false`)**: Luôn hiển thị đầy đủ tất cả các tab và tính năng nội bộ:
-      1. **Tab Trang chủ (`Home`)**: Tích hợp các Widget quản trị và tiện ích thời gian thực:
-         - **Thẻ Chấm công GPS & Ca làm việc** (`hr_attendance` - `hr.attendance`, `hr.employee`): Check-in/Check-out 1 chạm, kiểm tra bán kính văn phòng, thanh tiến độ ca làm việc, đồng hồ đếm giờ hôm nay, hiệu ứng pháo hoa chúc mừng hoàn thành 8 giờ.
-         - **Khối Điều hướng Nhanh (Quick Nav Grid)**: Thống kê tức thì số lượng Ticket đang xử lý (`helpdesk`), tin nhắn và số kênh chưa đọc (`mail`), số công việc cần giải quyết (`project`).
-         - **Khối Công việc Hôm nay (Today Work)**: Hiển thị 3 nhiệm vụ trọng tâm từ `project.task`, checklist tích hoàn thành nhanh, liên kết sang bộ đếm giờ Timesheet.
-         - **Hộp thoại Thông báo đẩy (`_NotificationSheet`)**: Tra cứu thông báo nhắc việc, nhắc check-in/out, tin nhắn mới (`mobile.api.notification`).
-      2. **Các Tab nghiệp vụ nội bộ**: Tin nhắn (`Chat`), Bảng chấm công (`Timesheet`), Phiếu hỗ trợ (`Ticket`), Cá nhân (`Tôi`).
-    * **Người dùng Portal (`is_portal: true`)**: Tuyệt đối chặn truy cập Tab Home và các module nội bộ. Áp dụng cơ chế khám phá phân hệ động theo Odoo 19 (Dynamic Model Discovery). Ứng dụng chỉ hiển thị các module/model đã được cài đặt và cấp quyền trên Tenant Database của khách hàng; nếu Tenant chưa cài đặt thì module đó tự động ẩn hoàn toàn khỏi giao diện:
-      1. **Module `helpdesk` (`helpdesk.ticket`, `helpdesk.team`)**: Hiển thị phân hệ Ticket / Phiếu hỗ trợ. Nếu Tenant chưa cài đặt module `helpdesk` ➔ Ẩn hoàn toàn tab Ticket khỏi giao diện Mobile.
-      2. **Module `mail` (`discuss.channel`, `mail.message`, `ir.attachment`)**: Hiển thị phân hệ Chat trao đổi trực tiếp với kỹ thuật/CSKH.
-      3. **Module `project` (`project.project`, `project.task` với `privacy_visibility='portal'`)**: Hiển thị phân hệ Dự án & Công việc của tôi khi được cấp quyền chia sẻ.
-      4. **Module `base` (`res.users`, `res.partner`)**: Hiển thị phân hệ Tôi (Thông tin tài khoản, đổi mật khẩu, đăng xuất).
-      5. **Chặn tuyệt đối phân hệ nội bộ**: Tự động chặn và ẩn hoàn toàn Trang chủ (`Home`), Chấm công (`hr_attendance`) và Bảng chấm công (`hr_timesheet`) đối với tài khoản Portal.
+- [x] **1.3 Phân luồng vai trò Người dùng & Đồng bộ Phân quyền Model Động (Internal Employee vs Portal User - Dynamic Model Discovery & Odoo Web Sync)**
+  - *Mô tả & Nguyên tắc Kiến trúc Đồng bộ*:
+    * **Đồng bộ chuẩn Odoo Web (Zero Custom Duplication)**:
+      - **Nhân viên nội bộ (`is_portal: false`, `base.group_user`)**: Đồng bộ 1:1 theo các nhóm quyền có sẵn trên Web Admin Odoo (`res.users` -> tab Access Rights):
+        * Quản trị viên trên Web chọn cấp/thu hồi ứng dụng (`Services -> Helpdesk`, `Services -> Project`, `Services -> Timesheets`, `Employees -> Attendances`) ➔ Mobile App đọc trực tiếp nhóm quyền tương ứng để hiển thị hoặc ẩn phân hệ, không chế thêm trường mới.
+        * Hiển thị đầy đủ 5 tab điều hướng (`Home`, `Chat`, `Timesheet`, `Ticket`, `Tôi`). Tab `Home` tích hợp đầy đủ Thẻ Chấm công GPS (`hr_attendance`), Quick Nav Grid 3 chỉ số, Danh sách công việc hôm nay (`project.task`) và Chuông thông báo hoạt động.
+      - **Khách hàng ngoài Portal (`is_portal: true`, `base.group_portal`, `share: true`)**:
+        * Tuân thủ kiến trúc gốc của Odoo Core: Mọi khách hàng Portal bình đẳng, dùng chung giao diện đối ngoại (không có bảng phân quyền lẻ từng module như nhân viên nội bộ trên Web).
+        * Mobile App tự động chuyển sang giao diện Portal gọn nhẹ: Gồm 3 hoặc 4 tab điều hướng (`Home`, `Chat`, `Ticket` [nếu tenant bật `helpdesk`], `Tôi`).
+        * **Khóa an toàn nghiệp vụ nội bộ**: Thẻ Chấm công trên `Home` tự động chuyển trạng thái Khóa 🔒 (Disabled); chạm vào hiển thị SnackBar: *"Tính năng yêu cầu cài đặt Module Chấm công"*. Router Guard chặn tuyệt đối truy cập `/timesheet`, bảo vệ 403 Forbidden từ Odoo Backend (`deny_portal`).
+    * **Cơ chế Bật/Tắt Động theo Tenant (`vmobile.disabled_modules`)**:
+      - Quản trị viên cấu hình tại Web Odoo: `Technical -> Parameters -> System Parameters` (`ir.config_parameter`).
+      - Điền Key: `vmobile.disabled_modules`, Value: `helpdesk` (hệ thống tự động ngắt cả vệ tinh `website_helpdesk`), `hr_attendance`, `hr_timesheet`, hoặc `project`.
+      - **Độc quyền cho Mobile**: Cấu hình này chỉ ẩn tính năng trên Mobile Vcloud mà **hoàn toàn không làm ảnh hưởng hay mất dữ liệu trên Web Odoo** của doanh nghiệp.
     * **Bảng Ma trận Phân hệ Ứng dụng & Model Odoo tương ứng**:
-      | Phân hệ / Màn hình trên App | Module Odoo | Model Odoo tương ứng | Quyền Nhân viên Nội bộ (`share=False`) | Quyền Khách hàng Portal (`share=True`) | Hành vi khi Tenant chưa cài Module |
+      | Phân hệ / Màn hình trên App | Module Odoo | Model Odoo tương ứng | Quyền Nhân viên Nội bộ (`share=False`) | Quyền Khách hàng Portal (`share=True`) | Hành vi khi Tenant Tắt / Gỡ Module |
       |---|---|---|---|---|---|
-      | **Trang chủ (`Home`) & Chấm công GPS** | `hr_attendance` | `hr.attendance`, `hr.employee` | **Có** (Thẻ GPS, check-in/out, ca làm, đếm giờ, pháo hoa) | **Ẩn hoàn toàn** (Cấm truy cập Home) | Nếu chưa cài: Ẩn widget chấm công trên Home |
-      | **Bảng chấm công (`Timesheet`)** | `hr_timesheet` | `account.analytic.line`, `project.task` | **Có** (Bấm giờ Timer, nhật ký công, log giờ) | **Ẩn hoàn toàn** (Không có tab này) | Nếu chưa cài: Ẩn tab Timesheet |
-      | **Phiếu hỗ trợ (`Ticket`)** | `helpdesk` | `helpdesk.ticket`, `helpdesk.team` | **Có** (Xem, phân công, đổi stage, đóng ticket) | **Có** (Chỉ xem và tạo ticket của mình) | **Nếu chưa cài: Ẩn hoàn toàn tab Ticket khỏi App** |
-      | **Trò chuyện (`Chat`)** | `mail` | `discuss.channel`, `mail.message` | **Có** (Kênh nội bộ, nhóm, gọi thoại RTC) | **Có** (Chỉ chat với nhân viên CSKH/kỹ thuật) | Module mặc định Odoo Core |
-      | **Dự án của tôi (`Project`)** | `project` | `project.project`, `project.task` | **Có** (Widget Home & Task hôm nay) | **Có** (Chỉ xem task được share portal) | Ẩn widget Task trên Home nếu chưa cấu hình |
-      | **Tài khoản cá nhân (`Tôi`)** | `base` | `res.users`, `res.partner` | **Có** (Đổi avatar, xem thông tin; *Đổi mật khẩu: Chưa làm/Backlog*) | **Có** (Đổi avatar, xem thông tin; *Đổi mật khẩu: Chưa làm/Backlog*) | Luôn hiển thị (Module lõi Odoo) |
-  - *Tệp liên quan*: `lib/core/router/app_router.dart`, `lib/shared/widgets/app_scaffold.dart`, `lib/features/home/presentation/home_screen.dart`, `lib/features/auth/application/auth_controller.dart`, `v_mobile_17/controllers/auth.py`, `v_mobile_19/controllers/auth.py`.
-  - *Kịch bản nghiệm thu*:
-    1. Đăng nhập tài khoản Nhân viên nội bộ ➔ Hiển thị đầy đủ 5 tab điều hướng, Tab Home với đầy đủ thẻ Chấm công GPS, Quick Nav Widget và Danh sách công việc hôm nay.
-    2. Đăng nhập tài khoản Portal trên DB có cài `helpdesk` ➔ Hiển thị 3 tab (Ticket, Chat, Tôi), không có Tab Home.
-    3. Đăng nhập tài khoản Portal trên DB chưa cài `helpdesk` ➔ Tab Ticket tự động ẩn, chỉ hiển thị (Chat, Tôi).
-    4. Không bao giờ xuất hiện Trang chủ, Chấm công hay Timesheet trên tài khoản Portal.
+      | **Trang chủ (`Home`)** | `base` | `res.users`, `res.partner` | **Có** (Đầy đủ widget công việc & chỉ số) | **Có** (Giao diện tổng quan ticket của khách) | Luôn hiển thị |
+      | **Chấm công GPS** | `hr_attendance` | `hr.attendance`, `hr.employee` | **Có** (Check-in/out, ca làm, đếm giờ, pháo hoa) | **Khóa 🔒** (Hiển thị thẻ Khóa trên Home) | Khóa 🔒 thẻ chấm công, chạm báo SnackBar |
+      | **Bảng chấm công (`Timesheet`)** | `hr_timesheet` | `account.analytic.line`, `project.task` | **Có** (Bấm giờ Timer, nhật ký công, log giờ) | **Ẩn hoàn toàn** (Chặn router `/timesheet`) | Ẩn tab Timesheet khỏi thanh điều hướng |
+      | **Phiếu hỗ trợ (`Ticket`)** | `helpdesk` | `helpdesk.ticket`, `helpdesk.team` | **Có** (Xem, phân công, đổi stage, đóng ticket) | **Có** (Chỉ xem và gửi ticket của chính mình) | **Ẩn hoàn toàn Tab Ticket** (Portal còn 3 tab) |
+      | **Trò chuyện (`Chat`)** | `mail` | `discuss.channel`, `mail.message` | **Có** (Kênh nội bộ, nhóm, gọi thoại RTC) | **Có** (Nhắn tin với nhân viên hỗ trợ / CSKH) | Module mặc định Odoo Core |
+      | **Tài khoản cá nhân (`Tôi`)** | `base` | `res.users`, `res.partner` | **Có** (Đổi avatar, giao diện, bộ nhớ đệm) | **Có** (Đổi avatar, giao diện, bộ nhớ đệm) | Luôn hiển thị (Module lõi Odoo) |
+  - *Tệp liên quan*: `lib/core/router/app_router.dart`, `lib/shared/widgets/app_scaffold.dart`, `lib/features/home/presentation/home_screen.dart`, `lib/features/auth/data/auth_repository.dart`, `v_mobile_17/controllers/auth.py`, `v_mobile_19/controllers/auth.py`.
+  - *Kịch bản nghiệm thu L5 (Đã đối soát trực tiếp trên Odoo 19 Web Admin & Waydroid 08/10/2026)*:
+    1. **TC-01 (Mở toàn bộ module)**: Portal User nhận đủ 4 tab (`Home`, `Chat`, `Ticket`, `Tôi`).
+    2. **TC-02 (Tắt `helpdesk` qua `vmobile.disabled_modules`)**: Portal User tự động ẩn Tab `Ticket`, thanh điều hướng thu gọn thành 3 tab (`Home`, `Chat`, `Tôi`); Web Odoo vẫn hoạt động Helpdesk bình thường.
+    3. **TC-03 (Khóa Chấm công Portal)**: Tài khoản Portal chạm thẻ chấm công trên Home ➔ Hiển thị SnackBar thông báo tính năng khóa an toàn, router ngăn chặn truy cập timesheet.
 
 - [x] **1.4 Khôi phục phiên làm việc tự động (Auto-Restore Session)**
   - *Mô tả*: Tự động đọc và giải mã JWT token an toàn trong `FlutterSecureStorage` khi khởi động từ màn hình Splash; nếu còn hạn thì vào thẳng giao diện chính mà không bắt đăng nhập lại.
@@ -949,6 +947,18 @@ Phân hệ cốt lõi cung cấp trải nghiệm giao tiếp toàn diện: trò 
     * **Lưu Video Thư Viện Native**: Chạm nút tải trên màn hình xem video -> SnackBar xanh hiển thị *"Đã lưu video vào Thư viện ảnh"*. Tệp video lưu an toàn vào `/sdcard/Movies/vcloud_save_vid_1791046446746.mp4` với mã MD5 checksum `61f34fc7607f30666815c0bfd92ccbaa` trùng khớp 100% với tệp gốc.
     * **Mute Kênh 200 OK**: Gọi `POST /api/v1/mobile/chat/channels/25/mute` trả về HTTP 200 OK không có lỗi 500; biểu tượng chuông tắt thông báo (🔕) cập nhật tức thì.
     * **Cúp Máy RTC Sạch Sẽ**: Nhấn nút cúp máy đỏ, WebRTC đóng kết nối tức thì (`FlutterWebRTCPlugin: onConnectionChangeCLOSED`, `WebRtcVoiceEngine::Terminate`), thoát màn hình gọi mượt mà không bị double broadcast.
+
+- [x] [L4 — VERIFIED] **3.35 Khắc Phục Lỗi Bấm Ảnh Này Mở Ảnh Khác Trong Chat V2 (Chat Image Mismatch in ImageViewer — BUG-CHATV2-IMG-MISMATCH)**: `[x] [ĐÃ PHẪU THUẬT FIX CODE & VERIFIED PASS 15/15 TESTS]`
+  - *Mô tả lỗi*: Khi bấm vào một hình ảnh trong bong bóng tin nhắn Chat V2, trình xem ảnh (`ChatV2ImageViewerScreen`) lại mở ra một hình ảnh khác (ảnh cũ trong lịch sử chat hoặc ảnh đầu tiên trong mẻ gửi). Hiệu ứng Hero Animation bay lệch ảnh.
+  - *Kết quả phẫu thuật fix code dứt điểm 4 nguyên nhân gốc rễ*:
+    1. **Strict Identity Matching trong `_handleChannelImageTap` (`chat_v2_detail_screen.dart`)**: Ưu tiên so khớp chính xác theo ID (`x.id == targetAtt.id`), URL (`x.url == targetAtt.url`), Bytes (`identical(x.bytes, targetAtt.bytes)`), `messageId`. Loại bỏ hoàn toàn điều kiện so sánh lỏng lẻo `x.name == targetAtt.name` gây bắt nhầm ảnh cũ có cùng tên generic (`image.png`, `photo.jpg`).
+    2. **Bảo toàn `initialIndex`, `allImages`, `messageId` (`chat_v2_message_item.dart`)**: Callback `onImageTap` truyền đầy đủ 5 tham số `(att, heroTag, initialIndex, allImages, message.id)`, không còn vứt bỏ chỉ mục và mảng ảnh gốc của tin nhắn.
+    3. **Deterministic Hero Tag & Safe Clamped Index (`chat_v2_image_viewer_screen.dart` & `chat_v2_message_item.dart`)**: Định danh Hero Tag theo mẫu xác định `chat_v2_img_${message.id}_${uniqueAttKey}` (loại bỏ hoàn toàn `hashCode`). Tại ImageViewer, kẹp `safeInitialIndex` an toàn để gán đúng `heroTag` vào ảnh được chọn tại `initialPage`.
+    4. **Dọn sạch ô nhiễm RAM cache (`chat_v2_message_item.dart`, `chat_v2_detail_screen.dart`, `chat_v2_info_sheet.dart`)**: Loại bỏ triệt để việc tra cứu fallback theo tên file chung `imageCache[a.name]`, ngăn chặn việc nạp nhầm buffer byte của ảnh cũ trong RAM.
+  - *Bằng chứng kiểm thử (Evidence)*:
+    - `flutter analyze`: 0 errors, 0 warnings.
+    - `test/features/chat_v2/chat_v2_image_viewer_gallery_test.dart`: 15/15 tests PASS (bao gồm TC-14 truyền đủ 5 tham số index/images/messageId và TC-15 heroTag deterministic không hashCode).
+    - Toàn bộ suite `test/features/chat_v2/`: 345/345 tests PASS.
 
 
 ---

@@ -52,7 +52,7 @@ class ChatV2MessageItem extends StatelessWidget {
   final VoidCallback? onRetry;
   final VoidCallback? onDelete;
   final ValueChanged<String>? onMentionTap;
-  final void Function(ChatV2Attachment attachment, String heroTag)? onImageTap;
+  final Function? onImageTap;
   final bool isHighlighted;
   final String? searchQuery;
   final bool isSearchActiveMatch;
@@ -1032,7 +1032,10 @@ class ChatV2MessageItem extends StatelessWidget {
   }) {
     final fullUrl = att.resolveFullUrl(odooApiClient.absoluteUrl(''));
     final fallbackCard = _buildSimpleFilenameCard(context, isMine, att.name);
-    final heroTag = 'chat_v2_img_${att.id.isNotEmpty ? att.id : (att.url ?? att.name)}_${att.hashCode}';
+    final uniqueAttKey = att.id.isNotEmpty
+        ? att.id
+        : (att.url?.isNotEmpty == true ? att.url! : 'idx_$initialIndex');
+    final heroTag = 'chat_v2_img_${message.id}_$uniqueAttKey';
 
     return ChatV2AttachmentImage(
       attachment: att,
@@ -1043,7 +1046,24 @@ class ChatV2MessageItem extends StatelessWidget {
       fit: fit,
       onTap: () {
         if (onImageTap != null) {
-          onImageTap!(att, heroTag);
+          final cb = onImageTap!;
+          if (cb is void Function(ChatV2Attachment, String, int, List<ChatV2Attachment>?, String?)) {
+            cb(att, heroTag, initialIndex, allImages, message.id);
+          } else if (cb is void Function(ChatV2Attachment, String)) {
+            cb(att, heroTag);
+          } else {
+            try {
+              (cb as dynamic)(
+                att,
+                heroTag,
+                initialIndex,
+                allImages,
+                message.id,
+              );
+            } catch (_) {
+              (cb as dynamic)(att, heroTag);
+            }
+          }
           return;
         }
         Navigator.of(context).push(
@@ -2142,7 +2162,7 @@ class _ChatV2AttachmentImageState extends State<ChatV2AttachmentImage> {
   Future<void> _loadImage() async {
     final key = _uniqueKey;
 
-    // 1. Cache lookup from disk/storage using unique key, then fallback by id and name
+    // 1. Cache lookup from disk/storage using unique key, then fallback by id and url
     final cached =
         await LocalAttachmentCache.getAsync(key) ??
         ChatV2AttachmentImage.imageCache[key] ??
@@ -2152,14 +2172,11 @@ class _ChatV2AttachmentImageState extends State<ChatV2AttachmentImage> {
         (widget.attachment.id.isNotEmpty
             ? ChatV2AttachmentImage.imageCache[widget.attachment.id]
             : null) ??
-        (widget.attachment.name.isNotEmpty
-            ? await LocalAttachmentCache.getAsync(
-                null,
-                altKey: widget.attachment.name,
-              )
+        (widget.attachment.url != null && widget.attachment.url!.isNotEmpty
+            ? await LocalAttachmentCache.getAsync(widget.attachment.url!)
             : null) ??
-        (widget.attachment.name.isNotEmpty
-            ? ChatV2AttachmentImage.imageCache[widget.attachment.name]
+        (widget.attachment.url != null && widget.attachment.url!.isNotEmpty
+            ? ChatV2AttachmentImage.imageCache[widget.attachment.url!]
             : null);
 
     if (cached != null && cached.isNotEmpty) {

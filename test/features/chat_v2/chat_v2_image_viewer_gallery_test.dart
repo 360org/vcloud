@@ -338,5 +338,92 @@ void main() {
       expect(tappedAtt!.id, equals('102'));
       expect(tappedHeroTag, contains('102'));
     });
+
+    testWidgets('TC-14: ChatV2MessageItem truyền đủ 5 tham số cho onImageTap bao gồm initialIndex, allImages và messageId', (tester) async {
+      final img1 = ChatV2Attachment(id: '201', name: 'photo1.jpg', mimetype: 'image/jpeg', bytes: samplePngBytes);
+      final img2 = ChatV2Attachment(id: '202', name: 'photo2.jpg', mimetype: 'image/jpeg', bytes: samplePngBytes);
+      final message = ChatV2Message(
+        id: 'msg_multi_img',
+        channelId: 'ch1',
+        authorName: 'Alice',
+        content: '',
+        createdAt: DateTime.now(),
+        attachments: [img1, img2],
+      );
+
+      ChatV2Attachment? tappedAtt;
+      String? tappedHeroTag;
+      int? tappedIndex;
+      List<ChatV2Attachment>? tappedAllImages;
+      String? tappedMsgId;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(useMaterial3: false),
+          home: Scaffold(
+            body: ChatV2MessageItem(
+              message: message,
+              onImageTap: (att, heroTag, [idx = -1, allImgs, msgId]) {
+                tappedAtt = att;
+                tappedHeroTag = heroTag;
+                tappedIndex = idx;
+                tappedAllImages = allImgs;
+                tappedMsgId = msgId;
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final imgFinders = find.byType(ChatV2AttachmentImage);
+      expect(imgFinders, findsNWidgets(2));
+
+      // Tap ảnh thứ hai (index = 1)
+      await tester.tap(imgFinders.at(1));
+      await tester.pumpAndSettle();
+
+      expect(tappedAtt, isNotNull);
+      expect(tappedAtt!.id, equals('202'));
+      expect(tappedIndex, equals(1));
+      expect(tappedAllImages, isNotNull);
+      expect(tappedAllImages!.length, equals(2));
+      expect(tappedMsgId, equals('msg_multi_img'));
+      expect(tappedHeroTag, equals('chat_v2_img_msg_multi_img_202'));
+    });
+
+    testWidgets('TC-15: Hero tag không chứa hashCode và mang tính xác định tuyệt đối (deterministic)', (tester) async {
+      final img = ChatV2Attachment(id: '301', name: 'sample.png', mimetype: 'image/png', bytes: samplePngBytes);
+      final message = ChatV2Message(
+        id: 'msg_det',
+        channelId: 'ch1',
+        authorName: 'Alice',
+        content: '',
+        createdAt: DateTime.now(),
+        attachments: [img],
+      );
+
+      String? capturedTag;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(useMaterial3: false),
+          home: Scaffold(
+            body: ChatV2MessageItem(
+              message: message,
+              onImageTap: (att, heroTag, [idx = -1, allImgs, msgId]) {
+                capturedTag = heroTag;
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(ChatV2AttachmentImage));
+      await tester.pumpAndSettle();
+
+      expect(capturedTag, equals('chat_v2_img_msg_det_301'));
+      expect(capturedTag!.contains('hashCode'), isFalse);
+    });
   });
 }

@@ -131,11 +131,12 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
     super.initState();
 
     if (widget.images != null && widget.images!.isNotEmpty) {
+      final safeInitialIndex = widget.initialIndex.clamp(0, widget.images!.length - 1);
       _items = [];
       for (int i = 0; i < widget.images!.length; i++) {
         final att = widget.images![i];
         final fullUrl = att.resolveFullUrl(odooApiClient.absoluteUrl(''));
-        final tag = (i == widget.initialIndex && widget.heroTag != null)
+        final tag = (i == safeInitialIndex && widget.heroTag != null)
             ? widget.heroTag
             : 'chat_v2_gallery_${att.id.isNotEmpty ? att.id : i}_$i';
         _items.add(ChatV2ImageItem(
