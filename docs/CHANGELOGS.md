@@ -2,18 +2,21 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
-## [v2.9.16+155] — 2026-10-09 (Tối Ưu Hiệu Năng Pha 2: Củng Cố Router Guard Cho Portal User)
+## [v2.9.16+155] — 2026-10-09 (Tối Ưu Hiệu Năng Pha 2 & Khắc Phục Lệch Tác Giả Helpdesk Ticket Chatter)
 
 > [!IMPORTANT]
-> **Bản Nâng Cấp Build 155 (`v2.9.16+155`) — Củng Cố Rào Chắn Router Guard Trên Flutter Client**:
-> - **1. Nâng Cấp Phiên Bản Hệ Thống (`v2.9.16+155`)**:
->   * Cập nhật `pubspec.yaml`: Nâng marketing version lên `2.9.16` và build number lên `155`.
+> **Bản Nâng Cấp Build 155 (`v2.9.16+155`) — Củng Cố Router Guard & Chuẩn Hóa Phân Hệ Helpdesk Ticket**:
+> - **1. Khắc Phục Lệch Tác Giả & Phân Định Avatar Chatter (`ticket_chatter.dart` & `ticket.py`)**:
+>   * **Avatar & Author Isolation**: `TicketCommentCard` hiển thị Avatar (`UserAvatar`) và Tên tác giả độc quyền từ `comment.authorName` / `comment.authorAvatarUrl`, tuyệt đối không fallback về `ticket.createUid` hoặc `ticket.partnerName`.
+>   * **Odoo Mail Thread Tracking Parsing**: Backend Odoo 17 & 19 bóc tách `tracking_value_ids` để hiển thị biến động trường (`Trạng thái: Cũ ➔ Mới`), loại bỏ việc gán nhầm "đã tạo ticket" cho tin nhắn tracking rỗng; trả về `author_avatar_url` chuẩn hóa từ `res.partner`.
+>   * **Workflow Nhận & Đóng Ticket Tường Minh**: Bấm "Nhận ticket" gán `user_id`, chuyển stage In Progress và post comment tường minh: *"<Tên kỹ thuật viên> đã nhận xử lý ticket này"*. Bấm "Hoàn thành" hiển thị dialog ghi chú giải quyết, đổi stage Solved/Done và post comment hoàn thành.
+>   * **Action Bar Động & Tải Real-time**: Khi ticket đã có người nhận (`isTaken`), ẩn nút "Nhận ticket" và mở rộng nút "Hoàn thành" 100% full-width; làm mới màn hình in-place không văng `router.pop()`.
 > - **2. Củng Cố Router Guard (`vclients/lib/core/router/app_router.dart`)**:
 >   * Chặn truy cập trực tiếp và deep-link giải mã (URL decoded) vào `/attendance` đối với tài khoản Portal (`user.isPortal`), kể cả khi tenant đã kích hoạt module `hr_attendance`.
 >   * Chặn truy cập trực tiếp và deep-link vào `/timesheet` đối với tài khoản Portal, tự động điều hướng an toàn về `/home`.
 > - **3. Kiểm Thử & Kiểm Soát Chất Lượng**:
 >   * `flutter analyze`: Đạt **0 issues found** (0 errors, 0 warnings).
->   * Pass 100% test suites kiểm thử hiệu năng & rào chắn bảo vệ router.
+>   * Pass 12/12 unit/widget tests `ticket_chatter_author_isolation_test.dart` và 48/48 ticket test suite. Pass 100% router guard test suites.
 
 ## [v2.9.16+154] — 2026-10-09 (App Store & Google Play Release & Version Bump)
 

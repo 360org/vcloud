@@ -7,6 +7,7 @@ class TicketComment {
     required this.content,
     required this.createdAt,
     this.authorName,
+    this.authorAvatarUrl,
   });
 
   final String id;
@@ -15,6 +16,7 @@ class TicketComment {
   final String content;
   final DateTime createdAt;
   final String? authorName;
+  final String? authorAvatarUrl;
 
   factory TicketComment.fromMap(Map<String, dynamic> m) {
     final rawDate = m['created_at'] ?? m['date'] ?? m['create_date'];
@@ -40,6 +42,11 @@ class TicketComment {
       authorNameStr = 'Hệ thống';
     }
 
+    final rawAvatar = m['author_avatar_url'] ?? m['author_avatar'] ?? m['avatar_url'];
+    final authorAvatarStr = (rawAvatar != null && rawAvatar != false && rawAvatar.toString().isNotEmpty)
+        ? rawAvatar.toString()
+        : null;
+
     return TicketComment(
       id: m['id']?.toString() ?? '0',
       ticketId: m['ticket_id']?.toString() ?? '',
@@ -47,6 +54,7 @@ class TicketComment {
       content: m['content']?.toString() ?? m['body']?.toString() ?? '',
       createdAt: parsedDate,
       authorName: authorNameStr,
+      authorAvatarUrl: authorAvatarStr,
     );
   }
 
@@ -87,6 +95,8 @@ class TicketComment {
       'author_id': authorId,
       'content': content,
       'created_at': createdAt.toIso8601String(),
+      'author_name': authorName,
+      'author_avatar_url': authorAvatarUrl,
     };
   }
 
@@ -97,6 +107,7 @@ class TicketComment {
     String? content,
     DateTime? createdAt,
     String? authorName,
+    String? authorAvatarUrl,
   }) {
     return TicketComment(
       id: id ?? this.id,
@@ -105,6 +116,7 @@ class TicketComment {
       content: content ?? this.content,
       createdAt: createdAt ?? this.createdAt,
       authorName: authorName ?? this.authorName,
+      authorAvatarUrl: authorAvatarUrl ?? this.authorAvatarUrl,
     );
   }
 }

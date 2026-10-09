@@ -110,6 +110,11 @@ class TicketCommentRepository {
         ? dateVal.toString()
         : DateTime.now().toIso8601String();
 
+    final rawAvatar = map['author_avatar_url'] ?? map['author_avatar'] ?? map['avatar_url'];
+    final avatarStr = (rawAvatar != null && rawAvatar != false && rawAvatar.toString().isNotEmpty)
+        ? rawAvatar.toString()
+        : null;
+
     return <String, dynamic>{
       'id': map['id']?.toString() ?? '0',
       'ticket_id': ticketId,
@@ -117,6 +122,7 @@ class TicketCommentRepository {
       'content': _commentContent(map),
       'created_at': dateStr,
       'author_name': authorName,
+      'author_avatar_url': avatarStr,
     };
   }
 

@@ -11,6 +11,7 @@
 *.swp
 .DS_Store
 .fuse_hidden*
+.mcp.json
 .atom/
 .build/
 .buildlog/
@@ -72,6 +73,15 @@ app.*.map.json
 .claude/aiac/sessions/
 .claude/*.db
 .claude/**/*.db
+.claude/hooks
+.claude/launch.json
+.claude/loop.md
+.claude/output-styles
+.claude/routines
+.claude/scheduled_tasks.json
+.claude/settings.json
+.claude/skills
+.claude/workflows
 
 # Firebase credentials & configs (do not commit)
 *firebase-adminsdk*.json

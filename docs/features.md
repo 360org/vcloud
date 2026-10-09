@@ -3,6 +3,7 @@
 > **Dự án**: VCloud Mobile App (`vclients` Flutter) kết nối Odoo Backend (`v_mobile_17` & `v_mobile_19`)  
 > **Phiên bản hiện tại**: `v2.9.16+155` (Bản dựng TestFlight iOS & AAB Android phát hành Google Play mới nhất)  
 > **Nguồn sự thật (Single Source of Truth)**: Tài liệu kiểm soát toàn bộ tính năng theo 6 nhóm nghiệp vụ chuẩn hóa, phục vụ trực tiếp cho anh Tân nghiệm thu thực tế và báo cáo tiến độ.  
+> 🟡 **Audit Chuyên Sâu Phân Hệ Helpdesk Ticket (2026-10-09)**: `[L2 — AUDITED: Rà soát toàn diện 14 tính năng Nhóm 5 đối chiếu Odoo 17 & 19; phát hiện 1 BUG-HIGH (lệch tác giả khi nhận ticket do thiếu message_post và ép tin rỗng thành "đã tạo ticket", lệch ID res.users vs res.partner) và 4 GAP-MED/LOW (chạm trần 20 vé, thiếu infinite scroll, tìm kiếm in-memory, thiếu đính kèm/ghi chú nội bộ trong chatter, thiếu chọn partner/deadline khi tạo ticket); chi tiết tại vclients/docs/AUDIT_HELPDESK_TICKET_GAP_ANALYSIS.md]`  
 > 🟢 **Kiểm Tra Chuyên Sâu Database Odoo 19 (2026-10-09)**: `[x] [L4/L5 — VERIFIED: Deep Inspection DB vcloud_test_v19: Rà soát 100% cột tùy chỉnh res_users/ir_attachment, 4 dynamic modules installed, _sql_indexes & 0 seq scan trên notification, Record Rules Portal UID 3618/3619 cách ly 100%, XML-RPC Latency 18.7ms < 50ms; chi tiết tại /media/tanma/DATA/save/mobile_versions/v_mobile_19/docs/ODOO19_DB_HEALTH_CHECK.md]`  
 > 🟢 **Kiểm Tra Toàn Diện DB & Schema Integrity (2026-10-09)**: `[x] [L4/L5 — VERIFIED: Database Health Check & Schema Inspection trên Odoo 19 (vcloud_test_v19) và Odoo 17 (demo-17): Rà soát 100% cột tùy chỉnh res_users/ir_attachment, 25-27 FK constraints toàn vẹn, 0 bản ghi rác orphan records trong mail_message/ir_attachment/helpdesk_ticket/account_analytic_line, 7/7 module cốt lõi installed, 0 idle-in-transaction / 0 lock; chi tiết tại docs/DATABASE_HEALTH_CHECK_REPORT.md]`  
 > 🟢 **Bản Phát Hành Mới (Build 155 — 2026-10-09)**: `[x] [L4/L5 — VERIFIED: Tối Ưu Hiệu Năng DB & Composite Indexes Pha 2: Khai báo _sql_indexes composite index Odoo 17 & 19 cho mobile.api.notification và mobile.api.device, Khử N+1 query trong send_event() qua batch query idempotency_key in candidate_keys, Tối ưu Project List đếm task bằng read_group kèm cách ly dữ liệu Portal User, Chặn deep-link /attendance và /timesheet trong GoRouter Guard cho Portal (15/15 tests PASS)]`  
@@ -1116,15 +1117,18 @@ Phân hệ tiếp nhận và giải quyết các yêu cầu hỗ trợ kỹ thu�
     + Triệt tiêu hiện tượng chữ tiêu đề bị `HeroController` kéo lên Overlay nổi và rơi tự do từ Y=120px xuống Y=500px ("từ trời rơi xuống") khi pop route.
     + Toàn bộ luồng chuyển trang đồng bộ 100% với chuyển động trượt ngang (`SlideTransition`) chuẩn Native Mobile, 0 errors `flutter analyze`, 26/26 tests ticket pass.
 
-- [!] **5.5 Luồng Trao đổi & Bình luận Trực tiếp (Chatter Comments)**
-  - *Mô tả*: Hệ thống bình luận 2 chiều giữa người yêu cầu và đội hỗ trợ ngay trên ticket; hiển thị lịch sử trao đổi theo dòng thời gian.
-  - *Tệp liên quan*: `lib/features/ticket/data/ticket_comment_repository.dart`, `lib/features/ticket/presentation/ticket_detail_screen.dart`.
-  - *Kịch bản nghiệm thu*: Gửi bình luận "Tôi đã kiểm tra lại" ➔ Bình luận xuất hiện ngay lập tức trên Chatter của Odoo.
-  - *Bằng chứng kiểm thử (Evidence)*: `TicketCommentRepository` triển khai cơ chế polling định kỳ 5 giây, bóc tách và lọc trùng lặp nội dung mô tả ban đầu (`_normalizedContent`), gửi comment qua endpoint `/api/v1/mobile/ticket/<id>/message`.
-  - *Hiện tượng tồn đọng*:
-    + **Thiếu đính kèm ảnh/tệp trong bình luận**: `_CommentComposer` chỉ có ô nhập chữ và nút gửi; kỹ thuật viên không thể chụp ảnh hiện trường gửi vào chatter khi đang xử lý ticket.
-    + **Thiếu phân loại Ghi chú nội bộ**: Chưa cho phép chọn giữa gửi ghi chú nội bộ (chỉ nhân viên thấy - `mail.mt_note`) và phản hồi công khai cho khách hàng (`mail.mt_comment`).
-    + **Bảo toàn Audit Trail**: Hàm `TicketCommentRepository.delete()` đã được chuẩn hóa ném `Failure` chặn xóa comment để bảo toàn tính toàn vẹn dữ liệu và lịch sử audit trail của Odoo (Đã hoàn tất tại Mục 5.14).
+- [x] [Claude-Verified] **5.5 Luồng Trao đổi & Bình luận Trực tiếp & Phân Định Tác Giả Chuẩn Xác (Chatter Comments & Strict Author Isolation)** `[CLAUDE-VERIFIED 100% — FIX TRIỆT ĐỂ LỆCH TÁC GIẢ KHI NHẬN TICKET]`
+  - *Mô tả*: Hệ thống bình luận 2 chiều giữa người yêu cầu và đội hỗ trợ ngay trên ticket; hiển thị lịch sử trao đổi theo dòng thời gian. Khắc phục triệt để lỗi hiển thị sai tác giả tạo ticket trong phần bình luận/chatter khi bấm nút "Nhận ticket".
+  - *Tệp liên quan*: `lib/features/ticket/data/ticket_comment_repository.dart`, `lib/features/ticket/presentation/widgets/ticket_chatter.dart`, `lib/features/ticket/presentation/ticket_detail_screen.dart`, backend `v_mobile_17/controllers/ticket.py`, `v_mobile_19/controllers/ticket.py`.
+  - *Kịch bản nghiệm thu*:
+    + Khi bấm **Nhận ticket**, tin nhắn hệ thống ghi nhận rõ ràng: *"<Tên kỹ thuật viên> đã nhận xử lý ticket này"*, phân biệt 100% với người tạo ticket ban đầu.
+    + Thẻ bình luận (`TicketCommentCard`) hiển thị Avatar (`UserAvatar`) và Tên tác giả lấy ĐỘC QUYỀN từ `comment.authorName` và `comment.authorAvatarUrl`, tuyệt đối KHÔNG fallback về `ticket.createUid` hoặc `ticket.partnerName`.
+    + Bóc tách `tracking_value_ids` từ Odoo Mail Thread để hiển thị biến động trường (`Trạng thái: Cũ ➔ Mới`), chỉ gán "đã tạo ticket này" duy nhất cho tin nhắn đầu tiên khởi tạo.
+  - *Bằng chứng kiểm thử (Evidence)*: Pass 12/12 unit/widget tests độc lập trong `test/features/ticket/ticket_chatter_author_isolation_test.dart` và 48/48 tests phân hệ ticket toàn diện. Static analysis `flutter analyze` đạt 0 errors, 0 warnings.
+  - *Đặc tả cải tiến kỹ thuật*:
+    + **Backend Odoo 17 & 19**: Serializer `ticket_detail` đọc `msg.tracking_value_ids` để sinh chuỗi mô tả thay đổi; chỉ gán "đã tạo ticket này" cho tin nhắn tạo ticket ban đầu (`messages[-1]`); endpoint trả về `author_avatar_url` chuẩn hóa từ `res.partner`.
+    + **Luồng Nhận & Hoàn thành Ticket**: Nhận ticket tự động gán `user_id`, chuyển stage sang In Progress, post tin nhắn comment nhận việc; Hoàn thành ticket mở dialog nhập ghi chú giải quyết, chuyển stage sang Solved/Done, post tin nhắn hoàn thành.
+    + **Thanh thao tác động (`_TicketActionBar`)**: Khi ticket đã có người nhận (`isTaken`), ẩn nút "Nhận ticket" và nút "Hoàn thành" tự động mở rộng 100% full-width. Cập nhật real-time in-place không văng màn hình ra ngoài.
 
 - [x] **5.6 Bộ lọc Làm sạch Mã HTML Odoo (HTML-to-Text Sanitizer)**
   - *Mô tả*: Tự động bóc tách và làm sạch các thẻ HTML rác (`<p>`, `<div>`, `<br>`, inline styles) do Odoo Web sinh ra, chuyển thành văn bản thuần thẩm mỹ, không vỡ giao diện mobile.

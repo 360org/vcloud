@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
 import '../../../core/api/mobile_attachment_repository.dart';
@@ -22,6 +21,7 @@ import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/ui_kit.dart';
 import '../../auth/application/auth_controller.dart';
 import '../application/ticket_controller.dart';
+import 'widgets/ticket_chatter.dart';
 
 class TicketDetailScreen extends ConsumerStatefulWidget {
   const TicketDetailScreen({super.key, required this.ticketId});
@@ -494,6 +494,81 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
     }
   }
 
+  Future<String?> _showCompleteTicketDialog(BuildContext context) async {
+    final noteCtrl = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2563EB).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(LucideIcons.checkCircle, color: Color(0xFF2563EB), size: 22),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Hoàn thành ticket',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Xác nhận hoàn thành xử lý ticket này? Bạn có thể nhập ghi chú kết quả bên dưới.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: isDark ? Colors.white70 : AppColors.textMuted,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: noteCtrl,
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    labelText: 'Ghi chú kết quả xử lý (tùy chọn)',
+                    hintText: 'Nhập tóm tắt kết quả xử lý...',
+                    border: const OutlineInputBorder(),
+                    filled: true,
+                    fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, null),
+              child: const Text('Hủy'),
+            ),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2563EB),
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.pop(ctx, noteCtrl.text),
+              icon: const Icon(LucideIcons.check, size: 16),
+              label: const Text('Xác nhận'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_error != null) {
@@ -652,20 +727,17 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
               _TicketActionBar(
                 ticket: ticket,
                 onTake: () async {
-                  final router = GoRouter.of(context);
                   try {
                     await ref.read(ticketActionsProvider).updateStatus(widget.ticketId, TicketStatus.doing);
+                    ref.invalidate(ticketCommentsProvider(widget.ticketId));
+                    ref.invalidate(ticketsProvider);
                     if (!mounted || !context.mounted) return;
                     AppToast.success(
                       context,
                       title: 'Đã tiếp nhận ticket',
                       message: 'Bạn đã tiếp nhận xử lý ticket này thành công.',
                     );
-                    if (router.canPop()) {
-                      router.pop();
-                    } else {
-                      _load();
-                    }
+                    await _load();
                   } catch (e, st) {
                     if (mounted && context.mounted) {
                       showCopyableErrorDialog(context, title: 'Lỗi Nhận Ticket', error: e, stackTrace: st);
@@ -673,20 +745,27 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
                   }
                 },
                 onComplete: () async {
-                  final router = GoRouter.of(context);
+                  final resolutionNote = await _showCompleteTicketDialog(context);
+                  if (resolutionNote == null) return;
                   try {
                     await ref.read(ticketActionsProvider).updateStatus(widget.ticketId, TicketStatus.done);
+                    if (resolutionNote.trim().isNotEmpty) {
+                      try {
+                        await ref.read(ticketCommentRepositoryProvider).add(
+                          widget.ticketId,
+                          'Kết quả xử lý: ${resolutionNote.trim()}',
+                        );
+                      } catch (_) {}
+                    }
+                    ref.invalidate(ticketCommentsProvider(widget.ticketId));
+                    ref.invalidate(ticketsProvider);
                     if (!mounted || !context.mounted) return;
                     AppToast.success(
                       context,
                       title: 'Hoàn thành ticket',
                       message: 'Trạng thái ticket đã được cập nhật thành hoàn thành.',
                     );
-                    if (router.canPop()) {
-                      router.pop();
-                    } else {
-                      _load();
-                    }
+                    await _load();
                   } catch (e, st) {
                     if (mounted && context.mounted) {
                       showCopyableErrorDialog(context, title: 'Lỗi Hoàn Thành Ticket', error: e, stackTrace: st);
@@ -694,20 +773,17 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
                   }
                 },
                 onReopen: () async {
-                  final router = GoRouter.of(context);
                   try {
                     await ref.read(ticketActionsProvider).updateStatus(widget.ticketId, TicketStatus.doing);
+                    ref.invalidate(ticketCommentsProvider(widget.ticketId));
+                    ref.invalidate(ticketsProvider);
                     if (!mounted || !context.mounted) return;
                     AppToast.success(
                       context,
                       title: 'Đã mở lại ticket',
                       message: 'Ticket đã được chuyển về tab Đang xử lý thành công.',
                     );
-                    if (router.canPop()) {
-                      router.pop();
-                    } else {
-                      _load();
-                    }
+                    await _load();
                   } catch (e, st) {
                     if (mounted && context.mounted) {
                       showCopyableErrorDialog(context, title: 'Lỗi Mở Lại Ticket', error: e, stackTrace: st);
@@ -814,7 +890,6 @@ class _TicketActionBarState extends State<_TicketActionBar> {
 
     final isOverdue = widget.ticket.isOverdue;
     final isTaken = status == TicketStatus.doing || widget.ticket.assignedTo.trim().isNotEmpty;
-    final isTakeDisabled = isOverdue || isTaken;
 
     String takeLabel = 'Nhận ticket';
     IconData takeIcon = LucideIcons.userCheck;
@@ -822,11 +897,8 @@ class _TicketActionBarState extends State<_TicketActionBar> {
       takeLabel = 'Đang nhận...';
       takeIcon = LucideIcons.userCheck;
     } else if (isOverdue) {
-      takeLabel = isTaken ? 'Đã nhận' : 'Nhận (Trễ SLA)';
-      takeIcon = isTaken ? LucideIcons.checkCheck : LucideIcons.alertTriangle;
-    } else if (isTaken) {
-      takeLabel = 'Đã nhận';
-      takeIcon = LucideIcons.checkCheck;
+      takeLabel = 'Nhận (Trễ SLA)';
+      takeIcon = LucideIcons.alertTriangle;
     }
 
     // ==========================================
@@ -864,47 +936,44 @@ class _TicketActionBarState extends State<_TicketActionBar> {
       ),
       child: Row(
         children: [
-          Expanded(
-            child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: isTakeDisabled
-                    ? (isDark ? const Color(0xFF334155) : const Color(0xFF94A3B8))
-                    : const Color(0xFF2563EB),
-                foregroundColor: Colors.white,
-                disabledBackgroundColor: isTakeDisabled
-                    ? (isDark ? const Color(0xFF334155) : const Color(0xFF94A3B8))
-                    : null,
-                disabledForegroundColor: isTakeDisabled ? Colors.white70 : null,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+          if (!isTaken) ...[
+            Expanded(
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2563EB),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: (_loadingTake || _loadingComplete)
+                    ? null
+                    : () async {
+                        setState(() => _loadingTake = true);
+                        try {
+                          await widget.onTake();
+                        } finally {
+                          if (mounted) setState(() => _loadingTake = false);
+                        }
+                      },
+                icon: _loadingTake
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : Icon(takeIcon, size: 18),
+                label: Text(
+                  takeLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
               ),
-              onPressed: (isTakeDisabled || _loadingTake || _loadingComplete)
-                  ? null
-                  : () async {
-                      setState(() => _loadingTake = true);
-                      try {
-                        await widget.onTake();
-                      } finally {
-                        if (mounted) setState(() => _loadingTake = false);
-                      }
-                    },
-              icon: _loadingTake
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                    )
-                  : Icon(takeIcon, size: 18),
-              label: Text(
-                takeLabel,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
             ),
-          ),
-          const SizedBox(width: 12),
+            const SizedBox(width: 12),
+          ],
           Expanded(
             child: ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
@@ -1417,203 +1486,8 @@ class _LoadMoreCommentsButton extends StatelessWidget {
   }
 }
 
-class _CommentCard extends StatelessWidget {
-  const _CommentCard({
-    required this.comment,
-    required this.myId,
-    this.pending = false,
-  });
-
-  final TicketComment comment;
-  final String myId;
-  final bool pending;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final isMe = comment.authorId == myId;
-    final name = comment.authorName ?? (isMe ? 'Bạn' : 'Người dùng');
-    final initials = name.isNotEmpty ? name[0].toUpperCase() : '?';
-
-    return Opacity(
-      opacity: pending ? 0.72 : 1,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: _cardDecoration(context, radius: 18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    gradient: isMe
-                        ? AppColors.brand
-                        : AppColors.featureGrad(
-                            AppColors.primary,
-                            AppColors.primaryDeep,
-                          ),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: Text(
-                      initials,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        name,
-                        style: TextStyle(
-                          color: isDark ? Colors.white : AppColors.textPrimary,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 13,
-                        ),
-                      ),
-                      Text(
-                        pending ? 'Đang gửi...' : Dates.time(comment.createdAt),
-                        style: TextStyle(
-                          color: isDark ? Colors.white54 : AppColors.textMuted,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Builder(
-              builder: (_) {
-                final rawContent = comment.content.trim();
-                final displayContent = rawContent.isNotEmpty
-                    ? rawContent
-                    : '$name đã tạo ticket này.';
-                return Text(
-                  displayContent,
-                  style: TextStyle(
-                    color: isDark
-                        ? const Color(0xFFE2E8F0)
-                        : (rawContent.isNotEmpty ? AppColors.textPrimary : AppColors.primary),
-                    fontSize: 14,
-                    height: 1.35,
-                    fontWeight: rawContent.isNotEmpty ? FontWeight.normal : FontWeight.w600,
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CommentComposer extends StatelessWidget {
-  const _CommentComposer({
-    required this.controller,
-    required this.sending,
-    required this.onSubmit,
-  });
-
-  final TextEditingController controller;
-  final bool sending;
-  final VoidCallback onSubmit;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E293B) : Colors.white.withValues(alpha: 0.94),
-        border: Border(
-          top: BorderSide(
-            color: isDark ? Colors.white.withValues(alpha: 0.08) : AppColors.border,
-          ),
-        ),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Row(
-          children: [
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF0F3F8),
-                  borderRadius: BorderRadius.circular(18),
-                  border: isDark
-                      ? Border.all(color: Colors.white.withValues(alpha: 0.08))
-                      : null,
-                ),
-                child: TextField(
-                  controller: controller,
-                  textInputAction: TextInputAction.send,
-                  onSubmitted: (_) => onSubmit(),
-                  enabled: !sending,
-                  style: TextStyle(
-                    color: isDark ? Colors.white : AppColors.textPrimary,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: 'Nhập bình luận...',
-                    hintStyle: TextStyle(
-                      color: isDark ? Colors.white38 : AppColors.textMuted,
-                    ),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 13,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            PressableScale(
-              onTap: sending ? null : onSubmit,
-              child: Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  gradient: AppColors.featureGrad(
-                    AppColors.ticket,
-                    AppColors.ticketDeep,
-                  ),
-                  shape: BoxShape.circle,
-                ),
-                child: sending
-                    ? const Padding(
-                        padding: EdgeInsets.all(15),
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(
-                        LucideIcons.send,
-                        color: Colors.white,
-                        size: 22,
-                      ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+typedef _CommentCard = TicketCommentCard;
+typedef _CommentComposer = TicketCommentComposer;
 
 class _SectionTitle extends StatelessWidget {
   const _SectionTitle({super.key, required this.icon, required this.title});
