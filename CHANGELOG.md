@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## [2.9.16 - Build 154] - 2026-10-09
+
+### 🚀 Nâng Cấp Phiên Bản App Store & Google Play Release
+- **Đồng Bộ Phiên Bản Tiếp Theo Chuẩn Apple App Store**:
+  * Nâng Marketing Version lên `2.9.16` và Build Number lên `154` (`v2.9.16+154`).
+  * Tương thích với bản phát hành mới trên App Store Connect thay thế bản nháp 2.9.15.
+- **Kế Thừa & Đóng Gói Toàn Diện Các Tính Năng Mới**:
+  * Tab `Home` mặc định cho Portal User và khóa giao diện chấm công (`LucideIcons.lock`, SnackBar cảnh báo khi tenant chưa kích hoạt `hr_attendance`).
+  * Sửa triệt để lỗi mở lệch ảnh trong Chat V2 (`BUG-CHATV2-IMG-MISMATCH`) bằng Strict Identity Matching (`id`, `url`, `bytes`, `messageId`).
+  * Hero Tag deterministic không chứa `hashCode` và kẹp safe index tại `ChatV2ImageViewerScreen`.
+  * Xóa bỏ hoàn toàn ô nhiễm RAM cache generic name `imageCache[a.name]`.
+- **Kiểm Thử & Đảm Bảo Chất Lượng**:
+  * Pass 100% 74/74 router & auth tests, 15/15 image viewer gallery tests, 345/345 chat v2 tests.
+  * `flutter analyze`: Đạt **0 issues found** (0 errors, 0 warnings).
+
 ## [2.9.15 - Build 153] - 2026-10-08
 
 ### 🚀 Mở Tab Trang Chủ Portal, Khóa Chấm Công Động & Sửa Lỗi Lệch Ảnh Chat V2

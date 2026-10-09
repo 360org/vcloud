@@ -2,6 +2,21 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.16+154] — 2026-10-09 (App Store & Google Play Release & Version Bump)
+
+> [!IMPORTANT]
+> **Bản Nâng Cấp Build 154 (`v2.9.16+154`) — Đồng Bộ Phiên Bản Phát Hành App Store Connect & Google Play Console**:
+> - **1. Nâng Cấp Phiên Bản Hệ Thống (`v2.9.16+154`)**:
+>   * Cập nhật `pubspec.yaml`: Nâng marketing version lên `2.9.16` và build number lên `154`.
+>   * Chuẩn bị bản phát hành chính thức thay thế bản nháp 2.9.15 trên App Store Connect (`Prepare for Submission`).
+> - **2. Toàn Diện Tính Năng Mới Đóng Gói**:
+>   * Mở Tab `Home` mặc định cho Portal User (`AppScaffold` & `GoRouter`).
+>   * Trạng thái Khóa Chấm Công 🔒 khi tenant chưa cài `hr_attendance` (icon khóa, label khóa, cảnh báo SnackBar).
+>   * Phẫu thuật dứt điểm lỗi lệch hình ảnh Chat V2 (`BUG-CHATV2-IMG-MISMATCH`) qua Strict Identity Matching, bảo toàn mảng ảnh và chỉ mục, Hero Tag deterministic, dọn sạch ô nhiễm RAM cache generic name.
+> - **3. Kiểm Thử & Kiểm Soát Chất Lượng**:
+>   * `flutter analyze`: Đạt **0 issues found** (0 errors, 0 warnings).
+>   * Pass 100% test suites: router/auth (74/74), chat v2 image viewer (15/15), chat v2 tổng thể (345/345).
+
 ## [v2.9.15+153] — 2026-10-08 (Portal Home Tab & Attendance Lock 🔒 & Full Dynamic Modules Docking E2E)
 
 > [!IMPORTANT]
