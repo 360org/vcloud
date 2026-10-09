@@ -1401,11 +1401,16 @@ class ChatV2MessageItem extends StatelessWidget {
               '/api/v1/mobile/attachments/$attachmentId/download';
         }
 
+        final attToken = message.attachments.isNotEmpty
+            ? message.attachments.first.accessToken
+            : null;
+
         await ChatV2AttachmentViewer.open(
           context: context,
           filename: cleanName,
           attachmentId: attachmentId,
           downloadUrl: resolvedDownloadUrl,
+          accessToken: attToken,
           directBytes: cachedBytes,
         );
       },

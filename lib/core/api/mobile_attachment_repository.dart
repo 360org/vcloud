@@ -111,9 +111,9 @@ class MobileAttachmentRepository {
       return await _client.fetchBytes('/api/v1/mobile/attachments/$attachmentId/download$query');
     } catch (_) {
       try {
-        return await _client.fetchBytes('/web/image/$attachmentId$query');
+        return await _client.fetchBytes('/web/content/$attachmentId$query');
       } catch (_) {
-        return _client.fetchBytes('/web/content/$attachmentId$query');
+        return _client.fetchBytes('/web/image/$attachmentId$query');
       }
     }
   }

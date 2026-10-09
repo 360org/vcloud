@@ -3,6 +3,9 @@
 ## [2.9.16 - Build 154] - 2026-10-09
 
 ### 🚀 Nâng Cấp Phiên Bản App Store & Google Play Release
+- **Khắc Phục Tải Tệp Tin Đính Kèm Chat V2 & Multi-Tier Fallback**:
+  * Tối ưu thứ tự fallback trong `MobileAttachmentRepository.fetchBytes()`: ưu tiên `/web/content/$attachmentId` trước `/web/image/$attachmentId`, ngăn chặn việc server Odoo trả placeholder image 6KB thay vì nội dung tài liệu.
+  * Truyền đầy đủ `accessToken` vào `ChatV2AttachmentViewer.open()` cho tài liệu đính kèm chat, đảm bảo tải thành công cả trên môi trường có phân quyền bảo mật attachment token.
 - **Đồng Bộ Phiên Bản Tiếp Theo Chuẩn Apple App Store**:
   * Nâng Marketing Version lên `2.9.16` và Build Number lên `154` (`v2.9.16+154`).
   * Tương thích với bản phát hành mới trên App Store Connect thay thế bản nháp 2.9.15.
