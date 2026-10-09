@@ -160,13 +160,67 @@ platform :ios do
 
       if has_key_content && has_key_id && has_issuer_id
         begin
-          api_key = app_store_connect_api_key(
-            key_id: key_id.strip,
-            issuer_id: issuer_id.strip,
-            key_content: key_content.strip,
-            is_key_content_base64: ENV["APP_STORE_CONNECT_KEY_BASE64"] == "true",
-            in_house: false
-          )
+          raw_key = key_content.strip
+          is_b64 = ENV["APP_STORE_CONNECT_KEY_BASE64"] == "true"
+
+          # Auto-detect Base64 if not explicitly marked but payload is Base64
+          if !is_b64 && !raw_key.include?("BEGIN") && raw_key.length > 50
+            is_b64 = true
+          end
+
+          normalized_pem = nil
+          if is_b64
+            require 'base64'
+            begin
+              decoded = Base64.decode64(raw_key)
+              normalized_pem = decoded if decoded.include?("BEGIN")
+            rescue => b64_err
+              UI.important("⚠️ Base64 decode note: #{b64_err.message}")
+            end
+          end
+
+          normalized_pem ||= raw_key
+
+          # Fix literal \n or \r if passed from env
+          normalized_pem = normalized_pem.gsub('\n', "\n").gsub('\r', "").strip
+
+          # Reconstruct valid PEM line breaks if flattened into spaces
+          if !normalized_pem.include?("\n") && normalized_pem.include?("BEGIN")
+            match = normalized_pem.match(/-----(BEGIN [A-Z ]+)-----\s*(.*?)\s*-----(END [A-Z ]+)-----/)
+            if match
+              header = "-----#{match[1]}-----"
+              body = match[2].scan(/.{1,64}/).join("\n")
+              footer = "-----#{match[3]}-----"
+              normalized_pem = "#{header}\n#{body}\n#{footer}\n"
+            end
+          end
+
+          normalized_pem += "\n" unless normalized_pem.end_with?("\n")
+
+          # Write clean .p8 file for direct filepath loading (most reliable in Fastlane)
+          require 'tmpdir'
+          key_file_path = File.join(Dir.tmpdir, "AuthKey_#{key_id.strip}.p8")
+          File.write(key_file_path, normalized_pem)
+
+          begin
+            api_key = app_store_connect_api_key(
+              key_id: key_id.strip,
+              issuer_id: issuer_id.strip,
+              key_filepath: key_file_path,
+              in_house: false
+            )
+            UI.success("🔑 Successfully initialized App Store Connect API Key via key_filepath!")
+          rescue => fp_err
+            UI.important("⚠️ key_filepath initialization note: #{fp_err.message}. Retrying via direct key_content...")
+            api_key = app_store_connect_api_key(
+              key_id: key_id.strip,
+              issuer_id: issuer_id.strip,
+              key_content: normalized_pem,
+              is_key_content_base64: false,
+              in_house: false
+            )
+            UI.success("🔑 Successfully initialized App Store Connect API Key via key_content!")
+          end
         rescue => key_err
           UI.important("⚠️ Invalid API Key .p8 content or revoked key (#{key_err.message}). Cleaning API Key env vars and falling back to App-Specific Password authentication...")
           api_key = nil
@@ -303,13 +357,27 @@ platform :ios do
                   edit_version = app.get_edit_app_store_version(platform: Spaceship::ConnectAPI::Platform::IOS)
                   if edit_version.nil?
                     UI.message("📱 No editable version found on App Store Connect. Creating new version: #{build_name}...")
-                    app.create_app_store_version(version_string: build_name, platform: Spaceship::ConnectAPI::Platform::IOS)
+                    edit_version = app.create_app_store_version(version_string: build_name, platform: Spaceship::ConnectAPI::Platform::IOS)
                     UI.success("✅ Successfully created new App Store version #{build_name}!")
                   else
                     UI.message("ℹ️ Found existing editable version: #{edit_version.version_string}")
                     if edit_version.version_string != build_name
                       UI.message("🔄 Updating editable version string from #{edit_version.version_string} to #{build_name}...")
                       edit_version.update(attributes: { versionString: build_name }) rescue nil
+                    end
+                  end
+
+                  # Sync release notes directly on all version localizations via Spaceship
+                  if edit_version
+                    begin
+                      locs = edit_version.get_app_store_version_localizations rescue []
+                      locs.each do |loc|
+                        locale_code = loc.locale
+                        UI.message("📝 Syncing release notes for locale '#{locale_code}' via Spaceship...")
+                        loc.update(attributes: { whatsNew: changelog_text }) rescue nil
+                      end
+                    rescue => loc_err
+                      UI.important("⚠️ Spaceship localization sync note: #{loc_err.message}")
                     end
                   end
                 end
