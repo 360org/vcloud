@@ -1,9 +1,10 @@
 # 📋 DANH MỤC TÍNH NĂNG & TIÊU CHÍ NGHIỆM THU TOÀN DIỆN VCLOUD MOBILE APP (FEATURES CONTROL)
 
 > **Dự án**: VCloud Mobile App (`vclients` Flutter) kết nối Odoo Backend (`v_mobile_17` & `v_mobile_19`)  
-> **Phiên bản hiện tại**: `v2.9.15+150` (Bản dựng TestFlight iOS & AAB Android phát hành Google Play mới nhất)  
+> **Phiên bản hiện tại**: `v2.9.16+154` (Bản dựng TestFlight iOS & AAB Android phát hành Google Play mới nhất)  
 > **Nguồn sự thật (Single Source of Truth)**: Tài liệu kiểm soát toàn bộ tính năng theo 6 nhóm nghiệp vụ chuẩn hóa, phục vụ trực tiếp cho anh Tân nghiệm thu thực tế và báo cáo tiến độ.  
-> 🟢 **Bản Phát Hành Mới (Build 152 — 2026-10-08)**: `[x] [L5 — VERIFIED: Full Dynamic Modules Docking E2E & Waydroid Test (TC-01 Bật tất cả 4 modules helpdesk, hr_attendance, hr_timesheet, project -> Mobile Portal nhận đủ 4 tabs Home, Chat, Ticket, Tôi & Thẻ Chấm công mở khóa; TC-02 Gỡ bỏ helpdesk & hr_attendance -> Mobile Portal tự động ẩn Tab Ticket, chuyển Thẻ Chấm công sang Khóa 🔒 với SnackBar cảnh báo, Tab Chat/Home/Tôi vận hành ổn định)]`  
+> 🟢 **Bản Phát Hành Mới (Build 154 — 2026-10-09)**: `[x] [L4/L5 — VERIFIED: Chuẩn Hóa Header Content-Disposition RFC 6266 / RFC 5987 Khắc Phục 502 Bad Gateway Tải File Tiếng Việt Có Dấu (như 'HỢP ĐỒNG 360- OTS 2026.docx'), Đảo Tầng Fallback /web/content Trước /web/image Chống Nhầm Ảnh Placeholder 6KB & Truyền Access Token Vào Chat V2 Attachment Viewer (Pass 11/11 tests Odoo 17 & 19, 0 issues analyze)]`  
+> 🟢 **Bản Phát Hành Trước (Build 152 — 2026-10-08)**: `[x] [L5 — VERIFIED: Full Dynamic Modules Docking E2E & Waydroid Test (TC-01 Bật tất cả 4 modules helpdesk, hr_attendance, hr_timesheet, project -> Mobile Portal nhận đủ 4 tabs Home, Chat, Ticket, Tôi & Thẻ Chấm công mở khóa; TC-02 Gỡ bỏ helpdesk & hr_attendance -> Mobile Portal tự động ẩn Tab Ticket, chuyển Thẻ Chấm công sang Khóa 🔒 với SnackBar cảnh báo, Tab Chat/Home/Tôi vận hành ổn định)]`  
 > 🟢 **Bản Phát Hành Trước (Build 151 — 2026-10-07)**: `[x] [L5 — VERIFIED: Lướt Ảnh Từ Tin Nhắn Chat, Tiện Ích Media Viewer Xoay 90°, Share Sheet & Sửa Splash Android]`  
 > 🟢 **Bản Phát Hành Trước (Build 150 — 2026-10-07)**: `[x] [L5 — VERIFIED: Trình Xem & Lướt Ảnh Đa Điểm Chat V2 (Swipeable Image Gallery PageView), hỗ trợ PageView vuốt mượt mà, bộ đếm động, zoom không kẹt gesture, lưu ảnh active vào Gallery và nghiệm thu L5 Waydroid 6/6 test points đạt 100% (26/26 Flutter tests PASS, 0 Analyze issues)]`  
 > 🟢 **Bản Phát Hành Trước (Build 149 — 2026-10-04)**: `[x] [L4/L5 — VERIFIED: Dynamic Model Discovery, Phân luồng Portal User 2-3-5 tabs, nâng train version App Store 2.9.14+149 tuân thủ quy định Apple]`  
@@ -959,6 +960,16 @@ Phân hệ cốt lõi cung cấp trải nghiệm giao tiếp toàn diện: trò 
     - `flutter analyze`: 0 errors, 0 warnings.
     - `test/features/chat_v2/chat_v2_image_viewer_gallery_test.dart`: 15/15 tests PASS (bao gồm TC-14 truyền đủ 5 tham số index/images/messageId và TC-15 heroTag deterministic không hashCode).
     - Toàn bộ suite `test/features/chat_v2/`: 345/345 tests PASS.
+
+- [x] [L4 — VERIFIED] **3.36 Khắc Phục Lỗi Tải Tệp Tin Đính Kèm Tiếng Việt & Chuẩn Hóa Multi-Tier Fallback Chat V2 (RFC 6266 / RFC 5987 & Fallback /web/content)**: `[x] [ĐÃ PHẪU THUẬT FIX CODE & VERIFIED PASS 11/11 TESTS TRÊN ODOO 17 & 19]`
+  - *Mô tả lỗi*: Khi bấm mở tệp tin đính kèm có tên tiếng Việt có dấu (như `HỢP ĐỒNG 360- OTS 2026.docx`) trong Chat V2, ứng dụng báo lỗi toast đỏ *"Tệp tin gốc không tồn tại hoặc bạn không có quyền truy cập trên máy chủ."* do server Odoo trả về HTTP 502 Bad Gateway (`UnicodeEncodeError: 'latin-1' codec can't encode character`).
+  - *Kết quả phẫu thuật fix code dứt điểm*:
+    1. **Chuẩn hóa Header Content-Disposition theo RFC 6266 / RFC 5987 (`v_mobile_17/controllers/attachments.py` & `v_mobile_19/controllers/attachments.py`)**: Tự động chuyển đổi tên tệp tiếng Việt sang ASCII an toàn cho HTTP Latin-1 header (`filename="..."`), kèm tham số `filename*=UTF-8''...` mã hóa percent-encode UTF-8 để giữ trọn vẹn tên gốc có dấu.
+    2. **Đảo tầng fallback trong MobileAttachmentRepository (`vclients/lib/core/api/mobile_attachment_repository.dart`)**: Ưu tiên `/web/content/$attachmentId` trước `/web/image/$attachmentId`, chặn Odoo trả ảnh placeholder 6KB làm sai định dạng tài liệu Word/Excel/PDF khi endpoint tùy biến lỗi.
+    3. **Truyền Access Token (`vclients/lib/features/chat_v2/presentation/widgets/chat_v2_message_item.dart`)**: Truyền đầy đủ `accessToken` từ `message.attachments` vào `ChatV2AttachmentViewer.open()`.
+  - *Bằng chứng kiểm thử (Evidence)*:
+    - Pass 11/11 tests độc lập `test_attachments_disposition.py` trên Odoo 17 (`v17.0.2.5.19`) và Odoo 19 (`v19.0.1.2.33`).
+    - `flutter analyze`: Đạt **0 issues found** (0 errors, 0 warnings).
 
 
 ---
