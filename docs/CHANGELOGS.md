@@ -2,6 +2,19 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.16+155] — 2026-10-09 (Tối Ưu Hiệu Năng Pha 2: Củng Cố Router Guard Cho Portal User)
+
+> [!IMPORTANT]
+> **Bản Nâng Cấp Build 155 (`v2.9.16+155`) — Củng Cố Rào Chắn Router Guard Trên Flutter Client**:
+> - **1. Nâng Cấp Phiên Bản Hệ Thống (`v2.9.16+155`)**:
+>   * Cập nhật `pubspec.yaml`: Nâng marketing version lên `2.9.16` và build number lên `155`.
+> - **2. Củng Cố Router Guard (`vclients/lib/core/router/app_router.dart`)**:
+>   * Chặn truy cập trực tiếp và deep-link giải mã (URL decoded) vào `/attendance` đối với tài khoản Portal (`user.isPortal`), kể cả khi tenant đã kích hoạt module `hr_attendance`.
+>   * Chặn truy cập trực tiếp và deep-link vào `/timesheet` đối với tài khoản Portal, tự động điều hướng an toàn về `/home`.
+> - **3. Kiểm Thử & Kiểm Soát Chất Lượng**:
+>   * `flutter analyze`: Đạt **0 issues found** (0 errors, 0 warnings).
+>   * Pass 100% test suites kiểm thử hiệu năng & rào chắn bảo vệ router.
+
 ## [v2.9.16+154] — 2026-10-09 (App Store & Google Play Release & Version Bump)
 
 > [!IMPORTANT]

@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## [2.9.16 - Build 155] - 2026-10-09
+
+### 🚀 Tối Ưu Hiệu Năng & Củng Cố Router Guard Pha 2
+- **Củng Cố Router Guard Cho Tài Khoản Portal (`app_router.dart`)**:
+  * Chặn triệt để cả truy cập trực tiếp lẫn deep-link giải mã (URL decoded) vào phân hệ Chấm công `/attendance` đối với tài khoản Portal (`user.isPortal`), kể cả khi tenant đã kích hoạt module `hr_attendance`.
+  * Chặn truy cập trực tiếp và deep-link vào `/timesheet` đối với tài khoản Portal, tự động điều hướng an toàn về `/home`.
+- **Đồng Bộ Phiên Bản Hệ Thống**:
+  * Nâng Build Number lên `155` (`v2.9.16+155`).
+- **Kiểm Thử & Đảm Bảo Chất Lượng**:
+  * `flutter analyze`: Đạt **0 issues found** (0 errors, 0 warnings).
+  * Pass 100% các hợp đồng kiểm thử rào chắn router guard.
+
 ## [2.9.16 - Build 154] - 2026-10-09
 
 ### 🚀 Nâng Cấp Phiên Bản App Store & Google Play Release

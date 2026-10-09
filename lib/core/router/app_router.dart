@@ -94,10 +94,10 @@ final routerProvider = Provider<GoRouter>((ref) {
                 !decoded.startsWith('/login') &&
                 !decoded.startsWith('/signup') &&
                 !decoded.startsWith('/splash')) {
-              if (user.isPortal && decoded.startsWith('/timesheet')) {
+              if (user.isPortal && (decoded == '/timesheet' || decoded.startsWith('/timesheet'))) {
                 return '/home';
               }
-              if (!user.hasAttendance && decoded.startsWith('/attendance')) {
+              if ((user.isPortal || !user.hasAttendance) && (decoded == '/attendance' || decoded.startsWith('/attendance'))) {
                 return '/home';
               }
               if (user.isPortal && !user.hasHelpdesk && decoded.startsWith('/tickets')) {
@@ -112,12 +112,12 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // Guard cho Portal User & Module Guards:
       // - Chặn Timesheet đối với Portal User
-      // - Chặn Attendance nếu tenant chưa cài hr_attendance (hasAttendance == false)
+      // - Chặn Attendance đối với Portal User HOẶC nếu tenant chưa cài hr_attendance (hasAttendance == false)
       // - Chặn Ticket nếu chưa cài module helpdesk
-      if (user.isPortal && loc.startsWith('/timesheet')) {
+      if (user.isPortal && (loc == '/timesheet' || loc.startsWith('/timesheet'))) {
         return '/home';
       }
-      if (!user.hasAttendance && (loc == '/attendance' || loc.startsWith('/attendance'))) {
+      if ((user.isPortal || !user.hasAttendance) && (loc == '/attendance' || loc.startsWith('/attendance'))) {
         return '/home';
       }
       if (user.isPortal && !user.hasHelpdesk && (loc == '/tickets' || loc.startsWith('/tickets'))) {

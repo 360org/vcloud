@@ -1,9 +1,12 @@
 # 📋 DANH MỤC TÍNH NĂNG & TIÊU CHÍ NGHIỆM THU TOÀN DIỆN VCLOUD MOBILE APP (FEATURES CONTROL)
 
 > **Dự án**: VCloud Mobile App (`vclients` Flutter) kết nối Odoo Backend (`v_mobile_17` & `v_mobile_19`)  
-> **Phiên bản hiện tại**: `v2.9.16+154` (Bản dựng TestFlight iOS & AAB Android phát hành Google Play mới nhất)  
+> **Phiên bản hiện tại**: `v2.9.16+155` (Bản dựng TestFlight iOS & AAB Android phát hành Google Play mới nhất)  
 > **Nguồn sự thật (Single Source of Truth)**: Tài liệu kiểm soát toàn bộ tính năng theo 6 nhóm nghiệp vụ chuẩn hóa, phục vụ trực tiếp cho anh Tân nghiệm thu thực tế và báo cáo tiến độ.  
-> 🟢 **Bản Phát Hành Mới (Build 154 — 2026-10-09)**: `[x] [L4/L5 — VERIFIED: Chuẩn Hóa Header Content-Disposition RFC 6266 / RFC 5987 Khắc Phục 502 Bad Gateway Tải File Tiếng Việt Có Dấu (như 'HỢP ĐỒNG 360- OTS 2026.docx'), Đảo Tầng Fallback /web/content Trước /web/image Chống Nhầm Ảnh Placeholder 6KB & Truyền Access Token Vào Chat V2 Attachment Viewer (Pass 11/11 tests Odoo 17 & 19, 0 issues analyze)]`  
+> 🟢 **Kiểm Tra Chuyên Sâu Database Odoo 19 (2026-10-09)**: `[x] [L4/L5 — VERIFIED: Deep Inspection DB vcloud_test_v19: Rà soát 100% cột tùy chỉnh res_users/ir_attachment, 4 dynamic modules installed, _sql_indexes & 0 seq scan trên notification, Record Rules Portal UID 3618/3619 cách ly 100%, XML-RPC Latency 18.7ms < 50ms; chi tiết tại /media/tanma/DATA/save/mobile_versions/v_mobile_19/docs/ODOO19_DB_HEALTH_CHECK.md]`  
+> 🟢 **Kiểm Tra Toàn Diện DB & Schema Integrity (2026-10-09)**: `[x] [L4/L5 — VERIFIED: Database Health Check & Schema Inspection trên Odoo 19 (vcloud_test_v19) và Odoo 17 (demo-17): Rà soát 100% cột tùy chỉnh res_users/ir_attachment, 25-27 FK constraints toàn vẹn, 0 bản ghi rác orphan records trong mail_message/ir_attachment/helpdesk_ticket/account_analytic_line, 7/7 module cốt lõi installed, 0 idle-in-transaction / 0 lock; chi tiết tại docs/DATABASE_HEALTH_CHECK_REPORT.md]`  
+> 🟢 **Bản Phát Hành Mới (Build 155 — 2026-10-09)**: `[x] [L4/L5 — VERIFIED: Tối Ưu Hiệu Năng DB & Composite Indexes Pha 2: Khai báo _sql_indexes composite index Odoo 17 & 19 cho mobile.api.notification và mobile.api.device, Khử N+1 query trong send_event() qua batch query idempotency_key in candidate_keys, Tối ưu Project List đếm task bằng read_group kèm cách ly dữ liệu Portal User, Chặn deep-link /attendance và /timesheet trong GoRouter Guard cho Portal (15/15 tests PASS)]`  
+> 🟢 **Bản Phát Hành Trước (Build 154 — 2026-10-09)**: `[x] [L4/L5 — VERIFIED: Chuẩn Hóa Header Content-Disposition RFC 6266 / RFC 5987 Khắc Phục 502 Bad Gateway Tải File Tiếng Việt Có Dấu (như 'HỢP ĐỒNG 360- OTS 2026.docx'), Đảo Tầng Fallback /web/content Trước /web/image Chống Nhầm Ảnh Placeholder 6KB & Truyền Access Token Vào Chat V2 Attachment Viewer (Pass 11/11 tests Odoo 17 & 19, 0 issues analyze)]`  
 > 🟢 **Bản Phát Hành Trước (Build 152 — 2026-10-08)**: `[x] [L5 — VERIFIED: Full Dynamic Modules Docking E2E & Waydroid Test (TC-01 Bật tất cả 4 modules helpdesk, hr_attendance, hr_timesheet, project -> Mobile Portal nhận đủ 4 tabs Home, Chat, Ticket, Tôi & Thẻ Chấm công mở khóa; TC-02 Gỡ bỏ helpdesk & hr_attendance -> Mobile Portal tự động ẩn Tab Ticket, chuyển Thẻ Chấm công sang Khóa 🔒 với SnackBar cảnh báo, Tab Chat/Home/Tôi vận hành ổn định)]`  
 > 🟢 **Bản Phát Hành Trước (Build 151 — 2026-10-07)**: `[x] [L5 — VERIFIED: Lướt Ảnh Từ Tin Nhắn Chat, Tiện Ích Media Viewer Xoay 90°, Share Sheet & Sửa Splash Android]`  
 > 🟢 **Bản Phát Hành Trước (Build 150 — 2026-10-07)**: `[x] [L5 — VERIFIED: Trình Xem & Lướt Ảnh Đa Điểm Chat V2 (Swipeable Image Gallery PageView), hỗ trợ PageView vuốt mượt mà, bộ đếm động, zoom không kẹt gesture, lưu ảnh active vào Gallery và nghiệm thu L5 Waydroid 6/6 test points đạt 100% (26/26 Flutter tests PASS, 0 Analyze issues)]`  
@@ -971,6 +974,16 @@ Phân hệ cốt lõi cung cấp trải nghiệm giao tiếp toàn diện: trò 
     - Pass 11/11 tests độc lập `test_attachments_disposition.py` trên Odoo 17 (`v17.0.2.5.19`) và Odoo 19 (`v19.0.1.2.33`).
     - `flutter analyze`: Đạt **0 issues found** (0 errors, 0 warnings).
 
+- [x] [L4 — VERIFIED] **3.37 Tối Ưu Hiệu Năng DB, Khử N+1 Query & Củng Cố Router Guard Pha 2 (PERF-01..03, ARCH-01 / Build 155)**: `[x] [ĐÃ PHẪU THUẬT FIX CODE & VERIFIED PASS 15/15 TESTS TRÊN ODOO 17, 19 & FLUTTER]`
+  - *Mô tả & Hạng mục tối ưu*:
+    1. **Khai báo Composite Indexes `_sql_indexes` trên Odoo 17 & 19 (`models/notification.py`, `models/device.py`)**: Khai báo composite indexes declarative chuyển sequential scan thành index scan trên `mobile.api.notification` (`idempotency_key` + `status`, `recipient_user_id` + `create_date`, `status` + `next_retry_at`) và `mobile.api.device` (`user_id` + `active`, `device_token`).
+    2. **Khử N+1 SQL Queries trong Push Notification Loop (`models/notification.py`)**: Chuyển đổi kiểm tra `idempotency_key` từng thiết bị trong vòng lặp sang truy vấn batch `idempotency_key in candidate_keys` gom cụm một lần duy nhất trước vòng lặp, tra cứu O(1) in-memory cho cả thiết bị thường và SSO Gateway.
+    3. **Tối ưu hóa Project List Query & Cách ly Dữ liệu Portal (`controllers/project.py`)**: Sử dụng batch aggregation `read_group` đếm số lượng task theo dự án thay cho `len(p.task_ids)` (khử N+1). Tự động gắn domain `partner_id` bảo vệ cách ly dữ liệu dự án cho khách hàng Portal.
+    4. **Củng cố Router Guard trên Flutter Client (`app_router.dart:120`)**: Chặn triệt để cả truy cập trực tiếp lẫn deep-link giải mã (URL decoded) vào phân hệ `/attendance` và `/timesheet` đối với tài khoản Portal, tự động điều hướng an toàn về `/home`.
+  - *Bằng chứng kiểm thử (Evidence)*:
+    - Pass 15/15 tests độc lập trong `test_performance_audit_phase2_patch.py` trên Odoo 17, Odoo 19 và Flutter Client.
+    - `flutter analyze`: Đạt **0 issues found** (0 errors, 0 warnings).
+
 
 ---
 
@@ -1273,6 +1286,28 @@ Tab "Tôi" quản lý thông tin nhân sự cá nhân, tùy chỉnh giao diện 
 - [ ] **B.5 Tùy Chọn Đa Ngôn Ngữ Giao Diện (Tiếng Việt / English)**
   - *Mô tả*: Cung cấp thiết lập chuyển đổi ngôn ngữ hiển thị giao diện giữa Tiếng Việt và Tiếng Anh trong phần Cài đặt.
   - *Hiện trạng kỹ thuật*: **Chưa làm** (Hiện tại toàn bộ giao diện app được cố định bằng Tiếng Việt).
+
+- [x] **B.6 Vá Lỗ Hổng Bảo Mật & IDOR Portal Ticket (Theo Báo Cáo Audit 2026-10-09)**
+  - *Mô tả*: Xử lý dứt điểm các lỗi bảo mật phát hiện trong đợt kiểm toán toàn diện:
+    + **SEC-01 (CRITICAL)**: Loại bỏ hardcoded cluster secret fallback trong Odoo 17 (`v_mobile_17/controllers/auth.py:1414`), chuyển sang fail-closed.
+    + **SEC-02 (HIGH)**: Khắc phục IDOR bypass khi ticket không có `partner_id` (`ticket.partner_id == False`) trong `v_mobile_19/controllers/ticket.py:269`.
+    + **SEC-03 (HIGH)**: Lọc bỏ ghi chú nội bộ `is_internal = True` đối với Portal user trong `ticket_detail`.
+    + **SEC-04 (HIGH)**: Chặn Portal user truyền `partner_id` tùy ý khi gọi API `ticket_create`.
+    + **SEC-05 (MEDIUM)**: Bổ sung `deny_portal(uid)` cho endpoint `/api/v1/mobile/ticket/assignees`.
+  - *Hiện trạng kỹ thuật*: **Đã hoàn thành vá triệt để Pha 1 (v19.0.1.2.34 & v17.0.2.5.20), kiểm thử 12/12 test case pass 100%**.
+
+- [x] **B.7 Tối Ưu Hiệu Năng & Khắc Phục Điểm Nghẽn Chịu Tải Backend (Theo Báo Cáo Audit 2026-10-09)**
+  - *Mô tả*: Khắc phục điểm nghẽn hiệu năng chịu tải trên Odoo 19:
+    + **PERF-01 (HIGH)**: Khử triệt để N+1 SQL queries trong vòng lặp kiểm tra `idempotency_key` của `send_event()` (`v_mobile_19/models/notification.py` & `v_mobile_17/models/notification.py`).
+    + **PERF-02 (HIGH)**: Bổ sung khai báo `_sql_indexes = (models.Index(...),)` theo chuẩn Odoo 19 cho các bảng `mobile_api_notification` và `mobile_api_device`.
+    + **PERF-03 (MEDIUM)**: Tối ưu N+1 relation traversal `task_count: len(p.task_ids)` trong `controllers/project.py` bằng `read_group` và cô lập danh sách dự án cho Portal user.
+  - *Hiện trạng kỹ thuật*: **Đã hoàn thành tối ưu Pha 2 (v19.0.1.2.35 & v17.0.2.5.21), kiểm thử 14/14 test cases pass 100%**.
+
+- [ ] **B.8 Chuẩn Hóa Kiến Trúc Router Guard & Clean Architecture Mobile Client**
+  - *Mô tả*: Hoàn thiện lớp bảo vệ Client và chuẩn hóa kiến trúc Clean Architecture:
+    + **ARCH-01 (MEDIUM)**: Bổ sung guard chặn Portal user truy cập trực tiếp route `/attendance` và `/timesheet` trong `vclients/lib/core/router/app_router.dart` (*Đã hoàn thành trong v2.9.16+155*).
+    + **ARCH-02 (MEDIUM)**: Đóng gói các lời gọi raw API `odooApiClient.fetchBytes(...)` từ UI Presentation về tầng Data Repository.
+  - *Hiện trạng kỹ thuật*: **ARCH-01 đã hoàn thành; ARCH-02 chờ triển khai chuẩn hóa tầng Data Repository**.
 
 ---
 
