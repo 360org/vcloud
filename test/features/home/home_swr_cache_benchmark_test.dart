@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vcloud/core/api/auth_user.dart';
@@ -17,7 +16,10 @@ class _FakeAuthController extends AuthController {
   final AuthUser? _user;
 
   @override
-  Future<AuthUser?> build() async => _user;
+  Future<AuthUser?> build() async {
+    state = AsyncData(_user);
+    return _user;
+  }
 }
 
 class _FakeChannelsNotifier extends ChatV2ChannelsNotifier {

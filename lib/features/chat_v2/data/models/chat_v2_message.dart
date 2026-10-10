@@ -694,7 +694,7 @@ class ChatV2Message {
         extractedParentAuthor.trim() == 'Tin nhắn' ||
         extractedParentAuthor.trim() == 'Tin nhắn mới' ||
         extractedParentAuthor.trim() == 'Message';
-    final cleanParentAuthor = (hasValidParent && !isInvalidAuthor) ? extractedParentAuthor!.trim() : null;
+    final cleanParentAuthor = (hasValidParent && !isInvalidAuthor) ? extractedParentAuthor.trim() : null;
 
     final parsedReactions = <ChatV2Reaction>[];
     final rawReacts = map['reactions'];
