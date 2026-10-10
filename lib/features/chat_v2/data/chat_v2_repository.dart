@@ -248,20 +248,22 @@ class ChatV2Repository {
                 String? body;
                 if (pName.contains(': ')) {
                   final parts = pName.split(': ');
-                  author = parts[0];
-                  body = parts.sublist(1).join(': ');
-                } else if (pName.isNotEmpty) {
-                  body = pName;
+                  author = parts[0].trim();
+                  body = parts.sublist(1).join(': ').trim();
+                } else if (pName.trim().isNotEmpty) {
+                  body = pName.trim();
                 }
 
-                ChatV2ReplyCache.set(mId, parentId: pId, parentAuthorName: author, parentBody: body);
-                final idx = messages.indexWhere((m) => m.id == mId);
-                if (idx != -1) {
-                  messages[idx] = messages[idx].copyWith(
-                    parentId: messages[idx].parentId ?? pId,
-                    parentAuthorName: messages[idx].parentAuthorName ?? author,
-                    parentBody: messages[idx].parentBody ?? body,
-                  );
+                if (body != null && body.isNotEmpty) {
+                  ChatV2ReplyCache.set(mId, parentId: pId, parentAuthorName: author, parentBody: body);
+                  final idx = messages.indexWhere((m) => m.id == mId);
+                  if (idx != -1) {
+                    messages[idx] = messages[idx].copyWith(
+                      parentId: messages[idx].parentId ?? pId,
+                      parentAuthorName: messages[idx].parentAuthorName ?? author,
+                      parentBody: messages[idx].parentBody ?? body,
+                    );
+                  }
                 }
               }
 

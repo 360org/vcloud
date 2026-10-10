@@ -113,6 +113,11 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
     required String receiverName,
     String? receiverAvatar,
   }) async {
+    if (state != null && state!.state != ChatV2CallState.idle) {
+      debugPrint('📞 [START_CALL] Đang trong cuộc gọi (${state!.state}), từ chối khởi tạo mới.');
+      return false;
+    }
+
     _stopAudio();
     _stopTimers();
 
@@ -443,6 +448,8 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
       targetState = ChatV2CallState.rejected;
     } else if (endState == 'cancelled') {
       targetState = ChatV2CallState.cancelled;
+    } else if (endState == 'missed' || reason == 'timeout') {
+      targetState = ChatV2CallState.missed;
     }
     state = state?.copyWith(
       state: targetState,
@@ -451,8 +458,8 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
     _cleanupWebrtc();
     ChatV2CallKitService.instance.endAllCalls();
 
-    // Tự động dọn dẹp state sau 1.2s nếu bận, 2.2s nếu mất mạng để kịp đọc thông báo, 1.5s nếu gác máy bình thường
-    final cleanupDelay = (reason == 'busy')
+    // Tự động dọn dẹp state sau 1.2s nếu bận hoặc nhỡ, 2.2s nếu mất mạng để kịp đọc thông báo, 1.5s nếu gác máy bình thường
+    final cleanupDelay = (reason == 'busy' || targetState == ChatV2CallState.missed)
         ? const Duration(milliseconds: 1200)
         : ((reason == 'network_lost')
             ? const Duration(milliseconds: 2200)
@@ -516,10 +523,30 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
       if (state != null &&
           (state!.state == ChatV2CallState.outgoingRinging ||
               state!.state == ChatV2CallState.incomingRinging)) {
+        final currentSession = state;
         _stopAudio();
         state = state!.copyWith(state: ChatV2CallState.missed);
         _cleanupWebrtc();
         ChatV2CallKitService.instance.endAllCalls();
+
+        // Đồng bộ timeout 30s xuống Database Backend Odoo & phát bus notification
+        if (currentSession != null) {
+          if (currentSession.id > 0) {
+            repo.rejectCall(currentSession.id, reason: 'timeout').catchError((_) => false);
+          }
+          repo.leaveCall(
+            channelId: currentSession.channelId,
+            sessionId: currentSession.id > 0 ? currentSession.id : null,
+            reason: 'timeout',
+          ).catchError((_) => false);
+        }
+
+        _autoResetTimer?.cancel();
+        _autoResetTimer = Timer(const Duration(milliseconds: 1200), () {
+          if (!_isDisposed && mounted && state?.state == ChatV2CallState.missed) {
+            reset();
+          }
+        });
       }
     });
   }

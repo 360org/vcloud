@@ -91,8 +91,8 @@ class FakeCallApiClient extends OdooApiClient {
           {'urls': ['stun:stun.l.google.com:19302']},
           {
             'urls': ['turn:turn.vuahethong.net:3478?transport=udp'],
-            'username': 'vuahethong_webrtc',
-            'credential': '360corp_turn_pass_2026',
+            'username': '1760000000:vcloud_2',
+            'credential': 'dyn_hmac_sha1_sample_credential_token',
           }
         ]
       };
@@ -693,7 +693,7 @@ void main() {
       fakeBus.dispose();
     });
 
-    test('TC-35: ChatV2CallRepository.fetchCallConfig loads STUN and TURN configurations from backend', () async {
+    test('TC-35: ChatV2CallRepository.fetchCallConfig loads STUN and dynamic HMAC TURN configurations from backend', () async {
       final fakeClient = FakeCallApiClient();
       final testRepo = ChatV2CallRepository(client: fakeClient);
 
@@ -706,8 +706,9 @@ void main() {
 
       final turn = iceServers[1];
       expect((turn['urls'] as List).first, contains('turn:turn.vuahethong.net'));
-      expect(turn['username'], 'vuahethong_webrtc');
-      expect(turn['credential'], '360corp_turn_pass_2026');
+      expect(turn['username'], contains('vcloud_'));
+      expect(turn['credential'], isNotEmpty);
+      expect(turn['credential'], isNot('360corp_turn_pass_2026'));
     });
 
     test('TC-36: ChatV2CallController handles ICE disconnected state with 10s grace period and ends with network_lost', () async {

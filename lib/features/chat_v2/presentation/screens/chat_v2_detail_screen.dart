@@ -25,6 +25,7 @@ import '../widgets/chat_v2_message_item.dart';
 import '../widgets/chat_v2_info_sheet.dart';
 import '../widgets/chat_v2_reaction_details_sheet.dart';
 import '../../application/chat_v2_call_controller.dart';
+import '../../domain/models/chat_v2_call_session.dart';
 import 'chat_v2_call_screen.dart';
 import 'chat_v2_image_viewer_screen.dart';
 import '../../../../core/utils/local_attachment_cache.dart';
@@ -51,6 +52,7 @@ class ChatV2DetailScreen extends ConsumerStatefulWidget {
 class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
   late final ScrollController _scrollController;
   final bool _isSending = false;
+  bool _isDialingLock = false;
   ChatV2Message? _replyingTo;
   ChatV2Message? _editingMsg;
   final TextEditingController _inputController = TextEditingController();
@@ -59,6 +61,12 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
   String? _highlightedMessageId;
   Timer? _highlightTimer;
   bool _showScrollToBottom = false;
+  String? _pendingTargetId;
+  final Map<String, GlobalKey> _messageKeys = {};
+
+  GlobalKey _getKeyForMessage(String id) {
+    return _messageKeys.putIfAbsent(id, () => GlobalKey());
+  }
 
   bool _isSearching = false;
   final TextEditingController _searchController = TextEditingController();
@@ -190,6 +198,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
   @override
   void dispose() {
     _highlightTimer?.cancel();
+    _messageKeys.clear();
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     _inputController.dispose();
@@ -198,37 +207,33 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
     super.dispose();
   }
 
-  void _jumpToMessage(String targetId) {
-    if (targetId.isEmpty) return;
+  Future<void> _jumpToMessage(String targetId) async {
+    if (targetId.isEmpty || targetId == 'quote') {
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Không tìm thấy thông tin tin nhắn gốc'),
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+      return;
+    }
+
+    if (_pendingTargetId != null && _pendingTargetId == targetId) {
+      return;
+    }
+
     final messages = ref.read(chatV2MessagesProvider(widget.channelId)).valueOrNull ?? [];
     final targetIndex = messages.indexWhere((m) => m.id == targetId);
 
     if (targetIndex != -1) {
-      // Trong ListView reverse: true, index 0 ở dưới cùng (offset 0.0)
-      if (_scrollController.hasClients) {
-        final maxScroll = _scrollController.position.maxScrollExtent;
-        final targetOffset = (targetIndex * 85.0).clamp(0.0, maxScroll);
-        _scrollController.animateTo(
-          targetOffset,
-          duration: const Duration(milliseconds: 350),
-          curve: Curves.easeInOutCubic,
-        );
-      }
-
-      // Kích hoạt hiệu ứng nổi bật trong 1.5 giây
-      setState(() {
-        _highlightedMessageId = targetId;
-      });
-      _highlightTimer?.cancel();
-      _highlightTimer = Timer(const Duration(milliseconds: 1500), () {
-        if (mounted) {
-          setState(() {
-            _highlightedMessageId = null;
-          });
-        }
-      });
+      _scrollToMessageKey(targetId, targetIndex);
     } else {
+      _pendingTargetId = targetId;
       if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Tin nhắn gốc đã cũ, đang tải thêm...'),
@@ -236,8 +241,78 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
           ),
         );
       }
-      ref.read(chatV2MessagesProvider(widget.channelId).notifier).loadMore();
+
+      final found = await ref
+          .read(chatV2MessagesProvider(widget.channelId).notifier)
+          .ensureMessageLoaded(targetId);
+
+      if (!mounted) return;
+
+      if (found) {
+        final updatedMessages = ref.read(chatV2MessagesProvider(widget.channelId)).valueOrNull ?? [];
+        final newIndex = updatedMessages.indexWhere((m) => m.id == targetId);
+        if (newIndex != -1) {
+          _scrollToMessageKey(targetId, newIndex);
+        }
+      } else {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Không tìm thấy tin nhắn gốc trong cuộc trò chuyện'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+      _pendingTargetId = null;
     }
+  }
+
+  void _scrollToMessageKey(String targetId, int targetIndex) {
+    final key = _messageKeys[targetId];
+
+    if (key?.currentContext != null) {
+      // Trường hợp 1: Widget đã có trong view hierarchy -> Cuộn chính xác 100% bằng Scrollable.ensureVisible
+      Scrollable.ensureVisible(
+        key!.currentContext!,
+        alignment: 0.5,
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeInOutCubic,
+      );
+    } else if (_scrollController.hasClients) {
+      // Trường hợp 2: Widget nằm ngoài cacheExtent -> Jump ước tính để ListView build widget, rồi ensureVisible
+      final maxScroll = _scrollController.position.maxScrollExtent;
+      final estimatedOffset = (targetIndex * 80.0).clamp(0.0, maxScroll);
+      _scrollController.jumpTo(estimatedOffset);
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final postKey = _messageKeys[targetId];
+        if (postKey?.currentContext != null) {
+          Scrollable.ensureVisible(
+            postKey!.currentContext!,
+            alignment: 0.5,
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeInOutCubic,
+          );
+        }
+      });
+    }
+
+    _triggerHighlight(targetId);
+  }
+
+  void _triggerHighlight(String targetId) {
+    setState(() {
+      _highlightedMessageId = targetId;
+    });
+    _highlightTimer?.cancel();
+    _highlightTimer = Timer(const Duration(milliseconds: 1500), () {
+      if (mounted) {
+        setState(() {
+          _highlightedMessageId = null;
+        });
+      }
+    });
   }
 
   void _scrollToBottom() {
@@ -1396,7 +1471,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                       !_isSameDay(message.createdAt, olderMsg.createdAt);
 
                                   final itemWidget = ChatV2MessageItem(
-                                    key: ValueKey('msg_${message.id}'),
+                                    key: _getKeyForMessage(message.id),
                                     message: message,
                                     showSenderName: showSenderName,
                                     showAvatar: showAvatar,
@@ -1965,10 +2040,33 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
     String displayTitle,
     String? resolvedAvatarUrl,
   ) async {
-    if (channel == null) return;
+    if (channel == null || _isDialingLock) return;
+
+    // Chống mở đè cuộc gọi khi đang trong session gọi khác
+    final currentCall = ref.read(chatV2CallControllerProvider);
+    if (currentCall != null && currentCall.state != ChatV2CallState.idle) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Bạn đang trong một cuộc gọi khác.'),
+          duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isDialingLock = true;
+    });
 
     // PRE-FLIGHT GUARD 1: Chỉ hỗ trợ gọi 1-1 ở giai đoạn hiện tại
     if (channel.isGroup) {
+      if (mounted) {
+        setState(() {
+          _isDialingLock = false;
+        });
+      }
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -1983,8 +2081,12 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
     // PRE-FLIGHT GUARD 2: Xin quyền Microphone Just-in-Time
     if (!kIsWeb) {
       final micStatus = await Permission.microphone.request();
-      if (!context.mounted) return;
+      if (!context.mounted) {
+        if (mounted) setState(() => _isDialingLock = false);
+        return;
+      }
       if (micStatus.isPermanentlyDenied) {
+        if (mounted) setState(() => _isDialingLock = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text('Ứng dụng cần quyền Micro để đàm thoại. Vui lòng mở Cài đặt thiết bị để cấp quyền.'),
@@ -1999,6 +2101,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
         return;
       }
       if (!micStatus.isGranted) {
+        if (mounted) setState(() => _isDialingLock = false);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Quyền Micro bị từ chối, không thể bắt đầu cuộc gọi thoại.'),
@@ -2032,6 +2135,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
 
     // PRE-FLIGHT GUARD 3: Xác minh đối tác nhận cuộc gọi
     if (receiverId == 0) {
+      if (mounted) setState(() => _isDialingLock = false);
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -2046,15 +2150,24 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
     final receiverName = displayTitle.isNotEmpty ? displayTitle : 'Đồng nghiệp';
     final receiverAvatar = resolvedAvatarUrl;
 
-    if (!context.mounted) return;
+    if (!context.mounted) {
+      if (mounted) setState(() => _isDialingLock = false);
+      return;
+    }
 
-    // 1. Mở Call Screen ngay lập tức
+    // 1. Mở Call Screen ngay lập tức (giữ lock cho đến khi CallScreen đóng)
     Navigator.of(context).push(
       MaterialPageRoute(
         fullscreenDialog: true,
         builder: (_) => const ChatV2CallScreen(),
       ),
-    );
+    ).then((_) {
+      if (mounted) {
+        setState(() {
+          _isDialingLock = false;
+        });
+      }
+    });
 
     // 2. Kích hoạt gọi qua controller
     ref.read(chatV2CallControllerProvider.notifier).startCall(

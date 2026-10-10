@@ -517,9 +517,9 @@ Phân hệ cốt lõi cung cấp trải nghiệm giao tiếp toàn diện: trò 
   - *Kịch bản nghiệm thu*: Gửi chữ "Ok" ➔ Bong bóng chat nhỏ gọn ôm vừa chữ "Ok" và giờ gửi.
 
 - [x] **3.11 Trích dẫn & Trả lời Tin nhắn (Quote / Reply Box)**
-  - *Mô tả*: Vuốt sang hoặc bấm "Trả lời" trên tin nhắn bất kỳ; hiển thị khung trích dẫn có viền màu, tên người gửi và nội dung vắn tắt ở ô nhập liệu và trong bong bóng chat.
-  - *Tệp liên quan*: `lib/features/chat_v2/presentation/widgets/chat_v2_message_item.dart`, `lib/features/chat_v2/presentation/widgets/chat_v2_input_bar.dart`.
-  - *Kịch bản nghiệm thu*: Bấm trả lời tin nhắn ➔ Gửi tin ➔ Tin nhắn mới hiển thị kèm trích dẫn tin nhắn cũ.
+  - *Mô tả*: Vuốt sang hoặc bấm "Trả lời" trên tin nhắn bất kỳ; hiển thị khung trích dẫn có viền màu, tên người gửi và nội dung vắn tắt ở ô nhập liệu và trong bong bóng chat. Chạm vào thẻ Quote Card cuộn chính xác 100% đến vị trí RenderBox tin nhắn gốc bằng `Scrollable.ensureVisible` (Two-phase Scroll), tự động lặp nạp sâu tối đa 5 trang nếu tin nhắn gốc nằm ngoài RAM.
+  - *Tệp liên quan*: `lib/features/chat_v2/presentation/widgets/chat_v2_message_item.dart`, `lib/features/chat_v2/presentation/widgets/chat_v2_input_bar.dart`, `lib/features/chat_v2/presentation/screens/chat_v2_detail_screen.dart`, `lib/features/chat_v2/application/chat_v2_messages_controller.dart`.
+  - *Kịch bản nghiệm thu*: Bấm trả lời tin nhắn ➔ Gửi tin ➔ Tin nhắn mới hiển thị kèm trích dẫn tin nhắn cũ ➔ Bấm vào Quote Card ➔ Cuộn mượt pixel-perfect về chính giữa tin nhắn gốc và nhấp nháy highlight.
 
 - [x] **3.12 Thả Cảm xúc Biểu tượng (Emoji Reactions)**
   - *Mô tả*: Nhấn giữ tin nhắn để thả các biểu tượng cảm xúc nhanh (👍, ❤️, 😂, 😮, 😢, 😡); tự động cộng dồn số lượng cảm xúc dưới chân tin nhắn.

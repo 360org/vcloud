@@ -2,7 +2,49 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.16+155] — 2026-10-10 (Pha Fix Lỗi Bảo Mật & Chuẩn Hóa WebRTC Call V2)
+
+> [!IMPORTANT]
+> **Vá Lỗi Bảo Mật & Chuẩn Hóa Phân Hệ Gọi Thoại Chat V2 (WebRTC & Signaling Call Fix)**:
+> - **1. Vá Triệt Để Lỗ Hổng Portal Bypass Trên Odoo 19 (`v_mobile_19/controllers/call.py`)**:
+>   * Bổ sung kiểm tra `deny_portal(uid)` đồng bộ 100% với Odoo 17 trên toàn bộ 8 routes quản lý cuộc gọi (`initiate_call`, `get_active_call`, `get_call_session`, `accept_call`, `reject_call`, `cancel_call`, `end_call`, `append_ice`).
+>   * Chặn đứng nguy cơ tài khoản khách hàng Portal can thiệp hoặc khởi tạo cuộc gọi nội bộ (trả về HTTP 403 Forbidden).
+> - **2. Gỡ Bỏ Hardcode Credentials TURN Server & Triển Khai Dynamic HMAC Token (`chat_v2_webrtc_engine.dart` & `chat.py`)**:
+>   * Loại bỏ hoàn toàn secret tĩnh `360corp_turn_pass_2026` khỏi Flutter client và backend Odoo 17 & 19.
+>   * Triển khai cơ chế sinh thông tin xác thực động ngắn hạn Coturn Ephemeral Credentials (RFC 5766 HMAC-SHA1 với TTL 24h) từ API `/api/v1/mobile/chat/call/config`.
+>   * WebRTC Engine tự động nạp dynamic ICE config từ API khi khởi tạo session.
+> - **3. Bổ Sung UI Debounce & Dọn Dẹp RAM WebRTC (`chat_v2_detail_screen.dart` & `chat_v2_webrtc_engine.dart`)**:
+>   * Bổ sung cờ atomic `_isDialingLock` chống double-tap nút Gọi thoại trên giao diện chat và kiểm tra trạng thái bận của controller trước khi mở CallScreen.
+>   * Bổ sung hàm `abort()` trong `ChatV2WebRtcEngine` dọn sạch bộ nhớ đệm `_queuedRemoteCandidates.clear()` và reset `_hasRemoteDescription = false`, tích hợp dọn dẹp an toàn trong `dispose()`.
+>   * Quản lý AudioPlayer an toàn, hủy giải phóng Native AudioTrack tránh rò rỉ bộ nhớ.
+> - **4. Đồng Bộ Timeout 30s Xuống Database & Sync Bus Event (`chat_v2_call_controller.dart` & `call.py`)**:
+>   * Khi timer 30s đổ chuông kết thúc không nghe máy, controller gửi ngay request `rejectCall(timeout)` & `leaveCall(timeout)` xuống Odoo backend.
+>   * Odoo backend ghi nhận trạng thái `missed`, lưu tin nhắn hệ thống vào kênh và phát broadcast đồng thời 2 topic bus `discuss.channel.rtc.session/ended` và `vmobile.call/ended` đồng bộ trên cả Odoo 19 và Odoo 17.
+> - **5. Kiểm Soát Chất Lượng & Phân Tích Mã Nguồn**:
+>   * Dart Analyzer (`dart analyze`): Đạt **0 issues found** (0 errors, 0 warnings) trên toàn bộ `lib/` và `test/`.
+>   * Python Compiler (`py_compile`): **0 syntax errors** trên toàn bộ controllers `call.py` và `chat.py` Odoo 17 & 19.
+>   * Strict Version Lock: Giữ nguyên `v2.9.16+155` (`pubspec.yaml`), Odoo 17 `17.0.2.1.0`, Odoo 19 `19.0.1.0.0`.
+
 ## [v2.9.16+155] — 2026-10-10 (Pha 3: Refactor UI Video Player & Tối Ưu State Riverpod Clean Architecture)
+
+> [!IMPORTANT]
+> **Khắc Phục Lỗi Cuộn Nhảy Lệch Vị Trí Tin Nhắn Trích Dẫn (Chat V2 Quote Replied Message Jump Fix)**:
+> - **1. Định Vị Toạ Độ Chuẩn RenderBox (`chat_v2_detail_screen.dart`)**:
+>   * Loại bỏ hoàn toàn ước tính tĩnh sai số tích lũy `targetIndex * 85.0`.
+>   * Dùng `GlobalKey` map (`_messageKeys`) kết hợp `Scrollable.ensureVisible(context, alignment: 0.5)` định vị pixel-perfect chính giữa màn hình theo RenderBox thực tế của bong bóng tin nhắn.
+>   * Áp dụng kỹ thuật cuộn hai pha (Two-phase Scroll): cuộn ước lượng ban đầu nếu tin nhắn chưa render trong element tree, sau đó gọi `Scrollable.ensureVisible` trong `addPostFrameCallback`.
+> - **2. Await Bất Đồng Bộ & Xử Lý Pending Target (`chat_v2_detail_screen.dart`)**:
+>   * Lưu `_pendingTargetId` khi tin nhắn gốc nằm ngoài bộ nhớ RAM, chống spam tap liên tiếp.
+>   * `await` nạp dữ liệu lịch sử hoàn tất và tự động kích hoạt lại cuộn mượt đến tin nhắn gốc khi nạp xong.
+> - **3. Chặn ID Ảo `'quote'` & Validate `parentId` (`chat_v2_message_item.dart` & `chat_v2_detail_screen.dart`)**:
+>   * Kiểm tra nghiêm ngặt `parentId.isNotEmpty && parentId != 'quote'`.
+>   * Hiển thị SnackBar nhẹ nhàng khi trích dẫn thiếu ID gốc, tránh kích hoạt hàm cuộn lỗi.
+> - **4. Cơ Chế Nạp Ngữ Cảnh Đích Sâu (`chat_v2_messages_controller.dart`)**:
+>   * Bổ sung `Future<bool> ensureMessageLoaded(String messageId)` tự động lặp `loadMore()` tối đa 5 trang (~175 tin) để truy nạp tin nhắn gốc cũ trong quá khứ.
+> - **5. Kiểm Thử & Kiểm Soát Chất Lượng**:
+>   * `flutter analyze`: Đạt **0 issues found** (0 errors, 0 warnings).
+>   * Pass 11/11 tests `chat_v2_reply_scroll_jump_test.dart`.
+>   * Pass 20/20 regression tests (`bug_024_message_sorting_and_reply_test.dart` & `bug_025_quote_empty_and_temp_messages_test.dart`).
 
 > [!IMPORTANT]
 > **Bản Nâng Cấp Build 155 — Tái Cấu Trúc Toàn Diện Phân Hệ Video Player Chat V2**:

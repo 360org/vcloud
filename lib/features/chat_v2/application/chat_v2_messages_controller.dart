@@ -32,6 +32,25 @@ class ChatV2MessageLocalCache {
   static Directory? _cacheDir;
   static String _activeScope = '';
 
+  /// Kiểm tra tin nhắn tạm temp_* đã quá hạn (TTL 5 phút) để dọn dẹp khỏi cache
+  static bool isStaleTempMessage(
+    ChatV2Message m, {
+    Duration ttl = const Duration(minutes: 5),
+  }) {
+    if (!m.id.startsWith('temp_')) return false;
+    final now = DateTime.now();
+    final created = m.createdAt;
+    if (created != null) {
+      return now.difference(created) > ttl;
+    }
+    final parts = m.id.split('_');
+    final ts = int.tryParse(parts.last);
+    if (ts != null && ts > 1000000000000) {
+      return now.difference(DateTime.fromMillisecondsSinceEpoch(ts)) > ttl;
+    }
+    return false;
+  }
+
   static Future<void> init({String? db, String? userId}) async {
     final session = odooApiClient.session;
     final currentDb = db ?? session?.db ?? '';
@@ -63,7 +82,10 @@ class ChatV2MessageLocalCache {
           try {
             final content = await file.readAsString();
             final List<dynamic> jsonList = jsonDecode(content);
-            final messages = jsonList.map((e) => ChatV2Message.fromMap(e as Map<String, dynamic>, currentUserId: null)).toList();
+            final messages = jsonList
+                .map((e) => ChatV2Message.fromMap(e as Map<String, dynamic>, currentUserId: null))
+                .where((m) => !isStaleTempMessage(m))
+                .toList();
 
             final map = <String, ChatV2Message>{};
             for (final m in messages) {
@@ -71,6 +93,9 @@ class ChatV2MessageLocalCache {
             }
             _cache[channelId] = map;
             totalMessagesLoaded += messages.length;
+            if (messages.length < jsonList.length) {
+              _persist(channelId);
+            }
           } catch (e) {
             debugPrint('Error loading chat messages for channel $channelId: $e');
           }
@@ -87,7 +112,7 @@ class ChatV2MessageLocalCache {
   static List<ChatV2Message>? get(String channelId) {
     final map = _cache[channelId];
     if (map == null || map.isEmpty) return null;
-    return map.values.toList()..sort((a, b) {
+    return map.values.where((m) => !isStaleTempMessage(m)).toList()..sort((a, b) {
       final aTime = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
       final bTime = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
       return bTime.compareTo(aTime);
@@ -97,7 +122,7 @@ class ChatV2MessageLocalCache {
   static Future<void> _persist(String channelId) async {
     if (!_initialized || _cacheDir == null || kIsWeb) return;
     try {
-      final messages = get(channelId) ?? [];
+      final messages = (get(channelId) ?? []).where((m) => !isStaleTempMessage(m)).toList();
       final file = File('${_cacheDir!.path}/$channelId.json');
       final jsonStr = jsonEncode(messages.map((m) => m.toMap()).toList());
       await file.writeAsString(jsonStr);
@@ -108,10 +133,12 @@ class ChatV2MessageLocalCache {
 
   static const int _maxMessagesPerChannel = 200;
 
-static void set(String channelId, List<ChatV2Message> messages, {bool persist = true}) {
+  static void set(String channelId, List<ChatV2Message> messages, {bool persist = true}) {
     final map = <String, ChatV2Message>{};
     for (final m in messages) {
-      map[m.id] = m;
+      if (!isStaleTempMessage(m)) {
+        map[m.id] = m;
+      }
     }
     // Keep only the most recent _maxMessagesPerChannel messages (by createdAt descending)
     final sorted = map.values.toList()
@@ -369,8 +396,14 @@ class ChatV2MessagesNotifier
   }
 
   static int _compareMessagesDescending(ChatV2Message a, ChatV2Message b) {
-    final aTime = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-    final bTime = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+    final aTime = a.createdAt ??
+        (a.id.startsWith('temp_')
+            ? DateTime.now()
+            : DateTime.fromMillisecondsSinceEpoch(0));
+    final bTime = b.createdAt ??
+        (b.id.startsWith('temp_')
+            ? DateTime.now()
+            : DateTime.fromMillisecondsSinceEpoch(0));
     final timeComp = bTime.compareTo(aTime);
     if (timeComp != 0) return timeComp;
 
@@ -406,8 +439,12 @@ class ChatV2MessagesNotifier
       return sortedFresh;
     }
 
-    // Bảo vệ optimistic updates: giữ lại các tin nhắn tạm (temp_*) chưa đồng bộ xong
-    final pendingTempMessages = currentList.where((m) => m.id.startsWith('temp_')).toList();
+    // Bảo vệ optimistic updates: giữ lại các tin nhắn tạm (temp_*) còn hạn và chưa đồng bộ xong
+    final pendingTempMessages = currentList
+        .where((m) =>
+            m.id.startsWith('temp_') &&
+            !ChatV2MessageLocalCache.isStaleTempMessage(m))
+        .toList();
 
     final currentIds = currentList.map((m) => m.id).toSet();
     final freshById = {for (final m in freshList) m.id: m};
@@ -440,15 +477,39 @@ class ChatV2MessagesNotifier
       return m; // Giữ nguyên các trang tin nhắn cũ đã tải về
     }).toList();
 
+    final serverMessages = [...updatedExisting, ...brandNew];
+
+    // Khử trùng lặp: loại bỏ temp_* nếu tin thật tương ứng đã có trên server
+    final validTempMessages = <ChatV2Message>[];
+    for (final temp in pendingTempMessages) {
+      final isDuplicated = serverMessages.any((sm) {
+        if (sm.id == temp.id) return true;
+        if (temp.content.isNotEmpty &&
+            sm.content == temp.content &&
+            (sm.isMine || sm.authorId == temp.authorId)) {
+          if (temp.createdAt != null && sm.createdAt != null) {
+            return sm.createdAt!.difference(temp.createdAt!).abs() <=
+                const Duration(minutes: 5);
+          }
+          return true;
+        }
+        return false;
+      });
+      if (!isDuplicated) {
+        validTempMessages.add(temp);
+      }
+    }
+
     // 3. Khử trùng lặp và sắp xếp giảm dần theo thời gian (createdAt desc)
-    // Đảm bảo ListView(reverse: true) luôn hiển thị tin nhắn mới nhất ở đáy (index 0)
+    // Sắp xếp cả tin nhắn tạm theo timestamp thực tế, không ép cố định lên index 0
     final Map<String, ChatV2Message> messageMap = {};
-    for (final msg in [...updatedExisting, ...brandNew]) {
+    for (final msg in [...serverMessages, ...validTempMessages]) {
       messageMap[msg.id.toString()] = msg;
     }
-    final sortedList = messageMap.values.toList()..sort(_compareMessagesDescending);
+    final sortedList = messageMap.values.toList()
+      ..sort(_compareMessagesDescending);
 
-    return [...pendingTempMessages, ...sortedList];
+    return sortedList;
   }
 
   static bool _hasDifferences(List<ChatV2Message> a, List<ChatV2Message> b) {
@@ -555,6 +616,32 @@ class ChatV2MessagesNotifier
     } finally {
       _isLoadingMore = false;
     }
+  }
+
+  /// Nạp sâu các trang tin nhắn cũ (tối đa 5 trang) cho đến khi tìm thấy [messageId].
+  /// Trả về true nếu tin nhắn đã sẵn sàng trong state, false nếu không tìm thấy sau khi nạp hết.
+  /// ponytail: giới hạn 5 trang (~175 tin nhắn) để tránh nghẽn mạng và tràn RAM.
+  Future<bool> ensureMessageLoaded(String messageId) async {
+    if (messageId.isEmpty || messageId == 'quote') return false;
+
+    var current = state.valueOrNull ?? [];
+    if (current.any((m) => m.id == messageId)) {
+      return true;
+    }
+
+    const maxPages = 5;
+    for (var i = 0; i < maxPages; i++) {
+      final beforeCount = current.length;
+      await loadMore();
+      current = state.valueOrNull ?? [];
+      if (current.any((m) => m.id == messageId)) {
+        return true;
+      }
+      if (current.length <= beforeCount) {
+        break;
+      }
+    }
+    return false;
   }
 
   Future<void> sendMessage(

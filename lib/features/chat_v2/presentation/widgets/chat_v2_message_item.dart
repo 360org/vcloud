@@ -190,8 +190,7 @@ class ChatV2MessageItem extends StatelessWidget {
         !hasVideos &&
         !hasDocs &&
         !hasAudio &&
-        message.parentId == null &&
-        message.parentBody == null;
+        (message.parentBody == null || message.parentBody!.trim().isEmpty);
 
     final timeAndStatus = Row(
       mainAxisSize: MainAxisSize.min,
@@ -223,8 +222,7 @@ class ChatV2MessageItem extends StatelessWidget {
         !message.isVideoFilename &&
         !message.isDocumentFilename &&
         !isCallMessage &&
-        message.parentId == null &&
-        message.parentBody == null;
+        (message.parentBody == null || message.parentBody!.trim().isEmpty);
 
     if (isEmptyMessage) {
       return const SizedBox.shrink();
@@ -443,8 +441,8 @@ class ChatV2MessageItem extends StatelessWidget {
                                             const SizedBox(height: 3),
                                           ],
                                   // 0. Render Reply Quote Card if this message is a reply
-                                  if (message.parentId != null ||
-                                      message.parentBody != null)
+                                  if (message.parentBody != null &&
+                                      message.parentBody!.trim().isNotEmpty)
                                     _buildReplyQuoteCard(
                                       context,
                                       isMine,
@@ -1193,14 +1191,10 @@ class ChatV2MessageItem extends StatelessWidget {
   }
 
   Widget _buildReplyQuoteCard(BuildContext context, bool isMine, bool isDark) {
-    final author =
-        (message.parentAuthorName != null &&
-            message.parentAuthorName!.isNotEmpty)
-        ? message.parentAuthorName!
-        : 'Tin nhắn';
-    final rawBody = (message.parentBody != null && message.parentBody!.isNotEmpty)
-        ? message.parentBody!
-        : '...';
+    final hasAuthor = message.parentAuthorName != null &&
+        message.parentAuthorName!.trim().isNotEmpty;
+    final author = hasAuthor ? message.parentAuthorName!.trim() : '';
+    final rawBody = message.parentBody?.trim() ?? '';
     final body = ChatV2Message.formatReplyPreviewBody(rawBody);
 
     final barColor = isMine
@@ -1214,8 +1208,19 @@ class ChatV2MessageItem extends StatelessWidget {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () {
-        if (message.parentId != null && onReplyTap != null) {
-          onReplyTap!(message.parentId);
+        final pId = message.parentId;
+        if (pId != null && pId.isNotEmpty && pId != 'quote') {
+          if (onReplyTap != null) {
+            onReplyTap!(pId);
+          }
+        } else {
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Không tìm thấy thông tin tin nhắn gốc'),
+              duration: Duration(seconds: 1),
+            ),
+          );
         }
       },
       child: Container(
@@ -1230,26 +1235,28 @@ class ChatV2MessageItem extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(LucideIcons.reply, size: 11, color: barColor),
-                const SizedBox(width: 4),
-                Flexible(
-                  child: Text(
-                    author,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: barColor,
+            if (hasAuthor) ...[
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(LucideIcons.reply, size: 11, color: barColor),
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(
+                      author,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: barColor,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 2),
+                ],
+              ),
+              const SizedBox(height: 2),
+            ],
             Text(
               body,
               style: TextStyle(

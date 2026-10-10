@@ -40,13 +40,31 @@ class ChatV2WebRtcEngine {
     _localSessionId = localSessionId;
     _targetSessionIds = targetSessionIds;
 
-    // Nếu phía Odoo joinCall không trả về ICE servers, nạp dynamic config từ API /call/config
+    // Nếu phía Odoo joinCall không trả về ICE servers (hoặc thiếu TURN), nạp dynamic config từ API /call/config
     List<dynamic> effectiveIceData = List<dynamic>.from(iceServersData);
-    if (effectiveIceData.isEmpty) {
+    final hasTurnInData = effectiveIceData.any((s) {
+      if (s is Map) {
+        final u = s['urls'] ?? s['url'];
+        return (u is List && u.any((url) => url.toString().startsWith('turn:'))) ||
+            (u is String && u.startsWith('turn:'));
+      }
+      return false;
+    });
+
+    if (effectiveIceData.isEmpty || !hasTurnInData) {
       try {
         final dynamicIce = await repo.fetchCallConfig();
         if (dynamicIce.isNotEmpty) {
-          effectiveIceData = dynamicIce;
+          if (effectiveIceData.isEmpty) {
+            effectiveIceData = dynamicIce;
+          } else {
+            for (final d in dynamicIce) {
+              final u = d['urls'] ?? d['url'];
+              final isTurn = (u is List && u.any((url) => url.toString().startsWith('turn:'))) ||
+                  (u is String && u.startsWith('turn:'));
+              if (isTurn) effectiveIceData.add(d);
+            }
+          }
         }
       } catch (_) {}
     }
@@ -79,21 +97,14 @@ class ChatV2WebRtcEngine {
       });
     }
 
-    // Đảm bảo luôn có TURN Server (chống tịt tiếng trên 4G / Symmetric NAT)
+    // Cảnh báo nếu không có TURN server trong môi trường Symmetric NAT
     final hasTurn = iceServers.any((s) {
       final u = s['urls'];
       return (u is List && u.any((url) => url.toString().startsWith('turn:'))) ||
           (u is String && u.startsWith('turn:'));
     });
     if (!hasTurn) {
-      iceServers.add({
-        'urls': [
-          'turn:turn.vuahethong.net:3478?transport=udp',
-          'turn:turn.vuahethong.net:3478?transport=tcp',
-        ],
-        'username': 'vuahethong_webrtc',
-        'credential': '360corp_turn_pass_2026',
-      });
+      debugPrint('ℹ️ [WebRTC] Lưu ý: Chưa nạp TURN Server. Cuộc gọi P2P có thể gặp hạn chế trên mạng Symmetric NAT.');
     }
 
     final configuration = <String, dynamic>{
@@ -280,8 +291,15 @@ class ChatV2WebRtcEngine {
     }
   }
 
+  /// Hủy nhanh cuộc gọi giữa chừng và giải phóng bộ nhớ đệm
+  void abort() {
+    _queuedRemoteCandidates.clear();
+    _hasRemoteDescription = false;
+  }
+
   /// Dọn dẹp tài nguyên cuộc gọi
   Future<void> dispose() async {
+    abort();
     try {
       _localStream?.getTracks().forEach((track) {
         track.stop();
