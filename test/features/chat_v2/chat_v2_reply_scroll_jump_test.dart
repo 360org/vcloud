@@ -219,9 +219,9 @@ void main() {
       expect(ChatV2Message.formatReplyPreviewBody('voice_recording.m4a'), '[Tin nhắn thoại]');
     });
 
-    test('11. formatReplyPreviewBody trả về ... khi nội dung null hoặc rỗng', () {
-      expect(ChatV2Message.formatReplyPreviewBody(null), '...');
-      expect(ChatV2Message.formatReplyPreviewBody('   '), '...');
+    test('11. formatReplyPreviewBody trả về chuỗi rỗng khi nội dung null hoặc rỗng (BUG-025)', () {
+      expect(ChatV2Message.formatReplyPreviewBody(null), '');
+      expect(ChatV2Message.formatReplyPreviewBody('   '), '');
     });
   });
 }

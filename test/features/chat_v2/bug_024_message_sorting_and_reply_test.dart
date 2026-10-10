@@ -185,10 +185,10 @@ void main() {
       expect(ChatV2Message.formatReplyPreviewBody('audio_clip.opus'), '[Tin nhắn thoại]');
     });
 
-    test('9. formatReplyPreviewBody giữ nguyên văn bản thông thường', () {
+    test('9. formatReplyPreviewBody giữ nguyên văn bản thông thường và khử rỗng (BUG-025)', () {
       expect(ChatV2Message.formatReplyPreviewBody('Chào buổi sáng mọi người!'), 'Chào buổi sáng mọi người!');
-      expect(ChatV2Message.formatReplyPreviewBody(null), '...');
-      expect(ChatV2Message.formatReplyPreviewBody('   '), '...');
+      expect(ChatV2Message.formatReplyPreviewBody(null), '');
+      expect(ChatV2Message.formatReplyPreviewBody('   '), '');
     });
 
     test('10. sendMessage KHÔNG chèn thẻ HTML <div data-reply-id=...> vào body', () async {
