@@ -2,7 +2,26 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
-## [v2.9.16+155] — 2026-10-09 (Tối Ưu Hiệu Năng Pha 2 & Khắc Phục Lệch Tác Giả Helpdesk Ticket Chatter)
+## [v2.9.16+155] — 2026-10-10 (Pha 3: Refactor UI Video Player & Tối Ưu State Riverpod Clean Architecture)
+
+> [!IMPORTANT]
+> **Bản Nâng Cấp Build 155 — Tái Cấu Trúc Toàn Diện Phân Hệ Video Player Chat V2**:
+> - **1. Tách Biệt Tầng State & Logic Điều Khiển (`video_player_provider.dart`)**:
+>   * Đóng gói toàn bộ nghiệp vụ (play, pause, seek, mute, loop, download fallback, auto-hide controls) vào `ChatV2VideoController` kế thừa `StateNotifier<ChatV2VideoPlayerState>`.
+>   * Cung cấp qua `chatV2VideoPlayerProvider.autoDispose.family` giúp giải phóng RAM 100% tự động khi thoát màn hình; hủy Timer, giải phóng `VideoPlayerController` và xóa file tạm.
+> - **2. Tối Ưu Tầng Hiển Thị UI (`chat_v2_video_player_screen.dart`)**:
+>   * Chuyển đổi màn hình thành cấu trúc `ConsumerWidget` chuyên biệt: `_VideoSurface`, `_VideoLoadingIndicator`, `_VideoErrorIndicator`, `_CenterPlayOverlay`, `_TopBar`, `_BottomControlsBar`.
+>   * Ứng dụng triệt để `ref.watch(provider.select(...))` lắng nghe theo từng tuple/thuộc tính riêng biệt, triệt tiêu hiện tượng Rebuild toàn màn hình mỗi 100ms khi phát video.
+> - **3. Nâng Cấp UX Người Dùng**:
+>   * Bổ sung thanh trượt Seekbar trực quan kèm bộ đếm thời gian thực `00:00 / 00:00`.
+>   * Bổ sung nút Bật/Tắt âm thanh (Mute/Unmute) trên Top Bar.
+>   * Bổ sung nút Xoay màn hình (Orientation Toggle) chuyển đổi tức thì ngang/dọc qua `SystemChrome.setPreferredOrientations`.
+>   * Nút tải/lưu video vào thư viện thiết bị (`saveVideo()`) với hiệu ứng loading xoay tròn.
+> - **4. Kiểm Thử & Kiểm Soát Chất Lượng**:
+>   * `flutter analyze`: Đạt **0 issues found** (0 errors, 0 warnings).
+>   * Pass 10/10 independent tests `test/features/chat_v2/chat_v2_video_player_riverpod_test.dart`.
+>   * Pass 16/16 tests `test/features/chat_v2/chat_v2_video_messaging_test.dart`.
+>   * Pass 355/355 toàn bộ test suite Chat V2 trong `test/features/chat_v2/`.
 
 > [!IMPORTANT]
 > **Bản Nâng Cấp Build 155 (`v2.9.16+155`) — Củng Cố Router Guard & Chuẩn Hóa Phân Hệ Helpdesk Ticket**:
