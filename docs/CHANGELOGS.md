@@ -2,7 +2,7 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
-## [v2.9.17+156] — 2026-10-10 (Bảo Mật WebRTC Call V2, Triệt Tiêu Quote Card Rác & Nâng Cấp SLA Ticket)
+## [v2.9.17+157] — 2026-10-10 (Triệt Tiêu Quote Card Rác Chat V2 & Nâng Cấp SLA Ticket)
 
 > [!IMPORTANT]
 > **Triệt Tiêu Hoàn Toàn Lỗi Quote Card Rác Trên Chat V2 & Nâng Cấp Hệ Thống Ticket SLA**:
