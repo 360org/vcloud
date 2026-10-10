@@ -1,7 +1,7 @@
 # 📋 DANH MỤC TÍNH NĂNG & TIÊU CHÍ NGHIỆM THU TOÀN DIỆN VCLOUD MOBILE APP (FEATURES CONTROL)
 
 > **Dự án**: VCloud Mobile App (`vclients` Flutter) kết nối Odoo Backend (`v_mobile_17` & `v_mobile_19`)  
-> **Phiên bản hiện tại**: `v2.9.16+156` (Bản dựng TestFlight iOS & AAB Android phát hành Google Play mới nhất)  
+> **Phiên bản hiện tại**: `v2.9.17+156` (Bản dựng TestFlight iOS & AAB Android phát hành Google Play mới nhất)  
 > 🟢 **Bản Phát Hành Mới (Build 156 — 2026-10-10)**: `[x] [L4 — VERIFIED: Bảo Mật WebRTC Call V2, Chuẩn Hóa Ephemeral HMAC TURN, UI Debounce & Refactor Video Player State Riverpod Clean Architecture (Pass 100% tests, 0 analyze issues)]`  
 > **Nguồn sự thật (Single Source of Truth)**: Tài liệu kiểm soát toàn bộ tính năng theo 6 nhóm nghiệp vụ chuẩn hóa, phục vụ trực tiếp cho anh Tân nghiệm thu thực tế và báo cáo tiến độ.  
 > 🟢 **Pha 3 Refactor UI Video Player & Clean Architecture Riverpod (2026-10-10)**: `[x] [L4 — VERIFIED: Tách biệt hoàn toàn tầng State sang ChatV2VideoController (StateNotifier<ChatV2VideoPlayerState>) qua chatV2VideoPlayerProvider.autoDispose.family, tối ưu Rebuild qua .select() cho 6 ConsumerWidgets, bổ sung Seekbar nhạy, bộ đếm thời gian 00:00/00:00, nút Mute/Unmute, nút Xoay ngang/dọc Orientation toggle, tự động dọn RAM/VideoPlayerController/tệp tạm khi thoát màn hình; 10/10 Riverpod tests PASS, 16/16 Video Messaging tests PASS, 355/355 Chat V2 suite PASS, 0 analyze issues]`  

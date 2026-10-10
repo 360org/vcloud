@@ -2,7 +2,7 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
-## [v2.9.16+156] — 2026-10-10 (Bảo Mật WebRTC Call V2 & Refactor Video Player Clean Architecture)
+## [v2.9.17+156] — 2026-10-10 (Bảo Mật WebRTC Call V2 & Refactor Video Player Clean Architecture)
 
 > [!IMPORTANT]
 > **Vá Lỗi Bảo Mật, Chuẩn Hóa WebRTC Call V2 & Refactor Video Player State Clean Architecture**:
