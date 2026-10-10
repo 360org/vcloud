@@ -204,5 +204,55 @@ void main() {
       );
       expect(doneByDate.isDone, isTrue);
     });
+
+    test('TicketRepository.create sends partner_id and date_deadline', () async {
+      final client = _MockOdooClient(
+        postResult: {'id': 120, 'res_model': 'helpdesk.ticket'},
+        getResult: {
+          'id': 120,
+          'name': 'Ticket Test SLA',
+          'description': 'Mô tả ticket',
+        },
+      );
+      final repo = TicketRepository(client: client);
+      final deadline = DateTime(2026, 10, 15, 17, 30);
+
+      final ticket = await repo.create(
+        title: 'Ticket Test SLA',
+        description: 'Mô tả ticket',
+        partnerId: 88,
+        dateDeadline: deadline,
+      );
+
+      expect(client.recordedCalls, contains('POST /api/v1/mobile/ticket/create'));
+      expect(client.recordedCalls, contains('GET /api/v1/mobile/ticket/120'));
+      final postBody = client.recordedBodies.single as Map<String, dynamic>;
+      expect(postBody['partner_id'], 88);
+      expect(postBody['date_deadline'], deadline.toIso8601String());
+      expect(ticket.id, '120');
+      expect(ticket.title, 'Ticket Test SLA');
+    });
+
+    test('TicketRepository.fetchTickets passes limit and offset when offset > 0', () async {
+      final client = _MockOdooClient(getResult: []);
+      final repo = TicketRepository(client: client);
+
+      await repo.fetchTickets(limit: 20, offset: 40);
+
+      expect(client.recordedCalls.single, 'GET /api/v1/mobile/ticket/list?offset=40&limit=20');
+    });
+
+    test('TicketRepository.partners queries contacts endpoint', () async {
+      final client = _MockOdooClient(getResult: [
+        {'id': 10, 'name': 'Công ty ABC', 'email': 'abc@example.com'},
+      ]);
+      final repo = TicketRepository(client: client);
+
+      final partners = await repo.partners(query: 'ABC');
+
+      expect(client.recordedCalls.single, 'GET /api/v1/mobile/contacts?q=ABC');
+      expect(partners.length, 1);
+      expect(partners.first['name'], 'Công ty ABC');
+    });
   });
 }

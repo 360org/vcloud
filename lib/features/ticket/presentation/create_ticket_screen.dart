@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
 import '../../../core/api/mobile_attachment_repository.dart';
@@ -12,6 +13,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../shared/models/ticket.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../../../shared/widgets/ui_kit.dart';
+import '../../auth/application/auth_controller.dart';
 import '../application/ticket_controller.dart';
 
 class CreateTicketScreen extends ConsumerStatefulWidget {
@@ -32,6 +34,8 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
   TicketPriority _priority = TicketPriority.p3;
   int? _selectedTagId;
   int? _teamId;
+  int? _selectedPartnerId;
+  DateTime? _selectedDeadline;
   bool _submitting = false;
 
   @override
@@ -59,6 +63,8 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
             category: selectedTeamId.toString(),
             tagIds: _selectedTagId == null ? const <int>[] : <int>[_selectedTagId!],
             attachments: _attachmentUploads(),
+            partnerId: _selectedPartnerId,
+            dateDeadline: _selectedDeadline,
           );
       if (mounted) {
         context.pop();
@@ -202,6 +208,9 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
   Widget build(BuildContext context) {
     final teams = ref.watch(ticketTeamsProvider);
     final tags = ref.watch(ticketTagsProvider);
+    final authUser = ref.watch(authControllerProvider).valueOrNull;
+    final isPortal = authUser?.isPortal == true;
+    final partners = ref.watch(ticketPartnersProvider);
 
     return Scaffold(
       backgroundColor: context.bgColor,
@@ -252,6 +261,44 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
                         setState(() => _priority = priority);
                       },
                     ),
+                    _TicketDeadlinePicker(
+                      selectedDate: _selectedDeadline,
+                      onChanged: (date) {
+                        setState(() => _selectedDeadline = date);
+                      },
+                    ),
+                    if (!isPortal)
+                      partners.when(
+                        data: (items) {
+                          final partnerList = [
+                            const {'id': null, 'name': 'Không chọn'},
+                            ...items,
+                          ];
+                          final selectedPartner = partnerList.firstWhere(
+                            (p) => p['id'] == _selectedPartnerId,
+                            orElse: () => partnerList.first,
+                          );
+                          return _TicketDropdown<Map<String, dynamic>>(
+                            label: 'Khách hàng đối tác',
+                            icon: LucideIcons.building,
+                            value: selectedPartner,
+                            items: partnerList,
+                            itemLabel: (item) => item['name']?.toString() ?? '',
+                            onChanged: (value) {
+                              setState(() => _selectedPartnerId = value?['id'] as int?);
+                            },
+                          );
+                        },
+                        loading: () => _TicketDropdown<Map<String, dynamic>>(
+                          label: 'Khách hàng đối tác',
+                          icon: LucideIcons.building,
+                          value: const {'id': null, 'name': 'Đang tải...'},
+                          items: const [{'id': null, 'name': 'Đang tải...'}],
+                          itemLabel: (item) => item['name'] as String,
+                          onChanged: (_) {},
+                        ),
+                        error: (_, _) => const SizedBox.shrink(),
+                      ),
                     tags.when(
                       data: (items) {
                         final tagList = [
@@ -1178,3 +1225,96 @@ const _attachmentSourceItems = <_AttachmentSourceItem>[
     color: AppColors.ticket,
   ),
 ];
+
+class _TicketDeadlinePicker extends StatelessWidget {
+  const _TicketDeadlinePicker({
+    required this.selectedDate,
+    required this.onChanged,
+  });
+
+  final DateTime? selectedDate;
+  final ValueChanged<DateTime?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final formattedDate = selectedDate != null
+        ? DateFormat('dd/MM/yyyy').format(selectedDate!)
+        : null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _FieldLabel('Hạn cam kết SLA'),
+        const SizedBox(height: 8),
+        InkWell(
+          onTap: () async {
+            final now = DateTime.now();
+            final picked = await showDatePicker(
+              context: context,
+              initialDate: selectedDate ?? now,
+              firstDate: now.subtract(const Duration(days: 365)),
+              lastDate: now.add(const Duration(days: 365 * 5)),
+              builder: (context, child) {
+                return Theme(
+                  data: Theme.of(context).copyWith(
+                    colorScheme: Theme.of(context).colorScheme.copyWith(
+                          primary: const Color(0xFF00C83A),
+                        ),
+                  ),
+                  child: child!,
+                );
+              },
+            );
+            if (picked != null) {
+              onChanged(picked);
+            }
+          },
+          borderRadius: BorderRadius.circular(17),
+          child: Container(
+            height: 58,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: _fieldDecoration(context),
+            child: Row(
+              children: [
+                Icon(
+                  LucideIcons.calendar,
+                  color: selectedDate != null
+                      ? const Color(0xFF00C83A)
+                      : context.textMuted,
+                  size: 20,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    formattedDate ?? 'Chọn hạn hoàn thành SLA (Tùy chọn)',
+                    style: TextStyle(
+                      color: formattedDate != null
+                          ? context.textColor
+                          : context.textMuted,
+                      fontSize: 15,
+                      fontWeight: formattedDate != null
+                          ? FontWeight.w600
+                          : FontWeight.w500,
+                    ),
+                  ),
+                ),
+                if (selectedDate != null)
+                  GestureDetector(
+                    onTap: () => onChanged(null),
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: Icon(
+                        LucideIcons.x,
+                        color: context.textMuted,
+                        size: 16,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}

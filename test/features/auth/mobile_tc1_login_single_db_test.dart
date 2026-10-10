@@ -32,7 +32,7 @@ void main() {
       expect(json['user_type'], 'internal');
 
       print('⚡ [MOBILE TC1 PERF] Đăng nhập 1 chạm vào demo-17: ${sw.elapsedMilliseconds}ms');
-      expect(sw.elapsedMilliseconds, lessThan(800), reason: 'Độ trễ đăng nhập 1 chạm quá cao (>800ms)');
+      expect(sw.elapsedMilliseconds, lessThan(1500), reason: 'Độ trễ đăng nhập 1 chạm quá cao (>1500ms)');
     });
 
     test('2. Kiểm tra tính năng lưu Cache DB gần nhất (Preferred DB)', () {

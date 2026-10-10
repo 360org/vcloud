@@ -18,14 +18,26 @@ class TicketFilterNotifier extends Notifier<TicketFilter> {
   @override
   TicketFilter build() => const TicketFilter();
 
-  void update(TicketFilter filter) => state = filter;
-  void clear() => state = const TicketFilter();
+  void update(TicketFilter filter) {
+    ref.read(ticketOverrideProvider.notifier).set(null);
+    ref.read(ticketHasMoreProvider.notifier).state = true;
+    state = filter;
+  }
+
+  void clear() {
+    ref.read(ticketOverrideProvider.notifier).set(null);
+    ref.read(ticketHasMoreProvider.notifier).state = true;
+    state = const TicketFilter();
+  }
 }
 
 final ticketFilterProvider =
     NotifierProvider<TicketFilterNotifier, TicketFilter>(
       TicketFilterNotifier.new,
     );
+
+final ticketHasMoreProvider = StateProvider<bool>((ref) => true);
+final ticketIsLoadingMoreProvider = StateProvider<bool>((ref) => false);
 
 final ticketsProvider = StreamProvider<List<Ticket>>((ref) {
   final filter = ref.watch(ticketFilterProvider);
@@ -79,6 +91,8 @@ class TicketActions {
     String? category,
     List<int> tagIds = const <int>[],
     List<MobileAttachmentUpload> attachments = const <MobileAttachmentUpload>[],
+    int? partnerId,
+    DateTime? dateDeadline,
   }) async {
     final t = await _repo.create(
       title: title,
@@ -87,9 +101,50 @@ class TicketActions {
       category: category,
       tagIds: tagIds,
       attachments: attachments,
+      partnerId: partnerId,
+      dateDeadline: dateDeadline,
     );
+    _ref.read(ticketOverrideProvider.notifier).set(null);
+    _ref.read(ticketHasMoreProvider.notifier).state = true;
     _ref.invalidate(ticketsProvider);
     return t;
+  }
+
+  /// Tải thêm trang vé tiếp theo (Infinite Scroll / Phân trang vô hạn).
+  Future<bool> loadMore() async {
+    final hasMore = _ref.read(ticketHasMoreProvider);
+    final isLoadingMore = _ref.read(ticketIsLoadingMoreProvider);
+    if (!hasMore || isLoadingMore) return false;
+
+    _ref.read(ticketIsLoadingMoreProvider.notifier).state = true;
+    try {
+      final cur = _ref.read(effectiveTicketsProvider);
+      final filter = _ref.read(ticketFilterProvider);
+      final fetched = await _repo.fetchTickets(
+        filter: filter,
+        limit: 20,
+        offset: cur.length,
+      );
+      if (fetched.isEmpty) {
+        _ref.read(ticketHasMoreProvider.notifier).state = false;
+        return false;
+      }
+      if (fetched.length < 20) {
+        _ref.read(ticketHasMoreProvider.notifier).state = false;
+      }
+      final existingIds = cur.map((t) => t.id).toSet();
+      final newUnique = fetched.where((t) => !existingIds.contains(t.id)).toList();
+      if (newUnique.isNotEmpty) {
+        final nextList = [...cur, ...newUnique];
+        TicketRepository.appendCachedTickets(newUnique);
+        _ref.read(ticketOverrideProvider.notifier).set(nextList);
+      }
+      return true;
+    } catch (_) {
+      return false;
+    } finally {
+      _ref.read(ticketIsLoadingMoreProvider.notifier).state = false;
+    }
   }
 
   /// Optimistic status update. We patch the override, fire the API,
@@ -220,6 +275,10 @@ final ticketAssigneesProvider = FutureProvider<List<Map<String, dynamic>>>(
   (ref) => ref.read(ticketRepositoryProvider).assignees(),
 );
 
+final ticketPartnersProvider = FutureProvider<List<Map<String, dynamic>>>(
+  (ref) => ref.read(ticketRepositoryProvider).partners(),
+);
+
 final ticketActivityTypesProvider = FutureProvider<List<Map<String, dynamic>>>(
   (ref) => ref.read(activityLogRepositoryProvider).activityTypes(),
 );
@@ -259,11 +318,15 @@ void resetTicketState({Ref? ref, ProviderContainer? container}) {
   if (ref != null) {
     ref.read(ticketFilterProvider.notifier).clear();
     ref.read(ticketOverrideProvider.notifier).set(null);
+    ref.read(ticketHasMoreProvider.notifier).state = true;
+    ref.read(ticketIsLoadingMoreProvider.notifier).state = false;
     ref.invalidate(ticketsProvider);
     ref.invalidate(effectiveTicketsProvider);
   } else if (container != null) {
     container.read(ticketFilterProvider.notifier).clear();
     container.read(ticketOverrideProvider.notifier).set(null);
+    container.read(ticketHasMoreProvider.notifier).state = true;
+    container.read(ticketIsLoadingMoreProvider.notifier).state = false;
     container.invalidate(ticketsProvider);
     container.invalidate(effectiveTicketsProvider);
   }

@@ -202,14 +202,11 @@ class ChatV2Repository {
       }
     }
 
-    // Tự động quét và nạp attachments / parent_id cho các tin nhắn gửi từ Web Odoo hoặc app
+    // Tự động quét và nạp attachments cho các tin nhắn gửi từ Web Odoo hoặc app thiếu đính kèm
     final targetRpcMsgIds = messages
-        .where((m) {
-          final isAttachmentCandidate = (m.content.isEmpty || m.isImageFilename || m.isDocumentFilename || m.hasImageAttachment) &&
-              !_resolvedAttachmentMsgIds.contains(m.id);
-          final isParentCandidate = m.parentId == null && !_resolvedParentMsgIds.contains(m.id);
-          return isAttachmentCandidate || isParentCandidate;
-        })
+        .where((m) =>
+            (m.content.isEmpty || m.isImageFilename || m.isDocumentFilename || m.hasImageAttachment) &&
+            !_resolvedAttachmentMsgIds.contains(m.id))
         .map((m) => int.tryParse(m.id))
         .whereType<int>()
         .toList();
@@ -248,20 +245,26 @@ class ChatV2Repository {
                 String? body;
                 if (pName.contains(': ')) {
                   final parts = pName.split(': ');
-                  author = parts[0].trim();
+                  final candidateAuthor = parts[0].trim();
+                  if (candidateAuthor != 'Tin nhắn' &&
+                      candidateAuthor != 'Tin nhắn mới' &&
+                      candidateAuthor != 'Message') {
+                    author = candidateAuthor;
+                  }
                   body = parts.sublist(1).join(': ').trim();
-                } else if (pName.trim().isNotEmpty) {
+                } else if (pName.trim().isNotEmpty && pName.trim() != 'Tin nhắn') {
                   body = pName.trim();
                 }
 
-                if (body != null && body.isNotEmpty) {
-                  ChatV2ReplyCache.set(mId, parentId: pId, parentAuthorName: author, parentBody: body);
+                final cleanBody = ChatV2Message.formatReplyPreviewBody(body);
+                if (cleanBody.isNotEmpty && cleanBody != '...') {
+                  ChatV2ReplyCache.set(mId, parentId: pId, parentAuthorName: author, parentBody: cleanBody);
                   final idx = messages.indexWhere((m) => m.id == mId);
                   if (idx != -1) {
                     messages[idx] = messages[idx].copyWith(
                       parentId: messages[idx].parentId ?? pId,
                       parentAuthorName: messages[idx].parentAuthorName ?? author,
-                      parentBody: messages[idx].parentBody ?? body,
+                      parentBody: messages[idx].parentBody ?? cleanBody,
                     );
                   }
                 }

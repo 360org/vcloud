@@ -353,7 +353,7 @@ class ChatV2Message {
   /// Định dạng nội dung tin nhắn trích dẫn (Reply Preview) thân thiện,
   /// không để lộ chuỗi tên file hệ thống dài dòng (BUG-024)
   static String formatReplyPreviewBody(String? rawBody) {
-    if (rawBody == null || rawBody.trim().isEmpty) return '...';
+    if (rawBody == null || rawBody.trim().isEmpty || rawBody.trim() == '...') return '';
     final clean = rawBody.trim();
     final lower = clean.toLowerCase();
 
@@ -681,9 +681,20 @@ class ChatV2Message {
       }
     }
 
-    final cleanParentBody = (extractedParentBody != null && extractedParentBody.isNotEmpty)
-        ? cleanHtml(extractedParentBody)
-        : null;
+    final formattedParentBody = formatReplyPreviewBody(
+      extractedParentBody != null && extractedParentBody.isNotEmpty
+          ? cleanHtml(extractedParentBody)
+          : null,
+    );
+    final hasValidParent = formattedParentBody.isNotEmpty && formattedParentBody != '...';
+    final cleanParentBody = hasValidParent ? formattedParentBody : null;
+    final cleanParentId = hasValidParent ? extractedParentId : null;
+    final isInvalidAuthor = extractedParentAuthor == null ||
+        extractedParentAuthor.trim().isEmpty ||
+        extractedParentAuthor.trim() == 'Tin nhắn' ||
+        extractedParentAuthor.trim() == 'Tin nhắn mới' ||
+        extractedParentAuthor.trim() == 'Message';
+    final cleanParentAuthor = (hasValidParent && !isInvalidAuthor) ? extractedParentAuthor!.trim() : null;
 
     final parsedReactions = <ChatV2Reaction>[];
     final rawReacts = map['reactions'];
@@ -736,9 +747,9 @@ class ChatV2Message {
       isMine: isMine,
       status: _stringOr(map['status'], 'sent'),
       attachments: parsedAttachments,
-      parentId: extractedParentId,
+      parentId: cleanParentId,
       parentBody: cleanParentBody,
-      parentAuthorName: extractedParentAuthor,
+      parentAuthorName: cleanParentAuthor,
       reactions: parsedReactions,
       partnerIds: parsedPartnerIds,
       pinnedAt: pinnedAt,

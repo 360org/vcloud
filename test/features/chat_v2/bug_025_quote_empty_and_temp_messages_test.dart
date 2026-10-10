@@ -261,5 +261,58 @@ void main() {
       expect(cached.first.id, '4001');
       expect(cached.any((m) => m.id == 'temp_cache_stale'), isFalse);
     });
+
+    testWidgets('11. [FIX TRỰC DIỆN] Không vẽ Quote Card rác khi Odoo trả về parentAuthor="Tin nhắn" và parentBody="..."', (tester) async {
+      const msg = ChatV2Message(
+        id: '9999',
+        channelId: '1',
+        content: 'hello',
+        parentId: '1234',
+        parentBody: '...',
+        parentAuthorName: 'Tin nhắn',
+      );
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: ChatV2MessageItem(
+              message: msg,
+              isGroup: true,
+            ),
+          ),
+        ),
+      );
+
+      // Quote Card hoàn toàn không được vẽ
+      expect(find.byIcon(LucideIcons.reply), findsNothing);
+      expect(find.text('Tin nhắn'), findsNothing);
+      expect(find.text('...'), findsNothing);
+      expect(find.text('hello'), findsOneWidget);
+    });
+
+    test('12. formatReplyPreviewBody loại bỏ triệt để chuỗi rác "..." và trả về chuỗi rỗng', () {
+      expect(ChatV2Message.formatReplyPreviewBody('...'), equals(''));
+      expect(ChatV2Message.formatReplyPreviewBody(' ... '), equals(''));
+      expect(ChatV2Message.formatReplyPreviewBody(null), equals(''));
+      expect(ChatV2Message.formatReplyPreviewBody(''), equals(''));
+      expect(ChatV2Message.formatReplyPreviewBody('   '), equals(''));
+      expect(ChatV2Message.formatReplyPreviewBody('Tin nhắn hợp lệ'), equals('Tin nhắn hợp lệ'));
+    });
+
+    test('13. ChatV2Message.fromMap lọc sạch metadata parent rác từ Odoo', () {
+      final msg = ChatV2Message.fromMap({
+        'id': '8888',
+        'channel_id': '1',
+        'body': 'hello world',
+        'parent_id': '123',
+        'parent_body': '...',
+        'parent_author_name': 'Tin nhắn',
+      });
+
+      expect(msg.parentId, isNull);
+      expect(msg.parentBody, isNull);
+      expect(msg.parentAuthorName, isNull);
+      expect(msg.content, equals('hello world'));
+    });
   });
 }

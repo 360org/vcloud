@@ -30,6 +30,15 @@ class TicketRepository {
     _descriptionCache.clear();
   }
 
+  /// Nối tiếp vé mới vào bộ nhớ đệm RAM (Infinite Scroll).
+  static void appendCachedTickets(List<Ticket> newTickets) {
+    final existingIds = _cachedTickets.map((t) => t.id).toSet();
+    final toAdd = newTickets.where((t) => !existingIds.contains(t.id)).toList();
+    if (toAdd.isNotEmpty) {
+      _cachedTickets = [..._cachedTickets, ...toAdd];
+    }
+  }
+
   @visibleForTesting
   static List<Ticket> get cachedTicketsForTesting => _cachedTickets;
 
@@ -41,6 +50,59 @@ class TicketRepository {
   final OdooApiClient _client;
   final MobileAttachmentRepository _attachmentRepository;
 
+  Future<List<Ticket>> fetchTickets({
+    TicketFilter? filter,
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    final queryParams = <String, String>{};
+    final f = filter;
+    if (f != null) {
+      if (f.priority != null) {
+        queryParams['priority'] = _priorityToOdoo(f.priority!);
+      }
+      if (f.teamId != null) {
+        queryParams['team_id'] = f.teamId.toString();
+      }
+      if (f.search != null && f.search!.trim().isNotEmpty) {
+        queryParams['search'] = f.search!.trim();
+      }
+      if (f.limit != null && f.limit! > 0) {
+        queryParams['limit'] = f.limit!.toString();
+      } else if (offset > 0) {
+        queryParams['limit'] = limit.toString();
+      }
+      if (f.offset != null && f.offset! > 0) {
+        queryParams['offset'] = f.offset!.toString();
+      } else if (offset > 0) {
+        queryParams['offset'] = offset.toString();
+      }
+    } else if (offset > 0) {
+      queryParams['offset'] = offset.toString();
+      queryParams['limit'] = limit.toString();
+    }
+
+    final queryString = queryParams.isNotEmpty
+        ? '?${Uri(queryParameters: queryParams).query}'
+        : '';
+
+    final res = await _client.get('$_ticketBasePath/list$queryString');
+    final rawList = (res as List).cast<Map<String, dynamic>>();
+
+    for (final map in rawList) {
+      final id = map['id'].toString();
+      final desc = _cleanOptionalText(map['description']);
+      if (desc != null && desc.isNotEmpty) {
+        _descriptionCache[id] = desc;
+      }
+    }
+
+    return rawList
+        .map(_ticketFromOdoo)
+        .map(Ticket.fromMap)
+        .toList();
+  }
+
   Stream<List<Ticket>> watchAssigned({TicketFilter? filter}) {
     final ctl = StreamController<List<Ticket>>.broadcast();
 
@@ -51,44 +113,11 @@ class TicketRepository {
       }
 
       try {
-        final queryParams = <String, String>{};
-        final f = filter;
-        if (f != null) {
-          if (f.priority != null) {
-            queryParams['priority'] = _priorityToOdoo(f.priority!);
-          }
-          if (f.teamId != null) {
-            queryParams['team_id'] = f.teamId.toString();
-          }
-          if (f.search != null && f.search!.trim().isNotEmpty) {
-            queryParams['search'] = f.search!.trim();
-          }
-          if (f.limit != null && f.limit! > 0) {
-            queryParams['limit'] = f.limit!.toString();
-          }
-          if (f.offset != null && f.offset! > 0) {
-            queryParams['offset'] = f.offset!.toString();
-          }
-        }
-        final queryString = queryParams.isNotEmpty
-            ? '?${Uri(queryParameters: queryParams).query}'
-            : '';
-
-        final res = await _client.get('$_ticketBasePath/list$queryString');
-        final rawList = (res as List).cast<Map<String, dynamic>>();
-
-        for (final map in rawList) {
-          final id = map['id'].toString();
-          final desc = _cleanOptionalText(map['description']);
-          if (desc != null && desc.isNotEmpty) {
-            _descriptionCache[id] = desc;
-          }
-        }
-
-        final list = rawList
-            .map(_ticketFromOdoo)
-            .map(Ticket.fromMap)
-            .toList();
+        final list = await fetchTickets(
+          filter: filter,
+          limit: filter?.limit ?? 20,
+          offset: filter?.offset ?? 0,
+        );
         _cachedTickets = list;
         if (!ctl.isClosed) ctl.add(list);
       } catch (e) {
@@ -137,6 +166,8 @@ class TicketRepository {
     String? category,
     List<int> tagIds = const <int>[],
     List<MobileAttachmentUpload> attachments = const <MobileAttachmentUpload>[],
+    int? partnerId,
+    DateTime? dateDeadline,
   }) async {
     final teamId = int.tryParse(category ?? '') ?? 1;
     final res = await _client.post(
@@ -148,6 +179,8 @@ class TicketRepository {
           'description': description,
         'priority': _priorityToOdoo(priority),
         if (tagIds.isNotEmpty) 'tag_ids': tagIds,
+        'partner_id': ?partnerId,
+        'date_deadline': ?dateDeadline?.toIso8601String(),
       },
     );
     final ticketId = (res['id'] as num).toInt();
@@ -245,6 +278,25 @@ class TicketRepository {
       final res = await _client.get('$_ticketBasePath/assignees');
       if (res is List) {
         return res.cast<Map<String, dynamic>>();
+      }
+      return const <Map<String, dynamic>>[];
+    } catch (_) {
+      return const <Map<String, dynamic>>[];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> partners({String? query}) async {
+    try {
+      final q = query != null && query.trim().isNotEmpty
+          ? '?q=${Uri.encodeComponent(query.trim())}'
+          : '';
+      final res = await _client.get('/api/v1/mobile/contacts$q');
+      if (res is List) {
+        return res
+            .whereType<Map>()
+            .map((item) => Map<String, dynamic>.from(item))
+            .where((p) => (p['name']?.toString().trim().isNotEmpty ?? false))
+            .toList();
       }
       return const <Map<String, dynamic>>[];
     } catch (_) {

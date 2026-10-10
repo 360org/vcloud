@@ -610,12 +610,14 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
     if (text.trim().isEmpty) return;
 
     final replying = _replyingTo;
-    final replyingId = replying?.id;
-    final replyingAuthor = replying?.authorName;
     final replyingRawBody = replying?.content.isNotEmpty == true
         ? replying!.content
         : (replying?.attachments.isNotEmpty == true ? replying!.attachments.first.name : null);
     final replyingBody = ChatV2Message.formatReplyPreviewBody(replyingRawBody);
+    final hasValidReply = replying != null && replyingBody.isNotEmpty && replyingBody != '...';
+    final replyingId = hasValidReply ? replying.id : null;
+    final replyingAuthor = hasValidReply ? replying.authorName : null;
+    final replyBodyToSend = hasValidReply ? replyingBody : null;
 
     final editing = _editingMsg;
     setState(() {
@@ -639,7 +641,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                 partnerIds: partnerIds,
                 mentionedPartners: mentionedPartners,
                 parentId: replyingId,
-                parentBody: replyingBody,
+                parentBody: replyBodyToSend,
                 parentAuthorName: replyingAuthor,
               )
               .catchError((e, st) {

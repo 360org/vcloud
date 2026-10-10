@@ -441,8 +441,7 @@ class ChatV2MessageItem extends StatelessWidget {
                                             const SizedBox(height: 3),
                                           ],
                                   // 0. Render Reply Quote Card if this message is a reply
-                                  if (message.parentBody != null &&
-                                      message.parentBody!.trim().isNotEmpty)
+                                  if (ChatV2Message.formatReplyPreviewBody(message.parentBody).isNotEmpty)
                                     _buildReplyQuoteCard(
                                       context,
                                       isMine,
@@ -1191,11 +1190,19 @@ class ChatV2MessageItem extends StatelessWidget {
   }
 
   Widget _buildReplyQuoteCard(BuildContext context, bool isMine, bool isDark) {
-    final hasAuthor = message.parentAuthorName != null &&
-        message.parentAuthorName!.trim().isNotEmpty;
-    final author = hasAuthor ? message.parentAuthorName!.trim() : '';
+    final rawAuthor = message.parentAuthorName?.trim() ?? '';
+    final isInvalidAuthor = rawAuthor.isEmpty ||
+        rawAuthor == 'Tin nhắn' ||
+        rawAuthor == 'Tin nhắn mới' ||
+        rawAuthor == 'Message';
+    final hasAuthor = !isInvalidAuthor;
+    final author = hasAuthor ? rawAuthor : '';
     final rawBody = message.parentBody?.trim() ?? '';
     final body = ChatV2Message.formatReplyPreviewBody(rawBody);
+
+    if (body.isEmpty || body == '...') {
+      return const SizedBox.shrink();
+    }
 
     final barColor = isMine
         ? (isDark ? const Color(0xFF00C83A) : const Color(0xFF00A82D))

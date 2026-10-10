@@ -2,7 +2,20 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
-## [v2.9.17+156] — 2026-10-10 (Bảo Mật WebRTC Call V2 & Refactor Video Player Clean Architecture)
+## [v2.9.17+156] — 2026-10-10 (Bảo Mật WebRTC Call V2, Triệt Tiêu Quote Card Rác & Nâng Cấp SLA Ticket)
+
+> [!IMPORTANT]
+> **Triệt Tiêu Hoàn Toàn Lỗi Quote Card Rác Trên Chat V2 & Nâng Cấp Hệ Thống Ticket SLA**:
+> - **1. Triệt Tiêu Khung Trích Dẫn Rác `↩ Tin nhắn: ...` (`chat_v2_message.dart` & `chat_v2_message_item.dart`)**:
+>   * Chuẩn hóa `formatReplyPreviewBody` loại bỏ hoàn toàn các chuỗi rác placeholder `'...'` và khoảng trắng thừa.
+>   * Khi `parentBody` rỗng hoặc `'...'`, `_buildReplyQuoteCard` trả về `SizedBox.shrink()` triệt tiêu card hiển thị.
+>   * Khử lọc các tác giả placeholder mặc định từ Odoo (`'Tin nhắn'`, `'Tin nhắn mới'`, `'Message'`).
+>   * Loại bỏ `isParentCandidate` khỏi batch RPC nạp ngầm trong `ChatV2Repository`, tránh nạp nhầm root message quan hệ thread Odoo.
+> - **2. Nâng Cấp Hệ Thống Ticket Phân Trang & Cam Kết SLA (`ticket_controller.dart`, `create_ticket_screen.dart`, `ticket_list_screen.dart`)**:
+>   * Bổ sung chọn đối tác khách hàng (`partner_id`) và hạn cam kết SLA (`date_deadline`) khi tạo Ticket mới.
+>   * Bổ sung phân trang vô hạn (Infinite Scroll `loadMore()`) và Debounce 380ms tìm kiếm thời gian thực trên danh sách vé.
+> - **3. Kiểm Soát Chất Lượng & Phân Tích Mã Nguồn**:
+>   * Bổ sung 3 unit tests độc lập (test 11, 12, 13) trong `bug_025_quote_empty_and_temp_messages_test.dart` pass 100%.
 
 > [!IMPORTANT]
 > **Vá Lỗi Bảo Mật, Chuẩn Hóa WebRTC Call V2 & Refactor Video Player State Clean Architecture**:

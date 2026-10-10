@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -32,6 +34,62 @@ class _TicketListScreenState extends ConsumerState<TicketListScreen>
 
   int _tab = 0;
   String _query = '';
+  Timer? _debounceTimer;
+  final TextEditingController _searchController = TextEditingController();
+  late final ScrollController _doingScrollController;
+  late final ScrollController _doneScrollController;
+
+  @override
+  void initState() {
+    super.initState();
+    _doingScrollController = ScrollController()..addListener(() => _checkScroll(_doingScrollController));
+    _doneScrollController = ScrollController()..addListener(() => _checkScroll(_doneScrollController));
+  }
+
+  void _checkScroll(ScrollController controller) {
+    if (!controller.hasClients) return;
+    final maxScroll = controller.position.maxScrollExtent;
+    final currentScroll = controller.offset;
+    if (currentScroll >= maxScroll - 200) {
+      ref.read(ticketActionsProvider).loadMore();
+    }
+  }
+
+  void _onSearchChanged(String value) {
+    setState(() => _query = value);
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 380), () {
+      final currentFilter = ref.read(ticketFilterProvider);
+      final trimmed = value.trim();
+      final newSearch = trimmed.isEmpty ? null : trimmed;
+      if (currentFilter.search != newSearch) {
+        ref.read(ticketFilterProvider.notifier).update(
+          currentFilter.copyWith(search: newSearch),
+        );
+      }
+    });
+  }
+
+  void _onSearchClear() {
+    setState(() => _query = '');
+    _searchController.clear();
+    _debounceTimer?.cancel();
+    final currentFilter = ref.read(ticketFilterProvider);
+    if (currentFilter.search != null) {
+      ref.read(ticketFilterProvider.notifier).update(
+        currentFilter.copyWith(search: null),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _debounceTimer?.cancel();
+    _searchController.dispose();
+    _doingScrollController.dispose();
+    _doneScrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -75,17 +133,22 @@ class _TicketListScreenState extends ConsumerState<TicketListScreen>
             loading: () => const LoadingView(),
             error: (e, _) => ErrorView(
               error: e,
-              onRetry: () => ref.invalidate(ticketsProvider),
+              onRetry: () {
+                ref.read(ticketOverrideProvider.notifier).set(null);
+                ref.read(ticketHasMoreProvider.notifier).state = true;
+                ref.invalidate(ticketsProvider);
+              },
             ),
             data: (_) => Column(
               children: [
                 const _TicketHeader(),
                 const SizedBox(height: 8),
                 _TicketSearchBar(
+                  controller: _searchController,
                   query: _query,
                   isFilterActive: !filter.isEmpty,
-                  onChanged: (value) => setState(() => _query = value),
-                  onClear: () => setState(() => _query = ''),
+                  onChanged: _onSearchChanged,
+                  onClear: _onSearchClear,
                   onOpenFilter: () {
                     showModalBottomSheet<void>(
                       context: context,
@@ -113,11 +176,13 @@ class _TicketListScreenState extends ConsumerState<TicketListScreen>
                             key: const ValueKey('doing'),
                             tickets: doing,
                             done: false,
+                            scrollController: _doingScrollController,
                           )
                         : _TicketList(
                             key: const ValueKey('done'),
                             tickets: done,
                             done: true,
+                            scrollController: _doneScrollController,
                           ),
                   ),
                 ),
@@ -201,6 +266,7 @@ class _TicketHeader extends StatelessWidget {
 
 class _TicketSearchBar extends StatelessWidget {
   const _TicketSearchBar({
+    this.controller,
     required this.query,
     required this.isFilterActive,
     required this.onChanged,
@@ -208,6 +274,7 @@ class _TicketSearchBar extends StatelessWidget {
     required this.onOpenFilter,
   });
 
+  final TextEditingController? controller;
   final String query;
   final bool isFilterActive;
   final ValueChanged<String> onChanged;
@@ -233,6 +300,7 @@ class _TicketSearchBar extends StatelessWidget {
                     : null,
               ),
               child: TextField(
+                controller: controller,
                 onChanged: onChanged,
                 style: TextStyle(
                   color: isDark ? Colors.white : const Color(0xFF0F172A),
@@ -428,17 +496,30 @@ class _TicketTabButton extends StatelessWidget {
 }
 
 class _TicketList extends ConsumerWidget {
-  const _TicketList({super.key, required this.tickets, required this.done});
+  const _TicketList({
+    super.key,
+    required this.tickets,
+    required this.done,
+    required this.scrollController,
+  });
 
   final List<Ticket> tickets;
   final bool done;
+  final ScrollController scrollController;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final isLoadingMore = ref.watch(ticketIsLoadingMoreProvider);
+
     if (tickets.isEmpty) {
       return RefreshIndicator(
-        onRefresh: () async => ref.invalidate(ticketsProvider),
+        onRefresh: () async {
+          ref.read(ticketOverrideProvider.notifier).set(null);
+          ref.read(ticketHasMoreProvider.notifier).state = true;
+          ref.invalidate(ticketsProvider);
+        },
         child: ListView(
+          controller: scrollController,
           physics: const AlwaysScrollableScrollPhysics(),
           children: [
             SizedBox(height: MediaQuery.of(context).size.height * 0.15),
@@ -462,13 +543,33 @@ class _TicketList extends ConsumerWidget {
     }
 
     return RefreshIndicator(
-      onRefresh: () async => ref.invalidate(ticketsProvider),
+      onRefresh: () async {
+        ref.read(ticketOverrideProvider.notifier).set(null);
+        ref.read(ticketHasMoreProvider.notifier).state = true;
+        ref.invalidate(ticketsProvider);
+      },
       child: ListView.separated(
+        controller: scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 112),
-        itemCount: tickets.length,
+        itemCount: tickets.length + (isLoadingMore ? 1 : 0),
         separatorBuilder: (_, _) => const SizedBox(height: 10),
         itemBuilder: (context, index) {
+          if (index >= tickets.length) {
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: 14),
+              child: Center(
+                child: SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00C83A)),
+                  ),
+                ),
+              ),
+            );
+          }
           final ticket = tickets[index];
           return done
               ? _TicketCard(ticket: ticket, done: true)
