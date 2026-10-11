@@ -61,35 +61,38 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
         debugPrint('Get initial message error: $e');
       });
 
+      Future<void> handleAcceptFromCallKit(Map<String, dynamic> extra) async {
+        final channelId = int.tryParse(extra['channel_id']?.toString() ?? '0') ?? 0;
+        final callerId = int.tryParse(extra['caller_id']?.toString() ?? '0') ?? 0;
+        final callerName = extra['caller_name']?.toString() ?? 'Đồng nghiệp';
+        final callId = int.tryParse(extra['call_id']?.toString() ?? '0') ?? 0;
+        if (channelId > 0) {
+          final incomingSession = ChatV2CallSession(
+            id: callId,
+            channelId: channelId,
+            callerId: callerId,
+            callerName: callerName,
+            receiverId: 0,
+            receiverName: 'Tôi',
+            state: ChatV2CallState.incomingRinging,
+            isCaller: false,
+          );
+          ref.read(chatV2CallControllerProvider.notifier).setIncomingCall(incomingSession);
+          await ref.read(chatV2CallControllerProvider.notifier).acceptCall();
+
+          final nav = ref.read(routerProvider).routerDelegate.navigatorKey.currentState;
+          nav?.push(
+            MaterialPageRoute(
+              fullscreenDialog: true,
+              builder: (_) => const ChatV2CallScreen(),
+            ),
+          );
+        }
+      }
+
       // Khởi tạo ChatV2CallKitService và bắt các action từ màn hình khóa / CallKit
       ChatV2CallKitService.instance.initialize(
-        onAccept: (extra) async {
-          final channelId = int.tryParse(extra['channel_id']?.toString() ?? '0') ?? 0;
-          final callerId = int.tryParse(extra['caller_id']?.toString() ?? '0') ?? 0;
-          final callerName = extra['caller_name']?.toString() ?? 'Đồng nghiệp';
-          if (channelId > 0) {
-            final incomingSession = ChatV2CallSession(
-              id: 0,
-              channelId: channelId,
-              callerId: callerId,
-              callerName: callerName,
-              receiverId: 0,
-              receiverName: 'Tôi',
-              state: ChatV2CallState.incomingRinging,
-              isCaller: false,
-            );
-            ref.read(chatV2CallControllerProvider.notifier).setIncomingCall(incomingSession);
-            await ref.read(chatV2CallControllerProvider.notifier).acceptCall();
-
-            final nav = ref.read(routerProvider).routerDelegate.navigatorKey.currentState;
-            nav?.push(
-              MaterialPageRoute(
-                fullscreenDialog: true,
-                builder: (_) => const ChatV2CallScreen(),
-              ),
-            );
-          }
-        },
+        onAccept: handleAcceptFromCallKit,
         onDecline: (extra) async {
           await ref.read(chatV2CallControllerProvider.notifier).rejectCall();
         },
@@ -99,6 +102,11 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
         onTimeout: (extra) async {
           ref.read(chatV2CallControllerProvider.notifier).reset();
         },
+      );
+
+      // Xử lý cuộc gọi đã được bấm Accept trước đó khi app mở từ CallKit (Cold-start)
+      ChatV2CallKitService.instance.checkAndHandleAcceptedCallOnStartup(
+        onAccept: handleAcceptFromCallKit,
       );
     } catch (e) {
       debugPrint('Push notification listener setup failed: $e');

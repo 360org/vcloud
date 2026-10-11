@@ -135,6 +135,8 @@ class FakeOdooBusService extends OdooBusService {
   final _peerController = StreamController<Map<String, dynamic>>.broadcast();
   final _endedController = StreamController<Map<String, dynamic>>.broadcast();
   final _incomingController = StreamController<Map<String, dynamic>>.broadcast();
+  final _acceptedController = StreamController<Map<String, dynamic>>.broadcast();
+  final _peerJoinedController = StreamController<Map<String, dynamic>>.broadcast();
 
   @override
   Stream<Map<String, dynamic>> get onPeerNotification => _peerController.stream;
@@ -144,6 +146,12 @@ class FakeOdooBusService extends OdooBusService {
 
   @override
   Stream<Map<String, dynamic>> get onIncomingCall => _incomingController.stream;
+
+  @override
+  Stream<Map<String, dynamic>> get onCallAccepted => _acceptedController.stream;
+
+  @override
+  Stream<Map<String, dynamic>> get onPeerJoined => _peerJoinedController.stream;
 
   void emitPeerNotification(Map<String, dynamic> data) {
     _peerController.add(data);
@@ -162,17 +170,31 @@ class FakeOdooBusService extends OdooBusService {
     _incomingController.add(data);
   }
 
+  void emitCallAccepted(Map<String, dynamic> data) {
+    _acceptedController.add(data);
+  }
+
+  void emitPeerJoined(Map<String, dynamic> data) {
+    _peerJoinedController.add(data);
+  }
+
   @override
   void dispose() {
     _peerController.close();
     _endedController.close();
     _incomingController.close();
+    _acceptedController.close();
+    _peerJoinedController.close();
     super.dispose();
   }
 }
 
 class FakeWebRtcEngine extends ChatV2WebRtcEngine {
   FakeWebRtcEngine({required super.repo});
+
+  List<int>? lastUpdatedTargetSessionIds;
+  bool createAndSendOfferCalled = false;
+  Map<String, dynamic>? lastHandledAnswer;
 
   @override
   Future<void> initialize({
@@ -182,13 +204,22 @@ class FakeWebRtcEngine extends ChatV2WebRtcEngine {
   }) async {}
 
   @override
-  Future<void> createAndSendOffer() async {}
+  void updateTargetSessionIds(List<int> targetIds) {
+    lastUpdatedTargetSessionIds = List<int>.from(targetIds);
+  }
+
+  @override
+  Future<void> createAndSendOffer() async {
+    createAndSendOfferCalled = true;
+  }
 
   @override
   Future<void> handleOfferAndSendAnswer(Map<String, dynamic> sdpMap) async {}
 
   @override
-  Future<void> handleAnswer(Map<String, dynamic> sdpMap) async {}
+  Future<void> handleAnswer(Map<String, dynamic> sdpMap) async {
+    lastHandledAnswer = sdpMap;
+  }
 
   @override
   Future<void> handleRemoteCandidate(Map<String, dynamic> candidateMap) async {}
@@ -218,7 +249,35 @@ void main() {
   );
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
     const MethodChannel('FlutterWebRTC.Method'),
-    (MethodCall methodCall) async => {},
+    (MethodCall methodCall) async {
+      if (methodCall.method == 'createPeerConnection') {
+        return {'peerConnectionId': 'pc-test-101'};
+      }
+      if (methodCall.method == 'getUserMedia') {
+        return {
+          'streamId': 'stream-test-101',
+          'audioTracks': [
+            {'id': 'track-audio-1', 'label': 'mic', 'kind': 'audio', 'enabled': true}
+          ],
+          'videoTracks': [],
+        };
+      }
+      if (methodCall.method == 'addTrack') {
+        return {
+          'senderId': 'sender-1',
+          'track': <String, dynamic>{},
+          'rtpParameters': {
+            'transactionId': '',
+            'encodings': [],
+            'headerExtensions': [],
+            'codecs': [],
+            'rtcp': {'cname': '', 'reducedSize': false},
+          },
+          'ownsTrack': false,
+        };
+      }
+      return {};
+    },
   );
 
   group('ChatV2CallSession Model Tests', () {
@@ -777,6 +836,335 @@ void main() {
       expect(ctl.state?.state, ChatV2CallState.connected);
 
       ctl.dispose();
+      fakeBus.dispose();
+    });
+
+    test('TC-38: OdooBusService parses vmobile.call/accepted and emits onCallAccepted', () async {
+      final busService = OdooBusService();
+      Map<String, dynamic>? acceptedData;
+      final sub = busService.onCallAccepted.listen((data) => acceptedData = data);
+
+      busService.processBusNotificationForTesting({
+        'type': 'vmobile.call/accepted',
+        'payload': {
+          'channel_id': 123,
+          'sessionId': 456,
+          'sdp_answer': {'type': 'answer', 'sdp': 'v=0...'},
+        },
+      });
+
+      await Future.delayed(Duration.zero);
+      expect(acceptedData, isNotNull);
+      expect(acceptedData?['channel_id'], 123);
+      expect(acceptedData?['sessionId'], 456);
+      expect(acceptedData?['sdp_answer']?['type'], 'answer');
+      await sub.cancel();
+      busService.dispose();
+    });
+
+    test('TC-39: OdooBusService rtc_sessions_update ADD emits onPeerJoined with sessionId', () async {
+      final busService = OdooBusService();
+      Map<String, dynamic>? joinedData;
+      final sub = busService.onPeerJoined.listen((data) => joinedData = data);
+
+      busService.processBusNotificationForTesting({
+        'type': 'discuss.channel/rtc_sessions_update',
+        'payload': {
+          'id': 77,
+          'rtcSessions': [
+            [
+              'ADD',
+              [
+                {'id': 888, 'channel_id': 77}
+              ]
+            ]
+          ],
+        },
+      });
+
+      await Future.delayed(Duration.zero);
+      expect(joinedData, isNotNull);
+      expect(joinedData?['channel_id'], 77);
+      expect(joinedData?['sessionId'], 888);
+      await sub.cancel();
+      busService.dispose();
+    });
+
+    test('TC-40: OdooBusService mail.record/insert with discuss.channel.rtc.session emits onPeerJoined', () async {
+      final busService = OdooBusService();
+      Map<String, dynamic>? joinedData;
+      final sub = busService.onPeerJoined.listen((data) => joinedData = data);
+
+      busService.processBusNotificationForTesting({
+        'type': 'mail.record/insert',
+        'payload': {
+          'discuss.channel.rtc.session': [
+            {'id': 999, 'channel_id': 55, 'partner_id': 100}
+          ]
+        },
+      });
+
+      await Future.delayed(Duration.zero);
+      expect(joinedData, isNotNull);
+      expect(joinedData?['channel_id'], 55);
+      expect(joinedData?['sessionId'], 999);
+      await sub.cancel();
+      busService.dispose();
+    });
+
+    test('TC-41: Caller onPeerJoined updates target session IDs and triggers createAndSendOffer', () async {
+      final fakeClient = FakeCallApiClient();
+      final testRepo = ChatV2CallRepository(client: fakeClient);
+      final fakeBus = FakeOdooBusService();
+      final fakeEngine = FakeWebRtcEngine(repo: testRepo);
+      final ctl = ChatV2CallController(repo: testRepo, bus: fakeBus, webrtcEngine: fakeEngine);
+
+      ctl.state = const ChatV2CallSession(
+        id: 101,
+        channelId: 4255,
+        callerId: 2,
+        callerName: 'Marc Demo',
+        receiverId: 5,
+        receiverName: 'Bùi Tuấn Kiệt',
+        state: ChatV2CallState.outgoingRinging,
+        isCaller: true,
+      );
+
+      fakeBus.emitPeerJoined({
+        'channel_id': 4255,
+        'sessionId': 505,
+      });
+
+      await Future.delayed(Duration.zero);
+      expect(fakeEngine.lastUpdatedTargetSessionIds, [505]);
+      expect(fakeEngine.createAndSendOfferCalled, true);
+      expect(ctl.state?.state, ChatV2CallState.connecting);
+
+      ctl.dispose();
+      fakeBus.dispose();
+    });
+
+    test('TC-42: Caller onCallAccepted transitions smoothly to connected, handles sdp_answer, and starts duration timer', () async {
+      final fakeClient = FakeCallApiClient();
+      final testRepo = ChatV2CallRepository(client: fakeClient);
+      final fakeBus = FakeOdooBusService();
+      final fakeEngine = FakeWebRtcEngine(repo: testRepo);
+      final ctl = ChatV2CallController(repo: testRepo, bus: fakeBus, webrtcEngine: fakeEngine);
+
+      ctl.state = const ChatV2CallSession(
+        id: 101,
+        channelId: 4255,
+        callerId: 2,
+        callerName: 'Marc Demo',
+        receiverId: 5,
+        receiverName: 'Bùi Tuấn Kiệt',
+        state: ChatV2CallState.connecting,
+        isCaller: true,
+      );
+
+      fakeBus.emitCallAccepted({
+        'channel_id': 4255,
+        'sessionId': 505,
+        'sdp_answer': {'type': 'answer', 'sdp': 'v=0 answer sdp'},
+      });
+
+      await Future.delayed(Duration.zero);
+      expect(fakeEngine.lastHandledAnswer?['sdp'], 'v=0 answer sdp');
+      expect(ctl.state?.state, ChatV2CallState.connected);
+      expect(ctl.state?.connectedAt, isNotNull);
+
+      ctl.dispose();
+      fakeBus.dispose();
+    });
+
+    test('TC-HANDSHAKE-01: Bên A gọi -> Bên B bấm Accept -> Verify bên A nhận event vmobile.call/accepted từ Odoo Bus -> bên A xử lý SDP answer -> State bên A chuyển thành ChatV2CallState.connected', () async {
+      final callerClient = FakeCallApiClient();
+      final callerRepo = ChatV2CallRepository(client: callerClient);
+      final callerBus = OdooBusService();
+      final callerEngine = FakeWebRtcEngine(repo: callerRepo);
+      final callerCtl = ChatV2CallController(repo: callerRepo, bus: callerBus, webrtcEngine: callerEngine);
+
+      final calleeClient = FakeCallApiClient();
+      final calleeRepo = ChatV2CallRepository(client: calleeClient);
+      final calleeBus = OdooBusService();
+      final calleeEngine = FakeWebRtcEngine(repo: calleeRepo);
+      final calleeCtl = ChatV2CallController(repo: calleeRepo, bus: calleeBus, webrtcEngine: calleeEngine);
+
+      // 1. Bên A gọi đi
+      final callStarted = await callerCtl.startCall(
+        channelId: 4255,
+        callerName: 'Marc Demo (Bên A)',
+        receiverId: 5,
+        receiverName: 'Bùi Tuấn Kiệt (Bên B)',
+      );
+      expect(callStarted, isTrue);
+      expect(callerCtl.state?.state, ChatV2CallState.outgoingRinging);
+      expect(callerCtl.state?.isCaller, isTrue);
+
+      // 2. Bên B nhận cuộc gọi đến và bấm Accept
+      const incomingToB = ChatV2CallSession(
+        id: 101,
+        channelId: 4255,
+        callerId: 2,
+        callerName: 'Marc Demo (Bên A)',
+        receiverId: 5,
+        receiverName: 'Bùi Tuấn Kiệt (Bên B)',
+        state: ChatV2CallState.incomingRinging,
+        isCaller: false,
+      );
+      calleeCtl.setIncomingCall(incomingToB);
+      expect(calleeCtl.state?.state, ChatV2CallState.incomingRinging);
+
+      await calleeCtl.acceptCall();
+      expect(calleeCtl.state?.state, ChatV2CallState.connected);
+
+      // 3. Phía server / Odoo Bus phát event 'vmobile.call/accepted' về cho Bên A
+      const sdpAnswer = {
+        'type': 'answer',
+        'sdp': 'v=0\r\no=B 2000 2 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\na=sendrecv',
+      };
+      callerBus.processBusNotificationForTesting({
+        'type': 'vmobile.call/accepted',
+        'payload': {
+          'channel_id': 4255,
+          'sessionId': 101,
+          'sdp_answer': sdpAnswer,
+        },
+      });
+
+      await Future.delayed(Duration.zero);
+
+      // 4. Verify Bên A nhận event và xử lý SDP answer
+      expect(callerEngine.lastHandledAnswer, isNotNull);
+      expect(callerEngine.lastHandledAnswer?['sdp'], sdpAnswer['sdp']);
+
+      // 5. Verify State bên A chuyển thành ChatV2CallState.connected
+      expect(callerCtl.state?.state, ChatV2CallState.connected);
+      expect(callerCtl.state?.connectedAt, isNotNull);
+
+      callerCtl.dispose();
+      calleeCtl.dispose();
+      callerBus.dispose();
+      calleeBus.dispose();
+    });
+
+    test('TC-ICE-QUEUE-02: ICE candidates phát sinh khi targetSessionId rỗng -> được đưa vào hàng đợi _queuedLocalCandidates -> khi updateTargetSessionIds được gọi, tất cả candidate được flush và gửi đi an toàn', () async {
+      final fakeClient = FakeCallApiClient();
+      final repo = ChatV2CallRepository(client: fakeClient);
+      final engine = ChatV2WebRtcEngine(repo: repo);
+
+      // Khởi tạo WebRTC Engine với targetSessionIds rỗng và localSessionId = 101
+      await engine.initialize(
+        localSessionId: 101,
+        targetSessionIds: [],
+        iceServersData: [
+          {'urls': 'stun:stun.l.google.com:19302'}
+        ],
+      );
+
+      // Giả lập 2 ICE candidates phát sinh từ native WebRTC khi chưa có peer trong phòng
+      const standardCodec = StandardMethodCodec();
+      final candidate1 = {
+        'event': 'onCandidate',
+        'candidate': {
+          'candidate': 'candidate:1 1 UDP 2122252543 192.168.1.100 54321 typ host',
+          'sdpMid': '0',
+          'sdpMLineIndex': 0,
+        },
+      };
+      final candidate2 = {
+        'event': 'onCandidate',
+        'candidate': {
+          'candidate': 'candidate:2 1 UDP 2122252544 192.168.1.100 54322 typ host',
+          'sdpMid': '0',
+          'sdpMLineIndex': 0,
+        },
+      };
+
+      await TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.handlePlatformMessage(
+        'FlutterWebRTC/peerConnectionEventpc-test-101',
+        standardCodec.encodeSuccessEnvelope(candidate1),
+        (ByteData? reply) {},
+      );
+      await TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.handlePlatformMessage(
+        'FlutterWebRTC/peerConnectionEventpc-test-101',
+        standardCodec.encodeSuccessEnvelope(candidate2),
+        (ByteData? reply) {},
+      );
+
+      // Xác minh: Khi targetSessionIds rỗng, các candidate được xếp hàng và CHƯA gửi qua API
+      final signalingBefore = fakeClient.recordedCalls
+          .where((c) => c['path'] == '/mail/rtc/session/notify_call_members')
+          .toList();
+      expect(signalingBefore.isEmpty, isTrue);
+
+      // Callee tham gia phòng -> cập nhật targetSessionIds = [505]
+      engine.updateTargetSessionIds([505]);
+
+      // Xác minh: Cả 2 candidate đã được flush khỏi hàng đợi và gửi đi an toàn tới targetSessionIds [505]
+      final signalingAfter = fakeClient.recordedCalls
+          .where((c) => c['path'] == '/mail/rtc/session/notify_call_members')
+          .toList();
+      expect(signalingAfter.length, 2);
+
+      final firstNotif = signalingAfter[0]['body']['params']['peer_notifications'][0];
+      expect(firstNotif[0], 101); // senderSessionId
+      expect(firstNotif[1], [505]); // targetSessionIds
+      expect(firstNotif[2], contains('candidate:1 1 UDP 2122252543'));
+
+      final secondNotif = signalingAfter[1]['body']['params']['peer_notifications'][0];
+      expect(secondNotif[0], 101); // senderSessionId
+      expect(secondNotif[1], [505]); // targetSessionIds
+      expect(secondNotif[2], contains('candidate:2 1 UDP 2122252544'));
+
+      // Gọi updateTargetSessionIds lần nữa -> hàng đợi đã được clear, không gửi lặp lại
+      fakeClient.recordedCalls.clear();
+      engine.updateTargetSessionIds([505]);
+      final signalingAfterSecondUpdate = fakeClient.recordedCalls
+          .where((c) => c['path'] == '/mail/rtc/session/notify_call_members')
+          .toList();
+      expect(signalingAfterSecondUpdate.isEmpty, isTrue);
+
+      await engine.dispose();
+    });
+
+    test('TC-PEER-JOIN-03: Bên A gọi (phòng ban đầu chưa có B) -> B gia nhập phòng (onPeerJoined) -> Bên A cập nhật _targetSessionIds và kích hoạt createAndSendOffer()', () async {
+      final fakeClient = FakeCallApiClient();
+      final repo = ChatV2CallRepository(client: fakeClient);
+      final fakeBus = FakeOdooBusService();
+      final fakeEngine = FakeWebRtcEngine(repo: repo);
+      final controller = ChatV2CallController(repo: repo, bus: fakeBus, webrtcEngine: fakeEngine);
+
+      // 1. Bên A gọi đi vào kênh 4255, ban đầu phòng rtcSessions rỗng (chưa có B)
+      final started = await controller.startCall(
+        channelId: 4255,
+        callerName: 'Marc Demo (Bên A)',
+        receiverId: 5,
+        receiverName: 'Bùi Tuấn Kiệt (Bên B)',
+      );
+      expect(started, isTrue);
+      expect(controller.state?.state, ChatV2CallState.outgoingRinging);
+      expect(controller.state?.isCaller, isTrue);
+      // Phòng ban đầu chưa có B nên chưa gửi offer
+      expect(fakeEngine.createAndSendOfferCalled, isFalse);
+      expect(fakeEngine.lastUpdatedTargetSessionIds, isNull);
+
+      // 2. Bên B gia nhập phòng -> Odoo Bus phát event onPeerJoined với sessionId = 606 trên kênh 4255
+      fakeBus.emitPeerJoined({
+        'channel_id': 4255,
+        'sessionId': 606,
+      });
+
+      await Future.delayed(Duration.zero);
+
+      // 3. Verify Bên A cập nhật _targetSessionIds và kích hoạt createAndSendOffer()
+      expect(fakeEngine.lastUpdatedTargetSessionIds, [606]);
+      expect(fakeEngine.createAndSendOfferCalled, isTrue);
+
+      // 4. Verify State bên A chuyển thành ChatV2CallState.connecting
+      expect(controller.state?.state, ChatV2CallState.connecting);
+
+      controller.dispose();
       fakeBus.dispose();
     });
   });

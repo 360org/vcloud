@@ -77,6 +77,7 @@ class ChatV2CallKitService {
     String? callerAvatar,
     required int channelId,
     required int callerId,
+    int callId = 0,
     int duration = 30000,
   }) async {
     if (kIsWeb) return;
@@ -93,6 +94,7 @@ class ChatV2CallKitService {
         'channel_id': channelId,
         'caller_id': callerId,
         'caller_name': callerName,
+        'call_id': callId,
       },
       headers: <String, dynamic>{'platform': 'flutter'},
       android: const AndroidParams(
@@ -173,6 +175,33 @@ class ChatV2CallKitService {
     } catch (e) {
       debugPrint('[CallKit] Lỗi activeCalls: $e');
       return [];
+    }
+  }
+
+  /// Kiểm tra và xử lý cuộc gọi đã được Accept khi cold-start (mở app từ CallKit)
+  Future<void> checkAndHandleAcceptedCallOnStartup({
+    required Future<void> Function(Map<String, dynamic> extra) onAccept,
+  }) async {
+    if (kIsWeb) return;
+    try {
+      final calls = await activeCalls();
+      if (calls != null && calls.isNotEmpty) {
+        for (final call in calls) {
+          if (call is Map) {
+            final isAccepted = call['isAccepted'] == true || call['accepted'] == true;
+            if (isAccepted) {
+              final extra = call['extra'] != null
+                  ? Map<String, dynamic>.from(call['extra'] as Map)
+                  : <String, dynamic>{};
+              debugPrint('[CallKit] Phát hiện cuộc gọi đã được Accept từ lúc mở app: ${call['id']}');
+              await onAccept(extra);
+              break;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[CallKit] Lỗi checkAndHandleAcceptedCallOnStartup: $e');
     }
   }
 }

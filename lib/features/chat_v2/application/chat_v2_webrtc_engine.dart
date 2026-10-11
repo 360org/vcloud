@@ -18,7 +18,9 @@ class ChatV2WebRtcEngine {
   bool _isMuted = false;
   bool _isSpeaker = false;
   bool _hasRemoteDescription = false;
+  static const int _maxQueuedCandidates = 50;
   final List<RTCIceCandidate> _queuedRemoteCandidates = [];
+  final List<RTCIceCandidate> _queuedLocalCandidates = [];
 
   int _localSessionId = 0;
   List<int> _targetSessionIds = [];
@@ -123,16 +125,23 @@ class ChatV2WebRtcEngine {
       // Khi tìm thấy ICE Candidate cục bộ -> gửi sang peer qua Odoo 19 notify_call_members
       _peerConnection!.onIceCandidate = (RTCIceCandidate candidate) {
         if (candidate.candidate == null) return;
-        _sendSignaling(
-          event: 'ice-candidate',
-          payload: {
-            'candidate': {
-              'candidate': candidate.candidate,
-              'sdpMid': candidate.sdpMid,
-              'sdpMLineIndex': candidate.sdpMLineIndex,
+        if (_targetSessionIds.isNotEmpty && _localSessionId > 0) {
+          _sendSignaling(
+            event: 'ice-candidate',
+            payload: {
+              'candidate': {
+                'candidate': candidate.candidate,
+                'sdpMid': candidate.sdpMid,
+                'sdpMLineIndex': candidate.sdpMLineIndex,
+              },
             },
-          },
-        );
+          );
+        } else {
+          if (_queuedLocalCandidates.length >= _maxQueuedCandidates) {
+            _queuedLocalCandidates.removeAt(0);
+          }
+          _queuedLocalCandidates.add(candidate);
+        }
       };
 
       // Thu âm Micro cục bộ (Voice call only)
@@ -231,6 +240,9 @@ class ChatV2WebRtcEngine {
     if (_hasRemoteDescription) {
       await _peerConnection!.addCandidate(candidate);
     } else {
+      if (_queuedRemoteCandidates.length >= _maxQueuedCandidates) {
+        _queuedRemoteCandidates.removeAt(0);
+      }
       _queuedRemoteCandidates.add(candidate);
     }
   }
@@ -291,15 +303,41 @@ class ChatV2WebRtcEngine {
     }
   }
 
+  /// Cập nhật danh sách targetSessionIds và xả các local ICE candidate đang xếp hàng
+  void updateTargetSessionIds(List<int> targetIds) {
+    _targetSessionIds = List<int>.from(targetIds);
+    _flushQueuedLocalCandidates();
+  }
+
+  void _flushQueuedLocalCandidates() {
+    if (_localSessionId == 0 || _targetSessionIds.isEmpty) return;
+    for (final candidate in List<RTCIceCandidate>.from(_queuedLocalCandidates)) {
+      if (candidate.candidate == null) continue;
+      _sendSignaling(
+        event: 'ice-candidate',
+        payload: {
+          'candidate': {
+            'candidate': candidate.candidate,
+            'sdpMid': candidate.sdpMid,
+            'sdpMLineIndex': candidate.sdpMLineIndex,
+          },
+        },
+      );
+    }
+    _queuedLocalCandidates.clear();
+  }
+
   /// Hủy nhanh cuộc gọi giữa chừng và giải phóng bộ nhớ đệm
   void abort() {
     _queuedRemoteCandidates.clear();
+    _queuedLocalCandidates.clear();
     _hasRemoteDescription = false;
   }
 
   /// Dọn dẹp tài nguyên cuộc gọi
   Future<void> dispose() async {
     abort();
+    _queuedLocalCandidates.clear();
     try {
       _localStream?.getTracks().forEach((track) {
         track.stop();

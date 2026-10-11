@@ -26,6 +26,54 @@ final chatV2MessagesProvider = AutoDisposeAsyncNotifierProviderFamily<
   ChatV2MessagesNotifier.new,
 );
 
+final chatV2PinnedMessagesProvider = AutoDisposeAsyncNotifierProviderFamily<
+    ChatV2PinnedMessagesNotifier, List<ChatV2Message>, String>(
+  ChatV2PinnedMessagesNotifier.new,
+);
+
+class ChatV2PinnedMessagesNotifier
+    extends AutoDisposeFamilyAsyncNotifier<List<ChatV2Message>, String> {
+  @override
+  FutureOr<List<ChatV2Message>> build(String arg) async {
+    final channelId = arg;
+    final repo = ref.watch(chatV2RepositoryProvider);
+    final user = ref.watch(authControllerProvider).valueOrNull;
+    final meta = user?.userMetadata;
+    final partnerId = meta?['partner_id']?.toString() ??
+        meta?['partner']?['id']?.toString();
+    final userId = user?.id;
+
+    try {
+      final list = await repo.getPinnedMessages(
+        channelId,
+        currentPartnerId: partnerId,
+        currentUserId: userId,
+      );
+      return list;
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[ChatV2PinnedMessagesNotifier] build error: $e');
+      }
+      return const [];
+    }
+  }
+
+  void updatePinned(List<ChatV2Message> list) {
+    state = AsyncData(list);
+  }
+
+  void addOrUpdatePin(ChatV2Message message) {
+    final current = state.valueOrNull ?? [];
+    final filtered = current.where((m) => m.id != message.id).toList();
+    state = AsyncData([message, ...filtered]);
+  }
+
+  void removePin(String messageId) {
+    final current = state.valueOrNull ?? [];
+    state = AsyncData(current.where((m) => m.id != messageId).toList());
+  }
+}
+
 class ChatV2MessageLocalCache {
   static final Map<String, Map<String, ChatV2Message>> _cache = {};
   static bool _initialized = false;
@@ -167,6 +215,14 @@ class ChatV2MessageLocalCache {
     final map = _cache.putIfAbsent(channelId, () => <String, ChatV2Message>{});
     map[msg.id] = msg;
     if (persist) _persist(channelId);
+  }
+
+  static void removeMessage(String channelId, String messageId, {bool persist = true}) {
+    final map = _cache[channelId];
+    if (map != null && map.containsKey(messageId)) {
+      map.remove(messageId);
+      if (persist) _persist(channelId);
+    }
   }
 
   static void remove(String channelId) {
@@ -618,9 +674,9 @@ class ChatV2MessagesNotifier
     }
   }
 
-  /// Nạp sâu các trang tin nhắn cũ (tối đa 5 trang) cho đến khi tìm thấy [messageId].
+  /// Nạp sâu các trang tin nhắn cũ (tối đa 10 trang) cho đến khi tìm thấy [messageId].
   /// Trả về true nếu tin nhắn đã sẵn sàng trong state, false nếu không tìm thấy sau khi nạp hết.
-  /// ponytail: giới hạn 5 trang (~175 tin nhắn) để tránh nghẽn mạng và tràn RAM.
+  /// ponytail: giới hạn 10 trang (~350 tin nhắn) để tránh nghẽn mạng và tràn RAM.
   Future<bool> ensureMessageLoaded(String messageId) async {
     if (messageId.isEmpty || messageId == 'quote') return false;
 
@@ -629,7 +685,7 @@ class ChatV2MessagesNotifier
       return true;
     }
 
-    const maxPages = 5;
+    const maxPages = 10;
     for (var i = 0; i < maxPages; i++) {
       final beforeCount = current.length;
       await loadMore();
@@ -1147,6 +1203,7 @@ class ChatV2MessagesNotifier
   }
 
   Future<void> editMessage(String messageId, String newBody) async {
+    final channelId = arg;
     final repo = ref.read(chatV2RepositoryProvider);
     try {
       await repo.editMessage(messageId, newBody);
@@ -1158,6 +1215,7 @@ class ChatV2MessagesNotifier
         final nextList = List<ChatV2Message>.from(current);
         nextList[idx] = newMsg;
         state = AsyncData(nextList);
+        ChatV2MessageLocalCache.set(channelId, nextList);
       }
     } catch (e) {
       rethrow;
@@ -1165,17 +1223,43 @@ class ChatV2MessagesNotifier
   }
 
   Future<void> deleteMessage(String messageId) async {
+    final channelId = arg;
     final repo = ref.read(chatV2RepositoryProvider);
     try {
-      await repo.deleteMessage(messageId);
+      final res = await repo.deleteMessage(messageId);
       // Update locally
       final current = state.valueOrNull ?? [];
       final idx = current.indexWhere((m) => m.id == messageId);
+      final isRecalled = res != null &&
+          (res['recalled'] == true ||
+              (res['body']?.toString().contains('thu hồi') == true));
+
       if (idx != -1) {
         final nextList = List<ChatV2Message>.from(current);
-        nextList.removeAt(idx);
+        if (isRecalled) {
+          final recalledBody = res['body']?.toString() ?? '<i>Tin nhắn đã bị thu hồi</i>';
+          final old = nextList[idx];
+          nextList[idx] = old.copyWith(
+            content: ChatV2Message.cleanHtml(recalledBody),
+            rawBody: recalledBody,
+            attachments: const [],
+          );
+        } else {
+          nextList.removeAt(idx);
+          ChatV2MessageLocalCache.removeMessage(channelId, messageId, persist: false);
+        }
         state = AsyncData(nextList);
+        ChatV2MessageLocalCache.set(channelId, nextList);
+      } else {
+        if (!isRecalled) {
+          ChatV2MessageLocalCache.removeMessage(channelId, messageId);
+        }
       }
+
+      // Đồng bộ gỡ ghim nếu tin nhắn bị xóa/thu hồi đang được ghim
+      try {
+        ref.read(chatV2PinnedMessagesProvider(channelId).notifier).removePin(messageId);
+      } catch (_) {}
     } catch (e) {
       rethrow;
     }
@@ -1406,7 +1490,13 @@ class ChatV2MessagesNotifier
     final channelId = arg;
     final repo = ref.read(chatV2RepositoryProvider);
     final currentList = state.valueOrNull ?? const [];
-    final targetMsg = currentList.firstWhereOrNull((m) => m.id == messageId);
+
+    // Tìm targetMsg trong currentList hoặc từ pinnedMessagesProvider
+    ChatV2Message? targetMsg = currentList.firstWhereOrNull((m) => m.id == messageId);
+    final pinnedNotifier = ref.read(chatV2PinnedMessagesProvider(channelId).notifier);
+    final currentPinnedList = ref.read(chatV2PinnedMessagesProvider(channelId)).valueOrNull ?? const [];
+    targetMsg ??= currentPinnedList.firstWhereOrNull((m) => m.id == messageId);
+
     if (targetMsg == null) return;
 
     // 1. Optimistic Update locally
@@ -1415,9 +1505,18 @@ class ChatV2MessagesNotifier
       pinnedAt: isCurrentlyPinned ? null : DateTime.now().toIso8601String(),
       clearPinnedAt: isCurrentlyPinned,
     );
-    final optimisticList = currentList.map((m) => m.id == messageId ? updatedMsg : m).toList();
-    state = AsyncData(optimisticList);
-    ChatV2MessageLocalCache.set(channelId, optimisticList);
+
+    if (currentList.any((m) => m.id == messageId)) {
+      final optimisticList = currentList.map((m) => m.id == messageId ? updatedMsg : m).toList();
+      state = AsyncData(optimisticList);
+      ChatV2MessageLocalCache.set(channelId, optimisticList);
+    }
+
+    if (isCurrentlyPinned) {
+      pinnedNotifier.removePin(messageId);
+    } else {
+      pinnedNotifier.addOrUpdatePin(updatedMsg);
+    }
 
     // 2. Network Call with rollback on failure
     try {
@@ -1426,9 +1525,19 @@ class ChatV2MessagesNotifier
         pinnedAt: isPinned ? (targetMsg.pinnedAt ?? DateTime.now().toIso8601String()) : null,
         clearPinnedAt: !isPinned,
       );
-      final confirmedList = (state.valueOrNull ?? []).map((m) => m.id == messageId ? verifiedMsg : m).toList();
-      state = AsyncData(confirmedList);
-      ChatV2MessageLocalCache.set(channelId, confirmedList);
+
+      final latestList = state.valueOrNull ?? [];
+      if (latestList.any((m) => m.id == messageId)) {
+        final confirmedList = latestList.map((m) => m.id == messageId ? verifiedMsg : m).toList();
+        state = AsyncData(confirmedList);
+        ChatV2MessageLocalCache.set(channelId, confirmedList);
+      }
+
+      if (isPinned) {
+        pinnedNotifier.addOrUpdatePin(verifiedMsg);
+      } else {
+        pinnedNotifier.removePin(messageId);
+      }
     } catch (e) {
       if (kDebugMode) {
         debugPrint('[ChatV2MessagesNotifier] togglePinMessage error: $e');
@@ -1436,6 +1545,7 @@ class ChatV2MessagesNotifier
       // Rollback on failure
       state = AsyncData(currentList);
       ChatV2MessageLocalCache.set(channelId, currentList);
+      pinnedNotifier.updatePinned(currentPinnedList);
     }
   }
 }

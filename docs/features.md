@@ -602,17 +602,22 @@ Phân hệ cốt lõi cung cấp trải nghiệm giao tiếp toàn diện: trò 
   - *Tệp liên quan*: `lib/features/chat_v2/presentation/widgets/chat_v2_voice_message_player.dart`.
   - *Kịch bản nghiệm thu*: Bấm Play ➔ Âm thanh phát rõ ràng qua loa điện thoại kèm thanh thời lượng chạy.
 
-### E. Cuộc gọi Thoại P2P (Voice Call WebRTC - Odoo 19 RTC Core):
+### E. Cuộc gọi Thoại P2P & CallKit (Voice Call WebRTC - Odoo 19 RTC Core) — `[✅ VERIFIED_PASS]`:
 > ⚠️ **Lưu ý phạm vi hiện tại**: Ứng dụng hiện mới chỉ hỗ trợ cuộc gọi thoại âm thanh 1-1 (Voice Call). Tính năng **Gọi Video 1-1 và Đàm thoại Video Nhóm chưa làm** (xem mục B.2 trong danh sách Backlog).
-- [x] **3.23 Cuộc gọi Thoại 1-1 WebRTC P2P (Native Odoo 19 RTC)** `[COMPLETED - Pushed & Synchronized]`
-  - *Mô tả*: Gọi điện thoại trực tiếp giữa App Mobile và Odoo 19 Web qua giao thức WebRTC P2P; truyền âm thanh hai chiều sắc nét, không độ trễ.
-  - *Tệp liên quan*: `lib/features/chat_v2/application/chat_v2_webrtc_engine.dart`, `lib/features/chat_v2/presentation/screens/chat_v2_call_screen.dart`.
-  - *Kịch bản nghiệm thu*: Bấm nút gọi trên mobile ➔ Trình duyệt Odoo 19 Web của đồng nghiệp đổ chuông và nhận cuộc gọi đàm thoại thông suốt.
+- [x] **3.23 Cuộc gọi Thoại 1-1 WebRTC P2P (Native Odoo 19 RTC)** `[✅ VERIFIED_PASS]`
+  - *Mô tả*: Gọi điện thoại trực tiếp hai chiều giữa App Mobile và Odoo 19 Web qua giao thức WebRTC P2P; truyền âm thanh hai chiều sắc nét, không độ trễ.
+  - *3 Khả năng cốt lõi đã kiểm chứng (Verified Capabilities)*:
+    1. **Bắt tay P2P không treo (Zero-Freeze Handshake)**: Bổ sung phát sự kiện `vmobile.call/accepted` và `peer_notification` qua Odoo Bus khi Callee nhấn Accept; hàng đợi `_queuedLocalCandidates` giữ và flush an toàn ICE Candidate khi đối phương vào phòng (`onPeerJoined`), loại bỏ triệt để hiện tượng treo màn hình "Đang gọi / Connecting".
+    2. **Hiện CallKit khi thoát App (Out-of-App Background Push)**: Backend Odoo phát High-Priority Push Notification (FCM v1 data-only) kèm `event_type: "incoming_call"` đánh thức Callee ngoài màn hình khóa / khi tắt hẳn ứng dụng; CallKit Native UI nảy màn hình Trả lời/Từ chối và dập chuông tức thì khi Caller hủy (`call_cancelled`).
+    3. **Đàm thoại chéo Web Odoo <-> Mobile (Cross-Calling Parity)**: Chuẩn hóa 100% định dạng SDP Offer/Answer và ICE Candidate tương thích hoàn toàn với Odoo Discuss Web (`/mail/rtc/*`) và module custom `v_mobile`.
+    4. **Bảo mật IDOR & Chống Phồng RAM (Security & Memory Bounds)**: Ràng buộc người nhận `receiver` bắt buộc thuộc `channel_member_ids` của kênh và chặn Portal user; bổ sung trần giới hạn buffer `_maxQueuedCandidates = 50` cho ICE candidate queue bảo vệ RAM.
+  - *Tệp liên quan*: `lib/features/chat_v2/application/chat_v2_webrtc_engine.dart`, `lib/features/chat_v2/application/chat_v2_call_controller.dart`, `lib/features/chat_v2/data/odoo_bus_service.dart`, `lib/features/chat_v2/presentation/screens/chat_v2_call_screen.dart`, `v_mobile_19/controllers/call.py`, `v_mobile_17/controllers/call.py`.
+  - *Kịch bản nghiệm thu*: Gọi điện thoại giữa Mobile và Web Odoo 19 hoặc giữa 2 thiết bị Mobile ➔ Nhận cuộc gọi ngay cả khi tắt app (CallKit), nhấn Trả lời ➔ Âm thanh thông suốt 2 chiều, không còn bị treo connecting.
 
-- [x] **3.24 Giao diện Cuộc gọi Toàn màn hình (CallKit & Call Control)**
-  - *Mô tả*: Tích hợp CallKit (iOS) và ConnectionService (Android) hiển thị cuộc gọi đến toàn màn hình chuẩn điện thoại; nhạc chuông Odoo chính thức, âm quay số (dialing tone), tín hiệu máy bận nhanh (fast-busy); nút Bật/Tắt Mic, Loa ngoài (Speaker), Từ chối và Gác máy tức thì.
-  - *Tệp liên quan*: `lib/features/chat_v2/application/chat_v2_callkit_service.dart`, `lib/features/chat_v2/presentation/widgets/chat_v2_incoming_call_dialog.dart`.
-  - *Kịch bản nghiệm thu*: Có cuộc gọi đến khi khóa màn hình ➔ Màn hình bật sáng giao diện nhận cuộc gọi như cuộc gọi điện thoại thông thường.
+- [x] **3.24 Giao diện Cuộc gọi Toàn màn hình (CallKit & Call Control)** `[✅ VERIFIED_PASS]`
+  - *Mô tả*: Tích hợp CallKit (iOS) và Android Incoming Call UI hiển thị cuộc gọi đến toàn màn hình chuẩn điện thoại; nhạc chuông Odoo chính thức, âm quay số (dialing tone), tín hiệu máy bận nhanh (fast-busy); nút Bật/Tắt Mic, Loa ngoài (Speaker), Từ chối và Gác máy tức thì.
+  - *Tệp liên quan*: `lib/features/chat_v2/application/chat_v2_callkit_service.dart`, `lib/features/chat_v2/presentation/widgets/chat_v2_incoming_call_dialog.dart`, `lib/core/notifications/push_notification_service.dart`.
+  - *Kịch bản nghiệm thu*: Có cuộc gọi đến khi khóa màn hình hoặc tắt app ➔ Màn hình bật sáng giao diện CallKit nhận cuộc gọi như cuộc gọi điện thoại thông thường; nhấn Chấp nhận ➔ Khởi tạo đàm thoại ngay lập tức.
 
 ### F. Thông báo Đẩy Thời gian thực (Push Notifications & Heads-up Banner):
 - [x] **3.25 Thông báo Đẩy Nổi trên Android (Android Heads-up Notification Banner — Fix Build 144)**
@@ -823,14 +828,14 @@ Phân hệ cốt lõi cung cấp trải nghiệm giao tiếp toàn diện: trò 
 | **6** | **Trả lời & Trích dẫn (Reply Quote)** | ✅ Có | ✅ Có (`parent_id`) | ✅ Có (`parent_id`) | ✅ Có (Thẻ Quote UI) | 🟢 **Khớp 100%**. Đồng bộ `parent_id` và thẻ `<blockquote>`. |
 | **7** | **Thả Cảm xúc Biểu tượng (Reactions)** | ✅ Có | ✅ Có (`mail_message_reaction`) | ✅ Có (`mail_message_reaction`) | ✅ Có (Details Sheet Avatar) | 🟢 **Khớp 100%**. Đồng bộ bảng `mail_message_reaction`. |
 | **8** | **Nhắc tên Thành viên (@Mention)** | ✅ Có | ✅ Có (Anchor redirect) | ✅ Có (Anchor redirect) | ✅ Có (Suggestion popup) | 🟢 **Khớp 100%**. Backend format `<a class="o_mail_redirect">`. |
-| **9** | **Chỉnh sửa & Thu hồi Tin nhắn (Edit / Delete)** | ✅ Có | ✅ Có (`/edit`, `/delete`) | ✅ Có (`/edit`, `/delete`) | ✅ Có | 🟢 **Khớp 100%**. Có kiểm soát quyền tác giả tin nhắn. |
+| **9** | **Chỉnh sửa & Thu hồi Tin nhắn (Edit / Delete)** | ✅ Có | ✅ Có (`/edit`, `/delete`) | ✅ Có (`/edit`, `/delete`) | ✅ Đã vá | 🟢 **Khớp 100% (BUG-026)**: Đồng bộ `ChatV2MessageLocalCache.set()` & cập nhật thu hồi an toàn. |
 | **10** | **Trạng thái Đã đọc (Read Receipts / Seen ID)** | ✅ Có | ✅ Có (`seen_message_id`) | ✅ Có (`seen_message_id`) | ✅ Có (Tick xanh + Unread badge) | 🟢 **Khớp 100%**. Cập nhật `seen_message_id` trên `discuss_channel_member`. |
 | **11** | **Trực tuyến & Đang soạn tin (Presence & Typing)** | ✅ Có | ✅ Có (`/typing`, `im_status`) | ✅ Có (`/typing`, `im_status`) | ✅ Có | 🟢 **Khớp 100%**. Đồng bộ trạng thái online/away/offline. |
 | **12** | **Chia sẻ Tọa độ Vị trí (GPS Location Card)** | ❌ Chưa có | ✅ Nhận link maps | ✅ Nhận link maps | ✅ Có (GPS native + Card) | 🟢 **Khớp 100%**. Tối ưu riêng trên Mobile. |
 | **13** | **Cuộc gọi Thoại WebRTC 1-1 (Voice Call)** | ✅ Có | ✅ Có (`controllers/call.py`) | ✅ Có (`controllers/call.py`) | ✅ Có (CallKit UI) | 🟢 **Khớp 100%**. Hỗ trợ báo bận (Fast-busy) và signaling P2P. |
 | **14** | **Lưu trữ / Ẩn Hội thoại (Archive / Unarchive)** | ✅ Có | ✅ Có (`unpin_dt`) | ✅ Có (`is_pinned`) | ✅ Có | 🟢 **Khớp 100%**. Ẩn/hiện hội thoại theo từng người dùng. |
 | **15** | **Rời nhóm & Xóa Thành viên (Leave & Kick Member)** | ✅ Có | ✅ Có (`/leave`, `/kick`) | ✅ Có (`/leave`, `/kick`) | ✅ Có UI & Call | 🟢 **Khớp 100%**. Đồng bộ trọn vẹn Odoo 17 & 19 (P1). |
-| **16** | **Ghim Tin nhắn trong Phòng chat (Pin Message)** | ✅ Có | ✅ Có (`/pin-message`) | ✅ Có (`/pin-message`) | ✅ Có UI ghim & Context menu | 🟢 **Khớp 100%**. Trả `pinned_at` trong serializer tin nhắn (P2). |
+| **16** | **Ghim Tin nhắn trong Phòng chat (Pin Message)** | ✅ Có | ✅ Có (`/pin-message`) | ✅ Có (`/pin-message`) | ✅ Đã vá | 🟢 **Khớp 100% (BUG-026)**: Fetch độc lập `getPinnedMessages` & quản lý qua `chatV2PinnedMessagesProvider`. |
 | **17** | **Tắt Thông báo Phòng chat (Mute Channel)** | ✅ Có | ✅ Có (`/mute`) | ✅ Có (`/mute`) | ✅ Có switch, icon bell-off & cache | 🟢 **Khớp 100%**. Lưu `mute_until_dt` & chặn FCM push trong `mail_thread.py` (P2). |
 | **18** | **Đánh dấu Chưa đọc (Mark as Unread)** | ✅ Có | ✅ Có (`/mark-unread`) | ✅ Có (`/mark-unread`) | ✅ Có context menu & badge sync | 🟢 **Khớp 100%**. Lùi `seen_message_id` về tin nhắn áp chót (P2). |
 | **19** | **Chia sẻ Danh thiếp Nhân sự (Send Contact)** | ⚠️ Tùy biến | ✅ Có API (`/contact`) | ✅ Có API (`/contact`) | ❌ Chat V2 chưa có UI | 🟡 **LỆCH FRONTEND (P3 Backlog)**: Backend có API gửi danh thiếp nhưng Chat V2 chưa có nút chọn danh bạ để gửi. |
@@ -987,6 +992,23 @@ Phân hệ cốt lõi cung cấp trải nghiệm giao tiếp toàn diện: trò 
   - *Bằng chứng kiểm thử (Evidence)*:
     - Pass 15/15 tests độc lập trong `test_performance_audit_phase2_patch.py` trên Odoo 17, Odoo 19 và Flutter Client.
     - `flutter analyze`: Đạt **0 issues found** (0 errors, 0 warnings).
+
+- [x] [Claude-Verified] **3.38 Phẫu Thuật Khắc Phục Triệt Để Lỗi Thu Hồi Tin Nhắn Tái Xuất Hiện & Mất Ghim Tin Nhắn Khi Thoát/Vào Lại (BUG-026 — 2026-10-10)**:
+  - *Hiện tượng ghi nhận thực tế từ Sếp Tân*:
+    1. **Lỗi 1 (Thu hồi tin nhắn)**: Người dùng thực hiện thu hồi tin nhắn thành công trên giao diện phòng chat, nhưng khi thoát ra màn hình danh sách hội thoại rồi vào lại phòng chat thì tin nhắn cũ vẫn hiển thị trở lại.
+    2. **Lỗi 2 (Ghim tin nhắn)**: Bấm ghim tin nhắn thành công (hiển thị thanh ghim trên đầu), nhưng khi thoát ra và vào lại phòng chat thì trạng thái ghim bị mất hoàn toàn.
+  - *Kết quả Khắc phục & Đồng bộ Kiến trúc Frontend*:
+    1. **Khắc phục Lỗi 1 — Đồng bộ Local Disk Cache khi thu hồi/xóa tin nhắn**:
+       - Tại `ChatV2MessageLocalCache`: bổ sung `removeMessage(channelId, messageId)` xóa trực tiếp messageId khỏi bộ đệm in-memory và ghi xuống file `.json`.
+       - Tại `ChatV2MessagesNotifier.deleteMessage(messageId)`: Bổ sung gọi `ChatV2MessageLocalCache.set(channelId, nextList)` ngay sau khi xóa tin khỏi RAM `state`. Nếu backend trả về tin nhắn thu hồi (`recalled` hoặc chứa 'thu hồi'), cập nhật body tin nhắn và lưu vào cache. Đồng bộ loại bỏ tin ghim trên `chatV2PinnedMessagesProvider` nếu tin bị xóa đang được ghim.
+       - Tại `ChatV2MessagesNotifier.editMessage(messageId, newBody)`: Đồng bộ lưu `ChatV2MessageLocalCache.set(channelId, nextList)`.
+    2. **Khắc phục Lỗi 2 — Fetch độc lập Pinned Messages & Quản lý State ghim theo kênh**:
+       - Tại `ChatV2Repository`: Bổ sung `getPinnedMessages(channelId)` gọi endpoint `GET /api/v1/mobile/chat/channels/$channelId/pinned-messages`, deserialize danh sách `ChatV2Message` độc lập với phân trang tin nhắn thường.
+       - Tại `ChatV2MessagesNotifier`: Khai báo `chatV2PinnedMessagesProvider` (`AutoDisposeAsyncNotifierProviderFamily`) quản lý danh sách tin ghim độc lập theo từng kênh. Hàm `togglePinMessage(messageId)` đồng bộ cả RAM, Local Cache và `chatV2PinnedMessagesProvider`.
+       - Tại `ChatV2DetailScreen`: Nâng cấp Banner Header Pin ưu tiên lấy từ `chatV2PinnedMessagesProvider(channelId)`, fallback sang `messages.firstWhereOrNull((m) => m.isPinned)`. Ngay cả khi tin ghim là tin cũ ngoài 35 tin tải về (ví dụ tin thứ 50), thanh ghim vẫn hiển thị hoàn hảo. Bấm vào banner gọi `_jumpToMessage(message.id)` tự động nạp sâu (`ensureMessageLoaded` mở rộng `maxPages=10`) và cuộn tới tin nhắn.
+  - *Bằng chứng kiểm thử (Evidence)*:
+    - Pass 10/10 unit tests độc lập tại `test/features/chat_v2/chat_v2_cache_and_pinned_test.dart`.
+    - `flutter analyze` đạt **0 issues found** (0 errors, 0 warnings).
 
 
 ---

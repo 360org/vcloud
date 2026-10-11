@@ -27,6 +27,8 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
   StreamSubscription? _busPeerSub;
   StreamSubscription? _busEndedSub;
   StreamSubscription? _busIncomingCallSub;
+  StreamSubscription? _busAcceptedSub;
+  StreamSubscription? _busPeerJoinedSub;
 
   Timer? _durationTimer;
   Timer? _ringingTimeoutTimer;
@@ -100,6 +102,41 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
           startedAt: DateTime.now(),
         );
         setIncomingCall(incomingSession);
+      }
+    });
+
+    // 4. Lắng nghe Callee chấp nhận cuộc gọi (Callee accepted call)
+    _busAcceptedSub = bus?.onCallAccepted.listen((data) async {
+      final channelId = int.tryParse(data['channel_id']?.toString() ?? '0') ?? 0;
+      final matchChannel = channelId == 0 || (state != null && state!.channelId == channelId);
+      final isCaller = state?.isCaller ?? false;
+
+      if (matchChannel && isCaller) {
+        debugPrint('📞 [CallController] Nhận onCallAccepted từ kênh $channelId');
+        final sdpAnswer = data['sdp_answer'] ?? data['answer'];
+        if (sdpAnswer is Map) {
+          await _webrtc?.handleAnswer(Map<String, dynamic>.from(sdpAnswer));
+        }
+        state = state?.copyWith(state: ChatV2CallState.connected);
+        _onCallConnected();
+      }
+    });
+
+    // 5. Lắng nghe peer tham gia phòng RTC (Callee join RTC session)
+    _busPeerJoinedSub = bus?.onPeerJoined.listen((data) async {
+      final channelId = int.tryParse(data['channel_id']?.toString() ?? '0') ?? 0;
+      final sessionId = int.tryParse(data['sessionId']?.toString() ?? data['session_id']?.toString() ?? '0') ?? 0;
+      final isCaller = state?.isCaller ?? false;
+      final isRingingOrConnecting = state?.state == ChatV2CallState.outgoingRinging ||
+          state?.state == ChatV2CallState.connecting;
+
+      final matchChannel = channelId == 0 || (state != null && state!.channelId == channelId);
+
+      if (isCaller && isRingingOrConnecting && sessionId > 0 && matchChannel) {
+        debugPrint('👥 [CallController] Peer joined session $sessionId trên kênh $channelId');
+        _webrtc?.updateTargetSessionIds([sessionId]);
+        await _webrtc?.createAndSendOffer();
+        state = state?.copyWith(state: ChatV2CallState.connecting);
       }
     });
   }
@@ -432,7 +469,7 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
     _disconnectTimer = null;
     state = state?.copyWith(
       state: ChatV2CallState.connected,
-      connectedAt: DateTime.now(),
+      connectedAt: state?.connectedAt ?? DateTime.now(),
     );
     _startDurationTimer();
     if (state != null && state!.id > 0) {
@@ -507,6 +544,7 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
   }
 
   void _startDurationTimer() {
+    if (_durationTimer != null && _durationTimer!.isActive) return;
     _durationTimer?.cancel();
     _durationTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_isDisposed || state == null || state!.state != ChatV2CallState.connected) {
@@ -596,6 +634,8 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
     _busPeerSub?.cancel();
     _busEndedSub?.cancel();
     _busIncomingCallSub?.cancel();
+    _busAcceptedSub?.cancel();
+    _busPeerJoinedSub?.cancel();
     _stopAudio();
     _stopTimers();
     _cleanupWebrtc();

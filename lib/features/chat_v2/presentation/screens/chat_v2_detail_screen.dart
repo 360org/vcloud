@@ -1375,7 +1375,10 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
               child: Column(
                 children: [
                   () {
-                    final pinnedMsg = messages.firstWhereOrNull((m) => m.isPinned);
+                    final pinnedList = ref.watch(chatV2PinnedMessagesProvider(widget.channelId)).valueOrNull;
+                    final pinnedMsg = (pinnedList != null && pinnedList.isNotEmpty)
+                        ? pinnedList.first
+                        : messages.firstWhereOrNull((m) => m.isPinned);
                     if (pinnedMsg != null && !_isSearching) {
                       return _buildPinnedMessageBar(context, ref, pinnedMsg, isDark);
                     }

@@ -31,12 +31,16 @@ class OdooBusService {
   final _incomingCallController = StreamController<Map<String, dynamic>>.broadcast();
   final _muteNotificationController = StreamController<Map<String, dynamic>>.broadcast();
   final _nicknameNotificationController = StreamController<Map<String, dynamic>>.broadcast();
+  final _callAcceptedController = StreamController<Map<String, dynamic>>.broadcast();
+  final _peerJoinedController = StreamController<Map<String, dynamic>>.broadcast();
 
   Stream<Map<String, dynamic>> get onPeerNotification => _peerNotificationController.stream;
   Stream<Map<String, dynamic>> get onCallEnded => _callEndedController.stream;
   Stream<Map<String, dynamic>> get onIncomingCall => _incomingCallController.stream;
   Stream<Map<String, dynamic>> get onMuteNotification => _muteNotificationController.stream;
   Stream<Map<String, dynamic>> get onNicknameNotification => _nicknameNotificationController.stream;
+  Stream<Map<String, dynamic>> get onCallAccepted => _callAcceptedController.stream;
+  Stream<Map<String, dynamic>> get onPeerJoined => _peerJoinedController.stream;
   bool get isConnected => _isConnected;
 
   /// Khởi tạo kết nối WebSocket Bus với Odoo 19
@@ -140,6 +144,13 @@ class OdooBusService {
       }
     }
 
+    // Sự kiện Callee chấp nhận cuộc gọi
+    if (type == 'vmobile.call/accepted') {
+      if (payload is Map) {
+        _callAcceptedController.add(Map<String, dynamic>.from(payload));
+      }
+    }
+
     // Sự kiện kênh kết thúc cuộc gọi (hỗ trợ cả VMobile format vmobile.call/ended & Odoo 17/19 Core discuss.channel.rtc.session/ended)
     if (type == 'discuss.channel.rtc.session/ended' || type == 'vmobile.call/ended') {
       if (payload is Map) {
@@ -156,19 +167,26 @@ class OdooBusService {
       }
     }
 
-    // Sự kiện Odoo 17 Cập nhật RTC Sessions (Rời phòng / gác máy)
+    // Sự kiện Odoo Cập nhật RTC Sessions (Join phòng / Rời phòng / gác máy)
     if (type == 'discuss.channel/rtc_sessions_update' && payload is Map) {
       final chId = int.tryParse(payload['id']?.toString() ?? '0') ?? 0;
       final rtcSessions = payload['rtcSessions'];
       if (chId > 0 && rtcSessions is List) {
         for (final item in rtcSessions) {
-          if (item is List && item.isNotEmpty && item[0] == 'DELETE') {
-            debugPrint('📵 [OdooBus] Odoo 17 rtc_sessions_update DELETE kênh $chId -> Cuộc gọi kết thúc');
-            _callEndedController.add({
-              'channel_id': chId,
-              'state': 'ended',
-            });
-            break;
+          if (item is List && item.isNotEmpty) {
+            final op = item[0]?.toString();
+            if (op == 'DELETE') {
+              debugPrint('📵 [OdooBus] Odoo 17 rtc_sessions_update DELETE kênh $chId -> Cuộc gọi kết thúc');
+              _callEndedController.add({
+                'channel_id': chId,
+                'state': 'ended',
+              });
+              break;
+            } else if (op == 'ADD') {
+              debugPrint('👥 [OdooBus] rtc_sessions_update ADD kênh $chId');
+              final data = item.length > 1 ? item[1] : null;
+              _handleRtcSessionsAdd(chId, data);
+            }
           }
         }
       }
@@ -196,6 +214,60 @@ class OdooBusService {
       _checkRtcCallDelete(payload);
       _checkMemberMuteInsert(payload);
       _checkMemberNicknameInsert(payload);
+      _checkRtcSessionInsert(payload);
+    }
+  }
+
+  void _handleRtcSessionsAdd(int chId, dynamic data) {
+    try {
+      final list = data is List ? data : [data];
+      for (final s in list) {
+        if (s == null) continue;
+        int sessionId = 0;
+        if (s is Map) {
+          sessionId = int.tryParse(s['id']?.toString() ?? s['sessionId']?.toString() ?? '0') ?? 0;
+        } else if (s is num) {
+          sessionId = s.toInt();
+        }
+        if (sessionId > 0) {
+          _peerJoinedController.add({
+            'channel_id': chId,
+            'sessionId': sessionId,
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('[OdooBus] Error handling rtc_sessions ADD: $e');
+    }
+  }
+
+  void _checkRtcSessionInsert(Map payload) {
+    try {
+      final rtcSessions = payload['discuss.channel.rtc.session'] ?? payload['RtcSession'];
+      if (rtcSessions == null) return;
+      final list = rtcSessions is List ? rtcSessions : [rtcSessions];
+      final myPartnerId = odooApiClient.session?.partnerId;
+
+      for (final s in list) {
+        if (s is! Map) continue;
+        final sessionId = int.tryParse(s['id']?.toString() ?? s['sessionId']?.toString() ?? '0') ?? 0;
+        if (sessionId <= 0) continue;
+
+        final pid = int.tryParse((s['partner_id'] is Map ? s['partner_id']['id'] : s['partner_id'])?.toString() ?? '0') ?? 0;
+        if (myPartnerId != null && pid > 0 && pid == myPartnerId) {
+          continue;
+        }
+
+        final ch = s['channel_id'] ?? s['channelId'] ?? s['channel'];
+        final chId = int.tryParse((ch is Map ? ch['id'] : ch)?.toString() ?? '0') ?? 0;
+
+        _peerJoinedController.add({
+          'channel_id': chId,
+          'sessionId': sessionId,
+        });
+      }
+    } catch (e) {
+      debugPrint('[OdooBus] Error checking RTC session insert: $e');
     }
   }
 
@@ -574,5 +646,7 @@ class OdooBusService {
     _incomingCallController.close();
     _muteNotificationController.close();
     _nicknameNotificationController.close();
+    _callAcceptedController.close();
+    _peerJoinedController.close();
   }
 }

@@ -556,13 +556,19 @@ class ChatV2Repository {
     }
   }
 
-  Future<void> deleteMessage(String messageId) async {
+  Future<Map<String, dynamic>?> deleteMessage(String messageId) async {
     final msgIdInt = int.tryParse(messageId);
     try {
-      await _client.post(
+      final dynamic res = await _client.post(
         '/api/v1/mobile/chat/messages/$messageId/delete',
         body: {},
       );
+      if (res is Map<String, dynamic>) {
+        return res;
+      } else if (res is Map) {
+        return Map<String, dynamic>.from(res);
+      }
+      return {'status': 'success', 'deleted': true};
     } catch (e) {
       // Fallback 1: Odoo ORM JSON-RPC call_kw mail.message/unlink
       if (msgIdInt != null) {
@@ -581,7 +587,7 @@ class ChatV2Repository {
             },
             auth: true,
           );
-          return;
+          return {'status': 'success', 'deleted': true, 'recalled': false};
         } catch (_) {
           // Fallback 2: Clear body to recall message if unlink is restricted
           try {
@@ -599,11 +605,56 @@ class ChatV2Repository {
               },
               auth: true,
             );
-            return;
+            return {
+              'status': 'success',
+              'deleted': false,
+              'recalled': true,
+              'body': '<i>Tin nhắn đã được thu hồi</i>',
+            };
           } catch (_) {}
         }
       }
       rethrow;
+    }
+  }
+
+  Future<List<ChatV2Message>> getPinnedMessages(
+    String channelId, {
+    String? currentPartnerId,
+    String? currentUserId,
+  }) async {
+    final cid = int.tryParse(channelId);
+    if (cid == null || cid <= 0) return const [];
+    try {
+      final dynamic data = await _client.get(
+        '/api/v1/mobile/chat/channels/$channelId/pinned-messages',
+      ).timeout(const Duration(seconds: 15));
+
+      final List<dynamic> list;
+      if (data is Map && data['messages'] is List) {
+        list = data['messages'] as List;
+      } else if (data is List) {
+        list = data;
+      } else {
+        list = const [];
+      }
+
+      final partnerId = currentPartnerId ?? _client.session?.partnerId.toString();
+      final userId = currentUserId ?? _client.session?.uid.toString();
+
+      return list
+          .whereType<Map>()
+          .map((e) => ChatV2Message.fromMap(
+                Map<String, dynamic>.from(e),
+                currentPartnerId: partnerId,
+                currentUserId: userId,
+              ))
+          .toList();
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[ChatV2Repository] getPinnedMessages error for $channelId: $e');
+      }
+      return const [];
     }
   }
 

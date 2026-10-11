@@ -38,6 +38,7 @@ Future<void> vcloudFirebaseMessagingBackgroundHandler(
     if (eventType == 'incoming_call' || eventType.contains('call')) {
       final channelId = int.tryParse(data['channel_id']?.toString() ?? '0') ?? 0;
       final callerId = int.tryParse(data['caller_id']?.toString() ?? '0') ?? 0;
+      final callId = int.tryParse(data['call_id']?.toString() ?? '0') ?? 0;
       final callerName = data['caller_name']?.toString() ?? 'Đồng nghiệp';
       final callerAvatar = data['caller_avatar']?.toString();
       final callUuid = data['call_uuid']?.toString() ?? 'call_${channelId}_${DateTime.now().millisecondsSinceEpoch}';
@@ -49,6 +50,7 @@ Future<void> vcloudFirebaseMessagingBackgroundHandler(
           callerAvatar: callerAvatar,
           channelId: channelId,
           callerId: callerId,
+          callId: callId,
         );
       }
     } else if (eventType == 'call_cancelled' || eventType == 'call_ended') {

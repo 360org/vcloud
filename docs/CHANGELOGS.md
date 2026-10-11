@@ -2,6 +2,41 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.18+158] — 2026-10-12 (Vá An Ninh IDOR, Chống Phồng RAM WebRTC ICE Queue & Đồng Bộ Parity Odoo 17/19)
+
+> [!IMPORTANT]
+> **Hoàn Thiện Gói Vá Bảo Mật & Ổn Định Cuộc Gọi WebRTC**:
+> - **1. Chống IDOR Trong `initiate_call` (`v_mobile_17`, `v_mobile_19`)**:
+>   * Ràng buộc người nhận `receiver` bắt buộc thuộc danh sách `channel_member_ids` của kênh chat.
+>   * Chặn hoàn toàn khởi tạo cuộc gọi tới tài khoản Portal (`is_portal_uid`).
+> - **2. Giới Hạn Buffer Hàng Đợi ICE Candidate (`chat_v2_webrtc_engine.dart`)**:
+>   * Bổ sung trần giới hạn `_maxQueuedCandidates = 50` cho cả local và remote ICE candidate queue, loại bỏ FIFO khi vượt ngưỡng để chống phồng RAM khi mạng gián đoạn.
+> - **3. Đồng Bộ Parity Backend Odoo 17 & 19 (`controllers/call.py`)**:
+>   * Odoo 19: Bổ sung header CORS `Access-Control-Allow-Origin: *` trong `_cors_response()`.
+>   * Odoo 17: Bổ sung `AuthController._commit_nodb_write()` trên tất cả các thao tác ghi DB và kiểm tra `expires_at` chống kẹt phiên gọi cũ.
+> - **4. Kiểm Thử & Kiểm Soát Chất Lượng**:
+>   * `dart analyze`: Đạt **0 issues found** (0 errors, 0 warnings).
+>   * `py_compile`: PASS 100% trên cả Odoo 17 và 19.
+
+## [v2.9.17+157] — 2026-10-11 (Hoàn Thiện WebRTC P2P Signaling, Background CallKit Push & Gọi Chéo Web-Mobile)
+
+> [!IMPORTANT]
+> **Khắc Phục Triệt Để Treo Cuộc Gọi Khi Accept, Bổ Sung CallKit Background Push & Chuẩn Hóa Gọi Chéo Web Odoo <-> Mobile**:
+> - **1. Phẫu Thuật Signaling Odoo Bus & Khử Treo Cuộc Gọi (`v_mobile_19`, `v_mobile_17`, `chat_v2_call_controller.dart`, `odoo_bus_service.dart`)**:
+>   * Sửa lỗi nuốt tín hiệu Bus trong `accept_call` backend: bổ sung `_notify_call_bus(session, "connected", sdp_answer)` phát đồng bộ trên `discuss.channel`, `res.partner` và bắn `peer_notification` cho Caller.
+>   * Bổ sung lắng nghe Stream `onCallAccepted` và `onPeerJoined` trên `OdooBusService` phía Flutter client.
+>   * Triển khai hàng đợi `_queuedLocalCandidates` trong `ChatV2WebRtcEngine`: hoãn gửi ICE candidate khi `_targetSessionIds` rỗng và tự động flush ngay khi Callee gia nhập phòng (`updateTargetSessionIds`), chấm dứt triệt để tình trạng treo màn hình "Đang gọi / Connecting".
+> - **2. Đánh Thức CallKit Khi Thoát App / Khóa Màn Hình (`push_notification_service.dart`, `notification.py`, `chat_v2_callkit_service.dart`, `app.dart`)**:
+>   * Backend Odoo phát High-Priority Push Notification (`event_type: "incoming_call"`) dạng Data-only cho Android và APNs `content-available: 1` cho iOS khi cuộc gọi bắt đầu, đảm bảo không bị Android OS nuốt vào khay thông báo.
+>   * `vcloudFirebaseMessagingBackgroundHandler` trích xuất `channel_id`, `caller_id`, `caller_name`, `call_id`, `call_uuid` và gọi `ChatV2CallKitService.instance.showIncomingCall()` hiển thị giao diện nhận cuộc gọi toàn màn hình Native.
+>   * Bổ sung cơ chế `checkAndHandleAcceptedCallOnStartup` trong `ChatV2CallKitService` và `app.dart`: bảo đảm khi mở app từ nút Accept ngoài màn hình khóa, cuộc gọi được kết nối ngay lập tức.
+>   * Backend phát `call_cancelled` khi Caller dập máy trước, Callee dừng reo CallKit ngay lập tức qua `endAllCalls()`.
+> - **3. Đàm Thoại Chéo Web Odoo Discuss <-> Mobile Flutter (WebRTC Protocol Parity)**:
+>   * Tương thích 100% với giao thức WebRTC Odoo 19 Discuss native (`/mail/rtc/*` & `discuss.channel.rtc.session/peer_notification`), hỗ trợ gọi 2 chiều trơn tru giữa trình duyệt Web và ứng dụng di động.
+> - **4. Kiểm Soát Chất Lượng & Phân Tích Mã Nguồn**:
+>   * `dart analyze`: Đạt **0 issues found** (0 errors, 0 warnings) trên toàn bộ codebase.
+>   * Kiểm thử tự động: 29/29 tests trong `chat_v2_call_test.dart` PASS 100% (bao gồm TC-HANDSHAKE-01, TC-ICE-QUEUE-02, TC-PEER-JOIN-03).
+
 ## [v2.9.17+157] — 2026-10-10 (Triệt Tiêu Quote Card Rác Chat V2 & Nâng Cấp SLA Ticket)
 
 > [!IMPORTANT]
