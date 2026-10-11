@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -11,6 +12,34 @@ import 'package:vcloud/features/auth/application/auth_controller.dart';
 import 'package:vcloud/features/auth/data/auth_repository.dart';
 import 'package:vcloud/features/chat_v2/presentation/screens/chat_v2_detail_screen.dart';
 import 'package:vcloud/features/chat_v2/application/chat_v2_channels_controller.dart';
+import 'package:vcloud/features/chat_v2/application/chat_v2_messages_controller.dart';
+import 'package:vcloud/features/chat_v2/application/chat_v2_call_watcher.dart';
+import 'package:vcloud/features/chat_v2/data/models/chat_v2_channel.dart';
+import 'package:vcloud/features/chat_v2/data/models/chat_v2_message.dart';
+
+class FakeCallWatcher implements ChatV2CallWatcher {
+  @override
+  void dispose() {}
+
+  @override
+  void onAppResumed() {}
+
+  @override
+  void onAppPaused() {}
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _FakeChannelsNotifier extends ChatV2ChannelsNotifier {
+  @override
+  Future<List<ChatV2Channel>> build() async => const [];
+}
+
+class _FakeMessagesNotifier extends ChatV2MessagesNotifier {
+  @override
+  FutureOr<List<ChatV2Message>> build(String arg) async => const [];
+}
 
 class FakePushNotificationService implements PushNotificationService {
   final _onMessageController = StreamController<RemoteMessage>.broadcast();
@@ -82,12 +111,20 @@ void main() {
     testWidgets(
       'TC-01: Nhận sự kiện FCM Notification Click ➔ Tự động mở phòng chat tương ứng',
       (WidgetTester tester) async {
+        final container = ProviderContainer(
+          overrides: [
+            pushNotificationServiceProvider.overrideWithValue(fakePushService),
+            authRepositoryProvider.overrideWithValue(FakeAuthRepository(user: mockUser)),
+            chatV2CallWatcherProvider.overrideWithValue(FakeCallWatcher()),
+            chatV2ChannelsProvider.overrideWith(() => _FakeChannelsNotifier()),
+            chatV2MessagesProvider.overrideWith(() => _FakeMessagesNotifier()),
+          ],
+        );
+        addTearDown(container.dispose);
+
         await tester.pumpWidget(
-          ProviderScope(
-            overrides: [
-              pushNotificationServiceProvider.overrideWithValue(fakePushService),
-              authRepositoryProvider.overrideWithValue(FakeAuthRepository(user: mockUser)),
-            ],
+          UncontrolledProviderScope(
+            container: container,
             child: const VCloudApp(),
           ),
         );
@@ -123,7 +160,8 @@ void main() {
         expect(find.text(testChannelName), findsOneWidget);
 
         // Dọn dẹp animation timer
-        await tester.pump(const Duration(seconds: 1));
+        await tester.pumpWidget(const SizedBox());
+        await tester.pump(const Duration(seconds: 30));
       },
     );
 
@@ -134,6 +172,9 @@ void main() {
           overrides: [
             pushNotificationServiceProvider.overrideWithValue(fakePushService),
             authRepositoryProvider.overrideWithValue(FakeAuthRepository(user: mockUser)),
+            chatV2CallWatcherProvider.overrideWithValue(FakeCallWatcher()),
+            chatV2ChannelsProvider.overrideWith(() => _FakeChannelsNotifier()),
+            chatV2MessagesProvider.overrideWith(() => _FakeMessagesNotifier()),
           ],
         );
 
