@@ -2,6 +2,16 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.18+160] — 2026-10-12 (Tự Chữa Lỗi TestFlight External Group Beta Description & Fastlane Fallback)
+
+> [!IMPORTANT]
+> **Tự Động Chữa Lỗi & Gia Cố Fastlane TestFlight Pipeline**:
+> - **1. Fastlane TestFlight Beta App Description**:
+>   * Cung cấp `beta_app_description` và `beta_app_feedback_email` cho `upload_to_testflight`, thỏa mãn yêu cầu bắt buộc của Apple khi phân phối bản dựng tới nhóm kiểm thử bên ngoài (External Tester Group).
+>   * Xử lý ngoại lệ thông minh: Nhận diện trạng thái bản dựng đã được tải lên và xử lý thành công trên App Store Connect, ngăn chặn việc rơi vào fallback `altool` thứ cấp gây xung đột `-19232 Bundle version duplicate`.
+> - **2. SSOT Build Version**:
+>   * Nâng version `vclients/pubspec.yaml` lên `2.9.18+160`.
+
 ## [v2.9.18+159] — 2026-10-12 (Vá An Ninh IDOR, Chống Phồng RAM WebRTC ICE Queue & Đồng Bộ Parity Odoo 17/19)
 
 > [!IMPORTANT]
