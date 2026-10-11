@@ -2,7 +2,7 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
-## [v2.9.18+158] — 2026-10-12 (Vá An Ninh IDOR, Chống Phồng RAM WebRTC ICE Queue & Đồng Bộ Parity Odoo 17/19)
+## [v2.9.18+159] — 2026-10-12 (Vá An Ninh IDOR, Chống Phồng RAM WebRTC ICE Queue & Đồng Bộ Parity Odoo 17/19)
 
 > [!IMPORTANT]
 > **Hoàn Thiện Gói Vá Bảo Mật & Ổn Định Cuộc Gọi WebRTC**:
