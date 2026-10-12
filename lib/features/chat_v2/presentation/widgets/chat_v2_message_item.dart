@@ -172,16 +172,24 @@ class ChatV2MessageItem extends StatelessWidget {
     final hasRealCaption = hasAnyImage && !isFileNameContent;
     final isPureImage = hasAnyImage && !hasRealCaption && !hasDocs && !hasVideos;
 
+    final cleanLower = cleanContent.toLowerCase();
     final isCallMessage =
         cleanContent.startsWith('📞') ||
         cleanContent.startsWith('❌') ||
         cleanContent.startsWith('🚫') ||
         cleanContent.startsWith('📵') ||
-        (cleanContent.contains('Cuộc gọi') &&
-            (cleanContent.contains('nhỡ') ||
-                cleanContent.contains('thoại') ||
-                cleanContent.contains('từ chối') ||
-                cleanContent.contains('hủy')));
+        cleanLower.contains('cuộc gọi kéo dài trong') ||
+        cleanLower.contains('cuộc gọi kéo dài') ||
+        cleanLower.contains('kéo dài trong') ||
+        cleanLower.contains('call duration') ||
+        cleanLower.contains('cuộc gọi thoại') ||
+        cleanLower.contains('live conference') ||
+        cleanLower.contains('hội nghị trực tiếp') ||
+        (cleanLower.contains('cuộc gọi') &&
+            (cleanLower.contains('nhỡ') ||
+                cleanLower.contains('thoại') ||
+                cleanLower.contains('từ chối') ||
+                cleanLower.contains('hủy')));
 
     final isPureText =
         cleanContent.isNotEmpty &&
@@ -899,10 +907,18 @@ class ChatV2MessageItem extends StatelessWidget {
     Widget timeAndStatus,
   ) {
     final raw = message.content.trim();
-    final isMissed = raw.contains('nhỡ') || raw.startsWith('❌');
-    final isConnected = raw.contains('Cuộc gọi thoại') || raw.startsWith('📞');
-    final isRejected = raw.contains('từ chối') || raw.startsWith('🚫');
-    final isCancelled = raw.contains('hủy') || raw.startsWith('📵');
+    final rawLower = raw.toLowerCase();
+    final isMissed = rawLower.contains('nhỡ') || raw.startsWith('❌');
+    final isConnected = (rawLower.contains('cuộc gọi thoại') ||
+            raw.startsWith('📞') ||
+            rawLower.contains('cuộc gọi kéo dài') ||
+            rawLower.contains('kéo dài trong') ||
+            rawLower.contains('call duration') ||
+            rawLower.contains('live conference') ||
+            rawLower.contains('hội nghị trực tiếp')) &&
+        !isMissed;
+    final isRejected = rawLower.contains('từ chối') || raw.startsWith('🚫');
+    final isCancelled = rawLower.contains('hủy') || raw.startsWith('📵');
     final isAlertRed = !isMine && (isMissed || isRejected || isCancelled);
 
     String title = isMine ? 'Cuộc gọi đi' : 'Cuộc gọi đến';
@@ -1034,7 +1050,7 @@ class ChatV2MessageItem extends StatelessWidget {
     int initialIndex = 0,
   }) {
     final fullUrl = att.resolveFullUrl(odooApiClient.absoluteUrl(''));
-    final fallbackCard = _buildSimpleFilenameCard(context, isMine, att.name);
+    final fallbackCard = _buildSimpleFilenameCard(context, isMine, att.name, attachment: att);
     final uniqueAttKey = att.id.isNotEmpty
         ? att.id
         : (att.url?.isNotEmpty == true ? att.url! : 'idx_$initialIndex');
@@ -1182,15 +1198,21 @@ class ChatV2MessageItem extends StatelessWidget {
   Widget _buildSimpleFilenameCard(
     BuildContext context,
     bool isMine,
-    String fileName,
-  ) {
+    String fileName, {
+    ChatV2Attachment? attachment,
+  }) {
     return _buildFileAttachmentCard(
       context: context,
       isMine: isMine,
       filename: fileName,
-      fileSize: null,
-      downloadUrl: null,
-      directBytes: null,
+      fileSize: attachment?.fileSize,
+      downloadUrl: attachment?.downloadUrl ?? attachment?.url,
+      directBytes: attachment?.bytes,
+      attachmentId: attachment != null && attachment.id.isNotEmpty
+          ? int.tryParse(attachment.id)
+          : null,
+      accessToken: attachment?.accessToken,
+      attachment: attachment,
       isImage: true,
     );
   }
@@ -1322,21 +1344,24 @@ class ChatV2MessageItem extends StatelessWidget {
       fileSize: att.fileSize,
       downloadUrl: att.downloadUrl ?? att.url,
       directBytes: att.bytes,
+      attachmentId: att.id.isNotEmpty ? int.tryParse(att.id) : null,
+      accessToken: att.accessToken,
+      attachment: att,
       isImage: false,
     );
   }
 
   Widget _buildDocumentFilenameCard(BuildContext context, bool isMine) {
     final cleanName = message.content.trim();
-    final fileSize = message.attachments.isNotEmpty
-        ? message.attachments.first.fileSize
-        : null;
-    final downloadUrl = message.attachments.isNotEmpty
-        ? message.attachments.first.downloadUrl
-        : null;
-    final directBytes = message.attachments.isNotEmpty
-        ? message.attachments.first.bytes
-        : null;
+    final matchedAtt = message.attachments.firstWhere(
+      (a) => a.name.trim() == cleanName || a.id == cleanName,
+      orElse: () => message.attachments.isNotEmpty
+          ? message.attachments.first
+          : const ChatV2Attachment(id: '', name: ''),
+    );
+    final fileSize = matchedAtt.fileSize;
+    final downloadUrl = matchedAtt.downloadUrl ?? matchedAtt.url;
+    final directBytes = matchedAtt.bytes;
 
     return _buildFileAttachmentCard(
       context: context,
@@ -1345,6 +1370,9 @@ class ChatV2MessageItem extends StatelessWidget {
       fileSize: fileSize,
       downloadUrl: downloadUrl,
       directBytes: directBytes,
+      attachmentId: matchedAtt.id.isNotEmpty ? int.tryParse(matchedAtt.id) : null,
+      accessToken: matchedAtt.accessToken,
+      attachment: matchedAtt.id.isNotEmpty ? matchedAtt : null,
       isImage: false,
     );
   }
@@ -1357,6 +1385,9 @@ class ChatV2MessageItem extends StatelessWidget {
     int? fileSize,
     String? downloadUrl,
     Uint8List? directBytes,
+    int? attachmentId,
+    String? accessToken,
+    ChatV2Attachment? attachment,
     required bool isImage,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -1387,26 +1418,40 @@ class ChatV2MessageItem extends StatelessWidget {
 
     return InkWell(
       onTap: () async {
-        // Ưu tiên 1: Thử lấy id từ message.attachments nếu có
-        int? attachmentId;
-        if (message.attachments.isNotEmpty) {
-          attachmentId = int.tryParse(message.attachments.first.id);
+        // Ưu tiên 1: Lấy attachmentId từ param hoặc object attachment được truyền vào trực tiếp
+        int? resolvedAttachmentId = attachmentId ??
+            (attachment != null && attachment.id.isNotEmpty ? int.tryParse(attachment.id) : null);
+
+        // Ưu tiên 2: Khớp attachment tương ứng trong message.attachments theo tên
+        if (resolvedAttachmentId == null || resolvedAttachmentId <= 0) {
+          final matched = message.attachments.firstWhere(
+            (a) => a.name.trim() == cleanName || a.id == cleanName,
+            orElse: () => const ChatV2Attachment(id: '', name: ''),
+          );
+          if (matched.id.isNotEmpty) {
+            resolvedAttachmentId = int.tryParse(matched.id);
+          }
         }
 
-        // Ưu tiên 2: Trích xuất id từ downloadUrl
-        if (attachmentId == null &&
+        // Ưu tiên 3: Trích xuất id từ downloadUrl nếu có
+        if (resolvedAttachmentId == null &&
             downloadUrl != null &&
             downloadUrl.isNotEmpty) {
           final match = RegExp(
             r'/(?:attachments|image|content)/(\d+)',
           ).firstMatch(downloadUrl);
           if (match != null) {
-            attachmentId = int.tryParse(match.group(1)!);
+            resolvedAttachmentId = int.tryParse(match.group(1)!);
           }
         }
 
+        // Fallback an toàn: Chỉ lấy first nếu danh sách CHỈ CÓ 1 phần tử
+        if (resolvedAttachmentId == null && message.attachments.length == 1) {
+          resolvedAttachmentId = int.tryParse(message.attachments.first.id);
+        }
+
         // Chuẩn hóa downloadUrl hợp lệ
-        String? resolvedDownloadUrl = downloadUrl;
+        String? resolvedDownloadUrl = downloadUrl ?? attachment?.downloadUrl ?? attachment?.url;
         if (resolvedDownloadUrl != null &&
             !resolvedDownloadUrl.startsWith('http://') &&
             !resolvedDownloadUrl.startsWith('https://') &&
@@ -1415,23 +1460,40 @@ class ChatV2MessageItem extends StatelessWidget {
         }
 
         if (resolvedDownloadUrl == null &&
-            attachmentId != null &&
-            attachmentId > 0) {
+            resolvedAttachmentId != null &&
+            resolvedAttachmentId > 0) {
           resolvedDownloadUrl =
-              '/api/v1/mobile/attachments/$attachmentId/download';
+              '/api/v1/mobile/attachments/$resolvedAttachmentId/download';
         }
 
-        final attToken = message.attachments.isNotEmpty
-            ? message.attachments.first.accessToken
-            : null;
+        // Lấy đúng access_token của attachment đó
+        String? attToken = accessToken ?? attachment?.accessToken;
+        if (attToken == null && resolvedAttachmentId != null) {
+          final matched = message.attachments.firstWhere(
+            (a) => int.tryParse(a.id) == resolvedAttachmentId,
+            orElse: () => const ChatV2Attachment(id: '', name: ''),
+          );
+          if (matched.accessToken != null && matched.accessToken!.isNotEmpty) {
+            attToken = matched.accessToken;
+          }
+        }
+        if (attToken == null && message.attachments.length == 1) {
+          attToken = message.attachments.first.accessToken;
+        }
+
+        final isZaloMsg = message.authorName.toLowerCase().contains('zalo') ||
+            cleanName.toLowerCase().startsWith('pic ') ||
+            cleanName.toLowerCase().startsWith('pic_') ||
+            cleanName.toLowerCase().contains('zalo');
 
         await ChatV2AttachmentViewer.open(
           context: context,
           filename: cleanName,
-          attachmentId: attachmentId,
+          attachmentId: resolvedAttachmentId,
           downloadUrl: resolvedDownloadUrl,
           accessToken: attToken,
           directBytes: cachedBytes,
+          isZalo: isZaloMsg,
         );
       },
       borderRadius: BorderRadius.circular(8),

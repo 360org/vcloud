@@ -26,6 +26,9 @@ final chatV2MessagesProvider = AutoDisposeAsyncNotifierProviderFamily<
   ChatV2MessagesNotifier.new,
 );
 
+final chatV2ChannelAccessDeniedProvider =
+    StateProvider.autoDispose.family<bool, String>((ref, channelId) => false);
+
 final chatV2PinnedMessagesProvider = AutoDisposeAsyncNotifierProviderFamily<
     ChatV2PinnedMessagesNotifier, List<ChatV2Message>, String>(
   ChatV2PinnedMessagesNotifier.new,
@@ -332,6 +335,7 @@ class ChatV2MessagesNotifier
         if (isDisposed) return;
         final isForeground = ref.read(isAppForegroundProvider);
         if (isForeground && !state.isLoading && state.hasValue) {
+          if (ref.read(chatV2ChannelAccessDeniedProvider(channelId))) return;
           try {
             final latest = await repo.getMessages(
               channelId,
@@ -347,7 +351,12 @@ class ChatV2MessagesNotifier
                 state = AsyncData(merged);
               }
             }
-          } catch (_) {}
+          } catch (e) {
+            final errStr = e.toString().toLowerCase();
+            if (e is ChatV2AccessDeniedException || errStr.contains('access denied') || errStr.contains('forbidden')) {
+              ref.read(chatV2ChannelAccessDeniedProvider(channelId).notifier).state = true;
+            }
+          }
         }
         if (!isDisposed && isForeground) {
           scheduleNextPoll();
@@ -402,11 +411,19 @@ class ChatV2MessagesNotifier
             }
           }
         } catch (e, st) {
+          final errStr = e.toString().toLowerCase();
+          if (e is ChatV2AccessDeniedException || errStr.contains('access denied') || errStr.contains('forbidden')) {
+            ref.read(chatV2ChannelAccessDeniedProvider(channelId).notifier).state = true;
+          }
           debugPrint('❌ [ERROR] ChatV2MessagesNotifier.build SWR: $e\n$st');
         }
       }().catchError((_) {}));
       debugPrint('🔴 [TRACE] ChatV2MessagesNotifier.build() END (Returned Cached)');
       return cached;
+    }
+
+    if (ref.read(chatV2ChannelAccessDeniedProvider(channelId))) {
+      return const [];
     }
 
     debugPrint('🟢 [TRACE] ChatV2MessagesNotifier.build Initial getMessages() START');
@@ -443,6 +460,12 @@ class ChatV2MessagesNotifier
       debugPrint('🔴 [TRACE] ChatV2MessagesNotifier.build() END (Returned Fresh)');
       return sortedFresh;
     } catch (e) {
+      final errStr = e.toString().toLowerCase();
+      if (e is ChatV2AccessDeniedException || errStr.contains('access denied') || errStr.contains('forbidden')) {
+        debugPrint('⚠️ [ChatV2MessagesNotifier] Access denied to channel $channelId: $e');
+        ref.read(chatV2ChannelAccessDeniedProvider(channelId).notifier).state = true;
+        return const [];
+      }
       if (e.toString().contains('channel_not_found')) {
         ChatV2ChannelLocalCache.remove(channelId);
         ChatV2MessageLocalCache.remove(channelId);

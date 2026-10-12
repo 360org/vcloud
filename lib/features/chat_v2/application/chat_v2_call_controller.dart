@@ -9,6 +9,7 @@ import '../data/chat_v2_call_repository.dart';
 import '../data/odoo_bus_service.dart';
 import '../domain/models/chat_v2_call_session.dart';
 import 'chat_v2_callkit_service.dart';
+import 'chat_v2_channels_controller.dart';
 import 'chat_v2_webrtc_engine.dart';
 
 final chatV2CallControllerProvider =
@@ -352,6 +353,13 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
         await repo.rejectCall(current.id);
       }
       await repo.leaveCall(channelId: current.channelId, sessionId: current.id);
+      if (current.channelId > 0) {
+        ChatV2ChannelLocalCache.updateChannelLastMessage(
+          current.channelId.toString(),
+          lastMessage: '🚫 [Cuộc gọi bị từ chối]',
+          lastMessageDate: DateTime.now(),
+        );
+      }
     }
     state = current?.copyWith(state: ChatV2CallState.rejected);
     _cleanupWebrtc();
@@ -377,6 +385,13 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
       }
       await repo.cancelCallInvitation(channelId: current.channelId);
       await repo.leaveCall(channelId: current.channelId, sessionId: current.id);
+      if (current.channelId > 0) {
+        ChatV2ChannelLocalCache.updateChannelLastMessage(
+          current.channelId.toString(),
+          lastMessage: '📵 [Cuộc gọi đã hủy]',
+          lastMessageDate: DateTime.now(),
+        );
+      }
     }
     state = current?.copyWith(state: ChatV2CallState.cancelled);
     _cleanupWebrtc();
@@ -401,6 +416,14 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
         await repo.endCall(current.id, duration: current.duration);
       }
       await repo.leaveCall(channelId: current.channelId, sessionId: current.id);
+      if (current.channelId > 0) {
+        final durationStr = current.duration > 0 ? ' (${current.formattedDuration})' : '';
+        ChatV2ChannelLocalCache.updateChannelLastMessage(
+          current.channelId.toString(),
+          lastMessage: '📞 Cuộc gọi thoại$durationStr',
+          lastMessageDate: DateTime.now(),
+        );
+      }
     }
     state = current?.copyWith(state: ChatV2CallState.ended);
     _cleanupWebrtc();
@@ -486,6 +509,7 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
   }
 
   void _handleRemoteHangup({String? endState, String? reason}) {
+    final current = state;
     _stopAudio();
     _stopTimers();
     ChatV2CallState targetState = ChatV2CallState.ended;
@@ -502,6 +526,25 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
     );
     _cleanupWebrtc();
     ChatV2CallKitService.instance.endAllCalls();
+
+    if (current != null && current.channelId > 0) {
+      String callSnippet;
+      if (targetState == ChatV2CallState.rejected) {
+        callSnippet = '🚫 [Cuộc gọi bị từ chối]';
+      } else if (targetState == ChatV2CallState.cancelled) {
+        callSnippet = '📵 [Cuộc gọi đã hủy]';
+      } else if (targetState == ChatV2CallState.missed) {
+        callSnippet = '❌ [Cuộc gọi nhỡ]';
+      } else {
+        final durationStr = current.duration > 0 ? ' (${current.formattedDuration})' : '';
+        callSnippet = '📞 Cuộc gọi thoại$durationStr';
+      }
+      ChatV2ChannelLocalCache.updateChannelLastMessage(
+        current.channelId.toString(),
+        lastMessage: callSnippet,
+        lastMessageDate: DateTime.now(),
+      );
+    }
 
     // Tự động dọn dẹp state sau 1.2s nếu bận hoặc nhỡ, 2.2s nếu mất mạng để kịp đọc thông báo, 1.5s nếu gác máy bình thường
     final cleanupDelay = (reason == 'busy' || targetState == ChatV2CallState.missed)

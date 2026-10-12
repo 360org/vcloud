@@ -38,6 +38,7 @@ class ChatV2AttachmentViewer {
     String? downloadUrl,
     String? accessToken,
     Uint8List? directBytes,
+    bool isZalo = false,
   }) async {
     final cleanName = filename.trim();
     final messenger = ScaffoldMessenger.of(context);
@@ -161,11 +162,19 @@ class ChatV2AttachmentViewer {
       if (bytes == null || bytes.isEmpty) {
         if (context.mounted) {
           messenger.hideCurrentSnackBar();
+          final lower = cleanName.toLowerCase();
+          final isZaloFile = isZalo ||
+              lower.startsWith('pic ') ||
+              lower.startsWith('pic_') ||
+              lower.contains('zalo');
+          final errorMsg = isZaloFile
+              ? 'Tệp đính kèm từ Zalo OA bị rỗng hoặc đã hết hạn trên máy chủ.'
+              : 'Không thể tải dữ liệu tệp tin hoặc tệp tin rỗng trên máy chủ.';
           messenger.showSnackBar(
-            const SnackBar(
-              content: Text('Không thể tải dữ liệu tệp tin hoặc tệp tin rỗng trên máy chủ.'),
-              duration: Duration(seconds: 3),
-              backgroundColor: Color(0xFFE11D48),
+            SnackBar(
+              content: Text(errorMsg),
+              duration: const Duration(seconds: 3),
+              backgroundColor: const Color(0xFFE11D48),
               behavior: SnackBarBehavior.floating,
             ),
           );

@@ -10,6 +10,14 @@ import 'models/chat_v2_channel.dart';
 import 'models/chat_v2_message.dart';
 import 'models/chat_v2_reaction.dart';
 
+class ChatV2AccessDeniedException implements Exception {
+  final String message;
+  const ChatV2AccessDeniedException([this.message = 'Bạn không có quyền truy cập tin nhắn của cuộc trò chuyện này']);
+
+  @override
+  String toString() => message;
+}
+
 final chatV2RepositoryProvider = Provider<ChatV2Repository>((ref) {
   return ChatV2Repository(odooApiClient);
 });
@@ -141,12 +149,34 @@ class ChatV2Repository {
         '/api/v1/mobile/chat/channels/$channelId/messages',
         query: queryParams,
       );
-    } catch (_) {
+    } catch (e) {
+      final errStr = e.toString().toLowerCase();
+      if (errStr.contains('access denied') || errStr.contains('forbidden')) {
+        debugPrint('[ChatV2Repository] getMessages: Access denied to channel $channelId');
+        throw const ChatV2AccessDeniedException();
+      }
+      if (errStr.contains('channel_not_found') || errStr.contains('not_found')) {
+        debugPrint('[ChatV2Repository] getMessages: Channel $channelId not found');
+        return const [];
+      }
       // Retry 1 lần nếu gặp lỗi mạng tạm thời
-      data = await _client.get(
-        '/api/v1/mobile/chat/channels/$channelId/messages',
-        query: queryParams,
-      );
+      try {
+        data = await _client.get(
+          '/api/v1/mobile/chat/channels/$channelId/messages',
+          query: queryParams,
+        );
+      } catch (retryErr) {
+        final retryErrStr = retryErr.toString().toLowerCase();
+        if (retryErrStr.contains('access denied') || retryErrStr.contains('forbidden')) {
+          debugPrint('[ChatV2Repository] getMessages retry: Access denied to channel $channelId');
+          throw const ChatV2AccessDeniedException();
+        }
+        if (retryErrStr.contains('channel_not_found') || retryErrStr.contains('not_found')) {
+          debugPrint('[ChatV2Repository] getMessages retry: Channel $channelId not found');
+          return const [];
+        }
+        rethrow;
+      }
     }
 
     final List<dynamic> list;

@@ -2,6 +2,17 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.19+163] — 2026-10-12 (Khắc Phục Lỗi Mở Tệp Đính Kèm Zalo OA & Xóa Bỏ Hardcode attachments.first)
+
+> [!IMPORTANT]
+> **Khắc Phục Lỗi Mở Tệp Đính Kèm & Đồng Bộ Nhận Diện Zalo OA (Multi-Attachment Resolution)**:
+> - **1. Xóa Bỏ Triệt Để Hardcode `attachments.first` (`chat_v2_message_item.dart`)**:
+>   * Cập nhật `_buildSimpleFilenameCard` và `_buildFileAttachmentCard` nhận trực tiếp `attachmentId`, `accessToken`, `attachment`.
+>   * Khi người dùng nhấn vào bất kỳ tệp nào trong danh sách nhiều tệp đính kèm (`Pic 1`, `Pic 2`, `Pic 3`...), app định danh và tải chính xác tệp đó theo đúng ID/URL thay vì luôn tải tệp đầu tiên.
+> - **2. Phản Hồi Trực Quan Cho Tệp Zalo OA Rỗng / Hết Hạn (`chat_v2_attachment_viewer.dart`)**:
+>   * Nhận diện cờ `isZalo` từ tác giả tin nhắn hoặc tiền tố tệp (`Pic `, `zalo`).
+>   * Hiển thị thông báo thân thiện rõ ràng: *"Tệp đính kèm từ Zalo OA bị rỗng hoặc đã hết hạn trên máy chủ."* thay vì lỗi chung chung khi backend trả về 0-byte.
+
 ## [v2.9.18+162] — 2026-10-12 (Gia Cố Phân Quyền Portal & Khóa Chấm Công/Timesheet)
 
 > [!IMPORTANT]

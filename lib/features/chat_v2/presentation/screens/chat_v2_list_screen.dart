@@ -951,7 +951,7 @@ class _ChannelListItem extends ConsumerWidget {
     final isGroup = channel.getActualIsGroup(currentUserName);
     // Kiểm tra tin nhắn cuối từ channel hoặc từ cache tin nhắn
     final cachedMsgs = ChatV2MessageLocalCache.get(channel.id);
-    final effectiveLastMsg = (channel.lastMessage != null && channel.lastMessage!.isNotEmpty)
+    String? effectiveLastMsg = (channel.lastMessage != null && channel.lastMessage!.isNotEmpty)
         ? channel.lastMessage
         : (cachedMsgs != null && cachedMsgs.isNotEmpty
             ? (cachedMsgs.first.content.isNotEmpty
@@ -965,6 +965,21 @@ class _ChannelListItem extends ConsumerWidget {
     final effectiveLastDate = (cachedMsgs != null && cachedMsgs.isNotEmpty && cachedMsgs.first.createdAt != null)
         ? cachedMsgs.first.createdAt
         : channel.lastMessageDate;
+
+    // Tìm kiếm trong cachedMsgs nếu effectiveLastMsg chưa có
+    if ((effectiveLastMsg == null || effectiveLastMsg.trim().isEmpty) && cachedMsgs != null && cachedMsgs.isNotEmpty) {
+      for (final m in cachedMsgs) {
+        final c = m.content.trim().toLowerCase();
+        if (c.contains('cuộc gọi') || c.contains('call duration') || c.contains('kéo dài trong') || m.content.startsWith('📞') || m.content.startsWith('❌')) {
+          effectiveLastMsg = m.content;
+          break;
+        }
+      }
+    }
+
+    if ((effectiveLastMsg == null || effectiveLastMsg.trim().isEmpty) && (channel.lastMessageDate != null || effectiveLastDate != null)) {
+      effectiveLastMsg = '[Cuộc gọi thoại]';
+    }
 
     final timeStr = effectiveLastDate != null
         ? _formatDate(effectiveLastDate)
@@ -1373,7 +1388,7 @@ class _ChannelListItem extends ConsumerWidget {
   Widget _buildLastMessageSnippet(
       WidgetRef ref, bool isDark, bool hasUnread, String cleanName) {
     final cachedMsgs = ChatV2MessageLocalCache.get(channel.id);
-    final effectiveLastMsg = (channel.lastMessage != null && channel.lastMessage!.isNotEmpty)
+    String? effectiveLastMsg = (channel.lastMessage != null && channel.lastMessage!.isNotEmpty)
         ? channel.lastMessage
         : (cachedMsgs != null && cachedMsgs.isNotEmpty
             ? (cachedMsgs.first.content.isNotEmpty
@@ -1383,17 +1398,39 @@ class _ChannelListItem extends ConsumerWidget {
                     : null))
             : null);
 
-    if (effectiveLastMsg == null || effectiveLastMsg.isEmpty) {
-      return Text(
-        'Nhấn để bắt đầu trò chuyện',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          fontSize: 13.5,
-          color: isDark ? Colors.white60 : const Color(0xFF94A3B8),
-          fontStyle: FontStyle.italic,
-        ),
-      );
+    final effectiveLastDate = (cachedMsgs != null && cachedMsgs.isNotEmpty && cachedMsgs.first.createdAt != null)
+        ? cachedMsgs.first.createdAt
+        : channel.lastMessageDate;
+
+    // Tìm kiếm trong cachedMsgs nếu effectiveLastMsg chưa có
+    if ((effectiveLastMsg == null || effectiveLastMsg.trim().isEmpty) && cachedMsgs != null && cachedMsgs.isNotEmpty) {
+      for (final m in cachedMsgs) {
+        final c = m.content.trim().toLowerCase();
+        if (c.contains('cuộc gọi') || c.contains('call duration') || c.contains('kéo dài trong') || m.content.startsWith('📞') || m.content.startsWith('❌')) {
+          effectiveLastMsg = m.content;
+          break;
+        }
+      }
+    }
+
+    if (effectiveLastMsg == null || effectiveLastMsg.trim().isEmpty) {
+      final hasHistory = (effectiveLastDate != null) ||
+          (channel.lastMessageDate != null) ||
+          (cachedMsgs != null && cachedMsgs.isNotEmpty);
+      if (hasHistory) {
+        effectiveLastMsg = '[Cuộc gọi thoại]';
+      } else {
+        return Text(
+          'Nhấn để bắt đầu trò chuyện',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 13.5,
+            color: isDark ? Colors.white60 : const Color(0xFF94A3B8),
+            fontStyle: FontStyle.italic,
+          ),
+        );
+      }
     }
 
     final msg = effectiveLastMsg;
@@ -1530,7 +1567,14 @@ class _ChannelListItem extends ConsumerWidget {
         lower == '[tài liệu]');
 
     final isMissedCall = lower.contains('nhỡ') || lower.startsWith('❌') || lower.contains('cuộc gọi nhỡ');
-    final isVoiceCall = (lower.contains('cuộc gọi thoại') || lower.startsWith('📞')) && !isMissedCall;
+    final isVoiceCall = (lower.contains('cuộc gọi thoại') ||
+            lower.startsWith('📞') ||
+            lower.contains('cuộc gọi kéo dài') ||
+            lower.contains('kéo dài trong') ||
+            lower.contains('call duration') ||
+            lower.contains('live conference') ||
+            lower.contains('hội nghị trực tiếp')) &&
+        !isMissedCall;
     final isRejectedCall = lower.contains('từ chối') || lower.startsWith('🚫');
     final isCancelledCall = lower.contains('hủy') || lower.startsWith('📵');
     final isAnyCall = isMissedCall || isVoiceCall || isRejectedCall || isCancelledCall;
@@ -1546,11 +1590,26 @@ class _ChannelListItem extends ConsumerWidget {
     } else if (isMissedCall) {
       displayText = isMine ? '[Cuộc gọi nhỡ đi]' : '[Cuộc gọi nhỡ]';
     } else if (isVoiceCall) {
-      displayText = '[Cuộc gọi thoại]';
+      final cleanMsg = msg.replaceAll('📞', '').trim();
+      final timeMatch = RegExp(r'\((\d{1,2}:\d{2}(?::\d{2})?)\)').firstMatch(cleanMsg);
+      if (timeMatch != null) {
+        displayText = '[Cuộc gọi thoại] (${timeMatch.group(1)})';
+      } else {
+        final durMatch = RegExp(r'(?:kéo dài trong|duration:?)\s*(.+)', caseSensitive: false).firstMatch(cleanMsg);
+        if (durMatch != null && durMatch.group(1)?.trim().isNotEmpty == true) {
+          displayText = '[Cuộc gọi thoại] (${durMatch.group(1)!.trim()})';
+        } else {
+          displayText = '[Cuộc gọi thoại]';
+        }
+      }
     } else if (isRejectedCall) {
       displayText = '[Cuộc gọi bị từ chối]';
     } else if (isCancelledCall) {
       displayText = '[Cuộc gọi đã hủy]';
+    }
+
+    if (isAnyCall) {
+      prefix = '';
     }
 
     // Lấy trạng thái tin nhắn cuối từ Local Cache (phần tử .first là tin mới nhất)

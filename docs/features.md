@@ -2,6 +2,7 @@
 
 > **Dự án**: VCloud Mobile App (`vclients` Flutter) kết nối Odoo Backend (`v_mobile_17` & `v_mobile_19`)  
 > **Phiên bản hiện tại**: `v2.9.17+157` (Bản dựng TestFlight iOS & AAB Android phát hành Google Play mới nhất)  
+> 🟢 **Bản Vá Mới (2026-10-12)**: `[x] [L4 — VERIFIED: Khắc phục triệt để lỗi hiển thị tin nhắn xem trước cuộc gọi thoại RTC (Call Preview Snippet, Duration Extraction & Fallback Sync) đồng bộ Odoo 17, 19 và Flutter (12/12 assert-based self-check tests PASS, 0 dart analyze issues, py_compile PASS)]`  
 > 🟢 **Bản Phát Hành Mới (Build 157 — 2026-10-10)**: `[x] [L4 — VERIFIED: Triệt Tiêu Hoàn Toàn Quote Card Rác Chat V2, Chuẩn Hóa Reply Placeholder, Nâng Cấp Phân Trang Vô Hạn & Cam Kết SLA Ticket (Pass 100% tests, 0 analyze issues)]`  
 > **Nguồn sự thật (Single Source of Truth)**: Tài liệu kiểm soát toàn bộ tính năng theo 6 nhóm nghiệp vụ chuẩn hóa, phục vụ trực tiếp cho anh Tân nghiệm thu thực tế và báo cáo tiến độ.  
 > 🟢 **Pha 3 Refactor UI Video Player & Clean Architecture Riverpod (2026-10-10)**: `[x] [L4 — VERIFIED: Tách biệt hoàn toàn tầng State sang ChatV2VideoController (StateNotifier<ChatV2VideoPlayerState>) qua chatV2VideoPlayerProvider.autoDispose.family, tối ưu Rebuild qua .select() cho 6 ConsumerWidgets, bổ sung Seekbar nhạy, bộ đếm thời gian 00:00/00:00, nút Mute/Unmute, nút Xoay ngang/dọc Orientation toggle, tự động dọn RAM/VideoPlayerController/tệp tạm khi thoát màn hình; 10/10 Riverpod tests PASS, 16/16 Video Messaging tests PASS, 355/355 Chat V2 suite PASS, 0 analyze issues]`  
@@ -1337,6 +1338,12 @@ Tab "Tôi" quản lý thông tin nhân sự cá nhân, tùy chỉnh giao diện 
     + **ARCH-01 (MEDIUM)**: Bổ sung guard chặn Portal user truy cập trực tiếp route `/attendance` và `/timesheet` trong `vclients/lib/core/router/app_router.dart` (*Đã hoàn thành trong v2.9.16+155*).
     + **ARCH-02 (MEDIUM)**: Đóng gói các lời gọi raw API `odooApiClient.fetchBytes(...)` từ UI Presentation về tầng Data Repository.
   - *Hiện trạng kỹ thuật*: **ARCH-01 đã hoàn thành; ARCH-02 chờ triển khai chuẩn hóa tầng Data Repository**.
+
+- [x] **B.9 Vá Lỗi Share Link HTTP 500 & Access Denied Kênh Chat V2 (BUG-027)**
+  - *Mô tả*: Xử lý dứt điểm 2 lỗi liên tiếp khi người dùng gửi hoặc nhấn vào liên kết chia sẻ cuộc trò chuyện (`/chat/<id>/<uuid>`):
+    + **Backend Odoo (`v_mobile_17` & `v_mobile_19`)**: Bọc kiểm tra `int(channel_id)`, `.exists()`, xử lý `AccessError` trả về HTTP 403 JSON và bắt `Exception` trả về HTTP 500 JSON có cấu trúc trong `channel_messages` và `send_message`. Trong `discuss_channel_invitation`, tự động thêm thành viên đã đăng nhập vào nhóm (`add_members`) khi có token hợp lệ.
+    + **Frontend Flutter (`vclients`)**: Khai báo `ChatV2AccessDeniedException`, bắt lỗi 403 trong `ChatV2Repository.getMessages()`, kích hoạt cờ `chatV2ChannelAccessDeniedProvider`, dừng polling timer, hiển thị card thông báo "Không có quyền truy cập" kèm nút Quay lại và ẩn `ChatV2InputBar`.
+  - *Hiện trạng kỹ thuật*: **Đã hoàn thành triệt để trên Odoo 17, Odoo 19 và Flutter vclients, 12 test cases độc lập pass 100%**.
 
 ---
 

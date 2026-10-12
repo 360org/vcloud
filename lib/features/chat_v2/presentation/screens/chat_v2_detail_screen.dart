@@ -1392,6 +1392,74 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                         child: messagesAsync.when(
                           skipLoadingOnReload: true,
                           data: (messages) {
+                            final hasAccessDenied = ref.watch(chatV2ChannelAccessDeniedProvider(widget.channelId));
+                            if (hasAccessDenied) {
+                              return Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(24),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Container(
+                                        width: 68,
+                                        height: 68,
+                                        decoration: BoxDecoration(
+                                          color: Colors.amber.withValues(alpha: 0.15),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(
+                                          LucideIcons.shieldAlert,
+                                          color: Colors.amber,
+                                          size: 32,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Text(
+                                        'Không có quyền truy cập',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w700,
+                                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                                        child: Text(
+                                          'Bạn chưa là thành viên hoặc không có quyền xem tin nhắn trong cuộc trò chuyện này. Vui lòng liên hệ quản trị viên nhóm để được thêm vào.',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                            height: 1.4,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 20),
+                                      ElevatedButton.icon(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+                                          foregroundColor: isDark ? Colors.white : Colors.black87,
+                                          elevation: 1,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(10),
+                                          ),
+                                        ),
+                                        icon: const Icon(LucideIcons.arrowLeft, size: 16),
+                                        label: const Text('Quay lại'),
+                                        onPressed: () {
+                                          if (context.canPop()) {
+                                            context.pop();
+                                          } else {
+                                            context.go('/chat');
+                                          }
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }
                             if (messages.isEmpty) {
                               return Center(
                                 child: Column(
@@ -1730,42 +1798,61 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(
-                                    error.toString().contains('channel_not_found')
-                                        ? LucideIcons.messageSquareDashed
-                                        : LucideIcons.alertCircle,
-                                    size: 40,
-                                    color: error.toString().contains('channel_not_found')
-                                        ? Colors.amber
-                                        : Colors.redAccent,
-                                  ),
+                                  () {
+                                    final errStr = error.toString().toLowerCase();
+                                    final isNotFound = errStr.contains('channel_not_found');
+                                    final isAccessDenied = errStr.contains('access denied') || errStr.contains('forbidden');
+                                    return Icon(
+                                      isNotFound
+                                          ? LucideIcons.messageSquareDashed
+                                          : (isAccessDenied ? LucideIcons.shieldAlert : LucideIcons.alertCircle),
+                                      size: 40,
+                                      color: (isNotFound || isAccessDenied)
+                                          ? Colors.amber
+                                          : Colors.redAccent,
+                                    );
+                                  }(),
                                   const SizedBox(height: 12),
-                                  Text(
-                                    error.toString().contains('channel_not_found')
-                                        ? 'Cuộc hội thoại không tồn tại'
-                                        : 'Không thể tải tin nhắn',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                      color: isDark ? Colors.white : Colors.black87,
-                                    ),
-                                  ),
+                                  () {
+                                    final errStr = error.toString().toLowerCase();
+                                    final isNotFound = errStr.contains('channel_not_found');
+                                    final isAccessDenied = errStr.contains('access denied') || errStr.contains('forbidden');
+                                    return Text(
+                                      isNotFound
+                                          ? 'Cuộc hội thoại không tồn tại'
+                                          : (isAccessDenied ? 'Không có quyền truy cập' : 'Không thể tải tin nhắn'),
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: isDark ? Colors.white : Colors.black87,
+                                      ),
+                                    );
+                                  }(),
                                   const SizedBox(height: 6),
-                                  Text(
-                                    error.toString().contains('channel_not_found')
-                                        ? 'Kênh chat này không tồn tại trên hệ thống máy chủ hiện tại hoặc đã được dọn dẹp.'
-                                        : '$error',
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.grey,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
+                                  () {
+                                    final errStr = error.toString().toLowerCase();
+                                    final isNotFound = errStr.contains('channel_not_found');
+                                    final isAccessDenied = errStr.contains('access denied') || errStr.contains('forbidden');
+                                    return Text(
+                                      isNotFound
+                                          ? 'Kênh chat này không tồn tại trên hệ thống máy chủ hiện tại hoặc đã được dọn dẹp.'
+                                          : (isAccessDenied
+                                              ? 'Bạn chưa là thành viên hoặc không có quyền xem tin nhắn trong cuộc trò chuyện này.'
+                                              : '$error'),
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        color: Colors.grey,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    );
+                                  }(),
                                   const SizedBox(height: 16),
                                   Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      if (error.toString().contains('channel_not_found'))
+                                      if (error.toString().contains('channel_not_found') ||
+                                          error.toString().toLowerCase().contains('access denied') ||
+                                          error.toString().toLowerCase().contains('forbidden'))
                                         ElevatedButton.icon(
                                           onPressed: () {
                                             ChatV2ChannelLocalCache.remove(widget.channelId);
@@ -1776,7 +1863,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                             }
                                           },
                                           icon: const Icon(LucideIcons.arrowLeft, size: 16),
-                                          label: const Text('Về danh sách'),
+                                          label: const Text('Quay lại'),
                                           style: ElevatedButton.styleFrom(
                                             backgroundColor: const Color(0xFF00C83A),
                                             foregroundColor: Colors.white,
@@ -1912,21 +1999,22 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                         ],
                       ),
                     ),
-                  ChatV2InputBar(
-                    channelId: widget.channelId,
-                    channelMembers: effectiveChannelMembers,
-                    isGroup: isActualGroup,
-                    controller: _inputController,
-                    focusNode: _inputFocusNode,
-                    onSend: _handleSendMessage,
-                    onSendImage: _handleSendImage,
-                    onSendBatchImages: _handleSendBatchImages,
-                    onSendFile: _handleSendFile,
-                    isSending: _isSending,
-                    onTyping: (isTyping) {
-                      ref.read(chatV2RealtimeServiceProvider).sendTypingStatus(widget.channelId, isTyping);
-                    },
-                  ),
+                  if (!ref.watch(chatV2ChannelAccessDeniedProvider(widget.channelId)))
+                    ChatV2InputBar(
+                      channelId: widget.channelId,
+                      channelMembers: effectiveChannelMembers,
+                      isGroup: isActualGroup,
+                      controller: _inputController,
+                      focusNode: _inputFocusNode,
+                      onSend: _handleSendMessage,
+                      onSendImage: _handleSendImage,
+                      onSendBatchImages: _handleSendBatchImages,
+                      onSendFile: _handleSendFile,
+                      isSending: _isSending,
+                      onTyping: (isTyping) {
+                        ref.read(chatV2RealtimeServiceProvider).sendTypingStatus(widget.channelId, isTyping);
+                      },
+                    ),
                 ],
               ),
             ),
