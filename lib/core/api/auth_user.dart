@@ -22,7 +22,7 @@ class AuthUser {
   }
 
   bool get hasHelpdesk => installedModules['helpdesk'] == true;
-  bool get hasTimesheet => installedModules['hr_timesheet'] == true;
-  bool get hasAttendance => installedModules['hr_attendance'] == true;
+  bool get hasTimesheet => !isPortal && installedModules['hr_timesheet'] == true;
+  bool get hasAttendance => !isPortal && installedModules['hr_attendance'] == true;
   bool get hasProject => installedModules['project'] == true;
 }

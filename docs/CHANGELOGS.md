@@ -2,6 +2,18 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.18+162] — 2026-10-12 (Gia Cố Phân Quyền Portal & Khóa Chấm Công/Timesheet)
+
+> [!IMPORTANT]
+> **Gia Cố Bảo Mật & Phân Quyền Portal (Portal Role Hardening)**:
+> - **1. Khóa Chấm Công & Timesheet Cho Tài Khoản Portal (`auth_user.dart`)**:
+>   * Cập nhật getter `hasAttendance` và `hasTimesheet` ràng buộc điều kiện `!isPortal`, đảm bảo thẻ Chấm công trên `HomeScreen` tự động khóa 🔒 và hiển thị thông báo hợp lệ khi Portal user đăng nhập.
+>   * Ngăn chặn hoàn toàn truy cập route `/timesheet` và `/attendance` qua GoRouter redirect guard.
+> - **2. Phân Tách Bộ Lọc Kênh Zalo OA (`chat_v2_list_screen.dart`, `chat_v2_channel.dart`)**:
+>   * Xác nhận Filter Chip "Zalo OA" phân tách độc lập 100%, không bị chồng lấn vào tab "Trực tiếp" (Direct) hoặc "Nhóm" (Group).
+
+---
+
 ## [v2.9.18+161] — 2026-10-12 (Sửa Lỗi Toàn Diện WebRTC Cuộc Gọi: Full-Screen Intent Android, Khắc Phục Mất Âm 2 Chiều & Chống Kẹt Trạng Thái)
 
 > [!IMPORTANT]

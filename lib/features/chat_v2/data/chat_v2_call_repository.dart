@@ -328,12 +328,12 @@ class ChatV2CallRepository {
       if (res is Map && res['call'] != null) {
         return ChatV2CallSession.fromJson(Map<String, dynamic>.from(res['call'] as Map));
       } else if (callId != null && callId > 0) {
-        return getCallSession(callId);
+        return await getCallSession(callId);
       }
       return null;
     } catch (_) {
       if (callId != null && callId > 0) {
-        return getCallSession(callId);
+        return await getCallSession(callId);
       }
       return null;
     }
