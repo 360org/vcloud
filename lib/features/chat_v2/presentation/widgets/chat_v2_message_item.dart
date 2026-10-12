@@ -37,6 +37,7 @@ class ChatV2MessageItem extends StatelessWidget {
     this.onDelete,
     this.onMentionTap,
     this.onImageTap,
+    this.onAvatarTap,
     this.isHighlighted = false,
     this.searchQuery,
     this.isSearchActiveMatch = false,
@@ -53,6 +54,7 @@ class ChatV2MessageItem extends StatelessWidget {
   final VoidCallback? onDelete;
   final ValueChanged<String>? onMentionTap;
   final Function? onImageTap;
+  final VoidCallback? onAvatarTap;
   final bool isHighlighted;
   final String? searchQuery;
   final bool isSearchActiveMatch;
@@ -250,60 +252,64 @@ class ChatV2MessageItem extends StatelessWidget {
           children: [
             if (!isMine && isGroup) ...[
               if (showAvatar)
-                Container(
-                  width: 28,
-                  height: 28,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        authorColor.withValues(alpha: 0.85),
-                        authorColor,
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: authorColor.withValues(alpha: 0.25),
-                        blurRadius: 3,
-                        offset: const Offset(0, 1),
+                GestureDetector(
+                  onTap: onAvatarTap,
+                  behavior: HitTestBehavior.opaque,
+                  child: Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          authorColor.withValues(alpha: 0.85),
+                          authorColor,
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                       ),
-                    ],
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  alignment: Alignment.center,
-                  child: ClipOval(
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        Center(
-                          child: Text(
-                            message.authorName.isNotEmpty
-                                ? message.authorName[0].toUpperCase()
-                                : 'U',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: authorColor.withValues(alpha: 0.25),
+                          blurRadius: 3,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    alignment: Alignment.center,
+                    child: ClipOval(
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Center(
+                            child: Text(
+                              message.authorName.isNotEmpty
+                                  ? message.authorName[0].toUpperCase()
+                                  : 'U',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
-                        ),
-                        if (message.authorAvatar != null &&
-                            message.authorAvatar!.isNotEmpty)
-                          Image.network(
-                            message.authorAvatar!,
-                            width: 28,
-                            height: 28,
-                            fit: BoxFit.cover,
-                            cacheWidth: avatarCacheSize,
-                            cacheHeight: avatarCacheSize,
-                            gaplessPlayback: true,
-                            headers: odooApiClient.authHeaders,
-                            errorBuilder: (context, error, stackTrace) =>
-                                const SizedBox.shrink(),
-                          ),
-                      ],
+                          if (message.authorAvatar != null &&
+                              message.authorAvatar!.isNotEmpty)
+                            Image.network(
+                              message.authorAvatar!,
+                              width: 28,
+                              height: 28,
+                              fit: BoxFit.cover,
+                              cacheWidth: avatarCacheSize,
+                              cacheHeight: avatarCacheSize,
+                              gaplessPlayback: true,
+                              headers: odooApiClient.authHeaders,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  const SizedBox.shrink(),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
                 )

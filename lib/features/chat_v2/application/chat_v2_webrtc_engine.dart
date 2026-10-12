@@ -156,7 +156,20 @@ class ChatV2WebRtcEngine {
 
       _localStream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
       for (final track in _localStream!.getAudioTracks()) {
+        track.enabled = true;
+        if (!kIsWeb) {
+          try {
+            await Helper.setMicrophoneMute(false, track);
+          } catch (_) {}
+        }
         await _peerConnection!.addTrack(track, _localStream!);
+      }
+
+      if (!kIsWeb) {
+        try {
+          await Helper.ensureAudioSession();
+          await Helper.setSpeakerphoneOn(_isSpeaker);
+        } catch (_) {}
       }
     } catch (e) {
       debugPrint('[WebRTC] Native initialization error: $e');

@@ -24,6 +24,7 @@ import '../widgets/chat_v2_input_bar.dart';
 import '../widgets/chat_v2_message_item.dart';
 import '../widgets/chat_v2_info_sheet.dart';
 import '../widgets/chat_v2_reaction_details_sheet.dart';
+import '../widgets/chat_v2_avatar_action_sheet.dart';
 import '../../application/chat_v2_call_controller.dart';
 import '../../domain/models/chat_v2_call_session.dart';
 import 'chat_v2_call_screen.dart';
@@ -1486,6 +1487,23 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                     isSearchActiveMatch: _isSearching &&
                                         _matchedIndices.isNotEmpty &&
                                         _matchedIndices[_currentMatchIndex] == index,
+                                    onAvatarTap: () {
+                                      final targetPid = (message.authorId != null && message.authorId!.isNotEmpty)
+                                          ? message.authorId!
+                                          : effectiveChannelMembers.firstWhereOrNull((m) =>
+                                              m.name.trim().toLowerCase() == message.authorName.trim().toLowerCase())?.partnerId?.toString() ??
+                                              effectiveChannelMembers.firstWhereOrNull((m) =>
+                                                  m.name.trim().toLowerCase() == message.authorName.trim().toLowerCase())?.id ?? '';
+                                      if (targetPid.isEmpty) return;
+                                      ChatV2AvatarActionSheet.show(
+                                        context,
+                                        ref,
+                                        partnerId: targetPid,
+                                        name: message.authorName,
+                                        avatarUrl: message.authorAvatar,
+                                        currentChannel: currentChannel,
+                                      );
+                                    },
                                     onMentionTap: _handleMentionTap,
                                     onImageTap: (att, heroTag, [idx = -1, allImgs, msgId]) =>
                                         _handleChannelImageTap(att, heroTag, messages, idx, allImgs, msgId),

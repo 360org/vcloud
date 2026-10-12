@@ -4,17 +4,31 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
+import '../../../core/api/odoo_api_client.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/local_attachment_cache.dart';
 import '../../../shared/widgets/app_scaffold.dart';
 import '../../../shared/widgets/brand_logo.dart';
 import '../../../shared/widgets/ui_kit.dart';
 import '../../auth/application/auth_controller.dart';
+import '../../chat_v2/presentation/screens/chat_v2_image_viewer_screen.dart';
+import '../../chat_v2/presentation/widgets/chat_v2_avatar_action_sheet.dart';
 import '../application/theme_controller.dart';
 
 
 class ProfileScreen extends ConsumerWidget {
-  const ProfileScreen({super.key});
+  final String? partnerId;
+  final String? partnerName;
+  final String? partnerAvatar;
+  final String? partnerRole;
+
+  const ProfileScreen({
+    super.key,
+    this.partnerId,
+    this.partnerName,
+    this.partnerAvatar,
+    this.partnerRole,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -33,6 +47,17 @@ class ProfileScreen extends ConsumerWidget {
         meta?['image_128_url'] ??
         (user != null ? '/api/v1/mobile/avatar/users/${user.id}' : null);
     final avatarUrl = rawAvatar is String && rawAvatar.isNotEmpty ? rawAvatar : null;
+
+    final currentPartnerId = odooApiClient.session?.partnerId?.toString();
+    final currentUserId = user?.id ?? odooApiClient.session?.uid.toString();
+    final isViewingPartner = partnerId != null &&
+        partnerId!.isNotEmpty &&
+        partnerId != currentPartnerId &&
+        partnerId != currentUserId;
+
+    if (isViewingPartner) {
+      return _buildPartnerProfile(context, ref);
+    }
 
     return AppScaffold(
       title: 'Tôi',
@@ -83,6 +108,109 @@ class ProfileScreen extends ConsumerWidget {
                     color: AppColors.danger,
                     danger: true,
                     onTap: () => _confirmLogout(context, ref),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPartnerProfile(BuildContext context, WidgetRef ref) {
+    final displayName = partnerName?.trim().isNotEmpty == true
+        ? partnerName!.trim()
+        : 'Đồng nghiệp';
+    final role = partnerRole?.trim().isNotEmpty == true
+        ? partnerRole!.trim()
+        : 'Thành viên · 360 CORP';
+    final targetUrl = (partnerAvatar != null && partnerAvatar!.isNotEmpty)
+        ? partnerAvatar!
+        : '/api/v1/mobile/avatar/res.partner/$partnerId';
+    final avatarUrl = targetUrl.startsWith('http')
+        ? targetUrl
+        : odooApiClient.absoluteUrl(targetUrl);
+
+    return AppScaffold(
+      title: displayName,
+      showAppBar: false,
+      wrapSafeArea: false,
+      body: ColoredBox(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        child: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 112),
+            children: [
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(LucideIcons.arrowLeft),
+                    onPressed: () => context.pop(),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Hồ sơ đồng nghiệp',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              _ProfileHero(
+                userId: partnerId ?? '',
+                name: displayName,
+                role: role,
+                email: '',
+                avatarUrl: avatarUrl,
+                isEditable: false,
+              ),
+              const SizedBox(height: 16),
+              _SettingsCard(
+                children: [
+                  _SettingsRow(
+                    icon: LucideIcons.messageSquare,
+                    label: 'Nhắn tin cá nhân',
+                    color: const Color(0xFF00C83A),
+                    onTap: () {
+                      ChatV2AvatarActionSheet.openDirectChat(
+                        context,
+                        ref,
+                        partnerId: partnerId!,
+                        name: displayName,
+                        avatarUrl: avatarUrl,
+                      );
+                    },
+                  ),
+                  _SettingsRow(
+                    icon: LucideIcons.phone,
+                    label: 'Gọi thoại trực tiếp',
+                    color: const Color(0xFF0D9488),
+                    onTap: () {
+                      ChatV2AvatarActionSheet.startDirectCall(
+                        context,
+                        ref,
+                        partnerId: partnerId!,
+                        name: displayName,
+                        avatarUrl: avatarUrl,
+                      );
+                    },
+                  ),
+                  _SettingsRow(
+                    icon: LucideIcons.image,
+                    label: 'Xem ảnh đại diện (phóng to)',
+                    color: const Color(0xFF8B5CF6),
+                    onTap: () {
+                      Navigator.of(context).push(
+                        ChatV2ImageViewerScreen.route(
+                          imageUrl: avatarUrl,
+                          title: displayName,
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),
@@ -184,6 +312,7 @@ class _ProfileHero extends StatelessWidget {
     required this.role,
     required this.email,
     this.avatarUrl,
+    this.isEditable = true,
   });
 
   final String userId;
@@ -191,11 +320,28 @@ class _ProfileHero extends StatelessWidget {
   final String role;
   final String email;
   final String? avatarUrl;
+  final bool isEditable;
+
+  void _openAvatarZoom(BuildContext context) {
+    final target = (avatarUrl != null && avatarUrl!.isNotEmpty)
+        ? avatarUrl!
+        : (userId.isNotEmpty ? '/api/v1/mobile/avatar/users/$userId' : null);
+    if (target == null || target.isEmpty) return;
+    final fullUrl = target.startsWith('http')
+        ? target
+        : odooApiClient.absoluteUrl(target);
+    Navigator.of(context).push(
+      ChatV2ImageViewerScreen.route(
+        imageUrl: fullUrl,
+        title: name,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () => context.push('/profile/edit'),
+      onTap: isEditable ? () => context.push('/profile/edit') : null,
       borderRadius: BorderRadius.circular(22),
       child: Container(
         padding: const EdgeInsets.all(18),
@@ -204,29 +350,37 @@ class _ProfileHero extends StatelessWidget {
           children: [
             Stack(
               children: [
-                UserAvatar(
-                  userId: userId,
-                  displayName: name,
-                  email: email,
-                  avatarUrl: avatarUrl,
-                  size: 62,
-                ),
-                Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
-                      color: AppColors.primary,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      LucideIcons.camera,
-                      color: Colors.white,
-                      size: 11,
-                    ),
+                GestureDetector(
+                  onTap: () => _openAvatarZoom(context),
+                  behavior: HitTestBehavior.opaque,
+                  child: UserAvatar(
+                    userId: userId,
+                    displayName: name,
+                    email: email,
+                    avatarUrl: avatarUrl,
+                    size: 62,
                   ),
                 ),
+                if (isEditable)
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: GestureDetector(
+                      onTap: () => context.push('/profile/edit'),
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: AppColors.primary,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          LucideIcons.camera,
+                          color: Colors.white,
+                          size: 11,
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
           const SizedBox(width: 16),
@@ -255,17 +409,19 @@ class _ProfileHero extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  email,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.textMuted,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                if (email.isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    email,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textMuted,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ),

@@ -35,7 +35,9 @@ Future<void> vcloudFirebaseMessagingBackgroundHandler(
     // Kích hoạt CallKit Incoming Call khi nhận FCM wake-up ở Background / Lock screen
     final data = message.data;
     final eventType = (data['event_type'] ?? data['event'] ?? data['type'] ?? '').toString();
-    if (eventType == 'incoming_call' || eventType.contains('call')) {
+    if (eventType == 'call_cancelled' || eventType == 'call_ended' || eventType == 'call_rejected') {
+      await ChatV2CallKitService.instance.endAllCalls();
+    } else if (eventType == 'incoming_call' || eventType == 'vmobile_call_incoming' || eventType.contains('call')) {
       final channelId = int.tryParse(data['channel_id']?.toString() ?? '0') ?? 0;
       final callerId = int.tryParse(data['caller_id']?.toString() ?? '0') ?? 0;
       final callId = int.tryParse(data['call_id']?.toString() ?? '0') ?? 0;
@@ -53,8 +55,6 @@ Future<void> vcloudFirebaseMessagingBackgroundHandler(
           callId: callId,
         );
       }
-    } else if (eventType == 'call_cancelled' || eventType == 'call_ended') {
-      await ChatV2CallKitService.instance.endAllCalls();
     }
   } catch (e) {
     debugPrint('Background handler Firebase init error: $e');
@@ -111,6 +111,31 @@ class PushNotificationService {
             debugPrint('║ 💬 Nội dung: $body');
             debugPrint('║ 📦 Payload: ${message.data}');
             debugPrint('╚══════════════════════════════════════════════════════════════════╝');
+
+            final data = message.data;
+            final eventType = (data['event_type'] ?? data['event'] ?? data['type'] ?? '').toString();
+            if (eventType == 'call_cancelled' || eventType == 'call_ended' || eventType == 'call_rejected') {
+              ChatV2CallKitService.instance.endAllCalls();
+            } else if (eventType == 'incoming_call' || eventType == 'vmobile_call_incoming') {
+              final channelId = int.tryParse(data['channel_id']?.toString() ?? '0') ?? 0;
+              final callerId = int.tryParse(data['caller_id']?.toString() ?? '0') ?? 0;
+              final callId = int.tryParse(data['call_id']?.toString() ?? '0') ?? 0;
+              final callerName = data['caller_name']?.toString() ?? 'Đồng nghiệp';
+              final callerAvatar = data['caller_avatar']?.toString();
+              final callUuid = data['call_uuid']?.toString() ?? 'call_${channelId}_${DateTime.now().millisecondsSinceEpoch}';
+
+              if (channelId > 0) {
+                ChatV2CallKitService.instance.showIncomingCall(
+                  callUuid: callUuid,
+                  callerName: callerName,
+                  callerAvatar: callerAvatar,
+                  channelId: channelId,
+                  callerId: callerId,
+                  callId: callId,
+                );
+              }
+            }
+
             if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
               final notification = message.notification;
               if (notification != null) {

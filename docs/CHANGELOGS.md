@@ -2,6 +2,45 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.18+161] — 2026-10-12 (Sửa Lỗi Toàn Diện WebRTC Cuộc Gọi: Full-Screen Intent Android, Khắc Phục Mất Âm 2 Chiều & Chống Kẹt Trạng Thái)
+
+> [!IMPORTANT]
+> **Khắc Phục Toàn Diện 3 Vấn Đề Cuộc Gọi Thoại (WebRTC Dual-Platform Repair)**:
+> - **1. Giao Diện Cuộc Gọi Đến (Android Full-Screen Intent & Window Flags)**:
+>   * Bổ sung quyền hệ thống: `SYSTEM_ALERT_WINDOW`, `USE_FULL_SCREEN_INTENT`, `FOREGROUND_SERVICE_PHONE_CALL`, `MANAGE_OWN_CALLS`.
+>   * Cấu hình MainActivity Android: `showWhenLocked="true"`, `turnScreenOn="true"` hiển thị UI đè màn hình khóa.
+>   * Tách bạch logic xử lý FCM Push: `call_cancelled`/`call_ended`/`call_rejected` được dập chuông ngay lập tức; cuộc gọi foreground kích hoạt `showIncomingCall` chuẩn CallKit.
+> - **2. Khắc Phục Mất Âm Thanh 2 Chiều (WebRTC Audio Routing & ICE Candidate Buffering)**:
+>   * Kích hoạt `Helper.ensureAudioSession()` và `Helper.setMicrophoneMute(false, track)` cho mọi audio track.
+>   * Bộ nhớ đệm ICE Candidate Queue (`_queuedRemoteCandidates` tối đa 50 candidates), chỉ xả sau khi `setRemoteDescription` hoàn tất.
+> - **3. Chống Kẹt Trạng Thái "Đang gọi..." Phía Caller**:
+>   * Cơ chế Polling Fallback 4s: Tự động truy vấn endpoint `/api/v1/mobile/chat/call/status` sau 4 giây nếu bus notification bị trễ.
+>   * Tự động nạp SDP Answer và chuyển trạng thái sang `connected` tức thời.
+> - **4. Backend Odoo 17 & 19 Status API**:
+>   * Bổ sung endpoint `/api/v1/mobile/chat/call/status` với cơ chế chống IDOR, xác thực quyền caller/receiver và hỗ trợ query theo `call_id` hoặc `channel_id`.
+
+## [v2.9.18+161] — 2026-10-12 (Menu Thao Tác Nhanh Avatar Tin Nhắn Đến, Tái Sử Dụng Kênh Chat Thông Minh & Phóng To Lightbox)
+
+> [!IMPORTANT]
+> **Tối Ưu Hóa Trải Nghiệm Chat V2 (Incoming Avatar Quick Action Menu & Smart Direct Chat Reuse)**:
+> - **1. Phân Định Ranh Giới Giao Diện Tin Nhắn (Zalo/Telegram/Messenger Pattern)**:
+>   * Tin nhắn của chính mình (`isMine`): Căn lề phải, tuyệt đối không hiển thị Avatar kế bên bong bóng tin nhắn -> Không có Avatar để bấm, loại bỏ code dư thừa.
+>   * Tin nhắn của thành viên khác (`!isMine`): Căn lề trái, hiển thị Avatar -> Bắt sự kiện `onTap` để kích hoạt `ChatV2AvatarActionSheet`.
+> - **2. Menu Thao Tác Nhanh Avatar (`ChatV2AvatarActionSheet`)**:
+>   * Cấu hình chống tràn viền toàn diện: `isScrollControlled: true`, `SafeArea`, `SingleChildScrollView`.
+>   * Header: Avatar lớn (chạm để phóng to), Họ tên đối tác, Chức danh / Phòng ban.
+>   * Thao tác 1 (Xem hồ sơ): Điều hướng `/profile?partner_id=...` hiển thị trang hồ sơ đồng nghiệp.
+>   * Thao tác 2 (Nhắn tin cá nhân): Cơ chế 2 tầng tái sử dụng kênh Direct Chat (Tầng 1: Local Cache 0ms -> Tầng 2: Server Fallback `POST /api/v1/mobile/chat/direct`).
+>   * Thao tác 3 (Gọi thoại): Bắt đầu cuộc gọi thoại 1-1 WebRTC trực tiếp tới đối tác (`startDirectCall`).
+>   * Thao tác 4 (Xem ảnh đại diện): Phóng to toàn màn hình qua `ChatV2ImageViewerScreen` (Pinch-to-zoom, Pan, Lưu ảnh vào máy).
+> - **3. Tích Hợp Danh Sách Thành Viên & Màn Hình Profile**:
+>   * `chat_v2_info_sheet.dart`: Chạm thành viên của chính mình mở `/profile`, chạm thành viên khác mở `ChatV2AvatarActionSheet`.
+>   * `profile_screen.dart`: Bổ sung chế độ xem hồ sơ đồng nghiệp khi truyền `partnerId` (3 nút hành động nhanh); Chạm Avatar ở Header / `_ProfileHero` mở trình xem ảnh Lightbox.
+>   * Bảo toàn 100% logic tải avatar gốc dùng chung của người dùng hiện tại (SSOT).
+> - **4. Kiểm Thử & Kiểm Soát Chất Lượng**:
+>   * `flutter analyze`: **0 errors, 0 warnings** (No issues found).
+>   * Suite kiểm thử `chat_v2_avatar_action_sheet_test.dart`: **11/11 tests PASS**.
+
 ## [v2.9.18+160] — 2026-10-12 (Tự Chữa Lỗi TestFlight External Group Beta Description & Fastlane Fallback)
 
 > [!IMPORTANT]

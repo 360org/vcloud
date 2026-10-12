@@ -20,6 +20,7 @@ import '../../data/models/chat_v2_channel.dart';
 import '../../data/models/chat_v2_message.dart';
 import '../screens/chat_v2_image_viewer_screen.dart';
 import 'chat_v2_attachment_viewer.dart';
+import 'chat_v2_avatar_action_sheet.dart';
 import 'chat_v2_message_item.dart';
 import 'chat_v2_mute_duration_sheet.dart';
 
@@ -1156,52 +1157,68 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
                   children: [
                     Stack(
                       children: [
-                        Container(
-                          width: 84,
-                          height: 84,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: avatarGrad,
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: avatarGrad.first.withValues(alpha: 0.3),
-                                blurRadius: 16,
-                                offset: const Offset(0, 6),
+                        GestureDetector(
+                          onTap: () {
+                            if (resolvedAvatarUrl != null &&
+                                resolvedAvatarUrl.isNotEmpty) {
+                              final fullUrl = resolvedAvatarUrl.startsWith('http')
+                                  ? resolvedAvatarUrl
+                                  : odooApiClient.absoluteUrl(resolvedAvatarUrl);
+                              Navigator.of(context).push(
+                                ChatV2ImageViewerScreen.route(
+                                  imageUrl: fullUrl,
+                                  title: cleanName,
+                                ),
+                              );
+                            }
+                          },
+                          child: Container(
+                            width: 84,
+                            height: 84,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: avatarGrad,
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
                               ),
-                            ],
-                          ),
-                          alignment: Alignment.center,
-                          child: ClipOval(
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                Center(
-                                  child: Text(
-                                    cleanName.isNotEmpty ? cleanName[0].toUpperCase() : 'C',
-                                    style: const TextStyle(
-                                      fontSize: 32,
-                                      fontWeight: FontWeight.w700,
-                                      color: Colors.white,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: avatarGrad.first.withValues(alpha: 0.3),
+                                  blurRadius: 16,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            alignment: Alignment.center,
+                            child: ClipOval(
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  Center(
+                                    child: Text(
+                                      cleanName.isNotEmpty ? cleanName[0].toUpperCase() : 'C',
+                                      style: const TextStyle(
+                                        fontSize: 32,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.white,
+                                      ),
                                     ),
                                   ),
-                                ),
-                                if (resolvedAvatarUrl != null &&
-                                    resolvedAvatarUrl.isNotEmpty)
-                                  Image.network(
-                                    resolvedAvatarUrl,
-                                    width: 84,
-                                    height: 84,
-                                    fit: BoxFit.cover,
-                                    gaplessPlayback: true,
-                                    headers: odooApiClient.authHeaders,
-                                    errorBuilder: (context, error, stackTrace) =>
-                                        const SizedBox.shrink(),
-                                  ),
-                              ],
+                                  if (resolvedAvatarUrl != null &&
+                                      resolvedAvatarUrl.isNotEmpty)
+                                    Image.network(
+                                      resolvedAvatarUrl,
+                                      width: 84,
+                                      height: 84,
+                                      fit: BoxFit.cover,
+                                      gaplessPlayback: true,
+                                      headers: odooApiClient.authHeaders,
+                                      errorBuilder: (context, error, stackTrace) =>
+                                          const SizedBox.shrink(),
+                                    ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
@@ -1537,7 +1554,17 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
                                 : (isOnline ? 'Đang trực tuyến' : 'Ngoại tuyến');
 
                             return ListTile(
-                              onTap: isMe ? null : () => _showMemberNicknameDialog(context, member),
+                              onTap: isMe
+                                  ? () => context.push('/profile')
+                                  : () => ChatV2AvatarActionSheet.show(
+                                        context,
+                                        ref,
+                                        partnerId: member.partnerId?.toString() ?? member.id,
+                                        name: member.displayName,
+                                        avatarUrl: member.avatarUrl,
+                                        role: isOnline ? 'Đang trực tuyến' : 'Ngoại tuyến',
+                                        currentChannel: activeChannel,
+                                      ),
                               leading: Stack(
                                 children: [
                                   Container(

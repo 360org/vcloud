@@ -34,6 +34,7 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
   Timer? _ringingTimeoutTimer;
   Timer? _disconnectTimer;
   Timer? _autoResetTimer;
+  Timer? _pollingFallbackTimer;
   AudioPlayer? _audioPlayer;
 
   bool _isDisposed = false;
@@ -113,9 +114,13 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
 
       if (matchChannel && isCaller) {
         debugPrint('📞 [CallController] Nhận onCallAccepted từ kênh $channelId');
+        _pollingFallbackTimer?.cancel();
+        _pollingFallbackTimer = null;
         final sdpAnswer = data['sdp_answer'] ?? data['answer'];
         if (sdpAnswer is Map) {
           await _webrtc?.handleAnswer(Map<String, dynamic>.from(sdpAnswer));
+        } else if (sdpAnswer is String && sdpAnswer.isNotEmpty) {
+          await _webrtc?.handleAnswer({'type': 'answer', 'sdp': sdpAnswer});
         }
         state = state?.copyWith(state: ChatV2CallState.connected);
         _onCallConnected();
@@ -180,6 +185,7 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
 
     // Timeout 30s đổ chuông nếu đối phương không nghe máy
     _startRingingTimeout();
+    _startPollingFallback(channelId);
 
     try {
       // 1. Thử tham gia phòng RTC Call Odoo 19 Core
@@ -465,6 +471,8 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
   void _onCallConnected() {
     _stopAudio();
     _ringingTimeoutTimer?.cancel();
+    _pollingFallbackTimer?.cancel();
+    _pollingFallbackTimer = null;
     _disconnectTimer?.cancel();
     _disconnectTimer = null;
     state = state?.copyWith(
@@ -589,6 +597,55 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
     });
   }
 
+  void _startPollingFallback(int channelId) {
+    _pollingFallbackTimer?.cancel();
+    _pollingFallbackTimer = Timer(const Duration(seconds: 4), () async {
+      if (_isDisposed || !mounted) return;
+      if (state == null || !state!.isCaller) return;
+      if (state!.state != ChatV2CallState.outgoingRinging &&
+          state!.state != ChatV2CallState.connecting) {
+        return;
+      }
+
+      debugPrint('⏱️ [CallController] Polling fallback sau 4s: kiểm tra trạng thái cuộc gọi trên server...');
+      try {
+        final currentCallId = state!.id;
+        final latestSession = await repo.getCallStatus(
+          callId: currentCallId > 0 ? currentCallId : null,
+          channelId: channelId,
+        );
+
+        if (_isDisposed || !mounted || state == null) return;
+        if (latestSession != null) {
+          if (latestSession.state == ChatV2CallState.connected) {
+            debugPrint('✅ [CallController] Polling phát hiện Callee đã accept (state=connected)');
+            if (latestSession.sdpAnswer != null && latestSession.sdpAnswer!.isNotEmpty) {
+              await _webrtc?.handleAnswer({
+                'type': 'answer',
+                'sdp': latestSession.sdpAnswer,
+              });
+            }
+            state = state?.copyWith(
+              state: ChatV2CallState.connected,
+              connectedAt: latestSession.connectedAt ?? DateTime.now(),
+            );
+            _onCallConnected();
+          } else if (latestSession.state == ChatV2CallState.rejected ||
+              latestSession.state == ChatV2CallState.cancelled ||
+              latestSession.state == ChatV2CallState.ended ||
+              latestSession.state == ChatV2CallState.missed) {
+            _handleRemoteHangup(
+              endState: latestSession.state.name,
+              reason: latestSession.endReason,
+            );
+          }
+        }
+      } catch (e) {
+        debugPrint('⚠️ [CallController] Polling fallback error: $e');
+      }
+    });
+  }
+
   void _playDialingTone() {
     _stopAudio();
     try {
@@ -622,6 +679,8 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
     _durationTimer = null;
     _ringingTimeoutTimer?.cancel();
     _ringingTimeoutTimer = null;
+    _pollingFallbackTimer?.cancel();
+    _pollingFallbackTimer = null;
     _disconnectTimer?.cancel();
     _disconnectTimer = null;
     _autoResetTimer?.cancel();

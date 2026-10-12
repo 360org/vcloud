@@ -314,6 +314,31 @@ class ChatV2CallRepository {
     }
   }
 
+  /// Truy vấn trạng thái cuộc gọi trực tiếp (/api/v1/mobile/chat/call/status)
+  Future<ChatV2CallSession?> getCallStatus({int? callId, int? channelId}) async {
+    try {
+      final query = <String, String>{};
+      if (callId != null && callId > 0) query['call_id'] = callId.toString();
+      if (channelId != null && channelId > 0) query['channel_id'] = channelId.toString();
+      final uri = Uri(
+        path: '/api/v1/mobile/chat/call/status',
+        queryParameters: query.isNotEmpty ? query : null,
+      );
+      final res = await client.get(uri.toString());
+      if (res is Map && res['call'] != null) {
+        return ChatV2CallSession.fromJson(Map<String, dynamic>.from(res['call'] as Map));
+      } else if (callId != null && callId > 0) {
+        return getCallSession(callId);
+      }
+      return null;
+    } catch (_) {
+      if (callId != null && callId > 0) {
+        return getCallSession(callId);
+      }
+      return null;
+    }
+  }
+
   Future<ChatV2CallSession?> acceptCall(int callId, {String? sdpAnswer}) async {
     try {
       final body = <String, dynamic>{};
