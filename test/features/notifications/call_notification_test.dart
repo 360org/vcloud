@@ -110,6 +110,10 @@ void main() {
       const MethodChannel('xyz.luan/audioplayers'),
       (methodCall) async => 1,
     );
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+      const MethodChannel('flutter_callkit_incoming'),
+      (methodCall) async => 1,
+    );
   });
 
   group('Kịch bản 2: Kiểm thử Tích hợp Thông báo Cuộc Gọi Đến (FCM Call Notification)', () {
@@ -187,7 +191,7 @@ void main() {
         // Dọn dẹp trạng thái controller trước khi kết thúc
         container.read(chatV2CallControllerProvider.notifier).reset();
         await tester.pump();
-        await tester.pump(const Duration(seconds: 1));
+        await tester.pump(const Duration(seconds: 3));
       },
     );
 

@@ -41,7 +41,7 @@ class MockCallRepository implements ChatV2CallRepository {
   Future<bool> endCall(int callId, {int duration = 0}) async => true;
 
   @override
-  Future<ChatV2CallSession?> acceptCall(int callId, {String? sdpAnswer}) async {
+  Future<ChatV2CallSession?> acceptCall(int callId, {String? sdpAnswer, int? channelId}) async {
     acceptCalled = true;
     return ChatV2CallSession(
       id: callId,
@@ -60,7 +60,7 @@ class MockCallRepository implements ChatV2CallRepository {
   }
 
   @override
-  Future<bool> rejectCall(int callId, {String? reason}) async {
+  Future<bool> rejectCall(int callId, {String? reason, int? channelId}) async {
     rejectCalled = true;
     return true;
   }
@@ -95,6 +95,10 @@ void main() {
     );
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
       const MethodChannel('xyz.luan/audioplayers'),
+      (methodCall) async => 1,
+    );
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+      const MethodChannel('flutter_callkit_incoming'),
       (methodCall) async => 1,
     );
   });
@@ -174,7 +178,7 @@ void main() {
         // Dọn dẹp trạng thái controller trước khi kết thúc
         container.read(chatV2CallControllerProvider.notifier).reset();
         await tester.pump();
-        await tester.pump(const Duration(seconds: 1));
+        await tester.pump(const Duration(seconds: 3));
       },
     );
 
