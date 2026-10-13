@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../../../core/api/odoo_api_client.dart';
+import '../../../core/api/odoo_session.dart';
 import '../application/chat_v2_channels_controller.dart';
 
 final odooBusServiceProvider = Provider<OdooBusService>((ref) {
@@ -43,6 +44,28 @@ class OdooBusService {
   Stream<Map<String, dynamic>> get onPeerJoined => _peerJoinedController.stream;
   bool get isConnected => _isConnected;
 
+  /// Xây dựng URL WebSocket Bus tương thích các cổng gevent dev local và production
+  static String buildWsUrl({required String baseUrl, required OdooSession session}) {
+    final uri = Uri.parse(baseUrl);
+    final wsScheme = uri.scheme == 'https' ? 'wss' : 'ws';
+
+    int? wsPort = uri.hasPort ? uri.port : null;
+    if (wsPort != null && wsPort != 80 && wsPort != 443) {
+      if (wsPort == 1900) {
+        wsPort = 1972;
+      } else if (wsPort == 1700) {
+        wsPort = 1772;
+      } else if (wsPort == 8069) {
+        wsPort = 7072;
+      } else if (wsPort >= 1400 && wsPort <= 1900 && wsPort % 100 == 0) {
+        wsPort = wsPort + 72;
+      }
+    }
+    final portSuffix = (wsPort != null && wsPort != 80 && wsPort != 443) ? ':$wsPort' : '';
+    final dbParam = session.db.isNotEmpty ? '&db=${session.db}' : '';
+    return '$wsScheme://${uri.host}$portSuffix/websocket?access_token=${session.accessToken}$dbParam&version=17.0-3';
+  }
+
   /// Khởi tạo kết nối WebSocket Bus với Odoo 19
   Future<void> connect() async {
     if (_isConnected || _channel != null) return;
@@ -52,10 +75,7 @@ class OdooBusService {
 
     try {
       final base = odooApiClient.absoluteUrl('');
-      final uri = Uri.parse(base);
-      final wsScheme = uri.scheme == 'https' ? 'wss' : 'ws';
-      final portSuffix = (uri.hasPort && uri.port != 80 && uri.port != 443) ? ':${uri.port}' : '';
-      final wsUrl = '$wsScheme://${uri.host}$portSuffix/websocket?access_token=${session.accessToken}&version=17.0-3';
+      final wsUrl = buildWsUrl(baseUrl: base, session: session);
 
       _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
       _isConnected = true;

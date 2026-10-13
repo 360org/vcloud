@@ -115,15 +115,16 @@ class ChatV2WebRtcEngine {
     };
 
     try {
-      _peerConnection = await createPeerConnection(configuration);
+      final pc = await createPeerConnection(configuration);
+      _peerConnection = pc;
 
-      _peerConnection!.onConnectionState = (RTCPeerConnectionState state) {
+      pc.onConnectionState = (RTCPeerConnectionState state) {
         debugPrint('[WebRTC] Connection state: $state');
         onConnectionState?.call(state);
       };
 
       // Lắng nghe Remote Audio Track nhận được từ peer (chống mất tiếng 2 chiều)
-      _peerConnection!.onTrack = (RTCTrackEvent event) {
+      pc.onTrack = (RTCTrackEvent event) {
         debugPrint('[WebRTC] 🎧 Nhận remote track: kind=${event.track.kind}, id=${event.track.id}, enabled=${event.track.enabled}');
         if (event.track.kind == 'audio') {
           event.track.enabled = true;
@@ -144,7 +145,7 @@ class ChatV2WebRtcEngine {
       };
 
       // Tương thích ngược với luồng onAddStream legacy
-      _peerConnection!.onAddStream = (MediaStream stream) {
+      pc.onAddStream = (MediaStream stream) {
         debugPrint('[WebRTC] 🎧 Nhận remote stream: id=${stream.id}, audioTracks=${stream.getAudioTracks().length}');
         for (final track in stream.getAudioTracks()) {
           track.enabled = true;
@@ -158,7 +159,7 @@ class ChatV2WebRtcEngine {
       };
 
       // Khi tìm thấy ICE Candidate cục bộ -> gửi sang peer qua Odoo 19 notify_call_members
-      _peerConnection!.onIceCandidate = (RTCIceCandidate candidate) {
+      pc.onIceCandidate = (RTCIceCandidate candidate) {
         if (candidate.candidate == null) return;
         if (_targetSessionIds.isNotEmpty && _localSessionId > 0) {
           _sendSignaling(
@@ -180,24 +181,31 @@ class ChatV2WebRtcEngine {
       };
 
       // Thu âm Micro cục bộ (Voice call only)
-      final mediaConstraints = <String, dynamic>{
-        'audio': {
-          'echoCancellation': true,
-          'noiseSuppression': true,
-          'autoGainControl': true,
-        },
-        'video': false,
-      };
+      try {
+        final mediaConstraints = <String, dynamic>{
+          'audio': {
+            'echoCancellation': true,
+            'noiseSuppression': true,
+            'autoGainControl': true,
+          },
+          'video': false,
+        };
 
-      _localStream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
-      for (final track in _localStream!.getAudioTracks()) {
-        track.enabled = true;
-        if (!kIsWeb) {
-          try {
-            await Helper.setMicrophoneMute(false, track);
-          } catch (_) {}
+        _localStream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
+        final stream = _localStream;
+        if (stream != null) {
+          for (final track in stream.getAudioTracks()) {
+            track.enabled = true;
+            if (!kIsWeb) {
+              try {
+                await Helper.setMicrophoneMute(false, track);
+              } catch (_) {}
+            }
+            await pc.addTrack(track, stream);
+          }
         }
-        await _peerConnection!.addTrack(track, _localStream!);
+      } catch (mediaErr) {
+        debugPrint('⚠️ [WebRTC] Không thể khởi tạo Micro cục bộ ($mediaErr). Cuộc gọi tiếp tục ở chế độ nhận âm thanh (listen-only).');
       }
 
       if (!kIsWeb) {
@@ -213,15 +221,16 @@ class ChatV2WebRtcEngine {
 
   /// 2. Caller tạo SDP Offer và gửi sang Callee
   Future<void> createAndSendOffer() async {
-    if (_peerConnection == null) return;
+    final pc = _peerConnection;
+    if (pc == null) return;
 
     final constraints = <String, dynamic>{
       'offerToReceiveAudio': true,
       'offerToReceiveVideo': false,
     };
 
-    final offer = await _peerConnection!.createOffer(constraints);
-    await _peerConnection!.setLocalDescription(offer);
+    final offer = await pc.createOffer(constraints);
+    await pc.setLocalDescription(offer);
 
     await _sendSignaling(
       event: 'offer',
@@ -239,7 +248,8 @@ class ChatV2WebRtcEngine {
     Map<String, dynamic> sdpMap, {
     int? targetSessionId,
   }) async {
-    if (_peerConnection == null) return;
+    final pc = _peerConnection;
+    if (pc == null) return;
 
     if (targetSessionId != null && targetSessionId > 0) {
       if (!_targetSessionIds.contains(targetSessionId)) {
@@ -251,7 +261,7 @@ class ChatV2WebRtcEngine {
       sdpMap['sdp']?.toString(),
       sdpMap['type']?.toString(),
     );
-    await _peerConnection!.setRemoteDescription(description);
+    await pc.setRemoteDescription(description);
     _hasRemoteDescription = true;
     await _flushQueuedCandidates();
 
@@ -260,8 +270,8 @@ class ChatV2WebRtcEngine {
       'offerToReceiveVideo': false,
     };
 
-    final answer = await _peerConnection!.createAnswer(constraints);
-    await _peerConnection!.setLocalDescription(answer);
+    final answer = await pc.createAnswer(constraints);
+    await pc.setLocalDescription(answer);
 
     await _sendSignaling(
       event: 'answer',
@@ -276,26 +286,28 @@ class ChatV2WebRtcEngine {
 
   /// 4. Caller nhận SDP Answer từ Callee
   Future<void> handleAnswer(Map<String, dynamic> sdpMap) async {
-    if (_peerConnection == null) return;
+    final pc = _peerConnection;
+    if (pc == null) return;
     final description = RTCSessionDescription(
       sdpMap['sdp']?.toString(),
       sdpMap['type']?.toString(),
     );
-    await _peerConnection!.setRemoteDescription(description);
+    await pc.setRemoteDescription(description);
     _hasRemoteDescription = true;
     await _flushQueuedCandidates();
   }
 
   /// 5. Nhận ICE Candidate từ đối phương (Buffer nếu RemoteDescription chưa sẵn sàng)
   Future<void> handleRemoteCandidate(Map<String, dynamic> candidateMap) async {
-    if (_peerConnection == null) return;
+    final pc = _peerConnection;
+    if (pc == null) return;
     final candidate = RTCIceCandidate(
       candidateMap['candidate']?.toString(),
       candidateMap['sdpMid']?.toString(),
       candidateMap['sdpMLineIndex'] is num ? (candidateMap['sdpMLineIndex'] as num).toInt() : 0,
     );
     if (_hasRemoteDescription) {
-      await _peerConnection!.addCandidate(candidate);
+      await pc.addCandidate(candidate);
     } else {
       if (_queuedRemoteCandidates.length >= _maxQueuedCandidates) {
         _queuedRemoteCandidates.removeAt(0);
@@ -305,10 +317,11 @@ class ChatV2WebRtcEngine {
   }
 
   Future<void> _flushQueuedCandidates() async {
-    if (_peerConnection == null) return;
+    final pc = _peerConnection;
+    if (pc == null) return;
     for (final candidate in _queuedRemoteCandidates) {
       try {
-        await _peerConnection!.addCandidate(candidate);
+        await pc.addCandidate(candidate);
       } catch (e) {
         debugPrint('[WebRTC] Lỗi add queued ICE candidate: $e');
       }
