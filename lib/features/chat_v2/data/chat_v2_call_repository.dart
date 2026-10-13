@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/odoo_api_client.dart';
@@ -276,16 +277,20 @@ class ChatV2CallRepository {
       if (sdpOffer != null) body['sdp_offer'] = sdpOffer;
       if (receiverId != null) body['receiver_id'] = receiverId;
 
+      debugPrint('[RTC_CALL_LOG][REPO] initiateCall -> channelId: $channelId, receiverId: $receiverId');
       final res = await client.post(
         '/api/v1/mobile/chat/call/initiate',
         body: body,
       );
 
       if (res is Map && res['call'] != null) {
+        debugPrint('[RTC_CALL_LOG][REPO] initiateCall success -> call_id: ${res['call']['id']}');
         return ChatV2CallSession.fromJson(Map<String, dynamic>.from(res['call'] as Map));
       }
+      debugPrint('[RTC_CALL_LOG][REPO] initiateCall returned unexpected response: $res');
       return null;
-    } catch (_) {
+    } catch (e, st) {
+      debugPrint('[RTC_CALL_LOG][REPO] ⚠️ initiateCall error: $e\n$st');
       return null;
     }
   }
@@ -297,7 +302,8 @@ class ChatV2CallRepository {
         return ChatV2CallSession.fromJson(Map<String, dynamic>.from(res['active_call'] as Map));
       }
       return null;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[RTC_CALL_LOG][REPO] getActiveCall error: $e');
       return null;
     }
   }
@@ -309,7 +315,8 @@ class ChatV2CallRepository {
         return ChatV2CallSession.fromJson(Map<String, dynamic>.from(res['call'] as Map));
       }
       return null;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[RTC_CALL_LOG][REPO] getCallSession($callId) error: $e');
       return null;
     }
   }
@@ -331,7 +338,8 @@ class ChatV2CallRepository {
         return await getCallSession(callId);
       }
       return null;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[RTC_CALL_LOG][REPO] getCallStatus error: $e');
       if (callId != null && callId > 0) {
         return await getCallSession(callId);
       }
@@ -339,57 +347,77 @@ class ChatV2CallRepository {
     }
   }
 
-  Future<ChatV2CallSession?> acceptCall(int callId, {String? sdpAnswer}) async {
+  Future<ChatV2CallSession?> acceptCall(int callId, {String? sdpAnswer, int? channelId}) async {
     try {
       final body = <String, dynamic>{};
       if (sdpAnswer != null) body['sdp_answer'] = sdpAnswer;
+      if (channelId != null && channelId > 0) body['channel_id'] = channelId;
 
+      debugPrint('[RTC_CALL_LOG][REPO] acceptCall -> callId: $callId, channelId: $channelId, sdpAnswer length: ${sdpAnswer?.length ?? 0}');
       final res = await client.post(
         '/api/v1/mobile/chat/call/$callId/accept',
         body: body,
       );
       if (res is Map && res['call'] != null) {
+        debugPrint('[RTC_CALL_LOG][REPO] acceptCall success -> call_id: ${res['call']['id']}, state: ${res['call']['state']}');
         return ChatV2CallSession.fromJson(Map<String, dynamic>.from(res['call'] as Map));
       }
+      debugPrint('[RTC_CALL_LOG][REPO] acceptCall unexpected response: $res');
       return null;
-    } catch (_) {
+    } catch (e, st) {
+      debugPrint('[RTC_CALL_LOG][REPO] ⚠️ acceptCall($callId) error: $e\n$st');
       return null;
     }
   }
 
-  Future<bool> rejectCall(int callId, {String? reason}) async {
+  Future<bool> rejectCall(int callId, {String? reason, int? channelId}) async {
     try {
       final body = <String, dynamic>{};
       if (reason != null && reason.isNotEmpty) {
         body['reason'] = reason;
       }
+      if (channelId != null && channelId > 0) {
+        body['channel_id'] = channelId;
+      }
+      debugPrint('[RTC_CALL_LOG][REPO] rejectCall -> callId: $callId, channelId: $channelId, reason: $reason');
       final res = await client.post(
         '/api/v1/mobile/chat/call/$callId/reject',
         body: body.isNotEmpty ? body : null,
       );
-      return res is Map && res['status'] == 'success';
-    } catch (_) {
+      final ok = res is Map && res['status'] == 'success';
+      debugPrint('[RTC_CALL_LOG][REPO] rejectCall result: $ok');
+      return ok;
+    } catch (e) {
+      debugPrint('[RTC_CALL_LOG][REPO] ⚠️ rejectCall($callId) error: $e');
       return false;
     }
   }
 
   Future<bool> cancelCall(int callId) async {
     try {
+      debugPrint('[RTC_CALL_LOG][REPO] cancelCall -> callId: $callId');
       final res = await client.post('/api/v1/mobile/chat/call/$callId/cancel');
-      return res is Map && res['status'] == 'success';
-    } catch (_) {
+      final ok = res is Map && res['status'] == 'success';
+      debugPrint('[RTC_CALL_LOG][REPO] cancelCall result: $ok');
+      return ok;
+    } catch (e) {
+      debugPrint('[RTC_CALL_LOG][REPO] ⚠️ cancelCall($callId) error: $e');
       return false;
     }
   }
 
   Future<bool> endCall(int callId, {int duration = 0}) async {
     try {
+      debugPrint('[RTC_CALL_LOG][REPO] endCall -> callId: $callId, duration: $duration');
       final res = await client.post(
         '/api/v1/mobile/chat/call/$callId/end',
         body: {'duration': duration},
       );
-      return res is Map && res['status'] == 'success';
-    } catch (_) {
+      final ok = res is Map && res['status'] == 'success';
+      debugPrint('[RTC_CALL_LOG][REPO] endCall result: $ok');
+      return ok;
+    } catch (e) {
+      debugPrint('[RTC_CALL_LOG][REPO] ⚠️ endCall($callId) error: $e');
       return false;
     }
   }

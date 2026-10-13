@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -78,7 +79,7 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
             isCaller: false,
           );
           ref.read(chatV2CallControllerProvider.notifier).setIncomingCall(incomingSession);
-          await ref.read(chatV2CallControllerProvider.notifier).acceptCall();
+          await ChatV2CallKitService.instance.dismissCallKitOnAccept();
 
           final nav = ref.read(routerProvider).routerDelegate.navigatorKey.currentState;
           nav?.push(
@@ -87,6 +88,8 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
               builder: (_) => const ChatV2CallScreen(),
             ),
           );
+
+          await ref.read(chatV2CallControllerProvider.notifier).acceptCall();
         }
       }
 
@@ -97,6 +100,13 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
           await ref.read(chatV2CallControllerProvider.notifier).rejectCall();
         },
         onEnd: (extra) async {
+          final current = ref.read(chatV2CallControllerProvider);
+          if (current != null &&
+              (current.state == ChatV2CallState.connecting ||
+                  current.state == ChatV2CallState.connected)) {
+            debugPrint('[CallKit] 🛡️ Bỏ qua onEnd vì cuộc gọi đang kết nối: ${current.state}');
+            return;
+          }
           await ref.read(chatV2CallControllerProvider.notifier).endCall();
         },
         onTimeout: (extra) async {
@@ -138,8 +148,10 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
                state == AppLifecycleState.inactive ||
                state == AppLifecycleState.detached) {
       ref.read(isAppForegroundProvider.notifier).state = false;
-      ref.read(chatV2CallWatcherProvider).onAppPaused();
-      ref.read(chatV2ChannelsProvider.notifier).pausePolling();
+      if (!kIsWeb) {
+        ref.read(chatV2CallWatcherProvider).onAppPaused();
+        ref.read(chatV2ChannelsProvider.notifier).pausePolling();
+      }
     }
   }
 

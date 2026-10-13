@@ -21,14 +21,13 @@ class _ChatV2CallScreenState extends ConsumerState<ChatV2CallScreen> {
     final session = ref.watch(chatV2CallControllerProvider);
     final controller = ref.read(chatV2CallControllerProvider.notifier);
 
-    // Tự động đóng màn hình sau 1.2s nếu cuộc gọi kết thúc/bị từ chối
+    // Tự động đóng màn hình sau khi cuộc gọi kết thúc/bị từ chối
     ref.listen<ChatV2CallSession?>(chatV2CallControllerProvider, (prev, next) {
       if (next != null) {
         if (next.state == ChatV2CallState.ended ||
             next.state == ChatV2CallState.rejected ||
             next.state == ChatV2CallState.missed ||
-            next.state == ChatV2CallState.cancelled ||
-            next.state == ChatV2CallState.failed) {
+            next.state == ChatV2CallState.cancelled) {
           final nav = Navigator.of(context);
           final closeDelay = (next.endReason == 'network_lost')
               ? const Duration(milliseconds: 2200)
@@ -39,64 +38,103 @@ class _ChatV2CallScreenState extends ConsumerState<ChatV2CallScreen> {
             }
             controller.reset();
           });
+        } else if (next.state == ChatV2CallState.failed) {
+          // Khi lỗi kết nối: Giữ màn hình 3.5s để người dùng đọc thông báo lỗi
+          final nav = Navigator.of(context);
+          Future.delayed(const Duration(milliseconds: 3500), () {
+            if (mounted && nav.canPop()) {
+              nav.pop();
+            }
+            controller.reset();
+          });
         }
       }
     });
 
-    final isCaller = session?.isCaller ?? true;
+    if (session == null) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF0F172A),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(LucideIcons.phoneOff, color: Colors.white54, size: 48),
+              const SizedBox(height: 16),
+              const Text(
+                'Cuộc gọi đã kết thúc',
+                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () {
+                  if (Navigator.of(context).canPop()) {
+                    Navigator.of(context).pop();
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFEF4444),
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Đóng'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final isCaller = session.isCaller;
     final displayName = isCaller
-        ? (session?.receiverName ?? 'Người nhận')
-        : (session?.callerName ?? 'Người gọi');
-    final avatarUrl = isCaller ? session?.receiverAvatar : session?.callerAvatar;
+        ? session.receiverName
+        : session.callerName;
+    final avatarUrl = isCaller ? session.receiverAvatar : session.callerAvatar;
 
     String statusText = 'Đang gọi...';
     Color statusColor = Colors.white70;
 
-    if (session != null) {
-      switch (session.state) {
-        case ChatV2CallState.outgoingRinging:
-          statusText = 'Đang đổ chuông...';
-          break;
-        case ChatV2CallState.incomingRinging:
-          statusText = 'Cuộc gọi đến...';
-          break;
-        case ChatV2CallState.connecting:
-          statusText = 'Đang kết nối...';
-          break;
-        case ChatV2CallState.connected:
-          statusText = session.formattedDuration;
-          statusColor = const Color(0xFF10B981); // Emerald green
-          break;
-        case ChatV2CallState.ended:
-          if (session.endReason == 'network_lost') {
-            statusText = 'Cuộc gọi bị ngắt do mất kết nối mạng';
-            statusColor = const Color(0xFFEF4444);
-          } else {
-            statusText = 'Cuộc gọi đã kết thúc (${session.formattedDuration})';
-          }
-          break;
-        case ChatV2CallState.rejected:
-          if (session.endReason == 'busy') {
-            statusText = 'Người dùng đang trong cuộc gọi khác';
-          } else {
-            statusText = 'Cuộc gọi bị từ chối';
-          }
+    switch (session.state) {
+      case ChatV2CallState.outgoingRinging:
+        statusText = 'Đang đổ chuông...';
+        break;
+      case ChatV2CallState.incomingRinging:
+        statusText = 'Cuộc gọi đến...';
+        break;
+      case ChatV2CallState.connecting:
+        statusText = 'Đang kết nối...';
+        break;
+      case ChatV2CallState.connected:
+        statusText = session.formattedDuration;
+        statusColor = const Color(0xFF10B981); // Emerald green
+        break;
+      case ChatV2CallState.ended:
+        if (session.endReason == 'network_lost') {
+          statusText = 'Cuộc gọi bị ngắt do mất kết nối mạng';
           statusColor = const Color(0xFFEF4444);
-          break;
-        case ChatV2CallState.missed:
-          statusText = 'Không có phản hồi';
-          statusColor = const Color(0xFFEF4444);
-          break;
-        case ChatV2CallState.cancelled:
-          statusText = 'Đã hủy cuộc gọi';
-          break;
-        case ChatV2CallState.failed:
-          statusText = 'Lỗi kết nối';
-          statusColor = const Color(0xFFEF4444);
-          break;
-        default:
-          statusText = 'Đang kết nối...';
-      }
+        } else {
+          statusText = 'Cuộc gọi đã kết thúc (${session.formattedDuration})';
+        }
+        break;
+      case ChatV2CallState.rejected:
+        if (session.endReason == 'busy') {
+          statusText = 'Người dùng đang trong cuộc gọi khác';
+        } else {
+          statusText = 'Cuộc gọi bị từ chối';
+        }
+        statusColor = const Color(0xFFEF4444);
+        break;
+      case ChatV2CallState.missed:
+        statusText = 'Không có phản hồi';
+        statusColor = const Color(0xFFEF4444);
+        break;
+      case ChatV2CallState.cancelled:
+        statusText = 'Đã hủy cuộc gọi';
+        break;
+      case ChatV2CallState.failed:
+        statusText = 'Lỗi kết nối';
+        statusColor = const Color(0xFFEF4444);
+        break;
+      default:
+        statusText = 'Đang kết nối...';
     }
 
     return Scaffold(
@@ -118,7 +156,7 @@ class _ChatV2CallScreenState extends ConsumerState<ChatV2CallScreen> {
                         const SizedBox(height: 24),
 
                         // Avatar đập nhịp tỏa sóng
-                        _buildPulsingAvatar(avatarUrl, displayName, session?.state),
+                        _buildPulsingAvatar(avatarUrl, displayName, session.state),
 
                         const SizedBox(height: 28),
 

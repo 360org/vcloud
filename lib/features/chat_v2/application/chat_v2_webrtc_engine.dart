@@ -122,6 +122,41 @@ class ChatV2WebRtcEngine {
         onConnectionState?.call(state);
       };
 
+      // Lắng nghe Remote Audio Track nhận được từ peer (chống mất tiếng 2 chiều)
+      _peerConnection!.onTrack = (RTCTrackEvent event) {
+        debugPrint('[WebRTC] 🎧 Nhận remote track: kind=${event.track.kind}, id=${event.track.id}, enabled=${event.track.enabled}');
+        if (event.track.kind == 'audio') {
+          event.track.enabled = true;
+          if (event.streams.isNotEmpty) {
+            for (final stream in event.streams) {
+              for (final track in stream.getAudioTracks()) {
+                track.enabled = true;
+              }
+            }
+          }
+          if (!kIsWeb) {
+            try {
+              Helper.ensureAudioSession();
+              Helper.setSpeakerphoneOn(_isSpeaker);
+            } catch (_) {}
+          }
+        }
+      };
+
+      // Tương thích ngược với luồng onAddStream legacy
+      _peerConnection!.onAddStream = (MediaStream stream) {
+        debugPrint('[WebRTC] 🎧 Nhận remote stream: id=${stream.id}, audioTracks=${stream.getAudioTracks().length}');
+        for (final track in stream.getAudioTracks()) {
+          track.enabled = true;
+        }
+        if (!kIsWeb) {
+          try {
+            Helper.ensureAudioSession();
+            Helper.setSpeakerphoneOn(_isSpeaker);
+          } catch (_) {}
+        }
+      };
+
       // Khi tìm thấy ICE Candidate cục bộ -> gửi sang peer qua Odoo 19 notify_call_members
       _peerConnection!.onIceCandidate = (RTCIceCandidate candidate) {
         if (candidate.candidate == null) return;
@@ -200,8 +235,17 @@ class ChatV2WebRtcEngine {
   }
 
   /// 3. Callee nhận Offer, tạo và gửi lại SDP Answer
-  Future<void> handleOfferAndSendAnswer(Map<String, dynamic> sdpMap) async {
+  Future<void> handleOfferAndSendAnswer(
+    Map<String, dynamic> sdpMap, {
+    int? targetSessionId,
+  }) async {
     if (_peerConnection == null) return;
+
+    if (targetSessionId != null && targetSessionId > 0) {
+      if (!_targetSessionIds.contains(targetSessionId)) {
+        _targetSessionIds.add(targetSessionId);
+      }
+    }
 
     final description = RTCSessionDescription(
       sdpMap['sdp']?.toString(),
@@ -318,7 +362,11 @@ class ChatV2WebRtcEngine {
 
   /// Cập nhật danh sách targetSessionIds và xả các local ICE candidate đang xếp hàng
   void updateTargetSessionIds(List<int> targetIds) {
-    _targetSessionIds = List<int>.from(targetIds);
+    for (final id in targetIds) {
+      if (id > 0 && !_targetSessionIds.contains(id)) {
+        _targetSessionIds.add(id);
+      }
+    }
     _flushQueuedLocalCandidates();
   }
 

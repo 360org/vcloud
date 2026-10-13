@@ -138,7 +138,12 @@ class PushNotificationService {
 
             if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
               final notification = message.notification;
-              if (notification != null) {
+              final isCallPush = eventType == 'incoming_call' ||
+                  eventType == 'vmobile_call_incoming' ||
+                  eventType == 'call_cancelled' ||
+                  eventType == 'call_ended' ||
+                  eventType == 'call_rejected';
+              if (notification != null && !isCallPush) {
                 FlutterLocalNotificationsPlugin().show(
                   id: notification.hashCode,
                   title: title,

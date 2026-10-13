@@ -55,13 +55,19 @@ class OdooBusService {
       final uri = Uri.parse(base);
       final wsScheme = uri.scheme == 'https' ? 'wss' : 'ws';
       final portSuffix = (uri.hasPort && uri.port != 80 && uri.port != 443) ? ':${uri.port}' : '';
-      final wsUrl = '$wsScheme://${uri.host}$portSuffix/websocket?access_token=${session.accessToken}';
+      final wsUrl = '$wsScheme://${uri.host}$portSuffix/websocket?access_token=${session.accessToken}&version=17.0-3';
 
       _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
       _isConnected = true;
       _reconnectAttempts = 0;
 
-      // 1. Gửi bản tin subscribe ban đầu
+      // 1. Tự động subscribe kênh thông báo của partner hiện tại
+      final myPartnerId = session.partnerId;
+      if (myPartnerId != null && myPartnerId > 0) {
+        _subscribedChannels.add('res.partner_$myPartnerId');
+      }
+
+      // Gửi bản tin subscribe ban đầu
       _sendSubscribe();
 
       // 2. Lắng nghe luồng dữ liệu
@@ -144,10 +150,32 @@ class OdooBusService {
       }
     }
 
-    // Sự kiện Callee chấp nhận cuộc gọi
-    if (type == 'vmobile.call/accepted') {
+    // Sự kiện Callee chấp nhận cuộc gọi (vmobile.call/accepted hoặc vmobile.call/connected)
+    if (type == 'vmobile.call/accepted' || type == 'vmobile.call/connected') {
       if (payload is Map) {
         _callAcceptedController.add(Map<String, dynamic>.from(payload));
+      }
+    }
+
+    // Sự kiện Cuộc gọi đến từ VMobile Backend
+    if (type == 'vmobile.call/incoming') {
+      if (payload is Map) {
+        final chId = int.tryParse(payload['channel_id']?.toString() ?? '0') ?? 0;
+        final callerId = int.tryParse(payload['caller_id']?.toString() ?? '0') ?? 0;
+        final callerName = payload['caller_name']?.toString() ?? 'Đồng nghiệp';
+        final callerAvatar = payload['caller_avatar']?.toString();
+        final callId = int.tryParse(payload['call_id']?.toString() ?? payload['session_id']?.toString() ?? '0') ?? 0;
+        final myPartnerId = odooApiClient.session?.partnerId;
+        if (myPartnerId == null || callerId != myPartnerId) {
+          _incomingCallController.add({
+            'channel_id': chId,
+            'caller_id': callerId,
+            'caller_name': callerName,
+            'caller_avatar': callerAvatar,
+            'call_id': callId,
+            'rtc_inviting_session_id': callId,
+          });
+        }
       }
     }
 
@@ -155,12 +183,19 @@ class OdooBusService {
     if (type == 'discuss.channel.rtc.session/ended' || type == 'vmobile.call/ended') {
       if (payload is Map) {
         final chId = int.tryParse(payload['channel_id']?.toString() ?? '0') ?? 0;
-        final sessionId = int.tryParse(payload['sessionId']?.toString() ?? '0') ?? 0;
+        final sessionId = int.tryParse(
+              payload['sessionId']?.toString() ??
+              payload['call_id']?.toString() ??
+              payload['session_id']?.toString() ??
+              '0',
+            ) ??
+            0;
         final state = payload['state']?.toString() ?? 'ended';
         final reason = payload['reason']?.toString();
         _callEndedController.add({
           'channel_id': chId,
           'sessionId': sessionId,
+          'call_id': sessionId,
           'state': state,
           if (reason != null && reason.isNotEmpty) 'reason': reason,
         });

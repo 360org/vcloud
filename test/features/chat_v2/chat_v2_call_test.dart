@@ -214,7 +214,7 @@ class FakeWebRtcEngine extends ChatV2WebRtcEngine {
   }
 
   @override
-  Future<void> handleOfferAndSendAnswer(Map<String, dynamic> sdpMap) async {}
+  Future<void> handleOfferAndSendAnswer(Map<String, dynamic> sdpMap, {int? targetSessionId}) async {}
 
   @override
   Future<void> handleAnswer(Map<String, dynamic> sdpMap) async {

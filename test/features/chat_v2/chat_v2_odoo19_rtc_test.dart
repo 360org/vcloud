@@ -27,6 +27,40 @@ class FakeOdoo19RtcApiClient extends OdooApiClient {
       'body': body,
     });
 
+    if (path.contains('/initiate')) {
+      return {
+        'status': 'success',
+        'call': {
+          'id': 789,
+          'channel_id': 123,
+          'caller_id': 2,
+          'caller_name': 'Tân Nguyễn',
+          'receiver_id': 5,
+          'receiver_name': 'Đồng nghiệp',
+          'state': 'ringing',
+          'duration': 0,
+          'is_caller': true,
+        }
+      };
+    }
+
+    if (path.contains('/accept')) {
+      return {
+        'status': 'success',
+        'call': {
+          'id': 789,
+          'channel_id': 123,
+          'caller_id': 2,
+          'caller_name': 'Tân Nguyễn',
+          'receiver_id': 5,
+          'receiver_name': 'Đồng nghiệp',
+          'state': 'connected',
+          'duration': 0,
+          'is_caller': false,
+        }
+      };
+    }
+
     if (path == '/mail/rtc/channel/join_call') {
       return {
         'jsonrpc': '2.0',
@@ -127,7 +161,7 @@ class FakeChatV2WebRtcEngine extends ChatV2WebRtcEngine {
   }
 
   @override
-  Future<void> handleOfferAndSendAnswer(Map<String, dynamic> sdpMap) async {
+  Future<void> handleOfferAndSendAnswer(Map<String, dynamic> sdpMap, {int? targetSessionId}) async {
     lastHandledOffer = sdpMap['sdp']?.toString();
   }
 

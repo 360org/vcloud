@@ -123,15 +123,13 @@ class ChatV2IncomingCallDialog extends ConsumerWidget {
                   label: 'Trả lời',
                   color: const Color(0xFF10B981),
                   onPressed: onAccept ?? () async {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        fullscreenDialog: true,
+                        builder: (_) => const ChatV2CallScreen(),
+                      ),
+                    );
                     await controller.acceptCall();
-                    if (context.mounted) {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          fullscreenDialog: true,
-                          builder: (_) => const ChatV2CallScreen(),
-                        ),
-                      );
-                    }
                   },
                 ),
               ],

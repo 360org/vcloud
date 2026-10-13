@@ -15,6 +15,12 @@ class ChatV2CallKitService {
   void Function(Map<String, dynamic> extra)? onEndCall;
   void Function(Map<String, dynamic> extra)? onTimeoutCall;
 
+  /// Cờ đánh dấu đang trong luồng chấp nhận cuộc gọi để không kích hoạt onEndCall khi CallKit bị đóng
+  bool isAcceptingCall = false;
+
+  /// Cờ kiểm tra CallKit đang có cuộc gọi đến hiển thị trên hệ thống
+  bool hasActiveIncomingCall = false;
+
   /// Khởi tạo listener lắng nghe các sự kiện hành động từ CallKit
   void initialize({
     void Function(Map<String, dynamic> extra)? onAccept,
@@ -41,6 +47,8 @@ class ChatV2CallKitService {
                 ? Map<String, dynamic>.from(callKitParams.extra!)
                 : <String, dynamic>{};
             debugPrint('[CallKit] Người dùng bấm Chấp nhận cuộc gọi: ${callKitParams.id}');
+            isAcceptingCall = true;
+            hasActiveIncomingCall = false;
             onAcceptCall?.call(extra);
             break;
           case CallEventActionCallDecline(:final callKitParams):
@@ -48,6 +56,7 @@ class ChatV2CallKitService {
                 ? Map<String, dynamic>.from(callKitParams.extra!)
                 : <String, dynamic>{};
             debugPrint('[CallKit] Người dùng bấm Từ chối cuộc gọi: ${callKitParams.id}');
+            hasActiveIncomingCall = false;
             onDeclineCall?.call(extra);
             break;
           case CallEventActionCallEnded(:final callKitParams):
@@ -55,10 +64,20 @@ class ChatV2CallKitService {
                 ? Map<String, dynamic>.from(callKitParams.extra!)
                 : <String, dynamic>{};
             debugPrint('[CallKit] Cuộc gọi kết thúc từ CallKit: ${callKitParams.id}');
+            hasActiveIncomingCall = false;
+            if (isAcceptingCall) {
+              debugPrint('[CallKit] 🛡️ Bỏ qua CallEnded vì đang trong tiến trình Chấp nhận cuộc gọi (isAcceptingCall = true)');
+              break;
+            }
             onEndCall?.call(extra);
             break;
           case CallEventActionCallTimeout(:final id):
             debugPrint('[CallKit] Hết thời gian chờ cuộc gọi (Timeout): $id');
+            hasActiveIncomingCall = false;
+            if (isAcceptingCall) {
+              debugPrint('[CallKit] 🛡️ Bỏ qua CallTimeout vì đang trong tiến trình Chấp nhận cuộc gọi (isAcceptingCall = true)');
+              break;
+            }
             onTimeoutCall?.call(<String, dynamic>{'id': id});
             break;
           default:
@@ -129,10 +148,28 @@ class ChatV2CallKitService {
     );
 
     try {
+      hasActiveIncomingCall = true;
       await FlutterCallkitIncoming.showCallkitIncoming(params);
       debugPrint('[CallKit] Đã hiển thị CallKit incoming UI cho UUID: $callUuid');
     } catch (e) {
+      hasActiveIncomingCall = false;
       debugPrint('[CallKit] Lỗi hiển thị showCallkitIncoming: $e');
+    }
+  }
+
+  /// Đóng UI CallKit một cách an toàn khi bấm Chấp nhận cuộc gọi (Chống Deadly Loop)
+  Future<void> dismissCallKitOnAccept() async {
+    if (kIsWeb) return;
+    try {
+      isAcceptingCall = true;
+      hasActiveIncomingCall = false;
+      await endAllCalls();
+      // Giữ cờ trong 2 giây để toàn bộ event native CallEnded được tiêu thụ và bỏ qua an toàn
+      Future.delayed(const Duration(milliseconds: 2000), () {
+        isAcceptingCall = false;
+      });
+    } catch (e) {
+      debugPrint('[CallKit] Lỗi dismissCallKitOnAccept: $e');
     }
   }
 
@@ -150,6 +187,7 @@ class ChatV2CallKitService {
   /// Dập / Ẩn màn hình CallKit khi cuộc gọi đã kết thúc hoặc bị hủy
   Future<void> endCall(String callUuid) async {
     if (kIsWeb) return;
+    hasActiveIncomingCall = false;
     try {
       await FlutterCallkitIncoming.endCall(callUuid);
     } catch (e) {
@@ -160,6 +198,7 @@ class ChatV2CallKitService {
   /// Dập tất cả các cuộc gọi CallKit đang reo
   Future<void> endAllCalls() async {
     if (kIsWeb) return;
+    hasActiveIncomingCall = false;
     try {
       await FlutterCallkitIncoming.endAllCalls();
     } catch (e) {
