@@ -44,7 +44,7 @@ void main() {
       );
     });
 
-    test('3. Chuyển đổi port 8069 sang gevent 7072 (demo-17 Local Server)', () {
+    test('3. Cổng 8069 chạy chế độ single-worker (demo-17 Local Server) giữ nguyên cổng 8069', () {
       final session = OdooSession(
         accessToken: 'jwt_token_8069',
         uid: 2,
@@ -59,7 +59,7 @@ void main() {
       );
       expect(
         url,
-        'ws://192.168.1.100:7072/websocket?access_token=jwt_token_8069&db=demo-17&version=17.0-3',
+        'ws://192.168.1.100:8069/websocket?access_token=jwt_token_8069&db=demo-17&version=17.0-3',
       );
     });
 

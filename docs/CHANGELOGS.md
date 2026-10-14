@@ -2,6 +2,23 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.20+164] — 2026-10-14 (Smart Direct Chat 1-1 "Chat với CSKH" Cho Khách Hàng Portal)
+
+> [!IMPORTANT]
+> **Widget / Action Card "Chat với CSKH" Dành Riêng Cho Portal User (Thay Thế Zalo OA)**:
+> - **1. Nút Bấm Nổi (FloatingActionButton.extended) Trên Màn Hình Chat V2 (`chat_v2_list_screen.dart`)**:
+>   * Khi `currentUser?.isPortal == true`: Thay thế nút tạo nhóm bằng FAB extended màu Royal Blue (`#0077CD`), icon Tai nghe `LucideIcons.headphones`, nhãn **"Chat với CSKH"**.
+>   * Bấm vào gọi hàm `_openCskhChat()` hiển thị dialog loading và điều hướng mượt mà vào kênh chat 1-1.
+> - **2. Thẻ Hành Động Nhanh Trên Màn Hình Home Portal (`home_screen.dart`)**:
+>   * Bổ sung widget `_PortalSupportActionCard` thay thế Thẻ Ca làm việc khi tài khoản là Portal User.
+>   * Thiết kế giao diện hiện đại: Icon Tai nghe CSKH, Badge trạng thái `Online 🟢`, nhãn "Chat với CSKH", mô tả "Hỗ trợ 24/7 trực tiếp từ Kỹ thuật", mũi tên điều hướng.
+> - **3. Tầng Application & Cache Hội Thoại (`chat_v2_channels_controller.dart`)**:
+>   * Bổ sung `openDirectChatWithSupport({int? cskhPartnerId})`: Ưu tiên tra cứu phòng chat 1-1 trong cache `ChatV2ChannelLocalCache.cached` (0ms), fallback gọi `POST /api/v1/mobile/chat/direct` và tự động ghim phòng bằng `pinDirectChannel()`.
+> - **4. Backend Odoo 17 & 19 (`v_mobile_17/controllers/chat.py` & `v_mobile_19/controllers/chat.py`)**:
+>   * Tự động phát hiện đối tác CSKH nội bộ (`share == False`, `active == True`) khi Portal User mở chat không truyền `partner_id`. Idempotent tái sử dụng phòng cũ 0ms.
+
+---
+
 ## [v2.9.19+163] — 2026-10-12 (Khắc Phục Lỗi Mở Tệp Đính Kèm Zalo OA & Xóa Bỏ Hardcode attachments.first)
 
 > [!IMPORTANT]

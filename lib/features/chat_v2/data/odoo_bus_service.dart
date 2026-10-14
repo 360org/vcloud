@@ -55,8 +55,6 @@ class OdooBusService {
         wsPort = 1972;
       } else if (wsPort == 1700) {
         wsPort = 1772;
-      } else if (wsPort == 8069) {
-        wsPort = 7072;
       } else if (wsPort >= 1400 && wsPort <= 1900 && wsPort % 100 == 0) {
         wsPort = wsPort + 72;
       }

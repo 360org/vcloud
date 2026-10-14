@@ -36,7 +36,12 @@ final chatV2ChannelsProvider =
 class ChatV2ChannelLocalCache {
   static List<ChatV2Channel> _cached = const [];
   static final Map<String, ChatV2Channel> _pinnedDirectChannels = {};
-  static const _storage = FlutterSecureStorage();
+  static const _storage = FlutterSecureStorage(
+    aOptions: AndroidOptions(
+      encryptedSharedPreferences: true,
+      resetOnError: false,
+    ),
+  );
   static String _activeScope = '';
 
   static String _key(String base) => _activeScope.isEmpty ? base : '${_activeScope}_$base';
@@ -1313,6 +1318,74 @@ class ChatV2ChannelsNotifier
       }
       rethrow;
     }
+  }
+
+  /// Mở hoặc khởi tạo kênh chat 1-1 với nhân viên CSKH / Kỹ thuật
+  /// Tầng 1: Kiểm tra kênh 1-1 hiện có trong Local Cache (0ms)
+  /// Tầng 2: Gọi POST /api/v1/mobile/chat/direct lên Backend để lấy/tạo kênh 1-1
+  Future<String> openDirectChatWithSupport({int? cskhPartnerId}) async {
+    final channels = state.valueOrNull ?? ChatV2ChannelLocalCache.cached;
+    ChatV2Channel? existingSupportChannel;
+    for (final ch in channels) {
+      if (ch.isGroup) continue;
+      if (ch.channelType == 'chat' || ch.channelType == 'direct') {
+        if (cskhPartnerId != null) {
+          final pId = ch.directPartnerId ?? ch.partnerId;
+          if (pId == cskhPartnerId.toString()) {
+            existingSupportChannel = ch;
+            break;
+          }
+        } else {
+          existingSupportChannel = ch;
+          break;
+        }
+      }
+    }
+
+    if (existingSupportChannel != null) {
+      return existingSupportChannel.id;
+    }
+
+    final body = <String, dynamic>{};
+    if (cskhPartnerId != null) {
+      body['partner_id'] = cskhPartnerId;
+    }
+
+    final res = await odooApiClient.post(
+      '/api/v1/mobile/chat/direct',
+      body: body,
+    );
+
+    final map = (res is Map && res['data'] is Map)
+        ? res['data']
+        : (res is Map && res['result'] is Map ? res['result'] : res);
+
+    if (map is! Map) {
+      throw Exception('Phản hồi tạo chat không hợp lệ');
+    }
+
+    final channelId = map['id']?.toString() ?? map['channel_id']?.toString();
+    if (channelId == null || channelId.isEmpty) {
+      throw Exception('Phản hồi tạo chat thiếu channel ID');
+    }
+
+    final name = (map['name'] as String?) ?? 'Chăm sóc Khách hàng';
+    final targetPid = map['partner_id']?.toString() ?? cskhPartnerId?.toString();
+
+    final directCh = ChatV2Channel(
+      id: channelId,
+      name: name,
+      channelType: 'chat',
+      isGroup: false,
+      memberCount: 2,
+      directPartnerId: targetPid,
+      directPartnerName: name,
+    );
+    ChatV2ChannelLocalCache.pinDirectChannel(directCh);
+    ChatV2ChannelLocalCache.updateChannel(directCh);
+    ref.invalidateSelf();
+
+    return channelId;
   }
 }
 

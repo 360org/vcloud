@@ -1,5 +1,22 @@
 # CHANGELOG
 
+## [2.9.20 - Build 164] - 2026-10-14
+
+### 🚀 Smart Direct Chat 1-1 "Chat với CSKH" Cho Khách Hàng Portal (Thay Thế Zalo OA)
+- **Nút Bấm Nổi (FloatingActionButton.extended) Trên Màn Hình Chat V2 (`chat_v2_list_screen.dart`)**:
+  * Khi `currentUser?.isPortal == true`: Thay thế nút tạo nhóm bằng FAB extended màu Royal Blue (`#0077CD`), icon Tai nghe `LucideIcons.headphones`, nhãn **"Chat với CSKH"**.
+  * Bấm vào gọi hàm `_openCskhChat()` hiển thị dialog loading và điều hướng mượt mà vào kênh chat 1-1.
+- **Thẻ Hành Động Nhanh Trên Màn Hình Home Portal (`home_screen.dart`)**:
+  * Bổ sung widget `_PortalSupportActionCard` thay thế Thẻ Ca làm việc khi tài khoản là Portal User.
+  * Thiết kế giao diện hiện đại: Icon Tai nghe CSKH, Badge trạng thái `Online 🟢`, nhãn "Chat với CSKH", mô tả "Hỗ trợ 24/7 trực tiếp từ Kỹ thuật", mũi tên điều hướng.
+- **Tầng Application & Cache Hội Thoại (`chat_v2_channels_controller.dart`)**:
+  * Bổ sung `openDirectChatWithSupport({int? cskhPartnerId})`: Ưu tiên tra cứu phòng chat 1-1 trong cache `ChatV2ChannelLocalCache.cached` (0ms), fallback gọi `POST /api/v1/mobile/chat/direct` và tự động ghim phòng bằng `pinDirectChannel()`.
+- **Backend Odoo 17 & 19 (`v_mobile_17/controllers/chat.py` & `v_mobile_19/controllers/chat.py`)**:
+  * Tự động phát hiện đối tác CSKH nội bộ (`share == False`, `active == True`) khi Portal User mở chat không truyền `partner_id`. Idempotent tái sử dụng phòng cũ 0ms.
+- **Kiểm Thử & Đảm Bảo Chất Lượng**:
+  * `dart analyze lib/`: Đạt **No issues found!** (0 errors, 0 warnings).
+  * `python3 -m py_compile`: PASS 100% trên cả Odoo 17 và 19.
+
 ## [2.9.16 - Build 155] - 2026-10-09
 
 ### 🚀 Khắc Phục Lệch Tác Giả Helpdesk Ticket Chatter & Củng Cố Router Guard

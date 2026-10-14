@@ -34,6 +34,7 @@
         android:label="Vua Hệ Thống"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
         android:requestLegacyExternalStorage="true">
         <activity
             android:name=".MainActivity"

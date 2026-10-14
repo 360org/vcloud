@@ -184,7 +184,24 @@ class OdooApiClient {
 
   Future<OdooSession?> restoreSession() async {
     final stored = await _sessionStore.read();
-    if (stored == null || stored.isExpired) {
+    if (stored == null) {
+      _session = null;
+      return null;
+    }
+    if (stored.isExpired) {
+      final hasRefreshToken =
+          stored.refreshToken != null && stored.refreshToken!.isNotEmpty;
+      if (hasRefreshToken) {
+        _session = stored;
+        try {
+          final refreshed = await refreshSession();
+          if (refreshed != null) {
+            return refreshed;
+          }
+        } catch (e) {
+          debugPrint('[OdooApiClient.restoreSession] Refresh on resume failed: $e');
+        }
+      }
       await _sessionStore.clear();
       _session = null;
       return null;
@@ -911,7 +928,17 @@ class OdooApiClient {
   Future<OdooSession?> refreshSession() async {
     if (_session == null) await restoreSession();
     if (_session == null) return null;
-    final json = await post('/api/v1/auth/refresh');
+    final rToken = _session!.refreshToken;
+    if (rToken == null || rToken.isEmpty) return null;
+
+    final json = await post(
+      '/api/v1/auth/refresh',
+      body: <String, dynamic>{
+        'refresh_token': rToken,
+        if (_session!.db.isNotEmpty) 'db': _session!.db,
+      },
+      auth: false,
+    );
     final session = _sessionFromJson(
       Map<String, dynamic>.from(json as Map),
       fallbackLogin: _session!.login,
@@ -1090,8 +1117,8 @@ class OdooApiClient {
     final headers = <String, String>{
       'Accept': 'application/json',
       if (body != null) 'Content-Type': 'application/json',
-      if (auth) 'Authorization': 'Bearer ${_session!.accessToken}',
-      if (auth && _session != null && _session!.db.isNotEmpty) 'X-Odoo-Database': _session!.db,
+      if (auth && _session != null) 'Authorization': 'Bearer ${_session!.accessToken}',
+      if (_session != null && _session!.db.isNotEmpty) 'X-Odoo-Database': _session!.db,
     };
 
     if (kDebugMode) {

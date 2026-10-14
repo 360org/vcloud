@@ -144,6 +144,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
+  Future<void> _openCskhChat() async {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: Color(0xFF0077CD)),
+      ),
+    );
+    try {
+      final channelId = await ref
+          .read(chatV2ChannelsProvider.notifier)
+          .openDirectChatWithSupport();
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      context.push('/chat/$channelId?name=Ch%C4%83m%20s%C3%B3c%20Kh%C3%A1ch%20h%C3%A0ng');
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Không thể kết nối CSKH: ${e.toString().replaceAll("Exception: ", "")}'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final summary = ref.watch(homeSummaryProvider);
@@ -255,8 +282,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 companyName: companyName,
                 isOnline: isOnline,
                 statusBusy: statusBusy,
+                isPortal: user?.isPortal ?? false,
                 hasAttendance: user?.hasAttendance ?? true,
                 onStatusTap: () => _toggleAttendance(isOnline),
+                onOpenCskhChat: _openCskhChat,
                 todayMinutes: todayMinutes,
                 checkinTime: openSession?.checkinTime,
                 notificationCount: notificationCount,
@@ -300,8 +329,10 @@ class _GreetingHeader extends ConsumerWidget {
     this.companyName,
     required this.isOnline,
     required this.statusBusy,
+    this.isPortal = false,
     this.hasAttendance = true,
     required this.onStatusTap,
+    this.onOpenCskhChat,
     required this.todayMinutes,
     required this.checkinTime,
     required this.notificationCount,
@@ -318,8 +349,10 @@ class _GreetingHeader extends ConsumerWidget {
   final String? companyName;
   final bool isOnline;
   final bool statusBusy;
+  final bool isPortal;
   final bool hasAttendance;
   final VoidCallback onStatusTap;
+  final VoidCallback? onOpenCskhChat;
   final int todayMinutes;
   final DateTime? checkinTime;
   final int notificationCount;
@@ -424,27 +457,29 @@ class _GreetingHeader extends ConsumerWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              PressableScale(
-                onTap: () {
-                  if (!hasAttendance) {
-                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Tính năng yêu cầu cài đặt Module Chấm công'),
-                        behavior: SnackBarBehavior.floating,
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
-                    return;
-                  }
-                  onOpenAttendance();
-                },
-                child: _PresenceIndicator(
-                  isOnline: isOnline,
-                  hasAttendance: hasAttendance,
+              if (!isPortal) ...[
+                PressableScale(
+                  onTap: () {
+                    if (!hasAttendance) {
+                      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Tính năng yêu cầu cài đặt Module Chấm công'),
+                          behavior: SnackBarBehavior.floating,
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                      return;
+                    }
+                    onOpenAttendance();
+                  },
+                  child: _PresenceIndicator(
+                    isOnline: isOnline,
+                    hasAttendance: hasAttendance,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 10),
+                const SizedBox(width: 10),
+              ],
               PressableScale(
                 onTap: onNotificationsTap,
                 child: Stack(
@@ -494,8 +529,11 @@ class _GreetingHeader extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
 
-          // Work Shift Info Card - Ultra Clean & Spacious Apple HIG Design
-          InkWell(
+          if (isPortal)
+            _PortalSupportActionCard(onTap: onOpenCskhChat)
+          else
+            // Work Shift Info Card - Ultra Clean & Spacious Apple HIG Design
+            InkWell(
             onTap: () {
               if (!hasAttendance) {
                 ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -839,6 +877,157 @@ class _GreetingHeader extends ConsumerWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _PortalSupportActionCard extends StatelessWidget {
+  const _PortalSupportActionCard({this.onTap});
+
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: isDark
+                  ? const [Color(0xFF1E3A8A), Color(0xFF1E293B)]
+                  : const [Color(0xFFEFF6FF), Color(0xFFDBEAFE)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: const Color(0xFF0077CD).withValues(alpha: isDark ? 0.45 : 0.25),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF0077CD).withValues(alpha: isDark ? 0.25 : 0.08),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF0077CD), Color(0xFF00A3FF)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF0077CD).withValues(alpha: 0.35),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  LucideIcons.headphones,
+                  color: Colors.white,
+                  size: 26,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'Chat với CSKH',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF00C83A).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: const Color(0xFF00C83A).withValues(alpha: 0.4),
+                              width: 1,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 6,
+                                height: 6,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFF00C83A),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              const Text(
+                                'Online',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF00C83A),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Hỗ trợ 24/7 trực tiếp từ Kỹ thuật',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: isDark
+                            ? const Color(0xFF94A3B8)
+                            : const Color(0xFF475569),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0077CD).withValues(alpha: isDark ? 0.2 : 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  LucideIcons.arrowRight,
+                  color: Color(0xFF0077CD),
+                  size: 18,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

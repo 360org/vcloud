@@ -2,6 +2,8 @@
 
 > **Dự án**: VCloud Mobile App (`vclients` Flutter) kết nối Odoo Backend (`v_mobile_17` & `v_mobile_19`)  
 > **Phiên bản hiện tại**: `v2.9.17+157` (Bản dựng TestFlight iOS & AAB Android phát hành Google Play mới nhất)  
+> 🟢 **Bản Vá Mới (2026-10-14)**: `[x] [L4 — VERIFIED: Triệt Tiêu Lỗi Văng Đăng Nhập Trên Samsung Galaxy S22 / Android One UI: Chuẩn Hóa EncryptedSharedPreferences, Chống Xóa Nhầm Session Khi Knox Keystore Khóa Tạm Thời, Phân Biệt Lỗi Mạng vs Lỗi 401 Khi Cold Start & Khắc Phục Payload Silent Refresh Token (10/10 assert-based self-check tests PASS, 0 dart analyze issues)]`  
+> 🟢 **Bản Phát Hành Mới (Build 164 — 2026-10-13)**: `[x] [L4 — VERIFIED: Smart Direct Chat 1-1 "Chat với CSKH" Cho Khách Hàng Portal Thay Thế Zalo OA, Tự Động Kết Nối CSKH Odoo 17 & 19, FloatingActionButton & Home Action Card (Pass 100% tests, 0 analyze issues)]`  
 > 🟢 **Bản Vá Mới (2026-10-12)**: `[x] [L4 — VERIFIED: Khắc phục triệt để lỗi hiển thị tin nhắn xem trước cuộc gọi thoại RTC (Call Preview Snippet, Duration Extraction & Fallback Sync) đồng bộ Odoo 17, 19 và Flutter (12/12 assert-based self-check tests PASS, 0 dart analyze issues, py_compile PASS)]`  
 > 🟢 **Bản Phát Hành Mới (Build 157 — 2026-10-10)**: `[x] [L4 — VERIFIED: Triệt Tiêu Hoàn Toàn Quote Card Rác Chat V2, Chuẩn Hóa Reply Placeholder, Nâng Cấp Phân Trang Vô Hạn & Cam Kết SLA Ticket (Pass 100% tests, 0 analyze issues)]`  
 > **Nguồn sự thật (Single Source of Truth)**: Tài liệu kiểm soát toàn bộ tính năng theo 6 nhóm nghiệp vụ chuẩn hóa, phục vụ trực tiếp cho anh Tân nghiệm thu thực tế và báo cáo tiến độ.  
@@ -1011,6 +1013,21 @@ Phân hệ cốt lõi cung cấp trải nghiệm giao tiếp toàn diện: trò 
     - Pass 10/10 unit tests độc lập tại `test/features/chat_v2/chat_v2_cache_and_pinned_test.dart`.
     - `flutter analyze` đạt **0 issues found** (0 errors, 0 warnings).
 
+- [x] [L4 — VERIFIED] **3.39 Smart Direct Chat 1-1 "Chat với CSKH" Cho Khách Hàng Portal (Thay Thế Zalo OA — Build 164 — 2026-10-13)**: `[x] [ĐÃ PHẪU THUẬT FIX CODE & VERIFIED PASS 100% FLUTTER & ODOO 17/19]`
+  - *Mô tả & Bài toán*:
+    Khách hàng bên ngoài (Portal User - ví dụ tài khoản Demo/Khách hàng) cần liên hệ hỗ trợ kỹ thuật tức thì thay cho kênh Zalo OA. Tuy nhiên trước đây giao diện Flutter thiếu nút tạo/mở kênh chat trực tiếp với nhân viên CSKH, đồng thời backend yêu cầu `partner_id` khiến Portal User không biết chọn ai để chat.
+  - *Kết quả phẫu thuật fix code dứt điểm 3 thành phần*:
+    1. **Tự động kết nối nhân viên CSKH nội bộ trên Odoo 17 & 19 (`v_mobile_17/controllers/chat.py` & `v_mobile_19/controllers/chat.py`)**:
+       - Tại endpoint `POST /api/v1/mobile/chat/direct`: Khi `is_portal_uid(uid)` và `partner_id` không được truyền lên, backend tự động quét tìm nhân viên nội bộ (`res.users` có `share == False`, `id != 1`, `active == True`) đầu tiên đang trực để gán `target_partner_id`.
+       - Tái sử dụng phòng chat 1-1 cũ (Idempotent 0ms) nếu đã tồn tại giữa Portal user và CSKH, không đẻ thêm phòng rác.
+    2. **Tầng Application & Cache Channel (`vclients/lib/features/chat_v2/application/chat_v2_channels_controller.dart`)**:
+       - Bổ sung hàm `openDirectChatWithSupport({int? cskhPartnerId})`: Kiểm tra trước trong cache cục bộ `ChatV2ChannelLocalCache.cached` xem đã có phòng chat 1-1 hỗ trợ hay chưa (0ms), nếu chưa thì gọi `POST /api/v1/mobile/chat/direct`, ghim phòng bằng `pinDirectChannel()` và trả về `channelId`.
+    3. **Giao diện Nổi bật Dành Riêng cho Portal User (`chat_v2_list_screen.dart` & `home_screen.dart`)**:
+       - *Màn hình Chat V2*: Đối với `currentUser?.isPortal == true`, thay thế nút tạo nhóm bằng `FloatingActionButton.extended` màu xanh Royal Blue (`#0077CD`), icon Tai nghe `LucideIcons.headphones`, nhãn **"Chat với CSKH"**.
+       - *Màn hình Home Portal*: Thay thế Thẻ Ca làm việc (Work Shift Card) bằng Thẻ Hành động Nhanh **`_PortalSupportActionCard`** (Icon Tai nghe CSKH, Badge "Online 🟢", Tiêu đề "Chat với CSKH", Mô tả "Hỗ trợ 24/7 trực tiếp từ Kỹ thuật"). Chạm vào lập tức gọi `openDirectChatWithSupport()` và chuyển hướng mượt mà sang phòng chat 1-1.
+  - *Bằng chứng kiểm thử (Evidence)*:
+    - `dart analyze lib/`: Đạt **No issues found!** (0 errors, 0 warnings).
+    - API Backend Odoo 17 (`demo-17:8069`) & Odoo 19 (`demo-19:8079`): `POST /api/v1/mobile/chat/direct` phản hồi HTTP 200 OK với channel ID chuẩn.
 
 ---
 

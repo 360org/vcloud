@@ -167,6 +167,33 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
     }
   }
 
+  Future<void> _openCskhChat() async {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: Color(0xFF0077CD)),
+      ),
+    );
+    try {
+      final channelId = await ref
+          .read(chatV2ChannelsProvider.notifier)
+          .openDirectChatWithSupport();
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      context.push('/chat/$channelId?name=Ch%C4%83m%20s%C3%B3c%20Kh%C3%A1ch%20h%C3%A0ng');
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Không thể kết nối CSKH: ${e.toString().replaceAll("Exception: ", "")}'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final channelsAsync = ref.watch(chatV2ChannelsProvider);
@@ -188,7 +215,21 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
       title: 'Trò chuyện',
       showAppBar: false,
       floatingActionButton: (currentUser?.isPortal == true)
-          ? null
+          ? FloatingActionButton.extended(
+              heroTag: 'chat_cskh_fab',
+              onPressed: _openCskhChat,
+              backgroundColor: const Color(0xFF0077CD),
+              foregroundColor: Colors.white,
+              elevation: 4,
+              icon: const Icon(LucideIcons.headphones, size: 22),
+              label: const Text(
+                'Chat với CSKH',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                ),
+              ),
+            )
           : FloatingActionButton(
               heroTag: 'chat_new_fab',
               onPressed: () => context.push('/chat/new'),

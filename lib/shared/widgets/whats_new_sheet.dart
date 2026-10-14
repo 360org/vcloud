@@ -10,7 +10,12 @@ class WhatsNewSheet extends StatelessWidget {
   /// Kiểm tra và tự động hiển thị Sheet nếu người dùng chưa xem build [targetBuild]
   static Future<void> showIfNeeded(BuildContext context, {int targetBuild = 92}) async {
     try {
-      const storage = FlutterSecureStorage();
+      const storage = FlutterSecureStorage(
+        aOptions: AndroidOptions(
+          encryptedSharedPreferences: true,
+          resetOnError: false,
+        ),
+      );
       final seenStr = await storage.read(key: _storageKey);
       final seenBuild = int.tryParse(seenStr ?? '') ?? 0;
 

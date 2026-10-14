@@ -67,7 +67,13 @@ class PushNotificationService {
     FlutterSecureStorage? storage,
     this._messaging,
   }) : _repository = repository ?? PushNotificationRepository(),
-       _storage = storage ?? const FlutterSecureStorage();
+       _storage = storage ??
+           const FlutterSecureStorage(
+             aOptions: AndroidOptions(
+               encryptedSharedPreferences: true,
+               resetOnError: false,
+             ),
+           );
 
   final PushNotificationRepository _repository;
   final FlutterSecureStorage _storage;

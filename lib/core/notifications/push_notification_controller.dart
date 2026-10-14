@@ -24,7 +24,12 @@ class DismissedNotificationNotifier extends StateNotifier<Set<String>> {
     _load();
   }
 
-  static const _storage = FlutterSecureStorage();
+  static const _storage = FlutterSecureStorage(
+    aOptions: AndroidOptions(
+      encryptedSharedPreferences: true,
+      resetOnError: false,
+    ),
+  );
   static const _storageKey = 'dismissed_notification_ids_v1';
 
   Future<void> _load() async {

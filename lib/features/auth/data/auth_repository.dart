@@ -14,7 +14,13 @@ import 'db_info.dart';
 class AuthRepository {
   AuthRepository({OdooApiClient? client, FlutterSecureStorage? storage})
       : _client = client ?? odooApiClient,
-        _storage = storage ?? const FlutterSecureStorage();
+        _storage = storage ??
+            const FlutterSecureStorage(
+              aOptions: AndroidOptions(
+                encryptedSharedPreferences: true,
+                resetOnError: false,
+              ),
+            );
 
   final OdooApiClient _client;
   final FlutterSecureStorage _storage;
@@ -108,15 +114,25 @@ class AuthRepository {
     try {
       final profile = await _client.currentUserProfile();
       if (profile == null) {
-        debugPrint('[AuthRepository.currentUser] Profile null → logout');
+        // Body 200 không hợp lệ: giữ nguyên session thay vì vội vã logout
+        return _toUser(session);
+      }
+    } catch (e, st) {
+      final errStr = e.toString().toLowerCase();
+      final isAuthError = errStr.contains('401') ||
+          errStr.contains('not signed in') ||
+          errStr.contains('phiên đăng nhập đã hết hạn') ||
+          errStr.contains('invalid_credentials');
+      if (isAuthError) {
+        debugPrint(
+            '[AuthRepository.currentUser] Session invalid on backend: $e\n$st');
         await _client.logout();
         return null;
       }
-    } catch (e, st) {
+      // Khắc phục trên Samsung S22: Khi mở máy từ Deep Sleep, modem WiFi/4G cần vài giây
+      // để tái kết nối. Giữ nguyên session hợp lệ thay vì logout nhầm vì lỗi mạng.
       debugPrint(
-          '[AuthRepository.currentUser] Session invalid on backend: $e\n$st');
-      await _client.logout();
-      return null;
+          '[AuthRepository.currentUser] Network/connection hiccup, retaining session: $e');
     }
     return _toUser(session);
   }
