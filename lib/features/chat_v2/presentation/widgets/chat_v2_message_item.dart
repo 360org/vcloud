@@ -39,6 +39,7 @@ class ChatV2MessageItem extends StatelessWidget {
     this.onImageTap,
     this.onAvatarTap,
     this.isHighlighted = false,
+    this.isCskhPortal = false,
     this.searchQuery,
     this.isSearchActiveMatch = false,
   });
@@ -56,6 +57,7 @@ class ChatV2MessageItem extends StatelessWidget {
   final Function? onImageTap;
   final VoidCallback? onAvatarTap;
   final bool isHighlighted;
+  final bool isCskhPortal;
   final String? searchQuery;
   final bool isSearchActiveMatch;
 
@@ -84,7 +86,9 @@ class ChatV2MessageItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final isMine = message.isMine;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final authorColor = getAuthorColor(message.authorName);
+    final authorColor = (isCskhPortal && !isMine)
+        ? const Color(0xFF0077CD)
+        : getAuthorColor(message.authorName);
     final avatarCacheSize = (28 * MediaQuery.devicePixelRatioOf(context))
         .round();
     final timeStr = message.createdAt != null
@@ -290,32 +294,41 @@ class ChatV2MessageItem extends StatelessWidget {
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
-                          Center(
-                            child: Text(
-                              message.authorName.isNotEmpty
-                                  ? message.authorName[0].toUpperCase()
-                                  : 'U',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                          if (message.authorAvatar != null &&
-                              message.authorAvatar!.isNotEmpty)
-                            Image.network(
-                              message.authorAvatar!,
+                          if (isCskhPortal && !isMine)
+                            Image.asset(
+                              'branding/cskh_logo_360.png',
                               width: 28,
                               height: 28,
                               fit: BoxFit.cover,
-                              cacheWidth: avatarCacheSize,
-                              cacheHeight: avatarCacheSize,
-                              gaplessPlayback: true,
-                              headers: odooApiClient.authHeaders,
-                              errorBuilder: (context, error, stackTrace) =>
-                                  const SizedBox.shrink(),
+                            )
+                          else ...[
+                            Center(
+                              child: Text(
+                                message.authorName.isNotEmpty
+                                    ? message.authorName[0].toUpperCase()
+                                    : 'U',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
                             ),
+                            if (message.authorAvatar != null &&
+                                message.authorAvatar!.isNotEmpty)
+                              Image.network(
+                                message.authorAvatar!,
+                                width: 28,
+                                height: 28,
+                                fit: BoxFit.cover,
+                                cacheWidth: avatarCacheSize,
+                                cacheHeight: avatarCacheSize,
+                                gaplessPlayback: true,
+                                headers: odooApiClient.authHeaders,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    const SizedBox.shrink(),
+                              ),
+                          ],
                         ],
                       ),
                     ),

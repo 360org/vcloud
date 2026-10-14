@@ -143,6 +143,7 @@ class ChatV2Channel {
   final String? directPartnerId;
   final String? directPartnerName;
   final String? directPartnerStatus;
+  final String? directPartnerAvatar;
   final bool isMuted;
   final bool isZaloChannel;
   final bool isCskhChannel;
@@ -169,6 +170,7 @@ class ChatV2Channel {
     this.directPartnerId,
     this.directPartnerName,
     this.directPartnerStatus,
+    this.directPartnerAvatar,
     this.isMuted = false,
     this.isZaloChannel = false,
     this.isCskhChannel = false,
@@ -196,6 +198,7 @@ class ChatV2Channel {
     String? directPartnerId,
     String? directPartnerName,
     String? directPartnerStatus,
+    String? directPartnerAvatar,
     bool? isMuted,
     bool? isZaloChannel,
     bool? isCskhChannel,
@@ -223,6 +226,7 @@ class ChatV2Channel {
       directPartnerId: directPartnerId ?? this.directPartnerId,
       directPartnerName: directPartnerName ?? this.directPartnerName,
       directPartnerStatus: directPartnerStatus ?? this.directPartnerStatus,
+      directPartnerAvatar: directPartnerAvatar ?? this.directPartnerAvatar,
       isMuted: isMuted ?? this.isMuted,
       isZaloChannel: isZaloChannel ?? this.isZaloChannel,
       isCskhChannel: isCskhChannel ?? this.isCskhChannel,
@@ -275,6 +279,10 @@ class ChatV2Channel {
     'last_message_author_name': lastMessageAuthorName,
     'last_message_author_id': lastMessageAuthorId,
     'partner_id': partnerId,
+    'direct_partner_id': directPartnerId,
+    'direct_partner_name': directPartnerName,
+    'direct_partner_status': directPartnerStatus,
+    'direct_partner_avatar': directPartnerAvatar,
     'is_muted': isMuted,
     'is_zalo_channel': isZaloChannel,
     'is_cskh_channel': isCskhChannel,
@@ -294,6 +302,31 @@ class ChatV2Channel {
   /// Tên hiển thị sạch chuẩn hóa (không phụ thuộc user context)
   String get displayName {
     if (isCskhChannel) {
+      if (directPartnerName != null &&
+          directPartnerName!.trim().isNotEmpty &&
+          directPartnerName!.trim().toLowerCase() != 'chăm sóc khách hàng 360' &&
+          directPartnerName!.trim().toLowerCase() != 'cskh' &&
+          directPartnerName!.trim().toLowerCase() != 'cuộc trò chuyện') {
+        return cleanChannelName(directPartnerName!);
+      }
+      final stripped = name.replaceAll(RegExp(r'^\[CSKH\]\s*', caseSensitive: false), '').trim();
+      if (stripped.isNotEmpty &&
+          stripped.toLowerCase() != 'chăm sóc khách hàng 360' &&
+          stripped.toLowerCase() != 'cskh' &&
+          stripped.toLowerCase() != 'cuộc trò chuyện') {
+        return stripped;
+      }
+      final customerMember = members.firstWhereOrNull((m) =>
+          !m.isMe &&
+          m.name.isNotEmpty &&
+          m.name.toLowerCase() != 'chăm sóc khách hàng 360' &&
+          m.name.toLowerCase() != 'cskh' &&
+          m.name.toLowerCase() != 'odoobot' &&
+          m.name.toLowerCase() != 'bot' &&
+          m.name.toLowerCase() != 'hệ thống');
+      if (customerMember != null && customerMember.displayName.isNotEmpty) {
+        return cleanChannelName(customerMember.displayName);
+      }
       return 'Chăm Sóc Khách Hàng 360';
     }
     if (!isGroup && customNickname != null && customNickname!.trim().isNotEmpty) {
@@ -322,6 +355,15 @@ class ChatV2Channel {
 
     // 0. Chuẩn hóa khoảng trắng Unicode / tabs / nhiều khoảng trắng liên tiếp
     clean = clean.replaceAll(RegExp(r'\s+'), ' ');
+
+    // 0.1 Bóc tách tiền tố [CSKH] nếu có
+    final cskhPrefix = RegExp(r'^\[CSKH\]\s*', caseSensitive: false);
+    if (cskhPrefix.hasMatch(clean)) {
+      final stripped = clean.replaceFirst(cskhPrefix, '').trim();
+      if (stripped.isNotEmpty) {
+        clean = stripped;
+      }
+    }
 
     // 1. Khớp chính xác các biến thể của Users + Internal độc lập
     final lower = clean.toLowerCase();
@@ -419,9 +461,37 @@ class ChatV2Channel {
   /// - Nếu là kênh (channelType == 'channel') hoặc nhóm (isGroup): luôn giữ nguyên 100% tên kênh/nhóm gốc đã làm sạch.
   /// - Nếu là chat 1-1 có customNickname thì luôn ưu tiên hiển thị customNickname.
   /// - Nếu là chat 1-1 ghép tên thì chỉ lấy tên người đối diện.
-  String getCleanName(String? currentUserName) {
+  String getCleanName(String? currentUserName, {bool? isPortal}) {
     if (isCskhChannel) {
-      return 'Chăm Sóc Khách Hàng 360';
+      if (isPortal == true) {
+        return 'Chăm Sóc Khách Hàng 360';
+      }
+      if (directPartnerName != null &&
+          directPartnerName!.trim().isNotEmpty &&
+          directPartnerName!.trim().toLowerCase() != 'chăm sóc khách hàng 360' &&
+          directPartnerName!.trim().toLowerCase() != 'cskh' &&
+          directPartnerName!.trim().toLowerCase() != 'cuộc trò chuyện') {
+        return cleanChannelName(directPartnerName!);
+      }
+      final stripped = name.replaceAll(RegExp(r'^\[CSKH\]\s*', caseSensitive: false), '').trim();
+      if (stripped.isNotEmpty &&
+          stripped.toLowerCase() != 'chăm sóc khách hàng 360' &&
+          stripped.toLowerCase() != 'cskh' &&
+          stripped.toLowerCase() != 'cuộc trò chuyện') {
+        return stripped;
+      }
+      final customerMember = members.firstWhereOrNull((m) =>
+          !m.isMe &&
+          m.name.isNotEmpty &&
+          m.name.toLowerCase() != 'chăm sóc khách hàng 360' &&
+          m.name.toLowerCase() != 'cskh' &&
+          m.name.toLowerCase() != 'odoobot' &&
+          m.name.toLowerCase() != 'bot' &&
+          m.name.toLowerCase() != 'hệ thống');
+      if (customerMember != null && customerMember.displayName.isNotEmpty) {
+        return cleanChannelName(customerMember.displayName);
+      }
+      return isPortal == false ? 'Khách hàng' : 'Chăm Sóc Khách Hàng 360';
     }
     if (!isGroup && customNickname != null && customNickname!.trim().isNotEmpty) {
       return customNickname!.trim();
@@ -733,6 +803,9 @@ class ChatV2Channel {
         _stringOrNull(rawDirectPartner['avatar_url'] ?? rawDirectPartner['image_128']),
       );
     }
+    directPartnerAvatar ??= odooApiClient.resolveAvatarUrl(
+      _stringOrNull(map['direct_partner_avatar']),
+    );
     final otherMember = memberObjs.firstWhereOrNull((m) => !m.isMe);
     if (!isGroup && channelType != 'channel' && otherMember != null) {
       directPartnerId ??= otherMember.id.isNotEmpty ? otherMember.id : null;
@@ -757,12 +830,14 @@ class ChatV2Channel {
     directPartnerStatus ??= imStatus;
 
     String? finalAvatarUrl = avatarUrl;
-    if (finalAvatarUrl == null && !isGroup && channelType != 'channel') {
+    if (finalAvatarUrl == null || finalAvatarUrl.isEmpty) {
       if (directPartnerAvatar != null && directPartnerAvatar.isNotEmpty) {
         finalAvatarUrl = directPartnerAvatar;
-      } else if (memberObjs.isNotEmpty) {
-        if (otherMember != null && !otherMember.isMe && otherMember.avatarUrl != null && otherMember.avatarUrl!.isNotEmpty) {
-          finalAvatarUrl = otherMember.avatarUrl;
+      } else if (!isGroup && channelType != 'channel') {
+        if (memberObjs.isNotEmpty) {
+          if (otherMember != null && !otherMember.isMe && otherMember.avatarUrl != null && otherMember.avatarUrl!.isNotEmpty) {
+            finalAvatarUrl = otherMember.avatarUrl;
+          }
         }
       }
     }
@@ -809,6 +884,7 @@ class ChatV2Channel {
       directPartnerId: directPartnerId,
       directPartnerName: directPartnerName,
       directPartnerStatus: directPartnerStatus,
+      directPartnerAvatar: directPartnerAvatar,
       isMuted: isMuted,
       isZaloChannel: isZaloChannel,
       isCskhChannel: isCskhChannel,

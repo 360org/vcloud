@@ -54,6 +54,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
   late final ScrollController _scrollController;
   final bool _isSending = false;
   bool _isDialingLock = false;
+  bool _isCreatingLead = false;
   ChatV2Message? _replyingTo;
   ChatV2Message? _editingMsg;
   final TextEditingController _inputController = TextEditingController();
@@ -937,6 +938,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
 
     // Lấy thông tin user hiện tại để hiển thị tên sạch của người đối diện
     final currentUser = ref.watch(authControllerProvider).valueOrNull;
+    final isPortal = currentUser?.isPortal == true;
     final currentUserName = (currentUser?.userMetadata['name'] ??
         currentUser?.userMetadata['display_name'] ??
         currentUser?.userMetadata['login'] ??
@@ -954,21 +956,53 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
     final currentChannel = ref.watch(chatV2ChannelsProvider.select(
       (async) => async.valueOrNull?.where((c) => c.id == widget.channelId).firstOrNull,
     ));
-    final rawTitle = widget.title ?? currentChannel?.displayName ?? 'Trò chuyện';
-    final displayTitle = currentChannel != null
-        ? currentChannel.getCleanName(currentUserName)
-        : (rawTitle.contains(',')
-            ? ChatV2Channel.cleanChannelName(
-                rawTitle
-                    .split(',')
-                    .map((s) => s.trim())
-                    .where((s) =>
-                        s.isNotEmpty &&
-                        s.toLowerCase() != (currentUserName ?? '').toLowerCase())
-                    .firstOrNull ??
-                    rawTitle,
-              )
-            : ChatV2Channel.cleanChannelName(rawTitle));
+    final isCskh = currentChannel?.isCskhChannel == true ||
+        (widget.title != null &&
+            (widget.title!.contains('Chăm Sóc Khách Hàng') || widget.title!.contains('[CSKH]')));
+    String displayTitle;
+    if (isCskh) {
+      if (isPortal) {
+        displayTitle = 'Chăm Sóc Khách Hàng 360';
+      } else {
+        // Góc nhìn Sales/Kỹ thuật/Nội bộ: Ưu tiên tên của khách hàng Portal
+        final cleanCustName = currentChannel?.getCleanName(currentUserName, isPortal: false);
+        final partnerName = currentChannel?.directPartnerName;
+        if (cleanCustName != null &&
+            cleanCustName.isNotEmpty &&
+            cleanCustName.toLowerCase() != 'chăm sóc khách hàng 360' &&
+            cleanCustName.toLowerCase() != 'cskh') {
+          displayTitle = cleanCustName;
+        } else if (widget.title != null &&
+            widget.title!.trim().isNotEmpty &&
+            widget.title!.toLowerCase() != 'chăm sóc khách hàng 360' &&
+            widget.title!.toLowerCase() != 'cskh') {
+          displayTitle = ChatV2Channel.cleanChannelName(widget.title!);
+        } else if (partnerName != null &&
+            partnerName.trim().isNotEmpty &&
+            partnerName.toLowerCase() != 'chăm sóc khách hàng 360' &&
+            partnerName.toLowerCase() != 'cskh') {
+          displayTitle = ChatV2Channel.cleanChannelName(partnerName);
+        } else {
+          displayTitle = 'Khách hàng';
+        }
+      }
+    } else {
+      final rawTitle = widget.title ?? currentChannel?.displayName ?? 'Trò chuyện';
+      displayTitle = currentChannel != null
+          ? currentChannel.getCleanName(currentUserName, isPortal: isPortal)
+          : (rawTitle.contains(',')
+              ? ChatV2Channel.cleanChannelName(
+                  rawTitle
+                      .split(',')
+                      .map((s) => s.trim())
+                      .where((s) =>
+                          s.isNotEmpty &&
+                          s.toLowerCase() != (currentUserName ?? '').toLowerCase())
+                      .firstOrNull ??
+                      rawTitle,
+                )
+              : ChatV2Channel.cleanChannelName(rawTitle));
+    }
 
     final isChannelMuted = (currentChannel != null && currentChannel.isMuted) ||
         ChatV2ChannelLocalCache.isUserMuted(widget.channelId);
@@ -980,24 +1014,50 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
 
     // Fallback các cấp độ an toàn để xác định avatar của đối phương (tuyệt đối không lấy avatar của bản thân):
     String? resolvedAvatarUrl = currentChannel?.avatarUrl;
-    if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
-      resolvedAvatarUrl = widget.initialAvatarUrl;
-    }
-    if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
-      final isGroup = currentChannel?.isGroup == true ||
-          (currentChannel != null && currentChannel.getActualIsGroup(currentUserName));
-      if (!isGroup && messages.isNotEmpty) {
-        final otherMsg = messages.firstWhereOrNull((m) {
-          if (m.isMine) return false;
-          if (currentUserId != null && m.authorId == currentUserId) return false;
-          if (currentPartnerId != null && m.authorId == currentPartnerId) return false;
-          if (currentUserName != null && currentUserName.isNotEmpty) {
-            if (m.authorName.trim().toLowerCase() == currentUserName.trim().toLowerCase()) return false;
+    if (isCskh) {
+      if (isPortal) {
+        resolvedAvatarUrl = null; // Portal luôn dùng branding/cskh_logo_360.png
+      } else {
+        // Góc nhìn Sales/Kỹ thuật: Ưu tiên avatar của chính khách hàng Portal
+        final partnerAvatar = currentChannel?.directPartnerAvatar;
+        if (partnerAvatar != null && partnerAvatar.isNotEmpty) {
+          resolvedAvatarUrl = partnerAvatar;
+        } else if (resolvedAvatarUrl != null &&
+            (resolvedAvatarUrl.contains('res.company') || resolvedAvatarUrl.contains('field=logo'))) {
+          resolvedAvatarUrl = null; // Tránh hiển thị logo công ty thay cho khách hàng
+        }
+        if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
+          final customerMember = currentChannel?.members.firstWhereOrNull((m) =>
+              !m.isMe &&
+              m.name.toLowerCase() != 'odoobot' &&
+              m.name.toLowerCase() != 'bot' &&
+              m.avatarUrl != null &&
+              m.avatarUrl!.isNotEmpty);
+          if (customerMember != null) {
+            resolvedAvatarUrl = customerMember.avatarUrl;
           }
-          return (m.authorAvatar != null && m.authorAvatar!.isNotEmpty);
-        });
-        if (otherMsg != null) {
-          resolvedAvatarUrl = otherMsg.authorAvatar;
+        }
+      }
+    } else {
+      if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
+        resolvedAvatarUrl = widget.initialAvatarUrl;
+      }
+      if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
+        final isGroup = currentChannel?.isGroup == true ||
+            (currentChannel != null && currentChannel.getActualIsGroup(currentUserName));
+        if (!isGroup && messages.isNotEmpty) {
+          final otherMsg = messages.firstWhereOrNull((m) {
+            if (m.isMine) return false;
+            if (currentUserId != null && m.authorId == currentUserId) return false;
+            if (currentPartnerId != null && m.authorId == currentPartnerId) return false;
+            if (currentUserName != null && currentUserName.isNotEmpty) {
+              if (m.authorName.trim().toLowerCase() == currentUserName.trim().toLowerCase()) return false;
+            }
+            return (m.authorAvatar != null && m.authorAvatar!.isNotEmpty);
+          });
+          if (otherMsg != null) {
+            resolvedAvatarUrl = otherMsg.authorAvatar;
+          }
         }
       }
     }
@@ -1072,7 +1132,11 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
           return;
         }
         ensureRetainedInCache();
-        context.go('/chat');
+        if (isPortal) {
+          context.go('/home');
+        } else {
+          context.go('/chat');
+        }
       },
       child: Scaffold(
       backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
@@ -1104,7 +1168,9 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                 ),
                 onPressed: () {
                   ensureRetainedInCache();
-                  if (context.canPop()) {
+                  if (isPortal) {
+                    context.go('/home');
+                  } else if (context.canPop()) {
                     context.pop();
                   } else {
                     context.go('/chat');
@@ -1113,13 +1179,15 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                 tooltip: 'Quay lại',
               ),
               actions: [
-                IconButton(
-                  icon: const Icon(LucideIcons.phone, size: 21),
-                  color: isDark ? Colors.white70 : const Color(0xFF475569),
-                  tooltip: 'Gọi thoại',
-                  onPressed: () => _handleVoiceCall(context, currentChannel, displayTitle, resolvedAvatarUrl),
-                ),
-                const SizedBox(width: 4),
+                if (!isPortal) ...[
+                  IconButton(
+                    icon: const Icon(LucideIcons.phone, size: 21),
+                    color: isDark ? Colors.white70 : const Color(0xFF475569),
+                    tooltip: 'Gọi thoại',
+                    onPressed: () => _handleVoiceCall(context, currentChannel, displayTitle, resolvedAvatarUrl),
+                  ),
+                  const SizedBox(width: 4),
+                ],
               ],
         titleSpacing: 0,
         title: InkWell(
@@ -1133,18 +1201,18 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    gradient: currentChannel?.isCskhChannel == true
+                    gradient: (currentChannel?.isCskhChannel == true && isPortal)
                         ? null
                         : const LinearGradient(
                             colors: [Color(0xFF00C83A), Color(0xFF009D2E)],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           ),
-                    color: currentChannel?.isCskhChannel == true ? Colors.white : null,
+                    color: (currentChannel?.isCskhChannel == true && isPortal) ? Colors.white : null,
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: (currentChannel?.isCskhChannel == true
+                        color: ((currentChannel?.isCskhChannel == true && isPortal)
                                 ? const Color(0xFF0077CD)
                                 : const Color(0xFF00C83A))
                             .withValues(alpha: 0.2),
@@ -1158,7 +1226,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        if (currentChannel?.isCskhChannel == true)
+                        if (currentChannel?.isCskhChannel == true && isPortal)
                           Image.asset(
                             'branding/cskh_logo_360.png',
                             width: 40,
@@ -1189,7 +1257,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                             gaplessPlayback: true,
                             headers: odooApiClient.authHeaders,
                             errorBuilder: (context, error, stackTrace) =>
-                                currentChannel?.isCskhChannel == true
+                                (currentChannel?.isCskhChannel == true && isPortal)
                                     ? Image.asset(
                                         'branding/cskh_logo_360.png',
                                         width: 40,
@@ -1223,12 +1291,29 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          if (currentChannel?.isCskhChannel == true) ...[
+                          if (currentChannel?.isCskhChannel == true && isPortal) ...[
                             const SizedBox(width: 5),
                             const Icon(
                               LucideIcons.badgeCheck,
                               size: 16,
                               color: Color(0xFF0077CD),
+                            ),
+                          ] else if (currentChannel?.isCskhChannel == true && !isPortal) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF0077CD).withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text(
+                                'CSKH',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF0077CD),
+                                ),
+                              ),
                             ),
                           ],
                           if (isChannelMuted) ...[
@@ -1254,7 +1339,9 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
-                                  '360 CORP • Hỗ trợ chính thức',
+                                  isPortal
+                                      ? '360 CORP • Hỗ trợ chính thức'
+                                      : 'Khách hàng Portal • Kênh CSKH',
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w500,
@@ -1605,7 +1692,9 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                     isSearchActiveMatch: _isSearching &&
                                         _matchedIndices.isNotEmpty &&
                                         _matchedIndices[_currentMatchIndex] == index,
+                                    isCskhPortal: isPortal && isCskh,
                                     onAvatarTap: () {
+                                      if (isPortal && isCskh) return;
                                       final targetPid = (message.authorId != null && message.authorId!.isNotEmpty)
                                           ? message.authorId!
                                           : effectiveChannelMembers.firstWhereOrNull((m) =>
@@ -2049,6 +2138,8 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                         ],
                       ),
                     ),
+                  if (isCskh && isPortal)
+                    _buildCskhQuickActions(context, isDark),
                   if (!ref.watch(chatV2ChannelAccessDeniedProvider(widget.channelId)))
                     ChatV2InputBar(
                       channelId: widget.channelId,
@@ -2170,6 +2261,75 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
   void _handleHeaderTap(BuildContext context, ChatV2Channel? channel, bool isDark) {
     if (channel == null) return;
     final currentUser = ref.read(authControllerProvider).valueOrNull;
+    final isPortal = currentUser?.isPortal == true;
+    final isCskh = channel.isCskhChannel ||
+        channel.name.contains('Chăm Sóc Khách Hàng') ||
+        channel.name.contains('[CSKH]') ||
+        (widget.title != null && (widget.title!.contains('Chăm Sóc Khách Hàng') || widget.title!.contains('[CSKH]')));
+
+    if (isPortal && isCskh) {
+      showModalBottomSheet(
+        context: context,
+        backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        builder: (ctx) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                  child: ClipOval(
+                    child: Image.asset('branding/cskh_logo_360.png', fit: BoxFit.cover),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Chăm Sóc Khách Hàng 360',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                    ),
+                    SizedBox(width: 4),
+                    Icon(LucideIcons.badgeCheck, size: 16, color: Color(0xFF0077CD)),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Kênh hỗ trợ chính thức của 360 CORP',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: isDark ? Colors.white70 : const Color(0xFF64748B),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                ListTile(
+                  leading: const Icon(LucideIcons.search, color: Color(0xFF0077CD)),
+                  title: const Text('Tìm kiếm tin nhắn trong đoạn chat'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    setState(() {
+                      _isSearching = true;
+                    });
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
     final currentUserName = (currentUser?.userMetadata['name'] ??
         currentUser?.userMetadata['display_name'] ??
         currentUser?.userMetadata['login'] ??
@@ -2193,6 +2353,115 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildCskhQuickActions(BuildContext context, bool isDark) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        border: Border(
+          top: BorderSide(
+            color: isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFE2E8F0),
+            width: 0.8,
+          ),
+        ),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            InkWell(
+              onTap: _isCreatingLead ? null : _handleRequestQuoteLead,
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF0077CD), Color(0xFF005EA6)],
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF0077CD).withValues(alpha: 0.25),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_isCreatingLead)
+                      const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    else
+                      const Text('🌟', style: TextStyle(fontSize: 13)),
+                    const SizedBox(width: 6),
+                    const Text(
+                      'Bấm để nhận báo giá / Quan tâm',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleRequestQuoteLead() async {
+    if (_isCreatingLead) return;
+    setState(() => _isCreatingLead = true);
+    try {
+      final dynamic res = await odooApiClient.post(
+        '/api/v1/mobile/crm/lead',
+        body: {
+          'name': 'Quan tâm báo giá từ Kênh CSKH 360',
+          'description': 'Khách hàng bấm Quick Action yêu cầu báo giá/tư vấn từ VCloud Mobile App.',
+        },
+      );
+      if (!mounted) return;
+      if (res is Map && (res['success'] == true || res['id'] != null)) {
+        await _handleSendMessage('🌟 Tôi quan tâm đến sản phẩm/dịch vụ và muốn nhận báo giá tư vấn từ 360 CORP.');
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Đã gửi yêu cầu nhận báo giá! Chuyên viên 360 CORP sẽ liên hệ lại ngay.'),
+            backgroundColor: Color(0xFF00C83A),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } else {
+        final msg = (res is Map ? res['message'] : null) ?? 'Không thể gửi yêu cầu báo giá';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(msg.toString())),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isCreatingLead = false);
+      }
+    }
   }
 
   void _handleVoiceCall(

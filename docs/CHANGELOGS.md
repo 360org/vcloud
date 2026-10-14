@@ -2,6 +2,24 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.22+166] — 2026-10-14 (Ma Trận Hiển Thị Kênh CSKH 2 Chiều: Tên & Avatar Khách Hàng Cho Sales/Nội Bộ vs Thương Hiệu Cho Portal)
+
+> [!IMPORTANT]
+> **Hoàn Thiện Ma Trận Hiển Thị Kênh CSKH Theo Đúng Thực Tế Vận Hành `vuahethong.net`**:
+> - **1. Phân Tách Hiển Thị Theo Vai Trò Người Dùng (`chat_v2_channel.dart`)**:
+>   * Khi người dùng là **Nội bộ** (Sales, Kỹ thuật viên, Quản trị viên): Tên kênh CSKH hiển thị trực tiếp **Tên của chính khách hàng Portal** (bóc tách tiền tố `[CSKH]`, ví dụ: *"Khách Hàng Mới (Portal Stage 1)"*), loại bỏ hoàn toàn tình trạng 100 khách hàng trùng tên "Chăm Sóc Khách Hàng 360".
+>   * Bổ sung trường `directPartnerAvatar` trong model `ChatV2Channel` để lưu trữ và ưu tiên hiển thị avatar riêng của khách hàng.
+>   * Khi người dùng là **Portal**: Giữ nguyên tên thương hiệu đại diện **"Chăm Sóc Khách Hàng 360"**.
+> - **2. Tối Ưu Màn Hình Danh Sách Chat (`chat_v2_list_screen.dart`)**:
+>   * Phía Sales/Kỹ thuật: Hiển thị avatar khách hàng kèm huy hiệu tai nghe CSKH (`LucideIcons.headphones`), tag nhận diện `CSKH` bên cạnh tên khách hàng.
+>   * Phía Portal: Hiển thị Logo CSKH 360 CORP tròn kèm huy hiệu xác minh `LucideIcons.badgeCheck`.
+> - **3. Tối Ưu Màn Hình Chi Tiết Chat (`chat_v2_detail_screen.dart`)**:
+>   * AppBar tiêu đề: Phía Sales/Kỹ thuật hiển thị tên khách hàng và subtitle *"Khách hàng Portal • Kênh CSKH"*. Phía Portal hiển thị *"Chăm Sóc Khách Hàng 360"* và subtitle *"360 CORP • Hỗ trợ chính thức"*.
+> - **4. Đồng Bộ Backend Odoo 17 & 19 (`v_mobile_17/controllers/chat.py`, `v_mobile_19/controllers/chat.py`)**:
+>   * Sử dụng batch query & role prefetching kiểm tra thành viên `share = true` để gán chính xác `direct_partner` cho góc nhìn nhân viên nội bộ.
+
+---
+
 ## [v2.9.21+165] — 2026-10-14 (Kênh CSKH Portal User Kế Thừa Chuẩn vuahethong.net & Brand Masking "Chăm Sóc Khách Hàng 360")
 
 > [!IMPORTANT]

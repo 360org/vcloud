@@ -18,6 +18,7 @@ import '../../application/chat_v2_read_state_controller.dart';
 import '../../data/models/chat_v2_channel.dart';
 import '../../data/models/chat_v2_message.dart';
 import '../widgets/chat_v2_mute_duration_sheet.dart';
+import 'chat_v2_detail_screen.dart';
 
 String _stripVietnameseDiacritics(String str) {
   const vietnameseMap = {
@@ -210,6 +211,27 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
     final currentDbName = (meta?['db'] as String?) ?? '';
     final hasVMobile = (meta?['has_v_mobile'] as bool?) ?? true;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // ── Cổng Điều Hướng 1-Chạm Bỏ Qua Danh Sách Chat Cho Tài Khoản Portal ──
+    if (currentUser?.isPortal == true) {
+      final channels = channelsAsync.valueOrNull ?? [];
+      final cskh = channels.firstWhereOrNull((c) =>
+          c.isCskhChannel ||
+          c.name.contains('Chăm Sóc Khách Hàng') ||
+          c.name.contains('[CSKH]'));
+
+      if (cskh != null) {
+        return ChatV2DetailScreen(
+          channelId: cskh.id,
+          title: 'Chăm Sóc Khách Hàng 360',
+          initialAvatarUrl: cskh.avatarUrl,
+        );
+      }
+
+      return _PortalCskhAutoConnectGate(
+        isDark: isDark,
+      );
+    }
 
     return AppScaffold(
       title: 'Trò chuyện',
@@ -988,7 +1010,8 @@ class _ChannelListItem extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cleanName = channel.getCleanName(currentUserName);
+    final isPortal = ref.watch(authControllerProvider).valueOrNull?.isPortal ?? false;
+    final cleanName = channel.getCleanName(currentUserName, isPortal: isPortal);
     final isGroup = channel.getActualIsGroup(currentUserName);
     // Kiểm tra tin nhắn cuối từ channel hoặc từ cache tin nhắn
     final cachedMsgs = ChatV2MessageLocalCache.get(channel.id);
@@ -1054,9 +1077,32 @@ class _ChannelListItem extends ConsumerWidget {
           lastMessageDate: effectiveLastDate,
         );
 
-    // Tự động phân giải avatar URL của đối phương nếu channel.avatarUrl chưa có và là chat 1-1
+    // Tự động phân giải avatar URL của đối phương
     String? resolvedAvatarUrl = channel.avatarUrl;
-    if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
+    if (channel.isCskhChannel) {
+      if (isPortal) {
+        resolvedAvatarUrl = null; // Portal luôn dùng branding/cskh_logo_360.png
+      } else {
+        // Góc nhìn Sales/Kỹ thuật: Ưu tiên avatar của chính khách hàng Portal
+        if (channel.directPartnerAvatar != null && channel.directPartnerAvatar!.isNotEmpty) {
+          resolvedAvatarUrl = channel.directPartnerAvatar;
+        } else if (resolvedAvatarUrl != null &&
+            (resolvedAvatarUrl.contains('res.company') || resolvedAvatarUrl.contains('field=logo'))) {
+          resolvedAvatarUrl = null; // Tránh hiển thị nhầm logo công ty cho khách hàng
+        }
+        if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
+          final customerMember = channel.members.firstWhereOrNull((m) =>
+              !m.isMe &&
+              m.name.toLowerCase() != 'odoobot' &&
+              m.name.toLowerCase() != 'bot' &&
+              m.avatarUrl != null &&
+              m.avatarUrl!.isNotEmpty);
+          if (customerMember != null) {
+            resolvedAvatarUrl = customerMember.avatarUrl;
+          }
+        }
+      }
+    } else if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
       if (!isGroup && !channel.isChannel) {
         final currentPartnerId = odooApiClient.session?.partnerId?.toString();
         final currentUserId = odooApiClient.session?.uid.toString();
@@ -1123,18 +1169,18 @@ class _ChannelListItem extends ConsumerWidget {
                     width: 50,
                     height: 50,
                     decoration: BoxDecoration(
-                      gradient: channel.isCskhChannel
+                      gradient: (channel.isCskhChannel && isPortal)
                           ? null
                           : LinearGradient(
                               colors: avatarGrad,
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
-                      color: channel.isCskhChannel ? Colors.white : null,
+                      color: (channel.isCskhChannel && isPortal) ? Colors.white : null,
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: (channel.isCskhChannel
+                          color: ((channel.isCskhChannel && isPortal)
                                   ? const Color(0xFF0077CD)
                                   : avatarGrad[0])
                               .withValues(alpha: 0.2),
@@ -1148,7 +1194,7 @@ class _ChannelListItem extends ConsumerWidget {
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
-                          if (channel.isCskhChannel)
+                          if (channel.isCskhChannel && isPortal)
                             Image.asset(
                               'branding/cskh_logo_360.png',
                               width: 50,
@@ -1180,7 +1226,7 @@ class _ChannelListItem extends ConsumerWidget {
                               gaplessPlayback: true,
                               headers: odooApiClient.authHeaders,
                               errorBuilder: (context, error, stackTrace) =>
-                                  channel.isCskhChannel
+                                  (channel.isCskhChannel && isPortal)
                                       ? Image.asset(
                                           'branding/cskh_logo_360.png',
                                           width: 50,
@@ -1193,7 +1239,7 @@ class _ChannelListItem extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  if (channel.isCskhChannel)
+                  if (channel.isCskhChannel && isPortal)
                     Positioned(
                       right: -1,
                       bottom: -1,
@@ -1207,6 +1253,30 @@ class _ChannelListItem extends ConsumerWidget {
                           LucideIcons.badgeCheck,
                           size: 16,
                           color: Color(0xFF0077CD),
+                        ),
+                      ),
+                    )
+                  else if (channel.isCskhChannel && !isPortal)
+                    Positioned(
+                      right: -1,
+                      bottom: -1,
+                      child: Container(
+                        padding: const EdgeInsets.all(2.5),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF0077CD),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            LucideIcons.headphones,
+                            size: 10,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                     )
@@ -1335,13 +1405,30 @@ class _ChannelListItem extends ConsumerWidget {
                                   ),
                                 ),
                               ),
-                              if (channel.isCskhChannel)
+                              if (channel.isCskhChannel && isPortal)
                                 const Padding(
                                   padding: EdgeInsets.only(left: 5),
                                   child: Icon(
                                     LucideIcons.badgeCheck,
                                     size: 15,
                                     color: Color(0xFF0077CD),
+                                  ),
+                                )
+                              else if (channel.isCskhChannel && !isPortal)
+                                Container(
+                                  margin: const EdgeInsets.only(left: 6),
+                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF0077CD).withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: const Text(
+                                    'CSKH',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF0077CD),
+                                    ),
                                   ),
                                 ),
                               if (ChatV2ChannelLocalCache.isUserPinned(channel.id))
@@ -2134,6 +2221,154 @@ class _SyncStatusBanner extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PortalCskhAutoConnectGate extends ConsumerStatefulWidget {
+  final bool isDark;
+
+  const _PortalCskhAutoConnectGate({
+    required this.isDark,
+  });
+
+  @override
+  ConsumerState<_PortalCskhAutoConnectGate> createState() =>
+      _PortalCskhAutoConnectGateState();
+}
+
+class _PortalCskhAutoConnectGateState
+    extends ConsumerState<_PortalCskhAutoConnectGate> {
+  String? _channelId;
+  String? _error;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _connect();
+  }
+
+  Future<void> _connect() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final cid = await ref
+          .read(chatV2ChannelsProvider.notifier)
+          .openDirectChatWithSupport();
+      if (mounted) {
+        setState(() {
+          _channelId = cid;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.toString().replaceAll('Exception: ', '');
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_channelId != null) {
+      return ChatV2DetailScreen(
+        channelId: _channelId!,
+        title: 'Chăm Sóc Khách Hàng 360',
+      );
+    }
+
+    final isDark = widget.isDark;
+    return Scaffold(
+      backgroundColor:
+          isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+        leading: IconButton(
+          icon: const Icon(LucideIcons.chevronLeft),
+          onPressed: () => context.go('/home'),
+          tooltip: 'Quay lại',
+        ),
+        title: const Text(
+          'Chăm Sóc Khách Hàng 360',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        ),
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF0077CD).withValues(alpha: 0.2),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: ClipOval(
+                  child: Image.asset(
+                    'branding/cskh_logo_360.png',
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              if (_isLoading) ...[
+                const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: Color(0xFF0077CD),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  'Đang kết nối trung tâm hỗ trợ CSKH 360...',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: isDark ? Colors.white70 : const Color(0xFF64748B),
+                  ),
+                ),
+              ] else if (_error != null) ...[
+                const Icon(LucideIcons.alertCircle, color: Colors.redAccent, size: 36),
+                const SizedBox(height: 12),
+                Text(
+                  'Không thể kết nối: $_error',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 13, color: Colors.redAccent),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: _connect,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0077CD),
+                    foregroundColor: Colors.white,
+                  ),
+                  icon: const Icon(LucideIcons.rotateCw, size: 16),
+                  label: const Text('Thử lại'),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );
