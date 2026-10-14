@@ -1123,15 +1123,21 @@ class _ChannelListItem extends ConsumerWidget {
                     width: 50,
                     height: 50,
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: avatarGrad,
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
+                      gradient: channel.isCskhChannel
+                          ? null
+                          : LinearGradient(
+                              colors: avatarGrad,
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                      color: channel.isCskhChannel ? Colors.white : null,
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: avatarGrad[0].withValues(alpha: 0.28),
+                          color: (channel.isCskhChannel
+                                  ? const Color(0xFF0077CD)
+                                  : avatarGrad[0])
+                              .withValues(alpha: 0.2),
                           blurRadius: 6,
                           offset: const Offset(0, 2),
                         ),
@@ -1142,18 +1148,26 @@ class _ChannelListItem extends ConsumerWidget {
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
-                          Center(
-                            child: Text(
-                              cleanName.isNotEmpty
-                                  ? cleanName[0].toUpperCase()
-                                  : 'C',
-                              style: const TextStyle(
-                                fontSize: 19,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
+                          if (channel.isCskhChannel)
+                            Image.asset(
+                              'branding/cskh_logo_360.png',
+                              width: 50,
+                              height: 50,
+                              fit: BoxFit.cover,
+                            )
+                          else
+                            Center(
+                              child: Text(
+                                cleanName.isNotEmpty
+                                    ? cleanName[0].toUpperCase()
+                                    : 'C',
+                                style: const TextStyle(
+                                  fontSize: 19,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
                               ),
                             ),
-                          ),
                           if (resolvedAvatarUrl != null &&
                               resolvedAvatarUrl.isNotEmpty)
                             Image.network(
@@ -1166,7 +1180,14 @@ class _ChannelListItem extends ConsumerWidget {
                               gaplessPlayback: true,
                               headers: odooApiClient.authHeaders,
                               errorBuilder: (context, error, stackTrace) =>
-                                  const SizedBox.shrink(),
+                                  channel.isCskhChannel
+                                      ? Image.asset(
+                                          'branding/cskh_logo_360.png',
+                                          width: 50,
+                                          height: 50,
+                                          fit: BoxFit.cover,
+                                        )
+                                      : const SizedBox.shrink(),
                             ),
                         ],
                       ),
@@ -1177,22 +1198,15 @@ class _ChannelListItem extends ConsumerWidget {
                       right: -1,
                       bottom: -1,
                       child: Container(
-                        padding: const EdgeInsets.all(3),
+                        padding: const EdgeInsets.all(2),
                         decoration: BoxDecoration(
                           color: isDark ? const Color(0xFF1E293B) : Colors.white,
                           shape: BoxShape.circle,
                         ),
-                        child: Container(
-                          padding: const EdgeInsets.all(2.5),
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF0077CD),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            LucideIcons.headphones,
-                            size: 11,
-                            color: Colors.white,
-                          ),
+                        child: const Icon(
+                          LucideIcons.badgeCheck,
+                          size: 16,
+                          color: Color(0xFF0077CD),
                         ),
                       ),
                     )

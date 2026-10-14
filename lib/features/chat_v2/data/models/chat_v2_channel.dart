@@ -293,7 +293,7 @@ class ChatV2Channel {
 
   /// Tên hiển thị sạch chuẩn hóa (không phụ thuộc user context)
   String get displayName {
-    if (isCskhChannel && name.contains('Chăm Sóc Khách Hàng 360')) {
+    if (isCskhChannel) {
       return 'Chăm Sóc Khách Hàng 360';
     }
     if (!isGroup && customNickname != null && customNickname!.trim().isNotEmpty) {
@@ -420,7 +420,7 @@ class ChatV2Channel {
   /// - Nếu là chat 1-1 có customNickname thì luôn ưu tiên hiển thị customNickname.
   /// - Nếu là chat 1-1 ghép tên thì chỉ lấy tên người đối diện.
   String getCleanName(String? currentUserName) {
-    if (isCskhChannel && name.contains('Chăm Sóc Khách Hàng 360')) {
+    if (isCskhChannel) {
       return 'Chăm Sóc Khách Hàng 360';
     }
     if (!isGroup && customNickname != null && customNickname!.trim().isNotEmpty) {
@@ -782,7 +782,9 @@ class ChatV2Channel {
         rawIsCskh == 1 ||
         rawIsCskh == 'true' ||
         name.contains('[CSKH]') ||
-        name.contains('Chăm Sóc Khách Hàng 360');
+        name.contains('Chăm Sóc Khách Hàng 360') ||
+        (map['name']?.toString().contains('[CSKH]') ?? false) ||
+        (map['display_name']?.toString().contains('[CSKH]') ?? false);
 
     final customNickname = _stringOrNull(map['custom_nickname'] ?? map['custom_channel_name']);
     final uuid = _stringOrNull(map['uuid']);

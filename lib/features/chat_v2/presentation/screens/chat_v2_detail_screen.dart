@@ -1133,15 +1133,21 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF00C83A), Color(0xFF009D2E)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
+                    gradient: currentChannel?.isCskhChannel == true
+                        ? null
+                        : const LinearGradient(
+                            colors: [Color(0xFF00C83A), Color(0xFF009D2E)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                    color: currentChannel?.isCskhChannel == true ? Colors.white : null,
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF00C83A).withValues(alpha: 0.2),
+                        color: (currentChannel?.isCskhChannel == true
+                                ? const Color(0xFF0077CD)
+                                : const Color(0xFF00C83A))
+                            .withValues(alpha: 0.2),
                         blurRadius: 6,
                         offset: const Offset(0, 2),
                       ),
@@ -1152,18 +1158,26 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        Center(
-                          child: Text(
-                            displayTitle.isNotEmpty
-                                ? displayTitle[0].toUpperCase()
-                                : 'C',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                        if (currentChannel?.isCskhChannel == true)
+                          Image.asset(
+                            'branding/cskh_logo_360.png',
+                            width: 40,
+                            height: 40,
+                            fit: BoxFit.cover,
+                          )
+                        else
+                          Center(
+                            child: Text(
+                              displayTitle.isNotEmpty
+                                  ? displayTitle[0].toUpperCase()
+                                  : 'C',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
-                        ),
                         if (resolvedAvatarUrl != null && resolvedAvatarUrl.isNotEmpty)
                           Image.network(
                             resolvedAvatarUrl,
@@ -1175,7 +1189,14 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                             gaplessPlayback: true,
                             headers: odooApiClient.authHeaders,
                             errorBuilder: (context, error, stackTrace) =>
-                                const SizedBox.shrink(),
+                                currentChannel?.isCskhChannel == true
+                                    ? Image.asset(
+                                        'branding/cskh_logo_360.png',
+                                        width: 40,
+                                        height: 40,
+                                        fit: BoxFit.cover,
+                                      )
+                                    : const SizedBox.shrink(),
                           ),
                       ],
                     ),

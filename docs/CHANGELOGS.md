@@ -12,8 +12,8 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 > - **2. Tối Ưu Cache Tìm Kiếm Kênh CSKH (`chat_v2_channels_controller.dart`)**:
 >   * Nâng cấp `openDirectChatWithSupport`: Tự động tìm kiếm và tái sử dụng Kênh CSKH nhóm có sẵn trong `ChatV2ChannelLocalCache` (0ms) thay vì bỏ qua nhóm (`if (ch.isGroup) continue`), ghim và cập nhật tức thì.
 > - **3. Nâng Cấp Giao Diện Thương Hiệu (`chat_v2_list_screen.dart`, `home_screen.dart`, `chat_v2_detail_screen.dart`)**:
->   * Màn hình Chat V2: Hiển thị badge icon Tai nghe CSKH màu Tech Royal Blue (`#0077CD`) trên avatar và huy hiệu xác minh `LucideIcons.badgeCheck` bên cạnh tiêu đề kênh.
->   * Màn hình Chi tiết Chat: Header hiển thị phụ đề thương hiệu *"360 CORP • Hỗ trợ chính thức"* cùng huy hiệu Verified.
+>   * Màn hình Chat V2: Thay thế chữ cái 'C' bằng Logo 360 CORP tròn (`branding/cskh_logo_360.png`), viền shadow xanh `#0077CD`, kèm huy hiệu xác minh `LucideIcons.badgeCheck` góc avatar.
+>   * Màn hình Chi tiết Chat: Header hiển thị Logo 360 CORP tròn, phụ đề thương hiệu *"360 CORP • Hỗ trợ chính thức"* cùng huy hiệu Verified.
 >   * Màn hình Home: Thẻ hành động Portal cập nhật tiêu đề *"Chăm Sóc Khách Hàng 360"*, mô tả *"Đội ngũ 360 CORP sẵn sàng hỗ trợ bạn"*.
 > - **4. Kiểm Thử Độc Lập 10/10 Test Cases (`test/features/chat_v2/portal_cskh_channel_test.dart`)**:
 >   * Bao phủ toàn bộ các case parse JSON, brand masking, cách ly và bảo vệ quyền lợi khách hàng.
