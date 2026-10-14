@@ -158,7 +158,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           .openDirectChatWithSupport();
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
-      context.push('/chat/$channelId?name=Ch%C4%83m%20s%C3%B3c%20Kh%C3%A1ch%20h%C3%A0ng');
+      context.push('/chat/$channelId?name=${Uri.encodeComponent('Chăm Sóc Khách Hàng 360')}');
     } catch (e) {
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
@@ -953,7 +953,7 @@ class _PortalSupportActionCard extends StatelessWidget {
                     Row(
                       children: [
                         Text(
-                          'Chat với CSKH',
+                          'Chăm Sóc Khách Hàng 360',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w800,
@@ -999,7 +999,7 @@ class _PortalSupportActionCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Hỗ trợ 24/7 trực tiếp từ Kỹ thuật',
+                      'Đội ngũ 360 CORP sẵn sàng hỗ trợ bạn',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,

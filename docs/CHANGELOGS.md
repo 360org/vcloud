@@ -2,6 +2,24 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.21+165] — 2026-10-14 (Kênh CSKH Portal User Kế Thừa Chuẩn vuahethong.net & Brand Masking "Chăm Sóc Khách Hàng 360")
+
+> [!IMPORTANT]
+> **Kế Thừa 100% Kênh Thảo Luận CSKH Chuẩn vuahethong.net Cho Portal User**:
+> - **1. Khử Bỏ Chat 1-1 Cá Nhân & Thiết Lập Kênh Nhóm Chuyên Dụng (`chat_v2_channel.dart`)**:
+>   * Bổ sung cờ `isCskhChannel` vào domain model `ChatV2Channel` (hỗ trợ `fromJson`, `toMap`, `copyWith`).
+>   * Chuẩn hóa `displayName` và `getCleanName` ưu tiên trả về **"Chăm Sóc Khách Hàng 360"** cho Portal User, triệt tiêu hoàn toàn tên cá nhân "Admin".
+> - **2. Tối Ưu Cache Tìm Kiếm Kênh CSKH (`chat_v2_channels_controller.dart`)**:
+>   * Nâng cấp `openDirectChatWithSupport`: Tự động tìm kiếm và tái sử dụng Kênh CSKH nhóm có sẵn trong `ChatV2ChannelLocalCache` (0ms) thay vì bỏ qua nhóm (`if (ch.isGroup) continue`), ghim và cập nhật tức thì.
+> - **3. Nâng Cấp Giao Diện Thương Hiệu (`chat_v2_list_screen.dart`, `home_screen.dart`, `chat_v2_detail_screen.dart`)**:
+>   * Màn hình Chat V2: Hiển thị badge icon Tai nghe CSKH màu Tech Royal Blue (`#0077CD`) trên avatar và huy hiệu xác minh `LucideIcons.badgeCheck` bên cạnh tiêu đề kênh.
+>   * Màn hình Chi tiết Chat: Header hiển thị phụ đề thương hiệu *"360 CORP • Hỗ trợ chính thức"* cùng huy hiệu Verified.
+>   * Màn hình Home: Thẻ hành động Portal cập nhật tiêu đề *"Chăm Sóc Khách Hàng 360"*, mô tả *"Đội ngũ 360 CORP sẵn sàng hỗ trợ bạn"*.
+> - **4. Kiểm Thử Độc Lập 10/10 Test Cases (`test/features/chat_v2/portal_cskh_channel_test.dart`)**:
+>   * Bao phủ toàn bộ các case parse JSON, brand masking, cách ly và bảo vệ quyền lợi khách hàng.
+
+---
+
 ## [v2.9.20+164] — 2026-10-14 (Smart Direct Chat 1-1 "Chat với CSKH" Cho Khách Hàng Portal)
 
 > [!IMPORTANT]

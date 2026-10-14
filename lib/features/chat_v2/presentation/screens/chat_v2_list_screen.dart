@@ -181,7 +181,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
           .openDirectChatWithSupport();
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
-      context.push('/chat/$channelId?name=Ch%C4%83m%20s%C3%B3c%20Kh%C3%A1ch%20h%C3%A0ng');
+      context.push('/chat/$channelId?name=${Uri.encodeComponent('Chăm Sóc Khách Hàng 360')}');
     } catch (e) {
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
@@ -1172,7 +1172,31 @@ class _ChannelListItem extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  if (channel.isZaloOA)
+                  if (channel.isCskhChannel)
+                    Positioned(
+                      right: -1,
+                      bottom: -1,
+                      child: Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Container(
+                          padding: const EdgeInsets.all(2.5),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF0077CD),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            LucideIcons.headphones,
+                            size: 11,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    )
+                  else if (channel.isZaloOA)
                     Positioned(
                       right: -1,
                       bottom: -1,
@@ -1297,6 +1321,15 @@ class _ChannelListItem extends ConsumerWidget {
                                   ),
                                 ),
                               ),
+                              if (channel.isCskhChannel)
+                                const Padding(
+                                  padding: EdgeInsets.only(left: 5),
+                                  child: Icon(
+                                    LucideIcons.badgeCheck,
+                                    size: 15,
+                                    color: Color(0xFF0077CD),
+                                  ),
+                                ),
                               if (ChatV2ChannelLocalCache.isUserPinned(channel.id))
                                 const Padding(
                                   padding: EdgeInsets.only(left: 6),

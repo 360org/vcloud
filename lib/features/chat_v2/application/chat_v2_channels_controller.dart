@@ -1320,24 +1320,35 @@ class ChatV2ChannelsNotifier
     }
   }
 
-  /// Mở hoặc khởi tạo kênh chat 1-1 với nhân viên CSKH / Kỹ thuật
-  /// Tầng 1: Kiểm tra kênh 1-1 hiện có trong Local Cache (0ms)
-  /// Tầng 2: Gọi POST /api/v1/mobile/chat/direct lên Backend để lấy/tạo kênh 1-1
+  /// Mở hoặc khởi tạo kênh chat hỗ trợ CSKH / Kỹ thuật
+  /// Tầng 1: Kiểm tra kênh CSKH hoặc 1-1 hiện có trong Local Cache (0ms)
+  /// Tầng 2: Gọi POST /api/v1/mobile/chat/direct lên Backend để lấy/tạo kênh
   Future<String> openDirectChatWithSupport({int? cskhPartnerId}) async {
     final channels = state.valueOrNull ?? ChatV2ChannelLocalCache.cached;
     ChatV2Channel? existingSupportChannel;
+
+    // 1. Ưu tiên tìm Kênh Thảo Luận CSKH Portal chuyên dụng đã có trong cache
     for (final ch in channels) {
-      if (ch.isGroup) continue;
-      if (ch.channelType == 'chat' || ch.channelType == 'direct') {
-        if (cskhPartnerId != null) {
-          final pId = ch.directPartnerId ?? ch.partnerId;
-          if (pId == cskhPartnerId.toString()) {
-            existingSupportChannel = ch;
-            break;
+      if (ch.isCskhChannel ||
+          ch.name.contains('[CSKH]') ||
+          ch.name.contains('Chăm Sóc Khách Hàng 360')) {
+        existingSupportChannel = ch;
+        break;
+      }
+    }
+
+    // 2. Fallback tìm kênh 1-1 nếu có chỉ định đích danh cskhPartnerId
+    if (existingSupportChannel == null) {
+      for (final ch in channels) {
+        if (ch.isGroup) continue;
+        if (ch.channelType == 'chat' || ch.channelType == 'direct') {
+          if (cskhPartnerId != null) {
+            final pId = ch.directPartnerId ?? ch.partnerId;
+            if (pId == cskhPartnerId.toString()) {
+              existingSupportChannel = ch;
+              break;
+            }
           }
-        } else {
-          existingSupportChannel = ch;
-          break;
         }
       }
     }
@@ -1369,17 +1380,25 @@ class ChatV2ChannelsNotifier
       throw Exception('Phản hồi tạo chat thiếu channel ID');
     }
 
-    final name = (map['name'] as String?) ?? 'Chăm sóc Khách hàng';
+    final name = (map['name'] as String?) ?? 'Chăm Sóc Khách Hàng 360';
     final targetPid = map['partner_id']?.toString() ?? cskhPartnerId?.toString();
+    final isGroup = map['is_group'] == true || map['channel_type'] == 'group';
+    final channelType = (map['channel_type'] as String?) ?? (isGroup ? 'group' : 'chat');
+    final isCskh = map['is_cskh_channel'] == true ||
+        name.contains('Chăm Sóc Khách Hàng') ||
+        name.contains('[CSKH]');
+    final avatarUrl = map['avatar_url'] as String?;
 
     final directCh = ChatV2Channel(
       id: channelId,
       name: name,
-      channelType: 'chat',
-      isGroup: false,
-      memberCount: 2,
-      directPartnerId: targetPid,
-      directPartnerName: name,
+      channelType: channelType,
+      isGroup: isGroup,
+      isCskhChannel: isCskh,
+      avatarUrl: avatarUrl,
+      memberCount: (map['member_count'] as num?)?.toInt() ?? 2,
+      directPartnerId: isGroup ? null : targetPid,
+      directPartnerName: isGroup ? null : name,
     );
     ChatV2ChannelLocalCache.pinDirectChannel(directCh);
     ChatV2ChannelLocalCache.updateChannel(directCh);

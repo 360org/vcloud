@@ -1202,6 +1202,14 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
+                          if (currentChannel?.isCskhChannel == true) ...[
+                            const SizedBox(width: 5),
+                            const Icon(
+                              LucideIcons.badgeCheck,
+                              size: 16,
+                              color: Color(0xFF0077CD),
+                            ),
+                          ],
                           if (isChannelMuted) ...[
                             const SizedBox(width: 6),
                             Icon(
@@ -1215,6 +1223,27 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                       const SizedBox(height: 2),
                       Consumer(
                         builder: (context, ref, _) {
+                          if (currentChannel != null && currentChannel.isCskhChannel) {
+                            return Row(
+                              children: [
+                                const Icon(
+                                  LucideIcons.headphones,
+                                  size: 13,
+                                  color: Color(0xFF0077CD),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '360 CORP • Hỗ trợ chính thức',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                  ),
+                                ),
+                              ],
+                            );
+                          }
+
                           if (currentChannel != null && currentChannel.isZaloOA) {
                             return Row(
                               children: [

@@ -145,6 +145,7 @@ class ChatV2Channel {
   final String? directPartnerStatus;
   final bool isMuted;
   final bool isZaloChannel;
+  final bool isCskhChannel;
   final String? customNickname;
   final String? uuid;
   final String? invitationUrl;
@@ -170,6 +171,7 @@ class ChatV2Channel {
     this.directPartnerStatus,
     this.isMuted = false,
     this.isZaloChannel = false,
+    this.isCskhChannel = false,
     this.customNickname,
     this.uuid,
     this.invitationUrl,
@@ -196,6 +198,7 @@ class ChatV2Channel {
     String? directPartnerStatus,
     bool? isMuted,
     bool? isZaloChannel,
+    bool? isCskhChannel,
     String? customNickname,
     bool clearCustomNickname = false,
     String? uuid,
@@ -222,6 +225,7 @@ class ChatV2Channel {
       directPartnerStatus: directPartnerStatus ?? this.directPartnerStatus,
       isMuted: isMuted ?? this.isMuted,
       isZaloChannel: isZaloChannel ?? this.isZaloChannel,
+      isCskhChannel: isCskhChannel ?? this.isCskhChannel,
       customNickname: clearCustomNickname ? null : (customNickname ?? this.customNickname),
       uuid: uuid ?? this.uuid,
       invitationUrl: invitationUrl ?? this.invitationUrl,
@@ -273,6 +277,7 @@ class ChatV2Channel {
     'partner_id': partnerId,
     'is_muted': isMuted,
     'is_zalo_channel': isZaloChannel,
+    'is_cskh_channel': isCskhChannel,
     'custom_nickname': customNickname,
     'uuid': uuid,
     'invitation_url': invitationUrl,
@@ -288,6 +293,9 @@ class ChatV2Channel {
 
   /// Tên hiển thị sạch chuẩn hóa (không phụ thuộc user context)
   String get displayName {
+    if (isCskhChannel && name.contains('Chăm Sóc Khách Hàng 360')) {
+      return 'Chăm Sóc Khách Hàng 360';
+    }
     if (!isGroup && customNickname != null && customNickname!.trim().isNotEmpty) {
       return customNickname!.trim();
     }
@@ -412,6 +420,9 @@ class ChatV2Channel {
   /// - Nếu là chat 1-1 có customNickname thì luôn ưu tiên hiển thị customNickname.
   /// - Nếu là chat 1-1 ghép tên thì chỉ lấy tên người đối diện.
   String getCleanName(String? currentUserName) {
+    if (isCskhChannel && name.contains('Chăm Sóc Khách Hàng 360')) {
+      return 'Chăm Sóc Khách Hàng 360';
+    }
     if (!isGroup && customNickname != null && customNickname!.trim().isNotEmpty) {
       return customNickname!.trim();
     }
@@ -766,6 +777,13 @@ class ChatV2Channel {
         map['zalo_oa_id'] != null ||
         map['zalo_user_id'] != null;
 
+    final rawIsCskh = map['is_cskh_channel'] ?? map['is_cskh'];
+    final bool isCskhChannel = rawIsCskh == true ||
+        rawIsCskh == 1 ||
+        rawIsCskh == 'true' ||
+        name.contains('[CSKH]') ||
+        name.contains('Chăm Sóc Khách Hàng 360');
+
     final customNickname = _stringOrNull(map['custom_nickname'] ?? map['custom_channel_name']);
     final uuid = _stringOrNull(map['uuid']);
     final invitationUrl = _stringOrNull(map['invitation_url'] ?? map['invitationUrl']);
@@ -791,6 +809,7 @@ class ChatV2Channel {
       directPartnerStatus: directPartnerStatus,
       isMuted: isMuted,
       isZaloChannel: isZaloChannel,
+      isCskhChannel: isCskhChannel,
       customNickname: customNickname,
       uuid: uuid,
       invitationUrl: invitationUrl,
