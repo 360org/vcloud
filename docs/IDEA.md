@@ -98,9 +98,14 @@ Tài liệu ghi nhận toàn bộ bối cảnh, bài toán cốt lõi, danh mụ
 - ❌ **Loại bỏ**: Cơ chế Chat 1-1 (`channel_type: 'chat'`) với cá nhân Admin.
 - ❌ **Loại bỏ**: Tự tạo kênh nhóm (`channel_type: 'group'`) rồi hardcode add user tĩnh bằng script, làm phá vỡ cơ chế xoay ca trực của Live Chat.
 - ❌ **Loại bỏ**: Gộp chung 1 kênh không phân loại nhu cầu của khách hàng.
+- ❌ **Loại bỏ**: Tự chế hardcode tên kênh ("Chăm Sóc Khách Hàng 360") & tích xanh MXH tự chế. Tên kênh và avatar bắt buộc lấy động 100% từ Odoo `im_livechat.channel`; trạng thái trực ca dùng chấm xanh trực tuyến 🟢 (Online Indicator).
+- ❌ **Loại bỏ**: Triệt tiêu tên người trực (ép hiển thị logo vô danh). Odoo chuẩn bảo mật danh tính bằng trường `livechat_username` trong User Profile (hoặc `OdooBot`).
 
 ### 4.3. Cơ Chế Live Chat Session Chuẩn
 - Khách hàng Portal chọn 1 trong 2 kênh hỗ trợ: **Customer Care** hoặc **Technical Support**.
+- **Tên kênh động & Nhận diện chuẩn**: Header hiển thị avatar và tên kênh lấy trực tiếp từ `im_livechat.channel` trên Odoo, kèm chấm xanh trực tuyến 🟢 khi có Operator online.
+- **Tên người phản hồi**: Hiển thị `OdooBot` hoặc bí danh `livechat_username` do nhân viên trực cấu hình trên Odoo.
+- **Đồng bộ phiên (Session Continuity)**: Kế thừa toàn bộ tin nhắn từ phiên Web Live Chat sang App Mobile khi khách hàng đăng nhập Portal.
 - Backend `v_mobile` gọi phương thức chuẩn của Odoo Live Chat để tạo **Live Chat Session** (`discuss.channel` có `channel_type: 'livechat'`).
 - Tự động phân bổ phiên chat tới các Operator đang online trong mục **`Looking for help`** của ca trực.
 - Tự động đếm và ghi nhận số lượng **Sessions** tại `/home/livechat` phục vụ báo cáo KPI và đánh giá chất lượng phản hồi.
