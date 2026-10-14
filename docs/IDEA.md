@@ -83,4 +83,27 @@ Tài liệu ghi nhận toàn bộ bối cảnh, bài toán cốt lõi, danh mụ
 ### 3.4. Điều Kiện Tiên Quyết Triển Khai (Prerequisites)
 - **Backend `demo.vuahethong.com`**: Cài đặt module `v_mobile` vào database `demo` để mở các endpoint REST API `/api/v1/mobile/*` và cấu hình CORS đầy đủ.
 
+---
+
+## 💡 4. ĐỊNH HƯỚNG CHUẨN HOÁ HỆ THỐNG CSKH & HỖ TRỢ KỸ THUẬT (ODOO LIVE CHAT & SESSIONS)
+*Được chuẩn hóa ngày 2026-10-14 theo chỉ đạo của Sếp Tân & Ban Điều Hành 360 CORP (Chi tiết: [docs/idea_portal.md](../../docs/idea_portal.md))*
+
+### 4.1. Bối Cảnh & Bài Toán Cốt Lõi
+- **Hiện trạng lệch chuẩn**: Tin nhắn từ khách hàng Portal trên mobile đang rơi vào `Direct messages` (1-1 với Admin), khiến nhân viên trực ca không nhìn thấy và chỉ số `Sessions` tại `/home/livechat` luôn bằng 0.
+- **Mục tiêu chuẩn hoá**: Kế thừa 100% module Live Chat (`im_livechat`) và Discuss (`mail.discuss`) có sẵn của Odoo Core.
+  - **Kênh CSKH (Customer Care)**: Tiếp nhận tư vấn dịch vụ, hợp đồng, báo giá ➔ Tích hợp tạo nhanh `crm.lead`.
+  - **Kênh Kỹ Thuật (Technical Support)**: Tiếp nhận hỗ trợ kỹ thuật, sự cố phần mềm ➔ Tích hợp tạo `helpdesk.ticket`.
+
+### 4.2. Những Điểm Sai Bị Loại Bỏ Hoàn Toàn (Deprecated)
+- ❌ **Loại bỏ**: Cơ chế Chat 1-1 (`channel_type: 'chat'`) với cá nhân Admin.
+- ❌ **Loại bỏ**: Tự tạo kênh nhóm (`channel_type: 'group'`) rồi hardcode add user tĩnh bằng script, làm phá vỡ cơ chế xoay ca trực của Live Chat.
+- ❌ **Loại bỏ**: Gộp chung 1 kênh không phân loại nhu cầu của khách hàng.
+
+### 4.3. Cơ Chế Live Chat Session Chuẩn
+- Khách hàng Portal chọn 1 trong 2 kênh hỗ trợ: **Customer Care** hoặc **Technical Support**.
+- Backend `v_mobile` gọi phương thức chuẩn của Odoo Live Chat để tạo **Live Chat Session** (`discuss.channel` có `channel_type: 'livechat'`).
+- Tự động phân bổ phiên chat tới các Operator đang online trong mục **`Looking for help`** của ca trực.
+- Tự động đếm và ghi nhận số lượng **Sessions** tại `/home/livechat` phục vụ báo cáo KPI và đánh giá chất lượng phản hồi.
+
+
 
