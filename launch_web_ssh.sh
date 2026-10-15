@@ -138,13 +138,20 @@ if [[ -f "$PARENT_DIR/scripts/check_code_freshness.sh" ]]; then
 fi
 
 # ------------------------------------------------------------------------------
-# 2. Đồng bộ Backend qua Server Local (Chuẩn Zero-Bypass Promotion Pipeline)
+# 2. Đồng bộ Backend qua Server Local (Git LAN Direct — Cực nhanh & Không rác GitLab)
 # ------------------------------------------------------------------------------
 if [[ "$DO_PULL" == "true" ]]; then
-    echo "🔄 [1/3] Kiểm tra & Cập nhật mã nguồn Backend trên Local Server (GitLab origin)..."
-    ssh -o ConnectTimeout=4 "$SSH_ALIAS" "echo odoo | sudo -S sync-vmobile $SYNC_TARGET" 2>&1 | sed 's/^/   /' || {
-        echo "   ⚠️ CẢNH BÁO: Không thể chạy sync-vmobile trên server (offline hoặc timeout). Dùng backend hiện có."
-    }
+    if [[ -f "$PARENT_DIR/scripts/sync_lan.sh" ]]; then
+        bash "$PARENT_DIR/scripts/sync_lan.sh" "$SYNC_TARGET" || {
+            echo "   ⚠️ CẢNH BÁO: Không thể đồng bộ LAN trực tiếp, thử fallback sync-vmobile..."
+            ssh -o ConnectTimeout=4 "$SSH_ALIAS" "echo odoo | sudo -S sync-vmobile $SYNC_TARGET" 2>&1 | sed 's/^/   /' || true
+        }
+    else
+        echo "🔄 [1/3] Kiểm tra & Cập nhật mã nguồn Backend trên Local Server (GitLab origin)..."
+        ssh -o ConnectTimeout=4 "$SSH_ALIAS" "echo odoo | sudo -S sync-vmobile $SYNC_TARGET" 2>&1 | sed 's/^/   /' || {
+            echo "   ⚠️ CẢNH BÁO: Không thể chạy sync-vmobile trên server (offline hoặc timeout). Dùng backend hiện có."
+        }
+    fi
 else
     echo "⚡ [1/3] Bỏ qua bước cập nhật Backend theo yêu cầu (--no-pull)."
 fi
