@@ -1131,8 +1131,8 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
           return;
         }
         ensureRetainedInCache();
-        if (isPortal) {
-          context.go('/home');
+        if (context.canPop()) {
+          context.pop();
         } else {
           context.go('/chat');
         }
@@ -1167,9 +1167,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                 ),
                 onPressed: () {
                   ensureRetainedInCache();
-                  if (isPortal) {
-                    context.go('/home');
-                  } else if (context.canPop()) {
+                  if (context.canPop()) {
                     context.pop();
                   } else {
                     context.go('/chat');

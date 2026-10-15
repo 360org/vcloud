@@ -18,7 +18,7 @@ import '../../application/chat_v2_read_state_controller.dart';
 import '../../data/models/chat_v2_channel.dart';
 import '../../data/models/chat_v2_message.dart';
 import '../widgets/chat_v2_mute_duration_sheet.dart';
-import 'chat_v2_detail_screen.dart';
+import '../../../livechat/presentation/widgets/livechat_selection_bottom_sheet.dart';
 
 String _stripVietnameseDiacritics(String str) {
   const vietnameseMap = {
@@ -169,30 +169,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
   }
 
   Future<void> _openCskhChat() async {
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(
-        child: CircularProgressIndicator(color: Color(0xFF0077CD)),
-      ),
-    );
-    try {
-      final channelId = await ref
-          .read(chatV2ChannelsProvider.notifier)
-          .openDirectChatWithSupport();
-      if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).pop();
-      context.push('/chat/$channelId?name=${Uri.encodeComponent('Chăm Sóc Khách Hàng 360')}');
-    } catch (e) {
-      if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Không thể kết nối CSKH: ${e.toString().replaceAll("Exception: ", "")}'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
-    }
+    await LivechatSelectionBottomSheet.show(context);
   }
 
   @override
@@ -212,27 +189,6 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
     final hasVMobile = (meta?['has_v_mobile'] as bool?) ?? true;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    // ── Cổng Điều Hướng 1-Chạm Bỏ Qua Danh Sách Chat Cho Tài Khoản Portal ──
-    if (currentUser?.isPortal == true) {
-      final channels = channelsAsync.valueOrNull ?? [];
-      final cskh = channels.firstWhereOrNull((c) =>
-          c.isCskhChannel ||
-          c.name.contains('Chăm Sóc Khách Hàng') ||
-          c.name.contains('[CSKH]'));
-
-      if (cskh != null) {
-        return ChatV2DetailScreen(
-          channelId: cskh.id,
-          title: 'Chăm Sóc Khách Hàng 360',
-          initialAvatarUrl: cskh.avatarUrl,
-        );
-      }
-
-      return _PortalCskhAutoConnectGate(
-        isDark: isDark,
-      );
-    }
-
     return AppScaffold(
       title: 'Trò chuyện',
       showAppBar: false,
@@ -245,7 +201,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
               elevation: 4,
               icon: const Icon(LucideIcons.headphones, size: 22),
               label: const Text(
-                'Chat với CSKH',
+                'Hỗ trợ trực tuyến',
                 style: TextStyle(
                   fontWeight: FontWeight.w700,
                   fontSize: 14,
@@ -1079,9 +1035,12 @@ class _ChannelListItem extends ConsumerWidget {
 
     // Tự động phân giải avatar URL của đối phương
     String? resolvedAvatarUrl = channel.avatarUrl;
-    if (channel.isCskhChannel) {
+    if (channel.channelType == 'livechat') {
+      // Kênh livechat: Giữ nguyên avatarUrl từ backend (im_livechat.channel)
+      resolvedAvatarUrl = channel.avatarUrl;
+    } else if (channel.isCskhChannel) {
       if (isPortal) {
-        resolvedAvatarUrl = null; // Portal luôn dùng branding/cskh_logo_360.png
+        resolvedAvatarUrl = channel.avatarUrl;
       } else {
         // Góc nhìn Sales/Kỹ thuật: Ưu tiên avatar của chính khách hàng Portal
         if (channel.directPartnerAvatar != null && channel.directPartnerAvatar!.isNotEmpty) {
@@ -2227,152 +2186,5 @@ class _SyncStatusBanner extends StatelessWidget {
   }
 }
 
-class _PortalCskhAutoConnectGate extends ConsumerStatefulWidget {
-  final bool isDark;
-
-  const _PortalCskhAutoConnectGate({
-    required this.isDark,
-  });
-
-  @override
-  ConsumerState<_PortalCskhAutoConnectGate> createState() =>
-      _PortalCskhAutoConnectGateState();
-}
-
-class _PortalCskhAutoConnectGateState
-    extends ConsumerState<_PortalCskhAutoConnectGate> {
-  String? _channelId;
-  String? _error;
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _connect();
-  }
-
-  Future<void> _connect() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-    try {
-      final cid = await ref
-          .read(chatV2ChannelsProvider.notifier)
-          .openDirectChatWithSupport();
-      if (mounted) {
-        setState(() {
-          _channelId = cid;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = e.toString().replaceAll('Exception: ', '');
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_channelId != null) {
-      return ChatV2DetailScreen(
-        channelId: _channelId!,
-        title: 'Chăm Sóc Khách Hàng 360',
-      );
-    }
-
-    final isDark = widget.isDark;
-    return Scaffold(
-      backgroundColor:
-          isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
-        leading: IconButton(
-          icon: const Icon(LucideIcons.chevronLeft),
-          onPressed: () => context.go('/home'),
-          tooltip: 'Quay lại',
-        ),
-        title: const Text(
-          'Chăm Sóc Khách Hàng 360',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-        ),
-      ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF0077CD).withValues(alpha: 0.2),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: ClipOval(
-                  child: Image.asset(
-                    'branding/cskh_logo_360.png',
-                    fit: BoxFit.cover,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              if (_isLoading) ...[
-                const SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
-                    color: Color(0xFF0077CD),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  'Đang kết nối trung tâm hỗ trợ CSKH 360...',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: isDark ? Colors.white70 : const Color(0xFF64748B),
-                  ),
-                ),
-              ] else if (_error != null) ...[
-                const Icon(LucideIcons.alertCircle, color: Colors.redAccent, size: 36),
-                const SizedBox(height: 12),
-                Text(
-                  'Không thể kết nối: $_error',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 13, color: Colors.redAccent),
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton.icon(
-                  onPressed: _connect,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0077CD),
-                    foregroundColor: Colors.white,
-                  ),
-                  icon: const Icon(LucideIcons.rotateCw, size: 16),
-                  label: const Text('Thử lại'),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 

@@ -6,6 +6,7 @@ import 'package:lucide_flutter/lucide_flutter.dart';
 import '../../application/livechat_controller.dart';
 import '../../data/models/livechat_channel_model.dart';
 import '../../data/models/livechat_session_model.dart';
+import '../../../chat_v2/application/chat_v2_channels_controller.dart';
 
 class LivechatSelectionBottomSheet extends ConsumerStatefulWidget {
   const LivechatSelectionBottomSheet({super.key});
@@ -41,6 +42,9 @@ class _LivechatSelectionBottomSheetState extends ConsumerState<LivechatSelection
 
       // Đóng BottomSheet
       Navigator.of(context).pop();
+
+      // Cập nhật danh sách kênh chat
+      ref.invalidate(chatV2ChannelsProvider);
 
       // Điều hướng 1-Touch thẳng vào phòng chat
       final encodedName = Uri.encodeComponent(session.channelName);

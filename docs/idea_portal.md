@@ -1,6 +1,6 @@
 # Thiết Kế Hệ Thống Live Chat Omnichannel: Kết Nối Website Live Chat ⟷ Portal App Mobile Chuẩn Odoo Enterprise
 
-> **Mã tài liệu**: `docs/idea_portal.md`  
+> **Mã tài liệu**: `vclients/docs/idea_portal.md`  
 > **Hệ thống gốc**: Odoo Enterprise (Module `im_livechat` & `mail.discuss`)  
 > **Nền tảng đồng bộ**: Website Live Chat Widget ⟷ VCloud Mobile App (Flutter `vclients`) ➔ Addon Backend `v_mobile` (Odoo 17 & 19)  
 > **Thẩm định & Chuẩn hóa**: Sếp Tân & Ban Điều Hành 360 CORP  
@@ -76,6 +76,8 @@ Trong chiến lược tiếp cận khách hàng đa kênh (Omnichannel) của 36
 | ❌ **Tách rời Web Live Chat và App Mobile thành 2 hệ thống độc lập** | Khách chat trên web xong tải app về lại phải khai báo lại từ đầu, gây đứt gãy trải nghiệm khách hàng. |
 | ❌ **Tự chế hardcode tên kênh ("Chăm Sóc Khách Hàng 360") & tích xanh MXH** | Phá vỡ tính năng cấu hình động trên Odoo Backend (`im_livechat.channel`). Trên Odoo quản trị viên đặt tên gì (`Customer Care`, `Technical Support`, `HELLO EM`...) thì App phải hiển thị đúng tên đó. Odoo Live Chat dùng chấm trạng thái trực tuyến (🟢 Online Indicator) của ca trực, không dùng tích xanh MXH tự chế. |
 | ❌ **Triệt tiêu tên người trực (ép hiển thị Logo vô danh)** | Odoo chuẩn bảo mật danh tính bằng trường `livechat_username` trong User Profile (hoặc `OdooBot`) để khách biết vai trò người hỗ trợ mà vẫn không lộ thông tin cá nhân nội bộ. |
+| ❌ **Hardcode điều hướng 1-chạm ép Portal User vào thẳng 1 phòng chat duy nhất** | Bấm mục Chat ở sidebar bị ép nhảy vào duy nhất 1 phòng chat, không cho xem danh sách các kênh khác; nút Back bị ép quay về `/home`. Khách hàng Portal cần có danh sách hội thoại đầy đủ (`ChatV2ListScreen`) và nút mở phiên hỗ trợ trực tuyến linh hoạt. |
+| ❌ **Gán đè tên chuyên viên ("Admin") lên tiêu đề kênh Live Chat của Portal User** | Phiên Live Chat có 2 thành viên (Portal và Operator). Nếu hệ thống coi đây là chat 1-1 cá nhân rồi gán tên Operator ("Mitchell Admin") sẽ làm mất hoàn toàn tính nhận diện dịch vụ ("Technical Support" hay "Customer Care"). Phía Portal User luôn phải nhìn thấy tên bộ phận hỗ trợ. |
 
 ---
 
@@ -97,10 +99,13 @@ Phía nhân viên công ty chỉ ngồi trực tập trung tại một nơi duy 
   * Tích hợp Quick Action / lệnh `:ticket` tạo phiếu sự cố **Helpdesk Ticket**.
   * Nhân sự phụ trách: Đội ngũ Kỹ sư giải pháp, Kỹ thuật viên phần mềm.
 
-### 4.3. Quy Chuẩn Tên Hiển Thị & Nhận Diện Hội Thoại (Single Source of Truth từ Odoo)
+### 4.3. Quy Chuẩn Tên Hiển Thị & Phân Định Góc Nhìn Hai Chiều (Role-Based Perspective Parity)
+* **Nguyên tắc góc nhìn hai chiều (Perspective Parity Principle)**:
+  * **Phía Khách Hàng (Portal User)**: Phiên Live Chat là kênh liên hệ dịch vụ chuyên trách. Tên hiển thị trên tiêu đề màn hình và danh sách chat **bắt buộc là tên dịch vụ/phòng ban** (`im_livechat.channel.name`, ví dụ: *Customer Care*, *Technical Support*) cùng Avatar của kênh Live Chat. Tuyệt đối không hiển thị tên cá nhân chuyên viên ("Mitchell Admin" hay "Admin") và không coi là chat 1-1 với cá nhân.
+  * **Phía Chuyên Viên Trực Ca (Operator)**: Kênh Live Chat trong Discuss hiển thị rõ **tên khách hàng Portal** (`res.partner.name`) và avatar của khách để chuyên viên biết chính xác người đang cần hỗ trợ.
 * **Tiêu đề kênh (Header Title)**:
   * Lấy **động 100%** từ trường `name` của `im_livechat.channel` trên Odoo (`Customer Care`, `Technical Support`, hoặc tên do admin cấu hình).
-  * Avatar kênh: Lấy từ `im_livechat.channel.image_128` trên Odoo.
+  * Avatar kênh: Lấy từ `im_livechat.channel.image_128` trên Odoo hoặc Logo Công Ty.
   * Trạng thái ca trực: Hiển thị chấm trạng thái trực tuyến (**🟢 Online Indicator**) khi có ít nhất một Operator trực ca đang online trong mục `Looking for help`. Tuyệt đối không dùng tích xanh mạng xã hội tự chế.
 * **Tên người phản hồi (Sender Name & Identity)**:
   * **Bot trả lời**: Hiển thị tên bot chuẩn Odoo (**`OdooBot`**) hoặc tên kịch bản chatbot.

@@ -26,6 +26,8 @@ Theo chỉ đạo và rà soát đối soát thực tế với Odoo 17, Odoo 19 
 * ❌ **Bỏ chat 1-1 với cá nhân Admin (`channel_type: 'chat'`)**: Gây nghẽn tại 1 tài khoản, các nhân viên trực ca không nhìn thấy.
 * ❌ **Bỏ tạo kênh nhóm tự chế (`channel_type: 'group'`) rồi gán cứng nhân viên tĩnh**: Phá vỡ cơ chế xoay ca trực của Live Chat.
 * ❌ **Bỏ gộp chung 1 kênh không phân loại nhu cầu**: Gây chồng chéo giữa tư vấn bán hàng và hỗ trợ kỹ thuật.
+* ❌ **Bỏ hardcode điều hướng 1-chạm ép Portal User vào thẳng 1 phòng chat duy nhất**: Trước đây khi Portal User bấm vào mục Chat ở sidebar, app bị hardcode tự động ép nhảy thẳng vào phòng chat duy nhất "Chăm Sóc Khách Hàng 360", tước đoạt quyền xem danh sách các hội thoại khác và nút Back bị ép quay về `/home`. Quy chuẩn mới: Portal User mở danh sách hội thoại (`ChatV2ListScreen`), thấy toàn bộ các kênh Live Chat đã mở ("Technical Support", "Customer Care"...) và mở kênh mới qua nút "Hỗ trợ trực tuyến".
+* ❌ **Bỏ cơ chế gán đè tên Operator ("Admin") lên tiêu đề kênh Live Chat của Portal User**: Trong Odoo, kênh Live Chat là kênh hỗ trợ phòng ban/dịch vụ chuyên trách. Việc hiển thị tên cá nhân của chuyên viên tiếp nhận (như "Mitchell Admin" hay "Admin") là sai lệch bản chất dịch vụ. Phía Portal User luôn phải nhìn thấy tên bộ phận tiếp nhận ("Technical Support", "Customer Care") kèm Avatar của kênh Live Chat.
 * ❌ **Bỏ hardcode tên kênh ("Chăm Sóc Khách Hàng 360") và tích xanh MXH tự chế**: Tên kênh và avatar bắt buộc lấy **động 100% từ Odoo Backend** (`im_livechat.channel`); trạng thái trực ca dùng chấm xanh trực tuyến (**🟢 Online Indicator**).
 * ❌ **Bỏ triệt tiêu danh tính người trực (ép hiển thị logo vô danh)**: Chuẩn Odoo bảo mật danh tính qua trường `livechat_username` trong User Profile (hoặc `OdooBot`).
 * ❌ **Bỏ câu trả lời mẫu (`mail.shortcode`)**: Trên `vuahethong.net` chưa cấu hình danh mục câu mẫu thực tế ➔ Không đưa vào (YAGNI).
@@ -165,6 +167,45 @@ Toàn bộ API được thiết kế dựa trên các phương thức có sẵn 
 
 ---
 
+### 4. Chuẩn Hóa Danh Sách Hội Thoại & Phân Định Góc Nhìn Hai Chiều (Role-Based Perspective Parity)
+
+#### A. Nguyên nhân gốc rễ lỗi hiển thị tên "Admin"
+Trong Odoo, phiên Live Chat được lưu dưới dạng `discuss.channel` với `channel_type: 'livechat'`, có 2 thành viên: Khách hàng Portal (`res.partner` của portal user) và Chuyên viên tiếp nhận (`livechat_operator_id`, thường là Mitchell Admin trong môi trường kiểm thử).
+* **Lỗi Backend cũ**: API `list_channels` và `channel_info` gom kênh 2 thành viên thành `is_direct = True` (chat 1-1 cá nhân), trích xuất `other_partner_dict` ("Mitchell Admin") và gán vào `partner_id` / `direct_partner`.
+* **Lỗi Frontend cũ**: Class `ChatV2Channel` trên Flutter khi thấy `directPartnerName != null` thì luôn ưu tiên ghi đè tên kênh bằng `directPartnerName` ("Mitchell Admin"), dẫn tới việc khách chọn "Technical Support" hay "Customer Care" đều bị biến thành "Mitchell Admin".
+
+#### B. Ma trận góc nhìn hai chiều chuẩn Odoo Enterprise (Perspective Parity Matrix)
+
+| Thuộc tính | 👤 Góc nhìn Khách Hàng (Portal User) | 👨‍💼 Góc nhìn Chuyên Viên Trực Ca (Operator) |
+|---|---|---|
+| **Bản chất kênh** | Kênh dịch vụ tiếp nhận hỗ trợ chuyên trách | Phiên hỗ trợ khách hàng đến từ bên ngoài |
+| **Tên kênh (`name`)** | Tên dịch vụ Live Chat (`livechat_channel_id.name`, e.g. **"Customer Care"**, **"Technical Support"**) | Tên khách hàng Portal (`portal_p["name"]`, e.g. **"Anh Tân (Công ty ABC)"**) |
+| **Ảnh đại diện (`avatar_url`)** | Logo/Avatar của kênh Live Chat (`im_livechat.channel` image_128 hoặc Logo Công Ty) | Avatar của khách hàng Portal (`res.partner` avatar_128) |
+| **Định danh 1-1 (`direct_partner`)** | `None` (Tuyệt đối không gán `partner_id` của Admin) | `{ "id": portal_p.id, "name": portal_p.name, ... }` |
+| **Trạng thái trực (`im_status`)** | Trạng thái ca trực của bộ phận (`online` nếu có operator online) | Trạng thái online của khách hàng Portal |
+
+#### C. Quy chuẩn Payload API Backend (`/api/v1/mobile/chat/channels`)
+```python
+is_livechat = bool(ch.channel_type == "livechat" or (hasattr(ch, "livechat_channel_id") and ch.livechat_channel_id))
+is_group = bool(ch.channel_type in ("channel", "group") or total_member_count > 2)
+is_direct = bool(not is_group and not is_livechat)
+
+if is_livechat:
+    livechat_ch = ch.livechat_channel_id
+    service_name = livechat_ch.name if livechat_ch else (ch.name or "Hỗ trợ trực tuyến")
+    if is_portal_user:
+        channel_name = service_name
+        avatar_url = _avatar_url_for(env, "im_livechat.channel", livechat_ch.id, field="image_128")
+        direct_partner = None
+        partner_id = None
+    else:
+        channel_name = portal_p["name"]
+        avatar_url = portal_p["avatar_url"]
+        direct_partner = { "id": portal_p["id"], "name": channel_name, ... }
+```
+
+---
+
 ## V. ĐẶC TẢ CHI TIẾT GIAO DIỆN FRONTEND FLUTTER (`vclients`)
 
 Ứng dụng Flutter triển khai chuẩn thiết kế công nghệ cao cấp **360 CORP (Tech Royal Blue `#0077cd` & Digital Green `#00ce2c`)**, loại bỏ hoàn toàn các asset hardcode (`branding/cskh_logo_360.png`, tích xanh MXH) và loại bỏ toàn bộ các nút bấm Quick Action tự chế.
@@ -172,6 +213,28 @@ Toàn bộ API được thiết kế dựa trên các phương thức có sẵn 
 ---
 
 ### 1. Sơ Đồ Giao Diện Trực Quan (UI Wireframes)
+
+#### A0. Màn Hình Danh Sách Hội Thoại (`ChatV2ListScreen` — Portal View)
+Khi khách hàng Portal bấm vào mục **Chat** tại thanh điều hướng / Sidebar, ứng dụng hiển thị danh sách toàn bộ các kênh trao đổi đã mở (không tự ý ép vào phòng chat duy nhất), cùng nút nổi **"Hỗ trợ trực tuyến"** để chọn dịch vụ khi cần:
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│ [☰]  Trò chuyện                                       [🔍]  │
+├─────────────────────────────────────────────────────────────┤
+│ ┌─── Danh sách hội thoại ─────────────────────────────────┐ │
+│ │ (Avatar Livechat) Customer Care                   10:32 │ │
+│ │ 🟢 Odoo           Dạ em chào anh Tân! Em là...        │ │
+│ │─────────────────────────────────────────────────────────│ │
+│ │ (Avatar Livechat) Technical Support               Hôm qua│ │
+│ │ 🟢 Odoo           Đã cấu hình xong máy in hóa đơn ạ   │ │
+│ └─────────────────────────────────────────────────────────┘ │
+│                                                             │
+│                                                             │
+│                                   ┌───────────────────────┐ │
+│                                   │ [🎧] Hỗ trợ trực tuyến │ │
+│                                   └───────────────────────┘ │
+└─────────────────────────────────────────────────────────────┘
+```
 
 #### A. BottomSheet Chọn Kênh Hỗ Trợ (Support Channel Selection Sheet)
 Mở ra khi khách hàng Portal chạm vào nút "Hỗ Trợ" trên Trang Chủ hoặc thanh điều hướng (Dữ liệu load động từ `GET /api/v1/mobile/livechat/channels`):
@@ -310,3 +373,5 @@ ChatV2DetailScreen
 | **TC-08** | Operator gõ `/lead [tiêu đề]` trong Odoo Discuss | Odoo Core (`crm_livechat`) tạo `crm.lead`, trường `description` có đầy đủ nội dung đoạn chat. | ĐẠT |
 | **TC-09** | Operator gõ `/ticket [tiêu đề]` trong Odoo Discuss | Odoo Core (`website_helpdesk_livechat`) tạo `helpdesk.ticket`, trường `description` nhúng trọn vẹn lịch sử đoạn chat. | ĐẠT |
 | **TC-10** | Đồng bộ phiên từ Web sang App (Session Continuity)| Khách chat trên web, đăng nhập vào App Mobile thấy lại toàn bộ tin nhắn cũ. | ĐẠT |
+| **TC-11** | Hiển thị tên kênh Livechat trong danh sách của Portal User | Khách hàng Portal thấy đúng tên dịch vụ ("Technical Support", "Customer Care"), tuyệt đối KHÔNG bị hiển thị tên "Admin". | ĐẠT |
+| **TC-12** | Điều hướng Chat từ Sidebar của Portal User | Bấm vào Chat ở sidebar mở danh sách hội thoại (`ChatV2ListScreen`), nút quay lại trong hội thoại không bị ép về `/home`. | ĐẠT |

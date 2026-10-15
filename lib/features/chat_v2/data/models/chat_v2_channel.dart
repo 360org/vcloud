@@ -301,7 +301,21 @@ class ChatV2Channel {
 
   /// Tên hiển thị sạch chuẩn hóa (không phụ thuộc user context)
   String get displayName {
+    if (channelType == 'livechat') {
+      final clean = cleanChannelName(name);
+      if (clean.isNotEmpty && clean != 'Cuộc trò chuyện') {
+        return clean;
+      }
+      return 'Hỗ trợ trực tuyến';
+    }
     if (isCskhChannel) {
+      final clean = cleanChannelName(name);
+      if (clean.isNotEmpty &&
+          clean != 'Cuộc trò chuyện' &&
+          !clean.toLowerCase().contains('chăm sóc khách hàng') &&
+          !clean.toLowerCase().contains('cskh')) {
+        return clean;
+      }
       if (directPartnerName != null &&
           directPartnerName!.trim().isNotEmpty &&
           directPartnerName!.trim().toLowerCase() != 'chăm sóc khách hàng 360' &&
@@ -462,8 +476,25 @@ class ChatV2Channel {
   /// - Nếu là chat 1-1 có customNickname thì luôn ưu tiên hiển thị customNickname.
   /// - Nếu là chat 1-1 ghép tên thì chỉ lấy tên người đối diện.
   String getCleanName(String? currentUserName, {bool? isPortal}) {
+    if (channelType == 'livechat') {
+      if (isPortal == true || directPartnerName == null) {
+        final clean = cleanChannelName(name);
+        if (clean.isNotEmpty && clean != 'Cuộc trò chuyện') {
+          return clean;
+        }
+        return 'Hỗ trợ trực tuyến';
+      }
+      return cleanChannelName(directPartnerName ?? name);
+    }
     if (isCskhChannel) {
       if (isPortal == true) {
+        final clean = cleanChannelName(name);
+        if (clean.isNotEmpty &&
+            clean != 'Cuộc trò chuyện' &&
+            !clean.toLowerCase().contains('chăm sóc khách hàng') &&
+            !clean.toLowerCase().contains('cskh')) {
+          return clean;
+        }
         return 'Chăm Sóc Khách Hàng 360';
       }
       if (directPartnerName != null &&
@@ -530,6 +561,10 @@ class ChatV2Channel {
           }
         }
       }
+      return cleaned;
+    }
+
+    if (channelType == 'livechat') {
       return cleaned;
     }
 
@@ -806,8 +841,9 @@ class ChatV2Channel {
     directPartnerAvatar ??= odooApiClient.resolveAvatarUrl(
       _stringOrNull(map['direct_partner_avatar']),
     );
+    final isLivechat = channelType == 'livechat';
     final otherMember = memberObjs.firstWhereOrNull((m) => !m.isMe);
-    if (!isGroup && channelType != 'channel' && otherMember != null) {
+    if (!isGroup && channelType != 'channel' && !isLivechat && otherMember != null) {
       directPartnerId ??= otherMember.id.isNotEmpty ? otherMember.id : null;
       directPartnerName ??= otherMember.name.isNotEmpty ? otherMember.name : null;
       if (otherMember.imStatus.isNotEmpty && otherMember.imStatus != 'offline') {
@@ -817,7 +853,7 @@ class ChatV2Channel {
         }
       }
     }
-    if (!isGroup && channelType != 'channel') {
+    if (!isGroup && channelType != 'channel' && !isLivechat) {
       directPartnerId ??= _stringOrNull(map['partner_id'] ?? map['other_partner_id']);
       if (directPartnerId != null && (directPartnerName == null || directPartnerName.isEmpty)) {
         final pMember = memberObjs.firstWhereOrNull((m) => m.id == directPartnerId && !m.isMe);
@@ -831,9 +867,9 @@ class ChatV2Channel {
 
     String? finalAvatarUrl = avatarUrl;
     if (finalAvatarUrl == null || finalAvatarUrl.isEmpty) {
-      if (directPartnerAvatar != null && directPartnerAvatar.isNotEmpty) {
+      if (directPartnerAvatar != null && directPartnerAvatar.isNotEmpty && !isLivechat) {
         finalAvatarUrl = directPartnerAvatar;
-      } else if (!isGroup && channelType != 'channel') {
+      } else if (!isGroup && channelType != 'channel' && !isLivechat) {
         if (memberObjs.isNotEmpty) {
           if (otherMember != null && !otherMember.isMe && otherMember.avatarUrl != null && otherMember.avatarUrl!.isNotEmpty) {
             finalAvatarUrl = otherMember.avatarUrl;
