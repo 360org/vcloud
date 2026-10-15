@@ -931,7 +931,7 @@ class _PortalSupportActionCard extends StatelessWidget {
                     Row(
                       children: [
                         Text(
-                          'Chăm Sóc Khách Hàng 360',
+                          'Hỗ Trợ Trực Tuyến',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w800,
@@ -943,10 +943,10 @@ class _PortalSupportActionCard extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF00C83A).withValues(alpha: 0.15),
+                            color: const Color(0xFF00CE2C).withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
-                              color: const Color(0xFF00C83A).withValues(alpha: 0.4),
+                              color: const Color(0xFF00CE2C).withValues(alpha: 0.4),
                               width: 1,
                             ),
                           ),
@@ -957,17 +957,17 @@ class _PortalSupportActionCard extends StatelessWidget {
                                 width: 6,
                                 height: 6,
                                 decoration: const BoxDecoration(
-                                  color: Color(0xFF00C83A),
+                                  color: Color(0xFF00CE2C),
                                   shape: BoxShape.circle,
                                 ),
                               ),
                               const SizedBox(width: 4),
                               const Text(
-                                'Online',
+                                'Trực ca',
                                 style: TextStyle(
                                   fontSize: 10,
                                   fontWeight: FontWeight.w700,
-                                  color: Color(0xFF00C83A),
+                                  color: Color(0xFF059669),
                                 ),
                               ),
                             ],
@@ -977,7 +977,7 @@ class _PortalSupportActionCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Đội ngũ 360 CORP sẵn sàng hỗ trợ bạn',
+                      'Chạm để kết nối chuyên viên CSKH hoặc Kỹ thuật',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
