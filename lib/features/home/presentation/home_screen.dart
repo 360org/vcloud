@@ -20,6 +20,7 @@ import '../../attendance/domain/shift_calculator.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../chat_v2/application/chat_v2_channels_controller.dart';
 import '../../chat_v2/data/models/chat_v2_channel.dart';
+import '../../livechat/presentation/widgets/livechat_selection_bottom_sheet.dart';
 import '../../timesheet/application/task_controller.dart';
 
 
@@ -145,30 +146,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Future<void> _openCskhChat() async {
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(
-        child: CircularProgressIndicator(color: Color(0xFF0077CD)),
-      ),
-    );
-    try {
-      final channelId = await ref
-          .read(chatV2ChannelsProvider.notifier)
-          .openDirectChatWithSupport();
-      if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).pop();
-      context.push('/chat/$channelId?name=${Uri.encodeComponent('Chăm Sóc Khách Hàng 360')}');
-    } catch (e) {
-      if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Không thể kết nối CSKH: ${e.toString().replaceAll("Exception: ", "")}'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
-    }
+    await LivechatSelectionBottomSheet.show(context);
   }
 
   @override

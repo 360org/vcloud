@@ -54,7 +54,6 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
   late final ScrollController _scrollController;
   final bool _isSending = false;
   bool _isDialingLock = false;
-  bool _isCreatingLead = false;
   ChatV2Message? _replyingTo;
   ChatV2Message? _editingMsg;
   final TextEditingController _inputController = TextEditingController();
@@ -2138,8 +2137,6 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                         ],
                       ),
                     ),
-                  if (isCskh && isPortal)
-                    _buildCskhQuickActions(context, isDark),
                   if (!ref.watch(chatV2ChannelAccessDeniedProvider(widget.channelId)))
                     ChatV2InputBar(
                       channelId: widget.channelId,
@@ -2353,115 +2350,6 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
         ),
       ),
     );
-  }
-
-  Widget _buildCskhQuickActions(BuildContext context, bool isDark) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E293B) : Colors.white,
-        border: Border(
-          top: BorderSide(
-            color: isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFE2E8F0),
-            width: 0.8,
-          ),
-        ),
-      ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
-            InkWell(
-              onTap: _isCreatingLead ? null : _handleRequestQuoteLead,
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF0077CD), Color(0xFF005EA6)],
-                  ),
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF0077CD).withValues(alpha: 0.25),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (_isCreatingLead)
-                      const SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    else
-                      const Text('🌟', style: TextStyle(fontSize: 13)),
-                    const SizedBox(width: 6),
-                    const Text(
-                      'Bấm để nhận báo giá / Quan tâm',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _handleRequestQuoteLead() async {
-    if (_isCreatingLead) return;
-    setState(() => _isCreatingLead = true);
-    try {
-      final dynamic res = await odooApiClient.post(
-        '/api/v1/mobile/crm/lead',
-        body: {
-          'name': 'Quan tâm báo giá từ Kênh CSKH 360',
-          'description': 'Khách hàng bấm Quick Action yêu cầu báo giá/tư vấn từ VCloud Mobile App.',
-        },
-      );
-      if (!mounted) return;
-      if (res is Map && (res['success'] == true || res['id'] != null)) {
-        await _handleSendMessage('🌟 Tôi quan tâm đến sản phẩm/dịch vụ và muốn nhận báo giá tư vấn từ 360 CORP.');
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Đã gửi yêu cầu nhận báo giá! Chuyên viên 360 CORP sẽ liên hệ lại ngay.'),
-            backgroundColor: Color(0xFF00C83A),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      } else {
-        final msg = (res is Map ? res['message'] : null) ?? 'Không thể gửi yêu cầu báo giá';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(msg.toString())),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi: $e')),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isCreatingLead = false);
-      }
-    }
   }
 
   void _handleVoiceCall(
