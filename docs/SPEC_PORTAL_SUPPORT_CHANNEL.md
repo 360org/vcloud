@@ -172,24 +172,184 @@ Hệ thống được đóng gói tinh gọn xoay quanh **đúng 2 trụ cột n
 
 ---
 
-## V. ĐẶC TẢ GIAO DIỆN FRONTEND FLUTTER (`vclients`)
+## V. ĐẶC TẢ CHI TIẾT GIAO DIỆN FRONTEND FLUTTER (`vclients`)
 
-### 1. Màn hình Chọn Kênh Hỗ Trợ (1-Chạm)
-Hiển thị 2 thẻ chọn chuyên nghiệp:
-* 🟢 **Customer Care**: *"Tư vấn sản phẩm, chính sách giá, hợp đồng & báo giá ưu đãi"*
-* 🛠️ **Technical Support**: *"Báo lỗi hệ thống, hướng dẫn vận hành & hỗ trợ phần mềm"*
+Ứng dụng Flutter triển khai chuẩn thiết kế công nghệ cao cấp **360 CORP (Tech Royal Blue `#0077cd` & Digital Green `#00ce2c`)**, loại bỏ hoàn toàn các asset hardcode (`branding/cskh_logo_360.png`, tích xanh MXH) để chuyển sang giao diện động 100% kết nối với Odoo Live Chat.
 
-### 2. Màn hình Chi tiết Hội Thoại (`ChatV2DetailScreen`)
-* **Header Bar**:
-  * **Tiêu đề**: Hiển thị **động 100% từ Odoo Backend** (`Customer Care`, `Technical Support`...).
-  * **Avatar**: Logo/Ảnh đại diện của Kênh cấu hình trên Odoo (`image_128`).
-  * **Trạng thái**: Chấm xanh trực tuyến (**🟢 Online Indicator**) khi có ít nhất 1 Operator trực ca online.
-* **Định danh người phản hồi**:
-  * **Bot**: Hiển thị **`OdooBot`**.
-  * **Nhân viên**: Hiển thị trường bí danh **`livechat_username`** (ví dụ: *Tư vấn viên 01*, *Admin (Viet Nam)*) để giữ tính chuyên nghiệp mà không để lộ tài khoản cá nhân nội bộ.
-* **Thanh Quick Action tiện ích (1-Chạm)**:
-  * 🌟 **Nút "Nhận báo giá"**: Bấm 1 chạm ➔ Gọi API tạo **CRM Lead**, thông báo mã cơ hội cho khách.
-  * 🎫 **Nút "Gửi yêu cầu hỗ trợ"**: Bấm 1 chạm ➔ Gọi API tạo **Helpdesk Ticket**, trả về mã phiếu (VD: `#TCK-1025`).
+---
+
+### 1. Sơ Đồ Giao Diện Trực Quan (UI Wireframes)
+
+#### A. BottomSheet Chọn Kênh Hỗ Trợ (Support Channel Selection Sheet)
+Mở ra khi khách hàng Portal chạm vào nút "Hỗ Trợ" trên Trang Chủ hoặc thanh điều hướng:
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│ ─── (Drag Handle)                                           │
+│                                                             │
+│  TRUNG TÂM HỖ TRỢ TRỰC TUYẾN                           [✕]  │
+│  Vui lòng chọn bộ phận tiếp nhận để được hỗ trợ tốt nhất    │
+│                                                             │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │ 🟢 Customer Care (CSKH & Kinh Doanh)                  │  │
+│  │    Tư vấn sản phẩm, chính sách giá, hợp đồng dịch vụ  │  │
+│  │    và nhận báo giá ưu đãi độc quyền 360 CORP.         │  │
+│  │    ────────────────────────────────────────────────── │  │
+│  │    🟢 Đang có chuyên viên trực ca • Phản hồi ~2 phút  │  │
+│  └───────────────────────────────────────────────────────┘  │
+│                                                             │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │ 🛠️ Technical Support (Hỗ Trợ Kỹ Thuật)                │  │
+│  │    Báo lỗi phần mềm, hướng dẫn vận hành hệ thống,     │  │
+│  │    khắc phục sự cố kỹ thuật và đồng bộ dữ liệu.       │  │
+│  │    ────────────────────────────────────────────────── │  │
+│  │    🟢 Kỹ sư kỹ thuật trực tuyến • Tiếp nhận 24/7      │  │
+│  └───────────────────────────────────────────────────────┘  │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+#### B. Màn Hình Hội Thoại Chi Tiết (`ChatV2DetailScreen`)
+Sau khi chọn kênh, chuyển hướng vào màn hình chat Live Chat chuẩn:
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│ [◀]  (Avatar)  Customer Care                        [ⓘ] [⋮] │
+│      Odoo      🟢 Đang trực ca                              │
+├─────────────────────────────────────────────────────────────┤
+│ (Banner nếu ngoài giờ: 🌙 Ca trực kết thúc, để lại tin...)   │
+│                                                             │
+│      [10:30]                                                │
+│  ┌───────────────┐                                          │
+│  │ 🤖 OdooBot    │ Dạ em xin chào anh Tân! Em là trợ lý     │
+│  └───────────────┘ tự động của 360 CORP. Em có thể hỗ trợ gì│
+│                    cho anh hôm nay ạ?                       │
+│                                                       10:30 │
+│                                                             │
+│                             ┌────────────────────────────┐  │
+│                             │ Tôi cần tư vấn gói phần mềm│  │
+│                             │ Odoo cho 50 nhân sự nhé!   │  │
+│                             └────────────────────────────┘  │
+│                                                       10:31 │
+│  ┌───────────────┐                                          │
+│  │ 👨‍💼 Tư vấn 01  │ Dạ em chào anh Tân! Em là chuyên viên tư │
+│  └───────────────┘ vấn của 360. Em gửi anh báo giá ngay ạ.  │
+│                                                       10:32 │
+│                                                             │
+├─────────────────────────────────────────────────────────────┤
+│ [⭐ Nhận báo giá (CRM Lead)]     [🎫 Gửi yêu cầu hỗ trợ]    │  <-- Thanh Quick Actions cố định
+├─────────────────────────────────────────────────────────────┤
+│ [+]  Nhập tin nhắn hỗ trợ...                         [ 🎙️ ] [ ➤ ] │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+#### C. Thẻ Xác Nhận Hành Động Nhanh (Quick Action Confirmation Toast / Card)
+Khi khách bấm vào 1 trong 2 nút Quick Action trên thanh tiện ích:
+
+* **Khi bấm `[⭐ Nhận báo giá]`**:
+  * Hiển thị BottomSheet xác nhận ngắn:
+    ```text
+    ┌─────────────────────────────────────────────────────────┐
+    │ ⭐ GỬI YÊU CẦU BÁO GIÁ NHANH                            │
+    │ Hệ thống sẽ chuyển toàn bộ nội dung trao đổi vừa rồi    │
+    │ thành Cơ Hội Bán Hàng gửi riêng cho Chuyên viên Kinh    │
+    │ doanh liên hệ với bạn kèm bảng giá chi tiết.            │
+    │                                                         │
+    │ [ Hủy ]                       [ Xác nhận gửi yêu cầu ]  │
+    └─────────────────────────────────────────────────────────┘
+    ```
+  * Sau khi gửi thành công: Ngay trong phòng chat tự động xuất hiện 1 thẻ thông báo chuyên nghiệp:
+    ```text
+    ┌─────────────────────────────────────────────────────────┐
+    │ 📢 THÔNG BÁO HỆ THỐNG                                   │
+    │ ✅ Đã khởi tạo Cơ hội Báo giá thành công!                │
+    │ Mã hồ sơ: #LEAD-2026-089                                │
+    │ Chuyên viên kinh doanh đang chuẩn bị báo giá cho bạn.   │
+    └─────────────────────────────────────────────────────────┘
+    ```
+
+* **Khi bấm `[🎫 Gửi yêu cầu hỗ trợ]`**:
+  * Hiển thị form ngắn 1 trường: *"Tóm tắt sự cố (nếu có)"* hoặc bấm Gửi ngay.
+  * Phản hồi thẻ Ticket trong chat:
+    ```text
+    ┌─────────────────────────────────────────────────────────┐
+    │ 🎫 PHIẾU HỖ TRỢ KỸ THUẬT                                │
+    │ Mã phiếu: #TCK-1025                                     │
+    │ Trạng thái: Đang tiếp nhận (In Progress)                │
+    │ Kỹ sư phần mềm đang kiểm tra log hệ thống.              │
+    └─────────────────────────────────────────────────────────┘
+    ```
+
+---
+
+### 2. Phân Tách Cấu Trúc Thành Phần Giao Diện (Widget Hierarchy)
+
+```text
+ChatV2DetailScreen
+├── LiveChatAppBar (Custom PreferredSizeWidget)
+│   ├── Leading: IconButton (Back)
+│   ├── TitleArea: Row
+│   │   ├── LiveChatChannelAvatar (Network Image Odoo image_128 + Fallback Icon)
+│   │   └── Column
+│   │       ├── ChannelTitleText (Dynamic Name: "Customer Care" / "Technical Support")
+│   │       └── LiveChatStatusIndicator (Chấm xanh 🟢 + "Đang trực ca" / "Ngoại tuyến")
+│   └── Actions: [IconButton(Info)]
+│
+├── LiveChatBodyArea (Expanded)
+│   ├── OfflineNoticeBanner (Hiển thị có điều kiện nếu is_operator_online == false)
+│   └── MessageListView
+│       ├── ChatBotMessageBubble (Avatar OdooBot + Badge Bot + Bubble xám nhạt)
+│       ├── OperatorMessageBubble (Avatar Operator + Tên livechat_username + Bubble trắng)
+│       ├── CustomerMessageBubble (Bubble xanh Tech Royal Blue #0077cd + Text trắng)
+│       └── SystemNotificationCard (Render thẻ xác nhận Lead #LEAD-xxx / Ticket #TCK-xxx)
+│
+├── LiveChatQuickActionsBar (SizedBox cố định chiều cao 44dp, padding horizontal 12)
+│   └── ListView (Cuộn ngang nếu màn hình nhỏ)
+│       ├── QuickActionChip (Icon: LucideIcons.star, Label: "Nhận báo giá", Primary Tint)
+│       └── QuickActionChip (Icon: LucideIcons.ticket, Label: "Gửi yêu cầu hỗ trợ", Accent Tint)
+│
+└── LiveChatMessageComposer (Chat Composer chuẩn)
+    ├── AttachmentButton (Upload ảnh / tài liệu đính kèm)
+    ├── MessageTextField (Auto-expand max 4 dòng)
+    └── SendButton (Animated Icon khi có text)
+```
+
+---
+
+### 3. Quy Chuẩn Màu Sắc, Phông Chữ & Tokens Giao Diện (Design Tokens)
+
+* **Bảng màu chủ đạo**:
+  * **Primary (Thương hiệu chính)**: `#0077cd` (Tech Royal Blue — dùng cho nút gửi, card active, bubble tin nhắn của khách, viền thẻ CSKH).
+  * **Success / Online (Trạng thái ca trực)**: `#00ce2c` (Digital Green — dùng cho chấm đèn 🟢 Online Indicator, tag badge tiếp nhận).
+  * **Warning / Lead**: `#f59e0b` (Amber 500 — dùng cho icon nhận báo giá và thẻ Lead).
+  * **Info / Ticket**: `#3b82f6` (Blue 500 — dùng cho icon phiếu hỗ trợ Helpdesk).
+  * **Nền giao diện (Surface)**: `#f8fafc` (Slate 50 — nền màn hình chat sạch sẽ, chống mỏi mắt).
+  * **Văn bản (Typography Contrast)**:
+    * Tiêu đề chính: Slate 900 (`#0f172a`), font-weight: `w600`.
+    * Phụ đề & trạng thái: Slate 600 (`#475569`), font-size: `12sp`.
+    * Nội dung tin nhắn: Slate 800 (`#1e293b`), line-height: `1.4`.
+* **Quy chuẩn Bo góc & Khoảng cách (Spacings)**:
+  * Thẻ chọn kênh: `BorderRadius.circular(16)`.
+  * Bubble tin nhắn: `BorderRadius.circular(16)` với góc nhọn 4dp ở phía người gửi.
+  * Chip Quick Action: `BorderRadius.circular(20)` (Pill shape), viền `1dp` màu `#cbd5e1`.
+
+---
+
+### 4. Quản Lý Trạng Thái Giao Diện Bằng Riverpod (State Management)
+
+1. **`liveChatChannelProvider`**:
+   * Quản lý trạng thái khởi tạo phiên từ API `POST /api/v1/mobile/livechat/session`.
+   * Cung cấp các cờ phản ứng UI: `isLoading`, `channelId`, `isOperatorOnline`, `channelName`, `operatorName`.
+2. **`quickActionControllerProvider`**:
+   * Quản lý các đột biến thao tác nhanh (Mutation):
+     - `createCrmLead(channelId, note)`: Hiển thị loading spinner trên chip, sau khi thành công tự động chèn 1 bản ghi tin nhắn hệ thống vào danh sách chat.
+     - `createHelpdeskTicket(channelId, note)`: Hiển thị thông báo mã `#TCK-xxx` và mở rộng thông tin theo dõi.
+3. **Web-to-Mobile Continuity Listener**:
+   * Khi khởi động App: Nếu trong bộ nhớ tạm (`FlutterSecureStorage`) có lưu `web_session_uuid` từ lần quét QR hoặc đăng nhập Portal, App tự động nạp phiên cũ và nhảy vào phòng chat mà không bắt khách chọn lại từ đầu.
 
 ---
 
