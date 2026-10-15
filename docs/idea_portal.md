@@ -125,15 +125,15 @@ Khi luồng chat từ cả Website và App Mobile đều đi qua Live Chat Engin
 ## 6. KẾ HOẠCH TRIỂN KHAI KỸ THUẬT (ROADMAP)
 
 ### 6.1. Phía Backend Addon `v_mobile` (Odoo 17 & 19)
-1. **API Mở Session Chuẩn Live Chat**:
+1. **API Lấy Danh Sách Kênh Live Chat**:
+   * Endpoint: `GET /api/v1/mobile/livechat/channels`
+   * Đọc danh sách `im_livechat.channel` động từ Odoo Backend (`Customer Care`, `Technical Support`...).
+2. **API Mở Session Chuẩn Live Chat**:
    * Endpoint: `POST /api/v1/mobile/livechat/session`
-   * Nhận tham số: `channel_alias` (`customer_care` hoặc `technical_support`).
-   * Gọi hàm core: `im_livechat.channel._open_livechat_mail_channel(...)` để tạo kênh `discuss.channel` loại `livechat`.
-2. **Cơ Chế Nối Session (Session Linking / Handoff)**:
-   * Cho phép liên kết `uuid` của Livechat session trên Web với `res.partner` của Portal User khi đăng nhập.
-3. **Cung cấp API Quick Action Nghiệp Vụ**:
-   * `POST /api/v1/mobile/crm/lead`: Tạo cơ hội bán hàng từ hội thoại.
-   * `POST /api/v1/mobile/helpdesk/ticket`: Tạo phiếu hỗ trợ từ hội thoại.
+   * Nhận tham số: `channel_id` (Integer bản ghi `im_livechat.channel`) và `web_session_uuid` (tùy chọn).
+   * Gọi hàm core: `im_livechat.channel._get_livechat_discuss_channel_vals(...)` để tạo kênh `discuss.channel` loại `livechat`.
+3. **Chuyển Đổi Nghiệp Vụ Chuẩn Odoo Core (Không chế API riêng)**:
+   * Kế thừa 100% cơ chế slash command `/lead` (`crm_livechat`) và `/ticket` (`website_helpdesk_livechat`) thực thi bởi Operator trên Odoo Discuss hoặc qua Chatbot Script Steps.
 
 ### 6.2. Phía Frontend VCloud Mobile App (`vclients`)
 1. **Giao Diện Chọn Nhu Cầu 1-Chạm**:
@@ -145,14 +145,14 @@ Khi luồng chat từ cả Website và App Mobile đều đi qua Live Chat Engin
    * **Trạng thái trực ca (🟢 Online Indicator)**: Hiển thị chấm xanh khi có Operator trực ca online thay cho tích xanh MXH tự chế.
    * **Tên người phản hồi & Bảo mật**: Hiển thị `OdooBot` hoặc bí danh `livechat_username` do nhân viên cài đặt trên Odoo; phía nhân viên thấy rõ tên và thông tin Portal của khách hàng.
    * **Đồng bộ phiên (Session Continuity)**: Kế thừa toàn bộ lịch sử tin nhắn từ phiên Web Live Chat sang App Mobile khi khách hàng đăng nhập Portal.
-   * **Thao tác nhanh**: Tích hợp sẵn nút Quick Action nhận báo giá (`crm.lead`) hoặc gửi phiếu hỗ trợ (`helpdesk.ticket`).
+   * **Trải nghiệm hội thoại tự nhiên**: Khung chat sạch sẽ, chuyên nghiệp, tập trung trao đổi nhu cầu mà không có nút bấm tự chế.
 
 ---
 
 ## 7. QUY CHUẨN ĐÓNG GÓI TINH GỌN (YAGNI & PONYTAIL)
 * **Chỉ giữ đúng 2 trụ cột cốt lõi**:
   1. Phân luồng Live Chat Session chuẩn Odoo (`Customer Care`, `Technical Support`).
-  2. Chuyển đổi nghiệp vụ 1-chạm (Chat ➔ Lead / Ticket kèm chat history).
+  2. Chuyển đổi nghiệp vụ chuẩn Odoo Core (Operator gõ `/lead`, `/ticket` hoặc Chatbot Odoo Core tự động).
 * **Tuyệt đối không đưa vào hệ thống các tính năng chưa cần thiết**:
   * ❌ Bỏ đánh giá Rating / Sao (`rating.rating`) & gửi email transcript.
   * ❌ Bỏ gọi thoại / gọi video WebRTC (`discuss.call`).

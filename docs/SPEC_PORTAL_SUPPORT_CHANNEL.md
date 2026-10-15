@@ -1,10 +1,10 @@
 # ĐẶC TẢ KỸ THUẬT (SPEC) — HỆ THỐNG LIVE CHAT OMNICHANNEL & PORTAL SUPPORT CHUẨN ODOO ENTERPRISE
 
-> **Mã tài liệu**: `docs/SPEC_PORTAL_SUPPORT_CHANNEL.md`  
+> **Mã tài liệu**: `vclients/docs/SPEC_PORTAL_SUPPORT_CHANNEL.md`  
 > **Hệ thống gốc**: Odoo Enterprise (Module `im_livechat`, `mail.discuss`, `crm_livechat`, `website_helpdesk_livechat`)  
 > **Nền tảng đồng bộ**: VCloud Mobile App (Flutter `vclients`) ⟷ Backend Addon `v_mobile` (Odoo 17 & 19)  
 > **Thẩm định & Phê duyệt**: Sếp Tân — 360 CORP  
-> **Trạng thái**: Chuẩn hóa 100% theo Odoo Core (Áp dụng nguyên tắc Ponytail & YAGNI)  
+> **Trạng thái**: Chuẩn hóa 100% theo Odoo Core (Áp dụng nguyên tắc Ponytail & YAGNI, Tuyệt đối KHÔNG chế tính năng hay API ngoài chuẩn Odoo)  
 > **Cập nhật lần cuối**: 2026-10-15  
 
 ---
@@ -15,10 +15,14 @@
 1. **Khắc phục triệt để lỗi 0 Sessions**: Chuyển từ cơ chế chat 1-1 với Admin hoặc nhóm tự chế (`channel_type: 'group'`) sang phiên Live Chat chuẩn Odoo (`channel_type: 'livechat'`), ghi nhận chính xác số ca trực thực tế trên menu `/home/livechat`.
 2. **Kế thừa 100% hạ tầng Odoo Discuss**: Đưa tin nhắn của khách hàng từ cả Website và App Mobile vào đúng mục **`Looking for help`** trong Odoo Discuss để nhân viên trong ca trực tiếp nhận theo thời gian thực.
 3. **Chuyển giao phiên liền mạch (Session Continuity)**: Khách trao đổi trên Web Live Chat, khi đăng nhập vào Portal App Mobile trên điện thoại sẽ kế thừa trọn vẹn toàn bộ lịch sử tin nhắn cũ.
-4. **Chuyển đổi nghiệp vụ 1-chạm (Chat ➔ Business)**: Cho phép chuyển nhanh nội dung hội thoại thành cơ hội bán hàng (**CRM Lead**) hoặc phiếu báo lỗi (**Helpdesk Ticket**) với toàn bộ lịch sử chat được tự động nhúng vào mô tả.
+4. **Chuyển đổi nghiệp vụ chuẩn Odoo Core (Chat ➔ Business)**: Kế thừa 100% cơ chế chuẩn Odoo `crm_livechat` (lệnh `/lead`) và `website_helpdesk_livechat` (lệnh `/ticket`). Operator trực ca gõ lệnh slash command trên Odoo Discuss hoặc Chatbot tự động chuyển đổi, lịch sử chat tự động nhúng vào mô tả. Khách hàng trên Mobile không phải làm thay việc của nhân viên và không bị ép tương tác với các nút bấm tự chế.
 
-### 2. Danh mục các ý tưởng sai bị loại bỏ hoàn toàn (Deprecated & Removed)
-Theo chỉ đạo và rà soát thực tế, các cách làm sau **bị loại bỏ hoàn toàn khỏi kiến trúc**:
+### 2. Danh mục các ý tưởng sai & tính năng tự chế bị loại bỏ hoàn toàn (Deprecated & Removed)
+Theo chỉ đạo và rà soát đối soát thực tế với Odoo 17, Odoo 19 và `vuahethong.net`, các cách làm sau **bị loại bỏ hoàn toàn khỏi kiến trúc**:
+* ❌ **Bỏ các nút bấm Quick Action trên Mobile (`[⭐ Nhận báo giá]`, `[🎫 Gửi yêu cầu hỗ trợ]`)**: Trong Odoo chuẩn nguyên bản, khách hàng chỉ là người chat trao đổi nhu cầu. Việc tạo Lead vào CRM hay Ticket vào Helpdesk là nghiệp vụ nội bộ của Operator hoặc Chatbot, khách hàng không tự bấm nút tạo Lead trong CRM.
+* ❌ **Bỏ 2 Endpoint REST API tự tạo (`POST /api/v1/mobile/crm/lead` và `POST /api/v1/mobile/helpdesk/ticket`)**: Odoo Core không dùng client REST để tạo Lead/Ticket từ livechat. Loại bỏ hoàn toàn để không chế API thừa thãi.
+* ❌ **Bỏ tham số tự chế `channel_alias`**: Odoo Core định danh kênh Live Chat bằng **`channel_id`** (Integer bản ghi `im_livechat.channel`), hoàn toàn không có trường alias. Sử dụng API lấy danh sách kênh `GET /api/v1/mobile/livechat/channels` và mở phiên bằng `channel_id`.
+* ❌ **Bỏ thẻ hệ thống "SystemNotificationCard" trong khung chat khách**: Khi Operator gõ `/lead` hoặc `/ticket`, Odoo chỉ gửi thông báo riêng (transient message) cho nhân viên trên Odoo Discuss, không spam thẻ nội bộ vào khung chat của khách hàng.
 * ❌ **Bỏ chat 1-1 với cá nhân Admin (`channel_type: 'chat'`)**: Gây nghẽn tại 1 tài khoản, các nhân viên trực ca không nhìn thấy.
 * ❌ **Bỏ tạo kênh nhóm tự chế (`channel_type: 'group'`) rồi gán cứng nhân viên tĩnh**: Phá vỡ cơ chế xoay ca trực của Live Chat.
 * ❌ **Bỏ gộp chung 1 kênh không phân loại nhu cầu**: Gây chồng chéo giữa tư vấn bán hàng và hỗ trợ kỹ thuật.
@@ -32,25 +36,27 @@ Theo chỉ đạo và rà soát thực tế, các cách làm sau **bị loại b
 
 ## II. HAI TRỤ CỘT KIẾN TRÚC DUY NHẤT (THE 2 CORE PILLARS)
 
-Hệ thống được đóng gói tinh gọn xoay quanh **đúng 2 trụ cột nghiệp vụ**:
+Hệ thống được đóng gói tinh gọn xoay quanh **đúng 2 trụ cột nghiệp vụ chuẩn Odoo Core**:
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
 │                        TRỤ CỘT 1: LIVE CHAT SESSIONS & PHÂN LUỒNG                      │
 │                                                                                        │
 │   Khách hàng Portal ───► Chọn kênh hỗ trợ ───► Tạo discuss.channel (type: livechat)    │
-│                                                     │                                  │
-│                                                     ▼                                  │
-│                         Phân bổ tới Operator online trong "Looking for help"           │
-│                         (Đếm đúng số Sessions tại /home/livechat)                      │
+│   (Mobile App)           (im_livechat.channel)              │                          │
+│                                                             ▼                          │
+│                                         Phân bổ tới Operator online trong              │
+│                                         mục "Looking for help" trên Odoo Discuss       │
+│                                         (Đếm đúng số Sessions tại /home/livechat)      │
 └───────────────────────────────────────────┬────────────────────────────────────────────┘
                                             │
                                             ▼
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│                    TRỤ CỘT 2: CHUYỂN ĐỔI NGHIỆP VỤ 1-CHẠM (QUICK ACTIONS)              │
+│             TRỤ CỘT 2: CHUYỂN ĐỔI NGHIỆP VỤ CHUẨN ODOO CORE (SLASH COMMANDS)           │
 │                                                                                        │
-│   [⭐ Nhận báo giá]  ───► Tạo crm.lead (Tự động bốc Chat History vào description)       │
-│   [🎫 Gửi báo lỗi]    ───► Tạo helpdesk.ticket (Tự động bốc Chat History vào description)│
+│   Operator gõ /lead   ───► Odoo crm_livechat tạo crm.lead (Bốc tự động Chat History)   │
+│   Operator gõ /ticket ───► Odoo website_helpdesk_livechat tạo helpdesk.ticket          │
+│   (Hoặc Chatbot Step) ───► Tự động tạo Lead/Ticket qua kịch bản Chatbot Odoo Core      │
 └────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -58,29 +64,70 @@ Hệ thống được đóng gói tinh gọn xoay quanh **đúng 2 trụ cột n
 
 ## III. ĐẶC TẢ MÔ HÌNH DỮ LIỆU ODOO (DATA MODELS)
 
-| Model kỹ thuật | Vai trò & Quy cách sử dụng |
+| Model kỹ thuật | Vai trò & Quy cách sử dụng chuẩn Odoo Core |
 |---|---|
-| **`im_livechat.channel`** | Cấu hình 2 kênh hỗ trợ chuẩn của tổ chức: `Customer Care` (CSKH / Bán hàng) và `Technical Support` (Kỹ thuật). Quản lý danh sách Operator trực ca. |
-| **`discuss.channel`** | Bản ghi phiên hội thoại. Bắt buộc: `channel_type = 'livechat'`, liên kết `livechat_channel_id`. Tên kênh lấy động từ `im_livechat.channel.name`. |
+| **`im_livechat.channel`** | Cấu hình các kênh hỗ trợ của tổ chức: `Customer Care` (CSKH / Bán hàng) và `Technical Support` (Kỹ thuật). Quản lý danh sách Operator trực ca (`user_ids`), ảnh đại diện (`image_128`), kịch bản Chatbot (`chatbot_script_id`). |
+| **`discuss.channel`** | Bản ghi phiên hội thoại. Bắt buộc: `channel_type = 'livechat'`, liên kết `livechat_channel_id`. Tên kênh sinh tự động từ logic Odoo Core `_get_livechat_discuss_channel_vals(...)`. |
 | **`discuss.channel.member`** | Quản lý các thành viên trong phiên: Khách hàng Portal (`res.partner`) + Operator nội bộ được phân bổ. |
-| **`crm.lead`** | Bản ghi cơ hội bán hàng sinh ra từ Quick Action, trường `description` tự động kế thừa `_get_channel_history()`. |
-| **`helpdesk.ticket`** | Bản ghi phiếu hỗ trợ sinh ra từ Quick Action, trường `description` tự động kế thừa `_get_channel_history()`. |
+| **`crm.lead`** | Bản ghi cơ hội bán hàng sinh ra từ lệnh `/lead` của Operator trong Odoo Discuss hoặc Chatbot Step `create_lead` (`crm_livechat`). Trường `description` tự động nhúng trọn vẹn `_get_channel_history()`. |
+| **`helpdesk.ticket`** | Bản ghi phiếu hỗ trợ sinh ra từ lệnh `/ticket` của Operator trong Odoo Discuss hoặc Chatbot Step `create_ticket` (`website_helpdesk_livechat`). Trường `description` tự động nhúng trọn vẹn `_get_channel_history()`. |
 
 ---
 
 ## IV. ĐẶC TẢ API CONTRACT (BACKEND `v_mobile`)
 
-### 1. Endpoint: Mở / Lấy Phiên Live Chat Cho Portal User
+Toàn bộ API được thiết kế dựa trên các phương thức có sẵn của Odoo Core, tuyệt đối không tạo endpoint thừa.
+
+### 1. Endpoint: Lấy Danh Sách Kênh Live Chat
+* **URL**: `GET /api/v1/mobile/livechat/channels`
+* **Headers**: `Authorization: Bearer <jwt_token>`
+* **Logic Backend**:
+  * Đọc các bản ghi `im_livechat.channel` đang active trong hệ thống.
+  * Kiểm tra danh sách Operator đang online (`available_operator_ids`).
+* **Response (200 OK)**:
+  ```json
+  {
+    "success": true,
+    "data": [
+      {
+        "id": 1,
+        "name": "Customer Care",
+        "description": "Tư vấn sản phẩm, chính sách giá, hợp đồng dịch vụ",
+        "avatar_url": "/api/v1/mobile/avatar/im_livechat.channel/1?field=image_128",
+        "is_available": true,
+        "default_message": "Dạ em xin chào Quý khách! Em có thể hỗ trợ gì cho anh/chị ạ?"
+      },
+      {
+        "id": 2,
+        "name": "Technical Support",
+        "description": "Báo lỗi phần mềm, hướng dẫn vận hành, khắc phục sự cố kỹ thuật",
+        "avatar_url": "/api/v1/mobile/avatar/im_livechat.channel/2?field=image_128",
+        "is_available": true,
+        "default_message": "Chào bạn! Bộ phận kỹ thuật sẵn sàng hỗ trợ xử lý sự cố."
+      }
+    ]
+  }
+  ```
+
+---
+
+### 2. Endpoint: Mở / Lấy Phiên Live Chat Cho Portal User
 * **URL**: `POST /api/v1/mobile/livechat/session`
 * **Headers**: `Authorization: Bearer <jwt_token>`
 * **Request Body**:
   ```json
   {
-    "channel_alias": "customer_care",
+    "channel_id": 1,
     "web_session_uuid": "b7fbb80a-900e-410b-8e12-cskh360corp01"
   }
   ```
-  *(Ghi chú: `channel_alias` nhận `customer_care` hoặc `technical_support`. `web_session_uuid` là tham số tùy chọn khi khách hàng muốn nối lại phiên chat dở trên Website).*
+  *(Ghi chú: `channel_id` là ID bản ghi `im_livechat.channel` chuẩn Odoo. `web_session_uuid` là tham số tùy chọn khi khách muốn nối lại phiên chat dở trên Website).*
+* **Logic Backend (Gọi trực tiếp Odoo Core)**:
+  * Xác thực JWT token của Portal User ➔ lấy `user_id` và `partner_id`.
+  * Nếu có `web_session_uuid`: Tìm `discuss.channel` có `uuid` tương ứng và liên kết thêm `partner_id` của khách hàng vào kênh.
+  * Nếu không có hoặc phiên cũ đã đóng: Gọi hàm Odoo Core `im_livechat.channel.browse(channel_id)._get_livechat_discuss_channel_vals(...)` với `user_id=uid`.
+  * Tạo bản ghi `discuss.channel` chuẩn với `channel_type = 'livechat'`.
+  * Trả về thông tin phiên hội thoại.
 * **Response (200 OK / 201 Created)**:
   ```json
   {
@@ -110,78 +157,24 @@ Hệ thống được đóng gói tinh gọn xoay quanh **đúng 2 trụ cột n
 
 ---
 
-### 2. Endpoint: Tạo Cơ Hội Bán Hàng (CRM Lead) 1-Chạm
-* **URL**: `POST /api/v1/mobile/crm/lead`
-* **Headers**: `Authorization: Bearer <jwt_token>`
-* **Request Body**:
-  ```json
-  {
-    "channel_id": 1420,
-    "title": "Khách hàng quan tâm báo giá dịch vụ Cloud"
-  }
-  ```
-* **Logic Backend**:
-  * Kiểm tra quyền truy cập vào `discuss.channel` ID 1420.
-  * Tự động trích xuất toàn bộ lịch sử tin nhắn qua `channel._get_channel_history()`.
-  * Tạo bản ghi `crm.lead`:
-    - `name`: Tiêu đề do khách/nhân viên gửi hoặc mặc định `"Yêu cầu báo giá từ Live Chat"`.
-    - `partner_id`: ID của khách hàng Portal (`me_partner.id`).
-    - `description`: Toàn bộ nội dung hội thoại vừa trao đổi.
-    - `source_id`: Nguồn Live Chat (`crm_livechat.utm_source_livechat`).
-* **Response (200 OK)**:
-  ```json
-  {
-    "success": true,
-    "data": {
-      "lead_id": 452,
-      "lead_name": "Khách hàng quan tâm báo giá dịch vụ Cloud",
-      "message": "Đã gửi yêu cầu báo giá thành công. Chuyên viên kinh doanh sẽ liên hệ trong ít phút!"
-    }
-  }
-  ```
-
----
-
-### 3. Endpoint: Tạo Phiếu Hỗ Trợ (Helpdesk Ticket) 1-Chạm
-* **URL**: `POST /api/v1/mobile/helpdesk/ticket`
-* **Headers**: `Authorization: Bearer <jwt_token>`
-* **Request Body**:
-  ```json
-  {
-    "channel_id": 1420,
-    "title": "Báo sự cố kết nối thiết bị"
-  }
-  ```
-* **Logic Backend**:
-  * Tự động trích xuất toàn bộ lịch sử tin nhắn qua `channel._get_channel_history()`.
-  * Tạo bản ghi `helpdesk.ticket`:
-    - `name`: Tiêu đề sự cố.
-    - `partner_id`: ID của khách hàng Portal (`me_partner.id`).
-    - `description`: Toàn bộ nội dung hội thoại mô tả lỗi.
-* **Response (200 OK)**:
-  ```json
-  {
-    "success": true,
-    "data": {
-      "ticket_id": 1025,
-      "ticket_code": "#TCK-1025",
-      "message": "Đã ghi nhận phiếu hỗ trợ #TCK-1025. Kỹ sư kỹ thuật đang xử lý sự cố."
-    }
-  }
-  ```
+### 3. Gửi & Nhận Tin Nhắn Hội Thoại
+* **API Sử Dụng**: Tái sử dụng 100% các API chat sẵn có của `v_mobile`:
+  * Gửi tin nhắn: `POST /api/v1/mobile/chat/messages` với `channel_id` của phiên livechat.
+  * Đọc lịch sử tin nhắn: `GET /api/v1/mobile/chat/channels/<channel_id>/messages`.
+* **Tuyệt đối không tạo API riêng**: Không cần thêm bất kỳ endpoint gửi/nhận tin nhắn đặc thù nào cho Livechat vì `discuss.channel` là mô hình cốt lõi dùng chung cho toàn bộ hệ thống Discuss của Odoo.
 
 ---
 
 ## V. ĐẶC TẢ CHI TIẾT GIAO DIỆN FRONTEND FLUTTER (`vclients`)
 
-Ứng dụng Flutter triển khai chuẩn thiết kế công nghệ cao cấp **360 CORP (Tech Royal Blue `#0077cd` & Digital Green `#00ce2c`)**, loại bỏ hoàn toàn các asset hardcode (`branding/cskh_logo_360.png`, tích xanh MXH) để chuyển sang giao diện động 100% kết nối với Odoo Live Chat.
+Ứng dụng Flutter triển khai chuẩn thiết kế công nghệ cao cấp **360 CORP (Tech Royal Blue `#0077cd` & Digital Green `#00ce2c`)**, loại bỏ hoàn toàn các asset hardcode (`branding/cskh_logo_360.png`, tích xanh MXH) và loại bỏ toàn bộ các nút bấm Quick Action tự chế.
 
 ---
 
 ### 1. Sơ Đồ Giao Diện Trực Quan (UI Wireframes)
 
 #### A. BottomSheet Chọn Kênh Hỗ Trợ (Support Channel Selection Sheet)
-Mở ra khi khách hàng Portal chạm vào nút "Hỗ Trợ" trên Trang Chủ hoặc thanh điều hướng:
+Mở ra khi khách hàng Portal chạm vào nút "Hỗ Trợ" trên Trang Chủ hoặc thanh điều hướng (Dữ liệu load động từ `GET /api/v1/mobile/livechat/channels`):
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
@@ -193,7 +186,7 @@ Mở ra khi khách hàng Portal chạm vào nút "Hỗ Trợ" trên Trang Chủ 
 │  ┌───────────────────────────────────────────────────────┐  │
 │  │ 🟢 Customer Care (CSKH & Kinh Doanh)                  │  │
 │  │    Tư vấn sản phẩm, chính sách giá, hợp đồng dịch vụ  │  │
-│  │    và nhận báo giá ưu đãi độc quyền 360 CORP.         │  │
+│  │    và giải đáp thông tin ưu đãi 360 CORP.             │  │
 │  │    ────────────────────────────────────────────────── │  │
 │  │    🟢 Đang có chuyên viên trực ca • Phản hồi ~2 phút  │  │
 │  └───────────────────────────────────────────────────────┘  │
@@ -212,7 +205,7 @@ Mở ra khi khách hàng Portal chạm vào nút "Hỗ Trợ" trên Trang Chủ 
 ---
 
 #### B. Màn Hình Hội Thoại Chi Tiết (`ChatV2DetailScreen`)
-Sau khi chọn kênh, chuyển hướng vào màn hình chat Live Chat chuẩn:
+Sau khi chọn kênh, chuyển hướng vào màn hình chat Live Chat chuẩn nguyên bản (Thanh thoát, không có nút bấm tự chế):
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
@@ -235,54 +228,14 @@ Sau khi chọn kênh, chuyển hướng vào màn hình chat Live Chat chuẩn:
 │                                                       10:31 │
 │  ┌───────────────┐                                          │
 │  │ 👨‍💼 Tư vấn 01  │ Dạ em chào anh Tân! Em là chuyên viên tư │
-│  └───────────────┘ vấn của 360. Em gửi anh báo giá ngay ạ.  │
+│  └───────────────┘ vấn của 360. Em hỗ trợ gửi anh thông tin │
+│                    báo giá chi tiết ngay đây ạ.             │
 │                                                       10:32 │
 │                                                             │
-├─────────────────────────────────────────────────────────────┤
-│ [⭐ Nhận báo giá (CRM Lead)]     [🎫 Gửi yêu cầu hỗ trợ]    │  <-- Thanh Quick Actions cố định
 ├─────────────────────────────────────────────────────────────┤
 │ [+]  Nhập tin nhắn hỗ trợ...                         [ 🎙️ ] [ ➤ ] │
 └─────────────────────────────────────────────────────────────┘
 ```
-
----
-
-#### C. Thẻ Xác Nhận Hành Động Nhanh (Quick Action Confirmation Toast / Card)
-Khi khách bấm vào 1 trong 2 nút Quick Action trên thanh tiện ích:
-
-* **Khi bấm `[⭐ Nhận báo giá]`**:
-  * Hiển thị BottomSheet xác nhận ngắn:
-    ```text
-    ┌─────────────────────────────────────────────────────────┐
-    │ ⭐ GỬI YÊU CẦU BÁO GIÁ NHANH                            │
-    │ Hệ thống sẽ chuyển toàn bộ nội dung trao đổi vừa rồi    │
-    │ thành Cơ Hội Bán Hàng gửi riêng cho Chuyên viên Kinh    │
-    │ doanh liên hệ với bạn kèm bảng giá chi tiết.            │
-    │                                                         │
-    │ [ Hủy ]                       [ Xác nhận gửi yêu cầu ]  │
-    └─────────────────────────────────────────────────────────┘
-    ```
-  * Sau khi gửi thành công: Ngay trong phòng chat tự động xuất hiện 1 thẻ thông báo chuyên nghiệp:
-    ```text
-    ┌─────────────────────────────────────────────────────────┐
-    │ 📢 THÔNG BÁO HỆ THỐNG                                   │
-    │ ✅ Đã khởi tạo Cơ hội Báo giá thành công!                │
-    │ Mã hồ sơ: #LEAD-2026-089                                │
-    │ Chuyên viên kinh doanh đang chuẩn bị báo giá cho bạn.   │
-    └─────────────────────────────────────────────────────────┘
-    ```
-
-* **Khi bấm `[🎫 Gửi yêu cầu hỗ trợ]`**:
-  * Hiển thị form ngắn 1 trường: *"Tóm tắt sự cố (nếu có)"* hoặc bấm Gửi ngay.
-  * Phản hồi thẻ Ticket trong chat:
-    ```text
-    ┌─────────────────────────────────────────────────────────┐
-    │ 🎫 PHIẾU HỖ TRỢ KỸ THUẬT                                │
-    │ Mã phiếu: #TCK-1025                                     │
-    │ Trạng thái: Đang tiếp nhận (In Progress)                │
-    │ Kỹ sư phần mềm đang kiểm tra log hệ thống.              │
-    └─────────────────────────────────────────────────────────┘
-    ```
 
 ---
 
@@ -304,13 +257,7 @@ ChatV2DetailScreen
 │   └── MessageListView
 │       ├── ChatBotMessageBubble (Avatar OdooBot + Badge Bot + Bubble xám nhạt)
 │       ├── OperatorMessageBubble (Avatar Operator + Tên livechat_username + Bubble trắng)
-│       ├── CustomerMessageBubble (Bubble xanh Tech Royal Blue #0077cd + Text trắng)
-│       └── SystemNotificationCard (Render thẻ xác nhận Lead #LEAD-xxx / Ticket #TCK-xxx)
-│
-├── LiveChatQuickActionsBar (SizedBox cố định chiều cao 44dp, padding horizontal 12)
-│   └── ListView (Cuộn ngang nếu màn hình nhỏ)
-│       ├── QuickActionChip (Icon: LucideIcons.star, Label: "Nhận báo giá", Primary Tint)
-│       └── QuickActionChip (Icon: LucideIcons.ticket, Label: "Gửi yêu cầu hỗ trợ", Accent Tint)
+│       └── CustomerMessageBubble (Bubble xanh Tech Royal Blue #0077cd + Text trắng)
 │
 └── LiveChatMessageComposer (Chat Composer chuẩn)
     ├── AttachmentButton (Upload ảnh / tài liệu đính kèm)
@@ -323,10 +270,8 @@ ChatV2DetailScreen
 ### 3. Quy Chuẩn Màu Sắc, Phông Chữ & Tokens Giao Diện (Design Tokens)
 
 * **Bảng màu chủ đạo**:
-  * **Primary (Thương hiệu chính)**: `#0077cd` (Tech Royal Blue — dùng cho nút gửi, card active, bubble tin nhắn của khách, viền thẻ CSKH).
-  * **Success / Online (Trạng thái ca trực)**: `#00ce2c` (Digital Green — dùng cho chấm đèn 🟢 Online Indicator, tag badge tiếp nhận).
-  * **Warning / Lead**: `#f59e0b` (Amber 500 — dùng cho icon nhận báo giá và thẻ Lead).
-  * **Info / Ticket**: `#3b82f6` (Blue 500 — dùng cho icon phiếu hỗ trợ Helpdesk).
+  * **Primary (Thương hiệu chính)**: `#0077cd` (Tech Royal Blue — dùng cho nút gửi, card active, bubble tin nhắn của khách).
+  * **Success / Online (Trạng thái ca trực)**: `#00ce2c` (Digital Green — dùng cho chấm đèn 🟢 Online Indicator).
   * **Nền giao diện (Surface)**: `#f8fafc` (Slate 50 — nền màn hình chat sạch sẽ, chống mỏi mắt).
   * **Văn bản (Typography Contrast)**:
     * Tiêu đề chính: Slate 900 (`#0f172a`), font-weight: `w600`.
@@ -335,19 +280,17 @@ ChatV2DetailScreen
 * **Quy chuẩn Bo góc & Khoảng cách (Spacings)**:
   * Thẻ chọn kênh: `BorderRadius.circular(16)`.
   * Bubble tin nhắn: `BorderRadius.circular(16)` với góc nhọn 4dp ở phía người gửi.
-  * Chip Quick Action: `BorderRadius.circular(20)` (Pill shape), viền `1dp` màu `#cbd5e1`.
 
 ---
 
 ### 4. Quản Lý Trạng Thái Giao Diện Bằng Riverpod (State Management)
 
-1. **`liveChatChannelProvider`**:
-   * Quản lý trạng thái khởi tạo phiên từ API `POST /api/v1/mobile/livechat/session`.
-   * Cung cấp các cờ phản ứng UI: `isLoading`, `channelId`, `isOperatorOnline`, `channelName`, `operatorName`.
-2. **`quickActionControllerProvider`**:
-   * Quản lý các đột biến thao tác nhanh (Mutation):
-     - `createCrmLead(channelId, note)`: Hiển thị loading spinner trên chip, sau khi thành công tự động chèn 1 bản ghi tin nhắn hệ thống vào danh sách chat.
-     - `createHelpdeskTicket(channelId, note)`: Hiển thị thông báo mã `#TCK-xxx` và mở rộng thông tin theo dõi.
+1. **`liveChatChannelListProvider`**:
+   * Gọi API `GET /api/v1/mobile/livechat/channels`.
+   * Cung cấp danh sách các kênh Live Chat động cho BottomSheet chọn kênh.
+2. **`liveChatSessionProvider`**:
+   * Quản lý trạng thái phiên chat từ API `POST /api/v1/mobile/livechat/session`.
+   * Cung cấp các thông tin phản ứng UI: `channelId`, `isOperatorOnline`, `channelName`, `operatorName`.
 3. **Web-to-Mobile Continuity Listener**:
    * Khi khởi động App: Nếu trong bộ nhớ tạm (`FlutterSecureStorage`) có lưu `web_session_uuid` từ lần quét QR hoặc đăng nhập Portal, App tự động nạp phiên cũ và nhảy vào phòng chat mà không bắt khách chọn lại từ đầu.
 
@@ -355,7 +298,7 @@ ChatV2DetailScreen
 
 ## VI. BỘ 10 CASE KIỂM THỬ ĐỘC LẬP (VERIFICATION TEST MATRIX)
 
-| Mã Case | Tình huống kiểm thử | Hành vi mong đợi | Tiêu chuẩn Đạt |
+| Mã Case | Tình huống kiểm thử | Hành vi mong đợi chuẩn Odoo Core | Tiêu chuẩn Đạt |
 |---|---|---|:---:|
 | **TC-01** | Khách chọn kênh `Customer Care` trên Mobile | Khởi tạo phiên Live Chat với `channel_type = 'livechat'`. | ĐẠT |
 | **TC-02** | Khách chọn kênh `Technical Support` trên Mobile | Khởi tạo phiên Live Chat phân bổ tới kỹ thuật viên trực ca. | ĐẠT |
@@ -364,6 +307,6 @@ ChatV2DetailScreen
 | **TC-05** | Nhận diện tiêu đề Header trên App Mobile | Header hiển thị đúng tên kênh từ Odoo, không bị gán cứng chữ "Chăm Sóc Khách Hàng 360". | ĐẠT |
 | **TC-06** | Trạng thái trực ca của nhân viên | Hiển thị chấm xanh trực tuyến 🟢 khi Operator online; chuyển xám khi không có ai trực. | ĐẠT |
 | **TC-07** | Nhận diện danh tính người phản hồi | Hiển thị `OdooBot` hoặc `livechat_username`, không làm lộ thông tin cá nhân nội bộ. | ĐẠT |
-| **TC-08** | Khách bấm nút Quick Action "Nhận báo giá" | Tạo thành công `crm.lead`, phần mô tả của Lead có đầy đủ nội dung đoạn chat. | ĐẠT |
-| **TC-09** | Khách bấm nút Quick Action "Gửi yêu cầu hỗ trợ"| Tạo thành công `helpdesk.ticket`, mô tả phiếu nhúng trọn vẹn lịch sử đoạn chat. | ĐẠT |
+| **TC-08** | Operator gõ `/lead [tiêu đề]` trong Odoo Discuss | Odoo Core (`crm_livechat`) tạo `crm.lead`, trường `description` có đầy đủ nội dung đoạn chat. | ĐẠT |
+| **TC-09** | Operator gõ `/ticket [tiêu đề]` trong Odoo Discuss | Odoo Core (`website_helpdesk_livechat`) tạo `helpdesk.ticket`, trường `description` nhúng trọn vẹn lịch sử đoạn chat. | ĐẠT |
 | **TC-10** | Đồng bộ phiên từ Web sang App (Session Continuity)| Khách chat trên web, đăng nhập vào App Mobile thấy lại toàn bộ tin nhắn cũ. | ĐẠT |
