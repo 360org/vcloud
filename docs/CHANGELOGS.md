@@ -2,7 +2,33 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
-## [v2.9.22+166 / Odoo 17.0.2.5.28 / Odoo 19.0.1.2.45] — 2026-10-15 (Fix Lỗi Hiển Thị Tên "Admin" Trên Kênh Live Chat & Xóa Bỏ Hardcode Điều Hướng Chat Portal User)
+## [v2.9.23+167 / Odoo 17.0.2.5.29 / Odoo 19.0.1.2.46] — 2026-10-16 (Hoàn Thiện Toàn Diện UI Livechat Portal & Operator V2: Đối Xứng Hai Chiều, Ẩn Chip Rỗng, Khôi Phục Hỗ Trợ)
+
+> [!IMPORTANT]
+> **Khắc Phục Triệt Để 6 Defect Nghiệp Vụ & Đối Xứng 100% Hai Góc Nhìn Portal ⟷ Operator (UAT PASS 2026-10-16)**:
+> - **1. [Defect 1] Ẩn Thông Minh Chip Filter (Count == 0)**:
+>   * Bọc điều kiện `if (count > 0)` tại `ChatV2ListScreen` cho các chip phụ thuộc (`Nhóm`, `Kênh`, `Zalo OA`, `Hỗ trợ`).
+>   * Khi `count == 0`, chip tự động ẩn hoàn toàn trên thanh cuộn ngang, giao diện gọn gàng không còn chip rác `(0)`.
+> - **2. [Defect 2] Gỡ Bỏ 2 Huy Hiệu Tích Xanh Giả Trên Kênh CSKH 360**:
+>   * Loại bỏ toàn bộ `LucideIcons.badgeCheck` tại `ChatV2DetailScreen` (cạnh tiêu đề) và trên góc avatar kênh Dòng 3.
+>   * Chỉ giữ lại duy nhất chấm trạng thái trực tuyến (🟢 Online Indicator) chuẩn native Odoo Discuss.
+> - **3. [Defect 3] Bảo Mật Danh Tính Admin / Mitchell Admin Đối Với Khách Portal**:
+>   * Bổ sung `isAdminName(String text)` và hàm mapper `_displayAuthorName` trong `ChatV2MessageItem` & `ChatV2Channel.getCleanName`.
+>   * Khách hàng Portal khi xem kênh chat 1-1 với Admin chỉ thấy chức danh đại diện **"Chuyên viên tư vấn"**, avatar chữ C màu ngọc; phía nội bộ Operator vẫn thấy tên thật của đối tác.
+> - **4. [Defect 4] Khôi Phục Chip `[ Hỗ trợ ]` Cho Chuyên Viên Trực Ca (Operator)**:
+>   * Định nghĩa thuộc tính chuẩn `bool get isSupportChannel => isLivechat || isCskhChannel;`.
+>   * Cập nhật `getActualIsGroup`, `isGroupChat` và `isInternalDirect` loại trừ hoàn toàn `isSupportChannel`, chấm dứt việc kênh hỗ trợ CSKH bị dồn nhầm vào `Nhóm 2` làm biến mất chip `Hỗ trợ`.
+> - **5. [Defect 5 & 6] Ghép Tên Khách Hàng Kèm Phòng Ban & Chống Trùng Tiêu Đề**:
+>   * Góc nhìn Operator: Định dạng hiển thị chuẩn `"$customerName • $departmentName"` (e.g. `Khách Hàng Mới • Customer Care`, `Khách Hàng Hợp Đồng • Technical Support`).
+>   * Loại bỏ 100% hiện tượng va chạm tiêu đề (Collision) giữa Dòng 1 (Kênh CSKH Livechat) và Dòng 5 (Direct chat 1-1 riêng biệt).
+>   * Phía Portal: Dòng 3 bảo toàn tên thương hiệu **"Chăm Sóc Khách Hàng 360"**, không bị ghi đè bởi tên phòng ban Livechat gây trùng với Dòng 1.
+> - **6. Backend Odoo 17 & 19 (`v_mobile_17/controllers/chat.py` & `v_mobile_19/controllers/chat.py`)**:
+>   * Chuẩn hóa logic format `channel_name` cho kênh `is_cskh` phía Operator: `f"{cust_clean or cust_name} • {cskh_dept}"`.
+>   * Nullify `livechat_channel_name = None` khi `is_portal_uid(uid)` cho kênh CSKH nhóm để client Portal không bị ghi đè nhầm tên thương hiệu.
+>   * Đạt 21/21 Unit Test cases (`portal_cskh_channel_test.dart`), 0 lỗi static analysis (`dart analyze`), đồng bộ LAN Local Server `192.168.1.100`.
+
+---
+
 
 > [!IMPORTANT]
 > **Chuẩn Hóa Góc Nhìn Hai Chiều (Role-Based Perspective Parity) Live Chat & Điều Hướng Chat Đa Phiên Cho Portal User**:

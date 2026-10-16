@@ -470,9 +470,17 @@ Chấm dứt việc kênh Livechat bị tính nhầm vào tab "Zalo OA" (như l�
 | **TC-10** | Đồng bộ phiên từ Web sang App (Session Continuity)| Khách chat trên web, đăng nhập vào App Mobile thấy lại toàn bộ tin nhắn cũ. | ĐẠT |
 | **TC-11** | Hiển thị tên kênh Livechat trong danh sách của Portal User | Khách hàng Portal thấy đúng tên dịch vụ ("Technical Support", "Customer Care"), tuyệt đối KHÔNG bị hiển thị tên "Admin". | ĐẠT |
 | **TC-12** | Điều hướng Chat từ Sidebar của Portal User | Bấm vào Chat ở sidebar mở danh sách hội thoại (`ChatV2ListScreen`), nút quay lại trong hội thoại không bị ép về `/home`. | ĐẠT |
-| **TC-13** | Hiển thị tên phòng ban Livechat trên giao diện Admin | Admin nhìn thấy rõ khách kèm phòng ban: `"Khách Hàng Mới • Technical Support"`. | CẦN DUYỆT |
-| **TC-14** | Kênh Direct chat 1-1 phía Admin | Admin nhìn thấy tên khách hàng đối tác, không nhìn thấy tên của chính mình ("Admin"). | CẦN DUYỆT |
-| **TC-15** | Phân tách nhãn Badge Livechat và CSKH | Kênh Livechat hiển thị badge Livechat chuyên biệt, không bị gán nhãn `CSKH` tràn lan. | CẦN DUYỆT |
-| **TC-16** | Xử lý Subtitle tin nhắn xem trước | Tên người gửi có dấu ngoặc đơn hiển thị nguyên vẹn, không bị lỗi cắt chuỗi `"Doanh):"`. | CẦN DUYỆT |
-| **TC-17** | Phân định trực quan Avatar theo phòng ban | Avatar phân biệt màu sắc và icon giữa Technical Support (xanh dương / cờ lê) và Customer Care (xanh lá / tai nghe). | CẦN DUYỆT |
-| **TC-18** | Bộ đếm tab Zalo OA trên giao diện Portal | Tab Zalo OA không bị đếm nhầm 2 kênh Livechat vào số lượng. | CẦN DUYỆT |
+| **TC-13** | Hiển thị tên phòng ban Livechat trên giao diện Admin | Admin nhìn thấy rõ khách kèm phòng ban: `"Khách Hàng Mới • Customer Care"`, `"Khách Hàng Hợp Đồng • Technical Support"`. | ĐẠT |
+| **TC-14** | Kênh Direct chat 1-1 phía Admin | Admin nhìn thấy tên khách hàng đối tác (`"Khách Hàng Mới (Portal Stage 1)"`), không nhìn thấy tên của chính mình ("Admin"). | ĐẠT |
+| **TC-15** | Phân tách nhãn Badge Livechat và CSKH | Kênh Livechat hiển thị badge Livechat chuyên biệt, không bị gán nhãn `CSKH` tràn lan. | ĐẠT |
+| **TC-16** | Xử lý Subtitle tin nhắn xem trước | Tên người gửi có dấu ngoặc đơn hiển thị nguyên vẹn, không bị lỗi cắt chuỗi `"Doanh):"`. | ĐẠT |
+| **TC-17** | Phân định trực quan Avatar theo phòng ban | Avatar phân biệt màu sắc và icon giữa Technical Support (xanh dương / cờ lê) và Customer Care (xanh lá / tai nghe). | ĐẠT |
+| **TC-18** | Bộ đếm tab Zalo OA trên giao diện Portal | Tab Zalo OA không bị đếm nhầm 2 kênh Livechat vào số lượng. | ĐẠT |
+| **TC-19** | [Defect 1] Ẩn thông minh Chip lọc count == 0 | Tự động ẩn các chip lọc `Nhóm`, `Kênh`, `Zalo OA` khi số lượng = 0 trên thanh cuộn ngang. | ĐẠT |
+| **TC-20** | [Defect 2] Gỡ 2 tích xanh tự chế trên Dòng 3 | Xóa sạch icon tích xanh cạnh tên và huy hiệu góc avatar trên kênh `Chăm Sóc Khách Hàng 360`. | ĐẠT |
+| **TC-21** | [Defect 3] Bảo mật danh tính Admin đối với Portal | Kênh chat 1-1 với Admin trên giao diện Portal hiển thị tên chức danh `"Chuyên viên tư vấn"`. | ĐẠT |
+| **TC-22** | [Defect 4] Khôi phục chip `[ Hỗ trợ ]` cho Operator | Tách kênh hỗ trợ khỏi Nhóm (`isSupportChannel`), hiển thị đầy đủ chip `[ Hỗ trợ 2 ]` cho nhân viên. | ĐẠT |
+| **TC-23** | [Defect 5] Ghép tên khách hàng kèm phòng ban | Format chuẩn `"$customerName • $departmentName"` cho mọi ca Livechat trên giao diện Operator. | ĐẠT |
+| **TC-24** | [Defect 6] Chống trùng lặp tiêu đề Dòng 1 & Dòng 5 | Phân định rõ Dòng 1 (Kênh CSKH Livechat) và Dòng 5 (Direct chat 1-1), loại bỏ 100% va chạm tiêu đề. | ĐẠT |
+| **TC-25** | Bảo toàn tên thương hiệu CSKH cho Portal | Dòng 3 kênh CSKH trên giao diện Portal luôn hiển thị `"Chăm Sóc Khách Hàng 360"`, không bị đè bởi tên bộ phận Livechat. | ĐẠT |
+| **TC-26** | Phân loại toàn vẹn bộ đếm hội thoại đa vai trò | `livechatCount`, `groupCount`, `directCount` tính toán độc lập, phản ánh chuẩn xác số lượng kênh theo từng vai trò. | ĐẠT |

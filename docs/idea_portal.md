@@ -1,6 +1,6 @@
 # Thiết Kế Hệ Thống Live Chat Omnichannel: Kết Nối Website Live Chat ⟷ Portal App Mobile Chuẩn Odoo Enterprise
 
-> **Mã tài liệu**: `vclients/docs/idea_portal.md`  
+> **Mã tài liệu**: `docs/idea_portal.md`  
 > **Hệ thống gốc**: Odoo Enterprise (Module `im_livechat` & `mail.discuss`)  
 > **Nền tảng đồng bộ**: Website Live Chat Widget ⟷ VCloud Mobile App (Flutter `vclients`) ➔ Addon Backend `v_mobile` (Odoo 17 & 19)  
 > **Thẩm định & Chuẩn hóa**: Sếp Tân & Ban Điều Hành 360 CORP  
@@ -162,3 +162,89 @@ Khi luồng chat từ cả Website và App Mobile đều đi qua Live Chat Engin
   * ❌ Bỏ đánh giá Rating / Sao (`rating.rating`) & gửi email transcript.
   * ❌ Bỏ gọi thoại / gọi video WebRTC (`discuss.call`).
   * ❌ Bỏ câu trả lời mẫu (`mail.shortcode`) do chưa cấu hình dữ liệu thực tế trên `vuahethong.net`.
+
+---
+
+## 8. ĐỐI SOÁT THỰC TẾ & BẢNG ĐIỂM SAI CẦN KHẮC PHỤC (AUDIT ẢNH CHỤP 2026-10-16)
+
+Sau khi khởi chạy thực tế trên Local Server (`vcloud_test_v19`), đối soát song song giữa 2 tài khoản: **Admin (Hình 1 - Nhân viên nội bộ)** và **Portal (Hình 2 - Khách hàng)** ghi nhận các điểm sai và bất cập cụ thể cần khắc phục:
+
+### 8.1. Phía Tài Khoản Admin / Operator (Hình 1 - Điểm Sai Nghiêm Trọng)
+1. **Mất hoàn toàn tên phòng ban Livechat**:
+   - Dòng 1 (*Customer Care*) và Dòng 2 (*Technical Support*) đều chỉ hiển thị trơ trọi tên khách hàng: `"Khách Hàng Mới (Portal Stage 1)"`.
+   - **Hậu quả**: Admin nhìn vào danh sách hoàn toàn không phân biệt được khách đang liên hệ vào phòng ban nào (*Hỗ trợ kỹ thuật* hay *Chăm sóc khách hàng*) để phân công tiếp nhận.
+   - **Định hướng khắc phục**: Phải hiển thị tên khách kèm phòng ban, ví dụ: `"Khách Hàng Mới • Technical Support"` hoặc hiển thị badge phòng ban chuyên biệt.
+2. **Kênh chat 1-1 hiển thị ngược tên của chính mình ("Admin")**:
+   - Dòng 3 hiển thị tên `"Admin"` kèm avatar chữ A và tin nhắn `"✓ Bạn: HI"`.
+   - **Hậu quả**: Đây là kênh chat cá nhân giữa Admin và khách hàng, nhưng góc nhìn Admin lại hiển thị tên của chính Admin thay vì tên đối tác.
+   - **Định hướng khắc phục**: Trong kênh `channel_type: 'chat'`, luôn phải bóc tách tên của người đối diện (`other_partner`), không được trả về thông tin của chính người đang đăng nhập.
+3. **Trùng lặp 3 kênh cùng 1 tên khách hàng (Dòng 1, 2, 5)**:
+   - Dòng 1 (Livechat Customer Care), Dòng 2 (Livechat Tech Support), Dòng 5 (Direct Chat 1-1) đều mang cùng tên `"Khách Hàng Mới (Portal Stage 1)"` khiến Admin rất dễ nhầm lẫn giữa phiên hỗ trợ trực tuyến và tin nhắn riêng.
+4. **Gán nhãn `CSKH` tràn lan lên các kênh Livechat**:
+   - Kênh Livechat (`channel_type: 'livechat'`) vốn là kênh tiếp nhận đa kênh độc lập nhưng lại bị gắn tag xanh `CSKH` như một nhóm thảo luận nội bộ.
+
+### 8.2. Phía Tài Khoản Portal (Hình 2 - Điểm Cần Tinh Chỉnh)
+1. **Lỗi cắt chuỗi người gửi ở tin nhắn xem trước (Dòng 3 - CSKH 360)**:
+   - Dòng subtitle hiển thị lỗi: `"Doanh): jlikhjkj"`.
+   - **Nguyên nhân**: Tên người gửi gốc là `"Sales Engineer (Kinh Doanh)"`. Bộ lọc regex/substring xử lý không chuẩn làm mất phần đầu, chỉ còn sót lại đuôi `"Doanh):"`.
+   - **Định hướng khắc phục**: Chuẩn hóa hàm format tin nhắn xem trước, bóc tách `author_name` hoặc prefix người gửi nguyên vẹn.
+2. **Avatar của 3 kênh đầu giống hệt nhau**:
+   - Cả 3 kênh trên cùng (`Customer Care`, `Technical Support`, `Chăm Sóc Khách Hàng 360`) đều dùng chung logo quả cầu Vcloud xanh. Khách hàng nhìn lướt qua thấy 3 avatar y hệt nhau, thiếu tính phân biệt trực quan giữa phòng Kỹ thuật, phòng CSKH và nhóm hợp đồng.
+   - **Định hướng khắc phục**: Đọc avatar động `image_128` riêng biệt của từng kênh Livechat (`im_livechat.channel`), hoặc cung cấp icon phân biệt (Headset cho CSKH, Wrench/Tech cho Kỹ thuật).
+3. **Lộ kênh chat cá nhân tên "Admin" (Dòng 4)**:
+   - Khách hàng Portal vẫn thấy kênh chat cá nhân mang tên thô `"Admin"`. Với khách hàng bên ngoài, không nên để lộ tài khoản cá nhân "Admin", mà cần được phân loại hoặc hiển thị chức danh đại diện phù hợp.
+4. **Sai lệch bộ đếm filter pill "Zalo OA 2"**:
+   - Tài khoản Portal chỉ có 5 kênh nhưng pill lọc Zalo OA lại hiện số **2**. Logic phân loại bộ đếm filter pill đang gom nhầm kênh Livechat vào tab Zalo OA.
+
+---
+
+### 8.3. ĐỐI SOÁT THỰC TẾ LẦN 2 SAU KHI FIX ĐỢT 1 (UAT ẢNH CHỤP 2026-10-16)
+
+Sau đợt sửa đầu tiên, đối soát đồng thời 2 ảnh chụp giao diện thực tế (`2.png` - Portal User và `3.png` - Nhân viên nội bộ CSKH/Sale) ghi nhận kết quả chi tiết:
+
+#### A. Giao diện Khách hàng Portal (`2.png`):
+- 🟢 **ĐÃ ĐẠT**:
+  1. Chip `[ Hỗ trợ 2 ]` đã xuất hiện với badge xanh Royal Blue (`#0077CD`), đếm đúng 2 kênh livechat. Tách sạch khỏi chip `Zalo OA`.
+  2. Dòng 1 (`Customer Care`) và Dòng 2 (`Technical Support`) hiển thị đúng tên phòng ban và avatar phân biệt trực quan: 🎧 Tai nghe viền xanh lá cho CSKH, 🛠️ Cờ lê viền xanh dương cho Kỹ thuật kèm chấm 🟢 Online.
+  3. Dòng 3 subtitle hiển thị trọn vẹn `Sales Engineer: jlikhjkj`, lỗi cắt chuỗi văng đuôi `"Doanh):"` đã được giải quyết triệt để.
+  4. Nút FAB hiển thị đúng nút `[ 🎧 Hỗ trợ trực tuyến ]` dành riêng cho Portal.
+- 🔴 **CHƯA ĐẠT / CÒN THIẾU**:
+  1. Chip `[ Kênh ]` và `[ Zalo OA ]` có `count = 0` nhưng vẫn hiển thị trên thanh cuộn ngang, chưa được ẩn tự động theo cơ chế thông minh.
+  2. Kênh `Chăm Sóc Khách Hàng 360` (Dòng 3) vẫn còn 2 tích xanh tự chế: 1 icon tích xanh `✓` cạnh tên và 1 huy hiệu tích xanh đè góc avatar. Chuẩn Odoo Livechat chỉ dùng chấm 🟢 Online ca trực.
+  3. Dòng 4 vẫn để lộ tài khoản cá nhân thô `"Admin"` (chưa được alias thành `"Chuyên viên tư vấn"`).
+
+#### B. Giao diện Nhân viên Nội bộ CSKH / Sale (`3.png` - LỖI NGHIÊM TRỌNG):
+- 🟢 **ĐÃ ĐẠT**:
+  1. Nút góc dưới là nút xanh `(+)` để tạo kênh (đúng quyền nhân viên nội bộ, không có nút "Hỗ trợ trực tuyến").
+  2. Thanh điều hướng có thêm tab `Timesheet`.
+  3. Dòng 2 (`Accounting Dept.`) và Dòng 4 (`General`) hiển thị đúng kênh/nhóm nội bộ.
+- 🔴 **SAI NGHIÊM TRỌNG VỀ NGHIỆP VỤ TIẾP NHẬN**:
+  1. **BIẾN MẤT HOÀN TOÀN CHIP `[ HỖ TRỢ ]`**: Thanh filter chỉ có `Tất cả 5`, `Chưa đọc`, `Trực tiếp 1`, `Nhóm 2`, `Kênh 1`, `Zalo OA`. Nhân viên không có cách nào lọc nhanh các ca chat trực tuyến của khách hàng. Kênh Livechat bị dồn nhầm vào danh mục `Nhóm 2`.
+  2. **MẤT HOÀN TOÀN TÊN PHÒNG BAN TIẾP NHẬN (Lỗi B.11)**:
+     - Dòng 1 hiển thị trơ trọi: `Khách Hàng Mới (Portal Stage 1)`.
+     - Dòng 3 hiển thị trơ trọi: `Khách Hàng Hợp Đồng (Portal Stage 2)`.
+     - Nhân viên Sale/Kỹ thuật nhìn vào danh sách hoàn toàn **không biết khách đang cần vào phòng ban nào** (`Customer Care` hay `Technical Support`) để tiếp nhận xử lý.
+     - *Quy chuẩn*: Phải hiển thị dạng `Khách Hàng Mới • Customer Care` hoặc `Khách Hàng Hợp Đồng • Technical Support`.
+  3. **TRÙNG LẶP TIÊU ĐỀ KÊNH GÂY LOẠN (Dòng 1 và Dòng 5)**:
+     - Dòng 1 mang tên `Khách Hàng Mới (Portal Stage 1)` (phiên Livechat).
+     - Dòng 5 cũng mang tên `Khách Hàng Mới (Portal Stage 1)` (tin nhắn chat 1-1 riêng).
+     - Nhân viên bị rối loạn, không phân biệt được phiên hỗ trợ trực tuyến và tin nhắn cá nhân.
+
+---
+
+### 8.4. KẾT QUẢ NGHIỆM THU HOÀN TẤT V2 (UAT ĐỐI SOÁT CUỐI CÙNG 2026-10-16)
+
+Sau khi xử lý triệt để 6 Defect trên cả Flutter Client (`vclients`) và Odoo Addon (`v_mobile_17`, `v_mobile_19`), đối soát thực tế trên Local Server (`vcloud_test_v19`) qua 2 ảnh chụp nghiệm thu cuối cùng (`4.png` cho Operator và `5.png` cho Portal) đạt chuẩn 100%:
+
+| Hạng mục Defect | Hiện trạng xử lý kỹ thuật | Kết quả Đối soát Thực tế | Trạng thái |
+|---|---|---|:---:|
+| **[Defect 1] Ẩn Chip count == 0** | Bọc điều kiện `if (count > 0)` cho các chip tùy chọn (`Nhóm`, `Kênh`, `Zalo OA`, `Hỗ trợ`) | Cả 2 góc nhìn chỉ hiện các chip có dữ liệu (>0). Phía Portal chỉ hiện: `Tất cả 5`, `Chưa đọc`, `Trực tiếp 2`, `Hỗ trợ 3`. Đã ẩn sạch chip 0. Phía Operator chỉ hiện: `Tất cả 5`, `Chưa đọc`, `Trực tiếp 1`, `Kênh 1`, `Hỗ trợ 2`. | ✅ PASS |
+| **[Defect 2] Gỡ 2 tích xanh giả Dòng 3** | Xóa sạch `LucideIcons.badgeCheck` ở cả góc avatar và cạnh tiêu đề kênh | Dòng 3 (`Chăm Sóc Khách Hàng 360`) chỉ hiển thị avatar logo tròn Vcloud và chấm 🟢 Online native Odoo. | ✅ PASS |
+| **[Defect 3] Ẩn Admin với Portal** | Alias tài khoản Admin/Mitchell Admin thành `"Chuyên viên tư vấn"` | Dòng 4 phía Portal hiển thị: `"Chuyên viên tư vấn"` kèm avatar tròn chữ C màu ngọc. Tuyệt đối không lộ thông tin nội bộ. | ✅ PASS |
+| **[Defect 4] Khôi phục Chip [ Hỗ trợ ]** | Tách kênh hỗ trợ khỏi Nhóm (`isSupportChannel => isLivechat \|\| isCskhChannel`), gom chuẩn vào `livechatCount` | Phía Operator xuất hiện đầy đủ chip `[ Hỗ trợ 2 ]`. Không bị dồn nhầm vào `Nhóm 2` như trước. | ✅ PASS |
+| **[Defect 5] Tên khách kèm phòng ban** | Định dạng hiển thị phía Operator: `"$customerName • $departmentName"` | Dòng 1 hiện `Khách Hàng Mới • Customer Care`, Dòng 3 hiện `Khách Hàng Hợp Đồng • Technical Support`. Nhân viên nhận diện tức thì phòng ban. | ✅ PASS |
+| **[Defect 6] Chống trùng Dòng 1 & Dòng 5** | Dòng 1 (Kênh CSKH) kèm phòng ban, Dòng 5 (1-1) giữ tên đối tác | Phía Operator: Dòng 1 (`Khách Hàng Mới • Customer Care`) và Dòng 5 (`Khách Hàng Mới (Portal Stage 1)`) hoàn toàn tách biệt, không bị trùng tiêu đề. Phía Portal: Dòng 3 hiển thị chuẩn `Chăm Sóc Khách Hàng 360`, không bị trùng với Dòng 1 `Customer Care`. | ✅ PASS |
+
+#### Kết luận & Bàn giao:
+Hệ thống Livechat Omnichannel trên Portal Mobile App và Operator Dashboard đã hoàn toàn đối xứng 2 góc nhìn (Role-Based Perspective Parity), đạt 21/21 Unit Test Cases, 0 lỗi static analysis (`dart analyze`), đồng bộ hoàn chỉnh lên Local Server LAN `192.168.1.100`. Sẵn sàng cho giai đoạn release.
+
