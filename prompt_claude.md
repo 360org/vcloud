@@ -14,6 +14,7 @@
 | **V** | Changelog & Chống Lạm Phát Version | 5 Tags `[NEW/FIX/IMPROVE/REFACTOR/SECURITY]` |
 | **VI** | Manifest & Đồng Bộ Phiên Bản | `pubspec.yaml` SSOT, `__manifest__.py` format |
 | **VII** | Deploy & CI/CD Pipeline 3 Tầng | LAN → Odoo SaaS → TestFlight & Google Play |
+| **VIII** | Rào Chắn Odoo 17 & 19 (Mandatory Gate) | Field Mapping, ORM, XML, Porting 7 bước |
 
 ---
 
@@ -200,4 +201,32 @@ Mọi mục thay đổi trong Changelog phải gán đúng 1 trong các Tag:
 ### 3. Deploy Tầng 3 — Frontend Release Store (TestFlight & Google Play):
 - **Apple TestFlight**: Khi Merge PR vào `main` ➔ GitHub Actions (`deploy.yml`) tự động kích hoạt build IPA và nộp lên TestFlight cho iPhone của Sếp Tân.
 - **Google Play Console (Direct-to-Production)**: 1 Giai đoạn duy nhất — Đẩy thẳng tệp `.aab` vào **Production Track** trên CH Play, bỏ qua các bước thử nghiệm rườm rà.
+
+---
+
+## 🛡️ VIII. RÀO CHẮN CHUẨN KỸ THUẬT PHÂN ĐỊNH ODOO 17 & ODOO 19 (MANDATORY GATE)
+
+### 1. Phân Định Repo & Authoritative Branches (Cấm Merge/Copy Mù Quáng):
+- **Odoo 17 Backend (`v_mobile_17`)**: Nhánh bảo vệ `17.0` (Target DB: `demo-17`, Version: `17.0.X.Y.Z`).
+- **Odoo 19 Backend (`v_mobile_19`)**: Nhánh bảo vệ `19.0` (Target DB: `vcloud_test_v19`, Version: `19.0.X.Y.Z`).
+- ⛔ **CẤM TỰ Ý COPY HOẶC MERGE TRỰC TIẾP** giữa `17.0` và `19.0`. Mọi thay đổi cross-version phải qua quy trình Porting 7 bước.
+
+### 2. Ma Trận Ánh Xạ Trường Dữ Liệu & Relation Mapping:
+| Phân Hệ Nghiệp Vụ | Odoo 17.0 (`v_mobile_17`) | Odoo 19.0 (`v_mobile_19`) | Lỗi Nếu Dùng Lệch |
+| :---: | :--- | :--- | :--- |
+| **Chat / Discuss** | `channel_partner_ids` | `channel_member_ids` | HTTP 500 / AttributeError |
+| **Security Groups** | `groups_id` | `group_ids` | Không nhận quyền / UserError |
+| **DB Constraints** | `_sql_constraints` | `models.Constraint()` | Warnings / Deprecated |
+| **DB Indexing** | `index=True` | `models.Index("(col1, col2)")` | **Crash Registry Odoo 19** |
+
+### 3. Quy Chuẩn ORM & XML Views Bắt Buộc:
+- **ORM Search & Aggregation**:
+  * Odoo 19: BẮT BUỘC dùng `_read_group` (loại bỏ hoàn toàn `read_group` kiểu cũ).
+  * Odoo 17: Duy trì các phương thức ORM chuẩn của v17.
+- **XML Views**:
+  * Khai báo điều kiện: BẮT BUỘC dùng `invisible="..."`, `readonly="..."`, `required="..."`.
+  * ⛔ **CẤM DÙNG `attrs="..."`** trên cả Odoo 17 và 19.
+- **Bảo mật & Context Singleton**:
+  * Mọi thao tác ghi/tạo dữ liệu Discuss BẮT BUỘC dùng `.with_user(uid).sudo()` để nạp ngữ cảnh `res.users` singleton.
+  * Portal Isolation Guard: Kiểm tra `is_portal_uid(uid)` / `share=True` chặn 100% tài khoản Portal truy cập route/data nội bộ (HTTP 403).
 
