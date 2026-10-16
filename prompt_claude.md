@@ -70,10 +70,17 @@ Nạp: `360-dev-workflow`, `360-ponytail`, `360-odoo`, `360-flutter`, `360-vclou
 ================================================================================
 🏛️ [TRỤ CỘT 3: 📋 TASK DETAILS — {{SDLC_PHASE}}]
 #### ⛔ MANDATORY READ-BEFORE-WRITE GATE:
-Dùng `cat` / `rg` đọc code thực tế trước khi sửa.
+Dùng `rg "keyword" <file>` hoặc `cat -n <file>` xác định tọa độ dòng chính xác trước khi sửa.
+TUYỆT ĐỐI KHÔNG ước lượng "khoảng dòng X - Y" — số dòng thay đổi sau mỗi lần edit.
 
 #### 🛠️ PHẪU THUẬT CODE & PHÂN CÔNG MULTI-AGENT:
 {{TASK_DESCRIPTION}}
+
+#### 🛡️ CONTEXT & ROLLBACK GUARD (Áp dụng Mục IV):
+- Cắm lock `.claude/task_locks.yaml` cho các file đích trước khi `@dev` sửa.
+- `/compact` sau mỗi lần chạy `dart analyze` hoặc log dài.
+- Tạo checkpoint trước phẫu thuật: `git stash` hoặc `git tag CHECKPOINT-{{TASK_SLUG}}`
+- Commit prefix theo Conventional Commits: `{{COMMIT_PREFIX}}({{SCOPE}}): ...`
 
 #### 🧪 KIỂM THỬ STATIC ANALYSIS & LOCAL LAN SYNC:
 1. Flutter Static Check: `cd vclients && dart analyze lib/` ➔ BẮT BUỘC 0 errors, 0 warnings.
@@ -86,6 +93,13 @@ TẠM DỪNG HOÀN TOÀN sau khi nạp code LAN (`192 . 168 . 1 . 100`). Chờ S
 ================================================================================
 🏛️ [TRỤ CỘT 4: ⚙️ OUTPUT FORMAT (< 1.200 KÝ TỰ)]
 Xuất Báo cáo Nghiệm thu UAT Ready dạng Bảng với dữ liệu thực tế từ Terminal.
+⚠️ CẤM điền sẵn kết quả PASS/FAIL trước khi Agent thực thi — mọi ô trạng thái BẮT BUỘC khởi tạo `⬜ PENDING`.
+
+| Hạng mục | Trước fix | Sau fix | Trạng thái |
+|---|---|---|---|
+| {{CHECK_ITEM_1}} | {{BEFORE_1}} | {{AFTER_1}} | ⬜ PENDING |
+| {{CHECK_ITEM_2}} | {{BEFORE_2}} | {{AFTER_2}} | ⬜ PENDING |
+| Dart Analyze | - | {{RESULT}} | ⬜ PENDING |
 ```
 
 ---
