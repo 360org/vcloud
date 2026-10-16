@@ -181,5 +181,111 @@ void main() {
       final channelGeneric = ChatV2Channel.fromJson(jsonGeneric);
       expect(channelGeneric.getCleanName('Portal User', isPortal: true), 'Chăm Sóc Khách Hàng 360');
     });
+
+    test('TC-16: [B.10] Livechat channels are strictly isolated from groups', () {
+      final json = {
+        'id': '665810',
+        'name': 'Khách Hàng Mới • Technical Support',
+        'channel_type': 'livechat',
+        'is_group': true, // Even if raw is_group is true from backend
+        'members': [
+          {'id': '10', 'name': 'Khách Hàng Mới', 'is_me': false},
+          {'id': '3', 'name': 'Mitchell Admin', 'is_me': true},
+          {'id': '5', 'name': 'Operator 2', 'is_me': false},
+        ],
+      };
+
+      final channel = ChatV2Channel.fromJson(json);
+
+      expect(channel.isLivechat, isTrue);
+      expect(channel.isGroupChat('Mitchell Admin'), isFalse);
+      expect(channel.getActualIsGroup('Mitchell Admin'), isFalse);
+    });
+
+    test('TC-17: [B.11] Operator perspective displays Customer Name • Service Name', () {
+      final json = {
+        'id': '665811',
+        'name': 'Khách Hàng Mới • Technical Support',
+        'channel_type': 'livechat',
+        'livechat_channel_name': 'Technical Support',
+        'direct_partner_name': 'Khách Hàng Mới',
+        'members': [
+          {'id': '10', 'name': 'Khách Hàng Mới', 'is_me': false},
+          {'id': '3', 'name': 'Mitchell Admin', 'is_me': true},
+        ],
+      };
+
+      final channel = ChatV2Channel.fromJson(json);
+
+      // Operator perspective
+      final operatorCleanName = channel.getCleanName('Mitchell Admin', isPortal: false);
+      expect(operatorCleanName, 'Khách Hàng Mới • Technical Support');
+
+      // Portal perspective
+      final portalCleanName = channel.getCleanName('Khách Hàng Mới', isPortal: true);
+      expect(portalCleanName, 'Technical Support');
+    });
+
+    test('TC-18: [B.12] 1-1 direct chat displays counterparty name instead of Admin', () {
+      final json = {
+        'id': '665812',
+        'name': 'Admin', // Bug condition: Odoo raw channel name was "Admin"
+        'channel_type': 'chat',
+        'is_group': false,
+        'direct_partner_name': 'Admin', // Bug condition: directPartnerName was self
+        'members': [
+          {'id': '3', 'name': 'Admin', 'is_me': true},
+          {'id': '10', 'name': 'Nguyễn Văn Nam', 'is_me': false},
+        ],
+      };
+
+      final channel = ChatV2Channel.fromJson(json);
+
+      final cleanName = channel.getCleanName('Admin', isPortal: false);
+      expect(cleanName, 'Nguyễn Văn Nam');
+      expect(cleanName.contains('Admin'), isFalse);
+    });
+
+    test('TC-19: [B.14] Livechat channel preserves livechat_channel_name in fromJson, toMap, copyWith', () {
+      final json = {
+        'id': '665813',
+        'name': 'Customer Care',
+        'channel_type': 'livechat',
+        'livechat_channel_name': 'Customer Care',
+      };
+
+      final channel = ChatV2Channel.fromJson(json);
+      expect(channel.livechatChannelName, 'Customer Care');
+
+      final map = channel.toMap();
+      expect(map['livechat_channel_name'], 'Customer Care');
+
+      final copied = channel.copyWith(livechatChannelName: 'Technical Support');
+      expect(copied.livechatChannelName, 'Technical Support');
+    });
+
+    test('TC-20: [B.15] Livechat channel never receives CSKH badge, strictly reserved for [CSKH] groups', () {
+      final jsonLivechat = {
+        'id': '665814',
+        'name': 'Technical Support',
+        'channel_type': 'livechat',
+        'is_cskh_channel': true, // Attempted to set CSKH
+      };
+
+      final channelLivechat = ChatV2Channel.fromJson(jsonLivechat);
+      expect(channelLivechat.isLivechat, isTrue);
+      expect(channelLivechat.isCskhChannel, isFalse);
+
+      final jsonGroup = {
+        'id': '665815',
+        'name': '[CSKH] Hỗ trợ VIP',
+        'channel_type': 'group',
+        'is_group': true,
+      };
+
+      final channelGroup = ChatV2Channel.fromJson(jsonGroup);
+      expect(channelGroup.isLivechat, isFalse);
+      expect(channelGroup.isCskhChannel, isTrue);
+    });
   });
 }

@@ -391,7 +391,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                           if (livechatCount > 0) ...[
                             const SizedBox(width: 8),
                             _buildChip(
-                              label: 'Livechat',
+                              label: 'Hỗ trợ',
                               count: livechatCount,
                               isSelected: _selectedFilterIndex == 5,
                               isDark: isDark,
@@ -664,21 +664,21 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                         }
                       } else if (_selectedFilterIndex == 2) {
                         // 2: Nhóm
-                        if (!c.isGroupChat(currentUserName)) {
+                        if (!c.isGroupChat(currentUserName) || c.isLivechat) {
                           return false;
                         }
                       } else if (_selectedFilterIndex == 3) {
                         // 3: Kênh
-                        if (!c.isChannel) {
+                        if (!c.isChannel || c.isLivechat) {
                           return false;
                         }
                       } else if (_selectedFilterIndex == 4) {
                         // 4: Zalo OA
-                        if (!c.isZaloOA) {
+                        if (!c.isZaloOA || c.isLivechat) {
                           return false;
                         }
                       } else if (_selectedFilterIndex == 5) {
-                        // 5: Livechat
+                        // 5: Hỗ trợ (Livechat)
                         if (!c.isLivechat) {
                           return false;
                         }
@@ -1023,10 +1023,13 @@ class _ChannelListItem extends ConsumerWidget {
     final isGroup = channel.getActualIsGroup(currentUserName);
     final isLivechat = channel.isLivechat;
     final isTechSupport = isLivechat &&
-        (cleanName.toLowerCase().contains('technical') ||
-            cleanName.toLowerCase().contains('kỹ thuật') ||
-            channel.name.toLowerCase().contains('technical') ||
-            channel.name.toLowerCase().contains('kỹ thuật'));
+        ((channel.livechatChannelName != null &&
+            (channel.livechatChannelName!.toLowerCase().contains('technical') ||
+             channel.livechatChannelName!.toLowerCase().contains('kỹ thuật'))) ||
+         cleanName.toLowerCase().contains('technical') ||
+         cleanName.toLowerCase().contains('kỹ thuật') ||
+         channel.name.toLowerCase().contains('technical') ||
+         channel.name.toLowerCase().contains('kỹ thuật'));
     final livechatColor = isTechSupport ? const Color(0xFF0077CD) : const Color(0xFF00CE2C);
     final livechatIcon = isTechSupport ? LucideIcons.wrench : LucideIcons.headphones;
     // Kiểm tra tin nhắn cuối từ channel hoặc từ cache tin nhắn
@@ -1505,7 +1508,7 @@ class _ChannelListItem extends ConsumerWidget {
                                     color: Color(0xFF0077CD),
                                   ),
                                 )
-                              else if (channel.isCskhChannel && !isLivechat && !isPortal)
+                              else if (channel.isCskhChannel && !isLivechat && !isPortal && channel.name.contains('[CSKH]'))
                                 Container(
                                   margin: const EdgeInsets.only(left: 6),
                                   padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
@@ -1872,6 +1875,11 @@ class _ChannelListItem extends ConsumerWidget {
       displayText = '[Cuộc gọi bị từ chối]';
     } else if (isCancelledCall) {
       displayText = '[Cuộc gọi đã hủy]';
+    }
+
+    // [B.13] Loại bỏ chuỗi rác ngoặc đơn đầu dòng (VD: "Doanh): jlikhjkj" -> "jlikhjkj")
+    if (displayText.contains('):')) {
+      displayText = displayText.replaceFirst(RegExp(r'^[^\s:)]*\):\s*'), '');
     }
 
     if (isAnyCall) {

@@ -1,6 +1,6 @@
 # ĐẶC TẢ KỸ THUẬT (SPEC) — HỆ THỐNG LIVE CHAT OMNICHANNEL & PORTAL SUPPORT CHUẨN ODOO ENTERPRISE
 
-> **Mã tài liệu**: `vclients/docs/SPEC_PORTAL_SUPPORT_CHANNEL.md`  
+> **Mã tài liệu**: `docs/SPEC_PORTAL_SUPPORT_CHANNEL.md`  
 > **Hệ thống gốc**: Odoo Enterprise (Module `im_livechat`, `mail.discuss`, `crm_livechat`, `website_helpdesk_livechat`)  
 > **Nền tảng đồng bộ**: VCloud Mobile App (Flutter `vclients`) ⟷ Backend Addon `v_mobile` (Odoo 17 & 19)  
 > **Thẩm định & Phê duyệt**: Sếp Tân — 360 CORP  
@@ -176,12 +176,15 @@ Trong Odoo, phiên Live Chat được lưu dưới dạng `discuss.channel` vớ
 
 #### B. Ma trận góc nhìn hai chiều chuẩn Odoo Enterprise (Perspective Parity Matrix)
 
-| Thuộc tính | 👤 Góc nhìn Khách Hàng (Portal User) | 👨‍💼 Góc nhìn Chuyên Viên Trực Ca (Operator) |
+| Thuộc tính | 👤 Góc nhìn Khách Hàng (Portal User) | 👨‍💼 Góc nhìn Chuyên Viên Trực Ca (Operator / Admin) |
 |---|---|---|
-| **Bản chất kênh** | Kênh dịch vụ tiếp nhận hỗ trợ chuyên trách | Phiên hỗ trợ khách hàng đến từ bên ngoài |
-| **Tên kênh (`name`)** | Tên dịch vụ Live Chat (`livechat_channel_id.name`, e.g. **"Customer Care"**, **"Technical Support"**) | Tên khách hàng Portal (`portal_p["name"]`, e.g. **"Anh Tân (Công ty ABC)"**) |
-| **Ảnh đại diện (`avatar_url`)** | Logo/Avatar của kênh Live Chat (`im_livechat.channel` image_128 hoặc Logo Công Ty) | Avatar của khách hàng Portal (`res.partner` avatar_128) |
+| **Bản chất kênh** | Kênh dịch vụ tiếp nhận hỗ trợ chuyên trách | Phiên hỗ trợ tiếp nhận yêu cầu từ khách hàng bên ngoài |
+| **Tên kênh (`name`)** | Tên dịch vụ Live Chat (`livechat_channel_id.name`, e.g. **"Customer Care"**, **"Technical Support"**) | Tên khách hàng kèm tên phòng ban Livechat: **`${portal_partner_name} • ${service_name}`** (e.g. **"Khách Hàng Mới • Technical Support"**). Không để trơ trọi tên khách tránh Admin không biết khách gọi vào bộ phận nào. |
+| **Phòng ban Livechat (`department_name`)** | Tên phòng ban (`livechat_channel_id.name`) | Tên phòng ban (`livechat_channel_id.name`) để hiển thị badge phân loại |
+| **Ảnh đại diện (`avatar_url`)** | Avatar chuyên biệt theo phòng ban (`im_livechat.channel` image_128 hoặc icon nhận diện: Tai nghe cho CSKH, Cờ lê cho Kỹ thuật) | Avatar của khách hàng Portal (`res.partner` avatar_128) |
 | **Định danh 1-1 (`direct_partner`)** | `None` (Tuyệt đối không gán `partner_id` của Admin) | `{ "id": portal_p.id, "name": portal_p.name, ... }` |
+| **Kênh Chat 1-1 (`channel_type: 'chat'`)** | Tên chuyên viên tư vấn phụ trách (hoặc tên đối tác) | Tên khách hàng đối tác (`other_partner`), **tuyệt đối KHÔNG trả về tên của chính Admin** |
+| **Nhãn phân loại (Badge / Tag)** | Badge phòng ban (`Hỗ trợ kỹ thuật` / `Chăm sóc KH`), **không dùng tag `CSKH` nhóm** | Badge Livechat chuyên trách kèm tên bộ phận, **không dùng tag `CSKH` nhóm nội bộ** |
 | **Trạng thái trực (`im_status`)** | Trạng thái ca trực của bộ phận (`online` nếu có operator online) | Trạng thái online của khách hàng Portal |
 
 #### C. Quy chuẩn Payload API Backend (`/api/v1/mobile/chat/channels`)
@@ -193,15 +196,23 @@ is_direct = bool(not is_group and not is_livechat)
 if is_livechat:
     livechat_ch = ch.livechat_channel_id
     service_name = livechat_ch.name if livechat_ch else (ch.name or "Hỗ trợ trực tuyến")
+    department_id = livechat_ch.id if livechat_ch else False
     if is_portal_user:
         channel_name = service_name
-        avatar_url = _avatar_url_for(env, "im_livechat.channel", livechat_ch.id, field="image_128")
+        avatar_url = _avatar_url_for(env, "im_livechat.channel", department_id, field="image_128")
         direct_partner = None
         partner_id = None
     else:
-        channel_name = portal_p["name"]
+        # Operator / Admin view: Phải có tên phòng ban để phân loại
+        channel_name = f"{portal_p['name']} • {service_name}"
         avatar_url = portal_p["avatar_url"]
-        direct_partner = { "id": portal_p["id"], "name": channel_name, ... }
+        direct_partner = { "id": portal_p["id"], "name": portal_p["name"], ... }
+elif is_direct:
+    # Chat 1-1 cá nhân: other_partner BẮT BUỘC là người đối diện, KHÔNG được là chính mình
+    other_p = _resolve_other_partner(ch, current_user.partner_id)
+    channel_name = other_p["name"]
+    avatar_url = other_p["avatar_url"]
+    direct_partner = other_p
 ```
 
 ---
@@ -215,24 +226,62 @@ if is_livechat:
 ### 1. Sơ Đồ Giao Diện Trực Quan (UI Wireframes)
 
 #### A0. Màn Hình Danh Sách Hội Thoại (`ChatV2ListScreen` — Portal View)
-Khi khách hàng Portal bấm vào mục **Chat** tại thanh điều hướng / Sidebar, ứng dụng hiển thị danh sách toàn bộ các kênh trao đổi đã mở (không tự ý ép vào phòng chat duy nhất), cùng nút nổi **"Hỗ trợ trực tuyến"** để chọn dịch vụ khi cần:
+Khi khách hàng Portal bấm vào mục **Chat** tại thanh điều hướng / Sidebar, ứng dụng hiển thị danh sách toàn bộ các kênh trao đổi đã mở (không tự ý ép vào phòng chat duy nhất), thanh Filter Chips tự động ẩn các danh mục không có dữ liệu (Nhóm, Kênh, Zalo OA), cùng nút nổi **"Hỗ trợ trực tuyến"** để mở phiên mới:
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
 │ [☰]  Trò chuyện                                       [🔍]  │
 ├─────────────────────────────────────────────────────────────┤
+│ [ Tất cả 3 ]  [ Chưa đọc 1 ]  [ Hỗ trợ 2 ]  [ Trực tiếp 1 ]   │
+│ (Tự động ẩn các tab Nhóm, Kênh, Zalo OA vì count = 0)       │
+├─────────────────────────────────────────────────────────────┤
 │ ┌─── Danh sách hội thoại ─────────────────────────────────┐ │
-│ │ (Avatar Livechat) Customer Care                   10:32 │ │
-│ │ 🟢 Odoo           Dạ em chào anh Tân! Em là...        │ │
+│ │ 🛠️  Technical Support                              10:35 │ │
+│ │ 🟢 Odoo           Kỹ thuật viên 01: Đã cấu hình xong...  │ │
 │ │─────────────────────────────────────────────────────────│ │
-│ │ (Avatar Livechat) Technical Support               Hôm qua│ │
-│ │ 🟢 Odoo           Đã cấu hình xong máy in hóa đơn ạ   │ │
+│ │ 🎧  Customer Care                                  09:15 │ │
+│ │ 🟢 Odoo           Tư vấn viên 02: Bảng báo giá gửi anh...│ │
+│ │─────────────────────────────────────────────────────────│ │
+│ │ 👤  Chuyên viên Tân (360 CORP)                   Hôm qua │ │
+│ │     ✓ Bạn: Cảm ơn anh đã tư vấn nhiệt tình              │ │
 │ └─────────────────────────────────────────────────────────┘ │
 │                                                             │
 │                                                             │
 │                                   ┌───────────────────────┐ │
 │                                   │ [🎧] Hỗ trợ trực tuyến │ │
 │                                   └───────────────────────┘ │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### A0_admin. Màn Hình Danh Sách Hội Thoại (`ChatV2ListScreen` — Admin/Operator/CSKH/Kỹ Thuật View)
+Khi chuyên viên nội bộ / CSKH / Kỹ thuật đăng nhập, danh sách hội thoại hiển thị đầy đủ 7 Filter Chips chuẩn, có định danh phòng ban và đối tác rõ ràng, chấm dứt tình trạng trùng lặp tên hoặc hiện ngược tên mình:
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│ [☰]  Trò chuyện                                       [🔍]  │
+├─────────────────────────────────────────────────────────────┤
+│ [Tất cả 85] [Chưa đọc 12] [Trực tiếp 5] [Nhóm 3]           │
+│ [Kênh 2]    [ Hỗ trợ 2 ]  [ Zalo OA 73 ]                   │
+│                    └── Badge xanh Royal Blue (#0077CD)     │
+├─────────────────────────────────────────────────────────────┤
+│ ┌─── Danh sách hội thoại ─────────────────────────────────┐ │
+│ │ 👤 Khách Hàng Mới • Technical Support             10:35 │ │
+│ │ [🛠️ Hỗ trợ]   ✓ Bạn: Em đang kiểm tra kết nối...        │ │
+│ │─────────────────────────────────────────────────────────│ │
+│ │ 👤 Công Ty DAVITA • Customer Care                 09:15 │ │
+│ │ [🎧 Hỗ trợ]   Khách: Bên mình muốn mở rộng thêm user... │ │
+│ │─────────────────────────────────────────────────────────│ │
+│ │ 👥 DAVITA Support [CSKH]                          08:30 │ │
+│ │    Kiệt: Anh em cập nhật tiến độ sprint nhé             │ │
+│ │─────────────────────────────────────────────────────────│ │
+│ │ 💬 Khách Zalo - Nguyễn Văn A (Zalo OA)           Hôm qua │ │
+│ │    Khách: Shop tư vấn giúp em sản phẩm này              │ │
+│ │─────────────────────────────────────────────────────────│ │
+│ │ 👤 Khách Hàng Mới (Direct Chat 1-1)              Thứ 4  │ │
+│ │    (Không có badge Hỗ trợ, partner = Khách Hàng Mới)    │ │
+│ └─────────────────────────────────────────────────────────┘ │
+│                                                             │
+│                                                       [ + ] │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -359,7 +408,53 @@ ChatV2DetailScreen
 
 ---
 
-## VI. BỘ 10 CASE KIỂM THỬ ĐỘC LẬP (VERIFICATION TEST MATRIX)
+### 5. Quy Chuẩn Xử Lý Subtitle & Tin Nhắn Xem Trước (Subtitle Truncation Specification)
+
+Khắc phục triệt để lỗi cắt chuỗi tên người gửi có ngoặc đơn (như `"Sales Engineer (Kinh Doanh)"` bị cắt thành `"Doanh): jlikhjkj"`):
+
+* **Thuật toán chuẩn hóa**:
+  * Nếu tin nhắn từ chính người dùng: Hiển thị prefix `✓ Bạn: [Nội dung tin nhắn]`.
+  * Nếu tin nhắn từ người khác trong kênh nhóm:
+    1. Trích xuất tên người gửi từ trường `author_name` hoặc `author.name`.
+    2. Rút gọn chức danh/họ tên dài (nếu cần) nhưng giữ nguyên vẹn cụm từ đầu, ví dụ: `"Sales Engineer: jlikhjkj"` hoặc `"Kinh Doanh: jlikhjkj"`.
+    3. **Tuyệt đối CẤM** dùng các biểu thức chính quy (Regex) cắt chuỗi thô thiển như `replaceFirst(RegExp(r'\(.*?\)'), '')` gây gãy ngoặc đơn và để lại phần đuôi rác `"):"`.
+
+---
+
+### 6. Quy Chuẩn Phân Định Trực Quan Avatar Theo Phòng Ban (Distinct Visual Identity)
+
+Chấm dứt việc toàn bộ kênh trên cùng đều dùng chung một logo quả cầu Vcloud xanh gây nhầm lẫn:
+
+1. **Kênh Livechat Hỗ Trợ Kỹ Thuật (`Technical Support`)**:
+   * Ưu tiên load ảnh đại diện từ `im_livechat.channel.image_128` (ID: 2).
+   * Fallback UI Kit: Avatar nền xanh dương công nghệ (`#0077cd`), biểu tượng cờ lê kỹ thuật (`Icons.build_rounded` hoặc `Icons.support_agent_rounded`).
+2. **Kênh Livechat Chăm Sóc Khách Hàng (`Customer Care`)**:
+   * Ưu tiên load ảnh đại diện từ `im_livechat.channel.image_128` (ID: 3).
+   * Fallback UI Kit: Avatar nền xanh lá chuyển đổi số (`#00ce2c`), biểu tượng tai nghe CSKH (`Icons.headset_mic_rounded`).
+3. **Kênh Nhóm Hợp Đồng / CSKH Doanh Nghiệp (`[CSKH]`)**:
+   * Hiển thị logo thương hiệu chính thức `branding/cskh_logo_360.png` hoặc Logo của Công ty khách hàng.
+4. **Kênh Chat Trực Tiếp 1-1 (`channel_type: 'chat'`)**:
+   * Hiển thị Avatar cá nhân của đối tác (`res.partner.avatar_128`), hoặc avatar chữ cái viết tắt với màu sắc ngẫu nhiên ổn định theo UID.
+
+---
+
+### 7. Quy Chuẩn Phân Loại Bộ Đếm Tab Lọc Hội Thoại (Filter Pills Specification)
+
+Chấm dứt việc kênh Livechat bị tính nhầm vào tab "Zalo OA" (như lỗi hiển thị `Zalo OA 2` trong ảnh):
+
+| Tên Tab Filter | Tiêu chí phân loại dữ liệu | Điều kiện lọc kỹ thuật |
+|---|---|---|
+| **Tất cả** | Toàn bộ các kênh người dùng tham gia | `channels` |
+| **Chưa đọc** | Các kênh có tin nhắn mới chưa xem | `unread_count > 0` |
+| **Trực tiếp** | Các cuộc trò chuyện 1-1 cá nhân | `channel_type == 'chat'` |
+| **Nhóm** | Các nhóm thảo luận nội bộ / khách hàng | `channel_type == 'group'` |
+| **Kênh** | Các kênh thông báo chung của tổ chức | `channel_type == 'channel'` |
+| **Livechat** | Các phiên hỗ trợ trực tuyến đa kênh | `channel_type == 'livechat'` |
+| **Zalo OA** | Chỉ các hội thoại kết nối cổng Zalo OA | `channel_type == 'zalo'` hoặc `provider == 'zalo'` (Tuyệt đối **KHÔNG** đếm `livechat`) |
+
+---
+
+## VI. BỘ CASE KIỂM THỬ ĐỘC LẬP (VERIFICATION TEST MATRIX)
 
 | Mã Case | Tình huống kiểm thử | Hành vi mong đợi chuẩn Odoo Core | Tiêu chuẩn Đạt |
 |---|---|---|:---:|
@@ -375,3 +470,9 @@ ChatV2DetailScreen
 | **TC-10** | Đồng bộ phiên từ Web sang App (Session Continuity)| Khách chat trên web, đăng nhập vào App Mobile thấy lại toàn bộ tin nhắn cũ. | ĐẠT |
 | **TC-11** | Hiển thị tên kênh Livechat trong danh sách của Portal User | Khách hàng Portal thấy đúng tên dịch vụ ("Technical Support", "Customer Care"), tuyệt đối KHÔNG bị hiển thị tên "Admin". | ĐẠT |
 | **TC-12** | Điều hướng Chat từ Sidebar của Portal User | Bấm vào Chat ở sidebar mở danh sách hội thoại (`ChatV2ListScreen`), nút quay lại trong hội thoại không bị ép về `/home`. | ĐẠT |
+| **TC-13** | Hiển thị tên phòng ban Livechat trên giao diện Admin | Admin nhìn thấy rõ khách kèm phòng ban: `"Khách Hàng Mới • Technical Support"`. | CẦN DUYỆT |
+| **TC-14** | Kênh Direct chat 1-1 phía Admin | Admin nhìn thấy tên khách hàng đối tác, không nhìn thấy tên của chính mình ("Admin"). | CẦN DUYỆT |
+| **TC-15** | Phân tách nhãn Badge Livechat và CSKH | Kênh Livechat hiển thị badge Livechat chuyên biệt, không bị gán nhãn `CSKH` tràn lan. | CẦN DUYỆT |
+| **TC-16** | Xử lý Subtitle tin nhắn xem trước | Tên người gửi có dấu ngoặc đơn hiển thị nguyên vẹn, không bị lỗi cắt chuỗi `"Doanh):"`. | CẦN DUYỆT |
+| **TC-17** | Phân định trực quan Avatar theo phòng ban | Avatar phân biệt màu sắc và icon giữa Technical Support (xanh dương / cờ lê) và Customer Care (xanh lá / tai nghe). | CẦN DUYỆT |
+| **TC-18** | Bộ đếm tab Zalo OA trên giao diện Portal | Tab Zalo OA không bị đếm nhầm 2 kênh Livechat vào số lượng. | CẦN DUYỆT |

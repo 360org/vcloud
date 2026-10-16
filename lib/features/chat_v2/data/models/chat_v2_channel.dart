@@ -150,6 +150,7 @@ class ChatV2Channel {
   final String? customNickname;
   final String? uuid;
   final String? invitationUrl;
+  final String? livechatChannelName;
 
   const ChatV2Channel({
     required this.id,
@@ -177,6 +178,7 @@ class ChatV2Channel {
     this.customNickname,
     this.uuid,
     this.invitationUrl,
+    this.livechatChannelName,
   });
 
   ChatV2Channel copyWith({
@@ -206,6 +208,7 @@ class ChatV2Channel {
     bool clearCustomNickname = false,
     String? uuid,
     String? invitationUrl,
+    String? livechatChannelName,
   }) {
     return ChatV2Channel(
       id: id ?? this.id,
@@ -233,6 +236,7 @@ class ChatV2Channel {
       customNickname: clearCustomNickname ? null : (customNickname ?? this.customNickname),
       uuid: uuid ?? this.uuid,
       invitationUrl: invitationUrl ?? this.invitationUrl,
+      livechatChannelName: livechatChannelName ?? this.livechatChannelName,
     );
   }
 
@@ -289,6 +293,7 @@ class ChatV2Channel {
     'custom_nickname': customNickname,
     'uuid': uuid,
     'invitation_url': invitationUrl,
+    'livechat_channel_name': livechatChannelName,
   };
 
   static bool matchesUser(String part, String? currentUserName) {
@@ -478,17 +483,44 @@ class ChatV2Channel {
   String getCleanName(String? currentUserName, {bool? isPortal}) {
     if (channelType == 'livechat') {
       final clean = cleanChannelName(name);
-      if (isPortal == true || directPartnerName == null) {
+      if (isPortal == true) {
+        if (livechatChannelName != null && livechatChannelName!.trim().isNotEmpty) {
+          return cleanChannelName(livechatChannelName!);
+        }
         if (clean.isNotEmpty && clean != 'Cuộc trò chuyện') {
           return clean;
         }
         return 'Hỗ trợ trực tuyến';
       }
-      // Cho Operator / Admin: Ưu tiên tên kênh định danh phân loại đầy đủ (VD: "Khách Hàng Mới • Technical Support")
-      if (clean.contains('•') || clean.isNotEmpty) {
-        return clean;
+      // Cho Operator / Admin / Kỹ thuật trực ca (!isPortal):
+      // Ghép: "$partnerName • $livechatChannelName" (B.11)
+      final svcName = (livechatChannelName != null && livechatChannelName!.trim().isNotEmpty)
+          ? livechatChannelName!.trim()
+          : (clean.contains('•') ? clean.split('•').last.trim() : null);
+
+      String? partnerPart;
+      if (directPartnerName != null &&
+          directPartnerName!.trim().isNotEmpty &&
+          !matchesUser(directPartnerName!, currentUserName)) {
+        partnerPart = cleanChannelName(directPartnerName!);
+      } else if (clean.contains('•')) {
+        partnerPart = clean.split('•').first.trim();
+      } else if (clean.isNotEmpty && clean != 'Cuộc trò chuyện' && !matchesUser(clean, currentUserName)) {
+        partnerPart = clean;
+      } else {
+        final otherMember = members.firstWhereOrNull(
+          (m) => !m.isMe && m.name.isNotEmpty && !matchesUser(m.name, currentUserName),
+        );
+        if (otherMember != null) {
+          partnerPart = cleanChannelName(otherMember.displayName.isNotEmpty ? otherMember.displayName : otherMember.name);
+        }
       }
-      return cleanChannelName(directPartnerName ?? name);
+
+      final pName = (partnerPart != null && partnerPart.isNotEmpty) ? partnerPart : 'Khách hàng';
+      if (svcName != null && svcName.isNotEmpty) {
+        return '$pName • $svcName';
+      }
+      return pName;
     }
     if (isCskhChannel) {
       if (isPortal == true) {
@@ -582,7 +614,9 @@ class ChatV2Channel {
       ).trim();
       if (directClean.isEmpty) directClean = cleaned;
 
-      if (directPartnerName != null && directPartnerName!.isNotEmpty) {
+      if (directPartnerName != null &&
+          directPartnerName!.isNotEmpty &&
+          !matchesUser(directPartnerName!, currentUserName)) {
         return cleanChannelName(directPartnerName!);
       }
       final uTrim = currentUserName.trim();
@@ -613,14 +647,29 @@ class ChatV2Channel {
           return cleanChannelName(otherParts.join(', ').trim());
         }
       }
+
+      // Sửa lỗi chat 1-1 hiện ngược tên chính mình ("Admin") (B.12):
+      if (matchesUser(directClean, currentUserName)) {
+        final otherMember = members.firstWhereOrNull(
+          (m) => !m.isMe && m.name.isNotEmpty && !matchesUser(m.name, currentUserName),
+        );
+        if (otherMember != null) {
+          final otherName = otherMember.displayName.isNotEmpty
+              ? otherMember.displayName
+              : otherMember.name;
+          return cleanChannelName(otherName);
+        }
+        return 'Trò chuyện';
+      }
+
       return directClean;
     }
     return cleaned;
   }
 
   bool getActualIsGroup(String? currentUserName) {
-    // Kênh Zalo OA tuyệt đối không phải là nhóm nội bộ
-    if (isZaloOA) return false;
+    // Kênh Livechat & Zalo OA tuyệt đối không phải là nhóm nội bộ (B.10)
+    if (isLivechat || isZaloOA) return false;
 
     // 0. Kênh thảo luận Odoo (channelType == 'channel' hoặc 'group') luôn là nhóm/kênh
     if (channelType == 'channel' || channelType == 'group') return true;
@@ -714,9 +763,9 @@ class ChatV2Channel {
     return true;
   }
 
-  /// Kiểm tra có phải nhóm trò chuyện nhiều người hay không (loại trừ kênh chung)
+  /// Kiểm tra có phải nhóm trò chuyện nhiều người hay không (loại trừ kênh chung và Livechat)
   bool isGroupChat(String? currentUserName) {
-    if (channelType == 'channel') return false;
+    if (channelType == 'channel' || isLivechat) return false;
     return getActualIsGroup(currentUserName);
   }
 
@@ -910,6 +959,7 @@ class ChatV2Channel {
     final customNickname = _stringOrNull(map['custom_nickname'] ?? map['custom_channel_name']);
     final uuid = _stringOrNull(map['uuid']);
     final invitationUrl = _stringOrNull(map['invitation_url'] ?? map['invitationUrl']);
+    final livechatChannelName = _stringOrNull(map['livechat_channel_name']);
 
     return ChatV2Channel(
       id: id,
@@ -937,6 +987,7 @@ class ChatV2Channel {
       customNickname: customNickname,
       uuid: uuid,
       invitationUrl: invitationUrl,
+      livechatChannelName: livechatChannelName,
     );
   }
 
