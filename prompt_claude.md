@@ -15,6 +15,7 @@
 | **VI** | Manifest & Đồng Bộ Phiên Bản | `pubspec.yaml` SSOT, `__manifest__.py` format |
 | **VII** | Deploy & CI/CD Pipeline 3 Tầng | LAN → Odoo SaaS → TestFlight & Google Play |
 | **VIII** | Rào Chắn Odoo 17 & 19 (Mandatory Gate) | Field Mapping, ORM, XML, Porting 7 bước |
+| **IX** | Zero-Trust Execution Gate (9 điều) | Task Mode, Read Before Write, Preserve Work, Least Privilege, Side-Effect, Agent Cap, Evidence, UI/Release, Final Report |
 
 ---
 
@@ -229,4 +230,50 @@ Mọi mục thay đổi trong Changelog phải gán đúng 1 trong các Tag:
 - **Bảo mật & Context Singleton**:
   * Mọi thao tác ghi/tạo dữ liệu Discuss BẮT BUỘC dùng `.with_user(uid).sudo()` để nạp ngữ cảnh `res.users` singleton.
   * Portal Isolation Guard: Kiểm tra `is_portal_uid(uid)` / `share=True` chặn 100% tài khoản Portal truy cập route/data nội bộ (HTTP 403).
+
+---
+
+## 🔐 IX. ZERO-TRUST EXECUTION GATE (BẮT BUỘC MỌI AGENT TUÂN THỦ)
+
+### 1. 🏷️ Task Mode:
+- Phân loại task thành `IDEA`, `REQ`, `SPEC`, `AUDIT`, `BUILD`, `TEST`, `REVIEW` hoặc `SHIP`. Chỉ thực hiện các bước phù hợp.
+- `AUDIT` / `REVIEW` mặc định **chỉ đọc**; không tự sửa code.
+
+### 2. 📖 Read Before Write:
+- Đọc `CLAUDE.md`, `AGENTS.md`, `.agents/rules/*` nếu tồn tại, SSOT liên quan và cấu trúc repo thực tế.
+- Kiểm tra lệnh, file, tool, branch và môi trường trước khi sử dụng.
+- Khi phát hiện xung đột quy tắc, phải **nêu rõ**, không tự ý bỏ qua.
+
+### 3. 🛡️ Preserve Existing Work:
+- Trước khi sửa, kiểm tra `git status --short` và diff hiện tại.
+- Bảo toàn tất cả thay đổi có sẵn và ngoài phạm vi task.
+- ⛔ **KHÔNG** tự ý chạy `git reset --hard`, `git clean -fd`, xóa file, ghi đè dữ liệu hoặc rollback phá hủy nếu chưa được cho phép rõ ràng.
+
+### 4. 🔒 Least Privilege:
+- Không mặc định dùng `sudo()` hoặc bỏ qua ACL/record rules.
+- Chỉ nâng quyền khi có lý do nghiệp vụ được chứng minh, giới hạn phạm vi và có kiểm thử bảo mật phù hợp.
+
+### 5. ⚠️ Side-Effect Gate:
+- **KHÔNG** tự ý: đồng bộ code lên server, restart dịch vụ, reset/nạp lại database, nâng cấp module trên production, push/merge hoặc phát hành bản ứng dụng nếu chưa được ủy quyền rõ ràng.
+- Phải xác minh môi trường và phương án rollback trước thao tác có rủi ro.
+
+### 6. 🤖 Agent Capability Gate:
+- Chỉ gọi subagent, skill hoặc tool khi thực sự khả dụng và có ích.
+- Không ép dùng Multi-Agent cho task đơn giản.
+- Giới hạn vòng sửa; khi bị kẹt, **dừng và báo blocker** thay vì tiếp tục thử mù quáng.
+
+### 7. 📊 Evidence Gate:
+- Ghi chính xác lệnh đã chạy, kết quả thực tế, exit code và phạm vi test.
+- Chưa chạy ghi `NOT RUN`; chưa đủ bằng chứng ghi `UNKNOWN`.
+- **KHÔNG** suy diễn PASS, **KHÔNG** tuyên bố tuyệt đối từ kiểm thử có phạm vi giới hạn.
+
+### 8. 🎨 UI & Release Gate:
+- Task giao diện phải có Visual QA Checklist.
+- Không tự chạy BrowserMCP/Playwright/CDP nếu chưa được cho phép theo quy tắc dự án.
+- Mọi hoạt động `SHIP` / `DEPLOY` cần vượt qua preflight, kiểm tra rollback và xác nhận của Sếp Tân.
+
+### 9. 📋 Final Report:
+- Tóm tắt trong tối đa **1.200 ký tự**; nếu task phức tạp, bổ sung bằng chứng chi tiết trong `walkthrough.md` hoặc tài liệu bàn giao phù hợp.
+- Nêu rõ: thay đổi, kiểm thử, vấn đề còn lại và việc chưa hoàn thành.
+- **Không bao giờ báo PASS nếu chưa thực thi và xác minh.**
 
