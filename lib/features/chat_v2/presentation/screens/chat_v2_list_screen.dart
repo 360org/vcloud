@@ -339,6 +339,9 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                     final zaloCount = channels
                         .where((c) => c.isZaloOA)
                         .length;
+                    final livechatCount = channels
+                        .where((c) => c.isLivechat)
+                        .length;
 
                     return SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
@@ -385,6 +388,17 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                             isDark: isDark,
                             onTap: () => setState(() => _selectedFilterIndex = 3),
                           ),
+                          if (livechatCount > 0) ...[
+                            const SizedBox(width: 8),
+                            _buildChip(
+                              label: 'Livechat',
+                              count: livechatCount,
+                              isSelected: _selectedFilterIndex == 5,
+                              isDark: isDark,
+                              badgeColor: const Color(0xFF0077CD),
+                              onTap: () => setState(() => _selectedFilterIndex = 5),
+                            ),
+                          ],
                           const SizedBox(width: 8),
                           _buildChip(
                             label: 'Zalo OA',
@@ -661,6 +675,11 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                       } else if (_selectedFilterIndex == 4) {
                         // 4: Zalo OA
                         if (!c.isZaloOA) {
+                          return false;
+                        }
+                      } else if (_selectedFilterIndex == 5) {
+                        // 5: Livechat
+                        if (!c.isLivechat) {
                           return false;
                         }
                       }
@@ -954,13 +973,46 @@ class _ChannelListItem extends ConsumerWidget {
   }
 
   static String _getShortAuthorName(String fullName) {
-    final clean = fullName.trim();
+    var clean = fullName.trim();
     if (clean.isEmpty) return '';
+
+    // 1. Nếu tên có định dạng "Họ, Tên" (Odoo style: "Chau, Le Ba" -> "Chau")
     if (clean.contains(',')) {
       final parts = clean.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
       if (parts.isNotEmpty) return parts.first;
     }
-    return clean.split(' ').last;
+
+    // 2. Bóc tách an toàn các cụm mở rộng trong ngoặc đơn như "(Kinh Doanh)" hoặc "(Internal)"
+    final stripped = clean.replaceAll(RegExp(r'\s*\([^)]*\)'), '').trim();
+    if (stripped.isNotEmpty) {
+      clean = stripped;
+    } else {
+      // Trường hợp chuỗi chỉ gồm mỗi ngoặc đơn (VD: "(Kinh Doanh)")
+      clean = clean.replaceAll(RegExp(r'[()]'), '').trim();
+    }
+
+    // 3. Loại bỏ mọi ký tự ngoặc đơn thừa còn sót để chống tuyệt đối lỗi "Doanh):"
+    clean = clean.replaceAll(RegExp(r'[()]'), '').trim();
+
+    // 4. Nếu là chức danh / role nhiều từ (VD: "Sales Engineer", "Kỹ thuật", "Admin", "OdooBot")
+    final lower = clean.toLowerCase();
+    if (lower.startsWith('sales') ||
+        lower.startsWith('technical') ||
+        lower.startsWith('kỹ thuật') ||
+        lower.startsWith('kinh doanh') ||
+        lower.startsWith('cskh') ||
+        lower.startsWith('admin') ||
+        lower.startsWith('bot') ||
+        lower.startsWith('tư vấn')) {
+      return clean;
+    }
+
+    // 5. Đối với họ tên người thông thường tiếng Việt (VD: "Nguyễn Văn Nam" -> "Nam")
+    final words = clean.split(' ').where((s) => s.isNotEmpty).toList();
+    if (words.length > 2) {
+      return words.last;
+    }
+    return clean;
   }
 
   @override
@@ -969,6 +1021,14 @@ class _ChannelListItem extends ConsumerWidget {
     final isPortal = ref.watch(authControllerProvider).valueOrNull?.isPortal ?? false;
     final cleanName = channel.getCleanName(currentUserName, isPortal: isPortal);
     final isGroup = channel.getActualIsGroup(currentUserName);
+    final isLivechat = channel.isLivechat;
+    final isTechSupport = isLivechat &&
+        (cleanName.toLowerCase().contains('technical') ||
+            cleanName.toLowerCase().contains('kỹ thuật') ||
+            channel.name.toLowerCase().contains('technical') ||
+            channel.name.toLowerCase().contains('kỹ thuật'));
+    final livechatColor = isTechSupport ? const Color(0xFF0077CD) : const Color(0xFF00CE2C);
+    final livechatIcon = isTechSupport ? LucideIcons.wrench : LucideIcons.headphones;
     // Kiểm tra tin nhắn cuối từ channel hoặc từ cache tin nhắn
     final cachedMsgs = ChatV2MessageLocalCache.get(channel.id);
     String? effectiveLastMsg = (channel.lastMessage != null && channel.lastMessage!.isNotEmpty)
@@ -1128,21 +1188,25 @@ class _ChannelListItem extends ConsumerWidget {
                     width: 50,
                     height: 50,
                     decoration: BoxDecoration(
-                      gradient: (channel.isCskhChannel && isPortal)
+                      gradient: (isPortal && (channel.isCskhChannel || isLivechat))
                           ? null
                           : LinearGradient(
                               colors: avatarGrad,
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
-                      color: (channel.isCskhChannel && isPortal) ? Colors.white : null,
+                      color: (isPortal && isLivechat)
+                          ? livechatColor
+                          : ((channel.isCskhChannel && isPortal) ? Colors.white : null),
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: ((channel.isCskhChannel && isPortal)
-                                  ? const Color(0xFF0077CD)
-                                  : avatarGrad[0])
-                              .withValues(alpha: 0.2),
+                          color: (isPortal && isLivechat)
+                              ? livechatColor.withValues(alpha: 0.25)
+                              : ((channel.isCskhChannel && isPortal)
+                                      ? const Color(0xFF0077CD)
+                                      : avatarGrad[0])
+                                  .withValues(alpha: 0.2),
                           blurRadius: 6,
                           offset: const Offset(0, 2),
                         ),
@@ -1153,12 +1217,20 @@ class _ChannelListItem extends ConsumerWidget {
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
-                          if (channel.isCskhChannel && isPortal)
+                          if (channel.isCskhChannel && !isLivechat && isPortal)
                             Image.asset(
                               'branding/cskh_logo_360.png',
                               width: 50,
                               height: 50,
                               fit: BoxFit.cover,
+                            )
+                          else if (isLivechat && isPortal)
+                            Center(
+                              child: Icon(
+                                livechatIcon,
+                                size: 24,
+                                color: Colors.white,
+                              ),
                             )
                           else
                             Center(
@@ -1185,20 +1257,28 @@ class _ChannelListItem extends ConsumerWidget {
                               gaplessPlayback: true,
                               headers: odooApiClient.authHeaders,
                               errorBuilder: (context, error, stackTrace) =>
-                                  (channel.isCskhChannel && isPortal)
+                                  (channel.isCskhChannel && !isLivechat && isPortal)
                                       ? Image.asset(
                                           'branding/cskh_logo_360.png',
                                           width: 50,
                                           height: 50,
                                           fit: BoxFit.cover,
                                         )
-                                      : const SizedBox.shrink(),
+                                      : (isLivechat && isPortal)
+                                          ? Center(
+                                              child: Icon(
+                                                livechatIcon,
+                                                size: 24,
+                                                color: Colors.white,
+                                              ),
+                                            )
+                                          : const SizedBox.shrink(),
                             ),
                         ],
                       ),
                     ),
                   ),
-                  if (channel.isCskhChannel && isPortal)
+                  if (channel.isCskhChannel && !isLivechat && isPortal)
                     Positioned(
                       right: -1,
                       bottom: -1,
@@ -1215,7 +1295,31 @@ class _ChannelListItem extends ConsumerWidget {
                         ),
                       ),
                     )
-                  else if (channel.isCskhChannel && !isPortal)
+                  else if (isLivechat && !isPortal)
+                    Positioned(
+                      right: -1,
+                      bottom: -1,
+                      child: Container(
+                        padding: const EdgeInsets.all(2.5),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: BoxDecoration(
+                            color: livechatColor,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            livechatIcon,
+                            size: 10,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    )
+                  else if (channel.isCskhChannel && !isLivechat && !isPortal)
                     Positioned(
                       right: -1,
                       bottom: -1,
@@ -1364,7 +1468,35 @@ class _ChannelListItem extends ConsumerWidget {
                                   ),
                                 ),
                               ),
-                              if (channel.isCskhChannel && isPortal)
+                              if (isLivechat && !isPortal)
+                                Container(
+                                  margin: const EdgeInsets.only(left: 6),
+                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                  decoration: BoxDecoration(
+                                    color: livechatColor.withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        livechatIcon,
+                                        size: 10,
+                                        color: livechatColor,
+                                      ),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        'Livechat',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w700,
+                                          color: livechatColor,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              else if (channel.isCskhChannel && !isLivechat && isPortal)
                                 const Padding(
                                   padding: EdgeInsets.only(left: 5),
                                   child: Icon(
@@ -1373,7 +1505,7 @@ class _ChannelListItem extends ConsumerWidget {
                                     color: Color(0xFF0077CD),
                                   ),
                                 )
-                              else if (channel.isCskhChannel && !isPortal)
+                              else if (channel.isCskhChannel && !isLivechat && !isPortal)
                                 Container(
                                   margin: const EdgeInsets.only(left: 6),
                                   padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),

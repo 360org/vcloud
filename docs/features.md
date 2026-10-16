@@ -463,6 +463,7 @@ Phân hệ cốt lõi cung cấp trải nghiệm giao tiếp toàn diện: trò 
   - *Tệp liên quan*: `lib/features/chat_v2/presentation/screens/chat_v2_list_screen.dart`, `lib/features/chat_v2/data/models/chat_v2_channel.dart`, `lib/features/chat_v2/application/chat_v2_channels_controller.dart`.
   - *Kịch bản nghiệm thu*: Bấm chip "Zalo OA" ➔ Hiển thị danh sách khách hàng Zalo OA (cô lập 73 kênh); bấm chip "Nhóm" ➔ Chỉ hiện các nhóm nội bộ (`Internal`, `DAVITA Support`, `OTS Supported`), sạch bóng 100% khách hàng Zalo OA; bấm chip "Trực tiếp" ➔ Hiển thị hội thoại 1-1 nội bộ (Bùi Tuấn Kiệt ở đầu); tìm kiếm tiếng Việt không dấu (`_stripVietnameseDiacritics`).
   - *Ghi chú hoàn thành*: Đã fix triệt để: Heuristic đa tầng nhận diện Zalo OA (bot presence, member threshold >50, external partner email domain), seed cache an toàn trong `ChatV2ChannelLocalCache.set()` chống background polling evict kênh 1-1, và chuẩn hóa tìm kiếm tiếng Việt không dấu.
+  - *Khoảng trống nhận diện & Tồn đọng (Gap Identified 2026-10-16)*: Hiện tại 6 chips này chưa có bộ lọc riêng cho **CSKH / Live Chat**. Kênh Livechat (`channel_type == 'livechat'`) đang bị gộp nhầm vào bộ lọc `Zalo OA` (do getter `isZaloOA` trong `chat_v2_channel.dart` chứa điều kiện `channelType == 'livechat'`), còn các kênh nhóm hỗ trợ cũ mang tiền tố `[CSKH]` bị dồn vào "Nhóm". Cần tách bạch và bổ sung bộ lọc chuyên biệt cho CSKH / Livechat theo chuẩn Odoo Discuss (`Livechat` trên Odoo 17, `Looking for help` trên Odoo 19) — chi tiết theo dõi tại mục tồn đọng **B.10**.
 
 - [x] **3.3 Bộ lọc Bóc tách Tên Kênh Rác (Sanitize `Users + Internal`)**
   - *Mô tả*: Tự động làm sạch toàn diện các tiền tố/hậu tố rác do Odoo Discuss sinh ra: loại bỏ sạch sẽ chuỗi `Users + Internal`, `Users / `, `Users - `, dấu ngoặc rác `(Users + Internal)`.
@@ -1361,6 +1362,19 @@ Tab "Tôi" quản lý thông tin nhân sự cá nhân, tùy chỉnh giao diện 
     + **Backend Odoo (`v_mobile_17` & `v_mobile_19`)**: Bọc kiểm tra `int(channel_id)`, `.exists()`, xử lý `AccessError` trả về HTTP 403 JSON và bắt `Exception` trả về HTTP 500 JSON có cấu trúc trong `channel_messages` và `send_message`. Trong `discuss_channel_invitation`, tự động thêm thành viên đã đăng nhập vào nhóm (`add_members`) khi có token hợp lệ.
     + **Frontend Flutter (`vclients`)**: Khai báo `ChatV2AccessDeniedException`, bắt lỗi 403 trong `ChatV2Repository.getMessages()`, kích hoạt cờ `chatV2ChannelAccessDeniedProvider`, dừng polling timer, hiển thị card thông báo "Không có quyền truy cập" kèm nút Quay lại và ẩn `ChatV2InputBar`.
   - *Hiện trạng kỹ thuật*: **Đã hoàn thành triệt để trên Odoo 17, Odoo 19 và Flutter vclients, 12 test cases độc lập pass 100%**.
+
+- [ ] **B.10 Bộ Lọc & Phân Loại Riêng Cho Chăm Sóc Khách Hàng / Live Chat Chuẩn Odoo 17 & 19 (CSKH & Live Chat Filter)**
+  - *Mô tả*: Bổ sung bộ lọc chuyên biệt dành cho CSKH / Hỗ Trợ Trực Tuyến trên màn hình danh sách hội thoại (`ChatV2ListScreen`), phân tách rạch ròi giữa kênh nội bộ, kênh nhóm, Zalo OA và kênh CSKH / Live Chat chuẩn Odoo Discuss (`Livechat` trên Odoo 17, `Looking for help` trên Odoo 19).
+  - *Nguyên nhân kỹ thuật & Khiếm khuyết hiện tại*:
+    + **Frontend (`chat_v2_channel.dart`)**: Getter `isZaloOA` đang dồn cả `channelType == 'livechat'` vào Zalo OA (`channelType == 'livechat' || name.toLowerCase().contains('zalo')`). Hệ quả: Pill filter "Zalo OA" hiển thị sai lệch số lượng kênh Livechat của Portal user (ví dụ Portal chỉ có 5 kênh nhưng pill Zalo OA hiện 2).
+    + **Frontend (`chat_v2_list_screen.dart`)**: Mới chỉ có 6 Filter Chips ngang (`Tất cả`, `Chưa đọc`, `Trực tiếp`, `Nhóm`, `Kênh`, `Zalo OA`), thiếu hoàn toàn chip riêng cho `CSKH` / `Hỗ trợ`. Các kênh CSKH cũ dồn vào "Nhóm", kênh Livechat mới dồn vào "Zalo OA".
+    + **Backend (`v_mobile_17` & `v_mobile_19`)**: API kênh chat cần trả về tường minh `channel_type: 'livechat'`, `livechat_channel_id` (ID bản ghi `im_livechat.channel`) và cờ `is_cskh_channel: bool` để Frontend phân loại chính xác thay vì dùng heuristic regex thô.
+  - *Hiện trạng kỹ thuật*: **Đã xác định root cause & lập SPEC (`docs/SPEC_PORTAL_SUPPORT_CHANNEL.md`), chuẩn bị triển khai theo 4 bước**.
+  - *Lộ trình triển khai (4 bước)*:
+    + **Bước 1 (Backend Odoo `v_mobile`)**: Bổ sung trường `livechat_channel_id` và chuẩn hóa `channel_type: 'livechat'` trong payload trả về của `/api/v1/mobile/chat/channels`.
+    + **Bước 2 (Frontend Data Model `chat_v2_channel.dart`)**: Tách `channelType == 'livechat'` ra khỏi getter `isZaloOA`. Bổ sung getter `bool get isLiveChatOrCskh => isCskhChannel || channelType == 'livechat' || livechatChannelId != null`.
+    + **Bước 3 (Frontend UI `chat_v2_list_screen.dart`)**: Bổ sung Filter Chip thứ 7: `CSKH` (hoặc `Hỗ trợ`) trên thanh Filter Chips ngang kèm badge đếm số lượng kênh và số tin chưa đọc.
+    + **Bước 4 (Frontend Filter Logic `chat_v2_list_screen.dart`)**: Cập nhật hàm lọc `_buildFilteredChannels()`: khi chọn chip CSKH, chỉ hiển thị các phiên Live Chat và kênh CSKH chuẩn, loại bỏ hoàn toàn khỏi danh mục "Nhóm" và "Zalo OA".
 
 ---
 

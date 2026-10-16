@@ -12,7 +12,11 @@ final chatV2CallWatcherProvider = Provider<ChatV2CallWatcher>((ref) {
   final repo = ref.watch(chatV2CallRepositoryProvider);
   final user = ref.watch(authControllerProvider).valueOrNull;
 
-  final watcher = ChatV2CallWatcher(ref: ref, repo: repo, isLoggedIn: user != null);
+  final watcher = ChatV2CallWatcher(
+    ref: ref,
+    repo: repo,
+    isLoggedIn: user != null && user.isPortal != true,
+  );
   ref.onDispose(() {
     watcher.dispose();
   });

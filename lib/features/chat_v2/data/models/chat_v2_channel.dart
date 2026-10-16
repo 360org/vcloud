@@ -477,12 +477,16 @@ class ChatV2Channel {
   /// - Nếu là chat 1-1 ghép tên thì chỉ lấy tên người đối diện.
   String getCleanName(String? currentUserName, {bool? isPortal}) {
     if (channelType == 'livechat') {
+      final clean = cleanChannelName(name);
       if (isPortal == true || directPartnerName == null) {
-        final clean = cleanChannelName(name);
         if (clean.isNotEmpty && clean != 'Cuộc trò chuyện') {
           return clean;
         }
         return 'Hỗ trợ trực tuyến';
+      }
+      // Cho Operator / Admin: Ưu tiên tên kênh định danh phân loại đầy đủ (VD: "Khách Hàng Mới • Technical Support")
+      if (clean.contains('•') || clean.isNotEmpty) {
+        return clean;
       }
       return cleanChannelName(directPartnerName ?? name);
     }
@@ -647,12 +651,15 @@ class ChatV2Channel {
   /// Kiểm tra có phải kênh thảo luận Odoo (channel) hay không
   bool get isChannel => channelType == 'channel';
 
-  /// Kiểm tra có phải kênh Zalo OA hoặc Livechat hay không
+  /// Kiểm tra có phải kênh hỗ trợ trực tuyến Livechat hay không
+  bool get isLivechat => channelType == 'livechat';
+
+  /// Kiểm tra có phải kênh Zalo OA hay không (Fix 4: Tuyệt đối không đếm Livechat vào Zalo OA)
   bool get isZaloOA {
+    if (channelType == 'livechat') return false;
     if (isZaloChannel ||
         channelType == 'zalo' ||
         channelType == 'zalo_oa' ||
-        channelType == 'livechat' ||
         name.toLowerCase().contains('zalo')) {
       return true;
     }
@@ -682,8 +689,9 @@ class ChatV2Channel {
     return false;
   }
 
-  /// Kiểm tra có phải hội thoại 1-1 trực tiếp giữa 2 người hay không (loại trừ nhóm, kênh và Zalo OA)
+  /// Kiểm tra có phải hội thoại 1-1 trực tiếp giữa 2 người hay không (loại trừ nhóm, kênh, livechat và Zalo OA)
   bool isInternalDirect(String? currentUserName) {
+    if (channelType == 'livechat') return false;
     if (isZaloOA) return false;
     if (channelType == 'channel') return false;
     if (getActualIsGroup(currentUserName)) return false;
@@ -889,13 +897,15 @@ class ChatV2Channel {
         map['zalo_user_id'] != null;
 
     final rawIsCskh = map['is_cskh_channel'] ?? map['is_cskh'];
-    final bool isCskhChannel = rawIsCskh == true ||
+    final bool isCskhChannel = (effectiveChannelType != 'livechat') && (
+        rawIsCskh == true ||
         rawIsCskh == 1 ||
         rawIsCskh == 'true' ||
         name.contains('[CSKH]') ||
         name.contains('Chăm Sóc Khách Hàng 360') ||
         (map['name']?.toString().contains('[CSKH]') ?? false) ||
-        (map['display_name']?.toString().contains('[CSKH]') ?? false);
+        (map['display_name']?.toString().contains('[CSKH]') ?? false)
+    );
 
     final customNickname = _stringOrNull(map['custom_nickname'] ?? map['custom_channel_name']);
     final uuid = _stringOrNull(map['uuid']);

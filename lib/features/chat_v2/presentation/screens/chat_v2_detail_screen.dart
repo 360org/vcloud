@@ -955,11 +955,25 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
     final currentChannel = ref.watch(chatV2ChannelsProvider.select(
       (async) => async.valueOrNull?.where((c) => c.id == widget.channelId).firstOrNull,
     ));
-    final isCskh = currentChannel?.isCskhChannel == true ||
+    final isLivechat = currentChannel?.channelType == 'livechat' ||
         (widget.title != null &&
-            (widget.title!.contains('Chăm Sóc Khách Hàng') || widget.title!.contains('[CSKH]')));
+            (widget.title!.toLowerCase().contains('technical support') ||
+                widget.title!.toLowerCase().contains('customer care') ||
+                widget.title!.toLowerCase().contains('hỗ trợ trực tuyến')));
+    final isCskhGroup = !isLivechat &&
+        (currentChannel?.isCskhChannel == true ||
+            (widget.title != null &&
+                (widget.title!.contains('Chăm Sóc Khách Hàng') || widget.title!.contains('[CSKH]'))));
     String displayTitle;
-    if (isCskh) {
+    if (isLivechat) {
+      if (currentChannel != null) {
+        displayTitle = currentChannel.getCleanName(currentUserName, isPortal: isPortal);
+      } else if (widget.title != null && widget.title!.trim().isNotEmpty) {
+        displayTitle = ChatV2Channel.cleanChannelName(widget.title!);
+      } else {
+        displayTitle = 'Hỗ trợ trực tuyến';
+      }
+    } else if (isCskhGroup) {
       if (isPortal) {
         displayTitle = 'Chăm Sóc Khách Hàng 360';
       } else {
@@ -1013,7 +1027,11 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
 
     // Fallback các cấp độ an toàn để xác định avatar của đối phương (tuyệt đối không lấy avatar của bản thân):
     String? resolvedAvatarUrl = currentChannel?.avatarUrl;
-    if (isCskh) {
+    if (isLivechat) {
+      if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
+        resolvedAvatarUrl = widget.initialAvatarUrl;
+      }
+    } else if (isCskhGroup) {
       if (isPortal) {
         resolvedAvatarUrl = null; // Portal luôn dùng branding/cskh_logo_360.png
       } else {
@@ -1198,18 +1216,18 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    gradient: (currentChannel?.isCskhChannel == true && isPortal)
+                    gradient: (isCskhGroup && isPortal)
                         ? null
                         : const LinearGradient(
                             colors: [Color(0xFF00C83A), Color(0xFF009D2E)],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           ),
-                    color: (currentChannel?.isCskhChannel == true && isPortal) ? Colors.white : null,
+                    color: (isCskhGroup && isPortal) ? Colors.white : null,
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: ((currentChannel?.isCskhChannel == true && isPortal)
+                        color: ((isCskhGroup && isPortal)
                                 ? const Color(0xFF0077CD)
                                 : const Color(0xFF00C83A))
                             .withValues(alpha: 0.2),
@@ -1223,7 +1241,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        if (currentChannel?.isCskhChannel == true && isPortal)
+                        if (isCskhGroup && isPortal)
                           Image.asset(
                             'branding/cskh_logo_360.png',
                             width: 40,
@@ -1254,7 +1272,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                             gaplessPlayback: true,
                             headers: odooApiClient.authHeaders,
                             errorBuilder: (context, error, stackTrace) =>
-                                (currentChannel?.isCskhChannel == true && isPortal)
+                                (isCskhGroup && isPortal)
                                     ? Image.asset(
                                         'branding/cskh_logo_360.png',
                                         width: 40,
@@ -1288,14 +1306,21 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          if (currentChannel?.isCskhChannel == true && isPortal) ...[
+                          if (isCskhGroup && isPortal) ...[
                             const SizedBox(width: 5),
                             const Icon(
                               LucideIcons.badgeCheck,
                               size: 16,
                               color: Color(0xFF0077CD),
                             ),
-                          ] else if (currentChannel?.isCskhChannel == true && !isPortal) ...[
+                          ] else if (isLivechat) ...[
+                            const SizedBox(width: 5),
+                            const Icon(
+                              LucideIcons.badgeCheck,
+                              size: 16,
+                              color: Color(0xFF0077CD),
+                            ),
+                          ] else if (isCskhGroup && !isPortal) ...[
                             const SizedBox(width: 6),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
@@ -1326,7 +1351,30 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                       const SizedBox(height: 2),
                       Consumer(
                         builder: (context, ref, _) {
-                          if (currentChannel != null && currentChannel.isCskhChannel) {
+                          if (isLivechat) {
+                            return Row(
+                              children: [
+                                const Icon(
+                                  LucideIcons.headphones,
+                                  size: 13,
+                                  color: Color(0xFF0077CD),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  isPortal
+                                      ? 'Hỗ trợ trực tuyến • 360 CORP'
+                                      : 'Khách hàng • Livechat',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                  ),
+                                ),
+                              ],
+                            );
+                          }
+
+                          if (isCskhGroup) {
                             return Row(
                               children: [
                                 const Icon(
@@ -1689,9 +1737,9 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                     isSearchActiveMatch: _isSearching &&
                                         _matchedIndices.isNotEmpty &&
                                         _matchedIndices[_currentMatchIndex] == index,
-                                    isCskhPortal: isPortal && isCskh,
+                                    isCskhPortal: isPortal && isCskhGroup,
                                     onAvatarTap: () {
-                                      if (isPortal && isCskh) return;
+                                      if (isPortal && (isCskhGroup || isLivechat)) return;
                                       final targetPid = (message.authorId != null && message.authorId!.isNotEmpty)
                                           ? message.authorId!
                                           : effectiveChannelMembers.firstWhereOrNull((m) =>
@@ -2257,12 +2305,102 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
     if (channel == null) return;
     final currentUser = ref.read(authControllerProvider).valueOrNull;
     final isPortal = currentUser?.isPortal == true;
-    final isCskh = channel.isCskhChannel ||
-        channel.name.contains('Chăm Sóc Khách Hàng') ||
-        channel.name.contains('[CSKH]') ||
-        (widget.title != null && (widget.title!.contains('Chăm Sóc Khách Hàng') || widget.title!.contains('[CSKH]')));
+    final isLivechat = channel.channelType == 'livechat' ||
+        (widget.title != null &&
+            (widget.title!.toLowerCase().contains('technical support') ||
+                widget.title!.toLowerCase().contains('customer care') ||
+                widget.title!.toLowerCase().contains('hỗ trợ trực tuyến')));
+    final isCskhGroup = !isLivechat &&
+        (channel.isCskhChannel ||
+            channel.name.contains('Chăm Sóc Khách Hàng') ||
+            channel.name.contains('[CSKH]') ||
+            (widget.title != null &&
+                (widget.title!.contains('Chăm Sóc Khách Hàng') || widget.title!.contains('[CSKH]'))));
 
-    if (isPortal && isCskh) {
+    if (isPortal && isLivechat) {
+      final currentUserName = (currentUser?.userMetadata['name'] ??
+          currentUser?.userMetadata['display_name'] ??
+          currentUser?.userMetadata['login'] ??
+          '') as String?;
+      final livechatTitle = channel.getCleanName(currentUserName, isPortal: true);
+      showModalBottomSheet(
+        context: context,
+        backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        builder: (ctx) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0077CD).withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: ClipOval(
+                    child: (channel.avatarUrl != null && channel.avatarUrl!.isNotEmpty)
+                        ? Image.network(
+                            channel.avatarUrl!,
+                            fit: BoxFit.cover,
+                            headers: odooApiClient.authHeaders,
+                            errorBuilder: (context, error, stackTrace) => const Icon(
+                              LucideIcons.headphones,
+                              color: Color(0xFF0077CD),
+                              size: 28,
+                            ),
+                          )
+                        : const Icon(
+                            LucideIcons.headphones,
+                            color: Color(0xFF0077CD),
+                            size: 28,
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      livechatTitle,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(LucideIcons.badgeCheck, size: 16, color: Color(0xFF0077CD)),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Hỗ trợ trực tuyến • 360 CORP',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: isDark ? Colors.white70 : const Color(0xFF64748B),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                ListTile(
+                  leading: const Icon(LucideIcons.search, color: Color(0xFF0077CD)),
+                  title: const Text('Tìm kiếm tin nhắn trong đoạn chat'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    setState(() {
+                      _isSearching = true;
+                    });
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (isPortal && isCskhGroup) {
       showModalBottomSheet(
         context: context,
         backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,

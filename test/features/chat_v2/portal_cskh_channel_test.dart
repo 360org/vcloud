@@ -124,5 +124,62 @@ void main() {
       expect(channel.getCleanName('Khách Hàng Mới', isPortal: true), 'Customer Care');
       expect(channel.directPartnerName, isNull);
     });
+
+    test('TC-13: Livechat channel isolates from CSKH and keeps distinct Livechat clean name', () {
+      final json = {
+        'id': '665806',
+        'name': 'Technical Support',
+        'channel_type': 'livechat',
+        'is_group': false,
+        'is_cskh_channel': true,
+      };
+
+      final channel = ChatV2Channel.fromJson(json);
+
+      expect(channel.channelType, 'livechat');
+      expect(channel.isCskhChannel, isFalse);
+      // Clean name must NOT be overwritten to generic group CSKH title
+      expect(channel.getCleanName('Portal User', isPortal: true), 'Technical Support');
+    });
+
+    test('TC-14: Livechat channel with generic or empty name falls back to "Hỗ trợ trực tuyến"', () {
+      final json = {
+        'id': '665807',
+        'name': 'Cuộc trò chuyện',
+        'channel_type': 'livechat',
+        'is_group': false,
+      };
+
+      final channel = ChatV2Channel.fromJson(json);
+
+      expect(channel.channelType, 'livechat');
+      expect(channel.getCleanName('Portal User', isPortal: true), 'Hỗ trợ trực tuyến');
+    });
+
+    test('TC-15: Group CSKH channel strips [CSKH] prefix or returns brand name for Portal user', () {
+      final jsonSpecific = {
+        'id': '665808',
+        'name': '[CSKH] Hợp đồng DV 2026',
+        'channel_type': 'group',
+        'is_group': true,
+        'is_cskh_channel': true,
+      };
+
+      final channelSpecific = ChatV2Channel.fromJson(jsonSpecific);
+      expect(channelSpecific.channelType, 'group');
+      expect(channelSpecific.isCskhChannel, isTrue);
+      expect(channelSpecific.getCleanName('Portal User', isPortal: true), 'Hợp đồng DV 2026');
+
+      final jsonGeneric = {
+        'id': '665809',
+        'name': '[CSKH]',
+        'channel_type': 'group',
+        'is_group': true,
+        'is_cskh_channel': true,
+      };
+
+      final channelGeneric = ChatV2Channel.fromJson(jsonGeneric);
+      expect(channelGeneric.getCleanName('Portal User', isPortal: true), 'Chăm Sóc Khách Hàng 360');
+    });
   });
 }
