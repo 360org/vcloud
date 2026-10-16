@@ -3,6 +3,18 @@
 # Single Authority Director: Sếp Tân
 # Version: Agent OS v3.1 (Multi-Agent Team Delegation & Auto-Scaler Edition)
 
+## 📑 MỤC LỤC NHANH (TABLE OF CONTENTS)
+
+| Mục | Nội dung | Dòng |
+|---|---|---|
+| **I** | Dàn Nhạc Multi-Agent OS v3.1 (5 Roles) | `@lead`, `@dev`, `@tester`, `@auditor`, `@spawner` |
+| **II** | 7 Bước SDLC & Đồng Bộ Local Server | SSOT Files, LAN Sync `192.168.1.100` |
+| **III** | Meta-Prompt Template (Agent đọc & tạo prompt) | 4 Trụ Cột + Anti-Sycophancy L0-L5 |
+| **IV** | Bảo Vệ Context, Locks & Rollback | `/compact`, `task_locks.yaml`, Checkpoint, Conventional Commits |
+| **V** | Changelog & Chống Lạm Phát Version | 5 Tags `[NEW/FIX/IMPROVE/REFACTOR/SECURITY]` |
+| **VI** | Manifest & Đồng Bộ Phiên Bản | `pubspec.yaml` SSOT, `__manifest__.py` format |
+| **VII** | Deploy & CI/CD Pipeline 3 Tầng | LAN → Odoo SaaS → TestFlight & Google Play |
+
 ---
 
 ## 🏛️ I. DÀN NHẠC MULTI-AGENT OS v3.1 (ROLES & DELEGATION MATRIX)
