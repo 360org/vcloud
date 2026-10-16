@@ -87,3 +87,24 @@ TẠM DỪNG HOÀN TOÀN sau khi nạp code LAN (`192 . 168 . 1 . 100`). Chờ S
 🏛️ [TRỤ CỘT 4: ⚙️ OUTPUT FORMAT (< 1.200 KÝ TỰ)]
 Xuất Báo cáo Nghiệm thu UAT Ready dạng Bảng với dữ liệu thực tế từ Terminal.
 ```
+
+---
+
+## 🛡️ IV. BẢO VỆ CONTEXT, LOCKS & KỊCH BẢN ROLLBACK AN TOÀN
+
+### 1. 🧹 Quản Lý Token & Context Window:
+- Sau khi hoàn thành kiểm thử hoặc khi context vượt quá 50% buffer ➔ `@lead` / `@dev` BẮT BUỘC thực thi lệnh `/compact` hoặc `/clear` dọn dẹp log thừa, tiết kiệm 40% token qua 9Router.
+
+### 2. 🔒 Tệp Khóa Vùng Code (Task Lock File):
+- Mọi Subagent trước khi sửa code phải ghi/đọc trạng thái khóa file tại: `.claude / task_locks . yaml`.
+- Nguyên tắc: **1-File-1-Owner** — Cấm 2 Subagent sửa chung 1 file cùng một thời điểm.
+
+### 3. 🚨 Kịch Bản Rollback Khẩn Cấp (Fail-Safe Recovery):
+- Khi `@tester` phát hiện sửa kẹt 3 lần (Stop-The-Line) ➔ Thực thi ngay:
+  `git reset --hard [CHECKPOINT_HASH]`
+- Đưa mã nguồn về trạng thái sạch gần nhất trước khi thông báo `BLOCKED` trình Sếp Tân.
+
+### 4. 🏷️ Quy Chuẩn Git Commit (Conventional Commits):
+- Tiêu đề: `feat(scope): ...`, `fix(scope): ...`, `docs(scope): ...`, `test(scope): ...`.
+- Trailer bắt buộc: `Authored-By: 360org <support @ 360 . org . vn>`.
+
