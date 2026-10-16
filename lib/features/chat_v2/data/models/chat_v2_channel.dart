@@ -540,9 +540,6 @@ class ChatV2Channel {
     }
     if (isCskhChannel) {
       if (isPortal == true || (isPortal == null && name.toLowerCase().contains('chăm sóc khách hàng'))) {
-        if (livechatChannelName != null && livechatChannelName!.trim().isNotEmpty) {
-          return cleanChannelName(livechatChannelName!);
-        }
         final clean = cleanChannelName(name);
         if (clean.isNotEmpty &&
             clean != 'Cuộc trò chuyện' &&
