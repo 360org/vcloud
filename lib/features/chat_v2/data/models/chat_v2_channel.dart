@@ -296,7 +296,7 @@ class ChatV2Channel {
     'livechat_channel_name': livechatChannelName,
   };
 
-  static bool _isAdminName(String text) {
+  static bool isAdminName(String text) {
     final lower = text.trim().toLowerCase();
     if (lower == 'admin' ||
         lower == 'mitchell admin' ||
@@ -530,14 +530,19 @@ class ChatV2Channel {
         }
       }
 
-      final pName = (partnerPart != null && partnerPart.isNotEmpty) ? partnerPart : 'Khách hàng';
+      var pName = (partnerPart != null && partnerPart.isNotEmpty) ? partnerPart : 'Khách hàng';
+      pName = pName.replaceAll(RegExp(r'\s*\([^\)]*portal[^\)]*\)', caseSensitive: false), '').trim();
+      if (pName.isEmpty) pName = 'Khách hàng';
       if (svcName != null && svcName.isNotEmpty) {
         return '$pName • $svcName';
       }
       return pName;
     }
     if (isCskhChannel) {
-      if (isPortal == true) {
+      if (isPortal == true || (isPortal == null && name.toLowerCase().contains('chăm sóc khách hàng'))) {
+        if (livechatChannelName != null && livechatChannelName!.trim().isNotEmpty) {
+          return cleanChannelName(livechatChannelName!);
+        }
         final clean = cleanChannelName(name);
         if (clean.isNotEmpty &&
             clean != 'Cuộc trò chuyện' &&
@@ -547,32 +552,62 @@ class ChatV2Channel {
         }
         return 'Chăm Sóc Khách Hàng 360';
       }
+
+      // Cho Operator / Admin / Kỹ thuật trực ca (!isPortal):
+      // Định dạng B.11: "$customerName • $departmentName"
+      final clean = cleanChannelName(name);
+      if (clean.contains('•')) {
+        return clean;
+      }
+      final svcName = (livechatChannelName != null && livechatChannelName!.trim().isNotEmpty)
+          ? livechatChannelName!.trim()
+          : (members.any((m) {
+                final n = m.name.toLowerCase();
+                return n.contains('kỹ thuật') || n.contains('technical') || n.contains('demo');
+              }) || name.toLowerCase().contains('stage 2') || name.toLowerCase().contains('hợp đồng')
+              ? 'Technical Support'
+              : 'Customer Care');
+
+      String? partnerPart;
       if (directPartnerName != null &&
           directPartnerName!.trim().isNotEmpty &&
           directPartnerName!.trim().toLowerCase() != 'chăm sóc khách hàng 360' &&
           directPartnerName!.trim().toLowerCase() != 'cskh' &&
-          directPartnerName!.trim().toLowerCase() != 'cuộc trò chuyện') {
-        return cleanChannelName(directPartnerName!);
+          directPartnerName!.trim().toLowerCase() != 'cuộc trò chuyện' &&
+          !matchesUser(directPartnerName!, currentUserName)) {
+        partnerPart = cleanChannelName(directPartnerName!);
+      } else {
+        final stripped = name.replaceAll(RegExp(r'^\[CSKH\]\s*', caseSensitive: false), '').trim();
+        if (stripped.isNotEmpty &&
+            stripped.toLowerCase() != 'chăm sóc khách hàng 360' &&
+            stripped.toLowerCase() != 'cskh' &&
+            stripped.toLowerCase() != 'cuộc trò chuyện') {
+          partnerPart = stripped;
+        } else {
+          final customerMember = members.firstWhereOrNull((m) =>
+              !m.isMe &&
+              m.name.isNotEmpty &&
+              m.name.toLowerCase() != 'chăm sóc khách hàng 360' &&
+              m.name.toLowerCase() != 'cskh' &&
+              m.name.toLowerCase() != 'odoobot' &&
+              m.name.toLowerCase() != 'bot' &&
+              m.name.toLowerCase() != 'hệ thống');
+          if (customerMember != null && customerMember.displayName.isNotEmpty) {
+            partnerPart = cleanChannelName(customerMember.displayName);
+          }
+        }
       }
-      final stripped = name.replaceAll(RegExp(r'^\[CSKH\]\s*', caseSensitive: false), '').trim();
-      if (stripped.isNotEmpty &&
-          stripped.toLowerCase() != 'chăm sóc khách hàng 360' &&
-          stripped.toLowerCase() != 'cskh' &&
-          stripped.toLowerCase() != 'cuộc trò chuyện') {
-        return stripped;
+
+      var pName = (partnerPart != null && partnerPart.isNotEmpty) ? partnerPart : 'Khách hàng';
+      pName = pName.replaceAll(RegExp(r'\s*\([^\)]*portal[^\)]*\)', caseSensitive: false), '').trim();
+      if (pName.isEmpty) pName = 'Khách hàng';
+
+      // Nếu pName là generic "Chăm Sóc Khách Hàng 360" và không có tên khách cụ thể:
+      if (pName.toLowerCase().contains('chăm sóc khách hàng')) {
+        return isPortal == null ? 'Chăm Sóc Khách Hàng 360' : 'Khách hàng • $svcName';
       }
-      final customerMember = members.firstWhereOrNull((m) =>
-          !m.isMe &&
-          m.name.isNotEmpty &&
-          m.name.toLowerCase() != 'chăm sóc khách hàng 360' &&
-          m.name.toLowerCase() != 'cskh' &&
-          m.name.toLowerCase() != 'odoobot' &&
-          m.name.toLowerCase() != 'bot' &&
-          m.name.toLowerCase() != 'hệ thống');
-      if (customerMember != null && customerMember.displayName.isNotEmpty) {
-        return cleanChannelName(customerMember.displayName);
-      }
-      return isPortal == false ? 'Khách hàng' : 'Chăm Sóc Khách Hàng 360';
+
+      return '$pName • $svcName';
     }
     if (!isGroup && customNickname != null && customNickname!.trim().isNotEmpty) {
       return customNickname!.trim();
@@ -595,7 +630,7 @@ class ChatV2Channel {
       return 'Cuộc trò chuyện';
     }
     if (currentUserName == null || currentUserName.trim().isEmpty) {
-      if (isPortal == true && !isGroup && _isAdminName(cleaned)) {
+      if (isPortal == true && !isGroup && isAdminName(cleaned)) {
         return 'Chuyên viên tư vấn';
       }
       return cleaned;
@@ -691,7 +726,7 @@ class ChatV2Channel {
       }
 
       // [Defect 3] Che giấu định danh nội bộ "Admin" cho Portal (B.12):
-      if (isPortal == true && _isAdminName(resolved)) {
+      if (isPortal == true && isAdminName(resolved)) {
         return 'Chuyên viên tư vấn';
       }
 
@@ -701,8 +736,8 @@ class ChatV2Channel {
   }
 
   bool getActualIsGroup(String? currentUserName) {
-    // Kênh Livechat & Zalo OA tuyệt đối không phải là nhóm nội bộ (B.10)
-    if (isLivechat || isZaloOA) return false;
+    // Kênh Livechat, CSKH & Zalo OA tuyệt đối không phải là nhóm nội bộ (B.10)
+    if (isLivechat || isCskhChannel || isZaloOA) return false;
 
     // 0. Kênh thảo luận Odoo (channelType == 'channel' hoặc 'group') luôn là nhóm/kênh
     if (channelType == 'channel' || channelType == 'group') return true;
@@ -735,6 +770,9 @@ class ChatV2Channel {
 
   /// Kiểm tra có phải kênh hỗ trợ trực tuyến Livechat hay không
   bool get isLivechat => channelType == 'livechat';
+
+  /// Kiểm tra có phải kênh hỗ trợ khách hàng (Livechat hoặc CSKH)
+  bool get isSupportChannel => isLivechat || isCskhChannel;
 
   /// Kiểm tra có phải kênh Zalo OA hay không (Fix 4: Tuyệt đối không đếm Livechat vào Zalo OA)
   bool get isZaloOA {
@@ -771,9 +809,9 @@ class ChatV2Channel {
     return false;
   }
 
-  /// Kiểm tra có phải hội thoại 1-1 trực tiếp giữa 2 người hay không (loại trừ nhóm, kênh, livechat và Zalo OA)
+  /// Kiểm tra có phải hội thoại 1-1 trực tiếp giữa 2 người hay không (loại trừ nhóm, kênh, livechat/CSKH và Zalo OA)
   bool isInternalDirect(String? currentUserName) {
-    if (channelType == 'livechat') return false;
+    if (isSupportChannel) return false;
     if (isZaloOA) return false;
     if (channelType == 'channel') return false;
     if (getActualIsGroup(currentUserName)) return false;
@@ -796,9 +834,9 @@ class ChatV2Channel {
     return true;
   }
 
-  /// Kiểm tra có phải nhóm trò chuyện nhiều người hay không (loại trừ kênh chung và Livechat)
+  /// Kiểm tra có phải nhóm trò chuyện nhiều người hay không (loại trừ kênh chung, Livechat và CSKH)
   bool isGroupChat(String? currentUserName) {
-    if (channelType == 'channel' || isLivechat) return false;
+    if (channelType == 'channel' || isLivechat || isCskhChannel) return false;
     return getActualIsGroup(currentUserName);
   }
 

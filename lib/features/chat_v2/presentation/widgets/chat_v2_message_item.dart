@@ -11,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/api/mobile_attachment_repository.dart';
 import '../../../../core/api/odoo_api_client.dart';
 import '../../../../core/utils/local_attachment_cache.dart';
+import '../../data/models/chat_v2_channel.dart';
 import '../../data/models/chat_v2_message.dart';
 import '../screens/chat_v2_image_viewer_screen.dart';
 import 'chat_v2_attachment_viewer.dart';
@@ -80,6 +81,13 @@ class ChatV2MessageItem extends StatelessWidget {
     if (name.isEmpty) return _authorColors[0];
     final hash = name.codeUnits.fold(0, (acc, c) => acc + c);
     return _authorColors[hash % _authorColors.length];
+  }
+
+  String get _displayAuthorName {
+    if (isCskhPortal || (isCskhPortal && ChatV2Channel.isAdminName(message.authorName))) {
+      return 'Chuyên viên tư vấn';
+    }
+    return message.authorName;
   }
 
   @override
@@ -361,7 +369,7 @@ class ChatV2MessageItem extends StatelessWidget {
                           children: [
                             if (!isMine && showSenderName) ...[
                               Text(
-                                message.authorName,
+                                _displayAuthorName,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
@@ -456,7 +464,7 @@ class ChatV2MessageItem extends StatelessWidget {
                                         children: [
                                           if (!isMine && showSenderName) ...[
                                             Text(
-                                              message.authorName,
+                                              _displayAuthorName,
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
                                               style: TextStyle(
@@ -1703,7 +1711,7 @@ class ChatV2MessageItem extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            message.authorName,
+            _displayAuthorName,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(

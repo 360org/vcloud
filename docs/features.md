@@ -1368,90 +1368,41 @@ Tab "Tôi" quản lý thông tin nhân sự cá nhân, tùy chỉnh giao diện 
     + 🛠️ **Technical Support** (Hỗ trợ kỹ thuật / xử lý sự cố phần mềm).
     + 🟢 **Customer Care** (Chăm sóc khách hàng / tư vấn dịch vụ & báo giá).
     Phân tách rạch ròi giữa kênh cá nhân nội bộ 1-1, nhóm phòng ban, Zalo OA và các phiên Hỗ trợ trực tuyến chuẩn Odoo Discuss (`Livechat` trên Odoo 17, `Looking for help` trên Odoo 19).
-  - *Nguyên nhân kỹ thuật & Khiếm khuyết hiện tại*:
-    + **Frontend (`chat_v2_channel.dart`)**: Getter `isZaloOA` trước đây dồn cả `channelType == 'livechat'` vào Zalo OA (`channelType == 'livechat' || name.toLowerCase().contains('zalo')`). Hệ quả: Pill filter "Zalo OA" hiển thị sai lệch số lượng kênh Livechat của Portal user (ví dụ Portal chỉ có 5 kênh nhưng pill Zalo OA hiện 2).
-    + **Frontend (`chat_v2_list_screen.dart`)**: Mới chỉ có 6 Filter Chips ngang (`Tất cả`, `Chưa đọc`, `Trực tiếp`, `Nhóm`, `Kênh`, `Zalo OA`), thiếu hoàn toàn chip riêng cho `Hỗ trợ`. Các kênh hỗ trợ cũ dồn vào "Nhóm", kênh Livechat mới dồn vào "Zalo OA".
-    + **Backend (`v_mobile_17` & `v_mobile_19`)**: API kênh chat cần trả về tường minh `channel_type: 'livechat'`, `livechat_channel_id` (ID bản ghi `im_livechat.channel`) và cờ `is_cskh_channel: bool` để Frontend phân loại chính xác thay vì dùng heuristic regex thô.
+  - *Hiện trạng kỹ thuật & Đối soát thực tế (UAT 2026-10-16)*:
+    + 🟢 **Portal View (`2.png`)**: Đã xuất hiện chip `[ Hỗ trợ 2 ]` với badge `#0077CD`, tách sạch khỏi tab `Zalo OA`.
+    + 🔴 **Tồn đọng Portal (`2.png`)**: Các chip có `count = 0` (`[ Kênh ]`, `[ Zalo OA ]`) vẫn hiển thị thừa thãi trên thanh filter thay vì được ẩn tự động.
+    + 🔴 **Lỗi nghiêm trọng phía Nhân viên Nội bộ (`3.png`)**: **BIẾN MẤT HOÀN TOÀN CHIP `[ Hỗ trợ ]`** trên thanh filter. Do các kênh Livechat bị backend Odoo hoặc frontend phân loại nhầm vào `Nhóm 2` (`channel_type == 'group'`) hoặc `livechatCount == 0`, khiến nhân viên CSKH/Sale không có công cụ lọc các phiên chat của khách.
   - *Điều kiện hiển thị động (Smart Conditional Visibility)*:
-    + Chỉ hiển thị Filter Chip **"Hỗ trợ"** khi tài khoản có tối thiểu 1 phiên Livechat (`livechatCount > 0`). Tự động ẩn chip khi số lượng = 0 để giữ giao diện sạch sẽ, không gây nhiễu cho nhân viên không tham gia trực ca hoặc người dùng không có phiên chat hỗ trợ.
-  - *Quy chuẩn hiển thị theo 2 góc nhìn (Perspective Parity)*:
-    + **Góc nhìn Kỹ thuật / CSKH trực ca**: Bấm "Hỗ trợ" hiển thị danh sách khách hàng cần hỗ trợ kèm định danh phòng ban phụ trách (VD: `Khách Hàng Mới • Technical Support` hoặc `Khách Hàng Mới • Customer Care`).
-    + **Góc nhìn Khách hàng (Portal User)**: Bấm "Hỗ trợ" hiển thị các phòng hỗ trợ của công ty (`Technical Support`, `Customer Care`) với avatar và chấm xanh trực tuyến 🟢, tách biệt hoàn toàn khỏi tab Zalo OA và Nhóm nội bộ.
-  - *Đặc tả giao diện trực quan 2 chiều (Perspective Parity Visual Mockup)*:
-    ```text
-    ┌────────────────────────────────────────────────────────────────────────┐
-    │ 📱 GIAO DIỆN KHÁCH HÀNG (PORTAL USER)                                  │
-    ├────────────────────────────────────────────────────────────────────────┤
-    │ [ Tất cả 3 ]  [ Chưa đọc 1 ]  [ Hỗ trợ 2 ]  [ Trực tiếp 1 ]            │
-    │ (Tự động ẩn các tab Nhóm, Kênh, Zalo OA vì count = 0)                  │
-    ├────────────────────────────────────────────────────────────────────────┤
-    │ 🛠️  Technical Support                              🟢  10:35 AM       │
-    │     Kỹ thuật viên 01: Đã khắc phục xong lỗi kết nối...                 │
-    ├────────────────────────────────────────────────────────────────────────┤
-    │ 🎧  Customer Care                                  🟢  09:15 AM       │
-    │     Tư vấn viên 02: Bảng báo giá gói dịch vụ gửi anh...        [1]     │
-    ├────────────────────────────────────────────────────────────────────────┤
-    │ 👤  Chuyên viên Tân (360 CORP)                         Hôm qua         │
-    │     ✓ Bạn: Cảm ơn anh đã tư vấn nhiệt tình                             │
-    └────────────────────────────────────────────────────────────────────────┘
-
-    ┌────────────────────────────────────────────────────────────────────────┐
-    │ 👨‍💻 GIAO DIỆN NHÂN VIÊN TRỰC CA (CSKH / KỸ THUẬT / ADMIN)                │
-    ├────────────────────────────────────────────────────────────────────────┤
-    │ [Tất cả 85] [Chưa đọc 12] [Trực tiếp 5] [Nhóm 3]                       │
-    │ [Kênh 2]    [ Hỗ trợ 2 ]  [ Zalo OA 73 ]                               │
-    │                    └── Badge xanh Royal Blue (#0077CD)                 │
-    ├────────────────────────────────────────────────────────────────────────┤
-    │ 👤  Khách Hàng Mới • Technical Support                 10:35 AM        │
-    │     ✓ Bạn: Em đang kiểm tra lỗi kết nối cho anh...                     │
-    ├────────────────────────────────────────────────────────────────────────┤
-    │ 👤  Công Ty DAVITA • Customer Care                     09:15 AM        │
-    │     Khách Hàng: Bên mình muốn mở rộng thêm 5 user...           [1]     │
-    ├────────────────────────────────────────────────────────────────────────┤
-    │ 👥  DAVITA Support [CSKH]                              08:30 AM        │
-    │     Kiệt: Anh em cập nhật tiến độ sprint nhé                           │
-    ├────────────────────────────────────────────────────────────────────────┤
-    │ 💬  Khách Zalo - Nguyễn Văn A (Zalo OA)                Hôm qua         │
-    │     Khách: Shop tư vấn giúp em sản phẩm này                            │
-    └────────────────────────────────────────────────────────────────────────┘
-    ```
-  - *Hiện trạng kỹ thuật*: **Đã xác định root cause & lập SPEC (`docs/SPEC_PORTAL_SUPPORT_CHANNEL.md`), chuẩn bị triển khai theo 4 bước**.
-  - *Lộ trình triển khai (4 bước)*:
-    + **Bước 1 (Backend Odoo `v_mobile`)**: Bổ sung trường `livechat_channel_id` và chuẩn hóa `channel_type: 'livechat'` trong payload trả về của `/api/v1/mobile/chat/channels`.
-    + **Bước 2 (Frontend Data Model `chat_v2_channel.dart`)**: Tách `channelType == 'livechat'` ra khỏi getter `isZaloOA`. Bổ sung getter `bool get isLiveChatOrCskh => isCskhChannel || channelType == 'livechat' || livechatChannelId != null`.
-    + **Bước 3 (Frontend UI `chat_v2_list_screen.dart`)**: Bổ sung Filter Chip thứ 7: `Hỗ trợ` trên thanh Filter Chips ngang kèm badge màu xanh Royal Blue (`#0077CD`) đếm số lượng kênh và số tin chưa đọc khi `livechatCount > 0`.
-    + **Bước 4 (Frontend Filter Logic `chat_v2_list_screen.dart`)**: Cập nhật hàm lọc `_buildFilteredChannels()`: khi chọn chip Hỗ trợ (`_selectedFilterIndex == 5`), chỉ hiển thị các phiên Live Chat và kênh hỗ trợ chuẩn, loại bỏ hoàn toàn khỏi danh mục "Nhóm" và "Zalo OA".
+    + Chỉ hiển thị các chip khi `count > 0` (đối với `Kênh`, `Hỗ trợ`, `Zalo OA`). Ẩn hoàn toàn chip count = 0 để thanh filter tinh gọn: `[ Tất cả ]  [ Chưa đọc ]  [ Trực tiếp ]  [ Nhóm ]  [ Hỗ trợ ]`.
 
 - [ ] **B.11 Hiển Thị Định Danh Phòng Ban Livechat Phía Nhân Viên Trực Ca (Role-Based Department Identifier)**
   - *Mô tả*: Khắc phục hiện tượng phía Admin/Kỹ thuật/CSKH trực ca nhìn vào danh sách chat chỉ thấy trơ trọi tên khách hàng `"Khách Hàng Mới (Portal Stage 1)"` ở cả phòng Customer Care và Technical Support, gây nhầm lẫn và không phân biệt được phòng ban để tiếp nhận.
-  - *Hiện trạng kỹ thuật & Lộ trình khắc phục*:
-    + **Backend (`v_mobile_17` & `v_mobile_19`)**: Trong hàm serializer `_format_channel`, đối với kênh `channel_type: 'livechat'`, bổ sung trường `livechat_channel_name` (đọc từ `livechat_channel_id.name`, VD: `"Technical Support"`, `"Customer Care"`).
-    + **Frontend (`chat_v2_channel.dart` & `chat_v2_list_screen.dart`)**: Trong hàm `getCleanName` đối với user nội bộ (`!isPortal`), tự động kết hợp tên khách kèm phòng ban: `"$partnerName • $livechatChannelName"` (VD: `"Khách Hàng Mới • Technical Support"`), hoặc render badge phòng ban chuyên biệt bên cạnh tên khách.
+  - *Đối soát thực tế (`3.png` - FAILED NGHIÊM TRỌNG)*:
+    + Dòng 1 (*Customer Care*) hiển thị: `Khách Hàng Mới (Portal Stage 1)` (mất sạch tên phòng ban).
+    + Dòng 3 (*Technical Support*) hiển thị: `Khách Hàng Hợp Đồng (Portal Stage 2)` (mất sạch tên phòng ban).
+    + Dòng 5 (chat 1-1) cũng hiển thị: `Khách Hàng Mới (Portal Stage 1)` ➔ Trùng lặp 100% với Dòng 1, gây loạn tiếp nhận.
+  - *Quy chuẩn & Lộ trình khắc phục*:
+    + Backend hoặc Frontend `getCleanName` đối với user nội bộ (`!isPortal`): Bắt buộc hiển thị định dạng: `"$partnerName • $livechatChannelName"` (VD: `"Khách Hàng Mới • Technical Support"` hoặc `"Khách Hàng Mới • Customer Care"`).
 
 - [ ] **B.12 Khắc Phục Lỗi Kênh Chat 1-1 Hiển Thị Ngược Tên Chính Mình ("Admin") ở Góc Nhìn Admin & Portal**
-  - *Mô tả*: Khắc phục lỗi góc nhìn: Admin mở danh sách chat thấy kênh 1-1 mang tên chính mình `"Admin"` kèm avatar A và tin nhắn `"✓ Bạn: HI"`, thay vì hiển thị tên của khách hàng đối diện; đồng thời chuẩn hóa góc nhìn khách hàng Portal không để lộ tài khoản cá nhân Admin thô.
-  - *Hiện trạng kỹ thuật & Lộ trình khắc phục*:
-    + **Backend Odoo (`controllers/chat.py`)**: Trong endpoint `/api/v1/mobile/chat/channels`, với kênh `channel_type: 'chat'`, bóc tách chính xác `direct_partner_id` và `direct_partner_name` là đối tác đối diện (`partner_id != current_user.partner_id.id`), tuyệt đối không fallback trả về partner của chính caller.
-    + **Frontend (`chat_v2_channel.dart`)**: Cập nhật hàm `getCleanName(currentUserName)`: đối chiếu `directPartnerName` và `name` qua hàm bóc tách `getDirectPartnerName()`, loại bỏ tên chính mình khỏi tiêu đề kênh 1-1.
+  - *Mô tả*: Khắc phục lỗi góc nhìn: Admin mở danh sách chat thấy kênh 1-1 mang tên chính mình `"Admin"`, đồng thời chuẩn hóa góc nhìn khách hàng Portal không để lộ tài khoản cá nhân Admin thô.
+  - *Đối soát thực tế (`2.png` & `3.png`)*:
+    + 🔴 **Portal View (`2.png`)**: Dòng 4 vẫn để lộ tài khoản cá nhân tên `"Admin"` thô (avatar chữ A). Khách hàng bên ngoài nhìn vào không chuyên nghiệp.
+    + *Quy chuẩn*: Khi `isPortal == true`, nếu đối tác là Admin/Quản trị viên, tự động alias thành `"Chuyên viên tư vấn"`.
 
-- [ ] **B.13 Khắc Phục Lỗi Cắt Chuỗi Người Gửi ở Tin Nhắn Xem Trước (Sub-title Preview Truncation Bug)**
-  - *Mô tả*: Khắc phục lỗi dòng xem trước tin nhắn (subtitle) hiển thị cụt ngủn `"Doanh): jlikhjkj"` do tên người gửi gốc là `"Sales Engineer (Kinh Doanh)"` bị hàm regex/substring cắt chuỗi sai lệch.
-  - *Hiện trạng kỹ thuật & Lộ trình khắc phục*:
-    + **Frontend (`chat_v2_list_screen.dart`)**: Hàm format xem trước tin nhắn `_buildSubtitleMessage` đang dùng regex cắt chuỗi thô dựa trên ký tự đóng ngoặc `)`.
-    + **Khắc phục**: Sử dụng trực tiếp trường `authorName` hoặc `author_title` từ model tin nhắn `ChatV2Message`; chuẩn hóa regex bóc tách tiền tố người gửi theo cấu trúc chuẩn Odoo: `"${msg.authorName}: ${cleanBody}"`, tránh cắt ngang tên chứa dấu ngoặc đơn.
+- [x] **B.13 Khắc Phục Lỗi Cắt Chuỗi Người Gửi ở Tin Nhắn Xem Trước (Sub-title Preview Truncation Bug)**
+  - *Hiện trạng*: **ĐÃ GIẢI QUYẾT TRIỆT ĐỂ (PASS 🟢 UAT `2.png`)**.
+  - *Bằng chứng thực tế*: Dòng 3 trên `2.png` hiển thị chuẩn xác `Sales Engineer: jlikhjkj`, không còn bị cắt cụt văng đuôi `"Doanh): jlikhjkj"` như bản cũ.
 
-- [ ] **B.14 Avatar Động & Icon Phân Biệt Trực Quan Kênh Livechat Chuẩn Odoo Enterprise**
-  - *Mô tả*: Khắc phục hiện tượng toàn bộ các kênh Livechat và CSKH (`Customer Care`, `Technical Support`, `CSKH 360`) đều dùng chung 1 logo quả cầu xanh Vcloud tĩnh, gây đơn điệu và khó phân biệt trực quan.
-  - *Hiện trạng kỹ thuật & Lộ trình khắc phục*:
-    + **Backend (`v_mobile_17` & `v_mobile_19`)**: Trả về `livechat_channel_image_url` trỏ đến ảnh đại diện `image_128` của bản ghi `im_livechat.channel` trên Odoo.
-    + **Frontend (`chat_v2_channel_tile.dart`)**: Ưu tiên load ảnh đại diện động `image_128` từ backend; nếu không có, fallback sang icon vector chuyên dụng phân biệt theo loại dịch vụ:
-      * 🛠️ **Technical Support**: Icon Cờ lê / Thiết lập (`LucideIcons.wrench` / `settings`) màu cam/xanh kỹ thuật.
-      * 🟢 **Customer Care**: Icon Tai nghe hỗ trợ (`LucideIcons.headphones`) màu xanh Royal Blue `#0077CD`.
+- [x] **B.14 Avatar Động & Icon Phân Biệt Trực Quan Kênh Livechat Chuẩn Odoo Enterprise**
+  - *Hiện trạng*: **ĐÃ GIẢI QUYẾT TRIỆT ĐỂ (PASS 🟢 UAT `2.png`)**.
+  - *Bằng chứng thực tế*: Dòng 1 `Customer Care` hiển thị icon 🎧 Tai nghe viền xanh lá; Dòng 2 `Technical Support` hiển thị icon 🛠️ Cờ lê viền xanh dương kèm chấm 🟢 Online, xóa bỏ hoàn toàn tình trạng dùng chung 1 logo quả cầu xanh Vcloud đơn điệu.
 
-- [ ] **B.15 Gỡ Bỏ Nhãn Tag "CSKH" Tự Chế Gán Tràn Lan Trên Các Kênh Livechat Chuẩn Odoo**
-  - *Mô tả*: Hiện tại các kênh Livechat (`channel_type: 'livechat'`) bị tự động gắn tag màu xanh mang nhãn `CSKH` như một nhóm chat nội bộ, gây nhầm lẫn bản chất giữa phòng Livechat tiếp nhận đa kênh và nhóm thảo luận nội bộ.
-  - *Hiện trạng kỹ thuật & Lộ trình khắc phục*:
-    + **Frontend (`chat_v2_channel_tile.dart` & `chat_v2_channel.dart`)**: Tinh chỉnh cờ `isCskhChannel`: chỉ áp dụng tag CSKH cho các nhóm chat nội bộ mang tiền tố quy ước hợp đồng `[CSKH]`; đối với kênh `channelType == 'livechat'`, không gắn tag `CSKH` tự chế mà hiển thị badge loại kênh chuẩn Livechat Odoo hoặc chấm trạng thái trực tuyến 🟢 Online.
+- [ ] **B.15 Gỡ Bỏ Nhãn Tag "CSKH" & Tích Xanh MXH Tự Chế Gán Tràn Lan Trên Kênh Chuẩn Odoo**
+  - *Mô tả*: Gỡ bỏ toàn bộ tích xanh mạng xã hội tự chế và tag CSKH nội bộ gán sai lệch trên kênh hỗ trợ.
+  - *Đối soát thực tế (`2.png` - FAILED)*:
+    + Dòng 3 `Chăm Sóc Khách Hàng 360` vẫn còn nguyên 2 tích xanh: 1 icon tích xanh `✓` cạnh tiêu đề và 1 huy hiệu tích xanh đè góc dưới avatar.
+    + *Quy chuẩn*: Gỡ sạch 2 tích xanh này. Livechat chuẩn Odoo chỉ dùng chấm tròn 🟢 Online ca trực.
 
 ---
 

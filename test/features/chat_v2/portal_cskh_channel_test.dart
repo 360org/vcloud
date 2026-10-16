@@ -350,5 +350,111 @@ void main() {
       final portalName = channel.getCleanName('Khách Hàng Mới', isPortal: true);
       expect(portalName, 'Customer Care');
     });
+
+    test('TC-24: [Defect 4] isSupportChannel correctly marks both livechat and CSKH channels and excludes them from group', () {
+      final jsonSupportGroup = {
+        'id': '665796',
+        'name': '[CSKH] Khách Hàng Mới (Portal Stage 1)',
+        'channel_type': 'group',
+        'is_group': true,
+        'is_cskh_channel': true,
+      };
+      final chSupport = ChatV2Channel.fromJson(jsonSupportGroup);
+      expect(chSupport.isSupportChannel, isTrue);
+      expect(chSupport.isGroupChat('Sales Engineer'), isFalse);
+      expect(chSupport.getActualIsGroup('Sales Engineer'), isFalse);
+
+      final jsonNormalGroup = {
+        'id': '665820',
+        'name': 'Dự án nội bộ ERP',
+        'channel_type': 'group',
+        'is_group': true,
+      };
+      final chNormalGroup = ChatV2Channel.fromJson(jsonNormalGroup);
+      expect(chNormalGroup.isSupportChannel, isFalse);
+      expect(chNormalGroup.isGroupChat('Sales Engineer'), isTrue);
+      expect(chNormalGroup.getActualIsGroup('Sales Engineer'), isTrue);
+    });
+
+    test('TC-25: [Defect 5 & 6] Operator perspective resolves Dòng 1 (Support) and Dòng 5 (Direct) without name collision', () {
+      // Dòng 1: CSKH support channel
+      final jsonDong1 = {
+        'id': '665796',
+        'name': '[CSKH] Khách Hàng Mới (Portal Stage 1)',
+        'channel_type': 'group',
+        'is_group': true,
+        'is_cskh_channel': true,
+        'direct_partner_name': 'Khách Hàng Mới',
+        'members': [
+          {'id': '3618', 'name': 'Khách Hàng Mới (Portal Stage 1)', 'is_me': false},
+          {'id': '3617', 'name': 'Sales Engineer (Kinh Doanh)', 'is_me': true},
+        ],
+      };
+      final dong1 = ChatV2Channel.fromJson(jsonDong1);
+
+      // Dòng 5: 1-1 Direct chat
+      final jsonDong5 = {
+        'id': '665799',
+        'name': 'Sales Engineer (Kinh Doanh) - Khách Hàng Mới (Portal Stage 1)',
+        'channel_type': 'chat',
+        'is_group': false,
+        'direct_partner_name': 'Khách Hàng Mới (Portal Stage 1)',
+        'members': [
+          {'id': '3618', 'name': 'Khách Hàng Mới (Portal Stage 1)', 'is_me': false},
+          {'id': '3617', 'name': 'Sales Engineer (Kinh Doanh)', 'is_me': true},
+        ],
+      };
+      final dong5 = ChatV2Channel.fromJson(jsonDong5);
+
+      final dong1Title = dong1.getCleanName('Sales Engineer (Kinh Doanh)', isPortal: false);
+      final dong5Title = dong5.getCleanName('Sales Engineer (Kinh Doanh)', isPortal: false);
+
+      expect(dong1Title, 'Khách Hàng Mới • Customer Care');
+      expect(dong5Title, 'Khách Hàng Mới (Portal Stage 1)');
+      // Defect 6: ZERO duplicate title collision
+      expect(dong1Title == dong5Title, isFalse);
+    });
+
+    test('TC-26: [Defect 1 & 4] Filter counts properly classify support channels into livechatCount', () {
+      final channels = [
+        // Dòng 1: CSKH Channel 1
+        ChatV2Channel.fromJson({
+          'id': '665796',
+          'name': '[CSKH] Khách Hàng Mới (Portal Stage 1)',
+          'channel_type': 'group',
+          'is_cskh_channel': true,
+        }),
+        // Dòng 2: CSKH Channel 2
+        ChatV2Channel.fromJson({
+          'id': '665797',
+          'name': '[CSKH] Khách Hàng Hợp Đồng (Portal Stage 2)',
+          'channel_type': 'group',
+          'is_cskh_channel': true,
+        }),
+        // Dòng 3: Direct chat internal
+        ChatV2Channel.fromJson({
+          'id': '665798',
+          'name': 'Sales Engineer - Accounting Dept.',
+          'channel_type': 'chat',
+          'is_group': false,
+        }),
+        // Dòng 4: Direct chat with customer
+        ChatV2Channel.fromJson({
+          'id': '665799',
+          'name': 'Sales Engineer - Khách Hàng Mới',
+          'channel_type': 'chat',
+          'is_group': false,
+        }),
+      ];
+
+      const currentUserName = 'Sales Engineer (Kinh Doanh)';
+      final directCount = channels.where((c) => c.isInternalDirect(currentUserName)).length;
+      final groupCount = channels.where((c) => c.isGroupChat(currentUserName)).length;
+      final supportCount = channels.where((c) => c.isSupportChannel).length;
+
+      expect(supportCount, 2, reason: 'Both CSKH channels must be counted under Hỗ trợ');
+      expect(groupCount, 0, reason: 'Support channels must not be miscounted as Nhóm');
+      expect(directCount, 2);
+    });
   });
 }

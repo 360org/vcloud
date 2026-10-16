@@ -1306,21 +1306,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          if (isCskhGroup && isPortal) ...[
-                            const SizedBox(width: 5),
-                            const Icon(
-                              LucideIcons.badgeCheck,
-                              size: 16,
-                              color: Color(0xFF0077CD),
-                            ),
-                          ] else if (isLivechat) ...[
-                            const SizedBox(width: 5),
-                            const Icon(
-                              LucideIcons.badgeCheck,
-                              size: 16,
-                              color: Color(0xFF0077CD),
-                            ),
-                          ] else if (isCskhGroup && !isPortal) ...[
+                          if (isCskhGroup && !isPortal) ...[
                             const SizedBox(width: 6),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
@@ -1737,7 +1723,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                     isSearchActiveMatch: _isSearching &&
                                         _matchedIndices.isNotEmpty &&
                                         _matchedIndices[_currentMatchIndex] == index,
-                                    isCskhPortal: isPortal && isCskhGroup,
+                                    isCskhPortal: isPortal && (isCskhGroup || isLivechat),
                                     onAvatarTap: () {
                                       if (isPortal && (isCskhGroup || isLivechat)) return;
                                       final targetPid = (message.authorId != null && message.authorId!.isNotEmpty)
@@ -2362,16 +2348,9 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      livechatTitle,
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(width: 4),
-                    const Icon(LucideIcons.badgeCheck, size: 16, color: Color(0xFF0077CD)),
-                  ],
+                Text(
+                  livechatTitle,
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 6),
                 Text(
@@ -2425,16 +2404,9 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Chăm Sóc Khách Hàng 360',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                    ),
-                    SizedBox(width: 4),
-                    Icon(LucideIcons.badgeCheck, size: 16, color: Color(0xFF0077CD)),
-                  ],
+                const Text(
+                  'Chăm Sóc Khách Hàng 360',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 6),
                 Text(

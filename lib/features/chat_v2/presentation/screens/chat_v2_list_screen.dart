@@ -187,12 +187,13 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
     final currentUserId = currentUser?.id;
     final currentDbName = (meta?['db'] as String?) ?? '';
     final hasVMobile = (meta?['has_v_mobile'] as bool?) ?? true;
+    final isPortal = currentUser?.isPortal == true;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return AppScaffold(
       title: 'Trò chuyện',
       showAppBar: false,
-      floatingActionButton: (currentUser?.isPortal == true)
+      floatingActionButton: isPortal
           ? FloatingActionButton.extended(
               heroTag: 'chat_cskh_fab',
               onPressed: _openCskhChat,
@@ -340,7 +341,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                         .where((c) => c.isZaloOA)
                         .length;
                     final livechatCount = channels
-                        .where((c) => c.isLivechat)
+                        .where((c) => c.isSupportChannel)
                         .length;
 
                     return SingleChildScrollView(
@@ -372,14 +373,16 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                             isDark: isDark,
                             onTap: () => setState(() => _selectedFilterIndex = 1),
                           ),
-                          const SizedBox(width: 8),
-                          _buildChip(
-                            label: 'Nhóm',
-                            count: groupCount,
-                            isSelected: _selectedFilterIndex == 2,
-                            isDark: isDark,
-                            onTap: () => setState(() => _selectedFilterIndex = 2),
-                          ),
+                          if (groupCount > 0) ...[
+                            const SizedBox(width: 8),
+                            _buildChip(
+                              label: 'Nhóm',
+                              count: groupCount,
+                              isSelected: _selectedFilterIndex == 2,
+                              isDark: isDark,
+                              onTap: () => setState(() => _selectedFilterIndex = 2),
+                            ),
+                          ],
                           if (channelCount > 0) ...[
                             const SizedBox(width: 8),
                             _buildChip(
@@ -604,7 +607,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
 
                   // Lọc theo search query và filter index
                   final filtered = channels.where((c) {
-                    final cleanName = c.getCleanName(currentUserName);
+                    final cleanName = c.getCleanName(currentUserName, isPortal: isPortal);
 
                     if (_searchQuery.isNotEmpty) {
                       final qRaw = _searchQuery.replaceAll('#', '').trim().toLowerCase();
@@ -668,22 +671,22 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                         }
                       } else if (_selectedFilterIndex == 2) {
                         // 2: Nhóm
-                        if (!c.isGroupChat(currentUserName) || c.isLivechat) {
+                        if (!c.isGroupChat(currentUserName) || c.isSupportChannel) {
                           return false;
                         }
                       } else if (_selectedFilterIndex == 3) {
                         // 3: Kênh
-                        if (!c.isChannel || c.isLivechat) {
+                        if (!c.isChannel || c.isSupportChannel) {
                           return false;
                         }
                       } else if (_selectedFilterIndex == 4) {
                         // 4: Zalo OA
-                        if (!c.isZaloOA || c.isLivechat) {
+                        if (!c.isZaloOA || c.isSupportChannel) {
                           return false;
                         }
                       } else if (_selectedFilterIndex == 5) {
-                        // 5: Hỗ trợ (Livechat)
-                        if (!c.isLivechat) {
+                        // 5: Hỗ trợ (Livechat / CSKH)
+                        if (!c.isSupportChannel) {
                           return false;
                         }
                       }
