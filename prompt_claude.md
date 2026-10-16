@@ -32,6 +32,12 @@
 ### 🔄 7 Bước SDLC Chuẩn:
 `Bước 1: /idea` ➔ `Bước 2: /req` ➔ `Bước 3: /spec` ➔ `Bước 4: /plan` ➔ `Bước 5: /build & /test` ➔ `Bước 6: /review (Local UAT)` ➔ `Bước 7: /ship`.
 
+### 📚 SSOT Files Agent BẮT BUỘC Đọc Trước Khi Bắt Tay:
+- `docs/PROJECT_STRUCTURE_MAP.md` — Matrix định vị nhanh file theo tính năng.
+- `docs/features.md` — Danh mục 71 tính năng & trạng thái verified.
+- `docs/guides/TAI_KHOAN_TEST.md` — Database test, port, tài khoản & hạ tầng Docker Local Server.
+- `docs/rules/RULE_ODOO_VERSIONS.md` — Quy chuẩn phân version Backend 17 vs 19.
+
 ### 🖥️ Quy Trình Đồng Bộ LAN & Test Local Server (`192.168.1.100`):
 > 📖 **Tài liệu chi tiết**: [docs/guides/HUONG_DAN_CAP_NHAT_LOCAL_SERVER.md](docs/guides/HUONG_DAN_CAP_NHAT_LOCAL_SERVER.md)
 
@@ -102,6 +108,13 @@ Xuất Báo cáo Nghiệm thu UAT Ready dạng Bảng với dữ liệu thực t
 | {{CHECK_ITEM_1}} | {{BEFORE_1}} | {{AFTER_1}} | ⬜ PENDING |
 | {{CHECK_ITEM_2}} | {{BEFORE_2}} | {{AFTER_2}} | ⬜ PENDING |
 | Dart Analyze | - | {{RESULT}} | ⬜ PENDING |
+
+================================================================================
+🥊 [ANTI-SYCOPHANCY & CALIBRATED CONFIDENCE PROTOCOL]
+1. **USER CLAIM ≠ FACT**: Mọi phát biểu của Sếp hay Agent chỉ là `HYPOTHESIS`, phải verify bằng terminal log thực tế.
+2. **Thang Confidence L0-L5**: L0 Unknown → L1 Hypothesis → L2 Supported (đọc code) → L3 Reproduced (có log) → L4 Verified (patch + test pass) → L5 Production-Verified. **CẤM nhảy từ L2 lên L4/L5**.
+3. **CẤM số ảo**: Không dùng "100%", "hoàn hảo", "không còn lỗi" nếu không có đo lường thống kê. `All tests passed` ≠ `System is 100% correct`.
+4. **SCOPE OF EVIDENCE = SCOPE OF CLAIM**: Cấm suy luận từ local → production, từ 10 test → toàn bộ feature, từ Odoo 17 → Odoo 19.
 ```
 
 ---
