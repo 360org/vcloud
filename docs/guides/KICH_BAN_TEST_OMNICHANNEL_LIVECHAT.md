@@ -186,3 +186,13 @@
    - *Khắc phục*: Luôn đính kèm tham số database vào URL:
      `http://192.168.1.100:1900/im_livechat/support/3?db=vcloud_test_v19`
 
+5. **Lỗi 500: Internal Server Error khi truy cập `/web/signup`**:
+   - *Hiện tượng*: Mở trang đăng ký tài khoản portal trên trình duyệt ẩn danh báo lỗi `500: Internal Server Error` (ValueError: Không thể định vị phần tử `//div[hasclass('field-name')]`).
+   - *Nguyên nhân*: View kế thừa mồ côi `backend_base.signup_phone_field` (ID 8613) của module đã gỡ cài đặt trỏ nhầm `inherit_id` sang `auth_signup.fields` (ID 388 - vốn chỉ chứa password), khiến QWeb engine bị crash khi render.
+   - *Khắc phục*: Đã xoá view mồ côi 8613, cấu hình lại template chuẩn `backend_ui.signup_phone_field` (ID 10030) kế thừa trực tiếp `auth_signup.signup` (ID 389) và khởi động lại container Odoo.
+
+6. **Lỗi xác nhận form đăng ký bị từ chối (Báo thiếu Số điện thoại / Điều khoản)**:
+   - *Hiện tượng*: Điền thông tin đăng ký bấm nút xác nhận bị báo lỗi *"Vui lòng nhập Số điện thoại liên hệ để hoàn tất đăng ký tài khoản"* hoặc *"Vui lòng đồng ý với Điều khoản dịch vụ và Chính sách bảo mật để tiếp tục"*, nhưng trên màn hình trước đó không có 2 ô này.
+   - *Nguyên nhân*: Controller `BackendUIAuthSignupHome` (module `backend_ui`) kiểm tra validation bắt buộc `phone` và checkbox `accept_terms`, nhưng giao diện trước đó bị thiếu view hiển thị.
+   - *Khắc phục*: View `backend_ui.signup_phone_field` đã được kích hoạt hoàn chỉnh, bổ sung trường nhập Số điện thoại (tự động chuẩn hóa định dạng `+84`) và checkbox đồng ý Điều khoản & Bảo mật. Sau khi tick chọn và nhập đầy đủ, tài khoản tạo thành công 100% và chuyển hướng trực tiếp vào phòng chat Livechat.
+

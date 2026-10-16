@@ -2,6 +2,23 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.23+167 / Odoo 17.0.2.5.29 / Odoo 19.0.1.2.46] — 2026-10-16 (Xử Lý Lỗi Multi-DB 404 & Khắc Phục Triệt Để Lỗi 500 / Form Đăng Ký Tài Khoản Portal /web/signup)
+
+> [!IMPORTANT]
+> **Khắc Phục 3 Sự Cố Nền Tảng Cho Kịch Bản E2E Omnichannel Livechat Trên Môi Trường Odoo 19 Local Server**:
+> - **1. [FIX] Định Tuyến Multi-Database Cho Khách Vãng Lai Trình Duyệt Ẩn Danh (Lỗi 404)**:
+>   * Hiện tượng: Khách vãng lai mở Livechat Widget qua URL không có tham số database bị lỗi 404 Not Found do Odoo chạy đa database (`vcloud_test_v19`, `davita_v19`, `demo-17`).
+>   * Khắc phục: Bổ sung tham số `?db=vcloud_test_v19` vào toàn bộ kịch bản kiểm thử E2E và đường dẫn Livechat Widget.
+> - **2. [FIX] Lỗi 500 Internal Server Error Tại `/web/signup` Do View Mồ Côi**:
+>   * Hiện tượng: Truy cập trang đăng ký tài khoản portal báo lỗi sập `500: Internal Server Error` (ValueError: Không thể định vị phần tử `//div[hasclass('field-name')]`).
+>   * Root Cause: View con mồ côi ID 8613 (`backend_base.signup_phone_field`) của module cũ đã gỡ cài đặt trỏ nhầm `inherit_id` sang `auth_signup.fields` (ID 388 - vốn chỉ chứa password), khiến QWeb engine crash khi biên dịch.
+>   * Khắc phục: Xoá view mồ côi ID 8613, giải phóng QWeb engine khỏi lỗi xpath.
+> - **3. [FIX] Kích Hoạt Form Đăng Ký Chuẩn Với Số Điện Thoại & Điều Khoản Dịch Vụ**:
+>   * Hiện tượng: Khách gửi form đăng ký bị từ chối với thông báo "Vui lòng nhập Số điện thoại..." hoặc "Vui lòng đồng ý với Điều khoản...", trong khi form không hiển thị 2 trường này.
+>   * Root Cause: Controller `BackendUIAuthSignupHome` (module `backend_ui`) kiểm tra validation bắt buộc `phone` và `accept_terms`, nhưng view kế thừa giao diện chưa được kích hoạt vào `ir.ui.view`.
+>   * Khắc phục: Cấu hình và kích hoạt view chuẩn `backend_ui.signup_phone_field` (ID 10030) kế thừa `auth_signup.signup` (ID 389). Form hiển thị đầy đủ trường Số điện thoại và Checkbox điều khoản, tự động chuẩn hóa định dạng số `+84`.
+>   * Verification: Kiểm thử tự động đăng ký tài khoản thành công 100%, user tạo mới trong DB và chuyển hướng mượt mà về URL Livechat.
+
 ## [v2.9.23+167 / Odoo 17.0.2.5.29 / Odoo 19.0.1.2.46] — 2026-10-16 (Hoàn Thiện Toàn Diện UI Livechat Portal & Operator V2: Đối Xứng Hai Chiều, Ẩn Chip Rỗng, Khôi Phục Hỗ Trợ)
 
 > [!IMPORTANT]
