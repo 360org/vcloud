@@ -380,14 +380,16 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                             isDark: isDark,
                             onTap: () => setState(() => _selectedFilterIndex = 2),
                           ),
-                          const SizedBox(width: 8),
-                          _buildChip(
-                            label: 'Kênh',
-                            count: channelCount,
-                            isSelected: _selectedFilterIndex == 3,
-                            isDark: isDark,
-                            onTap: () => setState(() => _selectedFilterIndex = 3),
-                          ),
+                          if (channelCount > 0) ...[
+                            const SizedBox(width: 8),
+                            _buildChip(
+                              label: 'Kênh',
+                              count: channelCount,
+                              isSelected: _selectedFilterIndex == 3,
+                              isDark: isDark,
+                              onTap: () => setState(() => _selectedFilterIndex = 3),
+                            ),
+                          ],
                           if (livechatCount > 0) ...[
                             const SizedBox(width: 8),
                             _buildChip(
@@ -399,15 +401,17 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                               onTap: () => setState(() => _selectedFilterIndex = 5),
                             ),
                           ],
-                          const SizedBox(width: 8),
-                          _buildChip(
-                            label: 'Zalo OA',
-                            count: zaloCount,
-                            isSelected: _selectedFilterIndex == 4,
-                            isDark: isDark,
-                            badgeColor: const Color(0xFF0068FF),
-                            onTap: () => setState(() => _selectedFilterIndex = 4),
-                          ),
+                          if (zaloCount > 0) ...[
+                            const SizedBox(width: 8),
+                            _buildChip(
+                              label: 'Zalo OA',
+                              count: zaloCount,
+                              isSelected: _selectedFilterIndex == 4,
+                              isDark: isDark,
+                              badgeColor: const Color(0xFF0068FF),
+                              onTap: () => setState(() => _selectedFilterIndex = 4),
+                            ),
+                          ],
                         ],
                       ),
                     );
@@ -1281,24 +1285,7 @@ class _ChannelListItem extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  if (channel.isCskhChannel && !isLivechat && isPortal)
-                    Positioned(
-                      right: -1,
-                      bottom: -1,
-                      child: Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF1E293B) : Colors.white,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          LucideIcons.badgeCheck,
-                          size: 16,
-                          color: Color(0xFF0077CD),
-                        ),
-                      ),
-                    )
-                  else if (isLivechat && !isPortal)
+                  if (isLivechat && !isPortal)
                     Positioned(
                       right: -1,
                       bottom: -1,
@@ -1497,15 +1484,6 @@ class _ChannelListItem extends ConsumerWidget {
                                         ),
                                       ),
                                     ],
-                                  ),
-                                )
-                              else if (channel.isCskhChannel && !isLivechat && isPortal)
-                                const Padding(
-                                  padding: EdgeInsets.only(left: 5),
-                                  child: Icon(
-                                    LucideIcons.badgeCheck,
-                                    size: 15,
-                                    color: Color(0xFF0077CD),
                                   ),
                                 )
                               else if (channel.isCskhChannel && !isLivechat && !isPortal && channel.name.contains('[CSKH]'))

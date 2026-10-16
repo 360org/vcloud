@@ -287,5 +287,68 @@ void main() {
       expect(channelGroup.isLivechat, isFalse);
       expect(channelGroup.isCskhChannel, isTrue);
     });
+
+    test('TC-21: [Defect 3] Portal user seeing 1-1 chat with Admin gets aliased to "Chuyên viên tư vấn"', () {
+      final json = {
+        'id': '665816',
+        'name': 'Mitchell Admin',
+        'channel_type': 'chat',
+        'is_group': false,
+        'direct_partner_name': 'Mitchell Admin',
+        'members': [
+          {'id': '3', 'name': 'Mitchell Admin', 'is_me': false},
+          {'id': '10', 'name': 'Khách Hàng Mới', 'is_me': true},
+        ],
+      };
+
+      final channel = ChatV2Channel.fromJson(json);
+
+      // Portal perspective: must NEVER expose "Admin" or "Mitchell Admin"
+      final portalName = channel.getCleanName('Khách Hàng Mới', isPortal: true);
+      expect(portalName, 'Chuyên viên tư vấn');
+      expect(portalName.toLowerCase().contains('admin'), isFalse);
+    });
+
+    test('TC-22: [Defect 3] Internal staff seeing 1-1 chat retains real partner name', () {
+      final json = {
+        'id': '665817',
+        'name': 'Mitchell Admin',
+        'channel_type': 'chat',
+        'is_group': false,
+        'direct_partner_name': 'Mitchell Admin',
+        'members': [
+          {'id': '3', 'name': 'Mitchell Admin', 'is_me': false},
+          {'id': '5', 'name': 'Kỹ thuật A', 'is_me': true},
+        ],
+      };
+
+      final channel = ChatV2Channel.fromJson(json);
+
+      // Staff perspective (isPortal: false) sees real name
+      final staffName = channel.getCleanName('Kỹ thuật A', isPortal: false);
+      expect(staffName, 'Mitchell Admin');
+    });
+
+    test('TC-23: [Defect 4] Operator view for Customer Care shows "Khách Hàng Mới • Customer Care"', () {
+      final json = {
+        'id': '665818',
+        'name': 'Khách Hàng Mới • Customer Care',
+        'channel_type': 'livechat',
+        'livechat_channel_name': 'Customer Care',
+        'direct_partner_name': 'Khách Hàng Mới',
+        'members': [
+          {'id': '10', 'name': 'Khách Hàng Mới', 'is_me': false},
+          {'id': '3', 'name': 'Mitchell Admin', 'is_me': true},
+        ],
+      };
+
+      final channel = ChatV2Channel.fromJson(json);
+
+      final operatorName = channel.getCleanName('Mitchell Admin', isPortal: false);
+      expect(operatorName, 'Khách Hàng Mới • Customer Care');
+
+      final portalName = channel.getCleanName('Khách Hàng Mới', isPortal: true);
+      expect(portalName, 'Customer Care');
+    });
   });
 }

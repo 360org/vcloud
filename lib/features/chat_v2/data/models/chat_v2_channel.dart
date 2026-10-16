@@ -296,6 +296,20 @@ class ChatV2Channel {
     'livechat_channel_name': livechatChannelName,
   };
 
+  static bool _isAdminName(String text) {
+    final lower = text.trim().toLowerCase();
+    if (lower == 'admin' ||
+        lower == 'mitchell admin' ||
+        lower == 'administrator' ||
+        lower == 'quản trị viên' ||
+        lower == 'system' ||
+        lower == 'hệ thống') {
+      return true;
+    }
+    final words = lower.split(RegExp(r'\s+'));
+    return words.contains('admin') || words.contains('administrator');
+  }
+
   static bool matchesUser(String part, String? currentUserName) {
     if (currentUserName == null || currentUserName.isEmpty) return false;
     final pLower = part.trim().toLowerCase();
@@ -580,7 +594,12 @@ class ChatV2Channel {
       }
       return 'Cuộc trò chuyện';
     }
-    if (currentUserName == null || currentUserName.trim().isEmpty) return cleaned;
+    if (currentUserName == null || currentUserName.trim().isEmpty) {
+      if (isPortal == true && !isGroup && _isAdminName(cleaned)) {
+        return 'Chuyên viên tư vấn';
+      }
+      return cleaned;
+    }
 
     // Kênh thảo luận Odoo hoặc nhóm cố định: giữ nguyên tên gốc đã làm sạch tuyệt đối,
     // không bao giờ ghép tên người tham gia hay người gửi vào title.
@@ -614,55 +633,69 @@ class ChatV2Channel {
       ).trim();
       if (directClean.isEmpty) directClean = cleaned;
 
+      String resolved = directClean;
+
       if (directPartnerName != null &&
           directPartnerName!.isNotEmpty &&
           !matchesUser(directPartnerName!, currentUserName)) {
-        return cleanChannelName(directPartnerName!);
-      }
-      final uTrim = currentUserName.trim();
-      final uLower = uTrim.toLowerCase();
-      final nLower = directClean.toLowerCase();
+        resolved = cleanChannelName(directPartnerName!);
+      } else {
+        final uTrim = currentUserName.trim();
+        final uLower = uTrim.toLowerCase();
+        final nLower = directClean.toLowerCase();
 
-      if (nLower.contains(uLower)) {
-        var clean = directClean;
-        final patterns = [
-          RegExp('^\\s*${RegExp.escape(uTrim)}\\s*([,/|-]|và|&)\\s*', caseSensitive: false),
-          RegExp('\\s*([,/|-]|và|&)\\s*${RegExp.escape(uTrim)}\\s*\$', caseSensitive: false),
-        ];
-        for (final p in patterns) {
-          if (p.hasMatch(clean)) {
-            clean = clean.replaceFirst(p, '').trim();
-            break;
+        bool matched = false;
+        if (nLower.contains(uLower)) {
+          var clean = directClean;
+          final patterns = [
+            RegExp('^\\s*${RegExp.escape(uTrim)}\\s*([,/|-]|và|&)\\s*', caseSensitive: false),
+            RegExp('\\s*([,/|-]|và|&)\\s*${RegExp.escape(uTrim)}\\s*\$', caseSensitive: false),
+          ];
+          for (final p in patterns) {
+            if (p.hasMatch(clean)) {
+              clean = clean.replaceFirst(p, '').trim();
+              break;
+            }
+          }
+          if (clean.isNotEmpty && clean.toLowerCase() != uLower) {
+            resolved = cleanChannelName(clean);
+            matched = true;
           }
         }
-        if (clean.isNotEmpty && clean.toLowerCase() != uLower) {
-          return cleanChannelName(clean);
+
+        if (!matched) {
+          final parts = directClean.split(RegExp(r'\s*[,/|-]\s*|\s+và\s+|\s+&\s+'));
+          if (parts.length >= 2) {
+            final otherParts = parts.where((p) => !matchesUser(p, currentUserName)).toList();
+            if (otherParts.isNotEmpty) {
+              resolved = cleanChannelName(otherParts.join(', ').trim());
+              matched = true;
+            }
+          }
+        }
+
+        // Sửa lỗi chat 1-1 hiện ngược tên chính mình ("Admin") (B.12):
+        if (!matched && matchesUser(directClean, currentUserName)) {
+          final otherMember = members.firstWhereOrNull(
+            (m) => !m.isMe && m.name.isNotEmpty && !matchesUser(m.name, currentUserName),
+          );
+          if (otherMember != null) {
+            final otherName = otherMember.displayName.isNotEmpty
+                ? otherMember.displayName
+                : otherMember.name;
+            resolved = cleanChannelName(otherName);
+          } else {
+            resolved = isPortal == true ? 'Chuyên viên tư vấn' : 'Trò chuyện';
+          }
         }
       }
 
-      final parts = directClean.split(RegExp(r'\s*[,/|-]\s*|\s+và\s+|\s+&\s+'));
-      if (parts.length >= 2) {
-        final otherParts = parts.where((p) => !matchesUser(p, currentUserName)).toList();
-        if (otherParts.isNotEmpty) {
-          return cleanChannelName(otherParts.join(', ').trim());
-        }
+      // [Defect 3] Che giấu định danh nội bộ "Admin" cho Portal (B.12):
+      if (isPortal == true && _isAdminName(resolved)) {
+        return 'Chuyên viên tư vấn';
       }
 
-      // Sửa lỗi chat 1-1 hiện ngược tên chính mình ("Admin") (B.12):
-      if (matchesUser(directClean, currentUserName)) {
-        final otherMember = members.firstWhereOrNull(
-          (m) => !m.isMe && m.name.isNotEmpty && !matchesUser(m.name, currentUserName),
-        );
-        if (otherMember != null) {
-          final otherName = otherMember.displayName.isNotEmpty
-              ? otherMember.displayName
-              : otherMember.name;
-          return cleanChannelName(otherName);
-        }
-        return 'Trò chuyện';
-      }
-
-      return directClean;
+      return resolved;
     }
     return cleaned;
   }
