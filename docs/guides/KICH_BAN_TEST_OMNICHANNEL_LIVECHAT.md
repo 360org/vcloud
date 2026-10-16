@@ -11,16 +11,19 @@
 
 | Vai trò kiểm thử | Nền tảng / Ứng dụng | Đường dẫn truy cập (URL) | Tài khoản (`login` / `password`) | Ghi chú |
 |---|---|---|---|---|
-| **1. Khách Hàng (Web Widget)** | Trình duyệt Web (Tab Ẩn danh / Incognito) | • `http://192.168.1.100:1900/im_livechat/support/3` (Customer Care)<br>• `http://192.168.1.100:1900/im_livechat/support/2` (Technical Support) | Khách vãng lai (hoặc Portal Cookie) | Mở giao diện Livechat Widget chuẩn Odoo |
+| **1. Khách Hàng (Web Widget)** | Trình duyệt Web (Tab Ẩn danh / Incognito) | • `http://192.168.1.100:1900/im_livechat/support/3?db=vcloud_test_v19` (Customer Care)<br>• `http://192.168.1.100:1900/im_livechat/support/2?db=vcloud_test_v19` (Technical Support) | Khách vãng lai (hoặc Portal Cookie) | Mở giao diện Livechat Widget chuẩn Odoo |
 | **2. Nhân Viên Trực Ca (Operator)** | Odoo 19 Web Backend | `http://192.168.1.100:1900/web` | **`admin`** / `admin` (hoặc `sale` / `123`) | Database: **`vcloud_test_v19`** |
 | **3. Điều Phối / Quản Lý Ca** | Odoo 19 Discuss | `http://192.168.1.100:1900/web#action=mail.action_discuss` | **`admin`** / `admin` | Kiểm tra 2 phòng trực **"Looking for help"** |
 | **4. Khách Hàng (Mobile App)** | VCloud Flutter Web / App | `http://localhost:8089/#/chat` | **`portal`** / `portal` (hoặc `khachhangmoi`) | Database: **`vcloud_test_v19`** |
 
 ---
 
-## 2. QUY TRÌNH KIỂM THỬ 4 BƯỚC CHI TIẾT (STEP-BY-STEP)
+## 2. QUY TRÌNH KIỂM THỬ 5 BƯỚC CHI TIẾT (STEP-BY-STEP)
 
 ```text
+[BƯỚC 0: Kiểm Tra Điều Kiện Tiên Quyết (Precondition)]
+       │  (Docker running, DB ready, Operator assigned)
+       ▼
 [BƯỚC 1: Khách Chat Web Widget] 
        │  (Gửi: "Xin chào 360 CORP, tôi cần tư vấn...")
        ▼
@@ -36,12 +39,33 @@
 
 ---
 
+### BƯỚC 0: Kiểm Tra Điều Kiện Tiên Quyết (Precondition)
+
+1. **Docker Container hoạt động**: SSH vào Local Server xác nhận container Odoo 19 đang chạy:
+   ```bash
+   ssh local "docker ps | grep odoo_dev_v19"
+   ```
+   Kết quả phải thấy container `odoo_dev_v19` có port `1900` đang `Up`.
+
+2. **Database `vcloud_test_v19` sẵn sàng**: Truy cập `http://192.168.1.100:1900/web/database/selector`, xác nhận DB `vcloud_test_v19` có trong danh sách.
+
+3. **Module đã cài đặt**: Đăng nhập `admin`/`admin` vào Odoo Web, vào `Settings → Technical → Installed Modules`, xác nhận:
+   - `im_livechat` ✅ Installed
+   - `v_mobile` ✅ Installed
+
+4. **Operator đã được gán vào kênh Livechat**: Vào `Live Chat → Channels`, kiểm tra 2 kênh:
+   - **Customer Care** (ID: 3): Tài khoản `admin` nằm trong danh sách `Operators`.
+   - **Technical Support** (ID: 2): Tài khoản `admin` nằm trong danh sách `Operators`.
+   > ⚠️ Nếu thiếu Operator, Widget sẽ hiện chấm xám (Offline) và không thể bắt đầu chat.
+
+---
+
 ### BƯỚC 1: Khách Hàng Mở Web Widget & Bắt Đầu Chat Hỗ Trợ
 
 1. Mở **Trình duyệt Web ở chế độ Ẩn danh (Incognito)** để tách biệt session với tài khoản nội bộ.
-2. Truy cập vào URL phòng trực Livechat:
-   - **Tư vấn CSKH / Bán hàng**: `http://192.168.1.100:1900/im_livechat/support/3`
-   - *(Hoặc Hỗ trợ kỹ thuật)*: `http://192.168.1.100:1900/im_livechat/support/2`
+2. Truy cập vào URL phòng trực Livechat (kèm tham số `?db=vcloud_test_v19` để Odoo nhận đúng Database):
+   - **Tư vấn CSKH / Bán hàng**: `http://192.168.1.100:1900/im_livechat/support/3?db=vcloud_test_v19`
+   - *(Hoặc Hỗ trợ kỹ thuật)*: `http://192.168.1.100:1900/im_livechat/support/2?db=vcloud_test_v19`
 3. Quan sát giao diện:
    - Xuất hiện cửa sổ Livechat chuẩn Odoo với lời chào:  
      *"Dạ em chào Quý khách! Em là Chuyên viên CSKH 360 CORP, em có thể hỗ trợ gì cho anh/chị ạ?"*
@@ -132,6 +156,8 @@
 | 8 | **Định danh hiển thị chuẩn** | Phía Mobile hiển thị tên phòng ban (`Customer Care`), không lộ tên Admin | ⬜ PENDING |
 | 9 | **Nhắn tiếp tục từ Mobile** | Nhắn từ Mobile App, Odoo Discuss nhận được ngay trong cùng một thread | ⬜ PENDING |
 | 10| **Bộ lọc chip trên Mobile** | Kênh Livechat được đếm chuẩn vào chip `Hỗ trợ`, ẩn các chip `(0)` | ⬜ PENDING |
+| 11| **Lệnh nhanh `/lead` trong Discuss** | Gõ `/lead ...` trong phiên chat tạo được `crm.lead` kèm nội dung chat | ⬜ PENDING |
+| 12| **Lệnh nhanh `/ticket` trong Discuss** | Gõ `/ticket ...` trong phiên chat tạo được `helpdesk.ticket` kèm nội dung | ⬜ PENDING |
 
 ---
 
@@ -143,3 +169,20 @@
 
 2. **Mobile App chưa hiện tin nhắn cũ ngay khi vừa đăng nhập**:
    - *Khắc phục*: Vuốt nhẹ màn hình danh sách chat xuống để kích hoạt `RefreshIndicator` tải lại kênh mới nhất từ backend.
+
+3. **CORS Error khi Flutter Web gọi API Odoo (`localhost:8089` → `192.168.1.100:1900`)**:
+   - *Nguyên nhân*: Trình duyệt chặn cross-origin request giữa 2 domain/port khác nhau.
+   - *Khắc phục*: Sử dụng script khởi chạy chuẩn có SSH tunnel:
+     ```bash
+     cd /media/tanma/DATA/save/mobile_versions/vclients && ./launch_web_ssh.sh 19
+     ```
+     Hoặc chạy Chrome với cờ `--disable-web-security`:
+     ```bash
+     flutter run -d chrome --web-port 8089 --web-browser-flag "--disable-web-security"
+     ```
+
+4. **Khách mở Web Widget bị lỗi 404 (Not Found)**:
+   - *Nguyên nhân*: Môi trường Odoo Local Server có nhiều database (multi-DB). Trình duyệt Incognito chưa có cookie session nên Odoo không nhận diện được database mặc định.
+   - *Khắc phục*: Luôn đính kèm tham số database vào URL:
+     `http://192.168.1.100:1900/im_livechat/support/3?db=vcloud_test_v19`
+
