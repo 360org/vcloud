@@ -137,3 +137,55 @@ Xuất Báo cáo Nghiệm thu UAT Ready dạng Bảng với dữ liệu thực t
 - Tiêu đề: `feat(scope): ...`, `fix(scope): ...`, `docs(scope): ...`, `test(scope): ...`.
 - Trailer bắt buộc: `Authored-By: 360org <support @ 360 . org . vn>`.
 
+---
+
+## 📝 V. QUY CHUẨN QUẢN TRỊ CHANGELOG & CHỐNG LẠM PHÁT VERSION
+
+### 1. File SSOT Lưu Trữ Changelog:
+- **Frontend (`vclients`)**: `docs/CHANGELOGS.md`
+- **Backend Odoo 17 & 19**: `docs/CHANGELOGS.md` và trường `description` trong `__manifest__.py`.
+
+### 2. Định Dạng Tag Thay Đổi Bắt Buộc:
+Mọi mục thay đổi trong Changelog phải gán đúng 1 trong các Tag:
+- `[NEW]`: Tính năng phát triển mới.
+- `[FIX]`: Khắc phục lỗi / Vá bug.
+- `[IMPROVE]`: Tối ưu hiệu năng / UI/UX.
+- `[REFACTOR]`: Tái cấu trúc mã nguồn (không đổi logic).
+- `[SECURITY]`: Vá lỗ hổng bảo mật / IDOR / CORS.
+
+### 3. Quy Tắc Thép Chống Lạm Phát Version (Zero Version Inflation):
+- Đang làm việc trên Version/Build nào thì **tiếp tục ghi nhận toàn bộ thay đổi ở Version đó**.
+- ⛔ **CẤM TỰ Ý NHẢY CÓC VERSION**: Tuyệt đối không tạo Version mới trong Changelog khi Version hiện tại chưa được deploy TestFlight, chưa test thực tế trên thiết bị của Sếp Tân và chưa merge/xóa branch.
+
+---
+
+## 📦 VI. QUY CHUẨN MANIFEST & ĐỒNG BỘ PHIÊN BẢN (VERSIONING)
+
+### 1. Flutter Frontend (`vclients/pubspec.yaml`):
+- Format chuẩn: `version: X.Y.Z+BUILD` (Ví dụ: `2.9.15+152`).
+- **Quy tắc Single Source of Truth**: Số `BUILD` trong `pubspec.yaml` là căn cứ tối cao cho Apple App Store Connect & Google Play Console. Cấm để CI/CD tự sinh build number ngẫu nhiên.
+
+### 2. Odoo Backend (`v_mobile_17` & `v_mobile_19`):
+- Odoo 17 Format: `17.0.X.Y.Z` trong `v_mobile_17/__manifest__.py`.
+- Odoo 19 Format: `19.0.X.Y.Z` trong `v_mobile_19/__manifest__.py`.
+- Bắt buộc đồng bộ tóm tắt Changelog mới nhất vào trường `'description'` của `__manifest__.py` khi nâng cấp version.
+
+---
+
+## 🚀 VII. QUY TRÌNH DEPLOY & TỰ ĐỘNG HÓA CI/CD PIPELINE
+
+### 1. Deploy Tầng 1 — Thử Nghiệm Nội Bộ LAN (`192.168.1.100`):
+- Sync code 0.5s: `bash /media/tanma/DATA/save/mobile_versions/scripts/sync_lan.sh all`
+- Restart / Upgrade: `ssh local "docker restart demo-17 odoo_dev_v19"` (Thêm `-u v_mobile` nếu đổi Models/Views).
+- Inject Test DB: `bash /media/tanma/DATA/save/mobile_versions/scripts/setup_test_db.sh all`
+- Launch Web: `cd vclients && ./launch_web_ssh.sh 17` (hoặc `19`).
+
+### 2. Deploy Tầng 2 — Backend Odoo SaaS Live (vuahethong.net):
+- Checkout nhánh `17.0` (Odoo 17) hoặc `19.0` (Odoo 19) đã được Merge MR.
+- Thực thi nâng cấp Module Odoo Zero-Downtime trên Pod/Server.
+- 🚨 **CẢNH BÁO TỐI QUAN TRỌNG KHI DEPLOY BACKEND**: Tuyệt đối **KHÔNG SỬA CODE / ĐỔI LOGIC API** trong lúc deploy. Nếu sửa sai làm 246 bài test bị FAIL ➔ GitHub Actions CI/CD Frontend sẽ bị **LỖI ĐỎ (BUILD FAILED)** ➔ Chặn hoàn toàn việc ra bản build TestFlight mới!
+
+### 3. Deploy Tầng 3 — Frontend Release Store (TestFlight & Google Play):
+- **Apple TestFlight**: Khi Merge PR vào `main` ➔ GitHub Actions (`deploy.yml`) tự động kích hoạt build IPA và nộp lên TestFlight cho iPhone của Sếp Tân.
+- **Google Play Console (Direct-to-Production)**: 1 Giai đoạn duy nhất — Đẩy thẳng tệp `.aab` vào **Production Track** trên CH Play, bỏ qua các bước thử nghiệm rườm rà.
+
