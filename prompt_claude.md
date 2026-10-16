@@ -33,6 +33,8 @@
 `Bước 1: /idea` ➔ `Bước 2: /req` ➔ `Bước 3: /spec` ➔ `Bước 4: /plan` ➔ `Bước 5: /build & /test` ➔ `Bước 6: /review (Local UAT)` ➔ `Bước 7: /ship`.
 
 ### 🖥️ Quy Trình Đồng Bộ LAN & Test Local Server (`192.168.1.100`):
+> 📖 **Tài liệu chi tiết**: [docs/guides/HUONG_DAN_CAP_NHAT_LOCAL_SERVER.md](docs/guides/HUONG_DAN_CAP_NHAT_LOCAL_SERVER.md)
+
 1. **Sync Code LAN**: `bash /media/tanma/DATA/save/mobile_versions/scripts/sync_lan.sh all`
 2. **Restart Container**: `ssh local "docker restart demo-17 odoo_dev_v19"`
    *(Nâng cấp module: `ssh local "docker exec demo-17 odoo -d demo-17 -u v_mobile --stop-after-init"`)*
