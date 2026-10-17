@@ -605,9 +605,9 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                       ? {for (final c in [..._searchResults, ...rawChannels]) c.id: c}.values.toList()
                       : rawChannels;
 
-                  // [B.19] Client-side Defensive Deduplication cho nhân viên trực ca (!isPortal)
+                  // [B.19.2] Client-side Defensive Deduplication cho cả nhân viên trực ca và khách hàng Portal
                   List<ChatV2Channel> channels = initialChannels;
-                  if (!isPortal && initialChannels.isNotEmpty) {
+                  if (initialChannels.isNotEmpty) {
                     final dedupMap = <String, ChatV2Channel>{};
                     final nonLivechat = <ChatV2Channel>[];
 
@@ -615,9 +615,9 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                       final isLc = ch.channelType == 'livechat' || ch.isCskhChannel;
                       if (isLc) {
                         final cName = (ch.directPartnerName ?? ch.name.split('•').first).trim().toLowerCase();
-                        final dName = (ch.livechatChannelName ?? (ch.name.contains('•') ? ch.name.split('•').last : '')).trim().toLowerCase();
-                        // [B.19.1] Gom theo tên khách hàng để gom triệt để các phiên trùng tên khác partner_id
-                        final key = '$cName::$dName';
+                        final dName = (ch.livechatChannelName ?? (ch.name.contains('•') ? ch.name.split('•').last : ch.name)).trim().toLowerCase();
+                        // [B.19.2] Với Portal gom theo phòng ban 'portal::$dName', với nhân viên gom theo '$cName::$dName'
+                        final key = isPortal ? 'portal::$dName' : '$cName::$dName';
 
                         if (dedupMap.containsKey(key)) {
                           final exist = dedupMap[key]!;
