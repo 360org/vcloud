@@ -601,9 +601,47 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
 
                   final rawChannels = channelsAsync.valueOrNull ??
                       ChatV2ChannelLocalCache.cached;
-                  final channels = (_searchQuery.isNotEmpty && _searchResults.isNotEmpty)
+                  final initialChannels = (_searchQuery.isNotEmpty && _searchResults.isNotEmpty)
                       ? {for (final c in [..._searchResults, ...rawChannels]) c.id: c}.values.toList()
                       : rawChannels;
+
+                  // [B.19] Client-side Defensive Deduplication cho nhân viên trực ca (!isPortal)
+                  List<ChatV2Channel> channels = initialChannels;
+                  if (!isPortal && initialChannels.isNotEmpty) {
+                    final dedupMap = <String, ChatV2Channel>{};
+                    final nonLivechat = <ChatV2Channel>[];
+
+                    for (final ch in initialChannels) {
+                      final isLc = ch.channelType == 'livechat' || ch.isCskhChannel;
+                      if (isLc) {
+                        final cName = (ch.directPartnerName ?? ch.name.split('•').first).trim().toLowerCase();
+                        final dName = (ch.livechatChannelName ?? (ch.name.contains('•') ? ch.name.split('•').last : '')).trim().toLowerCase();
+                        final key = '${ch.partnerId ?? ch.directPartnerId ?? cName}::$dName';
+
+                        if (dedupMap.containsKey(key)) {
+                          final exist = dedupMap[key]!;
+                          bool replace = false;
+                          if (ch.isLivechatActive && !exist.isLivechatActive) {
+                            replace = true;
+                          } else if (ch.isLivechatActive == exist.isLivechatActive) {
+                            final chDate = ch.lastMessageDate ?? DateTime.fromMillisecondsSinceEpoch(0);
+                            final exDate = exist.lastMessageDate ?? DateTime.fromMillisecondsSinceEpoch(0);
+                            if (chDate.isAfter(exDate)) {
+                              replace = true;
+                            }
+                          }
+                          if (replace) {
+                            dedupMap[key] = ch;
+                          }
+                        } else {
+                          dedupMap[key] = ch;
+                        }
+                      } else {
+                        nonLivechat.add(ch);
+                      }
+                    }
+                    channels = [...nonLivechat, ...dedupMap.values];
+                  }
 
                   // Lọc theo search query và filter index
                   final filtered = channels.where((c) {
@@ -1462,33 +1500,65 @@ class _ChannelListItem extends ConsumerWidget {
                                 ),
                               ),
                               if (isLivechat && !isPortal)
-                                Container(
-                                  margin: const EdgeInsets.only(left: 6),
-                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                                  decoration: BoxDecoration(
-                                    color: livechatColor.withValues(alpha: 0.12),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        livechatIcon,
-                                        size: 10,
-                                        color: livechatColor,
-                                      ),
-                                      const SizedBox(width: 3),
-                                      Text(
-                                        'Livechat',
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w700,
-                                          color: livechatColor,
+                                channel.isLivechatActive
+                                    ? Container(
+                                        margin: const EdgeInsets.only(left: 6),
+                                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                        decoration: BoxDecoration(
+                                          color: livechatColor.withValues(alpha: 0.12),
+                                          borderRadius: BorderRadius.circular(4),
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                )
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              livechatIcon,
+                                              size: 10,
+                                              color: livechatColor,
+                                            ),
+                                            const SizedBox(width: 3),
+                                            Text(
+                                              'Livechat',
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w700,
+                                                color: livechatColor,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      )
+                                    : Container(
+                                        margin: const EdgeInsets.only(left: 6),
+                                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                        decoration: BoxDecoration(
+                                          color: isDark ? Colors.white10 : const Color(0xFFF1F5F9),
+                                          borderRadius: BorderRadius.circular(4),
+                                          border: Border.all(
+                                            color: isDark ? Colors.white12 : const Color(0xFFE2E8F0),
+                                            width: 0.5,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              LucideIcons.archive,
+                                              size: 9.5,
+                                              color: isDark ? Colors.white54 : const Color(0xFF64748B),
+                                            ),
+                                            const SizedBox(width: 3),
+                                            Text(
+                                              'Đã kết thúc',
+                                              style: TextStyle(
+                                                fontSize: 9.5,
+                                                fontWeight: FontWeight.w600,
+                                                color: isDark ? Colors.white54 : const Color(0xFF64748B),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      )
                               else if (channel.isCskhChannel && !isLivechat && !isPortal && channel.name.contains('[CSKH]'))
                                 Container(
                                   margin: const EdgeInsets.only(left: 6),

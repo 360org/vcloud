@@ -151,6 +151,7 @@ class ChatV2Channel {
   final String? uuid;
   final String? invitationUrl;
   final String? livechatChannelName;
+  final bool isLivechatActive;
 
   const ChatV2Channel({
     required this.id,
@@ -179,6 +180,7 @@ class ChatV2Channel {
     this.uuid,
     this.invitationUrl,
     this.livechatChannelName,
+    this.isLivechatActive = true,
   });
 
   ChatV2Channel copyWith({
@@ -209,6 +211,7 @@ class ChatV2Channel {
     String? uuid,
     String? invitationUrl,
     String? livechatChannelName,
+    bool? isLivechatActive,
   }) {
     return ChatV2Channel(
       id: id ?? this.id,
@@ -237,6 +240,7 @@ class ChatV2Channel {
       uuid: uuid ?? this.uuid,
       invitationUrl: invitationUrl ?? this.invitationUrl,
       livechatChannelName: livechatChannelName ?? this.livechatChannelName,
+      isLivechatActive: isLivechatActive ?? this.isLivechatActive,
     );
   }
 
@@ -294,6 +298,7 @@ class ChatV2Channel {
     'uuid': uuid,
     'invitation_url': invitationUrl,
     'livechat_channel_name': livechatChannelName,
+    'is_livechat_active': isLivechatActive,
   };
 
   static bool isAdminName(String text) {
@@ -1029,6 +1034,12 @@ class ChatV2Channel {
     final invitationUrl = _stringOrNull(map['invitation_url'] ?? map['invitationUrl']);
     final livechatChannelName = _stringOrNull(map['livechat_channel_name']);
 
+    final rawIsLivechatActive = map['is_livechat_active'];
+    final bool isLivechatActive = rawIsLivechatActive == null ||
+        rawIsLivechatActive == true ||
+        rawIsLivechatActive == 1 ||
+        rawIsLivechatActive == 'true';
+
     return ChatV2Channel(
       id: id,
       name: name,
@@ -1056,6 +1067,7 @@ class ChatV2Channel {
       uuid: uuid,
       invitationUrl: invitationUrl,
       livechatChannelName: livechatChannelName,
+      isLivechatActive: isLivechatActive,
     );
   }
 
