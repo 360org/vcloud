@@ -248,3 +248,206 @@ Sau khi xử lý triệt để 6 Defect trên cả Flutter Client (`vclients`) v
 #### Kết luận & Bàn giao:
 Hệ thống Livechat Omnichannel trên Portal Mobile App và Operator Dashboard đã hoàn toàn đối xứng 2 góc nhìn (Role-Based Perspective Parity), đạt 21/21 Unit Test Cases, 0 lỗi static analysis (`dart analyze`), đồng bộ hoàn chỉnh lên Local Server LAN `192.168.1.100`. Sẵn sàng cho giai đoạn release.
 
+---
+
+### 8.5. KIỂM TOÁN MÀN HÌNH HOME PORTAL (UAT ẢNH CHỤP 4.PNG) & QUY CHUẨN THÍCH ỨNG THEO PHÂN HỆ HELPDESK
+
+Đối soát thực tế ảnh chụp màn hình Home của tài khoản Portal Customer (`4.png` - `localhost:8089/#/home`) phát hiện 3 khiếm khuyết phân quyền và ranh giới kiến trúc:
+
+#### A. Khiếm khuyết thực tế phát hiện:
+1. 🔴 **Lộ tính năng nội bộ nhân viên (`_TodayWork`)**: Khối "Công việc hôm nay" kèm nút "Mở Timesheet" bị render trên tài khoản Portal (`isPortal == true`). Khách hàng bấm vào bị Router Guard đá văng về `/home`.
+2. 🔴 **Dead-click & Trải nghiệm chết khi tenant Odoo chưa cài Helpdesk**: Lưới 4 ô hiển thị `[ 🎫 0 Ticket | Cần xử lý ]` kèm chữ `Tạo ticket` ở header; nhưng khi tenant Odoo chưa cài module `helpdesk`, nút bấm chuyển sang `/tickets` bị GoRouter chặn.
+3. 🔴 **Lệch số Tab Bottom Bar không đồng nhất**: Màn hình Chat (`2.png`) có 4 tab (`Home`, `Chat`, `Ticket`, `Tôi`), nhưng màn hình Home (`4.png`) chỉ có 3 tab (`Home`, `Chat`, `Tôi`) do cờ `hasHelpdesk` bị lệch state.
+
+#### B. Quy chuẩn Kiến trúc Phân luồng 2 Trạng thái của Portal Home:
+1. 🟢 **Trường hợp 1: Tenant CÓ Module Helpdesk (`isPortal == true && hasHelpdesk == true`)**:
+   - **Thanh điều hướng đáy (Bottom Bar)**: Đủ **4 Tab** (`[ 🏠 Home ]  [ 💬 Chat ]  [ 🎫 Ticket ]  [ 👤 Tôi ]`).
+   - **Lưới 4 ô (Quick Nav Grid 2x2)**:
+     * `[ 🎫 X Ticket ]` (Cam): Đếm số ticket của khách đang mở ➔ Bấm vào sang `/tickets`. Header có nút `Tạo ticket`.
+     * `[ ✉️ X Chưa đọc ]` (Xanh dương): Đếm tin nhắn phản hồi mới.
+     * `[ 💬 X Hội thoại ]` (Xanh ngọc): Đếm tổng số cuộc trò chuyện ➔ Bấm vào sang `/chat`.
+     * `[ 🎧 X Hỗ trợ ]` (Xanh lá): Đếm số kênh Livechat trực tuyến (Customer Care, Tech Support) ➔ Bấm vào lọc tab Hỗ trợ.
+   - **Khối bên dưới (Lower Section)**: Thay thế hoàn toàn `_TodayWork` bằng khối **"Phiếu hỗ trợ của bạn" (Recent Helpdesk Tickets)**.
+     * Hiển thị 1–2 Ticket gần nhất của khách (Mã vé, Tiêu đề, Badge: *Mới / Đang xử lý / Đã đóng*) kèm nút `Xem tất cả` (`/tickets`).
+     * Nếu chưa có vé: Hiển thị Empty state thân thiện kèm nút `[ + Gửi yêu cầu hỗ trợ ]`.
+
+2. ⚪ **Trường hợp 2: Tenant CHƯA CÀI Module Helpdesk (`isPortal == true && hasHelpdesk == false`)**:
+   - **Thanh điều hướng đáy (Bottom Bar)**: Rút gọn còn **3 Tab tinh gọn** (`[ 🏠 Home ]  [ 💬 Chat ]  [ 👤 Tôi ]`) — Ẩn hoàn toàn tab Ticket.
+   - **Lưới Tổng quan**:
+     * **Ẩn hoàn toàn** chữ `Tạo ticket` ở header.
+     * Thay vì lưới 4 ô bị rỗng 1 ô, hiển thị **3 thẻ chức năng chuẩn xác**:
+       1. `[ 🎧 X Kênh hỗ trợ trực tuyến sẵn sàng (🟢 Online) ]` (Xanh lá `#00CE2C`): Thẻ ngang nổi bật trên đầu.
+       2. `[ ✉️ X Chưa đọc ]` (Xanh dương): Đếm tin nhắn mới.
+       3. `[ 💬 X Hội thoại ]` (Xanh ngọc): Tổng số phòng chat.
+   - **Khối bên dưới (Lower Section)**: Thay thế hoàn toàn bằng **"Dịch vụ hỗ trợ trực tuyến" (Livechat 1-Touch Quick Connect)**:
+     * 🟢 **Customer Care (Chăm Sóc Khách Hàng)**: *"Tư vấn sản phẩm, báo giá, chính sách hợp đồng"* ➔ `[ Nhắn tin ➔ ]`.
+     * 🛠️ **Technical Support (Hỗ Trợ Kỹ Thuật)**: *"Xử lý sự cố, hướng dẫn sử dụng phần mềm"* ➔ `[ Nhắn tin ➔ ]`.
+
+#### C. Rào chắn Bảo vệ Phân quyền (Strict Architecture Guard):
+- Trong `HomeScreen` (`vclients/lib/features/home/presentation/home_screen.dart`):
+  ```dart
+  if (isPortal) {
+    if (hasHelpdesk) {
+      return const _PortalRecentTicketsSection();
+    } else {
+      return const _PortalLivechatServicesSection();
+    }
+  } else {
+    return const _TodayWork(); // CHỈ dành cho nhân viên nội bộ!
+  }
+  ```
+- Khối `_QuickNavGrid`: Phân nhánh `isPortal` độc lập, loại bỏ hoàn toàn `MetricPill` cho Timesheet/Task và điều hướng `/timesheet` đối với khách hàng bên ngoài.
+
+---
+
+### 8.6. KIỂM TOÁN MÀN HÌNH CHI TIẾT TICKET (UAT ẢNH CHỤP 3.PNG & 4.PNG) — CÔ LẬP VAI TRÒ KHÁCH HÀNG PORTAL
+
+Đối soát thực tế ảnh chụp màn hình Chi tiết Ticket trên tài khoản Portal (`3.png` & `4.png` - `localhost:8089/#/tickets`):
+
+#### A. Khiếm khuyết & Lỗi phát hiện trên ảnh:
+1. 🔴 **Lỗi nghiêm trọng 403 Forbidden (Ảnh 3.png)**:
+   - Hiển thị 2 nút bấm quy trình kỹ thuật nội bộ `[ Nhận ticket ]` và `[ Hoàn thành ]` ở thanh đáy cho tài khoản Portal.
+   - Khi khách hàng bấm vào nút `Nhận ticket`, Flutter gọi API `updateStatus` lên Backend Odoo và nhận mã lỗi HTTP 403: `Failure(Tài khoản Portal không có quyền thay đổi workflow ticket.)`.
+   - **Root Cause**: Backend Odoo 17 & 19 (`v_mobile_17/19/controllers/ticket.py`, dòng 1013) đã chốt chặn bảo mật đúng chuẩn, nhưng Frontend `ticket_detail_screen.dart` hoàn toàn chưa có logic kiểm tra `isPortal`, áp đặt nguyên xi giao diện Kỹ thuật viên nội bộ cho khách hàng.
+2. 🔴 **Lộ thao tác chuyển giao & chỉnh sửa trên Header (Ảnh 4.png)**:
+   - Header hiển thị icon Chuyển giao (`onReassign`) cho phép mở danh sách toàn bộ nhân sự công ty để gán ticket, và icon Bút chì (`onEdit`) cho phép sửa đội xử lý/mức độ ưu tiên. Đây là quyền của Kỹ thuật/Admin, không phải của khách hàng.
+3. 🔴 **Lộ tính năng Hoạt động nội bộ `mail.activity` (Ảnh 4.png)**:
+   - Hiển thị khối `Hoạt động (+ Thêm)`. Trong Odoo, `mail.activity` là tính năng nội bộ nhân viên lên lịch hẹn gọi điện, họp, to-do giao việc; khách hàng Portal không có quyền và không có nhu cầu tạo hoạt động nội bộ.
+4. 🔴 **Rác thông tin thẻ chi tiết (Ảnh 4.png)**:
+   - Hiển thị hàng loạt chip cấu hình backend không cần thiết cho khách hàng (`Không chọn tag`, `Không CC email`, chip phân công có thể bấm mở popup chuyển giao).
+
+#### B. Quy chuẩn Nghiệp vụ Đối xứng (Internal Support vs Portal Customer):
+| Vị trí / Thành phần | Kỹ thuật viên Nội bộ (`!isPortal`) | Khách hàng Portal (`isPortal == true`) |
+|---|---|---|
+| **Header Actions** | Icon Chuyển giao (`onReassign`) & Icon Sửa (`onEdit`) | **Ẩn 100%** (Khách không thể tự gán người khác hoặc sửa cấu hình) |
+| **Thẻ thông tin sự vụ** | Nhiều chip kỹ thuật (Tags, CC Email, Team, Assignee) | **Tối giản**: Tiêu đề, Mô tả sự cố, Trạng thái, SLA & Chuyên viên hỗ trợ |
+| **Khối Hoạt động (`mail.activity`)** | Lên lịch gọi điện, họp, to-do giao việc (`+ Thêm`) | **Ẩn 100%** (Khách hàng không thể lên lịch công việc nội bộ) |
+| **Thanh Action Bar ở đáy** | 2 nút `[ Nhận ticket ]` và `[ Hoàn thành ]` | **TRIỆT TIÊU 100%** (Khách không can thiệp workflow xử lý) |
+| **Chatter / Bình luận** | Ghi chú nội bộ hoặc phản hồi khách hàng | **Khu vực tương tác chính**: Khung chat phản hồi ở đáy để trao đổi với Kỹ thuật |
+
+#### C. Luồng Trạng Thái Hiển Thị Bên Phía Portal Khi Kỹ Thuật Thao Tác:
+1. **Khi Kỹ thuật viên bấm "Nhận ticket"**:
+   - Trạng thái trên Portal chuyển từ màu cam `Chờ xử lý` ➔ màu xanh dương `Đang xử lý`.
+   - Hiển thị Avatar và Tên Kỹ thuật viên đang phụ trách phiếu (VD: `Chuyên viên hỗ trợ: Nguyễn Tuấn Anh`).
+   - Lịch sử trao đổi xuất hiện thông báo hệ thống: *"Kỹ thuật viên Nguyễn Tuấn Anh đã tiếp nhận yêu cầu lúc 09:15"*.
+2. **Khi Kỹ thuật viên bấm "Hoàn thành ticket"**:
+   - Trạng thái trên Portal chuyển sang màu xanh lá: `Đã giải quyết` (kèm thời gian hoàn thành).
+   - Hiển thị tóm tắt giải pháp/kết quả xử lý từ Kỹ thuật viên trong dòng tin nhắn.
+   - Khu vực đáy hiển thị đánh giá sao chất lượng dịch vụ (⭐ 1-5 sao) hoặc khung gửi phản hồi nếu vấn đề chưa dứt điểm.
+
+#### D. Kết quả Thực thi & Nghiệm thu Hoàn tất (Task B.16 VERIFIED - L4):
+- **Triệt tiêu rò rỉ Timesheet**: Khối `_TodayWork` ("Công việc hôm nay" / "Mở Timesheet") bị loại bỏ 100% trên giao diện Portal (`isPortal == true`).
+- **Thích ứng động theo Helpdesk**:
+  + Khi `hasHelpdesk == true`: Header có nút "Tạo ticket"; Lưới 4 ô (Ticket, Chưa đọc, Hội thoại, Hỗ trợ); Khối dưới render danh sách phiếu hỗ trợ `_PortalRecentTicketsSection`. Bottom Bar đủ 4 tab (`Home`, `Chat`, `Ticket`, `Tôi`).
+  + Khi `hasHelpdesk == false`: Header ẩn nút "Tạo ticket"; Lưới 3 ô (Thẻ Livechat ngang nổi bật `_PortalSupportBannerPill` + 2 ô Chưa đọc/Hội thoại); Khối dưới hiển thị 2 phòng trực Livechat 1-chạm (`_PortalLivechatServicesSection`). Bottom Bar rút gọn 3 tab (`Home`, `Chat`, `Tôi`), triệt tiêu dead-click.
+- **Bảo đảm chất lượng**:
+  + Bộ Widget Test `vclients/test/features/home/portal_home_adaptation_test.dart`: 10/10 test cases PASS.
+  + Static Analysis: `flutter analyze` 0 errors, 0 warnings.
+  + Tài liệu SSOT: Đồng bộ mục B.16 trong `vclients/docs/features.md`.
+
+#### E. Kết quả Thực thi & Nghiệm thu Hoàn tất (Task B.17 VERIFIED - L4):
+- **Triệt tiêu 403 Forbidden**: Loại bỏ hoàn toàn `_TicketActionBar` (nút `Nhận ticket` và `Hoàn thành`) trên tài khoản Portal (`isPortal == true`).
+- **Ẩn thao tác quản trị trên Header**: Ẩn 100% icon Chuyển giao (`onReassign`) và icon Bút chì (`onEdit`) trên AppBar khi `isPortal == true`.
+- **Ẩn khối Hoạt động nội bộ**: Ẩn 100% khối `_TicketActivitiesSection` (`mail.activity` / `+ Thêm`) với khách hàng Portal.
+- **Tối giản chip chi tiết sự cố**: Ẩn các chip nội bộ rác (`Không chọn tag`, `Không CC email`, `Đội xử lý`) và chuyển chip Phụ trách thành thông tin thân thiện không thể click gán người.
+- **Ghim khung phản hồi tâm điểm**: Khung nhập bình luận `_CommentComposer` ghim cố định ở đáy cho khách hàng trao đổi.
+- **Bảo đảm chất lượng & Không hồi quy**:
+  + Bộ Widget Test `vclients/test/features/ticket/portal_ticket_detail_test.dart`: 6/6 test cases PASS.
+  + Static Analysis: `dart analyze lib/features/ticket/` đạt 0 errors, 0 warnings.
+  + Kỹ thuật viên nội bộ (`!isPortal`): Vẫn hiển thị đầy đủ Action Bar và Hoạt động (Zero Regression).
+  + Tài liệu SSOT: Đồng bộ mục B.17 trong `vclients/docs/features.md`.
+
+---
+
+### 8.7. KIỂM TOÁN MÀN HÌNH CHI TIẾT TICKET PORTAL (UAT ẢNH CHỤP 5.PNG) & QUY CHUẨN HOÀN THIỆN TRẢI NGHIỆM KHÁCH HÀNG (TASK B.18)
+
+Đối soát thực tế ảnh chụp màn hình sau khi hoàn thành Task B.17 (`5.png` - `localhost:8089/#/tickets` trên tài khoản Portal `portal`):
+
+#### A. Đánh giá Nghiệm thu UAT Thực tế (Pass B.17):
+1. ✅ **Triệt tiêu dứt điểm lỗi 403 Forbidden**: Hai nút `[ Nhận ticket ]` và `[ Hoàn thành ]` ở đáy đã biến mất 100%. Không còn rủi ro khách hàng bấm nhầm gây lỗi phân quyền.
+2. ✅ **Header tinh gọn**: Icon chuyển giao nhân sự và icon bút sửa đã bị ẩn hoàn toàn, giữ giao diện sạch sẽ.
+3. ✅ **Ẩn tính năng nội bộ**: Khối Hoạt động (`mail.activity`) và các chip rác (`Không chọn tag`, `Không CC email`) đã được dọn sạch.
+4. ✅ **Thẻ chuyên viên hỗ trợ trực quan**: Chip `Chuyên viên hỗ trợ: Kỹ Thuật Viên (Tech...)` màu xanh lá hiển thị trang trọng, không click được.
+5. ✅ **Khung phản hồi ghim đáy**: Khung nhập bình luận đã được ghim cố định dưới đáy màn hình.
+
+#### B. Phân tích Khiếm khuyết & Khoảng cách So với Chuẩn Odoo 17, 19 Portal & vuahethong.net:
+Đối chiếu với cổng Portal Helpdesk chuẩn của Odoo 17 & 19 (`/my/ticket/<id>`) và hệ thống `vuahethong.net`, màn hình hiện tại còn thiếu các điểm then chốt phục vụ trải nghiệm người dùng:
+
+1. **Thiếu Mã số hiệu Ticket (`ticket_ref` / `#ID`) trên Header**:
+   - *Thực tế*: Header chỉ hiển thị chữ chung chung `Ticket`. Khách hàng khi cần gọi hotline kỹ thuật hoặc tra cứu không biết mã số phiếu của mình là bao nhiêu.
+   - *Chuẩn hóa*: Header hiển thị `#${ticket.id} · Ticket` hoặc badge mã phiếu có nút sao chép 1-chạm.
+2. **Thiếu Nút đính kèm tệp / hình ảnh trong khung Chat phản hồi (Chat Attachment)**:
+   - *Thực tế*: Ô phản hồi ở thanh đáy chỉ có ô nhập văn bản và nút Gửi. Khi kỹ thuật viên yêu cầu *"Anh/chị gửi thêm ảnh chụp màn hình lỗi mới nhất"*, khách hàng hoàn toàn không có nút chọn ảnh/tệp (`LucideIcons.paperclip` / `LucideIcons.image`).
+   - *Chuẩn hóa*: Tích hợp nút kẹp tệp đính kèm ảnh/file vào `_CommentComposer`, gọi API upload attachment Odoo tương tự như lúc tạo ticket.
+3. **Thiếu Thời gian gửi yêu cầu (Ngày tạo - Created Date)**:
+   - *Thực tế*: Khối SLA hiển thị `SLA: Không giới hạn`, nhưng khách hàng không biết ticket này đã gửi từ khi nào (ngày nào, mấy giờ) trừ khi cuộn xuống tận cùng xem tin nhắn đầu tiên.
+   - *Chuẩn hóa*: Bổ sung chip `Ngày gửi: DD/MM/YYYY HH:mm` vào thẻ thông tin sự vụ.
+4. **Phân biệt trực quan tin nhắn Kỹ thuật viên vs Khách hàng trong Chatter**:
+   - *Thực tế*: Các bong bóng chat trong Chatter hiển thị danh sách phẳng, khó phân biệt nhanh đâu là phản hồi chính thức từ Kỹ thuật viên và đâu là tin nhắn của chính mình.
+   - *Chuẩn hóa*: Hiển thị badge `Kỹ thuật viên` / `Hỗ trợ viên` trên tin nhắn của nhân viên nội bộ, hoặc phân màu viền/nền nhẹ để khách nhận biết ngay khi có giải đáp.
+5. **Khách hàng tự đóng ticket hoặc Yêu cầu mở lại khi sự cố tái diễn (Self-Close / Reopen)**:
+   - *Thực tế Odoo 17 & 19*: Có cơ chế `allow_portal_ticket_closing`. Khi vấn đề đã tự hết, khách có thể bấm xác nhận `Đã được giải quyết / Đóng ticket`. Khi ticket ở trạng thái Hoàn thành (`done`), khách có nút `Cần hỗ trợ thêm / Mở lại` nếu sự cố tái diễn.
+
+#### C. Kế hoạch Triển khai Kỹ thuật (Task B.18 Implementation Plan):
+- **Giai đoạn 1**: Bổ sung Mã số ticket trên Header (`_TicketDetailHeader`) và Ngày gửi yêu cầu trên Thẻ thông tin (`_TicketInfoCard`).
+- **Giai đoạn 2**: Tích hợp nút đính kèm ảnh/tệp (`LucideIcons.paperclip`) vào `TicketCommentComposer`, cho phép chọn ảnh từ thư viện/camera và tải lên qua `MobileAttachmentRepository`.
+- **Giai đoạn 3**: Tinh chỉnh `TicketCommentCard` hiển thị huy hiệu `Chuyên viên hỗ trợ` cho phản hồi từ nhân viên kỹ thuật.
+- **Giai đoạn 4**: Bổ sung nút trạng thái thân thiện cho khách khi ticket Hoàn thành (`Cần hỗ trợ thêm` / `Mở lại ticket`).
+- **Giai đoạn 5**: Viết bộ test tự động kiểm chứng và chạy static analysis bảo đảm 0 lỗi regression.
+
+#### D. Kết quả Thực thi & Nghiệm thu Hoàn tất (Task B.18 VERIFIED - L4):
+- **Mã số hiệu Ticket trên AppBar**: Header hiển thị rõ `#${ticket.id} · Ticket` kèm nút sao chép 1-chạm (`Clipboard.setData`) và thông báo Toast xác nhận sao chép thành công.
+- **Ngày gửi yêu cầu**: Thẻ thông tin sự vụ bổ sung chip `Ngày gửi: DD/MM/YYYY HH:mm` định dạng chuẩn tiếng Việt, giúp khách hàng tiện theo dõi thời gian chờ.
+- **Đính kèm ảnh/tệp trong Chat phản hồi**: `TicketCommentComposer` tích hợp nút kẹp tệp (`LucideIcons.paperclip`), BottomSheet chọn ảnh (Thư viện/Máy ảnh) hoặc tài liệu (tối đa 25MB), upload qua `MobileAttachmentRepository` và gửi kèm `attachment_ids` vào `/api/v1/mobile/ticket/<id>/message`.
+- **Phân định Chuyên viên hỗ trợ**: `TicketCommentCard` hiển thị badge `Chuyên viên hỗ trợ` (`LucideIcons.shieldCheck`) viền xanh lá trên tin nhắn của nhân viên kỹ thuật.
+- **Banner Hoàn thành & Yêu cầu mở lại**: Khi `isPortal == true` và `ticket.status == TicketStatus.done`, hiển thị banner xanh lá `_PortalTicketResolvedBanner` kèm nút `[ Cần hỗ trợ thêm / Mở lại ]` cho phép khách hàng yêu cầu mở lại khi sự cố chưa dứt điểm.
+- **Bảo đảm chất lượng & Không hồi quy (Zero Regression)**:
+  + Bộ Widget Test `test/features/ticket/portal_ticket_detail_test.dart`: **12/12 test cases PASS 100%**.
+  + Static Analysis: `dart analyze` toàn bộ `lib/` và `test/` đạt **0 lỗi, 0 warnings**.
+  + Kỹ thuật viên nội bộ (`!isPortal`): Bảo toàn 100% các nút thao tác `_TicketActionBar` (Nhận, Hoàn thành, Mở lại ticket) và Hoạt động nội bộ.
+
+---
+
+### 8.8. KIỂM TOÁN HIỆN TƯỢNG PHÂN MẢNH & TRÙNG LẶP PHIÊN LIVECHAT (UAT ẢNH CHỤP 19.PNG, 20.PNG, 21.PNG, 22.PNG) & QUY CHUẨN NỐI PHIÊN DUY NHẤT (TASK B.19)
+
+Đối soát thực tế quá trình kiểm thử Livechat đa kênh giữa Website Widget và VCloud Mobile (`19.png`, `20.png`, `21.png`, `22.png`):
+
+#### A. Hiện tượng thực tế & Nghiệm thu UAT:
+- Sếp Tân tạo khách hàng tên `Jon` trên Website Livechat Widget (`http://192.168.1.100:1900`).
+- Khi khách nhấn *"Có, rời khỏi cuộc trò chuyện"* trên web widget (ảnh `21.png`), Odoo Core mặc định kết thúc phiên và ghi nhận tin nhắn hệ thống: *"Khách truy cập đã rời khỏi cuộc trò chuyện"*.
+- Khi khách tiếp tục mở lại khung trò chuyện và nhắn tin 3 lần liên tiếp:
+  * Phía Odoo Discuss Backend (`20.png`): Odoo Core tự động tạo ra **3 kênh riêng biệt** cùng mang tên `Jon` dưới danh mục `Customer Care`.
+  * Phía VCloud Mobile Dashboard nhân viên (`19.png` & `22.png`): Danh sách chat của nhân viên bị nhân bản tới **3 dòng `Jon • Customer Care`** (dòng 1: đang active 11:36; dòng 2: đã kết thúc *"Khách truy cập đã rời khỏi cuộc trò chuyện"*; dòng 3: phiên cũ 11:32).
+  * Khách hàng quay lại trên web bị mất toàn bộ ngữ cảnh lịch sử trò chuyện cũ; phía nhân viên CSKH/Sale bị phân mảnh thông tin, danh sách chat bị ngập bởi các phòng chat rác của cùng một người.
+
+#### B. Phân tích Nguyên nhân Gốc rễ (Root Cause):
+1. **Cơ chế mặc định của Odoo Core Website Livechat (`/im_livechat/get_session`)**:
+   - Khi khách vãng lai nhấn *"Rời khỏi cuộc trò chuyện"*, Odoo Core giải phóng guest cookie và đóng trường `livechat_end_dt`. Khi khách chat lại, Odoo Core coi đây là phiên mới hoàn toàn và tạo một bản ghi `discuss.channel` mới thay vì tìm lại kênh cũ.
+2. **Cơ chế truy vấn danh sách kênh trên Mobile (`GET /api/v1/mobile/chat/channels`)**:
+   - Backend `chat.py` hiện lấy toàn bộ các kênh mà nhân viên tham gia trong vòng 45 ngày qua mà **chưa lọc bỏ hoặc gộp các phiên Livechat đã đóng** (`livechat_end_dt` đã đóng, khách đã rời đi).
+   - Chưa có cơ chế **Deduplication / Smart Rollup / Auto-Archive** cho các phiên Livechat trùng tên đối tác hoặc cùng một khách hàng trong cùng phòng ban (`Customer Care`).
+
+#### C. Đối chiếu Chuẩn SSOT Ban Đầu (`docs/idea_portal.md` Mục 2.1 & 2.2):
+- **Quy chuẩn cốt lõi đã đề ra**:
+  1. **Session Continuity (Kế thừa phiên liên tục)**: Khi khách đã định danh hoặc quay lại, hệ thống phải **kế thừa toàn bộ lịch sử tin nhắn cũ**, không được xóa trắng và không bắt khách chat lại từ đầu.
+  2. **Idempotency (Chống trùng lặp kênh)**: Một khách hàng liên hệ cùng một phòng ban (`Customer Care`) thì chỉ duy trì **1 Kênh hỗ trợ duy nhất**, không sinh ra hàng loạt kênh rác.
+- **Hành vi thực tế hiện tại là LỆCH SO VỚI PLAN SSOT**: Cần phải chuẩn hóa gom phiên để danh sách chat chỉ còn duy nhất 1 dòng cho mỗi khách hàng.
+
+#### D. Quy chuẩn Mục tiêu (Target Specification cho Task B.19):
+1. **Nguyên tắc "1 Khách hàng ⟷ 1 Kênh hỗ trợ duy nhất" (Single Channel Idempotency)**:
+   - Trên Mobile App, phía nhân viên chỉ hiển thị duy nhất **1 dòng `Jon • Customer Care`**.
+   - Toàn bộ lịch sử trò chuyện qua các lần khách vào/ra phải được nối tiếp liên tục (Session Continuity), không bị chia cắt thành nhiều kênh khác nhau.
+2. **Cơ chế lọc & dọn rác phiên đã đóng (Closed Session Auto-Archive & Rollup)**:
+   - Các phiên Livechat mà khách đã out (`livechat_end_dt != False` hoặc tin nhắn cuối là *Khách đã rời cuộc trò chuyện*) phải được tự động ẩn khỏi danh sách trò chuyện đang hoạt động của nhân viên, chỉ giữ lại phiên đang tương tác gần nhất.
+   - Khi khách cũ quay lại cùng tên hoặc thông tin nhận diện, hệ thống tự động kế thừa và kích hoạt lại (reopen) kênh chat cũ thay vì sinh kênh mới.
+3. **Hiển thị trực quan trạng thái phiên Livechat**:
+   - Kênh active: Badge `[Livechat]` xanh lá.
+   - Kênh khách đã thoát: Badge `[Đã kết thúc]` xám, vô hiệu hóa gửi tin nhắn rác hoặc hiển thị thông báo khách đã rời đi.
+
+#### E. Kế hoạch Triển khai Kỹ thuật (Task B.19 Plan):
+- **Phía Backend `v_mobile` (Odoo 17 & 19)**:
+  * Tinh chỉnh `GET /api/v1/mobile/chat/channels`: Thêm bộ lọc thông minh loại bỏ/ẩn các kênh Livechat đã kết thúc (`livechat_end_dt IS NOT NULL` và `is_pinned == False`) đối với nhân viên trực ca.
+  * Tinh chỉnh gom nhóm hoặc nối phiên (Channel Consolidation): Đối với cùng một khách hàng / đối tác trên cùng một kênh livechat (`livechat_channel_id`), gom lịch sử hoặc chỉ trả về phiên mới nhất có gắn cờ nối tiếp.
+- **Phía Frontend `vclients` (Flutter)**:
+  * Cập nhật danh sách hiển thị và bộ lọc `[ Hỗ trợ ]`: Không hiển thị trùng lặp các phiên đã đóng của cùng một khách hàng.
+  * Thêm bài test kiểm chứng chống trùng lặp phiên Livechat.
