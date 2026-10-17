@@ -1512,22 +1512,25 @@ Tab "Tôi" quản lý thông tin nhân sự cá nhân, tùy chỉnh giao diện 
     + Static Analysis: `dart analyze` toàn bộ `lib/` và `test/` đạt **0 lỗi, 0 warnings**.
     + Kỹ thuật viên nội bộ (`!isPortal`): Vẫn bảo toàn đầy đủ các thao tác kỹ thuật và Action Bar (Zero Regression).
 
-- [x] **B.19 Chống Trùng Lặp & Gom Phiên Livechat Cho Nhân Viên Trực Ca (Livechat Session Continuity & Operator Channel Deduplication — UAT 19.png - 22.png)**: `[x] [CLAUDE-VERIFIED — 10/10 TESTS PASS & DART ANALYZE 0 ISSUES]`
-  - *Mô tả*: Khắc phục triệt để hiện tượng phân mảnh phiên Livechat khi khách hàng trên Website Livechat Widget bấm "Rời khỏi cuộc trò chuyện" rồi quay lại chat nhiều lần, khiến backend Odoo Core sinh ra nhiều bản ghi `discuss.channel` độc lập và giao diện Mobile của nhân viên trực ca bị ngập bởi nhiều dòng trùng tên (như `Jon • Customer Care` xuất hiện 3 lần ở ảnh `19.png` và `22.png`).
-  - *Kết quả thực thi chuẩn hóa 4 trụ cột theo SSOT (`docs/idea_portal.md` Mục 2 & Mục 8.8)*:
+- [x] **B.19 Chống Trùng Lặp & Gom Phiên Livechat Cho Nhân Viên Trực Ca & Khách Hàng Portal (Livechat Session Continuity & Operator/Portal Channel Deduplication — UAT 19.png - 25.png)**: `[x] [CLAUDE-VERIFIED — 12/12 TESTS PASS, API LIVE VERIFIED & DART ANALYZE 0 ISSUES]`
+  - *Mô tả*: Khắc phục triệt để hiện tượng phân mảnh phiên Livechat khi khách hàng trên Website Livechat Widget bấm "Rời khỏi cuộc trò chuyện" rồi quay lại chat nhiều lần, khiến backend Odoo Core sinh ra nhiều bản ghi `discuss.channel` độc lập. Hiện tượng này gây ra: (1) Phía Nhân viên trực ca bị ngập bởi nhiều dòng trùng tên (như `Jon • Customer Care` xuất hiện 3 lần ở ảnh `19.png` - `22.png`); (2) Phía Khách hàng Portal bị phân mảnh thành 3 dòng `Customer Care` độc lập ở ảnh `25.png`.
+  - *Kết quả thực thi chuẩn hóa theo SSOT (`docs/idea_portal.md` Mục 2 & Mục 8.8)*:
     1. **Nối phiên liên tục khi khách quay lại (Session Continuity & Idempotency)**:
        - Tại `v_mobile_17/controllers/livechat.py` & `v_mobile_19/controllers/livechat.py`: Khi khách mở session mới, backend tự động quét tìm phiên gần nhất của chính khách hàng đó trong cùng phòng ban Livechat (`livechat_channel_id`). Nếu tìm thấy phiên cũ đã đóng, hệ thống thực hiện Re-open (`livechat_end_dt = False`, `livechat_active = True`, `livechat_status = 'in_progress'`), ghim lại thành viên (`is_pinned = True`, `unpin_dt = False`), cập nhật timestamp và post tin nhắn thông báo khách quay lại thay vì sinh kênh rác mới.
-    2. **Tự động gom & ẩn phiên đã đóng cho nhân viên trực ca (Closed Session Auto-Archive & Rollup)**:
-       - Tại `v_mobile_17/controllers/chat.py` & `v_mobile_19/controllers/chat.py`: Tự động ẩn các phiên Livechat đã đóng (`is_livechat_active == False`) đối với nhân viên trực ca (`!is_portal_user` và `not show_archived`).
-       - Bổ sung thuật toán Gom kênh thông minh (Deduplication): Nhóm các kênh theo khóa `cust_id_or_name::dept_name`, chỉ giữ lại duy nhất 1 kênh đại diện (ưu tiên kênh đang active và có tin nhắn mới nhất), loại bỏ hoàn toàn tình trạng nhiều dòng trùng tên trên Mobile.
-    3. **Phòng thủ 2 lớp & Trực quan hóa trạng thái (Flutter Defensive UI)**:
+    2. **Khóa gom nhóm 2 chiều cho cả Nhân viên và Portal (Dual-Scope Channel Deduplication - B.19.1 & B.19.2)**:
+       - Tại `v_mobile_17/controllers/chat.py` & `v_mobile_19/controllers/chat.py`:
+         * Với Nhân viên trực ca (`!is_portal_user`): `dedup_key = f"{cust_name}::{dept_name}"` (gom triệt để các phiên trùng tên khách bất kể ID partner khác nhau).
+         * Với Khách hàng Portal (`is_portal_user`): `dedup_key = f"portal::{dept_name}"` (gom triệt để các phiên thuộc cùng một phòng ban hỗ trợ `Customer Care`, `Technical Support`).
+         * Giữ lại phiên đang active (`is_livechat_active: true`) hoặc có tin nhắn mới nhất (`last_message_date`), đưa tin nhắn mới nhất lên subtitle.
+    3. **Phòng thủ 2 lớp & Trực quan hóa trạng thái (Flutter Defensive UI - B.19.2)**:
        - Model `ChatV2Channel`: Parse cờ `isLivechatActive: bool` từ server.
-       - Tầng UI `ChatV2ListScreen`: Bổ sung client-side deduplication defensive rollup. Item hội thoại hiển thị badge `[Livechat]` xanh lá (`#00CE2C`) cho phiên đang active và badge `[Đã kết thúc]` xám cho phiên đã đóng.
+       - Tầng UI `ChatV2ListScreen`: Client-side deduplication gom nhóm theo `isPortal ? 'portal::$dName' : '$cName::$dName'`, bảo đảm danh sách hiển thị đồng nhất. Item hiển thị badge `[Livechat]` xanh lá (`#00CE2C`) cho phiên đang active và badge `[Đã kết thúc]` xám cho phiên đã đóng.
   - *Tệp liên quan*:
     + Backend: `v_mobile_17/controllers/chat.py`, `v_mobile_19/controllers/chat.py`, `v_mobile_17/controllers/livechat.py`, `v_mobile_19/controllers/livechat.py`.
     + Frontend: `vclients/lib/features/chat_v2/data/models/chat_v2_channel.dart`, `vclients/lib/features/chat_v2/presentation/screens/chat_v2_list_screen.dart`.
   - *Bằng chứng kiểm chứng*:
-    + Bộ Test Python độc lập 10 Case: **10/10 test cases PASS 100%** (kiểm chứng active detection, deduplication rule, department isolation và auto-archive filter).
+    + Bộ Test Python độc lập 12 Case: **12/12 test cases PASS 100%** (bao gồm Case 11 khử trùng lặp khách Jon khác partner_id và Case 12 gom 3 phiên Customer Care của Portal thành 1 kênh duy nhất).
+    + API Live Test trên Local Server 192.168.1.100:1900: Đăng nhập user `portal` gọi `GET /api/v1/mobile/chat/channels?db=vcloud_test_v19` xác nhận chỉ còn DUY NHẤT 1 kênh `Customer Care` (id: 665844) và 1 kênh `Technical Support` (id: 665804).
     + Cú pháp Backend: `python3 -m py_compile` PASS 100% trên cả Odoo 17 và Odoo 19.
     + Static Analysis: `dart analyze lib/` đạt **0 issues found** (0 errors, 0 warnings).
     + Triển khai & Khởi động lại: Đã đồng bộ LAN lên Local Server `192.168.1.100` (`demo-17` & `demo-19`), container restart an toàn.
