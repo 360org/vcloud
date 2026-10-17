@@ -616,7 +616,8 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                       if (isLc) {
                         final cName = (ch.directPartnerName ?? ch.name.split('•').first).trim().toLowerCase();
                         final dName = (ch.livechatChannelName ?? (ch.name.contains('•') ? ch.name.split('•').last : '')).trim().toLowerCase();
-                        final key = '${ch.partnerId ?? ch.directPartnerId ?? cName}::$dName';
+                        // [B.19.1] Gom theo tên khách hàng để gom triệt để các phiên trùng tên khác partner_id
+                        final key = '$cName::$dName';
 
                         if (dedupMap.containsKey(key)) {
                           final exist = dedupMap[key]!;
