@@ -15,7 +15,7 @@
 | **VI** | Manifest & Đồng Bộ Phiên Bản | `pubspec.yaml` SSOT, `__manifest__.py` format |
 | **VII** | Deploy & CI/CD Pipeline 3 Tầng | LAN → Odoo SaaS → TestFlight & Google Play |
 | **VIII** | Rào Chắn Odoo 17 & 19 (Mandatory Gate) | Field Mapping, ORM, XML, Porting 7 bước |
-| **IX** | Zero-Trust Execution Gate (9 điều) | Task Mode, Read Before Write, Preserve Work, Least Privilege, Side-Effect, Agent Cap, Evidence, UI/Release, Final Report |
+| **IX** | Zero-Trust Execution Gate (10 điều) | Task Mode, Read Before Write, Preserve Work, Least Privilege, Side-Effect, Agent Cap, Evidence, UI/Release, Final Report, SSOT Update |
 
 ---
 
@@ -91,6 +91,11 @@ Nạp: `360-dev-workflow`, `360-ponytail`, `360-odoo`, `360-flutter`, `360-vclou
 
 ================================================================================
 🏛️ [TRỤ CỘT 3: 📋 TASK DETAILS — {{SDLC_PHASE}}]
+#### 📖 MANDATORY SSOT READ & STATUS AUDIT GATE (BẮT BUỘC ĐỌC TRƯỚC KHI LÀM):
+Agent BẮT BUỘC đọc file SSOT chỉ định (ví dụ: `vclients/docs/features . md`, `docs/idea_portal . md`, `docs/PROJECT_STRUCTURE_MAP . md`):
+- Nắm rõ: Mục nào ĐÃ LÀM (có tag `[x]`), mục nào ĐANG LÀM, và mục nào CHƯA LÀM (tồn đọng).
+- Nắm vững tiêu chuẩn nghiệm thu và các defect thực tế đã phát hiện từ ảnh UAT/log trước khi đụng vào code.
+
 #### ⛔ MANDATORY READ-BEFORE-WRITE GATE:
 Dùng `rg "keyword" <file>` hoặc `cat -n <file>` xác định tọa độ dòng chính xác trước khi sửa.
 TUYỆT ĐỐI KHÔNG ước lượng "khoảng dòng X - Y" — số dòng thay đổi sau mỗi lần edit.
@@ -108,6 +113,13 @@ TUYỆT ĐỐI KHÔNG ước lượng "khoảng dòng X - Y" — số dòng thay
 1. Flutter Static Check: `cd vclients && dart analyze lib/` ➔ BẮT BUỘC 0 errors, 0 warnings.
 2. Odoo Syntax Check: `python3 -m py_compile <path>` ➔ PASS 100%.
 3. Nạp code LAN: `bash /media/tanma/DATA/save/mobile_versions/scripts/sync_lan . sh all`
+
+#### 📝 MANDATORY POST-TASK SSOT UPDATE GATE (BẮT BUỘC CẬP NHẬT FILE SAU KHI LÀM):
+Sau khi code và chạy test pass, Agent BẮT BUỘC mở và cập nhật trực tiếp vào file SSOT (`features . md` và `docs/...`):
+1. Chuyển trạng thái `[ ]` sang `[x]` đối với các tiêu chí/hạng mục đã giải quyết và test pass.
+2. Ghi rõ Evidence kiểm thử (tên file test, số lượng test case pass, kết quả static check).
+3. Liệt kê rõ: Hạng mục ĐÃ LÀM XONG vs Hạng mục CÒN TỒN ĐỌNG / CHƯA LÀM (để người sau tiếp quản ngay không bị mơ hồ).
+⛔ **CẤM BÁO CÁO HOÀN THÀNH NẾU CHƯA CẬP NHẬT FILE SSOT!**
 
 #### 🛑 HUMAN-IN-THE-LOOP HARD STOP GATE (TRƯỚC BƯỚC 7 SHIP):
 TẠM DỪNG HOÀN TOÀN sau khi nạp code LAN (`192 . 168 . 1 . 100`). Chờ Sếp Tân nghiệm thu UAT!
@@ -276,4 +288,12 @@ Mọi mục thay đổi trong Changelog phải gán đúng 1 trong các Tag:
 - Tóm tắt trong tối đa **1.200 ký tự**; nếu task phức tạp, bổ sung bằng chứng chi tiết trong `walkthrough.md` hoặc tài liệu bàn giao phù hợp.
 - Nêu rõ: thay đổi, kiểm thử, vấn đề còn lại và việc chưa hoàn thành.
 - **Không bao giờ báo PASS nếu chưa thực thi và xác minh.**
+
+### 10. 📝 Mandatory SSOT Update Gate (Kỷ Luật Đọc & Cập Nhật File SSOT):
+- **Trước khi làm**: BẮT BUỘC đọc file SSOT (`docs/features.md`, `docs/idea_portal.md`,...) để nắm rõ toàn cảnh: việc gì ĐÃ LÀM (có tag `[x]`), việc gì ĐANG LÀM, và việc gì CHƯA LÀM (tồn đọng).
+- **Sau khi làm**: BẮT BUỘC cập nhật trực tiếp vào file SSOT:
+  + Chuyển trạng thái `[ ]` sang `[x]` cho các mục đã xử lý và test pass.
+  + Ghi rõ Evidence kiểm thử (tên file test, số test pass, log output).
+  + Phân định rõ ràng: Danh mục ĐÃ LÀM XONG vs Danh mục CÒN TỒN ĐỌNG / CHƯA LÀM.
+- ⛔ **CẤM BÁO CÁO HOÀN THÀNH NẾU CHƯA CẬP NHẬT FILE SSOT**. Không cập nhật file tài liệu = Vi phạm Zero-Trust Gate.
 

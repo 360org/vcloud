@@ -1,5 +1,8 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
 import '../../../core/api/mobile_attachment_repository.dart';
@@ -40,6 +43,7 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
   final _scrollController = ScrollController();
   final _commentsKey = GlobalKey();
   final _optimisticComments = <TicketComment>[];
+  final _commentAttachments = <_TicketCommentAttachmentDraft>[];
   int _visibleCommentCount = 3;
   bool _sendingComment = false;
 
@@ -67,29 +71,148 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
     }
   }
 
+  Future<void> _addCommentAttachment() async {
+    final source = await showModalBottomSheet<_CommentAttachmentSource>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const _CommentAttachmentSourceSheet(),
+    );
+    if (source == null || !mounted) return;
+
+    try {
+      if (source == _CommentAttachmentSource.camera || source == _CommentAttachmentSource.photo) {
+        final picker = ImagePicker();
+        final image = await picker.pickImage(
+          source: source == _CommentAttachmentSource.camera
+              ? ImageSource.camera
+              : ImageSource.gallery,
+          imageQuality: 82,
+          maxWidth: 2200,
+        );
+        if (image == null || !mounted) return;
+        final bytes = await image.readAsBytes();
+        if (bytes.length > MobileAttachmentRepository.maxFileSizeBytes) {
+          if (mounted) {
+            AppToast.warning(
+              context,
+              title: 'Tệp quá dung lượng',
+              message: 'Dung lượng tệp vượt quá mức cho phép (25 MB). Vui lòng chọn tệp nhỏ hơn.',
+            );
+          }
+          return;
+        }
+        setState(() {
+          _commentAttachments.add(_TicketCommentAttachmentDraft(
+            name: image.name,
+            bytes: bytes,
+            mimetype: _commentMimetypeForName(image.name),
+          ));
+        });
+      } else if (source == _CommentAttachmentSource.document) {
+        final result = await FilePicker.platform.pickFiles(
+          allowMultiple: false,
+          withData: true,
+          type: FileType.custom,
+          allowedExtensions: const <String>[
+            'pdf',
+            'doc',
+            'docx',
+            'xls',
+            'xlsx',
+            'ppt',
+            'pptx',
+            'txt',
+            'png',
+            'jpg',
+            'jpeg',
+          ],
+        );
+        final file = result?.files.single;
+        if (file == null || file.bytes == null || !mounted) return;
+        if (file.size > MobileAttachmentRepository.maxFileSizeBytes) {
+          if (mounted) {
+            AppToast.warning(
+              context,
+              title: 'Tệp quá dung lượng',
+              message: 'Dung lượng tệp vượt quá mức cho phép (25 MB). Vui lòng chọn tệp nhỏ hơn.',
+            );
+          }
+          return;
+        }
+        setState(() {
+          _commentAttachments.add(_TicketCommentAttachmentDraft(
+            name: file.name,
+            bytes: file.bytes!,
+            mimetype: _commentMimetypeForName(file.name),
+          ));
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        AppToast.error(
+          context,
+          title: 'Không thể đính kèm tệp',
+          message: '$e',
+        );
+      }
+    }
+  }
+
   Future<void> _sendComment() async {
     final text = _commentController.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty && _commentAttachments.isEmpty) return;
+
+    final displayText = text.isNotEmpty
+        ? text
+        : (_commentAttachments.length == 1
+            ? 'Đã gửi tệp đính kèm: ${_commentAttachments.first.name}'
+            : 'Đã gửi ${_commentAttachments.length} tệp đính kèm');
+
     final pendingComment = TicketComment(
       id: 'pending-${DateTime.now().microsecondsSinceEpoch}',
       ticketId: widget.ticketId,
       authorId: _myId,
-      content: text,
+      content: displayText,
       createdAt: DateTime.now(),
       authorName: 'Bạn',
     );
+
+    final draftsToSend = List<_TicketCommentAttachmentDraft>.from(_commentAttachments);
 
     setState(() {
       _sendingComment = true;
       _optimisticComments.add(pendingComment);
       _commentController.value = TextEditingValue.empty;
+      _commentAttachments.clear();
     });
     _scrollToComments();
 
     try {
+      final uploadedIds = <int>[];
+      for (final draft in draftsToSend) {
+        try {
+          final res = await MobileAttachmentRepository().upload(
+            MobileAttachmentUpload(
+              filename: draft.name,
+              bytes: draft.bytes,
+              mimetype: draft.mimetype,
+              resModel: 'helpdesk.ticket',
+              resId: int.tryParse(widget.ticketId),
+            ),
+          );
+          uploadedIds.add(res.attachmentId);
+        } catch (uploadErr) {
+          debugPrint('[TicketDetail] Attachment upload warning: $uploadErr');
+        }
+      }
+
       final savedComment = await ref
           .read(ticketCommentActionsProvider)
-          .add(widget.ticketId, text);
+          .add(
+            widget.ticketId,
+            displayText,
+            attachmentIds: uploadedIds.isNotEmpty ? uploadedIds : null,
+          );
       if (mounted) {
         setState(() {
           final index = _optimisticComments.indexWhere(
@@ -97,6 +220,7 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
           );
           if (index >= 0) _optimisticComments[index] = savedComment;
         });
+        _load();
       }
       _scrollToComments();
     } catch (e) {
@@ -106,6 +230,7 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
             (comment) => comment.id == pendingComment.id,
           );
           _commentController.text = text;
+          _commentAttachments.addAll(draftsToSend);
         });
       }
       if (mounted) {
@@ -142,6 +267,26 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
     ];
     comments.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return comments;
+  }
+
+  bool _isTechnicianComment(TicketComment comment, Ticket? ticket, bool isPortal) {
+    if (ticket == null) return false;
+    if (isPortal && comment.authorId == _myId) return false;
+    if (ticket.createdBy.isNotEmpty && comment.authorId == ticket.createdBy) {
+      return false;
+    }
+    if (ticket.assignedTo.isNotEmpty && comment.authorId == ticket.assignedTo) {
+      return true;
+    }
+    if (ticket.assignedUserName != null &&
+        comment.authorName != null &&
+        comment.authorName!.trim().toLowerCase() == ticket.assignedUserName!.trim().toLowerCase()) {
+      return true;
+    }
+    if (isPortal && comment.authorName != 'Hệ thống' && comment.authorId != '0') {
+      return true;
+    }
+    return false;
   }
 
   Future<void> _showEditDialog(Ticket ticket) async {
@@ -600,6 +745,7 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
       });
     }
 
+    final isPortal = ref.watch(authControllerProvider).valueOrNull?.isPortal ?? false;
     final comments = ticket != null ? ref.watch(ticketCommentsProvider(widget.ticketId)) : null;
 
     return Scaffold(
@@ -610,8 +756,9 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
           children: [
             _TicketDetailHeader(
               ticket: ticket,
-              onEdit: ticket == null ? null : () => _showEditDialog(ticket),
-              onReassign: ticket == null ? null : () => _showReassignDialog(ticket),
+              onEdit: (ticket == null || isPortal) ? null : () => _showEditDialog(ticket),
+              onReassign: (ticket == null || isPortal) ? null : () => _showReassignDialog(ticket),
+              isPortal: isPortal,
             ),
             Expanded(
               child: AnimatedSwitcher(
@@ -633,17 +780,20 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
                         children: [
                           _TicketInfoCard(
                             ticket: ticket,
-                            onReassign: () => _showReassignDialog(ticket),
+                            onReassign: isPortal ? null : () => _showReassignDialog(ticket),
+                            isPortal: isPortal,
                           ),
                           if (ticket.attachments.isNotEmpty) ...[
                             const SizedBox(height: 16),
                             _TicketAttachmentsSection(attachments: ticket.attachments),
                           ],
-                          const SizedBox(height: 16),
-                          _TicketActivitiesSection(
-                            ticketId: ticket.id,
-                            onAddActivity: () => _showCreateActivityDialog(ticket.id),
-                          ),
+                          if (!isPortal) ...[
+                            const SizedBox(height: 16),
+                            _TicketActivitiesSection(
+                              ticketId: ticket.id,
+                              onAddActivity: () => _showCreateActivityDialog(ticket.id),
+                            ),
+                          ],
                           const SizedBox(height: 16),
                           _SectionTitle(
                             key: _commentsKey,
@@ -674,6 +824,7 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
                                 comment: comment,
                                 myId: _myId,
                                 pending: comment.id.startsWith('pending-'),
+                                isTechnician: _isTechnicianComment(comment, ticket, isPortal),
                               ),
                             ),
                           if (hiddenCount > 0) ...[
@@ -698,6 +849,7 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
                                   comment: comment,
                                   myId: _myId,
                                   pending: true,
+                                  isTechnician: _isTechnicianComment(comment, ticket, isPortal),
                                 ),
                               ),
                           ],
@@ -724,6 +876,7 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
             ),
           ),
           if (ticket != null) ...[
+            if (!isPortal)
               _TicketActionBar(
                 ticket: ticket,
                 onTake: () async {
@@ -791,12 +944,64 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
                   }
                 },
               ),
-              _CommentComposer(
-                controller: _commentController,
-                sending: _sendingComment,
-                onSubmit: _sendComment,
+            if (isPortal && ticket.status == TicketStatus.done)
+              _PortalTicketResolvedBanner(
+                onReopen: () async {
+                  try {
+                    await ref.read(ticketActionsProvider).updateStatus(widget.ticketId, TicketStatus.doing);
+                    ref.invalidate(ticketCommentsProvider(widget.ticketId));
+                    ref.invalidate(ticketsProvider);
+                    if (!mounted || !context.mounted) return;
+                    AppToast.success(
+                      context,
+                      title: 'Đã yêu cầu mở lại ticket',
+                      message: 'Ticket đã được chuyển về tab Đang xử lý thành công.',
+                    );
+                    await _load();
+                  } catch (e, st) {
+                    if (mounted && context.mounted) {
+                      showCopyableErrorDialog(context, title: 'Lỗi Mở Lại Ticket', error: e, stackTrace: st);
+                    }
+                  }
+                },
               ),
-            ],
+            if (_commentAttachments.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+                color: Theme.of(context).cardColor,
+                child: SizedBox(
+                  height: 44,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _commentAttachments.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 8),
+                    itemBuilder: (context, index) {
+                      final item = _commentAttachments[index];
+                      return Chip(
+                        avatar: const Icon(LucideIcons.paperclip, size: 14),
+                        label: Text(
+                          item.name,
+                          style: const TextStyle(fontSize: 12),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        deleteIcon: const Icon(LucideIcons.x, size: 14),
+                        onDeleted: () {
+                          setState(() {
+                            _commentAttachments.removeAt(index);
+                          });
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ),
+            _CommentComposer(
+              controller: _commentController,
+              sending: _sendingComment,
+              onSubmit: _sendComment,
+              onAttach: _addCommentAttachment,
+            ),
+          ],
           ],
         ),
       ),
@@ -1025,11 +1230,13 @@ class _TicketDetailHeader extends StatelessWidget {
     this.ticket,
     this.onEdit,
     this.onReassign,
+    this.isPortal = false,
   });
 
   final Ticket? ticket;
   final VoidCallback? onEdit;
   final VoidCallback? onReassign;
+  final bool isPortal;
 
   @override
   Widget build(BuildContext context) {
@@ -1075,52 +1282,75 @@ class _TicketDetailHeader extends StatelessWidget {
                   const Icon(LucideIcons.ticket, color: AppColors.ticket, size: 18),
                   const SizedBox(width: 8),
                   Text(
-                    'Ticket',
+                    ticket != null ? '#${ticket!.id} · Ticket' : 'Ticket',
                     style: TextStyle(
                       color: context.textColor,
                       fontSize: 16,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
+                  if (ticket != null) ...[
+                    const SizedBox(width: 6),
+                    PressableScale(
+                      onTap: () {
+                        Clipboard.setData(ClipboardData(text: ticket!.id));
+                        AppToast.success(
+                          context,
+                          title: 'Đã sao chép',
+                          message: 'Đã sao chép mã vé #${ticket!.id}',
+                        );
+                      },
+                      child: Tooltip(
+                        message: 'Sao chép mã vé',
+                        child: Icon(
+                          LucideIcons.copy,
+                          size: 14,
+                          color: context.textColor.withValues(alpha: 0.6),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
           ),
           const SizedBox(width: 10),
-          if (ticket != null) ...[
-            PressableScale(
-              onTap: onReassign,
-              child: Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: _softHeaderColor(context),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  LucideIcons.userCheck,
-                  color: AppColors.ticket,
-                  size: 19,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            PressableScale(
-              onTap: onEdit,
-              child: Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: _softHeaderColor(context),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  LucideIcons.pencil,
-                  color: AppColors.ticket,
-                  size: 18,
+          if (ticket != null && !isPortal && (onReassign != null || onEdit != null)) ...[
+            if (onReassign != null)
+              PressableScale(
+                onTap: onReassign,
+                child: Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: _softHeaderColor(context),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    LucideIcons.userCheck,
+                    color: AppColors.ticket,
+                    size: 19,
+                  ),
                 ),
               ),
-            ),
+            if (onReassign != null && onEdit != null) const SizedBox(width: 8),
+            if (onEdit != null)
+              PressableScale(
+                onTap: onEdit,
+                child: Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: _softHeaderColor(context),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    LucideIcons.pencil,
+                    color: AppColors.ticket,
+                    size: 18,
+                  ),
+                ),
+              ),
           ] else ...[
             const SizedBox(width: 42),
           ],
@@ -1135,10 +1365,15 @@ Color _softHeaderColor(BuildContext context) {
 }
 
 class _TicketInfoCard extends StatelessWidget {
-  const _TicketInfoCard({required this.ticket, this.onReassign});
+  const _TicketInfoCard({
+    required this.ticket,
+    this.onReassign,
+    this.isPortal = false,
+  });
 
   final Ticket ticket;
   final VoidCallback? onReassign;
+  final bool isPortal;
 
   @override
   Widget build(BuildContext context) {
@@ -1251,22 +1486,34 @@ class _TicketInfoCard extends StatelessWidget {
             spacing: 10,
             runSpacing: 10,
             children: [
-              if (ticket.partnerName != null && ticket.partnerName!.trim().isNotEmpty)
+              _InfoChip(
+                icon: LucideIcons.calendar,
+                label: 'Ngày gửi: ${Dates.dateVi(ticket.createdAt)} ${Dates.hm(ticket.createdAt)}',
+                color: AppColors.ticket,
+              ),
+              if (ticket.partnerName != null && ticket.partnerName!.trim().isNotEmpty && !isPortal)
                 _InfoChip(
                   icon: LucideIcons.building2,
                   label: 'Khách hàng: ${ticket.partnerName!.trim()}',
                   color: AppColors.primary,
                 ),
               if (ticket.assignedUserName != null && ticket.assignedUserName!.trim().isNotEmpty)
-                PressableScale(
-                  onTap: onReassign,
-                  child: _InfoChip(
-                    icon: LucideIcons.user,
-                    label: 'Phụ trách: ${ticket.assignedUserName!.trim()}',
+                if (isPortal)
+                  _InfoChip(
+                    icon: LucideIcons.userCheck,
+                    label: 'Chuyên viên hỗ trợ: ${ticket.assignedUserName!.trim()}',
                     color: AppColors.success,
-                  ),
-                )
-              else if (onReassign != null)
+                  )
+                else
+                  PressableScale(
+                    onTap: onReassign,
+                    child: _InfoChip(
+                      icon: LucideIcons.user,
+                      label: 'Phụ trách: ${ticket.assignedUserName!.trim()}',
+                      color: AppColors.success,
+                    ),
+                  )
+              else if (!isPortal && onReassign != null)
                 PressableScale(
                   onTap: onReassign,
                   child: const _InfoChip(
@@ -1274,24 +1521,32 @@ class _TicketInfoCard extends StatelessWidget {
                     label: 'Chưa giao · Phân công',
                     color: AppColors.warning,
                   ),
+                )
+              else if (isPortal)
+                const _InfoChip(
+                  icon: LucideIcons.clock,
+                  label: 'Đang điều phối chuyên viên',
+                  color: AppColors.warning,
                 ),
-              _InfoChip(
-                icon: LucideIcons.tag,
-                label: detail.tags.isEmpty ? 'Không chọn tag' : detail.tags,
-                color: AppColors.primary,
-              ),
-              _InfoChip(
-                icon: LucideIcons.mail,
-                label: detail.ccEmail.isEmpty
-                    ? 'Không CC email'
-                    : detail.ccEmail,
-                color: AppColors.chat,
-              ),
-              _InfoChip(
-                icon: LucideIcons.users,
-                label: detail.team.isEmpty ? 'Hỗ trợ chung' : detail.team,
-                color: AppColors.ticket,
-              ),
+              if (!isPortal) ...[
+                _InfoChip(
+                  icon: LucideIcons.tag,
+                  label: detail.tags.isEmpty ? 'Không chọn tag' : detail.tags,
+                  color: AppColors.primary,
+                ),
+                _InfoChip(
+                  icon: LucideIcons.mail,
+                  label: detail.ccEmail.isEmpty
+                      ? 'Không CC email'
+                      : detail.ccEmail,
+                  color: AppColors.chat,
+                ),
+                _InfoChip(
+                  icon: LucideIcons.users,
+                  label: detail.team.isEmpty ? 'Hỗ trợ chung' : detail.team,
+                  color: AppColors.ticket,
+                ),
+              ],
             ],
           ),
         ],
@@ -2272,4 +2527,247 @@ class _TicketDetailSkeleton extends StatelessWidget {
       ],
     );
   }
+}
+
+class _PortalTicketResolvedBanner extends StatefulWidget {
+  const _PortalTicketResolvedBanner({
+    required this.onReopen,
+  });
+
+  final Future<void> Function() onReopen;
+
+  @override
+  State<_PortalTicketResolvedBanner> createState() => _PortalTicketResolvedBannerState();
+}
+
+class _PortalTicketResolvedBannerState extends State<_PortalTicketResolvedBanner> {
+  bool _loading = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF0FDF4),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? AppColors.success.withValues(alpha: 0.3) : const Color(0xFFBBF7D0),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(LucideIcons.checkCircle2, color: AppColors.success, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Yêu cầu đã hoàn thành',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: isDark ? Colors.white : const Color(0xFF166534),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Sự cố đã được chuyên viên hỗ trợ xử lý xong. Nếu bạn cần hỗ trợ thêm hoặc vấn đề vẫn tiếp diễn, bạn có thể yêu cầu mở lại hoặc gửi phản hồi bên dưới.',
+            style: TextStyle(
+              fontSize: 12.5,
+              height: 1.35,
+              color: isDark ? Colors.white70 : const Color(0xFF15803D),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerRight,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: isDark ? Colors.white : const Color(0xFF166534),
+                side: BorderSide(
+                  color: isDark ? Colors.white24 : const Color(0xFF86EFAC),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              onPressed: _loading
+                  ? null
+                  : () async {
+                      setState(() => _loading = true);
+                      try {
+                        await widget.onReopen();
+                      } finally {
+                        if (mounted) setState(() => _loading = false);
+                      }
+                    },
+              icon: _loading
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(LucideIcons.rotateCcw, size: 15),
+              label: Text(
+                _loading ? 'Đang xử lý...' : 'Cần hỗ trợ thêm / Mở lại',
+                style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TicketCommentAttachmentDraft {
+  const _TicketCommentAttachmentDraft({
+    required this.name,
+    required this.bytes,
+    this.mimetype,
+  });
+
+  final String name;
+  final Uint8List bytes;
+  final String? mimetype;
+}
+
+enum _CommentAttachmentSource { photo, camera, document }
+
+class _CommentAttachmentSourceSheet extends StatelessWidget {
+  const _CommentAttachmentSourceSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 42,
+              height: 4,
+              decoration: BoxDecoration(
+                color: isDark ? Colors.white24 : const Color(0xFFCBD5E1),
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Đính kèm tệp / hình ảnh',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _CommentSourceTile(
+                    icon: LucideIcons.image,
+                    label: 'Thư viện',
+                    color: const Color(0xFF0284C7),
+                    onTap: () => Navigator.pop(context, _CommentAttachmentSource.photo),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _CommentSourceTile(
+                    icon: LucideIcons.camera,
+                    label: 'Máy ảnh',
+                    color: const Color(0xFF16A34A),
+                    onTap: () => Navigator.pop(context, _CommentAttachmentSource.camera),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _CommentSourceTile(
+                    icon: LucideIcons.fileText,
+                    label: 'Tài liệu',
+                    color: const Color(0xFFD97706),
+                    onTap: () => Navigator.pop(context, _CommentAttachmentSource.document),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CommentSourceTile extends StatelessWidget {
+  const _CommentSourceTile({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return PressableScale(
+      onTap: onTap,
+      child: Container(
+        height: 84,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: isDark ? 0.16 : 0.08),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: color, size: 24),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _commentMimetypeForName(String name) {
+  final ext = name.split('.').last.toLowerCase();
+  return switch (ext) {
+    'png' => 'image/png',
+    'jpg' || 'jpeg' => 'image/jpeg',
+    'webp' => 'image/webp',
+    'gif' => 'image/gif',
+    'pdf' => 'application/pdf',
+    'doc' => 'application/msword',
+    'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'xls' => 'application/vnd.ms-excel',
+    'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'txt' => 'text/plain',
+    _ => 'application/octet-stream',
+  };
 }

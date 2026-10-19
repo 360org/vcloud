@@ -1106,10 +1106,6 @@ class _ChannelListItem extends ConsumerWidget {
       }
     }
 
-    if ((effectiveLastMsg == null || effectiveLastMsg.trim().isEmpty) && (channel.lastMessageDate != null || effectiveLastDate != null)) {
-      effectiveLastMsg = '[Cuộc gọi thoại]';
-    }
-
     final timeStr = effectiveLastDate != null
         ? _formatDate(effectiveLastDate)
         : '';
@@ -1719,10 +1715,6 @@ class _ChannelListItem extends ConsumerWidget {
                     : null))
             : null);
 
-    final effectiveLastDate = (cachedMsgs != null && cachedMsgs.isNotEmpty && cachedMsgs.first.createdAt != null)
-        ? cachedMsgs.first.createdAt
-        : channel.lastMessageDate;
-
     // Tìm kiếm trong cachedMsgs nếu effectiveLastMsg chưa có
     if ((effectiveLastMsg == null || effectiveLastMsg.trim().isEmpty) && cachedMsgs != null && cachedMsgs.isNotEmpty) {
       for (final m in cachedMsgs) {
@@ -1735,23 +1727,16 @@ class _ChannelListItem extends ConsumerWidget {
     }
 
     if (effectiveLastMsg == null || effectiveLastMsg.trim().isEmpty) {
-      final hasHistory = (effectiveLastDate != null) ||
-          (channel.lastMessageDate != null) ||
-          (cachedMsgs != null && cachedMsgs.isNotEmpty);
-      if (hasHistory) {
-        effectiveLastMsg = '[Cuộc gọi thoại]';
-      } else {
-        return Text(
-          'Nhấn để bắt đầu trò chuyện',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontSize: 13.5,
-            color: isDark ? Colors.white60 : const Color(0xFF94A3B8),
-            fontStyle: FontStyle.italic,
-          ),
-        );
-      }
+      return Text(
+        'Nhấn để bắt đầu trò chuyện',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 13.5,
+          color: isDark ? Colors.white60 : const Color(0xFF94A3B8),
+          fontStyle: FontStyle.italic,
+        ),
+      );
     }
 
     final msg = effectiveLastMsg;

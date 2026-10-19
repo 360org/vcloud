@@ -64,10 +64,18 @@ class TicketCommentRepository {
     return ctl.stream;
   }
 
-  Future<TicketComment> add(String ticketId, String content) async {
+  Future<TicketComment> add(
+    String ticketId,
+    String content, {
+    List<int>? attachmentIds,
+  }) async {
+    final payload = <String, dynamic>{'body': content};
+    if (attachmentIds != null && attachmentIds.isNotEmpty) {
+      payload['attachment_ids'] = attachmentIds;
+    }
     await _client.post(
       '/api/v1/mobile/ticket/$ticketId/message',
-      body: <String, dynamic>{'body': content},
+      body: payload,
     );
     final comments = await watchByTicket(ticketId).first;
     return comments.isEmpty

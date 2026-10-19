@@ -249,17 +249,42 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
     final data = message.data;
     final resId = data['res_id'] ?? data['channel_id'] ?? data['discuss_channel_id'] ?? data['chat_id'];
     final model = (data['model'] ?? data['type'] ?? '').toString().toLowerCase();
+    final resModel = (data['res_model'] ?? '').toString().toLowerCase();
     final ticketId = data['ticket_id'] ?? data['helpdesk_ticket_id'];
     final eventType = (data['event_type'] ?? '').toString().toLowerCase();
     final action = (data['action'] ?? '').toString().toLowerCase();
 
+    // 1. Chấm công (Attendance)
     if (eventType.contains('attendance') || action == 'checkin' || action == 'checkout') {
       if (action == 'checkout') {
         ref.read(routerProvider).go('/attendance?action=checkout');
       } else {
         ref.read(routerProvider).go('/attendance');
       }
-    } else if ((model.contains('discuss') || model.contains('chat') || data.containsKey('channel_id')) &&
+    }
+    // 2. Ticket / Helpdesk
+    else if (model.contains('helpdesk') ||
+        model.contains('ticket') ||
+        data.containsKey('ticket_id') ||
+        data.containsKey('helpdesk_ticket_id') ||
+        (model == 'mail.message' && resModel.contains('helpdesk'))) {
+      final targetTicketId = ticketId ?? resId;
+      if (targetTicketId != null &&
+          targetTicketId.toString().isNotEmpty &&
+          targetTicketId.toString() != '0') {
+        ref.read(routerProvider).go('/tickets/$targetTicketId');
+      } else {
+        ref.read(routerProvider).go('/tickets');
+      }
+    }
+    // 3. Tuyển dụng (hr.applicant / recruitment)
+    else if (model.contains('hr.applicant') ||
+        model.contains('recruitment') ||
+        (model == 'mail.message' && resModel.contains('hr.applicant'))) {
+      ref.read(routerProvider).go('/tickets');
+    }
+    // 4. Chat V2 / Discuss (chỉ khi có resId kênh hợp lệ)
+    else if ((model.contains('discuss') || model.contains('chat') || data.containsKey('channel_id')) &&
         resId != null &&
         resId.toString().isNotEmpty &&
         resId.toString() != '0') {
@@ -268,10 +293,10 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
       ref.read(routerProvider).go(
             '/chat/$resId?name=${Uri.encodeComponent(cleanChannelName)}',
           );
-    } else if (ticketId != null && ticketId.toString().isNotEmpty) {
-      ref.read(routerProvider).go('/tickets/$ticketId');
-    } else {
-      ref.read(routerProvider).go('/chat');
+    }
+    // 5. Fallback an toàn về Trang chủ (Tránh đá nhầm vào phòng Chat)
+    else {
+      ref.read(routerProvider).go('/');
     }
   }
 

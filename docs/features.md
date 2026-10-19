@@ -217,6 +217,36 @@
     - Pass 43/43 tests không hồi quy trong `test/features/chat_v2/chat_v2_test.dart`.
     - `flutter analyze` đạt 0 errors, 0 warnings.
     - Python syntax check pass 100% trên cả `v_mobile_17` và `v_mobile_19`.
+- [x] 3.21 **Khắc Phục Lỗi Kênh Chat Hiển Thị "Cuộc trò chuyện", Avatar "C" & Phụ Đề Ảo "[Cuộc gọi thoại]" (TASK 2 / BUG-018 — 2026-10-19)**: `[x] [L4 — VERIFIED: Phân giải tên kênh 1-1 qua directPartnerName/members, triệt tiêu avatar chữ C cố định, xóa bỏ hoàn toàn ép gán [Cuộc gọi thoại] khi tin nhắn rỗng (22/22 Tests Pass, dart analyze 0 issues)]`
+  - *Hiện tượng*: Kênh chat 1-1 (đặc biệt khi có thông báo ứng viên/khách hàng mới liên hệ) hiển thị tiêu đề generic "Cuộc trò chuyện", Avatar cố định chữ "C" màu ngọc và phụ đề tin nhắn cuối bị gán thành `[Cuộc gọi thoại] 13:37` dù không có cuộc gọi nào diễn ra.
+  - *Nguyên nhân gốc rễ (Root Cause)*:
+    1. **Tên kênh & Avatar**: `ChatV2Channel.getCleanName()` return sớm khi chuỗi tên đã làm sạch bằng `'Cuộc trò chuyện'`, không tiếp tục tra cứu `directPartnerName` hay danh sách `members`. Thuật toán sinh avatar lấy ký tự đầu của "Cuộc trò chuyện" dẫn đến chữ "C" cố định.
+    2. **Phụ đề cuộc gọi ảo**: `ChatV2ListScreen._buildLastMessageSnippet()` tại 2 vị trí (dòng 1109 và dòng 1737) áp dụng heuristic thô ép gán `effectiveLastMsg = '[Cuộc gọi thoại]'` khi `effectiveLastMsg == null` nhưng `effectiveLastDate != null`.
+  - *Giải pháp kỹ thuật đã triển khai triệt để*:
+    1. **Model `ChatV2Channel.getCleanName()`**: Gỡ bỏ return sớm; thiết lập chuỗi phân giải ưu tiên: (1) `directPartnerName` không trùng current user ➔ (2) Duyệt `members` tìm đối tác khác `currentUserName` (ưu tiên `displayName`/`nickname`) ➔ (3) Portal `Chuyên viên tư vấn` ➔ (4) Fallback an toàn.
+    2. **Avatar Char Generator**: Tự động lấy chữ cái đầu của tên đối tác đã phân giải ("Việt Hà" ➔ "V", "Tuấn" ➔ "T"), triệt tiêu hoàn toàn avatar chữ "C".
+    3. **UI `ChatV2ListScreen`**: Xóa bỏ hoàn toàn logic ép gán thô `[Cuộc gọi thoại]`. Kênh chưa có tin nhắn văn bản hiển thị mặc định: *"Nhấn để bắt đầu trò chuyện"* dạng in nghiêng màu xám nhạt (`Color(0xFF94A3B8)`).
+  - *Bằng chứng kiểm thử (Evidence)*:
+    - Pass 10/10 automated tests độc lập trong `test/features/chat_v2/chat_v2_clean_name_self_check.dart`.
+    - Pass 12/12 automated tests độc lập trong `test/features/chat_v2/chat_v2_call_preview_self_check.dart`.
+    - `dart analyze lib/` đạt 0 errors, 0 warnings.
+- [x] 3.22 **Khắc Phục Lỗi Điều Hướng Push Notification Sai Màn Hình (BUG-019 / Build 167+ — 2026-10-19)**: `[x] [L4 — VERIFIED: Phân luồng Push Notification Chatter & Tuyển dụng, bóc tách res_model & resId, điều hướng đúng /tickets/$id hoặc /tickets thay vì đá nhầm vào phòng Chat rỗng (10/10 Tests Pass, dart analyze 0 issues)]`
+  - *Hiện tượng*: Khi nhận thông báo email/bình luận của ứng viên hoặc thông báo từ Chatter, người dùng bấm vào trên màn hình khóa điện thoại thì bị đá thẳng sang Tab Chat V2 mở ra phòng chat rỗng.
+  - *Nguyên nhân gốc rễ (Root Cause)*:
+    * `_onPushNotificationOpened` (`vclients/lib/app.dart`) không kiểm tra `res_model` khi `model == 'mail.message'`, và không nhận diện `res_id` khi model là `helpdesk.ticket` hoặc `hr.applicant`. Khi rơi vào nhánh `else`, app ép gọi `go('/chat')` đá người dùng vào màn hình Chat.
+  - *Giải pháp kỹ thuật đã triển khai triệt để*:
+    1. **Tầng App Lifecycle (`vclients/lib/app.dart`)**:
+       - Bóc tách `res_model` và `resId` từ FCM payload data.
+       - Phân nhóm điều hướng:
+         * Chấm công: `/attendance` (hoặc `/attendance?action=checkout`).
+         * Helpdesk Ticket: `/tickets/$id` (hoặc `/tickets` nếu thiếu ID).
+         * Tuyển dụng (`hr.applicant` / `recruitment`): `/tickets` (danh sách chung).
+         * Chat V2 / Discuss: `/chat/$resId?name=...` (chỉ khi có resId kênh hợp lệ).
+         * Fallback cuối cùng: `/` (trang chủ) thay vì `/chat`.
+    2. **Tầng Router (`vclients/lib/core/router/app_router.dart`)**: Khai báo `GoRoute(path: '/', redirect: (_, _) => '/home')` đảm bảo tương thích tuyệt đối.
+  - *Bằng chứng kiểm thử (Evidence)*:
+    - Pass 10/10 automated tests độc lập trong `test/features/notifications/push_notification_routing_self_check.dart`.
+    - `dart analyze lib/app.dart lib/core/router/app_router.dart` đạt 0 errors, 0 warnings.
 
 ### 🟢 GIAI ĐOẠN 4: QUẢN LÝ CÔNG VIỆC & DASHBOARD (HOME & TASKS) — `[x] [Claude-Verified — ĐÃ HOÀN TẤT & VERIFIED LIVE WAYDROID]`
 - [x] 4.1 **Dashboard Kép & Lời chào Cá nhân hóa (Dual-Tier Metrics & Greeting Header)**: Hiển thị đúng số giờ làm, trạng thái chấm công, task cần làm & ticket. Đã fix triệt để BUG-008 (Build 144): Lời chào tự động đổi theo buổi (Sáng 5h-12h, Chiều 12h-18h, Tối sau 18h) và nạp đầy đủ Chức danh & Công ty từ `userMetadata`. Đã fix triệt để BUG-009: Bắn pháo hoa chúc mừng (`CelebrationFireworksOverlay`) ngay khi bấm Check-in nhanh thành công tại Home Screen. Pass 7/7 tests trong `test/home_greeting_and_celebration_test.dart`.

@@ -625,22 +625,17 @@ class ChatV2Channel {
       }
     }
     final cleaned = cleanChannelName(name);
-    if (cleaned.isEmpty || cleaned == 'Cuộc trò chuyện') {
-      if (name.isNotEmpty && name != 'Cuộc trò chuyện') {
-        return name;
-      }
-      return 'Cuộc trò chuyện';
-    }
-    if (currentUserName == null || currentUserName.trim().isEmpty) {
-      if (isPortal == true && !isGroup && isAdminName(cleaned)) {
-        return 'Chuyên viên tư vấn';
-      }
-      return cleaned;
-    }
+    final isNameGeneric = cleaned.isEmpty || cleaned == 'Cuộc trò chuyện';
 
     // Kênh thảo luận Odoo hoặc nhóm cố định: giữ nguyên tên gốc đã làm sạch tuyệt đối,
     // không bao giờ ghép tên người tham gia hay người gửi vào title.
     if (isChannel || channelType == 'channel' || isGroup) {
+      if (isNameGeneric) {
+        if (name.isNotEmpty && name != 'Cuộc trò chuyện') {
+          return name;
+        }
+        return 'Cuộc trò chuyện';
+      }
       // Nếu tên kênh nhóm bị dính định dạng Push Notification: "{author_name} ({channel_name})"
       // Ví dụ: "Chau, Le Ba (Internal)" -> lấy tên kênh trong ngoặc: "Internal"
       final pushNotificationPattern = RegExp(r'^.+?\s*[\(\[]\s*(internal|[^\)\]]+)\s*[\)\]]$', caseSensitive: false);
@@ -657,10 +652,66 @@ class ChatV2Channel {
     }
 
     if (channelType == 'livechat') {
+      if (isNameGeneric) {
+        if (name.isNotEmpty && name != 'Cuộc trò chuyện') {
+          return name;
+        }
+        return 'Livechat';
+      }
       return cleaned;
     }
 
     if (!isGroup) {
+      // Đối với chat 1-1 (kể cả kênh cuộc gọi WebRTC 1-1):
+      // Ưu tiên 1: Tra cứu directPartnerName nếu có và không trùng user hiện tại
+      if (directPartnerName != null &&
+          directPartnerName!.trim().isNotEmpty &&
+          (currentUserName == null || !matchesUser(directPartnerName!, currentUserName))) {
+        final resolvedPartner = cleanChannelName(directPartnerName!);
+        if (isPortal == true && isAdminName(resolvedPartner)) {
+          return 'Chuyên viên tư vấn';
+        }
+        if (resolvedPartner.isNotEmpty && resolvedPartner != 'Cuộc trò chuyện') {
+          return resolvedPartner;
+        }
+      }
+
+      // Ưu tiên 2: Duyệt danh sách members tìm đối tác khác current user
+      final otherMember = members.firstWhereOrNull(
+        (m) => !m.isMe && m.name.trim().isNotEmpty && (currentUserName == null || !matchesUser(m.name, currentUserName)),
+      );
+      if (otherMember != null) {
+        final otherName = otherMember.displayName.trim().isNotEmpty
+            ? otherMember.displayName
+            : otherMember.name;
+        final resolvedMember = cleanChannelName(otherName);
+        if (isPortal == true && isAdminName(resolvedMember)) {
+          return 'Chuyên viên tư vấn';
+        }
+        if (resolvedMember.isNotEmpty && resolvedMember != 'Cuộc trò chuyện') {
+          return resolvedMember;
+        }
+      }
+
+      // Ưu tiên 3: Nếu kênh thuộc Portal (isPortal == true)
+      if (isPortal == true) {
+        return 'Chuyên viên tư vấn';
+      }
+
+      // Fallback khi tên kênh generic và không tìm thấy bất kỳ đối tác nào
+      if (isNameGeneric) {
+        if (name.isNotEmpty && name != 'Cuộc trò chuyện') {
+          return name;
+        }
+        return 'Cuộc trò chuyện';
+      }
+
+      if (currentUserName == null || currentUserName.trim().isEmpty) {
+        if (isPortal == true && isAdminName(cleaned)) {
+          return 'Chuyên viên tư vấn';
+        }
+        return cleaned;
+      }
       // Đối với chat 1-1: nếu tên kênh bị dính đuôi "(Internal)" do push notification hoặc cache,
       // loại bỏ "(Internal)" để chỉ hiển thị tên người chat đối diện.
       // Ví dụ: "Chau, Le Ba (Internal)" -> "Chau, Le Ba"

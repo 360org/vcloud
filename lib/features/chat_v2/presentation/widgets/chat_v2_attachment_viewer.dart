@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../../../core/api/mobile_attachment_repository.dart';
 import '../../../../core/api/odoo_api_client.dart';
+import '../../../../core/error/failure.dart';
 import '../../../../core/utils/file_download.dart';
 import '../../../../core/utils/magic_bytes_validator.dart';
 import '../screens/chat_v2_video_player_screen.dart';
@@ -105,6 +106,7 @@ class ChatV2AttachmentViewer {
 
     try {
       Uint8List? bytes = directBytes;
+      String? lastErrorMessage;
 
       // 2. Nạp bytes nếu chưa có sẵn
       if (bytes == null || bytes.isEmpty) {
@@ -120,8 +122,13 @@ class ChatV2AttachmentViewer {
             targetUrl = null;
           }
 
-          if (targetUrl == null && attachmentId != null && attachmentId > 0) {
-            targetUrl = '/api/v1/mobile/attachments/$attachmentId/download';
+          // ponytail: Ưu tiên endpoint API mobile có xác thực JWT thay vì /web/content/
+          if (attachmentId != null && attachmentId > 0) {
+            if (targetUrl == null ||
+                targetUrl.startsWith('/web/content/') ||
+                targetUrl.startsWith('/web/image/')) {
+              targetUrl = '/api/v1/mobile/attachments/$attachmentId/download';
+            }
           }
 
           if (targetUrl != null && targetUrl.isNotEmpty) {
@@ -133,6 +140,7 @@ class ChatV2AttachmentViewer {
               bytes = await odooApiClient.fetchBytes(effectiveUrl);
             } catch (err) {
               debugPrint('[ChatV2AttachmentViewer] odooApiClient.fetchBytes error: $err');
+              lastErrorMessage = err is Failure ? err.message : err.toString();
               // Fallback qua MobileAttachmentRepository
               if (attachmentId != null && attachmentId > 0) {
                 try {
@@ -142,6 +150,9 @@ class ChatV2AttachmentViewer {
                   );
                 } catch (repoErr) {
                   debugPrint('[ChatV2AttachmentViewer] MobileAttachmentRepository error: $repoErr');
+                  if (repoErr is Failure) {
+                    lastErrorMessage = repoErr.message;
+                  }
                 }
               }
             }
@@ -153,6 +164,7 @@ class ChatV2AttachmentViewer {
               );
             } catch (e) {
               debugPrint('[ChatV2AttachmentViewer] Fallback fetchBytes by ID error: $e');
+              lastErrorMessage = e is Failure ? e.message : e.toString();
             }
           }
         }
@@ -167,13 +179,18 @@ class ChatV2AttachmentViewer {
               lower.startsWith('pic ') ||
               lower.startsWith('pic_') ||
               lower.contains('zalo');
-          final errorMsg = isZaloFile
-              ? 'Tệp đính kèm từ Zalo OA bị rỗng hoặc đã hết hạn trên máy chủ.'
-              : 'Không thể tải dữ liệu tệp tin hoặc tệp tin rỗng trên máy chủ.';
+          final String errorMsg;
+          if (lastErrorMessage != null && lastErrorMessage.isNotEmpty) {
+            errorMsg = lastErrorMessage;
+          } else if (isZaloFile) {
+            errorMsg = 'Tệp đính kèm từ Zalo OA bị rỗng hoặc đã hết hạn trên máy chủ.';
+          } else {
+            errorMsg = 'Không thể tải dữ liệu tệp tin hoặc tệp tin rỗng trên máy chủ.';
+          }
           messenger.showSnackBar(
             SnackBar(
               content: Text(errorMsg),
-              duration: const Duration(seconds: 3),
+              duration: const Duration(seconds: 4),
               backgroundColor: const Color(0xFFE11D48),
               behavior: SnackBarBehavior.floating,
             ),

@@ -79,7 +79,7 @@ void main() {
       expect(zaloCh.isInternalDirect(currentUserName), isFalse);
     });
 
-    test('Case 6: Livechat / Customer conversation by channelType == "livechat" is classified as isZaloOA', () {
+    test('Case 6: Livechat / Customer conversation by channelType == "livechat" is classified as isSupportChannel (never isZaloOA)', () {
       const livechatCh = ChatV2Channel(
         id: '106',
         name: 'Khách hàng ghé thăm Website',
@@ -88,7 +88,8 @@ void main() {
         memberCount: 2,
       );
 
-      expect(livechatCh.isZaloOA, isTrue);
+      expect(livechatCh.isSupportChannel, isTrue);
+      expect(livechatCh.isZaloOA, isFalse);
       expect(livechatCh.isInternalDirect(currentUserName), isFalse);
     });
 

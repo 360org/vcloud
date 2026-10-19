@@ -20,6 +20,8 @@ import '../../attendance/domain/shift_calculator.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../chat_v2/application/chat_v2_channels_controller.dart';
 import '../../chat_v2/data/models/chat_v2_channel.dart';
+import '../../livechat/application/livechat_controller.dart';
+import '../../livechat/data/models/livechat_channel_model.dart';
 import '../../livechat/presentation/widgets/livechat_selection_bottom_sheet.dart';
 import '../../timesheet/application/task_controller.dart';
 
@@ -277,9 +279,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 chatCount: fallbackChatCount,
                 unreadCount: ref.watch(chatV2TotalUnreadProvider),
                 taskCount: totalOpenTasksCount,
+                isPortal: user?.isPortal ?? false,
+                hasHelpdesk: user?.hasHelpdesk ?? true,
+                onOpenCskhChat: _openCskhChat,
               ),
               const SizedBox(height: 20),
-              _TodayWork(tasks: todayTasks),
+              if (user?.isPortal == true) ...[
+                if (user?.hasHelpdesk ?? true)
+                  const _PortalRecentTicketsSection()
+                else
+                  const _PortalLivechatServicesSection(),
+              ] else ...[
+                _TodayWork(tasks: todayTasks),
+              ],
             ],
           ),
         ),
@@ -1484,12 +1496,18 @@ class _QuickNavGrid extends ConsumerWidget {
     required this.chatCount,
     required this.unreadCount,
     required this.taskCount,
+    this.isPortal = false,
+    this.hasHelpdesk = true,
+    this.onOpenCskhChat,
   });
 
   final int ticketCount;
   final int chatCount;
   final int unreadCount;
   final int taskCount;
+  final bool isPortal;
+  final bool hasHelpdesk;
+  final VoidCallback? onOpenCskhChat;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1502,11 +1520,127 @@ class _QuickNavGrid extends ConsumerWidget {
     final liveTicketCount = localDoingTicketsCount > 0
         ? localDoingTicketsCount
         : (ticketCount > 0 ? ticketCount : 0);
-    
+
     // Nguồn chân lý đếm tổng: Ưu tiên local unread, nếu 0 thì đọc trực tiếp từ Server Dashboard Summary
     final liveChatCount = chatCount > 0 ? chatCount : (channelCount > 0 ? channelCount : 0);
     final liveUnreadCount = localUnreadCount > 0 ? localUnreadCount : (serverUnread ?? localUnreadCount);
 
+    final livechatChannels = ref.watch(livechatChannelsProvider).valueOrNull ?? const <LivechatChannelModel>[];
+    final availableLivechatCount = livechatChannels.where((c) => c.isAvailable).length;
+
+    // --- CASE 2: Portal KHÔNG có module Helpdesk (isPortal && !hasHelpdesk) ---
+    // Hiển thị 3 thẻ: 1 thẻ ngang nổi bật trên đầu + 2 thẻ 'Chưa đọc' và 'Hội thoại' ở dưới. Ẩn nút Tạo ticket.
+    if (isPortal && !hasHelpdesk) {
+      return Column(
+        children: [
+          const SectionHeader(
+            title: 'Tổng quan hôm nay',
+          ),
+          const SizedBox(height: 10),
+          _PortalSupportBannerPill(
+            onlineCount: availableLivechatCount > 0 ? availableLivechatCount : livechatChannels.length,
+            onTap: onOpenCskhChat ?? () => LivechatSelectionBottomSheet.show(context),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 138,
+                  child: _MetricPill(
+                    icon: LucideIcons.mailOpen,
+                    label: 'Chưa đọc',
+                    value: liveUnreadCount.toString(),
+                    caption: 'Cuộc trò chuyện',
+                    gradient: AppColors.chatGrad,
+                    onTap: () => context.go('/chat?filter=unread'),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: 138,
+                  child: _MetricPill(
+                    icon: LucideIcons.messagesSquare,
+                    label: 'Hội thoại',
+                    value: liveChatCount.toString(),
+                    caption: 'Cuộc trò chuyện',
+                    gradient: AppColors.brandWide,
+                    onTap: () => context.go('/chat'),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
+    // --- CASE 1: Portal CÓ module Helpdesk (isPortal && hasHelpdesk) ---
+    // Hiển thị Lưới 4 ô (2x2): Ticket, Chưa đọc, Hội thoại, Hỗ trợ (Livechat)
+    if (isPortal && hasHelpdesk) {
+      return Column(
+        children: [
+          SectionHeader(
+            title: 'Tổng quan hôm nay',
+            trailing: 'Tạo ticket',
+            onTrailingTap: () => context.push('/tickets/new'),
+          ),
+          const SizedBox(height: 10),
+          GridView.count(
+            crossAxisCount: 2,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 1.12,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            children: [
+              _MetricPill(
+                icon: LucideIcons.ticket,
+                label: 'Ticket',
+                value: liveTicketCount.toString(),
+                caption: 'Cần xử lý',
+                gradient: AppColors.ticketGrad,
+                onTap: () => context.go('/tickets'),
+              ),
+              _MetricPill(
+                icon: LucideIcons.mailOpen,
+                label: 'Chưa đọc',
+                value: liveUnreadCount.toString(),
+                caption: 'Cuộc trò chuyện',
+                gradient: AppColors.chatGrad,
+                onTap: () => context.go('/chat?filter=unread'),
+              ),
+              _MetricPill(
+                icon: LucideIcons.messagesSquare,
+                label: 'Hội thoại',
+                value: liveChatCount.toString(),
+                caption: 'Cuộc trò chuyện',
+                gradient: AppColors.brandWide,
+                onTap: () => context.go('/chat'),
+              ),
+              _MetricPill(
+                icon: LucideIcons.headphones,
+                label: 'Hỗ trợ',
+                value: availableLivechatCount > 0
+                    ? availableLivechatCount.toString()
+                    : (livechatChannels.isNotEmpty ? livechatChannels.length.toString() : '24/7'),
+                caption: 'Trực ca 🟢',
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF00C83A), Color(0xFF059669)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                onTap: onOpenCskhChat ?? () => LivechatSelectionBottomSheet.show(context),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
+    // --- CASE 0: Nhân viên nội bộ (!isPortal) ---
     return Column(
       children: [
         SectionHeader(
@@ -1562,6 +1696,504 @@ class _QuickNavGrid extends ConsumerWidget {
   }
 }
 
+class _PortalSupportBannerPill extends StatelessWidget {
+  const _PortalSupportBannerPill({
+    required this.onTap,
+    this.onlineCount = 0,
+  });
+
+  final VoidCallback onTap;
+  final int onlineCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          onTap();
+        },
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF0077CD), Color(0xFF00CE2C)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x220077CD),
+                blurRadius: 18,
+                offset: Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: const Icon(
+                  LucideIcons.headphones,
+                  color: Colors.white,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Flexible(
+                          child: Text(
+                            'Hỗ Trợ Trực Tuyến',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                              letterSpacing: -0.2,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.25),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.circle, color: Color(0xFF86EFAC), size: 6),
+                              SizedBox(width: 3),
+                              Text(
+                                'Online',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      onlineCount > 0
+                          ? '$onlineCount kênh trực tuyến · CSKH & Kỹ thuật'
+                          : 'Sẵn sàng hỗ trợ trực tuyến 24/7',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.white.withValues(alpha: 0.92),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Icon(
+                LucideIcons.chevronRight,
+                color: Colors.white70,
+                size: 20,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PortalRecentTicketsSection extends ConsumerWidget {
+  const _PortalRecentTicketsSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final tickets = ref.watch(effectiveTicketsProvider);
+    final recentTickets = tickets.take(2).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SectionHeader(
+          title: 'Phiếu hỗ trợ của bạn',
+          trailing: 'Xem tất cả',
+          onTrailingTap: () => context.go('/tickets'),
+        ),
+        const SizedBox(height: 10),
+        if (recentTickets.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E293B) : Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+              ),
+            ),
+            child: Column(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: AppColors.soft(AppColors.primary),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    LucideIcons.ticket,
+                    color: AppColors.primary,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Bạn chưa có phiếu hỗ trợ nào',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Cần hỗ trợ về sản phẩm hoặc sự cố phần mềm?',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                ElevatedButton.icon(
+                  onPressed: () => context.push('/tickets/new'),
+                  icon: const Icon(LucideIcons.plus, size: 16),
+                  label: const Text('Gửi yêu cầu hỗ trợ'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          GlassCard(
+            padding: EdgeInsets.zero,
+            radius: 18,
+            child: Column(
+              children: [
+                for (var i = 0; i < recentTickets.length; i++) ...[
+                  _PortalTicketRow(ticket: recentTickets[i]),
+                  if (i != recentTickets.length - 1)
+                    const Divider(height: 1, indent: 54),
+                ],
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _PortalTicketRow extends StatelessWidget {
+  const _PortalTicketRow({required this.ticket});
+
+  final Ticket ticket;
+
+  @override
+  Widget build(BuildContext context) {
+    final statusColor = switch (ticket.status) {
+      TicketStatus.todo => const Color(0xFF3B82F6),
+      TicketStatus.doing => const Color(0xFFF59E0B),
+      TicketStatus.done => AppColors.success,
+    };
+    final statusLabel = switch (ticket.status) {
+      TicketStatus.todo => 'Mới',
+      TicketStatus.doing => 'Đang xử lý',
+      TicketStatus.done => 'Đã đóng',
+    };
+
+    return PressableScale(
+      onTap: () => context.push('/tickets/${ticket.id}'),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: AppColors.soft(statusColor),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(LucideIcons.ticket, color: statusColor, size: 16),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    ticket.title.isNotEmpty ? ticket.title : 'Ticket #${ticket.id}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '#${ticket.id} · ${_formatTicketDate(ticket.createdAt)}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textMuted,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            StatusPill(label: statusLabel, color: statusColor),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _formatTicketDate(DateTime dt) {
+  return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
+}
+
+class _PortalLivechatServicesSection extends ConsumerWidget {
+  const _PortalLivechatServicesSection();
+
+  Future<void> _connectChannel(BuildContext context, WidgetRef ref, String keyword) async {
+    try {
+      final channels = await ref.read(livechatChannelsProvider.future);
+      final match = channels.firstWhere(
+        (c) => c.name.toLowerCase().contains(keyword.toLowerCase()),
+        orElse: () => channels.isNotEmpty ? channels.first : throw Exception('Không tìm thấy kênh hỗ trợ'),
+      );
+      final session = await ref.read(livechatControllerProvider).openSession(channelId: match.id);
+      ref.invalidate(chatV2ChannelsProvider);
+      final encodedName = Uri.encodeComponent(session.channelName);
+      final encodedAvatar = Uri.encodeComponent(session.avatarUrl ?? '');
+      if (context.mounted) {
+        context.push('/chat/${session.channelId}?name=$encodedName&avatar=$encodedAvatar');
+      }
+    } catch (_) {
+      if (context.mounted) {
+        await LivechatSelectionBottomSheet.show(context);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SectionHeader(
+          title: 'Dịch vụ hỗ trợ trực tuyến',
+        ),
+        const SizedBox(height: 10),
+        _LivechatServiceCard(
+          icon: LucideIcons.headphones,
+          accentColor: const Color(0xFF0077CD),
+          title: 'Chăm Sóc Khách Hàng (Customer Care)',
+          description: 'Tư vấn sản phẩm, báo giá, chính sách hợp đồng',
+          onTap: () => _connectChannel(context, ref, 'Customer Care'),
+        ),
+        const SizedBox(height: 10),
+        _LivechatServiceCard(
+          icon: LucideIcons.wrench,
+          accentColor: const Color(0xFF00CE2C),
+          title: 'Hỗ Trợ Kỹ Thuật (Technical Support)',
+          description: 'Xử lý sự cố, hướng dẫn sử dụng phần mềm',
+          onTap: () => _connectChannel(context, ref, 'Technical Support'),
+        ),
+      ],
+    );
+  }
+}
+
+class _LivechatServiceCard extends StatelessWidget {
+  const _LivechatServiceCard({
+    required this.icon,
+    required this.accentColor,
+    required this.title,
+    required this.description,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color accentColor;
+  final String title;
+  final String description;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          onTap();
+        },
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E293B) : Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+            ),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x0A0F172A),
+                blurRadius: 16,
+                offset: Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: AppColors.soft(accentColor),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: accentColor.withValues(alpha: 0.25),
+                  ),
+                ),
+                child: Icon(icon, color: accentColor, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: isDark ? Colors.white : const Color(0xFF0F172A),
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF00CE2C).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.circle, color: Color(0xFF00CE2C), size: 6),
+                              SizedBox(width: 3),
+                              Text(
+                                'Trực ca',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF059669),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                        height: 1.25,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.soft(accentColor),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Nhắn tin',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: accentColor,
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    Icon(LucideIcons.arrowRight, size: 12, color: accentColor),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _MetricPill extends StatelessWidget {
   const _MetricPill({
     required this.icon,
@@ -1590,7 +2222,7 @@ class _MetricPill extends StatelessWidget {
         },
         borderRadius: BorderRadius.circular(20),
         child: Ink(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
             gradient: gradient,
             borderRadius: BorderRadius.circular(20),
@@ -1639,40 +2271,43 @@ class _MetricPill extends StatelessWidget {
                     ),
                   ],
                 ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      value,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.w900,
+                Flexible(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        value,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
+                      const SizedBox(height: 2),
+                      Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 1),
-                    Text(
-                      caption,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.85),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
+                      const SizedBox(height: 1),
+                      Text(
+                        caption,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.85),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ],
             ),

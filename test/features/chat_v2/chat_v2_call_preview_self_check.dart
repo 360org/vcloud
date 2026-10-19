@@ -48,7 +48,9 @@ Map<String, dynamic> parseSnippet({
     prefix = '';
   }
 
-  final isFallbackCall = msg.isEmpty && lastDate != null;
+  // Đã gỡ bỏ ép gán thô [Cuộc gọi thoại] khi tin nhắn rỗng:
+  // Kênh không có tin nhắn văn bản không được coi là cuộc gọi thoại nếu không có marker
+  const isFallbackCall = false;
 
   return {
     'isMissedCall': isMissedCall,
@@ -126,10 +128,12 @@ void main() {
 
   // Case 10
   final c10WithDate = parseSnippet(msg: '', isMine: false, lastDate: DateTime.now());
-  assert(c10WithDate['isFallbackCall'] == true, 'Case 10 Date Fail');
+  assert(c10WithDate['isFallbackCall'] == false, 'Case 10 Date Fail');
+  assert(c10WithDate['isVoiceCall'] == false, 'Case 10 VoiceCall Fail');
+  assert(c10WithDate['displayText'] == '', 'Case 10 Text Fail');
   final c10WithoutDate = parseSnippet(msg: '', isMine: false, lastDate: null);
   assert(c10WithoutDate['isFallbackCall'] == false, 'Case 10 NoDate Fail');
-  print('✅ Case 10 PASS: Fallback [Cuộc gọi thoại] khi lastMessage rỗng nhưng lastMessageDate tồn tại');
+  print('✅ Case 10 PASS: Loại bỏ ép gán thô [Cuộc gọi thoại] khi lastMessage rỗng nhưng lastMessageDate tồn tại');
 
   // Case 11
   final c11 = parseSnippet(msg: '📞 Cuộc gọi thoại (02:15)', isMine: false);

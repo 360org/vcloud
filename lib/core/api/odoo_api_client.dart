@@ -1030,16 +1030,28 @@ class OdooApiClient {
       }
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        if (response.statusCode == 404) {
-          try {
-            final decoded = jsonDecode(response.body);
-            if (decoded is Map && (decoded['error'] == 'attachment_empty' || decoded['error'] == 'attachment_not_found')) {
-              throw Failure('Tệp tin rỗng hoặc không còn tồn tại trên máy chủ.');
+        try {
+          final decoded = jsonDecode(response.body);
+          if (decoded is Map) {
+            final errMsg = decoded['message'] ?? decoded['error'];
+            if (errMsg is String && errMsg.isNotEmpty) {
+              throw Failure(errMsg);
             }
-          } catch (e) {
-            if (e is Failure) rethrow;
           }
-          throw Failure('Tệp tin không tìm thấy (404).');
+        } catch (e) {
+          if (e is Failure) rethrow;
+        }
+        if (response.statusCode == 403) {
+          throw Failure('Bạn không có quyền truy cập tệp tin này (403).');
+        }
+        if (response.statusCode == 404) {
+          throw Failure('Tệp tin rỗng hoặc không còn tồn tại trên máy chủ (404).');
+        }
+        if (response.statusCode == 410) {
+          throw Failure('Tệp tin đính kèm từ Zalo OA đã hết hạn trên máy chủ.');
+        }
+        if (response.statusCode == 504) {
+          throw Failure('Quá thời gian kết nối đến máy chủ lưu trữ tệp tin (504).');
         }
         throw Failure('Request failed (${response.statusCode}).');
       }

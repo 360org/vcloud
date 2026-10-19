@@ -170,6 +170,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(
+        path: '/',
+        redirect: (_, _) => '/home',
+      ),
+      GoRoute(
         path: '/home',
         pageBuilder: (context, state) => _buildFadePage(
           state: state,

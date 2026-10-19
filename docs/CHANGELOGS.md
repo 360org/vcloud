@@ -2,7 +2,44 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
-## [v2.9.23+167 / Odoo 17.0.2.5.29 / Odoo 19.0.1.2.46] — 2026-10-16 (Xử Lý Lỗi Multi-DB 404 & Khắc Phục Triệt Để Lỗi 500 / Form Đăng Ký Tài Khoản Portal /web/signup)
+## [v2.9.23+167 / Odoo 17.0.2.5.29 / Odoo 19.0.1.2.46] — 2026-10-19 (Khắc Phục Lỗi Điều Hướng Push Notification Sai Màn Hình & Phân Luồng Chatter/Tuyển Dụng)
+
+> [!IMPORTANT]
+> **Khắc Phục Triệt Để Lỗi Chạm Thông Báo Đẩy Bị Đá Nhầm Vào Màn Hình Chat (BUG-019) (UAT PASS 2026-10-19)**:
+> - **1. [FIX] Nhận Diện Bóc Tách `res_model` & `resId` Cho Chatter (`vclients/lib/app.dart`)**:
+>   * Hiện tượng: Bấm vào thông báo email/bình luận của ứng viên từ Chatter bị đá sang Tab Chat V2 mở ra phòng chat rỗng.
+>   * Root Cause: Hàm `_onPushNotificationOpened` không nhận diện được `res_model` khi `model == 'mail.message'` và không bóc tách `res_id` khi model là `helpdesk.ticket` hoặc `hr.applicant`. Khi rơi vào nhánh `else`, app gọi `go('/chat')` đá nhầm người dùng vào danh sách Chat.
+>   * Khắc phục:
+>     * Nhóm Chấm công (`attendance`): Giữ nguyên điều hướng `/attendance` (hoặc `/attendance?action=checkout`).
+>     * Nhóm Ticket/Helpdesk (`helpdesk.ticket`, `ticket`, `mail.message` gắn trên helpdesk): Lấy `ticketId ?? resId`, điều hướng chính xác `/tickets/$id` (hoặc `/tickets` nếu thiếu ID).
+>     * Nhóm Tuyển dụng (`hr.applicant`, `recruitment`, `mail.message` gắn trên applicant): Điều hướng về `/tickets` (danh sách chung theo dõi nghiệp vụ).
+>     * Nhóm Chat V2 (`discuss.channel`, `chat` có `resId` hợp lệ): Điều hướng mở phòng chat `/chat/$resId?name=...`.
+>     * Fallback cuối cùng: Chuyển hướng an toàn về Trang chủ `/` (tự động redirect `/home`), loại bỏ hoàn toàn việc đá nhầm vào phòng Chat.
+> - **2. [ROUTER] Bổ Sung Route Chuyển Hướng An Toàn (`vclients/lib/core/router/app_router.dart`)**:
+>   * Khai báo `GoRoute(path: '/', redirect: (_, _) => '/home')` đảm bảo tương thích tuyệt đối cho cả lệnh gọi `go('/')` lẫn `go('/home')`, ngăn ngừa ngoại lệ `no routes for location: /`.
+> - **3. [TEST] Kiểm Thử Tự Động & Phân Tích Tĩnh**:
+>   * Bộ kiểm thử độc lập 10/10 cases `push_notification_routing_self_check.dart` đạt 100% PASS.
+>   * Phân tích tĩnh `dart analyze lib/app.dart lib/core/router/app_router.dart`: 0 issues found!
+
+## [v2.9.23+167 / Odoo 17.0.2.5.29 / Odoo 19.0.1.2.46] — 2026-10-19 (Khắc Phục Triệt Để Lỗi Kênh Chat 'Cuộc trò chuyện', Avatar 'C' & Phụ Đề Ảo '[Cuộc gọi thoại]')
+
+> [!IMPORTANT]
+> **Khắc Phục 3 Lỗi Hiển Thị UI/UX & Phân Giải Kênh Trò Chuyện (TASK 2 / BUG 2) (UAT PASS 2026-10-19)**:
+> - **1. [FIX] Phân Giải Tên Kênh 1-1 Linh Hoạt & Đa Tầng (`ChatV2Channel.getCleanName()`)**:
+>   * Hiện tượng: Kênh chat 1-1 hiển thị "Cuộc trò chuyện", Avatar chữ "C" màu ngọc mặc dù có thông báo tin nhắn chào từ đối tác/ứng viên.
+>   * Root Cause: (1) Trả về sớm (Early Return) ngay khi `cleaned == 'Cuộc trò chuyện'` mà không kiểm tra metadata đối tác; (2) Khi kênh Livechat/Web chat mới tạo, tài khoản user chưa được phân công làm member (`discuss_channel_member`) dẫn đến API Odoo Backend chặn `403 Forbidden` khi đọc messages, trả về kênh chưa có tin nhắn; (3) Tên kênh generic rỗng hoặc chưa kịp sinh.
+>   * Khắc phục: Gỡ bỏ lệnh return sớm; triển khai chuỗi phân giải ưu tiên: (1) `directPartnerName` nếu có và không trùng user hiện tại ➔ (2) `members` tìm đối tác khác `currentUserName` (ưu tiên `displayName` / `nickname`) ➔ (3) Portal `Chuyên viên tư vấn` ➔ (4) Fallback an toàn.
+> - **2. [FIX] Tự Động Sinh Avatar Theo Tên Thật Đối Tác (`Avatar Char Generator`)**:
+>   * Khi `getCleanName()` phân giải thành công tên đối tác (VD: "Việt Hà" ➔ "V", "Tuấn" ➔ "T", "Đức" ➔ "Đ"), Avatar tự động băm màu và lấy ký tự đầu chính xác, triệt tiêu hoàn toàn avatar chữ "C" cố định.
+> - **3. [FIX] Triệt Tiêu Phụ Đề Ảo '[Cuộc gọi thoại]' & Chuẩn Hóa Phụ Đề (`ChatV2ListScreen._buildLastMessageSnippet()`)**:
+>   * Hiện tượng: Kênh rỗng chưa có tin nhắn nhưng phụ đề lại hiển thị `[Cuộc gọi thoại] 13:37`.
+>   * Root Cause: Code cũ áp dụng heuristic thô ép gán `effectiveLastMsg = '[Cuộc gọi thoại]'` khi `effectiveLastMsg == null` nhưng `effectiveLastDate != null` tại 2 vị trí (dòng 1109 và dòng 1737).
+>   * Khắc phục: Xóa bỏ hoàn toàn logic ép gán thô. Khi kênh chưa có tin nhắn văn bản, hiển thị phụ đề mặc định chuẩn UX: *"Nhấn để bắt đầu trò chuyện"* dạng in nghiêng màu xám nhạt (`Color(0xFF94A3B8)`).
+> - **4. [TEST] Kiểm Thử Toàn Diện & Phân Tích Tĩnh**:
+>   * Bộ kiểm thử độc lập 10/10 cases `chat_v2_clean_name_self_check.dart` đạt 100% PASS.
+>   * Bộ kiểm thử độc lập 12/12 cases `chat_v2_call_preview_self_check.dart` đạt 100% PASS.
+>   * Kiểm tra phân tích tĩnh `dart analyze lib/`: 0 errors, 0 warnings.
+
 
 > [!IMPORTANT]
 > **Khắc Phục 3 Sự Cố Nền Tảng Cho Kịch Bản E2E Omnichannel Livechat Trên Môi Trường Odoo 19 Local Server**:

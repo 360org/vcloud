@@ -18,11 +18,13 @@ class TicketCommentCard extends StatelessWidget {
     required this.comment,
     required this.myId,
     this.pending = false,
+    this.isTechnician = false,
   });
 
   final TicketComment comment;
   final String myId;
   final bool pending;
+  final bool isTechnician;
 
   @override
   Widget build(BuildContext context) {
@@ -65,13 +67,49 @@ class TicketCommentCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        name,
-                        style: TextStyle(
-                          color: isDark ? Colors.white : AppColors.textPrimary,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 13,
-                        ),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              name,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: isDark ? Colors.white : AppColors.textPrimary,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                          if (isTechnician) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.success.withValues(alpha: isDark ? 0.22 : 0.1),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: AppColors.success.withValues(alpha: isDark ? 0.45 : 0.3),
+                                  width: 0.8,
+                                ),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(LucideIcons.shieldCheck, size: 10, color: AppColors.success),
+                                  SizedBox(width: 3),
+                                  Text(
+                                    'Chuyên viên hỗ trợ',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.success,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                       Text(
                         pending ? 'Đang gửi...' : Dates.time(comment.createdAt),
@@ -121,11 +159,13 @@ class TicketCommentComposer extends StatelessWidget {
     required this.controller,
     required this.sending,
     required this.onSubmit,
+    this.onAttach,
   });
 
   final TextEditingController controller;
   final bool sending;
   final VoidCallback onSubmit;
+  final VoidCallback? onAttach;
 
   @override
   Widget build(BuildContext context) {
@@ -144,6 +184,15 @@ class TicketCommentComposer extends StatelessWidget {
         top: false,
         child: Row(
           children: [
+            if (onAttach != null) ...[
+              IconButton(
+                icon: const Icon(LucideIcons.paperclip, size: 20),
+                color: isDark ? Colors.white60 : AppColors.textSecondary,
+                onPressed: sending ? null : onAttach,
+                tooltip: 'Đính kèm tệp / ảnh',
+              ),
+              const SizedBox(width: 4),
+            ],
             Expanded(
               child: TextField(
                 controller: controller,

@@ -242,8 +242,12 @@ class TicketCommentActions {
   final TicketCommentRepository _repo;
   final Ref _ref;
 
-  Future<TicketComment> add(String ticketId, String content) async {
-    final comment = await _repo.add(ticketId, content);
+  Future<TicketComment> add(
+    String ticketId,
+    String content, {
+    List<int>? attachmentIds,
+  }) async {
+    final comment = await _repo.add(ticketId, content, attachmentIds: attachmentIds);
     _ref.invalidate(ticketCommentsProvider(ticketId));
     _ref.invalidate(activityLogProvider(ticketId));
     return comment;

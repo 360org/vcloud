@@ -349,8 +349,8 @@ class ChatV2Repository {
                     name: aName,
                     mimetype: aMime,
                     fileSize: aSize,
-                    url: isImg ? '/web/image/$aid' : '/web/content/$aid/$aName',
-                    downloadUrl: '/web/content/$aid/$aName',
+                    url: isImg ? '/web/image/$aid' : '/api/v1/mobile/attachments/$aid/download',
+                    downloadUrl: '/api/v1/mobile/attachments/$aid/download',
                   );
                 }
               }
@@ -364,8 +364,8 @@ class ChatV2Repository {
                     .map((aid) => attachmentObjects[aid] ?? ChatV2Attachment(
                           id: aid.toString(),
                           name: msg.isDocumentFilename ? msg.content : 'file',
-                          url: '/web/content/$aid',
-                          downloadUrl: '/web/content/$aid',
+                          url: '/api/v1/mobile/attachments/$aid/download',
+                          downloadUrl: '/api/v1/mobile/attachments/$aid/download',
                           mimetype: 'application/octet-stream',
                         ))
                     .toList();
