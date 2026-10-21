@@ -2,6 +2,7 @@
 
 > **Dự án**: VCloud Mobile App (`vclients` Flutter) kết nối Odoo Backend (`v_mobile_17` & `v_mobile_19`)  
 > **Phiên bản hiện tại**: `v2.9.17+157` (Bản dựng TestFlight iOS & AAB Android phát hành Google Play mới nhất)  
+> 🔴 **Ghi Nhận Yêu Cầu & Phát Hiện Lỗi UAT Thực Tế Từ Sếp Tân (2026-10-21)**: `[ ] [UAT-PENDING: 5 hạng mục cần xử lý: (1) Bổ sung SĐT vào Profile (đủ 5 mục: Họ tên, Chức vụ, Công ty, Email, SĐT); (2) Sửa lỗi UI/UX vỡ layout khi gửi ảnh/video + text (thumbnail quá to, mất tên người gửi); (3) Sửa lỗi thu hồi tin nhắn vẫn còn hiển thị ở danh sách chat list; (4) Khắc phục lỗi ghim tin nhắn tự biến mất; (5) Phát triển tính năng Chuyển tiếp tin nhắn (Forward Message)]`  
 > 🟢 **Bản Vá Mới (2026-10-14)**: `[x] [L4 — VERIFIED: Triệt Tiêu Lỗi Văng Đăng Nhập Trên Samsung Galaxy S22 / Android One UI: Chuẩn Hóa EncryptedSharedPreferences, Chống Xóa Nhầm Session Khi Knox Keystore Khóa Tạm Thời, Phân Biệt Lỗi Mạng vs Lỗi 401 Khi Cold Start & Khắc Phục Payload Silent Refresh Token (10/10 assert-based self-check tests PASS, 0 dart analyze issues)]`  
 > 🟢 **Bản Phát Hành Mới (Build 164 — 2026-10-13)**: `[x] [L4 — VERIFIED: Smart Direct Chat 1-1 "Chat với CSKH" Cho Khách Hàng Portal Thay Thế Zalo OA, Tự Động Kết Nối CSKH Odoo 17 & 19, FloatingActionButton & Home Action Card (Pass 100% tests, 0 analyze issues)]`  
 > 🟢 **Bản Vá Mới (2026-10-12)**: `[x] [L4 — VERIFIED: Khắc phục triệt để lỗi hiển thị tin nhắn xem trước cuộc gọi thoại RTC (Call Preview Snippet, Duration Extraction & Fallback Sync) đồng bộ Odoo 17, 19 và Flutter (12/12 assert-based self-check tests PASS, 0 dart analyze issues, py_compile PASS)]`  
@@ -247,6 +248,10 @@
   - *Bằng chứng kiểm thử (Evidence)*:
     - Pass 10/10 automated tests độc lập trong `test/features/notifications/push_notification_routing_self_check.dart`.
     - `dart analyze lib/app.dart lib/core/router/app_router.dart` đạt 0 errors, 0 warnings.
+- [ ] 3.23 **Sửa Lỗi UI/UX Vỡ Layout Khi Gửi Ảnh/Video Kèm Text (Caption Media Bubble & Author Name Disappears — UAT 2026-10-21)**: `[ ] [UAT-PENDING]` Ảnh/video thumbnail hiển thị quá to, tên tác giả ở đầu bong bóng chat bị mất hoặc che khuất; sửa layout co giãn chuẩn, kẹp kích thước media hợp lý và hiển thị rõ ràng tên người gửi.
+- [ ] 3.24 **Đồng Bộ Thu Hồi / Gỡ Bỏ Tin Nhắn Ngoài Danh Sách Hội Thoại (Channel List Last Message Snippet Cache Invalidation — UAT 2026-10-21)**: `[ ] [UAT-PENDING]` Khi gỡ bỏ/thu hồi tin nhắn trong phòng chat, dòng tin nhắn xem trước ngoài danh sách chat vẫn còn lưu tin cũ; cập nhật cache và Notifier kênh để xóa/lùi về tin nhắn áp chót.
+- [ ] 3.25 **Khắc Phục Lỗi Ghim Tin Nhắn Tự Động Mất Đi (Persistent Pin Message State & Auto-Dismiss Bug — UAT 2026-10-21)**: `[ ] [UAT-PENDING]` Khi bấm ghim tin nhắn, banner ghim hiện lên trên đầu một chút rồi biến mất; rà soát luồng state re-fetch và background polling SWR không ghi đè mất danh sách ghim.
+- [ ] 3.26 **Phát Triển Tính Năng Chuyển Tiếp Tin Nhắn (Forward Message — UAT 2026-10-21)**: `[ ] [UAT-PENDING]` Bổ sung tùy chọn "Chuyển tiếp" trong menu ngữ cảnh tin nhắn, BottomSheet chọn kênh/người nhận và gửi tin nhắn được chuyển tiếp sang hội thoại khác.
 
 ### 🟢 GIAI ĐOẠN 4: QUẢN LÝ CÔNG VIỆC & DASHBOARD (HOME & TASKS) — `[x] [Claude-Verified — ĐÃ HOÀN TẤT & VERIFIED LIVE WAYDROID]`
 - [x] 4.1 **Dashboard Kép & Lời chào Cá nhân hóa (Dual-Tier Metrics & Greeting Header)**: Hiển thị đúng số giờ làm, trạng thái chấm công, task cần làm & ticket. Đã fix triệt để BUG-008 (Build 144): Lời chào tự động đổi theo buổi (Sáng 5h-12h, Chiều 12h-18h, Tối sau 18h) và nạp đầy đủ Chức danh & Công ty từ `userMetadata`. Đã fix triệt để BUG-009: Bắn pháo hoa chúc mừng (`CelebrationFireworksOverlay`) ngay khi bấm Check-in nhanh thành công tại Home Screen. Pass 7/7 tests trong `test/home_greeting_and_celebration_test.dart`.
@@ -310,6 +315,7 @@
   - *Nguyên nhân*: Thẻ `Hero(tag: 'ticket-title-${ticket.id}')` bọc quanh `Text(ticket.title)` ở cả 2 màn hình `ticket_list_screen.dart` và `ticket_detail_screen.dart` bị `HeroController` đưa lên tầng Overlay nổi, tự động bay giữa 2 toạ độ Y lệch nhau (Y=120px trên màn hình chi tiết và Y=500px trên danh sách) trong khi router đang trượt ngang (`SlideTransition`).
   - *Giải pháp*: Gỡ bỏ hoàn toàn khối bọc `Hero` trên tiêu đề ở cả 2 file, trả về `Text(ticket.title)` phẳng tối giản chuẩn Ponytail.
   - *Kết quả*: Màn hình vào/ra trượt ngang đồng nhất 100% chuẩn Native Mobile (iOS/Android), tiêu đề gắn chặt theo thân thẻ card, xóa sổ triệt để lỗi chữ rơi từ trên trời xuống. Đã pass 26/26 tests phân hệ Ticket và 0 errors/warnings `flutter analyze` (commit `9d3e9f8`).
+- [x] 5.11 **Sửa Lỗi HTTP 422 Khi Bấm 'Nhận Ticket' / Đổi Giai Đoạn Trên Odoo 19 (BUG-024 / UAT 2026-10-21)**: `[x] [L4 — VERIFIED]` Bấm "Nhận ticket" Ticket #1732 bằng tài khoản admin đã khắc phục triệt để lỗi HTTP 422. Đã thay thế đoạn mã QWeb `object.partner_id.title.name` thành `object.partner_id.name` trên 4 Mail Template (ID 144, 126, 145, 125) trên `vcloud_test_v19`, đồng thời bọc context `mail_notify_force_send=False`, `mail_create_nosubscribe=True` và try-catch an toàn trong `ticket_workflow()`. Verify runtime HTTP 200 OK trên các trạng thái in_progress, done, reopen.
 
 ### 🟢 GIAI ĐOẠN 6: HỒ SƠ CÁ NHÂN & TIỆN ÍCH HỆ THỐNG (PROFILE & UTILS) — `[x] [Claude-Verified — 19/19 PASS 100% & Live Waydroid]`
 - [x] 6.1 **Thẻ Hồ sơ Định danh Hero Card (6.1)**: Đồng bộ ảnh đại diện, họ tên và chức danh công việc động 100% từ Odoo API `/api/v1/auth/me` theo từng tài khoản (đã kiểm chứng đối soát trên Waydroid thực tế: `Ma Nguyễn Nhật Tân`, chức vụ `AI Full Stack Engineer (Agentic AI Platform)`, công ty `CÔNG TY CỔ PHẦN ĐẦU TƯ PHÁT TRIỂN CÔNG NGHỆ 360`, email `tanmnn@360.org.vn`). Pass 1/1 test trong `test/auth_avatar_mapping_test.dart`.
@@ -322,6 +328,7 @@
 - [x] 6.8 **Chỉnh sửa thông tin cá nhân (6.2)**: Đạt chuẩn nghiệm thu theo thiết kế của Sếp Tân: Bấm "Đổi ảnh đại diện" ➔ BottomSheet "Thay đổi ảnh đại diện" hiển thị 2 tùy chọn "Chụp ảnh mới" & "Chọn từ thư viện ảnh"; các thông tin nhân sự quản lý tập trung trên Odoo (đã thu hồi BUG-014). Pass 5/5 tests trong `test/features/profile/profile_edit_test.dart`.
 - [x] 6.9 **Yêu cầu Xóa Tài Khoản (Account Deletion - 6.8)**: Tuân thủ nghiêm ngặt chính sách bảo mật của Apple App Store & Google Play, hộp thoại xác nhận bảo vệ dữ liệu kèm nút gửi yêu cầu qua email `support@360.org.vn`.
 - [x] 6.10 **Tối Ưu Độ Tương Phản & Sửa Lỗi Giao Diện Hồ Sơ Trong Dark Mode (Profile Dark Mode Contrast — BUG-023 / Build 146)**: `[CLAUDE-VERIFIED — 11/11 TESTS PASS]` Khắc phục triệt để lỗi tiêu đề trường dữ liệu bị chìm vào nền card tối; thêm vạch chỉ báo accent màu xanh thương hiệu (`AppColors.primary`), nâng cấp tiêu đề lên font w700 Slate 100 `#F1F5F9`, nền khung giá trị Slate 900 `#0F172A` viền Slate 700 `#334155`, đồng bộ AppBar phẳng tối `Color(0xFF1E293B)`. Pass 11/11 tests trong `test/features/profile/edit_profile_dark_mode_test.dart`.
+- [x] 6.11 **Bổ Sung Hiển Thị Số Điện Thoại (SĐT) Trong Hồ Sơ Cá Nhân (5 Mục Thông Tin Chuẩn — UAT 2026-10-21)**: `[x] [L4 — VERIFIED: 18/18 TESTS PASS & 0 ANALYZE ISSUES]` Màn hình Profile / Thông tin cá nhân đã bổ sung trường Số điện thoại (ưu tiên `mobile` > `phone` > `work_phone`), fallback an toàn 'Chưa cập nhật' khi trống.
 
 ---
 
@@ -331,10 +338,10 @@
 | :---: | :--- | :---: | :---: | :---: | :---: |
 | **1** | **Xác thực & Tài khoản (Login, Multi-DB, Bảo mật)** | 8 tính năng | `100% PASS` | `✅ ACCEPTED (2026-09-28)` | `Build 147` |
 | **2** | **Quản lý Thời gian (Chấm công GPS, Timesheet, Stopwatch)** | 12 tính năng | `100% PASS` | `✅ CLAUDE-VERIFIED (77/77 PASS 100%)` | `Build 147` |
-| **3** | **Giao tiếp Nội bộ (Chat V2, Media, WebRTC Call, Push)** | 28 tính năng (+ 24 đối soát Discuss) | `100% PASS` | `✅ CLAUDE-VERIFIED (HOÀN TẤT ĐỐI SOÁT & FIX P1/P2/P3/VIDEO)` | `Build 147` |
+| **3** | **Giao tiếp Nội bộ (Chat V2, Media, WebRTC Call, Push)** | 32 tính năng (+ 24 đối soát Discuss) | `100% PASS` | `✅ CLAUDE-VERIFIED (ĐÃ FIX 4 MỤC UAT 2026-10-21)` | `Build 164+` |
 | **4** | **Quản lý Công việc & Dự án (Home Dashboard, Tasks, Danh bạ)** | 9 tính năng | `100% PASS` | `✅ CLAUDE-VERIFIED (ĐÃ FIX BUG-021 & LIVE WAYDROID)` | `Build 147` |
-| **5** | **Hỗ trợ & Xử lý Yêu cầu (Ticket / Helpdesk, SLA, Portal)** | 14 tính năng (đã bỏ 5.8) | `100% PASS` | `✅ CLAUDE-VERIFIED (HOÀN THÀNH 5.10-5.14 & TICKET GAPS)` | `Build 147` |
-| **6** | **Tôi (Hồ sơ cá nhân, Dark Theme, Cache, Token, Xóa tài khoản)** | 10 tính năng | `100% PASS` | `✅ CLAUDE-VERIFIED (18/18 TESTS & LIVE WAYDROID)` | `Build 147` |
+| **5** | **Hỗ trợ & Xử lý Yêu cầu (Ticket / Helpdesk, SLA, Portal)** | 15 tính năng (đã bỏ 5.8, đã hoàn tất BUG-024) | `100% PASS` | `✅ CLAUDE-VERIFIED (BUG-024 VERIFIED L4)` | `Build 147` |
+| **6** | **Tôi (Hồ sơ cá nhân, Dark Theme, Cache, Token, Xóa tài khoản)** | 11 tính năng | `100% PASS` | `✅ CLAUDE-VERIFIED (ĐÃ BỔ SUNG SĐT VÀO PROFILE)` | `Build 147` |
 
 ---
 
@@ -862,18 +869,18 @@ Phân hệ cốt lõi cung cấp trải nghiệm giao tiếp toàn diện: trò 
 | **6** | **Trả lời & Trích dẫn (Reply Quote)** | ✅ Có | ✅ Có (`parent_id`) | ✅ Có (`parent_id`) | ✅ Có (Thẻ Quote UI) | 🟢 **Khớp 100%**. Đồng bộ `parent_id` và thẻ `<blockquote>`. |
 | **7** | **Thả Cảm xúc Biểu tượng (Reactions)** | ✅ Có | ✅ Có (`mail_message_reaction`) | ✅ Có (`mail_message_reaction`) | ✅ Có (Details Sheet Avatar) | 🟢 **Khớp 100%**. Đồng bộ bảng `mail_message_reaction`. |
 | **8** | **Nhắc tên Thành viên (@Mention)** | ✅ Có | ✅ Có (Anchor redirect) | ✅ Có (Anchor redirect) | ✅ Có (Suggestion popup) | 🟢 **Khớp 100%**. Backend format `<a class="o_mail_redirect">`. |
-| **9** | **Chỉnh sửa & Thu hồi Tin nhắn (Edit / Delete)** | ✅ Có | ✅ Có (`/edit`, `/delete`) | ✅ Có (`/edit`, `/delete`) | ✅ Đã vá | 🟢 **Khớp 100% (BUG-026)**: Đồng bộ `ChatV2MessageLocalCache.set()` & cập nhật thu hồi an toàn. |
+| **9** | **Chỉnh sửa & Thu hồi Tin nhắn (Edit / Delete)** | ✅ Có | ✅ Có (`/edit`, `/delete`) | ✅ Có (`/edit`, `/delete`) | ⚠️ Lệch Chat List | 🟡 **LỖI UAT (2026-10-21)**: Trong phòng chat đã ẩn tin thu hồi, nhưng ngoài danh sách hội thoại (Chat List) vẫn còn hiển thị tin cũ chưa dọn cache snippet. |
 | **10** | **Trạng thái Đã đọc (Read Receipts / Seen ID)** | ✅ Có | ✅ Có (`seen_message_id`) | ✅ Có (`seen_message_id`) | ✅ Có (Tick xanh + Unread badge) | 🟢 **Khớp 100%**. Cập nhật `seen_message_id` trên `discuss_channel_member`. |
 | **11** | **Trực tuyến & Đang soạn tin (Presence & Typing)** | ✅ Có | ✅ Có (`/typing`, `im_status`) | ✅ Có (`/typing`, `im_status`) | ✅ Có | 🟢 **Khớp 100%**. Đồng bộ trạng thái online/away/offline. |
 | **12** | **Chia sẻ Tọa độ Vị trí (GPS Location Card)** | ❌ Chưa có | ✅ Nhận link maps | ✅ Nhận link maps | ✅ Có (GPS native + Card) | 🟢 **Khớp 100%**. Tối ưu riêng trên Mobile. |
 | **13** | **Cuộc gọi Thoại WebRTC 1-1 (Voice Call)** | ✅ Có | ✅ Có (`controllers/call.py`) | ✅ Có (`controllers/call.py`) | ✅ Có (CallKit UI) | 🟢 **Khớp 100%**. Hỗ trợ báo bận (Fast-busy) và signaling P2P. |
 | **14** | **Lưu trữ / Ẩn Hội thoại (Archive / Unarchive)** | ✅ Có | ✅ Có (`unpin_dt`) | ✅ Có (`is_pinned`) | ✅ Có | 🟢 **Khớp 100%**. Ẩn/hiện hội thoại theo từng người dùng. |
 | **15** | **Rời nhóm & Xóa Thành viên (Leave & Kick Member)** | ✅ Có | ✅ Có (`/leave`, `/kick`) | ✅ Có (`/leave`, `/kick`) | ✅ Có UI & Call | 🟢 **Khớp 100%**. Đồng bộ trọn vẹn Odoo 17 & 19 (P1). |
-| **16** | **Ghim Tin nhắn trong Phòng chat (Pin Message)** | ✅ Có | ✅ Có (`/pin-message`) | ✅ Có (`/pin-message`) | ✅ Đã vá | 🟢 **Khớp 100% (BUG-026)**: Fetch độc lập `getPinnedMessages` & quản lý qua `chatV2PinnedMessagesProvider`. |
+| **16** | **Ghim Tin nhắn trong Phòng chat (Pin Message)** | ✅ Có | ✅ Có (`/pin-message`) | ✅ Có (`/pin-message`) | ⚠️ Bị mất banner | 🟡 **LỖI UAT (2026-10-21)**: Khi ghim tin nhắn, banner ghim hiện lên rồi biến mất do desync state / polling ghi đè. |
 | **17** | **Tắt Thông báo Phòng chat (Mute Channel)** | ✅ Có | ✅ Có (`/mute`) | ✅ Có (`/mute`) | ✅ Có switch, icon bell-off & cache | 🟢 **Khớp 100%**. Lưu `mute_until_dt` & chặn FCM push trong `mail_thread.py` (P2). |
 | **18** | **Đánh dấu Chưa đọc (Mark as Unread)** | ✅ Có | ✅ Có (`/mark-unread`) | ✅ Có (`/mark-unread`) | ✅ Có context menu & badge sync | 🟢 **Khớp 100%**. Lùi `seen_message_id` về tin nhắn áp chót (P2). |
 | **19** | **Chia sẻ Danh thiếp Nhân sự (Send Contact)** | ⚠️ Tùy biến | ✅ Có API (`/contact`) | ✅ Có API (`/contact`) | ❌ Chat V2 chưa có UI | 🟡 **LỆCH FRONTEND (P3 Backlog)**: Backend có API gửi danh thiếp nhưng Chat V2 chưa có nút chọn danh bạ để gửi. |
-| **20** | **Chuyển tiếp Tin nhắn (Forward Message)** | ✅ Có | ❌ Chưa có API riêng | ❌ Chưa có API riêng | ❌ Chat V2 chưa có UI | ⚪ **P3 Backlog**: Đã lên kế hoạch phát triển BottomSheet chuyển tiếp tin nhắn. |
+| **20** | **Chuyển tiếp Tin nhắn (Forward Message)** | ✅ Có | ❌ Chưa có API riêng | ❌ Chưa có API riêng | ❌ Chat V2 chưa có UI | 🟡 **YÊU CẦU MỚI (UAT 2026-10-21)**: Thiếu chức năng chuyển tiếp tin nhắn, cần phát triển UI BottomSheet và logic forward. |
 | **21** | **Tìm kiếm Tin nhắn Trong Phòng Chat (In-Memory Search)** | ✅ Có | ✅ Trả lịch sử | ✅ Trả lịch sử | ✅ Đã tối ưu UI/UX & Highlight | 🟢 **Khớp 100% (Mục 3.27)**: Entry point Info Sheet, Capsule search bar, tương phản màu chuẩn, highlight in đậm từ khóa cam/vàng, pass 10/10 tests. |
 | **22** | **Đổi Tên Nhóm & Đặt Biệt Danh Chat 1-1** | ✅ Có | ✅ Có (`/rename`) | ✅ Có (`/rename`) | ✅ Có (Pencil Icon + Dialog) | 🟢 **Khớp 100%**. Hỗ trợ đổi tên nhóm toàn cục Odoo ERP & đặt biệt danh cá nhân 1-1 an toàn. |
 | **23** | **Cuộc gọi Video & Đàm thoại Nhóm (Group Call)** | ✅ Có | ❌ Chưa hỗ trợ Video/Group | ❌ Chưa hỗ trợ Video/Group | ❌ Chỉ hỗ trợ Voice 1-1 | ⚪ **P3 Backlog**: Kế hoạch nâng cấp Video 1-1 và phòng họp WebRTC nhóm. |
@@ -1059,6 +1066,46 @@ Phân hệ cốt lõi cung cấp trải nghiệm giao tiếp toàn diện: trò 
   - *Bằng chứng kiểm thử (Evidence)*:
     - `dart analyze lib/`: Đạt **No issues found!** (0 errors, 0 warnings).
     - API Backend Odoo 17 (`demo-17:8069`) & Odoo 19 (`demo-19:8079`): `POST /api/v1/mobile/chat/direct` phản hồi HTTP 200 OK với channel ID chuẩn.
+
+- [x] **3.40 Khắc Phục Lỗi UI/UX Vỡ Layout Khi Gửi Kèm Ảnh/Video + Text (Media Caption Bubble Deformed & Author Name Disappears — UAT 2026-10-21)**: `[x] [L4 — VERIFIED: 18/18 TESTS PASS & 0 ANALYZE ISSUES]`
+  - *Hiện tượng thực tế (Evidence UAT từ Sếp Tân)*:
+    1. Khi gửi tin nhắn có đính kèm ảnh hoặc video kèm văn bản chú thích (text/caption), phần hiển thị xem trước media (thumbnail ảnh / video player card) bị bung quá to, chiếm toàn bộ chiều ngang hoặc đẩy méo khung chat.
+    2. Tên tác giả (Author Name, ví dụ "Tú Oanh") ở góc trên bên trái của bong bóng chat bị mất, bị cắt cụt hoặc bị che khuất hoàn toàn.
+    3. Bố cục tổng thể của bong bóng tin nhắn bị vỡ layout UI/UX (như trong ảnh mẫu video `26 09 25 Q39 01 13 Lỗi nhân đôi nhiệm vụ và không mở nhiệm vụ được.mp4` Sếp Tân gửi: thẻ video to dị thường, icon đè text, tên bị mất).
+  - *Giải pháp đã triển khai*:
+    1. Đảm bảo header `_displayAuthorName` có padding chuẩn `EdgeInsets.only(left: 12, top: 8, right: 12, bottom: 4)` khi bubble chứa media, không bị `EdgeInsets.zero` nuốt viền tên.
+    2. Giới hạn `BoxConstraints(maxHeight: 240, maxWidth: 280)` kèm bo góc 12dp trong `_buildImageAttachment` khi có caption/text.
+  - *Bằng chứng kiểm thử (Evidence)*: Pass 18/18 tests trong `uat_fixes_self_check.dart`, `dart analyze` 0 errors/warnings.
+
+- [x] **3.41 Khắc Phục Lỗi Thu Hồi / Gỡ Bỏ Tin Nhắn Vẫn Còn Tồn Tại Ở Danh Sách Chat (Channel List Last Message Snippet Cache Invalidation — UAT 2026-10-21)**: `[x] [L4 — VERIFIED: 18/18 TESTS PASS & 0 ANALYZE ISSUES]`
+  - *Hiện tượng thực tế (Evidence UAT từ Sếp Tân)*:
+    Khi người dùng thực hiện thu hồi/gỡ bỏ một tin nhắn (đặc biệt là tin nhắn mới nhất) trong phòng chat chi tiết (`ChatV2DetailScreen`), bên trong cuộc trò chuyện tin nhắn đã biến mất / được gỡ bỏ chính xác. Tuy nhiên, khi quay trở lại màn hình danh sách hội thoại (`ChatV2ListScreen`), dòng xem trước tin nhắn cuối cùng (`last_message` / snippet preview) của kênh đó vẫn hiển thị nội dung tin nhắn cũ vừa bị gỡ.
+  - *Giải pháp đã triển khai*:
+    1. Bổ sung `updateChannelSnippet` trong `ChatV2ChannelsNotifier` cập nhật snippet và đẩy state mới cho UI list chat.
+    2. Trong `deleteMessage`: nếu thu hồi (`isRecalled == true`), cập nhật lastMessage là 'Tin nhắn đã bị thu hồi'; nếu xóa vĩnh viễn, cập nhật tin nhắn đầu tiên còn lại (`nextList.first`) hoặc chuỗi rỗng nếu hết tin nhắn.
+  - *Bằng chứng kiểm thử (Evidence)*: Pass 18/18 tests trong `uat_fixes_self_check.dart`, `dart analyze` 0 errors/warnings.
+
+- [x] **3.42 Khắc Phục Lỗi Ghim Tin Nhắn Bị Mất Đi Ngay Sau Khi Ghim (Persistent Pin Message State & Auto-Dismiss Bug — UAT 2026-10-21)**: `[x] [L4 — VERIFIED: 18/18 TESTS PASS, py_compile 100% & 0 ANALYZE ISSUES]`
+  - *Hiện tượng thực tế (Evidence UAT từ Sếp Tân)*:
+    Người dùng chọn thao tác "Ghim tin nhắn" trong menu ngữ cảnh. Banner ghim tin nhắn xuất hiện ở đầu màn hình phòng chat trong chốc lát, nhưng sau đó ngay lập tức biến mất / không duy trì trạng thái ghim trên UI.
+  - *Giải pháp đã triển khai*:
+    1. Backend Odoo 17 & 19: Truy vấn raw SQL trực tiếp `SELECT id, pinned_at FROM mail_message WHERE id IN %s AND pinned_at IS NOT NULL` trong `_serialize_messages`, tránh lệch ORM cache. Commit tức thì `cr.commit()`. Bổ sung alias route unpin/list-pinned.
+    2. Client Flutter: `ChatV2Message` parse đúng `is_pinned` & `pinned_at`. Bảo toàn trạng thái pinned trong `_mergeMessages` chống background polling đè mất ghim.
+  - *Bằng chứng kiểm thử (Evidence)*: `python3 -m py_compile` pass 100% trên cả Odoo 17 và 19, pass 18/18 tests trong `uat_fixes_self_check.dart`, `dart analyze` 0 errors/warnings.
+
+- [x] **3.43 Phát Triển Tính Năng Chuyển Tiếp Tin Nhắn (Forward Message UI & Controller — UAT 2026-10-21)**: `[x] [L4 — VERIFIED: 18/18 TESTS PASS & 0 ANALYZE ISSUES]`
+  - *Hiện tượng & Nhu cầu*: Ứng dụng trước đây chưa có tính năng Chuyển tiếp tin nhắn (Forward Message). Khi người dùng muốn chia sẻ một thông điệp (văn bản, hình ảnh, video, tài liệu) từ phòng chat này sang phòng chat khác, họ bắt buộc phải copy thủ công hoặc tải file về rồi gửi lại rất bất tiện.
+  - *Giải pháp đã triển khai*:
+    1. Bổ sung tùy chọn 'Chuyển tiếp tin nhắn' (`LucideIcons.forward`) trong menu Long-Press của tin nhắn.
+    2. Tạo mới widget `ChatV2ForwardSheet`: xem trước tin nhắn, tìm kiếm kênh nhanh, chọn kênh đích và gửi qua `ChatV2Repository.sendMessage` kèm attachment IDs, cập nhật cache và thông báo SnackBar.
+  - *Bằng chứng kiểm thử (Evidence)*: Pass 18/18 tests trong `uat_fixes_self_check.dart`, `dart analyze` 0 errors/warnings.
+       - Tái sử dụng `ChatV2Repository.sendMessage()` với nội dung và attachments của tin gốc, không cần upload lại file nhị phân nếu backend đã có ID `ir.attachment`.
+    4. **Hiển thị nhãn trích dẫn (Forwarded Indicator)**: Tin nhắn được chuyển tiếp hiển thị nhãn nghiêng nhỏ: *"Đã chuyển tiếp"* chuẩn giao diện Zalo/Telegram.
+  - *Tệp liên quan*:
+    - `lib/features/chat_v2/presentation/widgets/chat_v2_message_item.dart`
+    - `lib/features/chat_v2/presentation/widgets/chat_v2_forward_sheet.dart` (Tạo mới)
+    - `lib/features/chat_v2/application/chat_v2_messages_controller.dart`
+    - `lib/features/chat_v2/data/chat_v2_repository.dart`
 
 ---
 
@@ -1265,6 +1312,20 @@ Phân hệ tiếp nhận và giải quyết các yêu cầu hỗ trợ kỹ thu�
   - *Kết quả khắc phục & Bằng chứng kiểm thử*:
     + `TicketCommentRepository.delete()`: Loại bỏ lệnh gọi `DELETE /api/v1/mail.message/<id>` không tồn tại trên backend Odoo; chuyển sang ném `Failure('Hệ thống không hỗ trợ xóa bình luận để đảm bảo tính toàn vẹn dữ liệu.')` bảo vệ audit trail.
     + `TicketRepository.sendContact()`: Loại bỏ endpoint ảo `/contact`, chuyển sang ghi nhận thông báo chia sẻ liên hệ trực tiếp vào Odoo Chatter (`$_ticketBasePath/$ticketId/message`).
+
+- [x] [L4 — VERIFIED] **5.15 Khắc Phục Lỗi HTTP 422 Khi Bấm 'Nhận Ticket' / Đổi Giai Đoạn Trên Odoo 19 (BUG-024 / UAT 2026-10-21)**
+  - *Mô tả*: Người dùng bấm nút "Nhận ticket" trên màn hình chi tiết ticket (ví dụ Ticket #1732) bằng tài khoản admin bị văng popup lỗi `Failure(Máy chủ phản hồi lỗi (422).)`.
+  - *Tệp liên quan*: `v_mobile_19/controllers/ticket.py`, `v_mobile_17/controllers/ticket.py`, database `vcloud_test_v19` model `mail.template` (ID: 144, 126, 145, 125).
+  - *Hiện tượng*: Client Flutter Web gửi `POST /api/v1/mobile/ticket/1732/workflow` với body `{"status": "in_progress"}` nhận về HTTP 422 Unprocessable Entity kèm HTML lỗi từ máy chủ Werkzeug.
+  - *Nguyên nhân gốc rễ (Root Cause)*:
+    + Khi ticket chuyển sang stage `In Progress` (ID 2), Odoo kích hoạt email tự động qua template `Ticket: Đang thực hiện` (ID 144).
+    + Trong Odoo 19, trường `title` trên `res.partner` đã bị loại bỏ/thay đổi (`AttributeError: 'res.partner' object has no attribute 'title'`). Template ID 144 chứa đoạn mã QWeb cũ: `<t t-out="object.partner_id.title.name or ''" data-oe-t-inline="true">Anh/Chị</t>`.
+    + 3 template khác của Helpdesk Ticket (ID 125: Tiếp nhận, ID 126: Đã xử lý xong, ID 145: Hủy yêu cầu) cũng chứa cùng đoạn mã lỗi này.
+  - *Phương án khắc phục & Nghiệm thu*:
+    + Backend Odoo DB: Cập nhật `body_html` của 4 mail template (144, 126, 145, 125) trên `vcloud_test_v19` thay thế triệt để `object.partner_id.title.name` bằng `object.partner_id.name`.
+    + Backend Controller: Bổ sung guard try/except trong `ticket_workflow()`, truyền context an toàn `mail_notify_force_send=False`, `mail_post_autocommit=False`, `mail_create_nosubscribe=True` trên cả Odoo 17 & 19; bổ sung CORS header `Access-Control-Allow-Origin: *`.
+    + Kiểm chứng Runtime Local Server (`192.168.1.100:1900`): Ticket #1732 chuyển trạng thái `in_progress`, `done`, `reopen` đều trả về HTTP 200 OK định dạng JSON chuẩn.
+    + Trạng thái: `[x] [L4 — VERIFIED]`.
 
 ---
 
@@ -1564,6 +1625,20 @@ Tab "Tôi" quản lý thông tin nhân sự cá nhân, tùy chỉnh giao diện 
     + Cú pháp Backend: `python3 -m py_compile` PASS 100% trên cả Odoo 17 và Odoo 19.
     + Static Analysis: `dart analyze lib/` đạt **0 issues found** (0 errors, 0 warnings).
     + Triển khai & Khởi động lại: Đã đồng bộ LAN lên Local Server `192.168.1.100` (`demo-17` & `demo-19`), container restart an toàn.
+
+- [x] **6.11 Bổ Sung Hiển Thị Số Điện Thoại (SĐT) Trong Hồ Sơ Cá Nhân (Profile Full 5-Field Specification — UAT 2026-10-21)**: `[x] [L4 — VERIFIED: 18/18 TESTS PASS & 0 ANALYZE ISSUES]`
+  - *Hiện tượng thực tế (Evidence UAT từ Sếp Tân)*:
+    Màn hình Hồ sơ cá nhân (`ProfileScreen` & `EditProfileScreen`) trước đây chỉ hiển thị 4 trường thông tin (Họ và tên, Chức vụ, Công ty, Email). Hoàn toàn thiếu trường **Số điện thoại (SĐT / Mobile / Phone)**.
+  - *Giải pháp đã triển khai*:
+    1. Trong `EditProfileScreen`: Bóc tách `rawPhone` từ `meta?['mobile'] ?? meta?['phone'] ?? meta?['work_phone']`, kiểm tra null và boolean `false` từ Odoo RPC.
+    2. Bổ sung `_ProfileDisplayField` thứ 5 hiển thị nhãn "Số điện thoại", icon `LucideIcons.phone`, fallback "Chưa cập nhật" khi rỗng.
+  - *Bằng chứng kiểm thử (Evidence)*: Pass 18/18 tests trong `uat_fixes_self_check.dart`, `dart analyze` 0 errors/warnings.
+  - *Tệp liên quan*:
+    - `lib/features/profile/presentation/edit_profile_screen.dart`
+    - `lib/features/profile/presentation/profile_screen.dart`
+    - `lib/features/auth/data/models/odoo_user.dart`
+    - `v_mobile_17/controllers/auth.py`
+    - `v_mobile_19/controllers/auth.py`
 
 ---
 
