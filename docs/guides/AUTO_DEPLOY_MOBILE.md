@@ -115,7 +115,65 @@ Ngay sau khi Fastlane kết thúc, step `Auto-Distribute to App Store & Submit f
 
 ---
 
-## 4. CÁCH KÍCH HOẠT PHÁT HÀNH (TRIGGER RUNBOOK)
+## 4. HƯỚNG DẪN CẤU HÌNH GITHUB SECRETS & SETTING GITHUB ACTIONS (SETUP TỪ ĐẦU)
+
+> 💡 **Dành cho Agent khi setup repo mới**: Khi clone repo sang tổ chức mới hoặc dựng lại từ đầu, bắt buộc cấu hình đầy đủ 2 phần dưới đây:
+
+### 4.1. Cài Đặt Quyền Hạn GitHub Actions (Bắt Buộc Trên Giao Diện Web)
+Vào **GitHub Repo ➔ Settings ➔ Actions ➔ General**:
+1. **Actions permissions**:
+   - Chọn `Allow all actions and reusable workflows`.
+2. **Workflow permissions**:
+   - BẮT BUỘC chọn: **`Read and write permissions`** (Để CI/CD có thể tạo release artifacts, tag và đẩy commit nếu cần).
+   - Đánh dấu tick chọn: **`Allow GitHub Actions to create and approve pull requests`**.
+3. **Runner & Quota Thanh Toán (Billing)**:
+   - **Android runner (`ubuntu-latest`)**: Miễn phí, nằm trong quota thông thường.
+   - **iOS runner (`macos-latest`)**: Với private repo, tài khoản GitHub Organization **bắt buộc phải kích hoạt thẻ thanh toán / GitHub Actions Billing** (hoặc còn quota phút macOS), nếu không job iOS sẽ bị báo lỗi `Billing required`.
+
+---
+
+### 4.2. Bảng 14 GitHub Secrets Bắt Buộc & Lệnh Trích Xuất
+
+| Tên Secret | Nguồn Dữ Liệu / Cách Lấy | Lệnh Terminal Trích Xuất & Thiết Lập Tự Động |
+|---|---|---|
+| **1. `ANDROID_KEYSTORE_BASE64`** | File `upload-keystore.jks` Android | `base64 -w 0 /đường/dẫn/upload-keystore.jks \| gh secret set ANDROID_KEYSTORE_BASE64` |
+| **2. `ANDROID_KEYSTORE_PASSWORD`** | Mật khẩu truy cập file keystore | `echo -n "mat_khau_keystore" \| gh secret set ANDROID_KEYSTORE_PASSWORD` |
+| **3. `ANDROID_KEY_ALIAS`** | Alias của key ký số Android | `echo -n "vcloud-key" \| gh secret set ANDROID_KEY_ALIAS` |
+| **4. `ANDROID_KEY_PASSWORD`** | Mật khẩu của key alias | `echo -n "mat_khau_alias" \| gh secret set ANDROID_KEY_PASSWORD` |
+| **5. `GCLOUD_SERVICE_ACCOUNT_CREDENTIALS`** | File JSON Service Account tải từ Google Cloud Console (có quyền Google Play) | `cat /đường/dẫn/service_account.json \| gh secret set GCLOUD_SERVICE_ACCOUNT_CREDENTIALS` |
+| **6. `BUILD_CERTIFICATE_BASE64`** | Chứng chỉ iOS Distribution Certificate (`.p12`) | `base64 -w 0 /đường/dẫn/Certificates.p12 \| gh secret set BUILD_CERTIFICATE_BASE64` |
+| **7. `P12_PASSWORD`** | Mật khẩu xuất file `.p12` từ Keychain Mac | `echo -n "mat_khau_p12" \| gh secret set P12_PASSWORD` |
+| **8. `BUILD_PROVISION_PROFILE_BASE64`** | File Profile App Store (`embedded.mobileprovision`) | `base64 -w 0 /đường/dẫn/V_cloud.mobileprovision \| gh secret set BUILD_PROVISION_PROFILE_BASE64` |
+| **9. `APP_STORE_CONNECT_KEY_ID`** | ID của App Store Connect API Key | `echo -n "3J68D9JX79" \| gh secret set APP_STORE_CONNECT_KEY_ID` |
+| **10. `APP_STORE_CONNECT_ISSUER_ID`** | Issuer ID từ App Store Connect Users & Access | `echo -n "69a6de93-488c-47e3-e053-5b8c7c11a4d1" \| gh secret set APP_STORE_CONNECT_ISSUER_ID` |
+| **11. `APP_STORE_CONNECT_KEY_CONTENT`** | File `AuthKey_3J68D9JX79.p8` dạng Base64 | `base64 -w 0 /media/tanma/DATA/save/file_ios_p8/AuthKey_3J68D9JX79.p8 \| gh secret set APP_STORE_CONNECT_KEY_CONTENT` |
+| **12. `APP_STORE_CONNECT_KEY_BASE64`** | Cờ thông báo nội dung key là Base64 | `echo -n "true" \| gh secret set APP_STORE_CONNECT_KEY_BASE64` |
+| **13. `APPLE_ID`** | Tài khoản Apple ID của App Manager | `echo -n "support@360.org.vn" \| gh secret set APPLE_ID` |
+| **14. `APPLE_APP_PASS`** | App-Specific Password tạo từ appleid.apple.com | `echo -n "xxxx-xxxx-xxxx-xxxx" \| gh secret set APPLE_APP_PASS` |
+
+*(Tùy chọn: `KEYCHAIN_PASSWORD` = bất kỳ chuỗi bảo mật ngẫu nhiên; `WEBHOOK_URL` = link webhook nhận thông báo).*
+
+---
+
+### 4.3. Script 1 Bước Nạp Hàng Loạt GitHub Secrets (Dành Cho Máy Local Sếp Tân)
+Nếu cần reset hoặc nạp lại toàn bộ secret cho một repo mới, chạy script bash sau:
+```bash
+REPO="360org/vcloud"
+P8_KEY="/media/tanma/DATA/save/file_ios_p8/AuthKey_3J68D9JX79.p8"
+
+# Apple Secrets
+gh secret set APP_STORE_CONNECT_KEY_ID --repo "$REPO" --body "3J68D9JX79"
+gh secret set APP_STORE_CONNECT_ISSUER_ID --repo "$REPO" --body "69a6de93-488c-47e3-e053-5b8c7c11a4d1"
+base64 -w 0 "$P8_KEY" | gh secret set APP_STORE_CONNECT_KEY_CONTENT --repo "$REPO"
+gh secret set APP_STORE_CONNECT_KEY_BASE64 --repo "$REPO" --body "true"
+gh secret set APPLE_ID --repo "$REPO" --body "support@360.org.vn"
+
+echo "✅ Đã nạp thành công bộ cấu hình Apple Secrets vào GitHub Actions!"
+```
+
+---
+
+## 5. CÁCH KÍCH HOẠT PHÁT HÀNH (TRIGGER RUNBOOK)
 
 ### Cách 1: Phát Hành Toàn Diện Qua Git Release Tag (Khuyên dùng)
 Khi hoàn tất code, tăng version trong `pubspec.yaml` (VD: `2.9.22+167`), cập nhật `docs/CHANGELOGS.md`, sau đó chạy:
@@ -157,7 +215,7 @@ python3 scripts/appstore_distribute_and_submit.py --no-submit
 
 ---
 
-## 5. MA TRẬN XỬ LÝ LỖI PHỔ BIẾN (TROUBLESHOOTING MATRIX)
+## 6. MA TRẬN XỬ LÝ LỖI PHỔ BIẾN (TROUBLESHOOTING MATRIX)
 
 | Mã Lỗi / Hiện Tượng | Nguyên Nhân Gốc Rễ | Giải Pháp Triệt Để |
 |---|---|---|
