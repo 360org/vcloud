@@ -9,6 +9,7 @@ import '../../../../core/api/odoo_api_client.dart';
 import '../../../auth/application/auth_controller.dart';
 import '../../application/chat_v2_call_controller.dart';
 import '../../application/chat_v2_channels_controller.dart';
+import '../../data/chat_v2_repository.dart';
 import '../../data/models/chat_v2_channel.dart';
 import '../../domain/models/chat_v2_call_session.dart';
 import '../screens/chat_v2_call_screen.dart';
@@ -103,18 +104,10 @@ class ChatV2AvatarActionSheet extends ConsumerStatefulWidget {
         throw Exception('ID đối tác không hợp lệ: $targetPid');
       }
 
-      final res = await odooApiClient.post(
-        '/api/v1/mobile/chat/direct',
-        body: {'partner_id': pIdInt},
-      );
+      final channelId = await ref
+          .read(chatV2RepositoryProvider)
+          .getOrCreateDirectChannel(pIdInt);
 
-      final map = (res is Map && res['data'] is Map)
-          ? res['data']
-          : (res is Map && res['result'] is Map ? res['result'] : res);
-
-      if (map is! Map) throw Exception('Phản hồi tạo chat không hợp lệ');
-
-      final channelId = map['id']?.toString() ?? map['channel_id']?.toString();
       if (channelId == null || channelId.isEmpty) {
         throw Exception('Phản hồi tạo chat thiếu channel ID');
       }
@@ -235,17 +228,11 @@ class ChatV2AvatarActionSheet extends ConsumerStatefulWidget {
 
     if (channelIdInt == 0) {
       try {
-        final res = await odooApiClient.post(
-          '/api/v1/mobile/chat/direct',
-          body: {'partner_id': receiverId},
-        );
-        final map = (res is Map && res['data'] is Map)
-            ? res['data']
-            : (res is Map && res['result'] is Map ? res['result'] : res);
-        if (map is Map) {
-          channelIdInt = int.tryParse(
-                  map['id']?.toString() ?? map['channel_id']?.toString() ?? '0') ??
-              0;
+        final channelIdStr = await ref
+            .read(chatV2RepositoryProvider)
+            .getOrCreateDirectChannel(receiverId);
+        if (channelIdStr != null) {
+          channelIdInt = int.tryParse(channelIdStr) ?? 0;
         }
       } catch (_) {}
     }

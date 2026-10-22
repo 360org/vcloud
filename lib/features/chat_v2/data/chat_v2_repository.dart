@@ -128,6 +128,22 @@ class ChatV2Repository {
     return null;
   }
 
+  /// Tạo hoặc lấy kênh chat 1-1 trực tiếp với đối tác qua API /api/v1/mobile/chat/direct
+  Future<String?> getOrCreateDirectChannel(int partnerId) async {
+    final dynamic res = await _client.post(
+      '/api/v1/mobile/chat/direct',
+      body: {'partner_id': partnerId},
+    );
+    final dynamic map = (res is Map && res['data'] is Map)
+        ? res['data']
+        : (res is Map && res['result'] is Map ? res['result'] : res);
+
+    if (map is Map) {
+      return map['id']?.toString() ?? map['channel_id']?.toString();
+    }
+    return null;
+  }
+
   Future<List<ChatV2Message>> getMessages(
     String channelId, {
     String? currentPartnerId,

@@ -2,6 +2,20 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.22+166] — 2026-10-22 (Chuẩn Hóa Clean Architecture Cho Chat V2 Avatar Action Sheet)
+
+> [!IMPORTANT]
+> **Chuẩn Hóa Phân Tầng Clean Architecture Tầng Presentation (UAT PASS 2026-10-22)**:
+> - **1. [REFACTOR] Đưa Logic Gọi Direct Chat Vào Repository (`vclients/lib/features/chat_v2`)**:
+>   * Root Cause: File `chat_v2_avatar_action_sheet.dart` gọi trực tiếp `odooApiClient.post('/api/v1/mobile/chat/direct')` ở 2 vị trí (mở chat 1-1 và khởi tạo cuộc gọi), vi phạm quy tắc phân tầng Presentation trong Clean Architecture.
+>   * Khắc phục:
+>     * Bổ sung phương thức `getOrCreateDirectChannel(int partnerId)` trong `ChatV2Repository`.
+>     * Thay thế toàn bộ lời gọi API trực tiếp trong `ChatV2AvatarActionSheet` bằng `ref.read(chatV2RepositoryProvider).getOrCreateDirectChannel(...)`.
+> - **2. [VERIFIED] Phân Tích Tĩnh & Hồi Quy**:
+>   * Quét toàn bộ `presentation/`: 0 lệnh gọi HTTP trực tiếp bypass Repository.
+>   * `flutter analyze`: 0 errors, 0 warnings (no issues found).
+>   * Toàn bộ 529 test cases hồi quy PASS 100%.
+
 ## [v2.9.23+167 / Odoo 17.0.2.5.29 / Odoo 19.0.1.2.46] — 2026-10-19 (Khắc Phục Lỗi Điều Hướng Push Notification Sai Màn Hình & Phân Luồng Chatter/Tuyển Dụng)
 
 > [!IMPORTANT]
