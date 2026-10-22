@@ -83,9 +83,16 @@ python3 scripts/appstore_distribute_and_submit.py --no-submit
 python3 scripts/appstore_distribute_and_submit.py --notes "Tối ưu tính năng gọi điện CallKit và fix lỗi thông báo nền."
 ```
 
+### 5. Tự Động Hóa 100% Trong GitHub Actions CI/CD (`.github/workflows/deploy.yml`)
+Quy trình đã được tích hợp trực tiếp vào job `build-ios-testflight`:
+- Sau khi Fastlane upload IPA lên Apple, step `Auto-Distribute to App Store & Submit for Review` sẽ tự động thực thi.
+- Sử dụng trực tiếp `APP_STORE_CONNECT_KEY_CONTENT` từ GitHub Secrets.
+- Cơ chế tự động đợi (`polling`) tối đa 10 phút đến khi bản build chuyển sang trạng thái `VALID`.
+- Tự động tạo bản phát hành trên tab Distribution, gán build và gửi Apple xét duyệt ngay lập tức (không cần can thiệp thủ công).
+
 ---
 
-## 5. Xử Lý Sự Cố Thường Gặp
+## 6. Xử Lý Sự Cố Thường Gặp
 
 | Hiện tượng | Nguyên nhân | Cách khắc phục |
 |---|---|---|

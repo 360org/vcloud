@@ -44,6 +44,24 @@ APP_ID = "1365622472"  # com.w360s.wcloudapp
 BASE_URL = "https://api.appstoreconnect.apple.com/v1"
 
 def find_key_file():
+    # 1. From environment variable (CI/CD GitHub Actions)
+    key_content = os.getenv("APP_STORE_CONNECT_KEY_CONTENT")
+    if key_content:
+        import base64
+        cleaned = re.sub(r"[^A-Za-z0-9+/=]", "", key_content)
+        cleaned += "=" * (-len(cleaned) % 4 if len(cleaned) % 4 else 0)
+        try:
+            decoded = base64.b64decode(cleaned).decode("utf-8")
+            if "BEGIN PRIVATE KEY" not in decoded:
+                decoded = key_content
+        except Exception:
+            decoded = key_content
+        temp_dir = Path(os.getenv("RUNNER_TEMP", "/tmp"))
+        temp_key = temp_dir / f"AuthKey_{KEY_ID}.p8"
+        temp_key.write_text(decoded, encoding="utf-8")
+        return temp_key
+
+    # 2. From local paths
     for p in DEFAULT_KEY_PATHS:
         if p.is_file():
             return p
@@ -133,7 +151,11 @@ def run_distribution_and_submit(target_version: str, target_build: str, notes: s
 
     if target_version_obj:
         active_version_id = target_version_obj["id"]
-        print(f"ℹ️ Phiên bản {target_version} đã tồn tại (ID: {active_version_id}, Trạng thái: {target_version_obj['attributes']['appStoreState']})")
+        v_state = target_version_obj["attributes"]["appStoreState"]
+        print(f"ℹ️ Phiên bản {target_version} đã tồn tại (ID: {active_version_id}, Trạng thái: {v_state})")
+        if v_state in ["WAITING_FOR_REVIEW", "IN_REVIEW", "PENDING_DEVELOPER_RELEASE", "READY_FOR_SALE"]:
+            print(f"🎉 Phiên bản {target_version} hiện đã ở trạng thái {v_state}. Không cần gửi duyệt lại!")
+            return True
     elif editable_version:
         active_version_id = editable_version["id"]
         old_str = editable_version["attributes"]["versionString"]
@@ -171,23 +193,34 @@ def run_distribution_and_submit(target_version: str, target_build: str, notes: s
         active_version_id = create_resp.json()["data"]["id"]
         print(f"✅ Đã tạo thành công phiên bản {target_version} (ID: {active_version_id})")
 
-    # 2. Tìm Build từ TestFlight
+    # 2. Tìm Build từ TestFlight (có cơ chế chờ xử lý PROCESSING -> VALID)
     print(f"🔍 Tra cứu Build {target_build} trên App Store Connect...")
-    build_resp = client.request("GET", "/builds", params={
-        "filter[app]": APP_ID,
-        "filter[version]": target_build,
-        "sort": "-uploadedDate"
-    })
     build_id = None
-    if build_resp.status_code == 200:
-        builds = build_resp.json().get("data", [])
-        for b in builds:
-            if b["attributes"]["processingState"] == "VALID":
-                build_id = b["id"]
-                break
+    start_time = time.time()
+    max_wait = 600
+
+    while (time.time() - start_time) < max_wait:
+        build_resp = client.request("GET", "/builds", params={
+            "filter[app]": APP_ID,
+            "filter[version]": target_build,
+            "sort": "-uploadedDate"
+        })
+        if build_resp.status_code == 200:
+            builds = build_resp.json().get("data", [])
+            for b in builds:
+                state = b["attributes"]["processingState"]
+                if state == "VALID":
+                    build_id = b["id"]
+                    break
+                elif state == "PROCESSING":
+                    elapsed = int(time.time() - start_time)
+                    print(f"   ⏳ Apple đang xử lý Build {target_build} (Trạng thái: PROCESSING). Đợi 20s (Đã chờ {elapsed}s/{max_wait}s)...")
+        if build_id:
+            break
+        time.sleep(20)
 
     if not build_id:
-        print(f"❌ Không tìm thấy Build {target_build} ở trạng thái VALID.")
+        print(f"❌ Không tìm thấy Build {target_build} ở trạng thái VALID sau {max_wait}s.")
         return False
     print(f"📦 Đã tìm thấy Build ID: {build_id} (Build {target_build})")
 
