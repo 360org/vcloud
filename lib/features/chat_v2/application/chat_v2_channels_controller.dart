@@ -704,19 +704,38 @@ class ChatV2ChannelsNotifier
   @override
   Future<List<ChatV2Channel>> build() async {
     ref.keepAlive();
+    _isDisposed = false;
+    ref.onDispose(() {
+      ChatV2ChannelLocalCache.onCacheUpdated = null;
+      _isDisposed = true;
+      _resumeRetryTimer?.cancel();
+      _busMuteSub?.cancel();
+      _busNicknameSub?.cancel();
+      _wsUpdateSub?.cancel();
+      _wsMessageSub?.cancel();
+      _pollingTimer?.cancel();
+      _debounceTimer?.cancel();
+    });
+
     final authState = ref.watch(authControllerProvider);
+    final repo = ref.read(chatV2RepositoryProvider);
+    final realtime = ref.read(chatV2RealtimeServiceProvider);
+    final busService = ref.read(odooBusServiceProvider);
+    final syncStatusNotifier = ref.read(chatV2SyncStatusProvider.notifier);
+    final presenceNotifier = ref.read(chatV2PresenceProvider.notifier);
+    final inAppNotifier = ref.read(inAppNotificationProvider.notifier);
+    final readStateNotifier = ref.read(chatV2ReadStateProvider.notifier);
+    final lastSentTracker = ref.read(chatV2LastSentTrackerProvider.notifier);
+
     final currentUser = authState.valueOrNull;
     final meta = currentUser?.userMetadata;
     final hasVMobile = (meta?['has_v_mobile'] as bool?) ?? true;
     final currentDb = odooApiClient.session?.db;
     final currentUid = currentUser?.id ?? odooApiClient.session?.uid.toString();
 
-    debugPrint('🟢 [LIFECYCLE] ChatV2ChannelsNotifier: BUILD (db=$currentDb, uid=$currentUid)');
     _isDisposed = false;
     await ChatV2ChannelLocalCache.init(db: currentDb, userId: currentUid);
     await ChatV2MessageLocalCache.init(db: currentDb, userId: currentUid);
-    final repo = ref.read(chatV2RepositoryProvider);
-    final realtime = ref.read(chatV2RealtimeServiceProvider);
 
     ChatV2ChannelLocalCache.onCacheUpdated = () {
       if (!_isDisposed) {
@@ -774,7 +793,7 @@ class ChatV2ChannelsNotifier
                 (f.lastMessage != null && f.lastMessage!.isNotEmpty)) {
               final isMuted = ChatV2ChannelLocalCache.isUserMuted(f.id);
               if (!isMuted) {
-                ref.read(inAppNotificationProvider.notifier).show(
+                inAppNotifier.show(
                   title: f.directPartnerName ?? f.displayName,
                   body: f.lastMessage ?? '',
                   channelId: f.id,
@@ -818,7 +837,7 @@ class ChatV2ChannelsNotifier
 
       if (!isMine && !isMuted) {
         HapticFeedback.heavyImpact();
-        ref.read(inAppNotificationProvider.notifier).show(
+        inAppNotifier.show(
           title: msg.authorName.isNotEmpty ? msg.authorName : 'Tin nhắn mới',
           body: msg.content.isNotEmpty ? msg.content : (msg.attachments.isNotEmpty ? '[Đính kèm]' : ''),
           channelId: msg.channelId,
@@ -826,11 +845,11 @@ class ChatV2ChannelsNotifier
       }
 
       if (isMine) {
-        ref.read(chatV2ReadStateProvider.notifier).markChannelAsRead(msg.channelId);
+        readStateNotifier.markChannelAsRead(msg.channelId);
       } else {
-        ref.read(chatV2LastSentTrackerProvider.notifier).clear(msg.channelId);
+        lastSentTracker.clear(msg.channelId);
         if (!isMuted) {
-          ref.read(chatV2ReadStateProvider.notifier).markChannelAsUnread(msg.channelId);
+          readStateNotifier.markChannelAsUnread(msg.channelId);
         }
       }
 
@@ -866,7 +885,6 @@ class ChatV2ChannelsNotifier
     });
 
     _busMuteSub?.cancel();
-    final busService = ref.read(odooBusServiceProvider);
     busService.connect();
     _busMuteSub = busService.onMuteNotification.listen((data) {
       if (_isDisposed) return;
@@ -916,48 +934,36 @@ class ChatV2ChannelsNotifier
       _pollingTimer?.cancel();
       _pollingTimer = Timer(const Duration(seconds: 8), () async {
         if (_isDisposed) return;
-        final isForeground = ref.read(isAppForegroundProvider);
-        if (isForeground && !state.isLoading && state.hasValue) {
-          await fetchFreshChannels();
-        }
-        if (!_isDisposed && isForeground) {
-          scheduleNextPoll();
-        }
+        try {
+          final isForeground = ref.read(isAppForegroundProvider);
+          if (isForeground && !state.isLoading && state.hasValue) {
+            await fetchFreshChannels();
+          }
+          if (!_isDisposed && isForeground && !state.hasError) {
+            scheduleNextPoll();
+          }
+        } catch (_) {}
       });
     }
 
-    if (hasVMobile) {
-      scheduleNextPoll();
-    }
-
-    ref.onDispose(() {
-      ChatV2ChannelLocalCache.onCacheUpdated = null;
-      _isDisposed = true;
-      _resumeRetryTimer?.cancel();
-      _busMuteSub?.cancel();
-      _busNicknameSub?.cancel();
-      _wsUpdateSub?.cancel();
-      _wsMessageSub?.cancel();
-      _pollingTimer?.cancel();
-      _debounceTimer?.cancel();
-    });
-
     final cached = ChatV2ChannelLocalCache.cached;
     if (cached.isNotEmpty) {
-      if (hasVMobile) unawaited(fetchFreshChannels().catchError((_) {}));
+      if (hasVMobile) {
+        scheduleNextPoll();
+        unawaited(fetchFreshChannels().catchError((_) {}));
+      }
       return cached;
     }
 
     if (!hasVMobile) {
-      ref.read(chatV2SyncStatusProvider.notifier).state = ChatV2SyncStatus.synced;
+      syncStatusNotifier.state = ChatV2SyncStatus.synced;
       return const [];
     }
 
     try {
-      ref.read(chatV2SyncStatusProvider.notifier).state = ChatV2SyncStatus.connecting;
+      syncStatusNotifier.state = ChatV2SyncStatus.connecting;
       final fresh = await repo.getChannels(limit: 80, offset: 0);
       if (fresh.isNotEmpty) {
-        final presenceNotifier = ref.read(chatV2PresenceProvider.notifier);
         for (final f in fresh) {
           final pId = f.partnerId ?? f.directPartnerId;
           if (pId != null && pId.isNotEmpty && f.imStatus.isNotEmpty) {
@@ -969,10 +975,15 @@ class ChatV2ChannelsNotifier
         }
       }
       ChatV2ChannelLocalCache.set(fresh);
-      ref.read(chatV2SyncStatusProvider.notifier).state = ChatV2SyncStatus.synced;
+      syncStatusNotifier.state = ChatV2SyncStatus.synced;
+      if (hasVMobile) {
+        scheduleNextPoll();
+      }
       return ChatV2ChannelLocalCache.cached;
     } catch (e) {
-      ref.read(chatV2SyncStatusProvider.notifier).state = ChatV2SyncStatus.offline;
+      _pollingTimer?.cancel();
+      _pollingTimer = null;
+      syncStatusNotifier.state = ChatV2SyncStatus.offline;
       rethrow;
     }
   }
@@ -1015,10 +1026,12 @@ class ChatV2ChannelsNotifier
     if (hasVMobile && _pollingTimer == null && !_isDisposed) {
       _pollingTimer = Timer(const Duration(seconds: 8), () async {
         if (_isDisposed) return;
-        final isForeground = ref.read(isAppForegroundProvider);
-        if (isForeground && !state.isLoading && state.hasValue) {
-          await _executeResumeRefresh();
-        }
+        try {
+          final isForeground = ref.read(isAppForegroundProvider);
+          if (isForeground && !state.isLoading && state.hasValue) {
+            await _executeResumeRefresh();
+          }
+        } catch (_) {}
       });
     }
 

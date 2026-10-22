@@ -115,7 +115,7 @@ class AuthRepository {
       final profile = await _client.currentUserProfile();
       if (profile == null) {
         // Body 200 không hợp lệ: giữ nguyên session thay vì vội vã logout
-        return _toUser(session);
+        return await _toUser(session);
       }
     } catch (e, st) {
       final errStr = e.toString().toLowerCase();

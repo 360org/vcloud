@@ -1,9 +1,24 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:vcloud/core/api/auth_user.dart';
+import 'package:vcloud/features/auth/application/auth_controller.dart';
 import 'package:vcloud/features/chat_v2/application/chat_v2_channels_controller.dart';
 import 'package:vcloud/features/chat_v2/data/chat_v2_repository.dart';
 import 'package:vcloud/features/chat_v2/data/models/chat_v2_channel.dart';
+
+class _FakeAuthController extends AuthController {
+  _FakeAuthController([this._user = const AuthUser(
+    id: '7',
+    email: 'mark.brown23@example.com',
+    userMetadata: {'display_name': 'Marc Demo', 'has_v_mobile': true},
+  )]);
+
+  final AuthUser? _user;
+
+  @override
+  Future<AuthUser?> build() async => _user;
+}
 
 class MockChatV2Repository extends Fake implements ChatV2Repository {
   MockChatV2Repository({this.channelsToReturn, this.errorToThrow});
@@ -145,12 +160,15 @@ void main() {
       final mockRepo = MockChatV2Repository(errorToThrow: Exception('Network down'));
       final container = ProviderContainer(
         overrides: [
+          authControllerProvider.overrideWith(_FakeAuthController.new),
           chatV2RepositoryProvider.overrideWithValue(mockRepo),
         ],
       );
       addTearDown(container.dispose);
 
-      expect(
+      await container.read(authControllerProvider.future);
+
+      await expectLater(
         container.read(chatV2ChannelsProvider.future),
         throwsA(isA<Exception>()),
       );
