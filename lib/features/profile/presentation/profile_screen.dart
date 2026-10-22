@@ -40,8 +40,20 @@ class ProfileScreen extends ConsumerWidget {
     final displayName = name?.isNotEmpty == true
         ? name!
         : (user?.email?.split('@').first ?? 'Người dùng');
-    final role = (meta?['role'] as String?) ?? (meta?['function'] as String?) ?? 'AI Full Stack Engineer (Agentic AI Platform)';
-    final company = (meta?['company'] as String?) ?? (meta?['company_name'] as String?) ?? '360 CORP';
+    final isPortal = user?.isPortal ?? (meta?['is_portal'] == true || meta?['user_type'] == 'portal');
+    final String role;
+    final String company;
+    if (isPortal) {
+      final rawFunc = (meta?['function'] as String?)?.trim();
+      role = (rawFunc != null && rawFunc.isNotEmpty) ? rawFunc : 'Khách hàng';
+      final rawPartnerComp = (meta?['partner_company_name'] as String?)?.trim();
+      company = (rawPartnerComp != null && rawPartnerComp.isNotEmpty) ? rawPartnerComp : 'Khách hàng cá nhân';
+    } else {
+      final rawJob = (meta?['job_title'] as String?)?.trim() ?? (meta?['role'] as String?)?.trim() ?? (meta?['function'] as String?)?.trim();
+      role = (rawJob != null && rawJob.isNotEmpty) ? rawJob : 'Chưa cập nhật';
+      final rawComp = (meta?['company'] as String?)?.trim() ?? (meta?['company_name'] as String?)?.trim();
+      company = (rawComp != null && rawComp.isNotEmpty) ? rawComp : '360 CORP';
+    }
     final rawAvatar = meta?['avatar_url'] ??
         meta?['avatar_128_url'] ??
         meta?['image_128_url'] ??

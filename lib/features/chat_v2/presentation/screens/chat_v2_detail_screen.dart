@@ -23,6 +23,7 @@ import '../../../auth/application/auth_controller.dart';
 import '../widgets/chat_v2_input_bar.dart';
 import '../widgets/chat_v2_message_item.dart';
 import '../widgets/chat_v2_info_sheet.dart';
+import '../widgets/chat_v2_forward_sheet.dart';
 import '../widgets/chat_v2_reaction_details_sheet.dart';
 import '../widgets/chat_v2_avatar_action_sheet.dart';
 import '../../application/chat_v2_call_controller.dart';
@@ -594,8 +595,28 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
             icon: const Icon(LucideIcons.pinOff, size: 16),
             color: isDark ? Colors.white54 : const Color(0xFF94A3B8),
             tooltip: 'Bỏ ghim',
-            onPressed: () {
-              ref.read(chatV2MessagesProvider(widget.channelId).notifier).togglePinMessage(message.id);
+            onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              try {
+                await ref.read(chatV2MessagesProvider(widget.channelId).notifier).togglePinMessage(message.id);
+                if (mounted) {
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text('Đã bỏ ghim tin nhắn'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Text('Lỗi bỏ ghim tin nhắn: $e'),
+                      backgroundColor: Colors.redAccent,
+                    ),
+                  );
+                }
+              }
             },
           ),
         ],
@@ -1833,6 +1854,19 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                                 },
                                               ),
                                               ListTile(
+                                                leading: Icon(LucideIcons.forward, color: isDark ? Colors.white : Colors.black),
+                                                title: Text('Chuyển tiếp tin nhắn', style: TextStyle(color: isDark ? Colors.white : Colors.black)),
+                                                onTap: () {
+                                                  Navigator.pop(sheetContext);
+                                                  showModalBottomSheet(
+                                                    context: context,
+                                                    isScrollControlled: true,
+                                                    backgroundColor: Colors.transparent,
+                                                    builder: (_) => ChatV2ForwardSheet(message: message),
+                                                  );
+                                                },
+                                              ),
+                                              ListTile(
                                                 leading: Icon(
                                                   message.isPinned ? LucideIcons.pinOff : LucideIcons.pin,
                                                   color: message.isPinned ? const Color(0xFFEF4444) : (isDark ? Colors.white : Colors.black),
@@ -1843,9 +1877,31 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                                     color: message.isPinned ? const Color(0xFFEF4444) : (isDark ? Colors.white : Colors.black),
                                                   ),
                                                 ),
-                                                onTap: () {
+                                                onTap: () async {
+                                                  final messenger = ScaffoldMessenger.of(context);
                                                   Navigator.pop(sheetContext);
-                                                  ref.read(chatV2MessagesProvider(widget.channelId).notifier).togglePinMessage(message.id);
+                                                  try {
+                                                    final isPinned = await ref
+                                                        .read(chatV2MessagesProvider(widget.channelId).notifier)
+                                                        .togglePinMessage(message.id);
+                                                    if (mounted) {
+                                                      messenger.showSnackBar(
+                                                        SnackBar(
+                                                          content: Text(isPinned ? 'Đã ghim tin nhắn' : 'Đã bỏ ghim tin nhắn'),
+                                                          duration: const Duration(seconds: 2),
+                                                        ),
+                                                      );
+                                                    }
+                                                  } catch (e) {
+                                                    if (mounted) {
+                                                      messenger.showSnackBar(
+                                                        SnackBar(
+                                                          content: Text('Lỗi ghim tin nhắn: $e'),
+                                                          backgroundColor: Colors.redAccent,
+                                                        ),
+                                                      );
+                                                    }
+                                                  }
                                                 },
                                               ),
                                               if (message.isMine)

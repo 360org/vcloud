@@ -1163,6 +1163,23 @@ class ChatV2ChannelsNotifier
     state = AsyncData(ChatV2ChannelLocalCache.cached);
   }
 
+  void updateChannelSnippet(
+    String channelId, {
+    required String lastMessage,
+    required DateTime lastMessageDate,
+    String? authorId,
+    String? authorName,
+  }) {
+    ChatV2ChannelLocalCache.updateChannelLastMessage(
+      channelId,
+      lastMessage: lastMessage,
+      lastMessageDate: lastMessageDate,
+      authorId: authorId,
+      authorName: authorName,
+    );
+    state = AsyncData(ChatV2ChannelLocalCache.cached);
+  }
+
   Future<List<ChatV2Member>> fetchChannelMembers(String channelId) async {
     final members = await ref.read(chatV2RepositoryProvider).fetchChannelMembers(channelId);
     if (members.isNotEmpty) {

@@ -507,6 +507,7 @@ class ChatV2Message {
     'reactions': reactions.map((r) => r.toJson()).toList(),
     'partner_ids': partnerIds,
     'pinned_at': pinnedAt,
+    'is_pinned': isPinned,
   };
 
   factory ChatV2Message.fromMap(
@@ -733,7 +734,20 @@ class ChatV2Message {
             ? odooApiClient.resolveAvatarUrl('/api/v1/mobile/avatar/res.partner/$authorId')
             : null);
 
-    final pinnedAt = _stringOrNull(map['pinned_at']);
+    final rawPinnedAt = _stringOrNull(map['pinned_at']);
+    final isPinnedExplicitlyFalse = map['is_pinned'] == false ||
+        map['is_pinned'] == 0 ||
+        map['is_pinned'] == 'false';
+    final isPinnedBool = map['is_pinned'] == true ||
+        map['is_pinned'] == 1 ||
+        map['is_pinned'] == 'true';
+    final pinnedAt = isPinnedExplicitlyFalse
+        ? null
+        : (rawPinnedAt ??
+            (isPinnedBool
+                ? (createdAt?.toIso8601String() ??
+                    DateTime.now().toIso8601String())
+                : null));
 
     return ChatV2Message(
       id: id,

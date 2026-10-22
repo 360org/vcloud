@@ -141,9 +141,33 @@ class AuthRepository {
     required String email,
     required String password,
     required String displayName,
+    required String phone,
+    bool acceptTerms = true,
+    String? confirmPassword,
+    String? db,
     int? tenantId,
-  }) {
-    return signIn(email: email, password: password, tenantId: tenantId);
+  }) async {
+    try {
+      final session = await _client.signUp(
+        email: email,
+        password: password,
+        name: displayName,
+        phone: phone,
+        acceptTerms: acceptTerms,
+        confirmPassword: confirmPassword,
+        db: db,
+      );
+      await saveLastLoginEmail(email);
+      if (session.db.isNotEmpty) {
+        await saveLastSelectedDb(session.db);
+      }
+      return await _toUser(session);
+    } on Failure {
+      rethrow;
+    } catch (e, st) {
+      debugPrint('[AuthRepository.signUp] Error: $e\n$st');
+      throw Failure('Đăng ký tài khoản không thành công: $e');
+    }
   }
 
   static const _savedEmailKey = 'saved_login_email';

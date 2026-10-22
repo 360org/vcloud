@@ -345,5 +345,49 @@ void main() {
       }
       expect(foundGradientAppBarSpace, isTrue);
     });
+
+    testWidgets('12. Portal user: Hiển thị chức vụ Khách hàng và công ty Khách hàng cá nhân khi rỗng', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      const portalUser = AuthUser(
+        id: '10',
+        email: 'khachhang@example.com',
+        userMetadata: <String, dynamic>{
+          'display_name': 'Anh Khách',
+          'is_portal': true,
+        },
+      );
+
+      await tester.pumpWidget(createTestWidget(user: portalUser));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Khách hàng'), findsOneWidget);
+      expect(find.text('Khách hàng cá nhân'), findsOneWidget);
+    });
+
+    testWidgets('13. Portal user: Hiển thị function và partner_company_name nếu có dữ liệu', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      const portalUser = AuthUser(
+        id: '11',
+        email: 'doitac@congty.com',
+        userMetadata: <String, dynamic>{
+          'display_name': 'Giám Đốc Đối Tác',
+          'is_portal': true,
+          'function': 'Giám Đốc Mua Hàng',
+          'partner_company_name': 'Công Ty Cổ Phần Đối Tác',
+        },
+      );
+
+      await tester.pumpWidget(createTestWidget(user: portalUser));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Giám Đốc Mua Hàng'), findsOneWidget);
+      expect(find.text('Công Ty Cổ Phần Đối Tác'), findsOneWidget);
+    });
   });
 }

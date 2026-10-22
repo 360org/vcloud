@@ -463,17 +463,28 @@ class ChatV2MessageItem extends StatelessWidget {
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
                                           if (!isMine && showSenderName) ...[
-                                            Text(
-                                              _displayAuthorName,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w700,
-                                                color: authorColor,
+                                            Padding(
+                                              padding: (hasAnyImage || hasVideos)
+                                                  ? const EdgeInsets.only(
+                                                      left: 12,
+                                                      top: 8,
+                                                      right: 12,
+                                                      bottom: 4,
+                                                    )
+                                                  : EdgeInsets.zero,
+                                              child: Text(
+                                                _displayAuthorName,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: authorColor,
+                                                ),
                                               ),
                                             ),
-                                            const SizedBox(height: 3),
+                                            if (!hasAnyImage && !hasVideos)
+                                              const SizedBox(height: 3),
                                           ],
                                   // 0. Render Reply Quote Card if this message is a reply
                                   if (ChatV2Message.formatReplyPreviewBody(message.parentBody).isNotEmpty)
@@ -1077,7 +1088,7 @@ class ChatV2MessageItem extends StatelessWidget {
         : (att.url?.isNotEmpty == true ? att.url! : 'idx_$initialIndex');
     final heroTag = 'chat_v2_img_${message.id}_$uniqueAttKey';
 
-    return ChatV2AttachmentImage(
+    final imageWidget = ChatV2AttachmentImage(
       attachment: att,
       heroTag: heroTag,
       fallback: fallbackCard,
@@ -1119,6 +1130,25 @@ class ChatV2MessageItem extends StatelessWidget {
         );
       },
     );
+
+    final cleanText = ChatV2Message.cleanHtml(message.content).trim();
+    final rawText = message.rawBody != null ? ChatV2Message.cleanHtml(message.rawBody!).trim() : '';
+    final hasCaption = cleanText.isNotEmpty || rawText.isNotEmpty;
+
+    if (hasCaption) {
+      return Container(
+        constraints: const BoxConstraints(
+          maxHeight: 240,
+          maxWidth: 280,
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: imageWidget,
+        ),
+      );
+    }
+
+    return imageWidget;
   }
 
   Widget _buildImageGalleryGrid(

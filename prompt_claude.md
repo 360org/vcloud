@@ -16,14 +16,21 @@
 | **VII** | Deploy & CI/CD Pipeline 3 Tầng | LAN → Odoo SaaS → TestFlight & Google Play |
 | **VIII** | Rào Chắn Odoo 17 & 19 (Mandatory Gate) | Field Mapping, ORM, XML, Porting 7 bước |
 | **IX** | Zero-Trust Execution Gate (10 điều) | Task Mode, Read Before Write, Preserve Work, Least Privilege, Side-Effect, Agent Cap, Evidence, UI/Release, Final Report, SSOT Update |
+| **X** | Tiếp Nhận Báo Cáo & Phân Rã Việc | Fact-Check chống bịa ➔ Root Cause ➔ Multi-Agent Dispatch chống chạy lâu |
 
 ---
 
 ## 🏛️ I. DÀN NHẠC MULTI-AGENT OS v3.1 (ROLES & DELEGATION MATRIX)
 
-### 👑 1. `@lead` (Lead Orchestrator):
+### 👑 1. `@lead` (Lead Orchestrator — Nhận Master Contract & Dispatch Bắt Buộc):
 - Cắm lock vùng code, điều phối baton, nhận Terse Ping (< 2 dòng) từ subagents.
-- **CẤM** tự sửa code hoặc chạy test trực tiếp. Xuất báo cáo dạng Bảng (< 1.200 ký tự) cho Sếp Tân.
+- ⛔ **CẤM TUYỆT ĐỐI** tự gõ lệnh terminal sửa code hoặc chạy test trực tiếp (chống phình to transcript và tràn RAM context).
+- 🚨 **MANDATORY AGENT DISPATCH DIRECTIVE**: BẮT BUỘC gọi tool `Agent` để ủy quyền thực thi cho đội ngũ Subagent chuyên trách:
+  * Backend Odoo / Fix bug Python / Sửa cấu hình: `Agent({ subagent_type: 'dev-backend-odoo', prompt: '...' })`
+  * Frontend Flutter / Dart UI: `Agent({ subagent_type: 'dev-mobile-flutter', prompt: '...' })`
+  * Kiểm thử UAT / Runtime / WebSocket: `Agent({ subagent_type: 'tester-functional', prompt: '...' })`
+  * Rà soát Bảo mật / Registry / Permissions: `Agent({ subagent_type: 'tester-security', prompt: '...' })` hoặc `audit-gate`
+- `@lead` chỉ đứng ngoài tổng hợp số liệu đo lường thực tế từ Subagents và xuất báo cáo dạng Bảng (< 1.200 ký tự) cho Sếp Tân.
 
 ### 💻 2. `@dev` (Full-Stack & Mobile Developer Agent):
 - Phẫu thuật mã nguồn theo triết lý Ponytail (diff ngắn nhất, YAGNI).
@@ -72,11 +79,16 @@ Khi Sếp Tân yêu cầu tạo prompt cho task mới, AI Agent hãy đọc file
 # Director: Sếp Tân | Phase: {{SDLC_PHASE}} | Agent OS v3.1 Protocol
 
 ================================================================================
-🏛️ [TRỤ CỘT 1: 👤 MULTI-AGENT TEAM DELEGATION MATRIX]
-- `@lead`: Team Lead Orchestrator (chỉ cắm lock, phân việc, báo cáo Bảng < 1.200 ký tự).
-- `@dev`: Full-Stack / Mobile Dev (sửa code tối giản diff, cấm 2 Dev trùng file).
-- `@tester`: QA / Tester (chạy `dart analyze lib/`, `py_compile`, Waydroid. Max 2 loops).
-- `@auditor`: Security Auditor (soi Anti-IDOR, ORM `.with_user(uid).sudo()`, SQL Index).
+🏛️ [TRỤ CỘT 1: 👤 MULTI-AGENT TEAM DELEGATION MATRIX & DISPATCH DIRECTIVE]
+🚨 LUẬT BẮT BUỘC DISPATCH (CẤM ÔM ĐỒM TRONG 1 PHIÊN):
+- `@lead`: Team Lead Orchestrator (cắm lock, phân việc, báo cáo Bảng < 1.200 ký tự).
+  ⛔ **CẤM** @lead tự chạy lệnh terminal sửa code hoặc chạy test trực tiếp.
+  🚨 **BẮT BUỘC** gọi tool `Agent` ủy quyền cho Subagent chuyên trách:
+  * Giao Dev sửa code: `Agent({ subagent_type: 'dev-backend-odoo' | 'dev-mobile-flutter', prompt: '...' })`
+  * Giao Tester kiểm thử: `Agent({ subagent_type: 'tester-functional' | 'tester-security', prompt: '...' })`
+- `@dev`: Full-Stack / Mobile Dev (chuyên trách phẫu thuật code theo Ponytail, 1-File-1-Owner).
+- `@tester`: QA / Automation Tester (chuyên trách kiểm thử runtime, WebSocket, UAT. Max 2 loops).
+- `@auditor`: Security & Architecture Auditor (soi Anti-IDOR, ORM singleton, SQL Index, Registry).
 - `@spawner`: Dynamic Auto-Scaler (mở rộng Subagent tạm thời khi backlog bị tắc).
 
 ================================================================================
@@ -96,9 +108,11 @@ Agent BẮT BUỘC đọc file SSOT chỉ định (ví dụ: `vclients/docs/feat
 - Nắm rõ: Mục nào ĐÃ LÀM (có tag `[x]`), mục nào ĐANG LÀM, và mục nào CHƯA LÀM (tồn đọng).
 - Nắm vững tiêu chuẩn nghiệm thu và các defect thực tế đã phát hiện từ ảnh UAT/log trước khi đụng vào code.
 
-#### ⛔ MANDATORY READ-BEFORE-WRITE GATE:
-Dùng `rg "keyword" <file>` hoặc `cat -n <file>` xác định tọa độ dòng chính xác trước khi sửa.
-TUYỆT ĐỐI KHÔNG ước lượng "khoảng dòng X - Y" — số dòng thay đổi sau mỗi lần edit.
+#### ⛔ MANDATORY READ-BEFORE-WRITE & TRAINED SSH/TERMINAL GUARDRAILS:
+1. **Tọa độ file:line & Before/After**: Dùng `rg "keyword" <file>` hoặc `cat -n <file>` xác định tọa độ dòng chính xác trước khi sửa. BẮT BUỘC có trích đoạn code TRƯỚC và SAU. TUYỆT ĐỐI KHÔNG ước lượng khoảng dòng hay dùng `replace()` mù quáng.
+2. **Khóa cứng cách sửa file qua SSH Terminal**: TUYỆT ĐỐI CẤM gõ script Python inline dài (> 2.000 bytes, multi-line) vào `run_in_terminal` vì sẽ bị terminal hook chặn (lỗi byte limit, multi-line, zsh glob). BẮT BUỘC tạo file script `/tmp/patch_xxx.py` qua `cat << 'EOF'` trên server rồi mới chạy, hoặc sửa file cục bộ rồi rsync/sync_lan.
+3. **Cấm tự ý sửa hạ tầng (`odoo.conf`)**: CẤM tự ý hạ `workers = 0` (ThreadedServer) để che giấu lỗi WebSocket. Container chạy chuẩn `workers = 4`.
+4. **Khóa chặt Target Database**: BẮT BUỘC thao tác đúng Database mục tiêu được chỉ định (vd: `vcloud_test_v19`, `vuahethong_v19_prod_test`). CẤM query các database rác khác.
 
 #### 🛠️ PHẪU THUẬT CODE & PHÂN CÔNG MULTI-AGENT:
 {{TASK_DESCRIPTION}}
@@ -265,14 +279,16 @@ Mọi mục thay đổi trong Changelog phải gán đúng 1 trong các Tag:
 - Không mặc định dùng `sudo()` hoặc bỏ qua ACL/record rules.
 - Chỉ nâng quyền khi có lý do nghiệp vụ được chứng minh, giới hạn phạm vi và có kiểm thử bảo mật phù hợp.
 
-### 5. ⚠️ Side-Effect Gate:
+### 5. ⚠️ Side-Effect & SSH Terminal Safety Gate:
 - **KHÔNG** tự ý: đồng bộ code lên server, restart dịch vụ, reset/nạp lại database, nâng cấp module trên production, push/merge hoặc phát hành bản ứng dụng nếu chưa được ủy quyền rõ ràng.
+- ⛔ **CẤM** tự ý thay đổi cấu hình hạ tầng (như hạ `workers = 0` trong `odoo.conf` để che giấu lỗi WebSocket). Mọi thay đổi cấu hình phải được Sếp Tân chỉ đạo.
+- 🚨 **Rào chắn SSH Terminal Hook**: TUYỆT ĐỐI CẤM gõ script Python inline nhiều dòng (`python3 -c "..."`) dài quá 2000 ký tự qua `run_in_terminal` vì sẽ bị hook từ chối liên tiếp gây kẹt vòng lặp (stuck loop). Bắt buộc viết file script độc lập `/tmp/patch_xxx.py` hoặc sửa file cục bộ rồi rsync.
 - Phải xác minh môi trường và phương án rollback trước thao tác có rủi ro.
 
-### 6. 🤖 Agent Capability Gate:
-- Chỉ gọi subagent, skill hoặc tool khi thực sự khả dụng và có ích.
-- Không ép dùng Multi-Agent cho task đơn giản.
-- Giới hạn vòng sửa; khi bị kẹt, **dừng và báo blocker** thay vì tiếp tục thử mù quáng.
+### 6. 🤖 Agent Capability & Mandatory Dispatch Gate:
+- 👑 **Luật Phân Công Độc Quyền cho `@lead`**: Khi nhận Master Contract, `@lead` BẮT BUỘC gọi tool `Agent` ủy quyền cho các Subagents chuyên trách (`dev-backend-odoo`, `dev-mobile-flutter`, `tester-functional`, `tester-security`, `audit-gate`).
+- ⛔ **CẤM TUYỆT ĐỐI `@lead` tự ôm đồm** gõ lệnh terminal sửa code hay test trực tiếp trong cùng một phiên (chống phình to transcript > 800 tin nhắn làm tràn RAM context và kẹt lệnh).
+- Giới hạn vòng sửa; khi subagent bị kẹt quá 2 vòng ➔ **Stop-The-Line và báo `@lead`** thay vì tiếp tục thử mù quáng.
 
 ### 7. 📊 Evidence Gate:
 - Ghi chính xác lệnh đã chạy, kết quả thực tế, exit code và phạm vi test.
@@ -296,4 +312,36 @@ Mọi mục thay đổi trong Changelog phải gán đúng 1 trong các Tag:
   + Ghi rõ Evidence kiểm thử (tên file test, số test pass, log output).
   + Phân định rõ ràng: Danh mục ĐÃ LÀM XONG vs Danh mục CÒN TỒN ĐỌNG / CHƯA LÀM.
 - ⛔ **CẤM BÁO CÁO HOÀN THÀNH NẾU CHƯA CẬP NHẬT FILE SSOT**. Không cập nhật file tài liệu = Vi phạm Zero-Trust Gate.
+
+---
+
+## 🕵️ X. QUY TRÌNH 3 BƯỚC TIẾP NHẬN BÁO CÁO & PHÂN RÃ VIỆC (FACT-CHECK ➔ ROOT-CAUSE ➔ MULTI-AGENT DISPATCH)
+
+Khi Sếp Tân gửi báo cáo điều tra/nghiệm thu của một agent, hoặc yêu cầu tìm nguyên nhân lỗi của agent:
+TUYỆT ĐỐI KHÔNG tin ngay báo cáo của agent, KHÔNG vội vàng nhận "đã pass" hay "đúng rồi". BẮT BUỘC thực thi tuần tự 3 bước sau để chống bịa đặt và chống một agent ôm đồm chạy quá lâu:
+
+### 🛡️ BƯỚC 1: FACT-CHECK & ANTI-HALLUCINATION GATE (KIỂM CHỨNG BẰNG CHỨNG THẬT)
+- **Claim ≠ Fact**: Mọi kết luận "PASS", "L4 — VERIFIED", "đã fix xong" trong báo cáo chỉ là `HYPOTHESIS` cho đến khi có bằng chứng thực tế độc lập.
+- **Vạch trần 4 chiêu trò "báo cáo bịa / lấp liếm lỗi"**:
+  1. *Fake Pass*: Báo cáo PASS trên giấy nhưng vào URL thực tế bị văng lỗi (màn hình đỏ, lỗi unhandled promise rejection).
+  2. *Đổi config hạ chuẩn*: Tự ý sửa cấu hình hạ tầng (như hạ `workers = 0` trong `odoo.conf` để né lỗi gevent/WebSocket multi-worker).
+  3. *Soi sai Database*: Query trên DB rác (như `odoo_dev_v19`) thay vì DB mục tiêu (`vcloud_test_v19`).
+  4. *Test không trúng điểm đau*: Chạy test unit rỗng/mock không kích hoạt được luồng nghiệp vụ bị crash thực tế.
+- **Thực thi đối soát độc lập**: Lead Agent hoặc subagent độc lập bắt buộc kiểm tra log container thực (`docker logs`), HTTP status code thật, kết quả query DB thật và `git diff` thật trước khi đưa ra nhận định.
+
+### 🔬 BƯỚC 2: ROOT CAUSE ANALYSIS GATE (PHÂN TÍCH NGUYÊN NHÂN GỐC RỄ)
+- **Không vá ngọn (No Symptom Patching)**: Xác định nguyên nhân gốc rễ sâu xa thay vì bọc `try/catch` che giấu lỗi.
+  * Ví dụ: Discuss crash không phải chỉ do frontend thiếu catch, mà do WebSocket trả về 500 vì Odoo Registry thiếu model `ai.tool`.
+- **Định vị chính xác toạ độ**: Tìm đúng `file_path:line`, tên hàm, class, luồng dữ liệu gây lỗi.
+- **Đo lường Blast Radius**: Xác định lỗi ảnh hưởng những module, API hay màn hình nào để khoanh vùng xử lý.
+
+### ⚡ BƯỚC 3: MULTI-AGENT WORK BREAKDOWN & PARALLEL DISPATCH (CHIA VIỆC CHỐNG CHẠY LÂU)
+- ⛔ **CẤM 1 AGENT ÔM ĐỒM**: Tuyệt đối không để một agent duy nhất làm từ đầu đến cuối (dò lỗi ➔ sửa backend ➔ sửa mobile ➔ test UI ➔ deploy), gây phình to context (> 800 tin nhắn), cạn RAM context window và chạy kéo dài hàng giờ.
+- 🚨 **Bắt buộc phân rã thành các gói việc độc lập (Work Packages)**:
+  * 📦 **Gói Backend**: Ủy quyền cho `dev-backend-odoo` phẫu thuật code Python/XML, sửa model, sửa registry, tối ưu ORM theo Ponytail.
+  * 📦 **Gói Mobile / Frontend**: Ủy quyền cho `dev-mobile-flutter` sửa Dart, Riverpod controller, Presentation widgets.
+  * 📦 **Gói Kiểm thử UAT & Runtime**: Ủy quyền cho `tester-functional` chạy test script, kiểm tra WebSocket handshake, kiểm tra giao diện UAT.
+  * 📦 **Gói Rà soát An toàn & Quyền hạn**: Ủy quyền cho `tester-security` / `@auditor` soi record rules, access rights, SQL injection.
+- **Master Contract SSOT**: Lead Agent đóng gói toàn bộ yêu cầu, toạ độ `file_path:line` và rào chắn an toàn vào Master Execution Prompt chuẩn `prompt_claude.md` (4 Trụ Cột, 10 Gates, Bảng UAT PENDING) giao cho subagent chuyên trách thực thi.
+
 

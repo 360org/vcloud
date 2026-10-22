@@ -1242,6 +1242,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                         ),
                                 ),
                               ),
+
+                              const SizedBox(height: 16),
+                              Center(
+                                child: TextButton(
+                                  key: const ValueKey('login_to_signup_btn'),
+                                  onPressed: () => context.push('/signup'),
+                                  child: RichText(
+                                    text: const TextSpan(
+                                      text: 'Chưa có tài khoản? ',
+                                      style: TextStyle(
+                                        color: Color(0xFF64748B),
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                      children: [
+                                        TextSpan(
+                                          text: 'Đăng ký ngay',
+                                          style: TextStyle(
+                                            color: Color(0xFF0077CD),
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ],
                           ),
                         )

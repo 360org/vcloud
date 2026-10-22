@@ -142,6 +142,9 @@ class AuthController extends AsyncNotifier<AuthUser?> {
     required String email,
     required String password,
     required String displayName,
+    required String phone,
+    bool acceptTerms = true,
+    String? confirmPassword,
     int? tenantId,
   }) async {
     state = const AsyncLoading();
@@ -150,6 +153,9 @@ class AuthController extends AsyncNotifier<AuthUser?> {
         email: email,
         password: password,
         displayName: displayName,
+        phone: phone,
+        acceptTerms: acceptTerms,
+        confirmPassword: confirmPassword,
         tenantId: tenantId,
       );
       state = AsyncData(user);

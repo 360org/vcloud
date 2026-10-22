@@ -279,6 +279,78 @@ class OdooApiClient {
     return session;
   }
 
+  Future<OdooSession> signUp({
+    required String name,
+    required String email,
+    required String password,
+    required String phone,
+    bool acceptTerms = true,
+    String? confirmPassword,
+    String? db,
+    Duration timeout = const Duration(seconds: 15),
+  }) async {
+    final trimmedEmail = email.trim();
+    final trimmedName = name.trim();
+    final trimmedPhone = phone.trim();
+    final primaryBaseUrl = _baseUrl.isNotEmpty ? _baseUrl : Env.odooApiBaseUrl;
+    final targetDb = db?.trim().isNotEmpty == true
+        ? db!.trim()
+        : (Env.odooDb.isNotEmpty ? Env.odooDb : 'vcloud_test_v19');
+
+    final body = <String, dynamic>{
+      'name': trimmedName,
+      'login': trimmedEmail,
+      'password': password,
+      'phone': trimmedPhone,
+      'accept_terms': acceptTerms,
+      if (confirmPassword != null && confirmPassword.isNotEmpty)
+        'confirm_password': confirmPassword,
+      'db': targetDb,
+    };
+
+    final uri = Uri.parse('$primaryBaseUrl/api/v1/mobile/auth/signup');
+    final response = await _http
+        .post(
+          uri,
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            if (targetDb.isNotEmpty) 'X-Odoo-Database': targetDb,
+          },
+          body: jsonEncode(body),
+        )
+        .timeout(timeout);
+
+    final text = response.body;
+    Object? decoded;
+    if (text.isNotEmpty) {
+      try {
+        decoded = jsonDecode(text);
+      } catch (e, st) {
+        debugPrint('🚨 [signUp] JSON parse failed: ${response.statusCode}\n$e\n$st');
+        if (response.statusCode >= 400) {
+          throw Failure('Máy chủ phản hồi lỗi (${response.statusCode}).');
+        }
+        throw Failure('Dữ liệu từ máy chủ không đúng định dạng.');
+      }
+    }
+
+    if (response.statusCode >= 400 || decoded is! Map || decoded['error'] != null) {
+      final msg = (decoded is Map ? (decoded['message'] ?? decoded['error']) : null)?.toString();
+      throw Failure(msg ?? 'Đăng ký tài khoản thất bại (${response.statusCode}).');
+    }
+
+    final session = _sessionFromJson(
+      Map<String, dynamic>.from(decoded),
+      fallbackLogin: trimmedEmail,
+      fallbackDb: targetDb,
+      fallbackBaseUrl: primaryBaseUrl,
+    );
+    _session = session;
+    await _sessionStore.write(session);
+    return session;
+  }
+
   Future<OdooSession> _tryFullLoginAt({
     required String targetBaseUrl,
     required String login,

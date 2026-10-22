@@ -18,6 +18,7 @@ import '../../chat_v2/presentation/widgets/chat_v2_message_item.dart';
 import '../../../shared/models/ticket.dart';
 import '../../../shared/models/ticket_activity.dart';
 import '../../../shared/models/ticket_comment.dart';
+import '../../../shared/widgets/app_scaffold.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../../../shared/widgets/copyable_error_dialog.dart';
 import '../../../shared/widgets/error_view.dart';
@@ -297,11 +298,12 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
 
     final updated = await showDialog<bool>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) {
-          final isDark = Theme.of(ctx).brightness == Brightness.dark;
-          final teamsAsync = ref.watch(ticketTeamsProvider);
-          return AlertDialog(
+      builder: (ctx) => Consumer(
+        builder: (ctx, ref, _) => StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            final isDark = Theme.of(ctx).brightness == Brightness.dark;
+            final teamsAsync = ref.watch(ticketTeamsProvider);
+            return AlertDialog(
             backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             title: const Row(
@@ -405,6 +407,7 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
           );
         },
       ),
+    ),
     );
 
     if (updated == true && mounted) {
@@ -418,83 +421,116 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
 
     final updated = await showDialog<bool>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) {
-          final isDark = Theme.of(ctx).brightness == Brightness.dark;
-          final assigneesAsync = ref.watch(ticketAssigneesProvider);
-          return AlertDialog(
-            backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: const Row(
-              children: [
-                Icon(LucideIcons.userCheck, color: AppColors.ticket, size: 20),
-                SizedBox(width: 8),
-                Text('Chuyển giao Ticket', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
-              ],
-            ),
-            content: SizedBox(
-              width: double.maxFinite,
-              child: assigneesAsync.when(
-                data: (users) {
-                  if (users.isEmpty) {
-                    return const Text('Không tìm thấy danh sách nhân viên.');
-                  }
-                  return ListView.separated(
-                    shrinkWrap: true,
-                    itemCount: users.length,
-                    separatorBuilder: (_, _) => const Divider(height: 1),
-                    itemBuilder: (ctx, i) {
-                      final u = users[i];
-                      final uid = u['id'] as int;
-                      final name = u['name']?.toString() ?? 'Nhân viên';
-                      final email = u['email']?.toString() ?? '';
-                      final isSelected = selectedId == uid;
-                      return ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: isSelected ? AppColors.ticket : (isDark ? Colors.white12 : Colors.black12),
-                          foregroundColor: isSelected ? Colors.white : null,
-                          child: Text(name.isNotEmpty ? name[0].toUpperCase() : 'U'),
-                        ),
-                        title: Text(name, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
-                        subtitle: email.isNotEmpty ? Text(email, style: const TextStyle(fontSize: 12)) : null,
-                        trailing: isSelected ? const Icon(LucideIcons.check, color: AppColors.ticket) : null,
-                        onTap: () => setDialogState(() => selectedId = uid),
-                      );
-                    },
-                  );
-                },
-                loading: () => const Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Center(child: CircularProgressIndicator()),
-                ),
-                error: (e, _) => Text('Lỗi: $e'),
+      builder: (ctx) => Consumer(
+        builder: (ctx, ref, _) => StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            final isDark = Theme.of(ctx).brightness == Brightness.dark;
+            final assigneesAsync = ref.watch(ticketAssigneesProvider);
+            return AlertDialog(
+              backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Row(
+                children: [
+                  Icon(LucideIcons.userCheck, color: AppColors.ticket, size: 20),
+                  SizedBox(width: 8),
+                  Text('Chuyển giao Ticket', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+                ],
               ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Hủy'),
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.ticket,
-                  foregroundColor: Colors.white,
-                ),
-                onPressed: selectedId == null
-                    ? null
-                    : () async {
-                        try {
-                          await ref.read(ticketActionsProvider).assignUser(ticket.id, selectedId!);
-                          if (ctx.mounted) Navigator.pop(ctx, true);
-                        } catch (e) {
-                          if (ctx.mounted) AppToast.error(ctx, title: 'Lỗi', message: '$e');
-                        }
+              content: SizedBox(
+                width: double.maxFinite,
+                child: assigneesAsync.when(
+                  data: (users) {
+                    if (users.isEmpty) {
+                      return const Text('Không tìm thấy danh sách nhân viên.');
+                    }
+                    return ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: users.length,
+                      separatorBuilder: (_, _) => const Divider(height: 1),
+                      itemBuilder: (ctx, i) {
+                        final u = users[i];
+                        final uid = (u['id'] as num).toInt();
+                        final name = u['name']?.toString() ?? 'Nhân viên';
+                        final email = u['email']?.toString() ?? '';
+                        final isSelected = selectedId == uid;
+                        final rawAvatar = (u['avatar_url'] != null && u['avatar_url'].toString().isNotEmpty)
+                            ? u['avatar_url'].toString()
+                            : (u['partner_id'] != null ? '/api/v1/mobile/avatar/res.partner/${u['partner_id']}' : null);
+
+                        return ListTile(
+                          leading: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              UserAvatar(
+                                userId: uid.toString(),
+                                displayName: name,
+                                email: email,
+                                avatarUrl: rawAvatar,
+                                size: 38,
+                              ),
+                              if (isSelected)
+                                Positioned(
+                                  right: -2,
+                                  bottom: -2,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(2),
+                                    decoration: const BoxDecoration(
+                                      color: AppColors.ticket,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      LucideIcons.check,
+                                      size: 10,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          title: Text(name, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                          subtitle: email.isNotEmpty ? Text(email, style: const TextStyle(fontSize: 12)) : null,
+                          trailing: isSelected ? const Icon(LucideIcons.check, color: AppColors.ticket) : null,
+                          selected: isSelected,
+                          selectedTileColor: isDark ? AppColors.ticket.withValues(alpha: 0.15) : AppColors.ticket.withValues(alpha: 0.08),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          onTap: () => setDialogState(() => selectedId = uid),
+                        );
                       },
-                child: const Text('Xác nhận'),
+                    );
+                  },
+                  loading: () => const Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                  error: (e, _) => Text('Lỗi: $e'),
+                ),
               ),
-            ],
-          );
-        },
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Hủy'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.ticket,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: selectedId == null
+                      ? null
+                      : () async {
+                          try {
+                            await ref.read(ticketActionsProvider).assignUser(ticket.id, selectedId!);
+                            if (ctx.mounted) Navigator.pop(ctx, true);
+                          } catch (e) {
+                            if (ctx.mounted) AppToast.error(ctx, title: 'Lỗi', message: '$e');
+                          }
+                        },
+                  child: const Text('Xác nhận'),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
 
@@ -512,11 +548,12 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
 
     final created = await showDialog<bool>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) {
-          final isDark = Theme.of(ctx).brightness == Brightness.dark;
-          final typesAsync = ref.watch(ticketActivityTypesProvider);
-          return AlertDialog(
+      builder: (ctx) => Consumer(
+        builder: (ctx, ref, _) => StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            final isDark = Theme.of(ctx).brightness == Brightness.dark;
+            final typesAsync = ref.watch(ticketActivityTypesProvider);
+            return AlertDialog(
             backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             title: const Row(
@@ -631,6 +668,7 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
           );
         },
       ),
+    ),
     );
 
     if (created == true && mounted) {

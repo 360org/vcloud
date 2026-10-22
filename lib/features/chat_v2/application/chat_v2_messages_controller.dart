@@ -546,11 +546,13 @@ class ChatV2MessagesNotifier
         final mergedAtts = fresh.attachments.isNotEmpty
             ? fresh.attachments
             : m.attachments;
+        final mergedPinnedAt = fresh.pinnedAt ?? m.pinnedAt;
         return fresh.copyWith(
           attachments: mergedAtts,
           parentId: fresh.parentId ?? m.parentId ?? replyInfo?['parent_id'],
           parentBody: fresh.parentBody ?? m.parentBody ?? replyInfo?['parent_body'],
           parentAuthorName: fresh.parentAuthorName ?? m.parentAuthorName ?? replyInfo?['parent_author_name'],
+          pinnedAt: mergedPinnedAt,
         );
       }
       return m; // Giữ nguyên các trang tin nhắn cũ đã tải về
@@ -1267,12 +1269,60 @@ class ChatV2MessagesNotifier
             rawBody: recalledBody,
             attachments: const [],
           );
+          ChatV2ChannelLocalCache.updateChannelLastMessage(
+            channelId,
+            lastMessage: 'Tin nhắn đã bị thu hồi',
+            lastMessageDate: DateTime.now(),
+          );
         } else {
           nextList.removeAt(idx);
           ChatV2MessageLocalCache.removeMessage(channelId, messageId, persist: false);
+          if (nextList.isNotEmpty) {
+            final latest = nextList.first;
+            final snippetText = latest.content.isNotEmpty
+                ? latest.content
+                : (latest.attachments.isNotEmpty ? '[Đính kèm]' : '');
+            ChatV2ChannelLocalCache.updateChannelLastMessage(
+              channelId,
+              lastMessage: snippetText,
+              lastMessageDate: latest.createdAt ?? DateTime.now(),
+              authorId: latest.authorId,
+              authorName: latest.authorName,
+            );
+          } else {
+            ChatV2ChannelLocalCache.updateChannelLastMessage(
+              channelId,
+              lastMessage: '',
+              lastMessageDate: DateTime.now(),
+            );
+          }
         }
         state = AsyncData(nextList);
         ChatV2MessageLocalCache.set(channelId, nextList);
+
+        // Đồng bộ channels provider để ChatV2ListScreen re-render tức thì
+        try {
+          final updatedSnippet = isRecalled
+              ? 'Tin nhắn đã bị thu hồi'
+              : (nextList.isNotEmpty
+                  ? (nextList.first.content.isNotEmpty
+                      ? nextList.first.content
+                      : (nextList.first.attachments.isNotEmpty ? '[Đính kèm]' : ''))
+                  : '');
+          final updatedDate = isRecalled
+              ? DateTime.now()
+              : (nextList.isNotEmpty ? (nextList.first.createdAt ?? DateTime.now()) : DateTime.now());
+          final authorId = isRecalled ? null : (nextList.isNotEmpty ? nextList.first.authorId : null);
+          final authorName = isRecalled ? null : (nextList.isNotEmpty ? nextList.first.authorName : null);
+
+          ref.read(chatV2ChannelsProvider.notifier).updateChannelSnippet(
+            channelId,
+            lastMessage: updatedSnippet,
+            lastMessageDate: updatedDate,
+            authorId: authorId,
+            authorName: authorName,
+          );
+        } catch (_) {}
       } else {
         if (!isRecalled) {
           ChatV2MessageLocalCache.removeMessage(channelId, messageId);
@@ -1509,7 +1559,7 @@ class ChatV2MessagesNotifier
     }
   }
 
-  Future<void> togglePinMessage(String messageId) async {
+  Future<bool> togglePinMessage(String messageId) async {
     final channelId = arg;
     final repo = ref.read(chatV2RepositoryProvider);
     final currentList = state.valueOrNull ?? const [];
@@ -1520,7 +1570,7 @@ class ChatV2MessagesNotifier
     final currentPinnedList = ref.read(chatV2PinnedMessagesProvider(channelId)).valueOrNull ?? const [];
     targetMsg ??= currentPinnedList.firstWhereOrNull((m) => m.id == messageId);
 
-    if (targetMsg == null) return;
+    if (targetMsg == null) return false;
 
     // 1. Optimistic Update locally
     final isCurrentlyPinned = targetMsg.isPinned;
@@ -1543,7 +1593,11 @@ class ChatV2MessagesNotifier
 
     // 2. Network Call with rollback on failure
     try {
-      final isPinned = await repo.togglePinMessage(channelId: channelId, messageId: messageId);
+      final isPinned = await repo.togglePinMessage(
+        channelId: channelId,
+        messageId: messageId,
+        pinned: !isCurrentlyPinned,
+      );
       final verifiedMsg = targetMsg.copyWith(
         pinnedAt: isPinned ? (targetMsg.pinnedAt ?? DateTime.now().toIso8601String()) : null,
         clearPinnedAt: !isPinned,
@@ -1557,10 +1611,19 @@ class ChatV2MessagesNotifier
       }
 
       if (isPinned) {
-        pinnedNotifier.addOrUpdatePin(verifiedMsg);
+        final pinTimestamp = verifiedMsg.pinnedAt ?? DateTime.now().toIso8601String();
+        final pinnedWithTime = verifiedMsg.copyWith(pinnedAt: pinTimestamp);
+        pinnedNotifier.addOrUpdatePin(pinnedWithTime);
       } else {
         pinnedNotifier.removePin(messageId);
       }
+
+      final cachedList = ChatV2MessageLocalCache.get(channelId);
+      if (cachedList != null && cachedList.any((m) => m.id == messageId)) {
+        final updatedCache = cachedList.map((m) => m.id == messageId ? verifiedMsg : m).toList();
+        ChatV2MessageLocalCache.set(channelId, updatedCache);
+      }
+      return isPinned;
     } catch (e) {
       if (kDebugMode) {
         debugPrint('[ChatV2MessagesNotifier] togglePinMessage error: $e');
@@ -1569,6 +1632,7 @@ class ChatV2MessagesNotifier
       state = AsyncData(currentList);
       ChatV2MessageLocalCache.set(channelId, currentList);
       pinnedNotifier.updatePinned(currentPinnedList);
+      rethrow;
     }
   }
 }

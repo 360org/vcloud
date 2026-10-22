@@ -61,6 +61,7 @@
     * **Tab Trang chủ (`Home`)**: Giữ nguyên layout nhất quán; Widget Chấm công (`_CheckInStatusButton`, `_PresenceIndicator`, Work Shift Card) hiển thị trạng thái Khóa 🔒 (Disabled) khi tenant chưa cài module `hr_attendance` (`hasAttendance == false`). Khi chạm vào widget khóa hiển thị SnackBar: *"Tính năng yêu cầu cài đặt Module Chấm công"*.
     * **Bảo vệ Điều hướng (Router Guard)**: Cho phép Portal User truy cập `/home`. Chặn và chuyển hướng an toàn về `/home` nếu Portal User cố truy cập `/timesheet` hoặc tính năng chưa cài đặt (`/attendance` khi `hasAttendance == false`, `/tickets` khi `hasHelpdesk == false`).
 - [x] 1.4 **Tự động hủy Push Token khi Logout**: Đăng xuất ➔ Server vô hiệu hóa FCM device token qua `/api/v1/mobile/notifications/unregister` (`HTTP 200 {"status": "unregistered"}`).
+- [x] 1.9 **Đăng Ký Tài Khoản Người Dùng Mới (User Registration & Odoo Web Signup Sync)**: `[x] [L4 — VERIFIED: Đồng bộ 100% với form đăng ký Odoo Web mới trên vcloud_test_v19: Họ tên, Số điện thoại (chuẩn E.164 +84), Email, Mật khẩu, Xác nhận mật khẩu, Checkbox Điều khoản & Chính sách; Tự động ánh xạ phone & mobile vào res.partner; Cấp quyền Portal User (base.group_portal, vmobile_enabled=True, share=True); Giải quyết Not-Null company_id trên Odoo 19; Tự động kích hoạt tạo Lead CRM qua crm.lead / signup_to_lead; Pass 11/11 Widget tests, 12/12 Unit tests, 0 analyze issues]`
 
 ### 🟢 GIAI ĐOẠN 2: CHẤM CÔNG GPS & TIMESHEET (ATTENDANCE & TIMER) — `[x] [Claude-Verified — 77/77 PASS 100%]`
 - [x] 2.1 **Chấm công GPS**: Bấm Check-in ➔ Quét tọa độ GPS, kiểm tra bán kính văn phòng ➔ Đổi trạng thái "Đang làm việc". `[x] [ACCEPTED]` (Sếp Tân xác nhận đã hoạt động ổn định; đã kiểm chứng live trên Waydroid: Thẻ ca chiều 85%, đồng hồ đếm giờ 06:49:54, GPS hợp lệ, bảng công 9/2026 hiển thị 21.5/26 công).
@@ -316,9 +317,10 @@
   - *Giải pháp*: Gỡ bỏ hoàn toàn khối bọc `Hero` trên tiêu đề ở cả 2 file, trả về `Text(ticket.title)` phẳng tối giản chuẩn Ponytail.
   - *Kết quả*: Màn hình vào/ra trượt ngang đồng nhất 100% chuẩn Native Mobile (iOS/Android), tiêu đề gắn chặt theo thân thẻ card, xóa sổ triệt để lỗi chữ rơi từ trên trời xuống. Đã pass 26/26 tests phân hệ Ticket và 0 errors/warnings `flutter analyze` (commit `9d3e9f8`).
 - [x] 5.11 **Sửa Lỗi HTTP 422 Khi Bấm 'Nhận Ticket' / Đổi Giai Đoạn Trên Odoo 19 (BUG-024 / UAT 2026-10-21)**: `[x] [L4 — VERIFIED]` Bấm "Nhận ticket" Ticket #1732 bằng tài khoản admin đã khắc phục triệt để lỗi HTTP 422. Đã thay thế đoạn mã QWeb `object.partner_id.title.name` thành `object.partner_id.name` trên 4 Mail Template (ID 144, 126, 145, 125) trên `vcloud_test_v19`, đồng thời bọc context `mail_notify_force_send=False`, `mail_create_nosubscribe=True` và try-catch an toàn trong `ticket_workflow()`. Verify runtime HTTP 200 OK trên các trạng thái in_progress, done, reopen.
+- [x] 5.12 **Sửa Lỗi Xoay Vòng Tròn Vô Tận Khi Mở Hộp Thoại 'Chuyển Giao Ticket' (BUG-025 / UAT 2026-10-21)**: `[x] [L4 — VERIFIED]` Hộp thoại chuyển giao ticket (`_showReassignDialog`) bị treo `CircularProgressIndicator` vô hạn dù backend Odoo đã trả HTTP 200 (16 users trong 24ms). Nguyên nhân do `ref.watch(ticketAssigneesProvider)` nằm trong `StatefulBuilder` sử dụng `ref` của màn hình cha bên dưới modal route; khi provider load xong, chỉ màn hình cha rebuild còn hộp thoại không được lắng nghe nên kẹt vĩnh viễn ở `AsyncLoading`. Đã bọc `Consumer` trực tiếp bên ngoài `StatefulBuilder` trong cả 3 hộp thoại (`_showReassignDialog`, `_showEditDialog`, `_showCreateActivityDialog`), đảm bảo widget tree trong modal route cập nhật ngay lập tức. Đã pass 37/37 tests ticket và 0 errors/warnings `flutter analyze`.
 
 ### 🟢 GIAI ĐOẠN 6: HỒ SƠ CÁ NHÂN & TIỆN ÍCH HỆ THỐNG (PROFILE & UTILS) — `[x] [Claude-Verified — 19/19 PASS 100% & Live Waydroid]`
-- [x] 6.1 **Thẻ Hồ sơ Định danh Hero Card (6.1)**: Đồng bộ ảnh đại diện, họ tên và chức danh công việc động 100% từ Odoo API `/api/v1/auth/me` theo từng tài khoản (đã kiểm chứng đối soát trên Waydroid thực tế: `Ma Nguyễn Nhật Tân`, chức vụ `AI Full Stack Engineer (Agentic AI Platform)`, công ty `CÔNG TY CỔ PHẦN ĐẦU TƯ PHÁT TRIỂN CÔNG NGHỆ 360`, email `tanmnn@360.org.vn`). Pass 1/1 test trong `test/auth_avatar_mapping_test.dart`.
+- [x] 6.1 **Thẻ Hồ sơ Định danh Hero Card (6.1)**: `[x] [L4 — VERIFIED]` Đã xóa bỏ hoàn toàn hardcode fallback và phân luồng hiển thị chức vụ/công ty cho tài khoản Portal vs Internal. Portal (`cac`): chức vụ "Khách hàng" (khi không có function), công ty "Khách hàng cá nhân" (khi không có parent_id / partner_company_name). Internal (`tanmnn@360.org.vn`): đọc động chức vụ (`job_title` / `role` / `function` -> 'Chưa cập nhật') và công ty (`company` / `company_name` -> '360 CORP') từ Odoo API. Pass 10/10 assertions self-check và 13/13 widget tests profile.
 - [x] 6.2 **Dark Theme Controller (6.3)**: Chuyển 3 chế độ Tối / Sáng / Hệ thống (giờ VN 6h-18h) qua BottomSheet "Chọn giao diện", lưu vào user preferences. Đã kiểm chứng thực tế mở BottomSheet trên Waydroid.
 - [x] 6.3 **Clear Cache (6.4)**: Bấm Dọn dẹp bộ nhớ đệm ➔ Hộp thoại xác nhận hiển thị dung lượng (0.0 MB), xác nhận dọn dẹp sạch an toàn ➔ SnackBar thông báo "Đã dọn dẹp bộ nhớ đệm thành công!" hiển thị rõ ràng trên Waydroid.
 - [x] 6.4 **Secure Logout (6.9)**: Đăng xuất an toàn, hủy FCM token trên server, xóa sạch dữ liệu 4 lớp (RAM cache 10 module, storage, state, calls) an toàn tuyệt đối. Pass 12/12 test cases trong `test/features/auth/logout_session_wipe_test.dart`.
@@ -336,11 +338,11 @@
 
 | STT | Nhóm Chức Năng | Số lượng tính năng chi tiết | Trạng thái kỹ thuật | Trạng thái Nghiệm thu (Sếp Tân) | Bản build TestFlight |
 | :---: | :--- | :---: | :---: | :---: | :---: |
-| **1** | **Xác thực & Tài khoản (Login, Multi-DB, Bảo mật)** | 8 tính năng | `100% PASS` | `✅ ACCEPTED (2026-09-28)` | `Build 147` |
+| **1** | **Xác thực & Tài khoản (Login, Multi-DB, Bảo mật, Đăng ký)** | 9 tính năng (8 PASS, 1 PENDING) | `8/9 PASS` | `⏳ CHỜ UAT ĐĂNG KÝ (2026-10-21)` | `Build 147` |
 | **2** | **Quản lý Thời gian (Chấm công GPS, Timesheet, Stopwatch)** | 12 tính năng | `100% PASS` | `✅ CLAUDE-VERIFIED (77/77 PASS 100%)` | `Build 147` |
 | **3** | **Giao tiếp Nội bộ (Chat V2, Media, WebRTC Call, Push)** | 32 tính năng (+ 24 đối soát Discuss) | `100% PASS` | `✅ CLAUDE-VERIFIED (ĐÃ FIX 4 MỤC UAT 2026-10-21)` | `Build 164+` |
 | **4** | **Quản lý Công việc & Dự án (Home Dashboard, Tasks, Danh bạ)** | 9 tính năng | `100% PASS` | `✅ CLAUDE-VERIFIED (ĐÃ FIX BUG-021 & LIVE WAYDROID)` | `Build 147` |
-| **5** | **Hỗ trợ & Xử lý Yêu cầu (Ticket / Helpdesk, SLA, Portal)** | 15 tính năng (đã bỏ 5.8, đã hoàn tất BUG-024) | `100% PASS` | `✅ CLAUDE-VERIFIED (BUG-024 VERIFIED L4)` | `Build 147` |
+| **5** | **Hỗ trợ & Xử lý Yêu cầu (Ticket / Helpdesk, SLA, Portal)** | 16 tính năng (đã bỏ 5.8, đã hoàn tất BUG-024, BUG-025) | `100% PASS` | `✅ CLAUDE-VERIFIED (BUG-024 & BUG-025 VERIFIED L4)` | `Build 147` |
 | **6** | **Tôi (Hồ sơ cá nhân, Dark Theme, Cache, Token, Xóa tài khoản)** | 11 tính năng | `100% PASS` | `✅ CLAUDE-VERIFIED (ĐÃ BỔ SUNG SĐT VÀO PROFILE)` | `Build 147` |
 
 ---
@@ -413,6 +415,20 @@ Phân hệ quản lý toàn bộ luồng đăng nhập, định danh người d�
   - *Mô tả*: Loại bỏ luồng đăng nhập 2 bước rườm rà, đặt timeout 10s ngăn chặn treo ứng dụng hoặc lỗi 504 Gateway Timeout khi mạng chập chờn.
   - *Tệp liên quan*: `lib/core/api/odoo_api_client.dart`.
   - *Kịch bản nghiệm thu*: Ngắt mạng hoặc mạng cực yếu ➔ App phản hồi lỗi ngay sau timeout, không bị đơ giao diện.
+
+- [ ] **1.9 Đăng Ký Tài Khoản Người Dùng Mới (User Registration & Odoo Web Signup Sync)**
+  - *Mô tả*: Cung cấp luồng đăng ký tài khoản mới trực tiếp từ màn hình Mobile, đồng bộ 100% với giao diện Web Odoo (`/web/signup` trên `vuahethong.net` và `192.168.1.100:1900`):
+    * Màn hình Đăng nhập (`login_screen.dart`): Bổ sung liên kết điều hướng *"Chưa có tài khoản? Đăng ký ngay"*.
+    * Màn hình Đăng ký (`signup_screen.dart`): Thiết kế form chuẩn gồm 4 trường thông tin: Họ và tên (`name`), Địa chỉ Email / Tài khoản (`login`), Mật khẩu (`password`), Xác nhận mật khẩu (`confirm_password`), icon ẩn/hiện mật khẩu, nút hành động "Đăng ký" và liên kết quay lại *"Bạn đã có tài khoản? Đăng nhập"*.
+    * Backend API (`v_mobile_17` & `v_mobile_19`): Bổ sung route `/api/v1/mobile/auth/signup` tích hợp an toàn với cơ chế Odoo `auth_signup` (`res.users.sudo().signup(...)`), kiểm tra chính sách mở đăng ký (`auth_signup_uninvited`), hỗ trợ tự động gán tenant/database và tự động sinh phiên JWT đăng nhập ngay sau khi đăng ký thành công.
+  - *Tệp liên quan*:
+    * Mobile: `lib/features/auth/presentation/signup_screen.dart`, `lib/features/auth/presentation/login_screen.dart`, `lib/features/auth/data/auth_repository.dart`, `lib/features/auth/application/auth_controller.dart`.
+    * Backend: `v_mobile_17/controllers/auth.py`, `v_mobile_19/controllers/auth.py`.
+  - *Kịch bản nghiệm thu*:
+    1. Mở màn hình Đăng nhập ➔ Nhìn thấy nút *"Chưa có tài khoản? Đăng ký ngay"* ➔ Bấm vào chuyển sang màn hình Đăng ký mượt mà.
+    2. Nhập thông tin: Họ tên, Email, Mật khẩu, Xác nhận mật khẩu. Báo lỗi tiếng Việt nếu mật khẩu xác nhận không khớp, email không đúng định dạng hoặc để trống trường bắt buộc.
+    3. Bấm "Đăng ký" ➔ Gọi API Odoo Backend ➔ Tài khoản mới được tạo thành công trên DB Odoo (thuộc nhóm Portal User mặc định) ➔ Tự động đăng nhập vào app hoặc quay lại màn hình đăng nhập với thông báo thành công.
+  - *Trạng thái*: `[ ] [PENDING / BACKLOG]`.
 
 ---
 
@@ -1327,6 +1343,24 @@ Phân hệ tiếp nhận và giải quyết các yêu cầu hỗ trợ kỹ thu�
     + Kiểm chứng Runtime Local Server (`192.168.1.100:1900`): Ticket #1732 chuyển trạng thái `in_progress`, `done`, `reopen` đều trả về HTTP 200 OK định dạng JSON chuẩn.
     + Trạng thái: `[x] [L4 — VERIFIED]`.
 
+- [x] [L4 — VERIFIED] **5.16 Khắc Phục Lỗi Xoay Vòng Tròn Vô Tận Khi Mở Hộp Thoại 'Chuyển Giao Ticket' (BUG-025 / UAT 2026-10-21)**
+  - *Mô tả*: Người dùng bấm nút "Chuyển giao" trên màn hình chi tiết ticket (ví dụ Ticket #1734), hộp thoại "Chuyển giao Ticket" hiện ra nhưng biểu tượng xoay `CircularProgressIndicator` quay liên tục không bao giờ hiển thị danh sách nhân sự phân công.
+  - *Tệp liên quan*: `vclients/lib/features/ticket/presentation/ticket_detail_screen.dart`.
+  - *Hiện tượng*: Backend Odoo 19 trả về danh sách nhân sự `GET /api/v1/mobile/ticket/assignees` với HTTP 200 OK cực nhanh (24ms, 16 users), nhưng giao diện hộp thoại Flutter vẫn kẹt ở trạng thái loading.
+  - *Nguyên nhân gốc rễ (Root Cause)*:
+    + Hàm `_showReassignDialog` mở hộp thoại qua `showDialog` (tạo một `DialogRoute` tách biệt trong Navigator stack).
+    + Bên trong sử dụng `StatefulBuilder` và gọi `final assigneesAsync = ref.watch(ticketAssigneesProvider)`.
+    + Biến `ref` ở đây là `WidgetRef` kế thừa từ `_TicketDetailScreenState` (màn hình nằm bên dưới modal dialog).
+    + `StatefulBuilder` là widget Flutter chuẩn, chỉ rebuild khi được kích hoạt bằng `setDialogState(() { ... })`, hoàn toàn không lắng nghe sự kiện thay đổi của Riverpod.
+    + Khi `ticketAssigneesProvider` chuyển từ `AsyncLoading` sang `AsyncData`, Riverpod chỉ kích hoạt rebuild màn hình `_TicketDetailScreenState` phía dưới, trong khi hộp thoại trên modal route không hề nhận được thông báo cập nhật, dẫn tới bị kẹt vĩnh viễn ở `CircularProgressIndicator`.
+  - *Phương án khắc phục & Nghiệm thu*:
+    + Bọc `Consumer(builder: (ctx, ref, _) => StatefulBuilder(...))` trực tiếp trong `builder` của `showDialog`. Biến `ref` mới này thuộc về chính `Consumer` nằm trong cây widget của hộp thoại, giúp hộp thoại tự động rebuild ngay khi provider có dữ liệu `AsyncData`.
+    + Rà soát và áp dụng đồng bộ cho cả 3 hộp thoại có chung mẫu thiết kế: `_showReassignDialog`, `_showEditDialog` (`ticketTeamsProvider`) và `_showCreateActivityDialog` (`ticketActivityTypesProvider`).
+    + Chuyển đổi an toàn `(u['id'] as num).toInt()` phòng ngừa ép kiểu số nguyên trên Flutter Web (Dart2JS/DDC).
+    + Tích hợp widget chuẩn `UserAvatar` (kế thừa từ `app_scaffold.dart`) thay thế `CircleAvatar` thô sơ trong hộp thoại phân công; hiển thị đầy đủ avatar nhân sự qua API `/api/v1/mobile/avatar/res.partner/<id>` kèm huy hiệu tích chọn xanh khi được chọn, tự động fallback chữ cái đầu trên nền gradient cá nhân hóa nếu chưa có ảnh.
+    + Đã kiểm chứng: `flutter analyze` đạt 0 errors / 0 warnings; toàn bộ 37/37 tests phân hệ Ticket (`test/features/ticket/`) pass 100%.
+  - *Trạng thái*: `[x] [L4 — VERIFIED]`.
+
 ---
 
 ## 6. 👤 TÔI (HỒ SƠ CÁ NHÂN, CÀI ĐẶT, TIỆN ÍCH & HỆ THỐNG)
@@ -1334,15 +1368,21 @@ Phân hệ tiếp nhận và giải quyết các yêu cầu hỗ trợ kỹ thu�
 Tab "Tôi" quản lý thông tin nhân sự cá nhân, tùy chỉnh giao diện ứng dụng, kiểm soát bộ nhớ và các tiêu chuẩn bảo mật cửa hàng ứng dụng.
 
 ### Chi tiết các tính năng:
-- [x] **6.1 Thẻ Hồ sơ Định danh Nhân sự (Profile Hero Card)**
-  - *Mô tả*: Hiển thị thông tin tổng quan nổi bật: Ảnh đại diện Avatar sắc nét (đồng bộ từ Odoo Avatar API), Tên hiển thị đầy đủ, Chức danh công việc, Tên công ty / Tập đoàn (`360 CORP`) và Email.
-  - *Tệp liên quan*: `lib/features/profile/presentation/profile_screen.dart`, `lib/features/auth/data/auth_repository.dart`, `lib/core/api/odoo_api_client.dart`.
-  - *Kịch bản nghiệm thu*: Mở tab "Tôi" ➔ Xem đầy đủ họ tên, chức danh và avatar chính thức của mình.
-  - *Bằng chứng kiểm thử (Evidence)*: Chức danh công việc hiển thị ĐỘNG 100% theo từng tài khoản từ Odoo API `/api/v1/auth/me`. Đã kiểm chứng live và đối soát trực tiếp trên cả 3 tài khoản:
-    + `tanmnn@360.org.vn` (Live Prod `vuahethong.net`): Odoo trả `job_title = 'AI Full Stack Engineer (Agentic AI Platform)'` (đây là chức danh thật của Sếp Tân trên hệ thống nhân sự).
-    + `admin` (`demo-17`): Odoo trả `job_title = 'Chief Executive Officer'`.
-    + `demo` (`demo-17`): Odoo trả `job_title = 'Experienced Developer'`.
-    + Chuỗi trong `profile_screen.dart:29` chỉ là fallback phòng ngừa khi user không có chức danh trên Odoo. Không có lỗi hardcode chức danh. Đã thu hồi ticket BUG-015 và đóng thành INVALID (NOT A BUG). Avatar và tên hiển thị đồng bộ mượt mà. ĐẠT CHUẨN 100%.
+- [x] **6.1 Thẻ Hồ sơ Định danh Nhân sự & Khách hàng Portal (Profile Hero Card)**: `[x] [L4 — VERIFIED]`
+  - *Mô tả*: Hiển thị thông tin tổng quan nổi bật: Ảnh đại diện Avatar sắc nét (đồng bộ từ Odoo Avatar API), Tên hiển thị đầy đủ, Chức danh công việc, Tên công ty / Đơn vị và Email / SĐT. Phân luồng động rõ ràng giữa tài khoản Khách hàng (Portal) và Nhân sự nội bộ (Internal).
+  - *Tệp liên quan*: `lib/features/profile/presentation/profile_screen.dart`, `lib/features/profile/presentation/edit_profile_screen.dart`, `lib/features/auth/data/auth_repository.dart`, `lib/core/api/odoo_api_client.dart`.
+  - *Kịch bản nghiệm thu*:
+    + **Tài khoản Portal (Khách hàng)**:
+      * Chức vụ: Đọc từ `function`, nếu rỗng hiển thị mặc định `"Khách hàng"`.
+      * Công ty: Đọc từ `partner_company_name` (parent_id), nếu rỗng hiển thị mặc định `"Khách hàng cá nhân"`.
+    + **Tài khoản Internal (Nhân sự nội bộ)**:
+      * Chức vụ: Đọc động từ Odoo theo thứ tự `job_title` > `role` > `function`, nếu rỗng hiển thị `"Chưa cập nhật"` (xóa bỏ hoàn toàn hardcode fallback cũ).
+      * Công ty: Đọc động từ Odoo theo thứ tự `company` > `company_name`, nếu rỗng hiển thị `"360 CORP"`.
+  - *Bằng chứng kiểm thử (Evidence)*:
+    + Đã xóa bỏ triệt để chuỗi hardcode fallback `'AI Full Stack Engineer (Agentic AI Platform)'` khỏi toàn bộ codebase (`lib/`).
+    + Pass 10/10 assertions self-check độc lập trong `test/features/profile/profile_portal_role_company_self_check.dart`.
+    + Pass 13/13 widget tests trong `test/features/profile/profile_edit_test.dart` (bao gồm các test case portal role/company fallback và populated).
+    + `dart analyze lib/` đạt 0 errors, 0 warnings.
 
 - [x] **6.2 Chỉnh sửa Thông tin Cá nhân (Edit Profile Screen)**
   - *Mô tả*: Màn hình cập nhật thông tin: Chụp ảnh hoặc chọn ảnh từ thư viện máy để tải lên thay đổi ảnh đại diện cá nhân (avatar).

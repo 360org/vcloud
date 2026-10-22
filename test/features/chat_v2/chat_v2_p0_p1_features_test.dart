@@ -27,10 +27,11 @@ class _MockChatV2Repository extends Fake implements ChatV2Repository {
   Future<bool> togglePinMessage({
     required String channelId,
     required String messageId,
+    bool? pinned,
   }) async {
     togglePinCalled = true;
     lastPinnedMessageId = messageId;
-    return true;
+    return pinned ?? true;
   }
 
   @override

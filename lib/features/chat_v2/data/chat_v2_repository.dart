@@ -897,30 +897,50 @@ class ChatV2Repository {
   Future<bool> togglePinMessage({
     required String channelId,
     required String messageId,
+    bool? pinned,
   }) async {
     final cid = int.tryParse(channelId) ?? 0;
     final mid = int.tryParse(messageId) ?? 0;
+    final body = <String, dynamic>{
+      'message_id': mid,
+      'channel_id': cid,
+    };
+    if (pinned != null) {
+      body['pinned'] = pinned;
+    }
     try {
       final res = await _client.post(
         '/api/v1/mobile/chat/channels/$channelId/pin-message',
-        body: {'message_id': mid, 'channel_id': cid},
+        body: body,
       );
       if (res is Map && res['is_pinned'] is bool) {
         return res['is_pinned'] as bool;
       }
-      return true;
+      return pinned ?? true;
     } catch (e) {
       if (kDebugMode) {
         debugPrint('[ChatV2Repository] togglePinMessage error: $e');
       }
       try {
-        await _client.post(
+        final fallbackBody = <String, dynamic>{
+          'channel_id': cid,
+        };
+        if (pinned != null) {
+          fallbackBody['pinned'] = pinned;
+        }
+        final fallbackRes = await _client.post(
           '/api/v1/mobile/chat/messages/$messageId/pin',
-          body: {'channel_id': cid},
+          body: fallbackBody,
         );
-        return true;
-      } catch (_) {
-        return false;
+        if (fallbackRes is Map && fallbackRes['is_pinned'] is bool) {
+          return fallbackRes['is_pinned'] as bool;
+        }
+        return pinned ?? true;
+      } catch (fallbackError) {
+        if (kDebugMode) {
+          debugPrint('[ChatV2Repository] togglePinMessage fallback error: $fallbackError');
+        }
+        rethrow;
       }
     }
   }
