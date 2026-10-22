@@ -1,107 +1,174 @@
-# Quy Trình Tự Động Hóa App Store Distribution & Auto-Submit Cho VCloud iOS
+# CẨM NANG TOÀN DIỆN CI/CD VẬN HÀNH TỰ ĐỘNG HÓA VCLOUD MOBILE (ANDROID & IOS)
+### (Google Play Production Track & Apple App Store Distribution + Auto-Submit Review)
 
-Tài liệu hướng dẫn quy trình đưa ứng dụng Vcloud từ TestFlight sang trang Distribution của App Store Connect và tự động gửi duyệt (Submit for Apple Review) hoàn toàn qua REST API.
-
----
-
-## 1. Bối Cảnh & Vấn Đề Giải Quyết
-- **Bình thường qua CI/CD Fastlane**: Binary IPA được upload lên Apple qua `altool`/`upload_to_testflight`. Khi Apple xử lý xong, bản build chỉ xuất hiện tại tab **TestFlight**.
-- **Yêu cầu App Store Distribution**: Để người dùng tải được trên App Store, ứng dụng bắt buộc phải:
-  1. Có một thực thể phiên bản (`appStoreVersions`) ở trạng thái chuẩn bị (`PREPARE_FOR_SUBMISSION`).
-  2. Gắn (attach) bản dựng `builds` đã sẵn sàng từ TestFlight vào phiên bản đó.
-  3. Cập nhật nội dung mô tả phiên bản (`whatsNew` / Release Notes).
-  4. Tạo đợt duyệt (`reviewSubmissions`), thêm item và nhấn gửi duyệt (`submitted: true`).
-- **Tool tự động hóa**: Script `scripts/appstore_distribute_and_submit.py` tự động hóa 100% các bước trên mà không cần thao tác thủ công trên giao diện web App Store Connect.
+> 📌 **Mục đích tài liệu (SSOT)**: Tài liệu này lưu trữ đầy đủ 100% quy trình, kiến trúc file, cấu hình bảo mật, mã lệnh và cơ chế tự động hóa phân phối ứng dụng Vcloud lên hai cửa hàng **Google Play Store** và **Apple App Store**. Bất kỳ AI Agent nào chỉ cần đọc file này là có thể tái hiện và vận hành toàn bộ luồng phát hành từ A tới Z mà không cần xây dựng lại từ đầu.
 
 ---
 
-## 2. Thông Tin Cấu Hình & Xác Thực
+## 1. BẢN ĐỒ CÁC FILE LIÊN QUAN TRONG DỰ ÁN (FILE COORDINATES)
 
-- **App ID (Apple ID)**: `1365622472` (`com.w360s.wcloudapp`)
-- **Key ID**: `3J68D9JX79` (Team Key với đầy đủ quyền App Manager)
-- **Issuer ID**: `69a6de93-488c-47e3-e053-5b8c7c11a4d1`
-- **Tệp khóa bảo mật**: `/media/tanma/DATA/save/file_ios_p8/AuthKey_3J68D9JX79.p8`
-- **Thuật toán chữ ký**: `ES256` (JWT token thời hạn 20 phút)
+| Thành phần | Đường dẫn File | Vai trò |
+|---|---|---|
+| **CI/CD Pipeline Workflow** | `.github/workflows/deploy.yml` | Workflow GitHub Actions điều phối runner Ubuntu (Android) & macOS (iOS). |
+| **Fastlane Lane Controller** | `fastlane/Fastfile` | Chứa lane `android beta` (AAB + Play Store) và `ios beta` (IPA + TestFlight). |
+| **Fastlane App Info** | `fastlane/Appfile` | Cấu hình App ID, Team ID, Bundle Identifier cho Apple & Android. |
+| **App Store Distribution & Auto-Submit** | `scripts/appstore_distribute_and_submit.py` | Tool Python độc lập tương tác App Store Connect REST API: Tạo version, gắn build, sync What's New và submit duyệt. |
+| **Version SSOT** | `pubspec.yaml` | Nguồn chân lý duy nhất quy định `version: X.Y.Z+BUILD` (VD: `2.9.22+167`). |
+| **Changelogs / Release Notes** | `docs/CHANGELOGS.md` | Nguồn trích xuất tự động mô tả tính năng mới cho Google Play và App Store. |
+| **Android Keystore Sign Config** | `android/key.properties` (sinh động) & `android/app/build.gradle` | Cấu hình ký số bản phát hành Android. |
+| **iOS Export Options** | `ios/export_options.plist` (sinh động) & `ios/Runner.xcodeproj` | Cấu hình signing identity manual và profile phân phối App Store. |
+| **Tệp khóa bảo mật Local** | `/media/tanma/DATA/save/file_ios_p8/AuthKey_3J68D9JX79.p8` | Khóa Apple Team Key dùng cho thao tác local và backup khẩn cấp. |
 
 ---
 
-## 3. Kiến Trúc Luồng Hoạt Động (5 Bước)
+## 2. QUY TRÌNH CI/CD ANDROID (GOOGLE PLAY CONSOLE) TỰ ĐỘNG
 
-```text
-[pubspec.yaml (SSOT)] ➔ Version & Build Number (VD: 2.9.22+167)
-          │
-          ▼
-[Bước 1: Kết nối REST API] ➔ Tạo JWT ES256 từ AuthKey_3J68D9JX79.p8
-          │
-          ▼
-[Bước 2: Quản lý Phiên Bản] ➔ GET /apps/{id}/appStoreVersions
-  ├─ Nếu đã có phiên bản target ➔ Lấy version ID
-  ├─ Nếu có bản draft cũ ➔ PATCH đổi versionString sang bản mới
-  └─ Nếu chưa có ➔ POST /appStoreVersions tạo mới (IOS)
-          │
-          ▼
-[Bước 3: Gắn Build TestFlight]
-  ├─ GET /builds (Lọc theo build number & processingState == VALID)
-  └─ PATCH /appStoreVersions/{versionId}/relationships/build
-          │
-          ▼
-[Bước 4: Cập Nhật Release Notes]
-  ├─ Đọc tự động từ docs/CHANGELOGS.md
-  └─ PATCH /appStoreVersionLocalizations (Đồng bộ ngôn ngữ vi & en-US)
-          │
-          ▼
-[Bước 5: Gửi Duyệt Tự Động (Review Submissions API)]
-  ├─ POST /reviewSubmissions (Khởi tạo đợt duyệt mới)
-  ├─ POST /reviewSubmissionItems (Gắn version vào đợt duyệt)
-  └─ PATCH /reviewSubmissions/{id} (Gửi duyệt: submitted = true) ➔ 🟡 WAITING_FOR_REVIEW
+### 2.1. Danh Sách GitHub Secrets Bắt Buộc Cho Android
+| Tên Secret | Ý nghĩa / Giá trị |
+|---|---|
+| `ANDROID_KEYSTORE_BASE64` | Nội dung file keystore `upload-keystore.jks` được mã hóa Base64. |
+| `ANDROID_KEYSTORE_PASSWORD` | Mật khẩu truy cập keystore. |
+| `ANDROID_KEY_ALIAS` | Alias của khóa ký số trong keystore (VD: `vcloud-key` hoặc alias chỉ định). |
+| `ANDROID_KEY_PASSWORD` | Mật khẩu của khóa ký số. |
+| `GCLOUD_SERVICE_ACCOUNT_CREDENTIALS` | Toàn bộ chuỗi JSON của Google Cloud Service Account có quyền phát hành trên Google Play Console. |
+| `GOOGLE_PLAY_TRACK` | Track phân phối trên Google Play (`production`, `beta`, hoặc `internal`). Mặc định: `production`. |
+
+### 2.2. Luồng Thực Thi Tự Động Của Android (Job: `build-android-release`)
+1. **Khởi tạo Môi trường**: Runner `ubuntu-latest`, setup Java 17, Flutter stable, Ruby 3.3.
+2. **Kiểm tra chất lượng mã nguồn**: `flutter analyze` và `flutter test --exclude-tags=live-server`.
+3. **Giải mã Keystore & Tạo key.properties**:
+   ```bash
+   echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/upload-keystore.jks
+   cat <<EOF > android/key.properties
+   storePassword=$ANDROID_KEYSTORE_PASSWORD
+   keyPassword=$ANDROID_KEY_PASSWORD
+   keyAlias=$ANDROID_KEY_ALIAS
+   storeFile=../upload-keystore.jks
+   EOF
+   ```
+4. **Đóng gói Binary**:
+   - Universal APK: `flutter build apk --release --build-name=X.Y.Z --build-number=BUILD`
+   - Android App Bundle (AAB): `flutter build appbundle --release --build-name=X.Y.Z --build-number=BUILD`
+5. **Trích xuất Changelogs Đa Ngôn Ngữ**:
+   - Fastlane đọc mục phiên bản mới nhất từ `docs/CHANGELOGS.md`.
+   - Tạo các file `fastlane/metadata/android/<locale>/changelogs/<build_number>.txt` cho các ngôn ngữ (`vi`, `en-US`).
+6. **Upload & Phân Phối Lên Google Play**:
+   - Sử dụng action `upload_to_play_store` với Service Account JSON.
+   - Nạp AAB thẳng vào track `production` kèm theo changelog.
+   - Trạng thái phát hành: `completed` (người dùng sẽ nhận bản cập nhật ngay sau khi Google duyệt).
+7. **Lưu trữ Artifact**: Tải `*.apk` và `*.aab` lên GitHub Artifacts (`vcloud-android-builds`).
+
+---
+
+## 3. QUY TRÌNH CI/CD IOS (TESTFLIGHT + APP STORE DISTRIBUTION + REVIEW) TỰ ĐỘNG
+
+### 3.1. Danh Sách GitHub Secrets Bắt Buộc Cho iOS
+| Tên Secret | Ý nghĩa / Giá trị |
+|---|---|
+| `BUILD_CERTIFICATE_BASE64` | Tệp chứng chỉ phân phối iOS Distribution Certificate (`.p12`) dạng Base64. |
+| `P12_PASSWORD` | Mật khẩu giải mã chứng chỉ `.p12`. |
+| `BUILD_PROVISION_PROFILE_BASE64` | Tệp hồ sơ cấp phép `embedded.mobileprovision` (Profile App Store) dạng Base64. |
+| `KEYCHAIN_PASSWORD` | Mật khẩu tạo keychain tạm thời trên runner macOS. |
+| `APP_STORE_CONNECT_KEY_ID` | `3J68D9JX79` (Team API Key). |
+| `APP_STORE_CONNECT_ISSUER_ID` | `69a6de93-488c-47e3-e053-5b8c7c11a4d1`. |
+| `APP_STORE_CONNECT_KEY_CONTENT` | Chuỗi Base64 của file private key `AuthKey_3J68D9JX79.p8`. |
+| `APP_STORE_CONNECT_KEY_BASE64` | `true`. |
+| `APPLE_ID` | Email tài khoản Apple App Manager (`support@360.org.vn`). |
+| `APPLE_APP_PASS` | App-Specific Password của tài khoản Apple dùng fallback cho `altool`. |
+
+### 3.2. Luồng Thực Thi Tự Động Của iOS (Job: `build-ios-testflight`)
+
+#### Giai đoạn A: Build & Nạp TestFlight (Fastlane)
+1. **Runner macOS**: Runner `macos-latest`, cache CocoaPods/SPM, Flutter stable, Ruby 3.3.
+2. **Cài đặt Certificate & Provisioning Profile**:
+   - Giải mã `.p12` và `.mobileprovision`.
+   - Tạo Keychain tạm thời `app-signing.keychain-db`, import chứng chỉ và cấu hình `set-key-partition-list`.
+   - Đặt profile vào `~/Library/MobileDevice/Provisioning Profiles/`.
+3. **Đóng gói IPA**:
+   - Tạo file `ios/export_options.plist` với `method: app-store`, `teamID: ZC3H8887XS`.
+   - Chạy `flutter build ipa --release --export-options-plist=ios/export_options.plist`.
+4. **Nạp Lên Apple TestFlight**:
+   - Fastlane gọi `upload_to_testflight` hoặc fallback qua Apple native `xcrun altool --upload-app`.
+   - IPA được tiếp nhận lên máy chủ Apple để xử lý mã hóa.
+
+#### Giai đoạn B: Tự Động Đưa Lên Distribution & Gửi Apple Duyệt (`appstore_distribute_and_submit.py`)
+Ngay sau khi Fastlane kết thúc, step `Auto-Distribute to App Store & Submit for Review` tự động kích hoạt:
+1. **Xác thực JWT ES256**: Giải mã `APP_STORE_CONNECT_KEY_CONTENT` từ GitHub Secrets, ký token JWT 20 phút.
+2. **Quản lý Phiên Bản (`appStoreVersions`)**:
+   - Tra cứu phiên bản đích `target_version` (VD: `2.9.22`).
+   - Nếu chưa có: Tạo mới phiên bản iOS với số hiệu tương ứng (Trạng thái: `PREPARE_FOR_SUBMISSION`).
+   - Nếu có bản nháp cũ: Cập nhật `versionString` sang bản mới.
+   - Nếu bản dựng đã ở trạng thái `WAITING_FOR_REVIEW` hoặc `IN_REVIEW`: Ghi nhận đã nạp và bỏ qua.
+3. **Polling Chờ Apple Xử Lý Build (Tối đa 10 phút)**:
+   - Truy vấn `GET /v1/builds` theo số build `target_build` (VD: `167`).
+   - Nếu build đang ở trạng thái `PROCESSING`: Tự động đợi và lặp lại mỗi 20 giây đến khi chuyển sang `VALID`.
+4. **Gắn Build Vào Phiên Bản**:
+   - Gửi yêu cầu `PATCH /v1/appStoreVersions/{versionId}/relationships/build` để gắn Build ID vào trang Distribution.
+5. **Cập Nhật What's New Đa Ngôn Ngữ**:
+   - Tự động trích xuất nội dung từ `docs/CHANGELOGS.md`.
+   - Gửi `PATCH /v1/appStoreVersionLocalizations` cho cả hai ngôn ngữ `vi` và `en-US`.
+6. **Tự Động Gửi Duyệt (`reviewSubmissions` API)**:
+   - Tạo đợt duyệt mới: `POST /v1/reviewSubmissions` (platform `IOS`).
+   - Thêm version vào đợt duyệt: `POST /v1/reviewSubmissionItems`.
+   - Kích hoạt gửi duyệt: `PATCH /v1/reviewSubmissions/{id}` với `submitted: true`.
+   - **Kết quả**: Phiên bản lập tức chuyển sang trạng thái **`🟡 Waiting for Review`** trên App Store Connect!
+
+---
+
+## 4. CÁCH KÍCH HOẠT PHÁT HÀNH (TRIGGER RUNBOOK)
+
+### Cách 1: Phát Hành Toàn Diện Qua Git Release Tag (Khuyên dùng)
+Khi hoàn tất code, tăng version trong `pubspec.yaml` (VD: `2.9.22+167`), cập nhật `docs/CHANGELOGS.md`, sau đó chạy:
+```bash
+# Tạo release tag đẩy lên GitHub (Tự động kích hoạt toàn bộ luồng Android + iOS)
+gh release create v2.9.22+167 \
+  --repo 360org/vcloud \
+  --title "v2.9.22+167 - VCloud Mobile Release" \
+  --notes "Cập nhật tính năng mới và tối ưu hiệu năng."
+```
+*GitHub Actions sẽ tự động nhận diện sự kiện `release: published`, chạy song song cả 2 job Android và iOS, nạp AAB lên Google Play và đưa bản iOS lên hàng đợi duyệt của Apple.*
+
+### Cách 2: Kích Hoạt Thủ Công Qua GitHub Actions Workflow Dispatch
+```bash
+# Chạy toàn bộ cả 2 nền tảng
+gh workflow run deploy.yml --repo 360org/vcloud -f target=all -f submit_for_review=true
+
+# Hoặc chỉ chạy riêng iOS
+gh workflow run deploy.yml --repo 360org/vcloud -f target=ios -f submit_for_review=true
+
+# Hoặc chỉ chạy riêng Android
+gh workflow run deploy.yml --repo 360org/vcloud -f target=android
 ```
 
----
-
-## 4. Cách Sử Dụng Lệnh Tái Sử Dụng
-
-Script nằm tại: `vclients/scripts/appstore_distribute_and_submit.py`.
-
-### 1. Chạy Tự Động Hoàn Toàn (Khuyên dùng)
-Tự động đọc phiên bản và số build từ `pubspec.yaml`, đọc ghi chú từ `CHANGELOGS.md`, tạo version, gán build và gửi duyệt luôn:
+### Cách 3: Chạy Script Distribution & Submit Tại Local (Cứu Hộ / Chạy Bù)
+Nếu muốn đưa một bản build đã có trên TestFlight lên Distribution và submit duyệt ngay trên máy local:
 ```bash
+cd /media/tanma/DATA/save/mobile_versions/vclients
+
+# Tự động đọc pubspec.yaml và CHANGELOGS.md
 python3 scripts/appstore_distribute_and_submit.py
-```
 
-### 2. Chỉ định phiên bản & build cụ thể
-```bash
-python3 scripts/appstore_distribute_and_submit.py --version 2.9.23 --build 168
-```
+# Hoặc chỉ định rõ version và build
+python3 scripts/appstore_distribute_and_submit.py --version 2.9.22 --build 167
 
-### 3. Chỉ đưa lên Distribution và gán build, CHƯA gửi duyệt (giữ bản nháp)
-```bash
+# Chỉ đưa lên trang Distribution làm nháp, CHƯA gửi duyệt
 python3 scripts/appstore_distribute_and_submit.py --no-submit
 ```
 
-### 4. Tùy biến nội dung ghi chú phát hành (What's New)
-```bash
-python3 scripts/appstore_distribute_and_submit.py --notes "Tối ưu tính năng gọi điện CallKit và fix lỗi thông báo nền."
-```
-
-### 5. Tự Động Hóa 100% Trong GitHub Actions CI/CD (`.github/workflows/deploy.yml`)
-Quy trình đã được tích hợp trực tiếp vào job `build-ios-testflight`:
-- Sau khi Fastlane upload IPA lên Apple, step `Auto-Distribute to App Store & Submit for Review` sẽ tự động thực thi.
-- Sử dụng trực tiếp `APP_STORE_CONNECT_KEY_CONTENT` từ GitHub Secrets.
-- Cơ chế tự động đợi (`polling`) tối đa 10 phút đến khi bản build chuyển sang trạng thái `VALID`.
-- Tự động tạo bản phát hành trên tab Distribution, gán build và gửi Apple xét duyệt ngay lập tức (không cần can thiệp thủ công).
-
 ---
 
-## 6. Xử Lý Sự Cố Thường Gặp
+## 5. MA TRẬN XỬ LÝ LỖI PHỔ BIẾN (TROUBLESHOOTING MATRIX)
 
-| Hiện tượng | Nguyên nhân | Cách khắc phục |
+| Mã Lỗi / Hiện Tượng | Nguyên Nhân Gốc Rễ | Giải Pháp Triệt Để |
 |---|---|---|
-| `Build not found / INVALID` | Apple chưa xử lý xong binary nạp lên | Chờ 3-5 phút để Apple hoàn tất TestFlight processing (State = VALID) rồi chạy lại. |
-| `HTTP 401 Unauthorized` | Key .p8 bị sai đường dẫn hoặc hết hạn | Kiểm tra file `/media/tanma/DATA/save/file_ios_p8/AuthKey_3J68D9JX79.p8`. |
-| `State already WAITING_FOR_REVIEW` | Bản dựng đã gửi duyệt trước đó | Kiểm tra trên App Store Connect, phiên bản đang chờ Apple review không cần gửi lại. |
-| `There is already an active submission` | Có đợt duyệt cũ chưa hoàn tất | Script tự động phát hiện `READY_FOR_REVIEW` hoặc tạo submission mới. |
+| `ERROR: The bundle version must be higher than the previously uploaded version: '166'` | Apple từ chối binary vì trùng Build Number `166` đã từng nạp lên trước đó. | Tăng số build trong `pubspec.yaml` lên `+1` (VD: `2.9.22+167`), tạo tag mới để build lại. |
+| `Missing required information to submit for external testing` | Fastlane `upload_to_testflight` cố phân phối cho external testers nhưng thiếu khai báo mã hóa. | Step Python `appstore_distribute_and_submit.py` chạy độc lập ngay sau đó sẽ tự động gán build và submit duyệt mà không phụ thuộc vào Fastlane. |
+| `Build not found in VALID state after 600s` | Apple mất quá nhiều thời gian để xử lý IPA hoặc binary bị lỗi cấu hình (thiếu icon/NSCameraUsageDescription). | Kiểm tra email từ App Store Connect xem Apple có gửi cảnh báo reject binary không. Nếu do mạng chậm, chỉ cần chạy lại `python3 scripts/appstore_distribute_and_submit.py`. |
+| `HTTP 401 Unauthorized (JWT)` | Khóa API Key `.p8` bị sai Key ID hoặc Issuer ID. | Kiểm tra lại Secret `APP_STORE_CONNECT_KEY_ID=3J68D9JX79` và `APP_STORE_CONNECT_ISSUER_ID=69a6de93-488c-47e3-e053-5b8c7c11a4d1`. |
+| `Google Play Track Upload Failed (AAB)` | Service account Google Cloud bị thu hồi quyền hoặc file JSON bị sai format. | Kiểm tra `GCLOUD_SERVICE_ACCOUNT_CREDENTIALS` trong GitHub Secrets. |
+| `App Store State already WAITING_FOR_REVIEW` | Bản dựng đã được submit thành công trước đó. | Script tự động phát hiện trạng thái này và báo thành công, không gửi đè. |
 
 ---
 
-*Tài liệu được khởi tạo và kiểm chứng thực tế cùng đợt phát hành `v2.9.22+167` thành công.*
+*Tài liệu được khởi tạo và kiểm chứng thực tế cùng đợt phát hành `v2.9.22+167` thành công.*  
 *Trailer: Authored-By: 360org <support@360.org.vn>*
