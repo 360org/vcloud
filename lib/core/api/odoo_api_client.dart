@@ -1412,6 +1412,14 @@ class OdooApiClient {
     final user = json['user'];
     final userMap = user is Map ? user : const <String, dynamic>{};
     final expiresIn = (json['expires_in'] as num?)?.toInt() ?? 604800;
+    final isPortal = json['is_portal'] == true ||
+        json['share'] == true ||
+        json['user_type'] == 'portal' ||
+        userMap['is_portal'] == true ||
+        userMap['share'] == true ||
+        userMap['user_type'] == 'portal';
+    final rawScope = json['scope'] as String?;
+    final scope = rawScope ?? (isPortal ? 'portal' : null);
     return OdooSession(
       accessToken: (json['access_token'] ?? json['token'] ?? json['jwt'])
           .toString(),
@@ -1429,7 +1437,7 @@ class OdooApiClient {
       expiresAt: DateTime.now().toUtc().add(Duration(seconds: expiresIn)),
       baseUrl: _normalizedBaseUrl(json['base_url'], fallbackBaseUrl),
       tenantId: _intOrNull(json['tenant_id']),
-      scope: json['scope'] as String?,
+      scope: scope,
       partnerId:
           _intOrNull(json['partner_id']) ??
           _intOrNull(userMap['partner_id']) ??

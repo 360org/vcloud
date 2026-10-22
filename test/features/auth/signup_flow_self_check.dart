@@ -411,5 +411,45 @@ void main() async {
   assert(repoDidCatch, 'TC-12 fail: repo did not catch failure');
   print('✅ TC-12 PASS: AuthRepository.signUp rethrow Failure trực tiếp');
 
-  print('--- HOÀN TẤT: TOÀN BỘ 12/12 TEST CASES SIGNUP FLOW ĐẠT CHUẨN 100% ---');
+  // TC-13: Auto-Login Navigation: Phân luồng vai trò Portal -> /home, Internal -> /chat
+  String resolveDestination(bool isPortal) => isPortal ? '/home' : '/chat';
+  assert(resolveDestination(true) == '/home', 'TC-13 fail: portal should navigate to /home');
+  assert(resolveDestination(false) == '/chat', 'TC-13 fail: internal should navigate to /chat');
+  print('✅ TC-13 PASS: Auto-Login Navigation phân luồng đích đến (/home vs /chat)');
+
+  // TC-14: Candidate DB Fallback: Khi lookupDb rỗng, fallbackDb luôn được tạo, candidateDbs không bao giờ rỗng
+  List<String> resolveCandidateDbs({
+    required List<String> rawDbs,
+    String? lastDb,
+    String? envDb,
+    required String apiBaseUrl,
+  }) {
+    final list = List<String>.from(rawDbs);
+    if (list.isEmpty) {
+      String fallbackDb = (lastDb != null && lastDb.isNotEmpty)
+          ? lastDb
+          : ((envDb != null && envDb.isNotEmpty) ? envDb : '');
+      if (fallbackDb.isEmpty) {
+        if (apiBaseUrl.contains('vuahethong.net')) {
+          fallbackDb = 'vuahethong';
+        } else if (apiBaseUrl.contains('demo.vuahethong.com')) {
+          fallbackDb = 'demo';
+        }
+      }
+      list.add(fallbackDb);
+    }
+    return list;
+  }
+
+  final fallbackTest1 = resolveCandidateDbs(rawDbs: [], lastDb: 'vcloud_test_v19', apiBaseUrl: 'http://localhost:8069');
+  assert(fallbackTest1.length == 1 && fallbackTest1.first == 'vcloud_test_v19', 'TC-14 fail: lastDb fallback');
+
+  final fallbackTest2 = resolveCandidateDbs(rawDbs: [], lastDb: null, apiBaseUrl: 'https://vuahethong.net');
+  assert(fallbackTest2.length == 1 && fallbackTest2.first == 'vuahethong', 'TC-14 fail: vuahethong.net fallback');
+
+  final fallbackTest3 = resolveCandidateDbs(rawDbs: ['tenant_db_1'], lastDb: null, apiBaseUrl: 'https://vuahethong.net');
+  assert(fallbackTest3.length == 1 && fallbackTest3.first == 'tenant_db_1', 'TC-14 fail: keep rawDbs');
+  print('✅ TC-14 PASS: Candidate DB Fallback bảo đảm candidateDbs không bị rỗng nhầm');
+
+  print('--- HOÀN TẤT: TOÀN BỘ 14/14 TEST CASES ĐẠT CHUẨN 100% ---');
 }

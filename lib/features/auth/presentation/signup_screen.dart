@@ -7,6 +7,7 @@ import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/api/odoo_api_client.dart';
+import '../../../shared/widgets/app_toast.dart';
 import '../../../shared/widgets/brand_logo.dart';
 import '../application/auth_controller.dart';
 import 'tenant_selection_sheet.dart';
@@ -104,7 +105,15 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
             confirmPassword: _confirmPassword.text,
             tenantId: tenantId,
           );
-      if (mounted) context.go('/home');
+      if (!mounted) return;
+      final user = ref.read(authControllerProvider).valueOrNull;
+      AppToast.success(
+        context,
+        title: 'Đăng ký thành công',
+        message: 'Chào mừng bạn đến với Vcloud!',
+      );
+      final destination = (user?.isPortal == true) ? '/home' : '/chat';
+      context.go(destination);
     } on MultipleTenantsFailure catch (e) {
       if (!mounted) return;
       final choice = await showTenantSelectionSheet(context, e.tenants);

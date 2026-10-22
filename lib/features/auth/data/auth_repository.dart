@@ -303,7 +303,8 @@ class AuthRepository {
 
     final isPortal = profile?['is_portal'] == true ||
         profile?['share'] == true ||
-        profile?['user_type'] == 'portal';
+        profile?['user_type'] == 'portal' ||
+        session.scope == 'portal';
 
     final rawModules = profile?['installed_modules'];
     Map<String, dynamic> installedModules;

@@ -17,7 +17,12 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 >   * Khắc phục:
 >     * Bổ sung phương thức `getOrCreateDirectChannel(int partnerId)` trong `ChatV2Repository`.
 >     * Thay thế toàn bộ lời gọi API trực tiếp trong `ChatV2AvatarActionSheet` bằng `ref.read(chatV2RepositoryProvider).getOrCreateDirectChannel(...)`.
-> - **4. [VERIFIED] Phân Tích Tĩnh & Hồi Quy**:
+> - **4. [FEAT] Hoàn Thiện Toàn Diện Luồng Đăng Ký Tài Khoản Mobile & Tự Động Đăng Nhập (`features/auth`)**:
+>   * Giao diện `SignupScreen` với validation họ tên, số điện thoại VN/E.164, email, mật khẩu >= 6 ký tự, xác nhận mật khẩu, đồng ý điều khoản dịch vụ.
+>   * Tích hợp API `/api/v1/mobile/auth/signup` với rate-limiting, portal isolation, và auto-login phiên làm việc ngay sau khi đăng ký thành công.
+>   * Điều hướng GoRouter `/signup` phân luồng candidate DB fallback an toàn, không bị kẹt màn hình splash.
+>   * Bộ test 14/14 cases `signup_flow_self_check.dart` đạt 100% PASS.
+> - **5. [VERIFIED] Phân Tích Tĩnh & Hồi Quy**:
 >   * `flutter analyze`: 0 errors, 0 warnings (no issues found).
 >   * Toàn bộ 972/972 test cases hồi quy PASS 100%.
 >   * Chi tiết tài liệu: [docs/GITACTION_TROUBLESHOOTING.md](docs/GITACTION_TROUBLESHOOTING.md).

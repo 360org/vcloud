@@ -149,6 +149,7 @@ class AuthController extends AsyncNotifier<AuthUser?> {
   }) async {
     state = const AsyncLoading();
     try {
+      await GlobalStateResetService.clearAllUserDataOnLogout(ref: ref);
       final user = await _repo.signUp(
         email: email,
         password: password,
@@ -158,6 +159,7 @@ class AuthController extends AsyncNotifier<AuthUser?> {
         confirmPassword: confirmPassword,
         tenantId: tenantId,
       );
+      unawaited(_registerPushDevice().catchError((_) {}));
       state = AsyncData(user);
     } catch (e, st) {
       state = AsyncError(e, st);

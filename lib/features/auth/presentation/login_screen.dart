@@ -128,6 +128,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         );
       }
     }
+
+    // Nếu databaseUrl chứa localhost/127.0.0.1 nhưng app đang kết nối remote API qua Env.odooApiBaseUrl
+    final envBase = Env.odooApiBaseUrl.trim();
+    if (envBase.isNotEmpty && !envBase.contains('localhost') && !envBase.contains('127.0.0.1')) {
+      if (effectiveDb.databaseUrl.contains('localhost') || effectiveDb.databaseUrl.contains('127.0.0.1')) {
+        effectiveDb = DbInfo(
+          login: effectiveDb.login,
+          databaseName: effectiveDb.databaseName,
+          databaseUrl: envBase,
+          displayName: effectiveDb.displayName,
+          hasVMobile: effectiveDb.hasVMobile,
+          projectId: effectiveDb.projectId,
+          rawCategoryLabel: effectiveDb.rawCategoryLabel,
+        );
+      }
+    }
     return effectiveDb;
   }
 
@@ -183,9 +199,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       }
 
       // [Bước 1]: Gửi API tra cứu DB ứng viên lên Master: POST /api/v1/auth/lookup-db
+      final lastDb = await ref.read(authControllerProvider.notifier).getLastSelectedDb();
       final rawDbs = await ref
           .read(authControllerProvider.notifier)
-          .lookupDb(login);
+          .lookupDb(login, preferredDb: lastDb);
 
       // Khử trùng lặp và chuẩn hóa Candidate DBs
       final seenKeys = <String>{};
@@ -199,10 +216,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         }
       }
 
-      if (candidateDbs.isEmpty && Env.odooDb.isNotEmpty) {
+      if (candidateDbs.isEmpty) {
+        String fallbackDbName = (lastDb != null && lastDb.isNotEmpty)
+            ? lastDb
+            : (Env.odooDb.isNotEmpty ? Env.odooDb : '');
+        if (fallbackDbName.isEmpty) {
+          final host = Uri.tryParse(Env.odooApiBaseUrl)?.host.toLowerCase() ?? '';
+          if (host.contains('vuahethong.net')) {
+            fallbackDbName = 'vuahethong';
+          } else if (host.contains('demo.vuahethong.com')) {
+            fallbackDbName = 'demo';
+          }
+        }
         final fallbackDb = _normalizeCandidateDb(DbInfo(
           login: login,
-          databaseName: Env.odooDb,
+          databaseName: fallbackDbName,
           databaseUrl: Env.odooApiBaseUrl,
           hasVMobile: true,
         ));

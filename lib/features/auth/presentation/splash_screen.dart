@@ -75,7 +75,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     }
 
     if (mounted) {
-      context.go('/chat');
+      final user = ref.read(authControllerProvider).valueOrNull;
+      final destination = (user?.isPortal == true) ? '/home' : '/chat';
+      context.go(destination);
     }
   }
 

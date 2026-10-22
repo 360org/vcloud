@@ -74,6 +74,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       final onAuthScreen = isLogin || isSignup;
 
       if (sub.isLoading) {
+        if (onAuthScreen) return null;
         return isSplash ? null : '/splash';
       }
 
