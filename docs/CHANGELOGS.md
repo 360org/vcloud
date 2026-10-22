@@ -2,27 +2,29 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
-## [v2.9.22+166] — 2026-10-22 (Chuẩn Hóa Clean Architecture Cho Chat V2 Avatar Action Sheet & Self-Healing CI/CD Pipeline)
+## [v2.9.22+167] — 2026-10-22 (Chuẩn Hóa Clean Architecture Cho Chat V2, Luồng Đăng Ký Mobile & Đồng Bộ App Store Connect)
 
 > [!IMPORTANT]
-> **Chuẩn Hóa Phân Tầng Clean Architecture Tầng Presentation & Sửa Lỗi CI/CD Pipeline (UAT PASS 2026-10-22)**:
-> - **1. [FIX] Khắc Phục Lỗi Static Analysis Trên GitHub Actions Runner (`auth_repository.dart`)**:
+> **Đồng Bộ Bản Dựng App Store Connect (+167), Clean Architecture & Luồng Đăng Ký Tài Khoản (UAT PASS 2026-10-22)**:
+> - **1. [BUMP] Nâng Cấp Build Number (+167) Đồng Bộ App Store Connect / TestFlight**:
+>   * Khắc phục lỗi trùng lặp binary build `166` trên Apple TestFlight (`bundle version must be higher than 166`).
+> - **2. [FIX] Khắc Phục Lỗi Static Analysis Trên GitHub Actions Runner (`auth_repository.dart`)**:
 >   * Root Cause: Thiếu từ khóa `await` trong khối `try` khi trả về Future `_toUser(session)` gây warning `unawaited_return_in_try_block` làm fail CI workflow run #39748658033.
 >   * Khắc phục: Bổ sung `return await _toUser(session);` tại `lib/features/auth/data/auth_repository.dart:118`.
-> - **2. [FIX] Tối Ưu Hóa Riverpod Lifecycle Cho Controller (`chat_v2_channels_controller.dart`)**:
+> - **3. [FIX] Tối Ưu Hóa Riverpod Lifecycle Cho Controller (`chat_v2_channels_controller.dart`)**:
 >   * Root Cause: Gọi `ref.read(...)` sau các điểm await trong `AsyncNotifier.build()` vi phạm assertion `!_didChangeDependency` khi dependency thay đổi lúc đang build.
 >   * Khắc phục: Đọc đồng bộ tất cả dependencies lên đầu hàm `build()` trước khi await khởi tạo cache.
-> - **3. [REFACTOR] Đưa Logic Gọi Direct Chat Vào Repository (`vclients/lib/features/chat_v2`)**:
+> - **4. [REFACTOR] Đưa Logic Gọi Direct Chat Vào Repository (`vclients/lib/features/chat_v2`)**:
 >   * Root Cause: File `chat_v2_avatar_action_sheet.dart` gọi trực tiếp `odooApiClient.post('/api/v1/mobile/chat/direct')` ở 2 vị trí (mở chat 1-1 và khởi tạo cuộc gọi), vi phạm quy tắc phân tầng Presentation trong Clean Architecture.
 >   * Khắc phục:
 >     * Bổ sung phương thức `getOrCreateDirectChannel(int partnerId)` trong `ChatV2Repository`.
 >     * Thay thế toàn bộ lời gọi API trực tiếp trong `ChatV2AvatarActionSheet` bằng `ref.read(chatV2RepositoryProvider).getOrCreateDirectChannel(...)`.
-> - **4. [FEAT] Hoàn Thiện Toàn Diện Luồng Đăng Ký Tài Khoản Mobile & Tự Động Đăng Nhập (`features/auth`)**:
+> - **5. [FEAT] Hoàn Thiện Toàn Diện Luồng Đăng Ký Tài Khoản Mobile & Tự Động Đăng Nhập (`features/auth`)**:
 >   * Giao diện `SignupScreen` với validation họ tên, số điện thoại VN/E.164, email, mật khẩu >= 6 ký tự, xác nhận mật khẩu, đồng ý điều khoản dịch vụ.
 >   * Tích hợp API `/api/v1/mobile/auth/signup` với rate-limiting, portal isolation, và auto-login phiên làm việc ngay sau khi đăng ký thành công.
 >   * Điều hướng GoRouter `/signup` phân luồng candidate DB fallback an toàn, không bị kẹt màn hình splash.
 >   * Bộ test 14/14 cases `signup_flow_self_check.dart` đạt 100% PASS.
-> - **5. [VERIFIED] Phân Tích Tĩnh & Hồi Quy**:
+> - **6. [VERIFIED] Phân Tích Tĩnh & Hồi Quy**:
 >   * `flutter analyze`: 0 errors, 0 warnings (no issues found).
 >   * Toàn bộ 972/972 test cases hồi quy PASS 100%.
 >   * Chi tiết tài liệu: [docs/GITACTION_TROUBLESHOOTING.md](docs/GITACTION_TROUBLESHOOTING.md).
