@@ -1298,42 +1298,25 @@ class _NotificationItemTile extends ConsumerWidget {
 /// else so the tap just dismisses the sheet.
 String? _notificationRoute(Map<String, dynamic> data, {String? title}) {
   final model = (data['model'] ?? data['type'] ?? '').toString().toLowerCase();
-  final resModel = (data['res_model'] ?? '').toString().toLowerCase();
   final resId = data['res_id'];
 
-  // 1. Ticket / Helpdesk
-  final ticketId = data['ticket_id'] ??
-      (model.contains('helpdesk') || model.contains('ticket') || resModel.contains('helpdesk')
-          ? resId
-          : null);
-  if (ticketId != null &&
-      ticketId.toString().isNotEmpty &&
-      ticketId.toString() != '0') {
-    return '/tickets/$ticketId';
-  } else if (model.contains('helpdesk') || model.contains('ticket') || resModel.contains('helpdesk')) {
-    return '/tickets';
-  }
-
-  // 2. Timesheet / Công việc (project.task / timesheet)
-  final taskId = data['task_id'] ??
-      (model.contains('task') || model.contains('timesheet') || model.contains('project') || resModel.contains('task')
-          ? resId
-          : null);
-  if (taskId != null &&
-      taskId.toString().isNotEmpty &&
-      taskId.toString() != '0') {
-    return '/timesheet?task_id=$taskId';
-  } else if (model.contains('task') || model.contains('timesheet') || model.contains('project') || resModel.contains('task')) {
+  // 1. Timesheet / Công việc
+  if (model.contains('task') || model.contains('timesheet') || data.containsKey('task_id')) {
+    final tId = data['task_id'] ?? resId;
+    if (tId != null && tId.toString().isNotEmpty && tId.toString() != '0') {
+      return '/timesheet?task_id=$tId';
+    }
     return '/timesheet';
   }
 
-  // 3. Chat V2 / Discuss (chỉ khi có channel ID hợp lệ khác 0)
-  final conversationId = data['conversation_id'] ??
-      (data['channel_id'] != null &&
-              data['channel_id'].toString() != '0' &&
-              data['channel_id'].toString().isNotEmpty
-          ? data['channel_id']
-          : (model.contains('discuss') || model.contains('chat') ? resId : null));
+  // 2. Ticket / Helpdesk (fallback res_id khi không có ticket_id)
+  final ticketId = data['ticket_id'] ?? (model.contains('ticket') || model.contains('helpdesk') ? resId : null);
+  if (ticketId != null && ticketId.toString().isNotEmpty && ticketId.toString() != '0') {
+    return '/tickets/$ticketId';
+  }
+
+  // 3. Chat V2 / Discuss (Chỉ mở khi có conversation_id thật sự > 0)
+  final conversationId = data['conversation_id'] ?? (model.contains('discuss') || model.contains('chat') ? (data['channel_id'] ?? resId) : null);
   if (conversationId != null &&
       conversationId.toString().isNotEmpty &&
       conversationId.toString() != '0') {

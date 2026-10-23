@@ -277,48 +277,36 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
         ref.read(routerProvider).go('/tickets');
       }
     }
-    // 3. Timesheet / Công việc (project.task / timesheet)
-    else if (model.contains('task') ||
-        model.contains('timesheet') ||
-        model.contains('project') ||
-        data.containsKey('task_id') ||
-        (model == 'mail.message' && resModel.contains('task'))) {
-      final targetTaskId = data['task_id'] ?? resId;
-      if (targetTaskId != null &&
-          targetTaskId.toString().isNotEmpty &&
-          targetTaskId.toString() != '0') {
-        ref.read(routerProvider).go('/timesheet?task_id=$targetTaskId');
-      } else {
-        ref.read(routerProvider).go('/timesheet');
-      }
-    }
-    // 4. Tuyển dụng (hr.applicant / recruitment)
+    // 3. Tuyển dụng (hr.applicant / recruitment)
     else if (model.contains('hr.applicant') ||
         model.contains('recruitment') ||
         (model == 'mail.message' && resModel.contains('hr.applicant'))) {
       ref.read(routerProvider).go('/tickets');
     }
-    // 5. Chat V2 / Discuss (chỉ khi có resId kênh hợp lệ, không kiểm tra lỏng lẻo data.containsKey)
-    else if ((model.contains('discuss') ||
-            model.contains('chat') ||
-            (data['channel_id'] != null &&
-                data['channel_id'].toString() != '0' &&
-                data['channel_id'].toString().isNotEmpty)) &&
+    // 4. Timesheet / Công việc (project.task / timesheet)
+    else if (model.contains('task') ||
+        model.contains('timesheet') ||
+        data.containsKey('task_id') ||
+        (model == 'mail.message' && resModel.contains('task'))) {
+      final targetTaskId = data['task_id'] ?? resId;
+      if (targetTaskId != null && targetTaskId.toString().isNotEmpty && targetTaskId.toString() != '0') {
+        ref.read(routerProvider).go('/timesheet?task_id=$targetTaskId');
+      } else {
+        ref.read(routerProvider).go('/timesheet');
+      }
+    }
+    // 5. Chat V2 / Discuss (Chỉ mở khi có channel_id thật sự > 0)
+    else if ((model.contains('discuss') || model.contains('chat')) &&
         resId != null &&
         resId.toString().isNotEmpty &&
         resId.toString() != '0') {
       final rawChannelName = data['channel_name'] ?? data['name'] ?? message.notification?.title ?? '';
       final cleanChannelName = ChatV2Channel.cleanChannelName(rawChannelName.toString());
-      final targetChannelId = (data['channel_id'] != null &&
-              data['channel_id'].toString() != '0' &&
-              data['channel_id'].toString().isNotEmpty)
-          ? data['channel_id']
-          : resId;
       ref.read(routerProvider).go(
-            '/chat/$targetChannelId?name=${Uri.encodeComponent(cleanChannelName)}',
+            '/chat/$resId?name=${Uri.encodeComponent(cleanChannelName)}',
           );
     }
-    // 6. Fallback an toàn về Trang chủ (Tránh đá nhầm vào phòng Chat)
+    // 6. Fallback an toàn về Trang chủ
     else {
       ref.read(routerProvider).go('/');
     }

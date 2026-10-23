@@ -42,46 +42,34 @@ String resolvePushRoute({
       return '/tickets';
     }
   }
-  // 3. Timesheet / Công việc (project.task / timesheet)
-  else if (model.contains('task') ||
-      model.contains('timesheet') ||
-      model.contains('project') ||
-      data.containsKey('task_id') ||
-      (model == 'mail.message' && resModel.contains('task'))) {
-    final targetTaskId = data['task_id'] ?? resId;
-    if (targetTaskId != null &&
-        targetTaskId.toString().isNotEmpty &&
-        targetTaskId.toString() != '0') {
-      return '/timesheet?task_id=$targetTaskId';
-    } else {
-      return '/timesheet';
-    }
-  }
-  // 4. Tuyển dụng (hr.applicant / recruitment)
+  // 3. Tuyển dụng (hr.applicant / recruitment)
   else if (model.contains('hr.applicant') ||
       model.contains('recruitment') ||
       (model == 'mail.message' && resModel.contains('hr.applicant'))) {
     return '/tickets';
   }
-  // 5. Chat V2 / Discuss (chỉ khi có resId kênh hợp lệ, không kiểm tra lỏng lẻo data.containsKey)
-  else if ((model.contains('discuss') ||
-          model.contains('chat') ||
-          (data['channel_id'] != null &&
-              data['channel_id'].toString() != '0' &&
-              data['channel_id'].toString().isNotEmpty)) &&
+  // 4. Timesheet / Công việc (project.task / timesheet)
+  else if (model.contains('task') ||
+      model.contains('timesheet') ||
+      data.containsKey('task_id') ||
+      (model == 'mail.message' && resModel.contains('task'))) {
+    final targetTaskId = data['task_id'] ?? resId;
+    if (targetTaskId != null && targetTaskId.toString().isNotEmpty && targetTaskId.toString() != '0') {
+      return '/timesheet?task_id=$targetTaskId';
+    } else {
+      return '/timesheet';
+    }
+  }
+  // 5. Chat V2 / Discuss (Chỉ mở khi có channel_id thật sự > 0)
+  else if ((model.contains('discuss') || model.contains('chat')) &&
       resId != null &&
       resId.toString().isNotEmpty &&
       resId.toString() != '0') {
     final rawChannelName = data['channel_name'] ?? data['name'] ?? notificationTitle ?? '';
     final cleanName = cleanChannelName(rawChannelName.toString());
-    final targetChannelId = (data['channel_id'] != null &&
-            data['channel_id'].toString() != '0' &&
-            data['channel_id'].toString().isNotEmpty)
-        ? data['channel_id']
-        : resId;
-    return '/chat/$targetChannelId?name=${Uri.encodeComponent(cleanName)}';
+    return '/chat/$resId?name=${Uri.encodeComponent(cleanName)}';
   }
-  // 6. Fallback an toàn về Trang chủ (Tránh đá nhầm vào phòng Chat)
+  // 6. Fallback an toàn về Trang chủ
   else {
     return '/';
   }
@@ -92,42 +80,25 @@ String? resolveInAppRoute({
   String? title,
 }) {
   final model = (data['model'] ?? data['type'] ?? '').toString().toLowerCase();
-  final resModel = (data['res_model'] ?? '').toString().toLowerCase();
   final resId = data['res_id'];
 
-  // 1. Ticket / Helpdesk
-  final ticketId = data['ticket_id'] ??
-      (model.contains('helpdesk') || model.contains('ticket') || resModel.contains('helpdesk')
-          ? resId
-          : null);
-  if (ticketId != null &&
-      ticketId.toString().isNotEmpty &&
-      ticketId.toString() != '0') {
-    return '/tickets/$ticketId';
-  } else if (model.contains('helpdesk') || model.contains('ticket') || resModel.contains('helpdesk')) {
-    return '/tickets';
-  }
-
-  // 2. Timesheet / Công việc (project.task / timesheet)
-  final taskId = data['task_id'] ??
-      (model.contains('task') || model.contains('timesheet') || model.contains('project') || resModel.contains('task')
-          ? resId
-          : null);
-  if (taskId != null &&
-      taskId.toString().isNotEmpty &&
-      taskId.toString() != '0') {
-    return '/timesheet?task_id=$taskId';
-  } else if (model.contains('task') || model.contains('timesheet') || model.contains('project') || resModel.contains('task')) {
+  // 1. Timesheet / Công việc
+  if (model.contains('task') || model.contains('timesheet') || data.containsKey('task_id')) {
+    final tId = data['task_id'] ?? resId;
+    if (tId != null && tId.toString().isNotEmpty && tId.toString() != '0') {
+      return '/timesheet?task_id=$tId';
+    }
     return '/timesheet';
   }
 
-  // 3. Chat V2 / Discuss (chỉ khi có channel ID hợp lệ khác 0)
-  final conversationId = data['conversation_id'] ??
-      (data['channel_id'] != null &&
-              data['channel_id'].toString() != '0' &&
-              data['channel_id'].toString().isNotEmpty
-          ? data['channel_id']
-          : (model.contains('discuss') || model.contains('chat') ? resId : null));
+  // 2. Ticket / Helpdesk (fallback res_id khi không có ticket_id)
+  final ticketId = data['ticket_id'] ?? (model.contains('ticket') || model.contains('helpdesk') ? resId : null);
+  if (ticketId != null && ticketId.toString().isNotEmpty && ticketId.toString() != '0') {
+    return '/tickets/$ticketId';
+  }
+
+  // 3. Chat V2 / Discuss (Chỉ mở khi có conversation_id thật sự > 0)
+  final conversationId = data['conversation_id'] ?? (model.contains('discuss') || model.contains('chat') ? (data['channel_id'] ?? resId) : null);
   if (conversationId != null &&
       conversationId.toString().isNotEmpty &&
       conversationId.toString() != '0') {
