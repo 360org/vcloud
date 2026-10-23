@@ -2,6 +2,24 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.22+168] — 2026-10-23 (Vá Dứt Điểm 4 Kẽ Hở Tự Động Logout Trên iOS & Android)
+
+> [!IMPORTANT]
+> **Vá Dứt Điểm Lỗi Tự Động Logout (Multi-Repo: vclients, v_mobile_17, v_mobile_19)**:
+> - **1. [FIX/IOS] Cấu Hình iOS Keychain Accessibility (`odoo_session_store.dart`)**:
+>   * Bổ sung `IOSOptions(accessibility: KeychainAccessibility.first_unlock, synchronizable: false)` cho cả primary store và legacy migration store.
+>   * Giải quyết triệt để lỗi Keychain trả về `null` khi iPhone tắt màn hình nhận push notification hoặc mở app từ lock screen.
+> - **2. [FIX/AUTH] Chống Xóa Session Khi Mất Mạng/Hiccup (`odoo_api_client.dart`)**:
+>   * `restoreSession()`: Phân biệt chính xác giữa lỗi mạng (`SocketException`, `TimeoutException`, `ClientException`, 502, 503, 504) và lỗi xác thực thực sự (`401 invalid_refresh_token`).
+>   * Khi mất mạng, app bảo toàn session trong store và trả về stored session để hoạt động offline/cache, không xóa session store.
+>   * `_send()`: Xử lý ngoại lệ mạng khi silent refresh, ném `Failure` mạng thay vì gọi `_sessionStore.clear()` và `onSessionExpired()`.
+> - **3. [TEST] Bộ Kiểm Thử Độc Lập 10/10 Cases PASS 100%**:
+>   * `session_offline_refresh_resilience_self_check.dart`: 10/10 PASS.
+>   * `samsung_session_resilience_self_check.dart`: 10/10 PASS.
+>   * `flutter analyze`: 0 errors, 0 warnings.
+
+---
+
 ## [v2.9.22+167] — 2026-10-22 (Chuẩn Hóa Clean Architecture Cho Chat V2, Luồng Đăng Ký Mobile & Đồng Bộ App Store Connect)
 
 > [!IMPORTANT]

@@ -6,6 +6,11 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'odoo_session.dart';
 
 class OdooSessionStore {
+  static const _defaultIOSOptions = IOSOptions(
+    accessibility: KeychainAccessibility.first_unlock,
+    synchronizable: false,
+  );
+
   OdooSessionStore({FlutterSecureStorage? storage})
       : _storage = storage ??
             const FlutterSecureStorage(
@@ -13,6 +18,7 @@ class OdooSessionStore {
                 encryptedSharedPreferences: true,
                 resetOnError: false,
               ),
+              iOptions: _defaultIOSOptions,
             );
 
   static const _legacyStorage = FlutterSecureStorage(
@@ -20,6 +26,7 @@ class OdooSessionStore {
       encryptedSharedPreferences: false,
       resetOnError: false,
     ),
+    iOptions: _defaultIOSOptions,
   );
 
   static const _key = 'vcloud_odoo_session';

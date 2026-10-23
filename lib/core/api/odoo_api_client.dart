@@ -200,6 +200,11 @@ class OdooApiClient {
           }
         } catch (e) {
           debugPrint('[OdooApiClient.restoreSession] Refresh on resume failed: $e');
+          // ponytail: Giữ session khi mất mạng/hiccup, chỉ logout khi server thực sự từ chối auth
+          if (_isNetworkOrServerTransientError(e)) {
+            _session = stored;
+            return stored;
+          }
         }
       }
       await _sessionStore.clear();
@@ -1255,19 +1260,34 @@ class OdooApiClient {
     if (response.statusCode < 200 || response.statusCode >= 300) {
       if (auth && response.statusCode == 401) {
         // Thử refresh token trước khi logout — tránh bị đá vô login loop.
-        final refreshed = await _tryRefreshSession();
-        if (refreshed) {
-          return _send(method, path, body: body, query: query, auth: auth);
+        try {
+          final refreshed = await _tryRefreshSession();
+          if (refreshed) {
+            return _send(method, path, body: body, query: query, auth: auth);
+          }
+          await _sessionStore.clear();
+          _session = null;
+          onSessionExpired?.call();
+        } catch (e) {
+          if (_isNetworkOrServerTransientError(e)) {
+            throw Failure(
+              'Không thể kết nối máy chủ để gia hạn phiên. Vui lòng kiểm tra kết nối mạng.',
+              cause: e,
+            );
+          }
+          await _sessionStore.clear();
+          _session = null;
+          onSessionExpired?.call();
         }
-        await _sessionStore.clear();
-        _session = null;
-        onSessionExpired?.call();
       }
       final multiTenants = _tryMultipleTenants(decoded, response.statusCode);
       if (multiTenants != null) throw multiTenants;
       final tenantNotFound = _tryTenantNotFound(decoded, response.statusCode);
       if (tenantNotFound != null) throw tenantNotFound;
-      throw Failure(_errorMessage(decoded, response.statusCode));
+      throw Failure(
+        _errorMessage(decoded, response.statusCode),
+        statusCode: response.statusCode,
+      );
     }
     return decoded;
   }
@@ -1297,12 +1317,57 @@ class OdooApiClient {
       completer.complete(success);
       return success;
     } catch (e) {
-      debugPrint('[AuthController] Silent refresh failed: $e');
+      debugPrint('[OdooApiClient] Silent refresh failed: $e');
+      if (_isNetworkOrServerTransientError(e)) {
+        completer.completeError(e);
+        rethrow;
+      }
       completer.complete(false);
       return false;
     } finally {
       _refreshCompleter = null;
     }
+  }
+
+  /// Kiểm tra xem lỗi có phải do mất kết nối mạng, timeout hoặc máy chủ tạm thời không khả dụng không.
+  static bool _isNetworkOrServerTransientError(Object e) {
+    if (e is TimeoutException || e is http.ClientException) return true;
+    if (e is Failure) {
+      final code = e.statusCode;
+      if (code == 401 || code == 403 || code == 404) {
+        return false;
+      }
+      if (code != null &&
+          (code == 408 || code == 429 || (code >= 500 && code <= 599))) {
+        return true;
+      }
+      final cause = e.cause;
+      if (cause != null && _isNetworkOrServerTransientError(cause)) {
+        return true;
+      }
+    }
+    final s = e.toString().toLowerCase();
+    if (s.contains('invalid_refresh_token') ||
+        s.contains('unauthorized') ||
+        s.contains('user_not_found') ||
+        s.contains('portal_mobile_access_denied')) {
+      return false;
+    }
+    return s.contains('socketexception') ||
+        s.contains('clientexception') ||
+        s.contains('timeoutexception') ||
+        s.contains('failed to fetch') ||
+        s.contains('network is unreachable') ||
+        s.contains('failed host lookup') ||
+        s.contains('connection refused') ||
+        s.contains('connection reset') ||
+        s.contains('connection closed') ||
+        s.contains('hết thời gian chờ') ||
+        s.contains('timed out') ||
+        s.contains('handshake') ||
+        s.contains('502') ||
+        s.contains('503') ||
+        s.contains('504');
   }
 
   /// When the master resolver returns `409 multiple_tenants` with a tenant

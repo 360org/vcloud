@@ -15,7 +15,7 @@
 | **VI** | Manifest & Đồng Bộ Phiên Bản | `pubspec.yaml` SSOT, `__manifest__.py` format |
 | **VII** | Deploy & CI/CD Pipeline 3 Tầng | LAN → Odoo SaaS → TestFlight & Google Play |
 | **VIII** | Rào Chắn Odoo 17 & 19 (Mandatory Gate) | Field Mapping, ORM, XML, Porting 7 bước |
-| **IX** | Zero-Trust Execution Gate (10 điều) | Task Mode, Read Before Write, Preserve Work, Least Privilege, Side-Effect, Agent Cap, Evidence, UI/Release, Final Report, SSOT Update |
+| **IX** | Zero-Trust Execution Gate (12 điều) | Task Mode, Read Before Write, Preserve Work, Least Privilege, Side-Effect, Agent Cap, Evidence, UI/Release, Final Report, SSOT Update, Todo Checklist, Desktop UI Widgets |
 | **X** | Tiếp Nhận Báo Cáo & Phân Rã Việc | Fact-Check chống bịa ➔ Root Cause ➔ Multi-Agent Dispatch chống chạy lâu |
 
 ---
@@ -103,6 +103,20 @@ Nạp: `360-dev-workflow`, `360-ponytail`, `360-odoo`, `360-flutter`, `360-vclou
 
 ================================================================================
 🏛️ [TRỤ CỘT 3: 📋 TASK DETAILS — {{SDLC_PHASE}}]
+#### 📋 MANDATORY INTERACTIVE TODO CHECKLIST GATE (TodoWrite — BẮT BUỘC KHỞI TẠO ĐẦU PHIÊN):
+Agent BẮT BUỘC khởi tạo và cập nhật Interactive Todo Checklist thông qua tool `TodoWrite` ngay từ bước đầu tiên:
+1. Chia nhỏ toàn bộ task thành 4-8 hạng mục công việc cụ thể (khởi tạo ở trạng thái `pending`).
+2. Cập nhật tiến độ liên tục theo thời gian thực: Khi bắt tay vào mục nào ➔ chuyển sang `in_progress`; khi kiểm chứng xong và có evidence ➔ chuyển sang `completed`.
+3. Widget checklist bắt buộc luôn hiển thị trực quan xuyên suốt quá trình thực thi để Sếp Tân theo dõi trực tiếp tiến độ thực tế, cấm làm việc ngầm mà không cập nhật checklist.
+
+#### 🎛️ MANDATORY DESKTOP UI WIDGETS & INTERACTION DIRECTIVES:
+Tận dụng tối đa bộ công cụ tương tác trực quan của Claude Code Desktop để phục vụ Sếp Tân:
+1. **`AskUserQuestion`**: Khi có từ 2 phương án trở lên, cần duyệt danh sách nhánh/DB, hoặc tại Human-in-the-Loop Hard Stop ➔ BẮT BUỘC gọi `AskUserQuestion` kèm `options` và `preview` so sánh code/giao diện trực quan. TUYỆT ĐỐI CẤM hỏi suông bằng text bắt Sếp gõ phím.
+2. **`spawn_task`**: Khi phát hiện lỗi ngoài scope, dead code hoặc TODO tồn đọng ➔ BẮT BUỘC gọi `spawn_task` tạo task chip độc lập để Sếp bấm 1 click xử lý riêng, CẤM tự ý sửa lan man làm phình to context phiên chính.
+3. **`ReportFindings`**: Trong phase `AUDIT` hoặc `/code-review` ➔ BẮT BUỘC xuất findings qua `ReportFindings` để render thẻ lỗi phân loại (Critical/High/Medium) có tọa độ `file:line` và kịch bản gây sập.
+4. **`SendUserFile`**: Khi hoàn tất deliverables (file APK/AAB, file báo cáo `.md`, ảnh screenshot UAT, sơ đồ SVG) ➔ BẮT BUỘC gọi `SendUserFile` để Sếp xem/tải trực tiếp từ side panel.
+5. **`mark_chapter`**: BẮT BUỘC đánh dấu khi chuyển qua các giai đoạn lớn (Khảo sát ➔ Sửa code ➔ Kiểm thử ➔ Đẩy git) để tạo Floating Table of Contents bên mép màn hình.
+
 #### 📖 MANDATORY SSOT READ & STATUS AUDIT GATE (BẮT BUỘC ĐỌC TRƯỚC KHI LÀM):
 Agent BẮT BUỘC đọc file SSOT chỉ định (ví dụ: `vclients/docs/features . md`, `docs/idea_portal . md`, `docs/PROJECT_STRUCTURE_MAP . md`):
 - Nắm rõ: Mục nào ĐÃ LÀM (có tag `[x]`), mục nào ĐANG LÀM, và mục nào CHƯA LÀM (tồn đọng).
@@ -312,6 +326,18 @@ Mọi mục thay đổi trong Changelog phải gán đúng 1 trong các Tag:
   + Ghi rõ Evidence kiểm thử (tên file test, số test pass, log output).
   + Phân định rõ ràng: Danh mục ĐÃ LÀM XONG vs Danh mục CÒN TỒN ĐỌNG / CHƯA LÀM.
 - ⛔ **CẤM BÁO CÁO HOÀN THÀNH NẾU CHƯA CẬP NHẬT FILE SSOT**. Không cập nhật file tài liệu = Vi phạm Zero-Trust Gate.
+
+### 11. 📋 Mandatory Interactive Todo Checklist Gate (TodoWrite):
+- Mọi Agent khi nhận task BẮT BUỘC khởi tạo và duy trì Interactive Todo Checklist (`TodoWrite`) từ đầu đến cuối phiên.
+- Bắt buộc cập nhật trạng thái thời gian thực (`pending` ➔ `in_progress` ➔ `completed`) cho từng hạng mục công việc.
+- CẤM làm việc ngầm mà không cập nhật checklist, giúp Sếp Tân luôn thấy được tiến độ trực quan trên giao diện mà không phải đọc log rối mắt.
+
+### 12. 🎛️ Mandatory Desktop UI Widgets & Interaction Gate:
+- **`AskUserQuestion`**: CẤM hỏi suông qua text khi có phương án lựa chọn hoặc tại Human-in-the-Loop Gate. Bắt buộc dùng `AskUserQuestion` có `options` và `preview` so sánh.
+- **`spawn_task`**: CẤM tự ý fix nợ kỹ thuật/TODO ngoài scope làm loãng context phiên chính. Bắt buộc gọi `spawn_task` để tách thành background task chip cho Sếp duyệt.
+- **`ReportFindings`**: Bắt buộc xuất typed findings trong audit/review để host UI render thẻ lỗi trực quan.
+- **`SendUserFile`**: Bắt buộc dùng `SendUserFile` khi bàn giao kết quả (APK, báo cáo, log, sơ đồ) để hiển thị File Card bên side panel.
+- **`mark_chapter`**: Bắt buộc đánh dấu mục lục chương khi chuyển đổi pha làm việc (khảo sát ➔ code ➔ test ➔ deploy).
 
 ---
 
