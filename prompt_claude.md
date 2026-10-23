@@ -86,9 +86,10 @@ Khi Sếp Tân yêu cầu tạo prompt cho task mới, AI Agent hãy đọc file
   🚨 **BẮT BUỘC** gọi tool `Agent` ủy quyền cho Subagent chuyên trách:
   * Giao Dev sửa code: `Agent({ subagent_type: 'dev-backend-odoo' | 'dev-mobile-flutter', prompt: '...' })`
   * Giao Tester kiểm thử: `Agent({ subagent_type: 'tester-functional' | 'tester-security', prompt: '...' })`
+  * Giao Audit / Review: `Agent({ subagent_type: 'audit-gate', prompt: '...' })` chủ trì kiểm toán bằng chứng và Stop The Line; `Agent({ subagent_type: 'tester-security', prompt: '...' })` quét token, Keychain và trust boundary.
 - `@dev`: Full-Stack / Mobile Dev (chuyên trách phẫu thuật code theo Ponytail, 1-File-1-Owner).
 - `@tester`: QA / Automation Tester (chuyên trách kiểm thử runtime, WebSocket, UAT. Max 2 loops).
-- `@auditor`: Security & Architecture Auditor (soi Anti-IDOR, ORM singleton, SQL Index, Registry).
+- `@auditor`: Security & Architecture Auditor (Subagent `audit-gate` + `tester-security` độc lập).
 - `@spawner`: Dynamic Auto-Scaler (mở rộng Subagent tạm thời khi backlog bị tắc).
 
 ================================================================================
@@ -100,6 +101,7 @@ Khi Sếp Tân yêu cầu tạo prompt cho task mới, AI Agent hãy đọc file
 ================================================================================
 🧰 [SKILLS AIAC BẮT BUỘC]
 Nạp: `360-dev-workflow`, `360-ponytail`, `360-odoo`, `360-flutter`, `360-vcloud`, `360-gitsync`.
+* Khi task có AUDIT / REVIEW / SECURITY: Bắt buộc nạp thêm `audit-gate`, `code-review` và gọi lệnh `/ponytail-audit`.
 
 ================================================================================
 🏛️ [TRỤ CỘT 3: 📋 TASK DETAILS — {{SDLC_PHASE}}]
@@ -116,6 +118,14 @@ Tận dụng tối đa bộ công cụ tương tác trực quan của Claude Cod
 3. **`ReportFindings`**: Trong phase `AUDIT` hoặc `/code-review` ➔ BẮT BUỘC xuất findings qua `ReportFindings` để render thẻ lỗi phân loại (Critical/High/Medium) có tọa độ `file:line` và kịch bản gây sập.
 4. **`SendUserFile`**: Khi hoàn tất deliverables (file APK/AAB, file báo cáo `.md`, ảnh screenshot UAT, sơ đồ SVG) ➔ BẮT BUỘC gọi `SendUserFile` để Sếp xem/tải trực tiếp từ side panel.
 5. **`mark_chapter`**: BẮT BUỘC đánh dấu khi chuyển qua các giai đoạn lớn (Khảo sát ➔ Sửa code ➔ Kiểm thử ➔ Đẩy git) để tạo Floating Table of Contents bên mép màn hình.
+
+#### 🛡️ MANDATORY SPECIALIZED AUDIT TOOLKIT (BẮT BUỘC KHI CÓ YÊU CẦU AUDIT / REVIEW):
+Khi nhận nhiệm vụ Audit, Kiểm toán hoặc Review, `@lead` BẮT BUỘC kích hoạt đầy đủ 5 công cụ chuyên trách:
+1. **Subagent `audit-gate`**: Subagent độc lập chuyên trách kiểm toán bằng chứng, đối soát Git commit/log thật, phát hiện lấp liếm lỗi và kích hoạt Stop The Line.
+2. **Subagent `tester-security`**: Soi rò rỉ token/secret, Keychain Accessibility, Keystore encryption, SQL injection và trust boundary.
+3. **Skill `audit-gate` & `code-review`**: Bộ tiêu chuẩn soi 4 trục (*Correctness, Reuse, Over-engineering, Security*) và chống vá lỗi hời hợt.
+4. **Lệnh `/ponytail-audit`**: Kiểm toán độ tối giản code theo Ponytail (YAGNI, stdlib, diff ngắn nhất, không over-engineering).
+5. **Widget `ReportFindings`**: Xuất danh mục lỗi phân tầng (*Critical / High / Medium / Low*) kèm tọa độ `file:line` và kịch bản sập `failure_scenario` lên giao diện Desktop.
 
 #### 📖 MANDATORY SSOT READ & STATUS AUDIT GATE (BẮT BUỘC ĐỌC TRƯỚC KHI LÀM):
 Agent BẮT BUỘC đọc file SSOT chỉ định (ví dụ: `vclients/docs/features . md`, `docs/idea_portal . md`, `docs/PROJECT_STRUCTURE_MAP . md`):
@@ -338,6 +348,15 @@ Mọi mục thay đổi trong Changelog phải gán đúng 1 trong các Tag:
 - **`ReportFindings`**: Bắt buộc xuất typed findings trong audit/review để host UI render thẻ lỗi trực quan.
 - **`SendUserFile`**: Bắt buộc dùng `SendUserFile` khi bàn giao kết quả (APK, báo cáo, log, sơ đồ) để hiển thị File Card bên side panel.
 - **`mark_chapter`**: Bắt buộc đánh dấu mục lục chương khi chuyển đổi pha làm việc (khảo sát ➔ code ➔ test ➔ deploy).
+
+### 13. 🛡️ Mandatory Specialized Audit Toolkit Gate (Khi Task có Audit/Review):
+- BẮT BUỘC kích hoạt đầy đủ 5 công cụ kiểm toán chuyên sâu:
+  1. Subagent `audit-gate`: Kiểm toán bằng chứng, đối soát Git SHA thật và kích hoạt Stop The Line khi phát hiện sai lệch.
+  2. Subagent `tester-security`: Quét token, Keychain/Keystore và trust boundary.
+  3. Skill `audit-gate` & `code-review`: Soi 4 trục (*Correctness, Reuse, Over-engineering, Security*).
+  4. Lệnh `/ponytail-audit`: Kiểm toán độ sạch và tối giản theo Ponytail.
+  5. Widget `ReportFindings`: Render thẻ lỗi trực quan phân tầng trên giao diện Desktop.
+- CẤM TUYỆT ĐỐI audit bằng cách đọc lướt code rồi khen ngợi pass ảo hoặc nhận định "hoàn hảo" khi chưa chạy lệnh Terminal đối soát.
 
 ---
 
