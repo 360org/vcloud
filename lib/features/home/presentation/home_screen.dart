@@ -1294,14 +1294,46 @@ class _NotificationItemTile extends ConsumerWidget {
 }
 
 /// Resolves a deep-link from the notification `data` payload — we support
-/// the ticket and chat targets the backend emits today, and return null
-/// for anything else so the tap just dismisses the sheet.
+/// ticket, timesheet/task, and chat targets, returning null for anything
+/// else so the tap just dismisses the sheet.
 String? _notificationRoute(Map<String, dynamic> data, {String? title}) {
-  final ticketId = data['ticket_id'];
-  if (ticketId != null && ticketId.toString().isNotEmpty) {
+  final model = (data['model'] ?? data['type'] ?? '').toString().toLowerCase();
+  final resModel = (data['res_model'] ?? '').toString().toLowerCase();
+  final resId = data['res_id'];
+
+  // 1. Ticket / Helpdesk
+  final ticketId = data['ticket_id'] ??
+      (model.contains('helpdesk') || model.contains('ticket') || resModel.contains('helpdesk')
+          ? resId
+          : null);
+  if (ticketId != null &&
+      ticketId.toString().isNotEmpty &&
+      ticketId.toString() != '0') {
     return '/tickets/$ticketId';
+  } else if (model.contains('helpdesk') || model.contains('ticket') || resModel.contains('helpdesk')) {
+    return '/tickets';
   }
-  final conversationId = data['conversation_id'] ?? data['channel_id'];
+
+  // 2. Timesheet / Công việc (project.task / timesheet)
+  final taskId = data['task_id'] ??
+      (model.contains('task') || model.contains('timesheet') || model.contains('project') || resModel.contains('task')
+          ? resId
+          : null);
+  if (taskId != null &&
+      taskId.toString().isNotEmpty &&
+      taskId.toString() != '0') {
+    return '/timesheet?task_id=$taskId';
+  } else if (model.contains('task') || model.contains('timesheet') || model.contains('project') || resModel.contains('task')) {
+    return '/timesheet';
+  }
+
+  // 3. Chat V2 / Discuss (chỉ khi có channel ID hợp lệ khác 0)
+  final conversationId = data['conversation_id'] ??
+      (data['channel_id'] != null &&
+              data['channel_id'].toString() != '0' &&
+              data['channel_id'].toString().isNotEmpty
+          ? data['channel_id']
+          : (model.contains('discuss') || model.contains('chat') ? resId : null));
   if (conversationId != null &&
       conversationId.toString().isNotEmpty &&
       conversationId.toString() != '0') {
