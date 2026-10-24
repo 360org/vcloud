@@ -456,5 +456,35 @@ void main() {
       expect(groupCount, 0, reason: 'Support channels must not be miscounted as Nhóm');
       expect(directCount, 2);
     });
+
+    test('TC-27: Livechat department distinction in displayName & resolveDisplayName', () {
+      final jsonSupport = {
+        'id': '665830',
+        'name': 'Cuộc trò chuyện',
+        'channel_type': 'livechat',
+        'is_group': false,
+        'livechat_channel_name': 'Hỗ trợ kỹ thuật',
+      };
+      final chSupport = ChatV2Channel.fromJson(jsonSupport);
+      expect(chSupport.displayName, 'Hỗ trợ trực tuyến — Hỗ trợ kỹ thuật');
+
+      final jsonSalesPortal = {
+        'id': '665831',
+        'name': 'Mitchell Admin',
+        'channel_type': 'chat',
+        'is_group': false,
+        'livechat_channel_name': 'Tư vấn bán hàng',
+        'direct_partner_name': 'Mitchell Admin',
+      };
+      final chSalesPortal = ChatV2Channel.fromJson(jsonSalesPortal);
+      expect(
+        chSalesPortal.resolveDisplayName('Khách Hàng', isPortal: true),
+        'Chuyên viên tư vấn — Tư vấn bán hàng',
+      );
+      expect(
+        chSalesPortal.getCleanName('Khách Hàng', isPortal: true),
+        'Chuyên viên tư vấn — Tư vấn bán hàng',
+      );
+    });
   });
 }

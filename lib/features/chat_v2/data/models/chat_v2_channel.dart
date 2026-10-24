@@ -323,12 +323,23 @@ class ChatV2Channel {
     return pLower == uLower || uLower.contains(pLower) || pLower.contains(uLower);
   }
 
+  /// Tên chuyên viên tư vấn phân biệt theo phòng ban / kênh hỗ trợ
+  String get _consultantDisplayName {
+    if (livechatChannelName != null && livechatChannelName!.trim().isNotEmpty) {
+      return 'Chuyên viên tư vấn — ${livechatChannelName!.trim()}';
+    }
+    return 'Chuyên viên tư vấn';
+  }
+
   /// Tên hiển thị sạch chuẩn hóa (không phụ thuộc user context)
   String get displayName {
     if (channelType == 'livechat') {
       final clean = cleanChannelName(name);
       if (clean.isNotEmpty && clean != 'Cuộc trò chuyện') {
         return clean;
+      }
+      if (livechatChannelName != null && livechatChannelName!.trim().isNotEmpty) {
+        return 'Hỗ trợ trực tuyến — ${livechatChannelName!.trim()}';
       }
       return 'Hỗ trợ trực tuyến';
     }
@@ -669,7 +680,7 @@ class ChatV2Channel {
           (currentUserName == null || !matchesUser(directPartnerName!, currentUserName))) {
         final resolvedPartner = cleanChannelName(directPartnerName!);
         if (isPortal == true && isAdminName(resolvedPartner)) {
-          return 'Chuyên viên tư vấn';
+          return _consultantDisplayName;
         }
         if (resolvedPartner.isNotEmpty && resolvedPartner != 'Cuộc trò chuyện') {
           return resolvedPartner;
@@ -686,7 +697,7 @@ class ChatV2Channel {
             : otherMember.name;
         final resolvedMember = cleanChannelName(otherName);
         if (isPortal == true && isAdminName(resolvedMember)) {
-          return 'Chuyên viên tư vấn';
+          return _consultantDisplayName;
         }
         if (resolvedMember.isNotEmpty && resolvedMember != 'Cuộc trò chuyện') {
           return resolvedMember;
@@ -695,7 +706,7 @@ class ChatV2Channel {
 
       // Ưu tiên 3: Nếu kênh thuộc Portal (isPortal == true)
       if (isPortal == true) {
-        return 'Chuyên viên tư vấn';
+        return _consultantDisplayName;
       }
 
       // Fallback khi tên kênh generic và không tìm thấy bất kỳ đối tác nào
@@ -708,7 +719,7 @@ class ChatV2Channel {
 
       if (currentUserName == null || currentUserName.trim().isEmpty) {
         if (isPortal == true && isAdminName(cleaned)) {
-          return 'Chuyên viên tư vấn';
+          return _consultantDisplayName;
         }
         return cleaned;
       }
@@ -773,20 +784,24 @@ class ChatV2Channel {
                 : otherMember.name;
             resolved = cleanChannelName(otherName);
           } else {
-            resolved = isPortal == true ? 'Chuyên viên tư vấn' : 'Trò chuyện';
+            resolved = isPortal == true ? _consultantDisplayName : 'Trò chuyện';
           }
         }
       }
 
       // [Defect 3] Che giấu định danh nội bộ "Admin" cho Portal (B.12):
       if (isPortal == true && isAdminName(resolved)) {
-        return 'Chuyên viên tư vấn';
+        return _consultantDisplayName;
       }
 
       return resolved;
     }
     return cleaned;
   }
+
+  /// Phân giải tên hiển thị theo bối cảnh người dùng và vai trò portal
+  String resolveDisplayName(String? currentUserName, {bool? isPortal}) =>
+      getCleanName(currentUserName, isPortal: isPortal);
 
   bool getActualIsGroup(String? currentUserName) {
     // Kênh Livechat, CSKH & Zalo OA tuyệt đối không phải là nhóm nội bộ (B.10)

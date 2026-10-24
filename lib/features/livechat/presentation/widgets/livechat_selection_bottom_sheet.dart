@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -27,6 +29,50 @@ class LivechatSelectionBottomSheet extends ConsumerStatefulWidget {
 
 class _LivechatSelectionBottomSheetState extends ConsumerState<LivechatSelectionBottomSheet> {
   int? _connectingChannelId;
+  Timer? _autoRetryTimer;
+  bool _isRetrying = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final current = ref.read(livechatChannelsProvider);
+      if (current.hasError && !current.isLoading) {
+        _scheduleAutoRetry();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _autoRetryTimer?.cancel();
+    super.dispose();
+  }
+
+  void _scheduleAutoRetry() {
+    _autoRetryTimer?.cancel();
+    _autoRetryTimer = Timer(const Duration(seconds: 4), () {
+      if (!mounted) return;
+      _retryLoad();
+    });
+  }
+
+  Future<void> _retryLoad() async {
+    _autoRetryTimer?.cancel();
+    if (_isRetrying) return;
+    setState(() => _isRetrying = true);
+    try {
+      ref.invalidate(livechatChannelsProvider);
+      await ref.read(livechatChannelsProvider.future);
+    } catch (_) {
+      // Lỗi do Riverpod AsyncValue quản lý và hiển thị
+    } finally {
+      if (mounted) {
+        setState(() => _isRetrying = false);
+      }
+    }
+  }
 
   Future<void> _handleChannelSelect(LivechatChannelModel channel) async {
     if (_connectingChannelId != null) return;
@@ -65,6 +111,17 @@ class _LivechatSelectionBottomSheetState extends ConsumerState<LivechatSelection
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<AsyncValue<List<LivechatChannelModel>>>(
+      livechatChannelsProvider,
+      (previous, next) {
+        if (next.hasError && !next.isLoading) {
+          _scheduleAutoRetry();
+        } else if (next.hasValue) {
+          _autoRetryTimer?.cancel();
+        }
+      },
+    );
+
     final channelsAsync = ref.watch(livechatChannelsProvider);
 
     return Container(
@@ -137,29 +194,83 @@ class _LivechatSelectionBottomSheetState extends ConsumerState<LivechatSelection
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               child: channelsAsync.when(
+                skipLoadingOnReload: true,
                 loading: () => const Center(
                   child: Padding(
                     padding: EdgeInsets.symmetric(vertical: 32),
                     child: CircularProgressIndicator(color: Color(0xFF0077CD)),
                   ),
                 ),
-                error: (err, _) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 24),
-                  child: Column(
-                    children: [
-                      Icon(LucideIcons.circleAlert, size: 40, color: Colors.orange.shade400),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Không thể tải danh sách kênh hỗ trợ',
-                        style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
-                      ),
-                      const SizedBox(height: 8),
-                      TextButton.icon(
-                        onPressed: () => ref.refresh(livechatChannelsProvider),
-                        icon: const Icon(LucideIcons.refreshCw, size: 16),
-                        label: const Text('Thử lại'),
-                      ),
-                    ],
+                error: (err, _) => InkWell(
+                  onTap: _isRetrying ? null : _retryLoad,
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(LucideIcons.circleAlert, size: 36, color: Colors.orange.shade400),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Không thể tải danh sách kênh hỗ trợ',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF0F172A),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Hệ thống sẽ tự động thử lại sau giây lát hoặc chạm để tải lại ngay',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 12.5, color: Colors.grey.shade600),
+                        ),
+                        const SizedBox(height: 12),
+                        if (_isRetrying || channelsAsync.isLoading)
+                          const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Color(0xFF0077CD),
+                                ),
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                'Đang thử kết nối lại...',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  color: Color(0xFF0077CD),
+                                ),
+                              ),
+                            ],
+                          )
+                        else
+                          TextButton.icon(
+                            onPressed: _retryLoad,
+                            icon: const Icon(LucideIcons.refreshCw, size: 16),
+                            label: const Text('Thử lại'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: const Color(0xFF0077CD),
+                              backgroundColor: const Color(0xFFE0F2FE),
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
                 data: (channels) {

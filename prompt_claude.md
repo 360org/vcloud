@@ -8,14 +8,14 @@
 | Mục | Nội dung | Dòng |
 |---|---|---|
 | **I** | Dàn Nhạc Multi-Agent OS v3.1 (5 Roles) | `@lead`, `@dev`, `@tester`, `@auditor`, `@spawner` |
-| **II** | 7 Bước SDLC & Đồng Bộ Local Server | SSOT Files, LAN Sync `192.168.1.100` |
-| **III** | Meta-Prompt Template (Agent đọc & tạo prompt) | 4 Trụ Cột + Anti-Sycophancy L0-L5 |
+| **II** | 7 Bước SDLC & Đồng Bộ Local Server | SSOT Files, LAN Sync `192.168.1.100`, Archify Diagrams |
+| **III** | Meta-Prompt Template (Agent đọc & tạo prompt) | 4 Trụ Cột + Anti-Sycophancy L0-L5 + Archify Gate |
 | **IV** | Bảo Vệ Context, Locks & Rollback | `/compact`, `task_locks.yaml`, Checkpoint, Conventional Commits |
 | **V** | Changelog & Chống Lạm Phát Version | 5 Tags `[NEW/FIX/IMPROVE/REFACTOR/SECURITY]` |
 | **VI** | Manifest & Đồng Bộ Phiên Bản | `pubspec.yaml` SSOT, `__manifest__.py` format |
 | **VII** | Deploy & CI/CD Pipeline 3 Tầng | LAN → Odoo SaaS → TestFlight & Google Play |
 | **VIII** | Rào Chắn Odoo 17 & 19 (Mandatory Gate) | Field Mapping, ORM, XML, Porting 7 bước |
-| **IX** | Zero-Trust Execution Gate (12 điều) | Task Mode, Read Before Write, Preserve Work, Least Privilege, Side-Effect, Agent Cap, Evidence, UI/Release, Final Report, SSOT Update, Todo Checklist, Desktop UI Widgets |
+| **IX** | Zero-Trust Execution Gate (14 điều) | Task Mode, Read Before Write, Preserve Work, Least Privilege, Side-Effect, Agent Cap, Evidence, UI/Release, Final Report, SSOT Update, Todo Checklist, Desktop UI Widgets, Specialized Audit Toolkit, Visual Architecture Gate (360-archify) |
 | **X** | Tiếp Nhận Báo Cáo & Phân Rã Việc | Fact-Check chống bịa ➔ Root Cause ➔ Multi-Agent Dispatch chống chạy lâu |
 
 ---
@@ -51,7 +51,7 @@
 ## ⚙️ II. QUY TRÌNH 7 BƯỚC SDLC & ĐỒNG BỘ LOCAL SERVER (`192.168.1.100`)
 
 ### 🔄 7 Bước SDLC Chuẩn:
-`Bước 1: /idea` ➔ `Bước 2: /req` ➔ `Bước 3: /spec` ➔ `Bước 4: /plan` ➔ `Bước 5: /build & /test` ➔ `Bước 6: /review (Local UAT)` ➔ `Bước 7: /ship`.
+`Bước 1: /idea` ➔ `Bước 2: /req` ➔ `Bước 3: /spec` (Xuất sơ đồ `360-archify`: architecture/sequence/erd) ➔ `Bước 4: /plan` ➔ `Bước 5: /build & /test` ➔ `Bước 6: /review (Local UAT)` ➔ `Bước 7: /ship` (Bàn giao kèm file standalone HTML).
 
 ### 📚 SSOT Files Agent BẮT BUỘC Đọc Trước Khi Bắt Tay:
 - `docs/PROJECT_STRUCTURE_MAP.md` — Matrix định vị nhanh file theo tính năng.
@@ -102,6 +102,7 @@ Khi Sếp Tân yêu cầu tạo prompt cho task mới, AI Agent hãy đọc file
 🧰 [SKILLS AIAC BẮT BUỘC]
 Nạp: `360-dev-workflow`, `360-ponytail`, `360-odoo`, `360-flutter`, `360-vcloud`, `360-gitsync`.
 * Khi task có AUDIT / REVIEW / SECURITY: Bắt buộc nạp thêm `audit-gate`, `code-review` và gọi lệnh `/ponytail-audit`.
+* Khi task có THIẾT KẾ KIẾN TRÚC / QUY TRÌNH / API FLOW / ERD / BÁO CÁO ONE-PAGER: Bắt buộc nạp `360-archify` (Visual Architecture & Diagram Generator) xuất standalone HTML cho con người (phân biệt với `360-graphify` trích xuất AST cho AI Agent).
 
 ================================================================================
 🏛️ [TRỤ CỘT 3: 📋 TASK DETAILS — {{SDLC_PHASE}}]
@@ -116,7 +117,7 @@ Tận dụng tối đa bộ công cụ tương tác trực quan của Claude Cod
 1. **`AskUserQuestion`**: Khi có từ 2 phương án trở lên, cần duyệt danh sách nhánh/DB, hoặc tại Human-in-the-Loop Hard Stop ➔ BẮT BUỘC gọi `AskUserQuestion` kèm `options` và `preview` so sánh code/giao diện trực quan. TUYỆT ĐỐI CẤM hỏi suông bằng text bắt Sếp gõ phím.
 2. **`spawn_task`**: Khi phát hiện lỗi ngoài scope, dead code hoặc TODO tồn đọng ➔ BẮT BUỘC gọi `spawn_task` tạo task chip độc lập để Sếp bấm 1 click xử lý riêng, CẤM tự ý sửa lan man làm phình to context phiên chính.
 3. **`ReportFindings`**: Trong phase `AUDIT` hoặc `/code-review` ➔ BẮT BUỘC xuất findings qua `ReportFindings` để render thẻ lỗi phân loại (Critical/High/Medium) có tọa độ `file:line` và kịch bản gây sập.
-4. **`SendUserFile`**: Khi hoàn tất deliverables (file APK/AAB, file báo cáo `.md`, ảnh screenshot UAT, sơ đồ SVG) ➔ BẮT BUỘC gọi `SendUserFile` để Sếp xem/tải trực tiếp từ side panel.
+4. **`SendUserFile`**: Khi hoàn tất deliverables (file APK/AAB, file báo cáo `.md`, ảnh screenshot UAT, sơ đồ SVG/HTML từ `360-archify`) ➔ BẮT BUỘC gọi `SendUserFile` (với file sơ đồ/báo cáo HTML, đặt `display: 'render'`, `status: 'proactive'`) để Sếp mở xem trực tiếp trên side panel.
 5. **`mark_chapter`**: BẮT BUỘC đánh dấu khi chuyển qua các giai đoạn lớn (Khảo sát ➔ Sửa code ➔ Kiểm thử ➔ Đẩy git) để tạo Floating Table of Contents bên mép màn hình.
 
 #### 🛡️ MANDATORY SPECIALIZED AUDIT TOOLKIT (BẮT BUỘC KHI CÓ YÊU CẦU AUDIT / REVIEW):
@@ -126,6 +127,30 @@ Khi nhận nhiệm vụ Audit, Kiểm toán hoặc Review, `@lead` BẮT BUỘC 
 3. **Skill `audit-gate` & `code-review`**: Bộ tiêu chuẩn soi 4 trục (*Correctness, Reuse, Over-engineering, Security*) và chống vá lỗi hời hợt.
 4. **Lệnh `/ponytail-audit`**: Kiểm toán độ tối giản code theo Ponytail (YAGNI, stdlib, diff ngắn nhất, không over-engineering).
 5. **Widget `ReportFindings`**: Xuất danh mục lỗi phân tầng (*Critical / High / Medium / Low*) kèm tọa độ `file:line` và kịch bản sập `failure_scenario` lên giao diện Desktop.
+
+#### 🏛️ MANDATORY VISUAL ARCHITECTURE & SYSTEM DIAGRAMMING GATE (360-archify):
+Khi task yêu cầu thiết kế hệ thống, mô tả luồng nghiệp vụ, trình tự gọi API, sơ đồ cơ sở dữ liệu, vòng đời trạng thái, hoặc tổng hợp báo cáo phân tích sự cố ➔ BẮT BUỘC sử dụng công cụ **`360-archify`** để biên dịch thành file standalone HTML trực quan cho con người (Sếp Tân & Đội ngũ):
+- **Phân định rõ rệt `360-graphify` vs `360-archify`**:
+  * `360-graphify`: Dành cho **AI Agent**. Quét AST mã nguồn, sinh `graph.json` phục vụ tra cứu tọa độ 3 lớp (caller/callee, god nodes, blast radius) mà không đọc mò file.
+  * `360-archify`: Dành cho **Con người**. Biên dịch đặc tả thành file HTML độc lập (Zero-Server, Zero-DB, mở mọi trình duyệt), hỗ trợ pan/zoom vô cực, theme dark/light, animation motion (Live/Still), tích hợp sẵn nút Export SVG/PNG.
+- **10 Loại Sơ đồ Kỹ thuật Chuẩn & 1 Dạng Báo cáo One-page Explainer**:
+  1. `architecture`: Kiến trúc tổng thể hệ thống, phân vùng hạ tầng, cloud boundary, microservices, container.
+  2. `workflow`: Luồng nghiệp vụ, quy trình phê duyệt, luồng xử lý step-by-step, CI/CD runbook.
+  3. `sequence`: Trình tự gọi API/RPC, timeline giao tiếp giữa Client - Server - Third-party.
+  4. `dataflow`: Luồng di chuyển dữ liệu, ETL pipelines, Kafka message streaming.
+  5. `lifecycle`: Vòng đời trạng thái đối tượng (State machine), điều kiện chuyển đổi trạng thái.
+  6. `erd`: Sơ đồ CSDL quan hệ (PostgreSQL, Odoo ORM), bảng, khóa chính/ngoại, trường dữ liệu.
+  7. `class`: Cấu trúc lớp, kế thừa OOP, interface và implements.
+  8. `tree`: Cây phân cấp thư mục, taxonomy, module layout của dự án.
+  9. `timeline`: Trục thời gian sự kiện, roadmap phát hành, phân tích sự cố theo mốc thời gian.
+  10. `waterfall`: Phân rã độ trễ, thời lượng từng span/request trên trục thời gian.
+  * `explainer`: Trang tài liệu tương tác One-pager tổng hợp kết luận, biểu đồ chart và sơ đồ kỹ thuật.
+- **Thực thi qua CLI Wrapper hoặc Zero-Command**:
+  * Lệnh thực thi: `/media/tanma/DATA/aiac/360org/plugins/360-archify/scripts/archify-run.sh <command> [args]` (symlink: `~/.claude/skills/360-archify/scripts/archify-run.sh`).
+  * Các lệnh chuẩn: `doctor` (kiểm tra môi trường), `guide <type>` (hướng dẫn mẫu), `validate <type> <input.json>` (kiểm tra cú pháp), `render <type> <input.json> <output.html>` (biên dịch), `finalize <type> <input.json> <output.html> --quality showcase` (kiểm định nghiêm ngặt trình duyệt).
+- **Vị trí lưu trữ & Bàn giao**:
+  * Lưu trữ vào `docs/arch/<tên_sơ_đồ>.html` hoặc `docs/<tên_sơ_đồ>.html`.
+  * Bàn giao bằng đường dẫn tuyệt đối đầy đủ từ root volume và gọi `SendUserFile({ files: [output_path], display: 'render', status: 'proactive' })`.
 
 #### 📖 MANDATORY SSOT READ & STATUS AUDIT GATE (BẮT BUỘC ĐỌC TRƯỚC KHI LÀM):
 Agent BẮT BUỘC đọc file SSOT chỉ định (ví dụ: `vclients/docs/features . md`, `docs/idea_portal . md`, `docs/PROJECT_STRUCTURE_MAP . md`):
@@ -283,7 +308,7 @@ Mọi mục thay đổi trong Changelog phải gán đúng 1 trong các Tag:
 
 ---
 
-## 🔐 IX. ZERO-TRUST EXECUTION GATE (BẮT BUỘC MỌI AGENT TUÂN THỦ)
+## 🔐 IX. ZERO-TRUST EXECUTION GATE (BẮT BUỘC MỌI AGENT TUÂN THỦ — 14 ĐIỀU)
 
 ### 1. 🏷️ Task Mode:
 - Phân loại task thành `IDEA`, `REQ`, `SPEC`, `AUDIT`, `BUILD`, `TEST`, `REVIEW` hoặc `SHIP`. Chỉ thực hiện các bước phù hợp.
@@ -357,6 +382,11 @@ Mọi mục thay đổi trong Changelog phải gán đúng 1 trong các Tag:
   4. Lệnh `/ponytail-audit`: Kiểm toán độ sạch và tối giản theo Ponytail.
   5. Widget `ReportFindings`: Render thẻ lỗi trực quan phân tầng trên giao diện Desktop.
 - CẤM TUYỆT ĐỐI audit bằng cách đọc lướt code rồi khen ngợi pass ảo hoặc nhận định "hoàn hảo" khi chưa chạy lệnh Terminal đối soát.
+
+### 14. 🏛️ Mandatory Visual Architecture & System Diagramming Gate (360-archify):
+- Khi thực hiện các phase `/spec`, `/plan`, hoặc giải trình sự cố, phân tích kiến trúc, thiết kế DB/API: BẮT BUỘC dùng **`360-archify`** để xuất file HTML độc lập (standalone, zero-server).
+- CẤM chỉ mô tả chay kiến trúc phức tạp bằng text thô khi có thể trực quan hoá bằng sơ đồ tương tác `360-archify` (pan/zoom, theme dark/light, motion animation, export SVG/PNG).
+- File HTML đầu ra phải được kiểm định chất lượng (`archify-run.sh finalize <type> <input.json> <output.html> --quality showcase`), lưu vào `docs/arch/` hoặc `docs/`, và bàn giao cho Sếp Tân bằng đường dẫn tuyệt đối đầy đủ kèm `SendUserFile({ files: [output_path], display: 'render', status: 'proactive' })`.
 
 ---
 

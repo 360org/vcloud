@@ -9,7 +9,10 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 > - **1. [FIX/UI] Bọc PopScope & Fallback Điều Hướng (`ticket_detail_screen.dart`)**:
 >   * Root Cause: Khi mở Ticket Detail từ Push Notification hoặc Deep Link qua `GoRouter.go('/tickets/:id')`, navigation history stack bị ghi đè thành root route khiến `context.canPop()` là `false`. Lệnh `Navigator.maybePop(context)` không thực hiện hành động nào làm màn hình bị kẹt khi người dùng bấm nút `<`.
 >   * Giải pháp: Bọc `Scaffold` trong `PopScope(canPop: false, onPopInvokedWithResult: ...)` để đón sự kiện Back vật lý / cử chỉ Android; cập nhật nút Back `<` trên header kiểm tra `context.canPop() ? context.pop() : context.go('/tickets')`.
-> - **2. [FEAT/NOTIF] Định Tuyến Foreground Notification Payload (`push_notification_service.dart`, `attendance_local_reminder_service.dart`)**:
+> - **2. [FIX/LIVECHAT] Phân Biệt Tên Kênh Hỗ Trợ & Auto-Retry Tải Kênh (`chat_v2_channel.dart`, `livechat_selection_bottom_sheet.dart`)**:
+>   * Root Cause: Người dùng Portal khi bấm nhiều lần vào các phòng ban hỗ trợ khác nhau (kỹ thuật, bán hàng) đều hiển thị cùng tên "Chuyên viên tư vấn", gây khó phân biệt; bottom sheet khi gặp gián đoạn mạng không tự động kết nối lại.
+>   * Giải pháp: Cập nhật `_consultantDisplayName` và `displayName` gắn kèm tên phòng ban hỗ trợ (`livechatChannelName`); thêm cơ chế Auto-retry sau 4s kèm nút thử lại trực quan trên bottom sheet khi gặp lỗi kết nối.
+> - **3. [FEAT/NOTIF] Định Tuyến Foreground Notification Payload (`push_notification_service.dart`, `attendance_local_reminder_service.dart`)**:
 >   * Truyền payload JSON từ FCM data message vào `flutter_local_notifications` khi nhận thông báo ở trạng thái foreground.
 >   * Bổ sung bộ xử lý payload JSON trong local notification callback: giải mã thông tin `res_id`, `model`, `ticket_id`, `task_id` và điều hướng chính xác về `/tickets/:id`, `/timesheet?task_id=:id` hoặc `/chat/:channel_id`.
 > - **3. [DEV/TOOLS] Nâng Cấp Script Khởi Chạy Waydroid Mặc Định Odoo 19 (`launch_waydroid.sh`)**:
