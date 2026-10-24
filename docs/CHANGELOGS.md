@@ -15,7 +15,17 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 > - **3. [FEAT/NOTIF] Định Tuyến Foreground Notification Payload (`push_notification_service.dart`, `attendance_local_reminder_service.dart`)**:
 >   * Truyền payload JSON từ FCM data message vào `flutter_local_notifications` khi nhận thông báo ở trạng thái foreground.
 >   * Bổ sung bộ xử lý payload JSON trong local notification callback: giải mã thông tin `res_id`, `model`, `ticket_id`, `task_id` và điều hướng chính xác về `/tickets/:id`, `/timesheet?task_id=:id` hoặc `/chat/:channel_id`.
-> - **3. [DEV/TOOLS] Nâng Cấp Script Khởi Chạy Waydroid Mặc Định Odoo 19 (`launch_waydroid.sh`)**:
+> - **3. [FIX/LIFECYCLE] Khắc Phục Lỗi Chớp Màn Hình Đăng Nhập Khi Mở Lại App & Resume Task (`AndroidManifest.xml`, `splash_screen.dart`, `auth_repository.dart`)**:
+  * Root Cause:
+    1. `android:taskAffinity=""` trên `MainActivity` khiến Android Launcher không nhận diện được task hiện có khi người dùng bấm Home và mở lại app, dẫn đến việc Android khởi động lại Activity (cold start lại) thay vì resume task.
+    2. Fallback timeout trên `SplashScreen` đặt quá ngắn (1500ms) dẫn đến việc khi kết nối mạng/khôi phục session đang xử lý, màn hình tự ép nhảy sang `/login` rồi mới nhảy vào `/home`.
+    3. `AuthRepository.currentUser()` gọi lặp 2 lần request `/api/v1/auth/me` do không truyền `profile` đã fetch vào `_toUser()`.
+  * Giải pháp:
+    1. Loại bỏ `android:taskAffinity=""` trên `MainActivity` để Android quản lý task tiêu chuẩn và resume mượt mà.
+    2. Nâng fallback timeout an toàn lên 8s và chỉ cho phép chuyển `/login` khi `!authState.isLoading`.
+    3. Truyền `profile` vào `_toUser(session, profile: profile)` loại bỏ hoàn toàn duplicate HTTP call khi khởi động.
+    4. Bổ sung automated test `test/features/auth/splash_no_flash_login_test.dart` (PASS 100%).
+- **4. [DEV/TOOLS] Nâng Cấp Script Khởi Chạy Waydroid Mặc Định Odoo 19 (`launch_waydroid.sh`)**:
 >   * Mặc định kết nối Odoo 19 Local Server `:1900` với database `vcloud_test_v19`.
 >   * Bổ sung cờ `--dart-define="VCLOUD_ODOO_DB=..."` đồng bộ với cấu hình database backend.
 > - **4. [TEST] Bổ Sung Automated Widget Test & UAT Thiết Bị Thật**:

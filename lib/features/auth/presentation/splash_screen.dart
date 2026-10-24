@@ -40,13 +40,14 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       }
     });
 
-    // Fail-safe 1.5s timeout: nếu mạng chậm hoặc auth state không đổi, tự động chuyển trang
-    _fallbackTimer = Timer(const Duration(milliseconds: 1500), () {
+    // Fail-safe 8s timeout: chỉ kích hoạt khi thực sự mất kết nối/deadlock quá lâu
+    _fallbackTimer = Timer(const Duration(seconds: 8), () {
       if (!mounted) return;
-      final user = ref.read(authControllerProvider).valueOrNull;
+      final authState = ref.read(authControllerProvider);
+      final user = authState.valueOrNull;
       if (user != null) {
         _warmupAndNavigate();
-      } else {
+      } else if (!authState.isLoading) {
         context.go('/login');
       }
     });

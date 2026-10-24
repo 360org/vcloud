@@ -111,12 +111,9 @@ class AuthRepository {
   Future<AuthUser?> currentUser() async {
     final session = await _client.restoreSession();
     if (session == null) return null;
+    Map<String, dynamic>? profile;
     try {
-      final profile = await _client.currentUserProfile();
-      if (profile == null) {
-        // Body 200 không hợp lệ: giữ nguyên session thay vì vội vã logout
-        return await _toUser(session);
-      }
+      profile = await _client.currentUserProfile();
     } catch (e, st) {
       final errStr = e.toString().toLowerCase();
       final isAuthError = errStr.contains('401') ||
@@ -134,7 +131,7 @@ class AuthRepository {
       debugPrint(
           '[AuthRepository.currentUser] Network/connection hiccup, retaining session: $e');
     }
-    return _toUser(session);
+    return _toUser(session, profile: profile);
   }
 
   Future<AuthUser> signUp({
@@ -280,9 +277,9 @@ class AuthRepository {
     return '';
   }
 
-  Future<AuthUser> _toUser(OdooSession session) async {
+  Future<AuthUser> _toUser(OdooSession session, {Map<String, dynamic>? profile}) async {
     final hasVMobile = session.scope != 'odoo_web_session';
-    final profile = hasVMobile ? await _currentUserProfile(session.uid) : null;
+    profile ??= (hasVMobile ? await _currentUserProfile(session.uid) : null);
     final partnerId =
         (session.partnerId ?? _many2OneId(profile?['partner_id']))?.toString();
     final name = _stringOrNull(profile?['name']);
