@@ -85,10 +85,14 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
       ref.read(chatV2ReadStateProvider.notifier).markChannelAsRead(widget.channelId);
 
       final cleanTitle = widget.title != null ? ChatV2Channel.cleanChannelName(widget.title!) : null;
-      final isLikelyGroupOrInternal = (cleanTitle?.toLowerCase() == 'internal') ||
-          (widget.title?.toLowerCase().contains('internal') ?? false);
+      final titleLower = (cleanTitle ?? widget.title ?? '').toLowerCase();
+      final isLikelyNonDirect = titleLower.contains('internal') ||
+          titleLower.contains('tư vấn') ||
+          titleLower.contains('hỗ trợ') ||
+          titleLower.contains('cskh') ||
+          titleLower.contains('support');
 
-      if (isLikelyGroupOrInternal) {
+      if (isLikelyNonDirect) {
         ChatV2ChannelLocalCache.removePinnedDirectChannel(widget.channelId);
       } else if (cleanTitle != null && cleanTitle.isNotEmpty) {
         final existing = ChatV2ChannelLocalCache.getPinnedDirectChannel(widget.channelId);

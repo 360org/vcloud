@@ -128,6 +128,8 @@ class ChatV2ChannelLocalCache {
             final isGroupOrInternal = ch.isGroup ||
                 ch.channelType == 'channel' ||
                 ch.channelType == 'group' ||
+                ch.channelType == 'livechat' ||
+                ch.isLivechat ||
                 ch.memberCount > 2 ||
                 ch.name.toLowerCase().contains('internal');
             if (isGroupOrInternal) {
@@ -277,12 +279,19 @@ class ChatV2ChannelLocalCache {
   }
 
   static void pinDirectChannel(ChatV2Channel channel) {
-    final isGroup = channel.isGroup ||
+    final lower = channel.name.trim().toLowerCase();
+    final isNotDirect = channel.isGroup ||
         channel.channelType == 'group' ||
         channel.channelType == 'channel' ||
+        channel.channelType == 'livechat' ||
+        channel.isLivechat ||
         channel.memberCount > 2 ||
-        channel.name.trim().toLowerCase() == 'internal';
-    if (isGroup) {
+        lower == 'internal' ||
+        lower.contains('tư vấn') ||
+        lower.contains('hỗ trợ') ||
+        lower.contains('cskh') ||
+        lower.contains('support');
+    if (isNotDirect) {
       if (_pinnedDirectChannels.containsKey(channel.id)) {
         _pinnedDirectChannels.remove(channel.id);
         _saveToStorage();
@@ -434,7 +443,7 @@ class ChatV2ChannelLocalCache {
   }
 
   static void set(List<ChatV2Channel> channels) {
-    final map = <String, ChatV2Channel>{for (final c in _cached) c.id: c};
+    final map = <String, ChatV2Channel>{};
     for (final c in channels) {
       final cachedMsgs = ChatV2MessageLocalCache.get(c.id);
       final cachedFirst = (cachedMsgs != null && cachedMsgs.isNotEmpty) ? cachedMsgs.first : null;
@@ -557,6 +566,8 @@ class ChatV2ChannelLocalCache {
         final isGroup = existing.isGroup ||
             existing.channelType == 'channel' ||
             existing.channelType == 'group' ||
+            existing.channelType == 'livechat' ||
+            existing.isLivechat ||
             existing.memberCount > 2 ||
             existing.name.toLowerCase() == 'internal';
 
@@ -590,6 +601,8 @@ class ChatV2ChannelLocalCache {
         final isGroup = c.isGroup ||
             c.channelType == 'channel' ||
             c.channelType == 'group' ||
+            c.channelType == 'livechat' ||
+            c.isLivechat ||
             c.memberCount > 2 ||
             c.name.toLowerCase().contains('internal');
         if (!isGroup) {
@@ -604,6 +617,8 @@ class ChatV2ChannelLocalCache {
           ch.isGroup ||
           ch.channelType == 'channel' ||
           ch.channelType == 'group' ||
+          ch.channelType == 'livechat' ||
+          ch.isLivechat ||
           ch.memberCount > 2 ||
           ch.name.toLowerCase().contains('internal'));
       _saveToStorage();
@@ -1235,17 +1250,16 @@ class ChatV2ChannelsNotifier
   Future<void> leaveChannel(String channelId) async {
     try {
       await ref.read(chatV2RepositoryProvider).leaveChannel(channelId);
-      ChatV2ChannelLocalCache.remove(channelId);
-      final current = state.valueOrNull ?? ChatV2ChannelLocalCache.cached;
-      final updated = current.where((c) => c.id != channelId).toList();
-      ChatV2ChannelLocalCache.set(updated);
-      state = AsyncData(updated);
     } catch (e) {
       if (kDebugMode) {
-        debugPrint('[ChatV2ChannelsNotifier] leaveChannel error: $e');
+        debugPrint('[ChatV2ChannelsNotifier] leaveChannel backend error: $e');
       }
-      rethrow;
     }
+    ChatV2ChannelLocalCache.remove(channelId);
+    final current = state.valueOrNull ?? ChatV2ChannelLocalCache.cached;
+    final updated = current.where((c) => c.id != channelId).toList();
+    ChatV2ChannelLocalCache.set(updated);
+    state = AsyncData(updated);
   }
 
   void togglePin(String channelId) {

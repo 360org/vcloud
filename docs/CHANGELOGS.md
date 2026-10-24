@@ -2,6 +2,17 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+- **5. [FIX/CHAT] Khắc Phục Ghost Channels Do Cache Cục Bộ & Chặn Ghim Nhầm Livechat (`chat_v2_channels_controller.dart`, `chat_v2_detail_screen.dart`)**:
+  * Root Cause:
+    1. Hàm `ChatV2ChannelLocalCache.set()` khởi tạo bằng `map = {for (final c in _cached) c.id: c}` khiến các kênh đã bị xóa trên Odoo backend vẫn tồn tại vĩnh viễn trong local storage và không bao giờ bị dọn dẹp.
+    2. `_pinnedDirectChannels` và `ChatV2DetailScreen.initState()` không loại trừ `livechat` / kênh hỗ trợ tư vấn, dẫn đến việc các phiên livechat bị coi như chat 1-1 đồng nghiệp và tự động ghim lưu vĩnh viễn vào `pinned_direct_channels_v2`.
+    3. `leaveChannel` trong channels controller bị dừng trước khi xóa cache cục bộ nếu backend API trả về lỗi (kênh đã bị xóa trên server).
+  * Giải pháp:
+    1. Đặt `map = <String, ChatV2Channel>{}` trong `set()` để lấy danh sách từ Odoo server làm chuẩn (SSOT), tự động loại bỏ các kênh không còn tồn tại trên server.
+    2. Thêm điều kiện loại trừ `livechat`, `isLivechat`, `isCskhChannel`, `tư vấn`, `hỗ trợ` khỏi danh mục ghim 1-1 tại `ChatV2ChannelLocalCache.init()`, `pinDirectChannel()`, `set()` và `ChatV2DetailScreen.initState()`.
+    3. Đảm bảo `leaveChannel` luôn dọn dẹp cache cục bộ và state UI kể cả khi backend ném lỗi.
+    4. Đã verify trực tiếp trên Waydroid: 2 kênh rác "Chuyên viên tư vấn" đã hoàn toàn biến mất khỏi danh sách.
+
 ## [v2.9.22+168-patch] — 2026-10-24 (Vá Lỗi Đóng Băng Nút Back Khi Mở Ticket Từ Push Notification & Bổ Sung Foreground Routing)
 
 > [!IMPORTANT]
