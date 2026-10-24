@@ -2,6 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
@@ -786,12 +787,22 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
     final isPortal = ref.watch(authControllerProvider).valueOrNull?.isPortal ?? false;
     final comments = ticket != null ? ref.watch(ticketCommentsProvider(widget.ticketId)) : null;
 
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      resizeToAvoidBottomInset: true,
-      body: SafeArea(
-        child: Column(
-          children: [
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go('/tickets');
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        resizeToAvoidBottomInset: true,
+        body: SafeArea(
+          child: Column(
+            children: [
             _TicketDetailHeader(
               ticket: ticket,
               onEdit: (ticket == null || isPortal) ? null : () => _showEditDialog(ticket),
@@ -1043,6 +1054,7 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
           ],
         ),
       ),
+      ),
     );
   }
 }
@@ -1283,7 +1295,13 @@ class _TicketDetailHeader extends StatelessWidget {
       child: Row(
         children: [
           PressableScale(
-            onTap: () => Navigator.maybePop(context),
+            onTap: () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.go('/tickets');
+              }
+            },
             child: Container(
               width: 42,
               height: 42,

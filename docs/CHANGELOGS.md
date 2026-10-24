@@ -2,6 +2,20 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.22+168-patch] — 2026-10-24 (Vá Lỗi Đóng Băng Nút Back Khi Mở Ticket Từ Push Notification / Deep Link)
+
+> [!IMPORTANT]
+> **Khắc Phục Điều Hướng Nút Back Trên TicketDetailScreen (vclients)**:
+> - **1. [FIX/UI] Bọc PopScope & Fallback Điều Hướng (`ticket_detail_screen.dart`)**:
+>   * Root Cause: Khi mở Ticket Detail từ Push Notification hoặc Deep Link qua `GoRouter.go('/tickets/:id')`, navigation history stack bị ghi đè thành root route khiến `context.canPop()` là `false`. Lệnh `Navigator.maybePop(context)` không thực hiện hành động nào làm màn hình bị kẹt khi người dùng bấm nút `<`.
+>   * Giải pháp: Bọc `Scaffold` trong `PopScope(canPop: false, onPopInvokedWithResult: ...)` để đón sự kiện Back vật lý / cử chỉ Android; cập nhật nút Back `<` trên header kiểm tra `context.canPop() ? context.pop() : context.go('/tickets')`.
+> - **2. [TEST] Bổ Sung Automated Widget Test & UAT Thiết Bị Thật**:
+>   * `test/features/ticket/ticket_detail_back_navigation_test.dart`: 2/2 cases PASS (Kiểm thử cả luồng stack pop thông thường và luồng deep link fallback khi stack rỗng).
+>   * Xác nhận UAT trực tiếp trên Waydroid: Bấm nút Back thoát về danh sách Ticket mượt mà.
+>   * `flutter analyze`: 0 errors, 0 warnings.
+
+---
+
 ## [v2.9.22+168] — 2026-10-23 (Vá Dứt Điểm 4 Kẽ Hở Tự Động Logout Trên iOS & Android)
 
 > [!IMPORTANT]
