@@ -2,14 +2,20 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
-## [v2.9.22+168-patch] — 2026-10-24 (Vá Lỗi Đóng Băng Nút Back Khi Mở Ticket Từ Push Notification / Deep Link)
+## [v2.9.22+168-patch] — 2026-10-24 (Vá Lỗi Đóng Băng Nút Back Khi Mở Ticket Từ Push Notification & Bổ Sung Foreground Routing)
 
 > [!IMPORTANT]
-> **Khắc Phục Điều Hướng Nút Back Trên TicketDetailScreen (vclients)**:
+> **Khắc Phục Điều Hướng Nút Back Trên TicketDetailScreen & Định Tuyến Push Notification (vclients)**:
 > - **1. [FIX/UI] Bọc PopScope & Fallback Điều Hướng (`ticket_detail_screen.dart`)**:
 >   * Root Cause: Khi mở Ticket Detail từ Push Notification hoặc Deep Link qua `GoRouter.go('/tickets/:id')`, navigation history stack bị ghi đè thành root route khiến `context.canPop()` là `false`. Lệnh `Navigator.maybePop(context)` không thực hiện hành động nào làm màn hình bị kẹt khi người dùng bấm nút `<`.
 >   * Giải pháp: Bọc `Scaffold` trong `PopScope(canPop: false, onPopInvokedWithResult: ...)` để đón sự kiện Back vật lý / cử chỉ Android; cập nhật nút Back `<` trên header kiểm tra `context.canPop() ? context.pop() : context.go('/tickets')`.
-> - **2. [TEST] Bổ Sung Automated Widget Test & UAT Thiết Bị Thật**:
+> - **2. [FEAT/NOTIF] Định Tuyến Foreground Notification Payload (`push_notification_service.dart`, `attendance_local_reminder_service.dart`)**:
+>   * Truyền payload JSON từ FCM data message vào `flutter_local_notifications` khi nhận thông báo ở trạng thái foreground.
+>   * Bổ sung bộ xử lý payload JSON trong local notification callback: giải mã thông tin `res_id`, `model`, `ticket_id`, `task_id` và điều hướng chính xác về `/tickets/:id`, `/timesheet?task_id=:id` hoặc `/chat/:channel_id`.
+> - **3. [DEV/TOOLS] Nâng Cấp Script Khởi Chạy Waydroid Mặc Định Odoo 19 (`launch_waydroid.sh`)**:
+>   * Mặc định kết nối Odoo 19 Local Server `:1900` với database `vcloud_test_v19`.
+>   * Bổ sung cờ `--dart-define="VCLOUD_ODOO_DB=..."` đồng bộ với cấu hình database backend.
+> - **4. [TEST] Bổ Sung Automated Widget Test & UAT Thiết Bị Thật**:
 >   * `test/features/ticket/ticket_detail_back_navigation_test.dart`: 2/2 cases PASS (Kiểm thử cả luồng stack pop thông thường và luồng deep link fallback khi stack rỗng).
 >   * Xác nhận UAT trực tiếp trên Waydroid: Bấm nút Back thoát về danh sách Ticket mượt mà.
 >   * `flutter analyze`: 0 errors, 0 warnings.

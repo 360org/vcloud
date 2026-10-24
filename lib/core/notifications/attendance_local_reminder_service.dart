@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -8,6 +9,7 @@ import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
 import '../../features/attendance/domain/shift_calculator.dart';
+import '../../features/chat_v2/data/models/chat_v2_channel.dart';
 import '../../shared/models/attendance.dart';
 import '../router/app_router.dart';
 
@@ -93,6 +95,63 @@ class AttendanceLocalReminderService {
     try {
       final context = rootNavigatorKey.currentContext;
       if (context == null) return;
+
+      if (payload.startsWith('{')) {
+        try {
+          final data = jsonDecode(payload) as Map<String, dynamic>;
+          final resId = data['res_id'] ?? data['channel_id'] ?? data['discuss_channel_id'] ?? data['chat_id'];
+          final model = (data['model'] ?? data['type'] ?? '').toString().toLowerCase();
+          final resModel = (data['res_model'] ?? '').toString().toLowerCase();
+          final ticketId = data['ticket_id'] ?? data['helpdesk_ticket_id'];
+          final eventType = (data['event_type'] ?? '').toString().toLowerCase();
+          final action = (data['action'] ?? '').toString().toLowerCase();
+
+          if (eventType.contains('attendance') || action == 'checkin' || action == 'checkout') {
+            if (action == 'checkout') {
+              GoRouter.of(context).go('/attendance?action=checkout');
+            } else {
+              GoRouter.of(context).go('/attendance');
+            }
+          } else if (model.contains('helpdesk') ||
+              model.contains('ticket') ||
+              data.containsKey('ticket_id') ||
+              data.containsKey('helpdesk_ticket_id') ||
+              (model == 'mail.message' && resModel.contains('helpdesk'))) {
+            final targetTicketId = ticketId ?? resId;
+            if (targetTicketId != null &&
+                targetTicketId.toString().isNotEmpty &&
+                targetTicketId.toString() != '0') {
+              GoRouter.of(context).go('/tickets/$targetTicketId');
+            } else {
+              GoRouter.of(context).go('/tickets');
+            }
+          } else if (model.contains('task') ||
+              model.contains('timesheet') ||
+              data.containsKey('task_id') ||
+              (model == 'mail.message' && resModel.contains('task'))) {
+            final targetTaskId = data['task_id'] ?? resId;
+            if (targetTaskId != null && targetTaskId.toString().isNotEmpty && targetTaskId.toString() != '0') {
+              GoRouter.of(context).go('/timesheet?task_id=$targetTaskId');
+            } else {
+              GoRouter.of(context).go('/timesheet');
+            }
+          } else if ((model.contains('discuss') || model.contains('chat')) &&
+              resId != null &&
+              resId.toString().isNotEmpty &&
+              resId.toString() != '0') {
+            final rawChannelName = data['channel_name'] ?? data['name'] ?? '';
+            final cleanChannelName = ChatV2Channel.cleanChannelName(rawChannelName.toString());
+            GoRouter.of(context).go(
+              '/chat/$resId?name=${Uri.encodeComponent(cleanChannelName)}',
+            );
+          } else {
+            GoRouter.of(context).go('/');
+          }
+          return;
+        } catch (e) {
+          debugPrint('[AttendanceReminder] Error handling json payload: $e');
+        }
+      }
 
       if (payload == 'checkin') {
         GoRouter.of(context).go('/attendance');

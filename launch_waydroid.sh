@@ -13,9 +13,10 @@
 #     - Bấm 'q' ➔ Thoát phiên chạy!
 #
 # Cách dùng:
-#   bash launch_waydroid.sh         -> Menu chọn Local (:8069) hoặc Production
-#   bash launch_waydroid.sh local   -> Chạy kết nối Local Server (http://192.168.1.100:8069)
-#   bash launch_waydroid.sh prod    -> Chạy kết nối Production (https://vuahethong.net)
+#   bash launch_waydroid.sh            -> (MẶC ĐỊNH) Odoo 19 (:1900, DB: vcloud_test_v19)
+#   bash launch_waydroid.sh 19         -> Odoo 19 Local Server (:1900, vcloud_test_v19)
+#   bash launch_waydroid.sh 17         -> Odoo 17 Local Server (:8069, demo-17)
+#   bash launch_waydroid.sh prod       -> Production (https://vuahethong.net)
 #
 # ==============================================================================
 
@@ -68,38 +69,42 @@ fi
 
 echo "✅ Đã nhận diện thiết bị ADB: $DEVICE_ID"
 
-# 2. Chọn Backend
+# 2. Cấu hình Backend: MẶC ĐỊNH ƯU TIÊN ODOO 19 (vcloud_test_v19 :1900)
 BACKEND_ARG="${1:-}"
-LOCAL_URL="http://192.168.1.100:8069"
-PROD_URL="https://vuahethong.net"
+ODOO19_URL="http://192.168.1.100:1900"
+ODOO19_DB="vcloud_test_v19"
 
-if [[ "$BACKEND_ARG" == "local" || "$BACKEND_ARG" == "1" ]]; then
-    API_URL="$LOCAL_URL"
-    ENV_NAME="Local Server ($LOCAL_URL)"
-elif [[ "$BACKEND_ARG" == "prod" || "$BACKEND_ARG" == "2" ]]; then
-    API_URL="$PROD_URL"
-    ENV_NAME="Production ($PROD_URL)"
-else
-    echo "------------------------------------------------------------------------------"
-    echo "🎯 Chọn Backend kết nối:"
-    echo "   [1] Local Server ($LOCAL_URL)"
-    echo "   [2] Production   ($PROD_URL)"
-    echo "------------------------------------------------------------------------------"
-    read -rp "👉 Lựa chọn của Sếp [1/2] (Mặc định: 1): " choice
-    choice="${choice:-1}"
-    if [[ "$choice" == "2" || "$choice" == "prod" ]]; then
+ODOO17_URL="http://192.168.1.100:8069"
+ODOO17_DB="demo-17"
+
+PROD_URL="https://vuahethong.net"
+PROD_DB="vuahethong"
+
+case "$BACKEND_ARG" in
+    17|"17.0"|"demo-17")
+        API_URL="$ODOO17_URL"
+        DB_NAME="$ODOO17_DB"
+        ENV_NAME="Odoo 17 Local Server ($ODOO17_URL - DB: $ODOO17_DB)"
+        ;;
+    prod|"2"|"production")
         API_URL="$PROD_URL"
+        DB_NAME="$PROD_DB"
         ENV_NAME="Production ($PROD_URL)"
-    else
-        API_URL="$LOCAL_URL"
-        ENV_NAME="Local Server ($LOCAL_URL)"
-    fi
-fi
+        ;;
+    19|"19.0"|"local"|"1"|vcloud|"vcloud_test_v19"|*)
+        # MẶC ĐỊNH TUYỆT ĐỐI: Odoo 19 Local Server
+        API_URL="$ODOO19_URL"
+        DB_NAME="$ODOO19_DB"
+        ENV_NAME="Odoo 19 Local Server Ưu Tiên ($ODOO19_URL - DB: $ODOO19_DB)"
+        ;;
+esac
 
 echo "=============================================================================="
 echo "🎯 Đang khởi chạy ứng dụng lên Waydroid:"
 echo "   • Thiết bị ADB : $DEVICE_ID"
-echo "   • Backend      : $ENV_NAME"
+echo "   • Backend API  : $API_URL"
+echo "   • Database Target: $DB_NAME"
+echo "   • Môi trường   : $ENV_NAME"
 echo "------------------------------------------------------------------------------"
 echo "💡 HƯỚNG DẪN DEV SIÊU TỐC:"
 echo "   - Sửa code trong VS Code / IDE ➔ Lưu file hoặc bấm 'r' để HOT RELOAD (1 giây)!"
@@ -108,4 +113,5 @@ echo "   - Bấm 'q' để dừng ứng dụng."
 echo "=============================================================================="
 
 flutter run -d "$DEVICE_ID" \
-    --dart-define="VCLOUD_ODOO_API_BASE_URL=$API_URL"
+    --dart-define="VCLOUD_ODOO_API_BASE_URL=$API_URL" \
+    --dart-define="VCLOUD_ODOO_DB=$DB_NAME"
