@@ -266,6 +266,9 @@ Trước khi thực hiện bất kỳ lệnh `git commit` hay `git push` nào, A
 13. **Lỗi Pipeline CI/CD bị fail oan do bước phụ `Auto-Distribute to App Store` bị trễ / timeout**:
     - *Lỗi*: File IPA đã lên TestFlight thành công, nhưng bước tự động gửi duyệt App Store bị Apple delay xử lý (`PROCESSING` 10-15 phút) dẫn đến timeout và làm đỏ cả workflow.
     - *Cách sửa*: Cấu hình `continue-on-error: true` cho bước `Auto-Distribute to App Store` trong `.github/workflows/deploy.yml`. Luồng TestFlight và Google Play được bảo vệ hoàn tất xanh 100%.
+14. **Lỗi `pip3 install` bị chặn bởi PEP 668 trên macOS runner (`error: externally-managed-environment`)**:
+    - *Lỗi*: Trên macOS runner (Homebrew Python), lệnh `pip3 install` bị chặn cài đặt thư viện hệ thống nếu không có cờ ghi đè.
+    - *Cách sửa*: Luôn thêm cờ `--break-system-packages` khi chạy `pip3 install --quiet --break-system-packages <packages>` trong CI workflow.
 
 ---
 

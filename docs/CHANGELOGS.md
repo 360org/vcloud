@@ -2,6 +2,14 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.23+172] — 2026-10-25
+
+> [!IMPORTANT]
+> **Đồng Bộ Build Number Tăng Tiến & Fix PEP 668 Pip Installer CI/CD (vclients)**:
+> - **[RELEASE] Nâng build number lên 172 (`2.9.23+172`) khắc phục lỗi trùng lặp Bundle Version trên Apple TestFlight (`ENTITY_ERROR.ATTRIBUTE.INVALID.DUPLICATE`)**.
+> - **[FIX] Bổ sung cờ `--break-system-packages` cho lệnh `pip3 install` trên macOS runner (PEP 668) tại bước Auto-Distribute to App Store**.
+> - **[IMPROVE] Bảo toàn luồng CI/CD với `continue-on-error: true` cho bước phân phối phụ**.
+
 ## [v2.9.23+171] — 2026-10-25
 
 > [!IMPORTANT]
