@@ -278,6 +278,10 @@ Mọi mục thay đổi trong Changelog phải gán đúng 1 trong các Tag:
 ### 3. Deploy Tầng 3 — Frontend Release Store (TestFlight & Google Play):
 - **Apple TestFlight**: Khi Merge PR vào `main` ➔ GitHub Actions (`deploy.yml`) tự động kích hoạt build IPA và nộp lên TestFlight cho iPhone của Sếp Tân.
 - **Google Play Console (Direct-to-Production)**: 1 Giai đoạn duy nhất — Đẩy thẳng tệp `.aab` vào **Production Track** trên CH Play, bỏ qua các bước thử nghiệm rườm rà.
+- 🛡️ **3 Rào Chắn CI/CD Diệt Lỗi Ngớ Ngẩn (Release Self-Healing SSOT)**:
+  1. *Linter Guard*: Tuyệt đối không để `return Future` thiếu `await` trong khối `try/catch` (`unawaited_return_in_try_block`) khiến Dart Analyzer trên CI đánh fail build.
+  2. *Closed Release Train Guard*: Khi Apple đóng train cũ (Error 90186: `Invalid Pre-Release Train. The train version is closed for new build submissions`), tăng `BUILD` number là chưa đủ; BẮT BUỘC phải bump Marketing Version trong `pubspec.yaml` (ví dụ `2.9.22` ➔ `2.9.23`) để mở train mới.
+  3. *Pipeline Step Guard*: Luôn đặt `continue-on-error: true` cho bước `Auto-Distribute to App Store & Submit for Review` trong `.github/workflows/deploy.yml` để việc trễ trạng thái `PROCESSING` của Apple không làm gián đoạn pipeline TestFlight & Google Play.
 
 ---
 
@@ -432,7 +436,7 @@ TUYỆT ĐỐI KHÔNG tin ngay báo cáo của agent, KHÔNG vội vàng nhận 
 2. **Đúng version & Parity (Parity Gate)**: Đồng bộ SSOT `pubspec.yaml`, manifest 17 & 19, bảo đảm API contract parity và cú pháp tương thích giữa Odoo 17 và 19.
 3. **An toàn bảo mật (Security)**: Kiểm soát quyền sở hữu Anti-IDOR, bảo vệ Token/Credentials trong SecureStorage, phân lập dữ liệu đa công ty/tenant, sanitize log & chống XSS.
 4. **Chịu tải & Concurrency (High Load)**: Triệt tiêu 504 Gateway Timeout bằng async background worker, an toàn multi-worker Gevent, rate limiting và mobile resilience.
-5. **Diệt N+1 Query & Lỗi ngớ ngẩn (Silly Mistakes)**: Thanh trừng 5 mẫu lỗi N+1 kinh điển, lỗi Expected singleton, quên context.mounted sau await, dùng bang operator (!), nuốt chửng exception, mutable default arg.
+5. **Diệt N+1 Query & Lỗi ngớ ngẩn (Silly Mistakes)**: Thanh trừng 5 mẫu lỗi N+1 kinh điển, lỗi Expected singleton, quên context.mounted sau await, dùng bang operator (!), nuốt chửng exception, mutable default arg, lỗi `unawaited_return_in_try_block` chặn CI/CD, lỗi đóng submission train Apple 90186 và fail oan ở bước phụ auto-distribute.
 
 ### 📋 Pre-Push Verification Target Branches:
 - **GitLab `17.0` (`v_mobile_17`)**: MR only, py_compile 0 lỗi, XML không `attrs=`, test update module trên container `demo-17`.

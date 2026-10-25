@@ -256,6 +256,16 @@ Trước khi thực hiện bất kỳ lệnh `git commit` hay `git push` nào, A
    - *Cách sửa*: Luôn dùng hàm `.copyWith()` để tạo instance state mới.
 10. **Lỗi Bắt lỗi rỗng (`catch (e) {}`)**:
     - *Lỗi*: Bọc try/catch nhưng trong block catch không làm gì cả, user bấm nút không thấy phản hồi gì và tưởng app bị đơ.
+11. **Lỗi `unawaited_return_in_try_block` (Trả về Future không có `await` trong khối `try/catch`)**:
+    - *Lỗi*: Trong hàm `async`, lệnh `return _send(...)` nằm trong khối `try { ... } catch (e) { ... }` nhưng quên từ khóa `await`.
+    - *Hậu quả*: Exception phát sinh bên trong Future lọt ra ngoài phạm vi hàm, khối `catch` bị vô hiệu hóa hoàn toàn không bắt được lỗi. Dart Linter trên GitHub Actions gắn cờ warning `unawaited_return_in_try_block` và chặn đứng CI/CD (exit code 1).
+    - *Cách sửa*: Luôn luôn viết `return await _send(...);` khi `return` một `Future` bên trong khối `try`.
+12. **Lỗi Đóng Release Train trên Apple App Store Connect (Error 90186 `Invalid Pre-Release Train`)**:
+    - *Lỗi*: Đẩy bản build mới lên TestFlight nhưng Apple từ chối vì Marketing Version (ví dụ `2.9.22`) đã được submit duyệt hoặc đã đóng train (`closed for new build submissions`).
+    - *Cách sửa*: Khi Apple đóng train cũ, việc chỉ tăng Build Number là vô hiệu; BẮT BUỘC phải tăng Marketing Version trong `pubspec.yaml` (ví dụ từ `2.9.22` lên `2.9.23`) để mở release train mới.
+13. **Lỗi Pipeline CI/CD bị fail oan do bước phụ `Auto-Distribute to App Store` bị trễ / timeout**:
+    - *Lỗi*: File IPA đã lên TestFlight thành công, nhưng bước tự động gửi duyệt App Store bị Apple delay xử lý (`PROCESSING` 10-15 phút) dẫn đến timeout và làm đỏ cả workflow.
+    - *Cách sửa*: Cấu hình `continue-on-error: true` cho bước `Auto-Distribute to App Store` trong `.github/workflows/deploy.yml`. Luồng TestFlight và Google Play được bảo vệ hoàn tất xanh 100%.
 
 ---
 
@@ -297,6 +307,9 @@ Trước khi tạo Merge Request (GitLab) hoặc Pull Request (GitHub), Agent b�
 - [ ] **N+1 & Rookie Audit**: Đã kiểm tra `context.mounted` sau `await`, không dùng bang `!`, dispose 100% controllers.
 - [ ] **Version Parity**: Phiên bản và build number trong `pubspec.yaml` khớp với `docs/CHANGELOGS.md`.
 - [ ] **Web Build Check**: Chạy thử `flutter build web --no-pub` biên dịch thành công không văng lỗi.
+- [ ] **Dart Linter `unawaited_return`**: Kiểm tra các hàm `async` có `try/catch`, tuyệt đối không để `return Future` thiếu `await` gây cảnh báo `unawaited_return_in_try_block`.
+- [ ] **Apple Release Train Guard**: Nếu train version cũ bị Apple đóng (Error 90186), bắt buộc bump Marketing Version (`pubspec.yaml`), không chỉ tăng mỗi build number.
+- [ ] **CI/CD Step Guard**: Đảm bảo bước `Auto-Distribute to App Store` trong `.github/workflows/deploy.yml` luôn có `continue-on-error: true`.
 - [ ] **Clean Code**: Không còn `print()` thô debug dữ liệu nhạy cảm, không thừa import.
 - [ ] **Git Rule**: Commit có trailer `Authored-By: 360org <support@360.org.vn>`. Authoritative branch duy nhất là **`main`**. *(Nhánh cũ `release/ios-appstore` ĐÃ BỎ HOÀN TOÀN — CẤM DÙNG)*.
 
