@@ -2,6 +2,14 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.22+170] — 2026-10-25
+
+> [!IMPORTANT]
+> **Khắc Phục Cảnh Báo Static Analyzer & Đồng Bộ CI/CD (vclients)**:
+> - **[FIX] Sửa cảnh báo unawaited_return_in_try_block tại OdooApiClient._send, đảm bảo hoàn toàn 0 issues trên GitHub Actions CI/CD (`lib/core/api/odoo_api_client.dart`)**.
+>   * Bổ sung `await` khi gọi lại `_send(...)` trong try block xử lý refresh token retry.
+>   * Dart Analyzer: 0 errors, 0 warnings.
+
 ## [v2.9.22+169] — 2026-10-25 (Điều Hướng FCM Notification Click Cho Chat V2 Detail Screen & Khắc Phục Ghost Channels)
 
 > [!IMPORTANT]

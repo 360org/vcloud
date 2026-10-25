@@ -1263,7 +1263,7 @@ class OdooApiClient {
         try {
           final refreshed = await _tryRefreshSession();
           if (refreshed) {
-            return _send(method, path, body: body, query: query, auth: auth);
+            return await _send(method, path, body: body, query: query, auth: auth);
           }
           await _sessionStore.clear();
           _session = null;
