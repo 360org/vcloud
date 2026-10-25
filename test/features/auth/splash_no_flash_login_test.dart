@@ -5,8 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:vcloud/core/api/auth_user.dart';
-import 'package:vcloud/core/api/odoo_api_client.dart';
-import 'package:vcloud/core/api/odoo_session.dart';
 import 'package:vcloud/features/auth/application/auth_controller.dart';
 import 'package:vcloud/features/auth/data/auth_repository.dart';
 import 'package:vcloud/features/auth/presentation/splash_screen.dart';

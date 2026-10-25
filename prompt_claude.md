@@ -17,6 +17,7 @@
 | **VIII** | Rào Chắn Odoo 17 & 19 (Mandatory Gate) | Field Mapping, ORM, XML, Porting 7 bước |
 | **IX** | Zero-Trust Execution Gate (14 điều) | Task Mode, Read Before Write, Preserve Work, Least Privilege, Side-Effect, Agent Cap, Evidence, UI/Release, Final Report, SSOT Update, Todo Checklist, Desktop UI Widgets, Specialized Audit Toolkit, Visual Architecture Gate (360-archify) |
 | **X** | Tiếp Nhận Báo Cáo & Phân Rã Việc | Fact-Check chống bịa ➔ Root Cause ➔ Multi-Agent Dispatch chống chạy lâu |
+| **XI** | Pre-Push Audit & Quality Gate (audit_claude.md) | Thẩm định 4 trục: Tối ưu hệ thống, Đúng version, Bảo mật, Chịu tải trước khi push GitLab (17/19) & GitHub (main) |
 
 ---
 
@@ -418,5 +419,27 @@ TUYỆT ĐỐI KHÔNG tin ngay báo cáo của agent, KHÔNG vội vàng nhận 
   * 📦 **Gói Kiểm thử UAT & Runtime**: Ủy quyền cho `tester-functional` chạy test script, kiểm tra WebSocket handshake, kiểm tra giao diện UAT.
   * 📦 **Gói Rà soát An toàn & Quyền hạn**: Ủy quyền cho `tester-security` / `@auditor` soi record rules, access rights, SQL injection.
 - **Master Contract SSOT**: Lead Agent đóng gói toàn bộ yêu cầu, toạ độ `file_path:line` và rào chắn an toàn vào Master Execution Prompt chuẩn `prompt_claude.md` (4 Trụ Cột, 10 Gates, Bảng UAT PENDING) giao cho subagent chuyên trách thực thi.
+
+---
+
+## 🛡️ XI. HỆ THỐNG AUDIT & QUALITY GATE LIÊN KẾT CHUYÊN DỤNG (audit_claude.md)
+
+Để tinh gọn quy trình, chống phân mảnh tài liệu và bảo đảm an toàn tuyệt đối trước khi đưa code lên remote, `prompt_claude.md` liên kết chặt chẽ với file SSOT chuyên trách kiểm toán:
+👉 **File SSOT Audit độc quyền**: [audit_claude.md](audit_claude.md) (tại root và `vclients/audit_claude.md`).
+
+### 🏛️ Các Hạng Mục Kiểm Toán Bắt Buộc Trước Khi Push Code:
+1. **Tối ưu hệ thống (Performance)**: Triệt tiêu N+1 ORM query, dọn dẹp RAM cursor/controller, tối ưu rebuild Flutter widget, compact network payload.
+2. **Đúng version & Parity (Parity Gate)**: Đồng bộ SSOT `pubspec.yaml`, manifest 17 & 19, bảo đảm API contract parity và cú pháp tương thích giữa Odoo 17 và 19.
+3. **An toàn bảo mật (Security)**: Kiểm soát quyền sở hữu Anti-IDOR, bảo vệ Token/Credentials trong SecureStorage, phân lập dữ liệu đa công ty/tenant, sanitize log & chống XSS.
+4. **Chịu tải & Concurrency (High Load)**: Triệt tiêu 504 Gateway Timeout bằng async background worker, an toàn multi-worker Gevent, rate limiting và mobile resilience.
+5. **Diệt N+1 Query & Lỗi ngớ ngẩn (Silly Mistakes)**: Thanh trừng 5 mẫu lỗi N+1 kinh điển, lỗi Expected singleton, quên context.mounted sau await, dùng bang operator (!), nuốt chửng exception, mutable default arg.
+
+### 📋 Pre-Push Verification Target Branches:
+- **GitLab `17.0` (`v_mobile_17`)**: MR only, py_compile 0 lỗi, XML không `attrs=`, test update module trên container `demo-17`.
+- **GitLab `19.0` (`v_mobile_19`)**: MR only, py_compile 0 lỗi, tương thích `discuss.channel`, test update module trên container `odoo_dev_v19`.
+- **GitHub `main` (`vclients`)**: `flutter analyze` 0 errors/0 warnings, `flutter test` 100% pass, `flutter build web --no-pub` pass.
+
+> 📖 **Xem chi tiết toàn bộ checklist, công cụ và mẫu báo cáo**: Mở file [audit_claude.md](audit_claude.md).
+
 
 

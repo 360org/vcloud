@@ -2,16 +2,26 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
-- **5. [FIX/CHAT] Khắc Phục Ghost Channels Do Cache Cục Bộ & Chặn Ghim Nhầm Livechat (`chat_v2_channels_controller.dart`, `chat_v2_detail_screen.dart`)**:
-  * Root Cause:
-    1. Hàm `ChatV2ChannelLocalCache.set()` khởi tạo bằng `map = {for (final c in _cached) c.id: c}` khiến các kênh đã bị xóa trên Odoo backend vẫn tồn tại vĩnh viễn trong local storage và không bao giờ bị dọn dẹp.
-    2. `_pinnedDirectChannels` và `ChatV2DetailScreen.initState()` không loại trừ `livechat` / kênh hỗ trợ tư vấn, dẫn đến việc các phiên livechat bị coi như chat 1-1 đồng nghiệp và tự động ghim lưu vĩnh viễn vào `pinned_direct_channels_v2`.
-    3. `leaveChannel` trong channels controller bị dừng trước khi xóa cache cục bộ nếu backend API trả về lỗi (kênh đã bị xóa trên server).
-  * Giải pháp:
-    1. Đặt `map = <String, ChatV2Channel>{}` trong `set()` để lấy danh sách từ Odoo server làm chuẩn (SSOT), tự động loại bỏ các kênh không còn tồn tại trên server.
-    2. Thêm điều kiện loại trừ `livechat`, `isLivechat`, `isCskhChannel`, `tư vấn`, `hỗ trợ` khỏi danh mục ghim 1-1 tại `ChatV2ChannelLocalCache.init()`, `pinDirectChannel()`, `set()` và `ChatV2DetailScreen.initState()`.
-    3. Đảm bảo `leaveChannel` luôn dọn dẹp cache cục bộ và state UI kể cả khi backend ném lỗi.
-    4. Đã verify trực tiếp trên Waydroid: 2 kênh rác "Chuyên viên tư vấn" đã hoàn toàn biến mất khỏi danh sách.
+## [v2.9.22+169] — 2026-10-25 (Điều Hướng FCM Notification Click Cho Chat V2 Detail Screen & Khắc Phục Ghost Channels)
+
+> [!IMPORTANT]
+> **Định Tuyến Thông Báo Đẩy FCM & Dọn Dẹp Kênh Kẹt (vclients)**:
+> - **1. [FIX] Điều hướng FCM Notification click cho sự kiện chat_message (Chat V2 Detail Screen) (`lib/app.dart`)**:
+>   * Root Cause: Khi nhấn vào thông báo FCM từ system tray (background/terminated) hoặc qua local notification, payload từ backend Odoo gửi trường `event: 'chat_message'` hoặc `event_type: 'chat_message'`. Bộ parser `_extractRouteFromData()` trước đây chỉ kiểm tra `model.contains('discuss') || model.contains('chat')`, dẫn đến việc bị bỏ qua hoặc điều hướng sai sang tab mặc định khi payload không chứa trường `model`.
+>   * Giải pháp: Bổ sung kiểm tra `data['event']` vào bộ parser type; mở rộng điều kiện rẽ nhánh chat bao gồm `resModel.contains('discuss')`, `eventType.contains('discuss')`, `eventType.contains('chat')`, `data.containsKey('channel_id')`, `data.containsKey('discuss_channel_id')`. Khi nhận diện sự kiện chat và có `channel_id` hợp lệ (> 0), app điều hướng chính xác về `/chat/:channel_id` (Chat V2 Detail Screen).
+> - **2. [FIX/CHAT] Khắc Phục Ghost Channels Do Cache Cục Bộ & Chặn Ghim Nhầm Livechat (`chat_v2_channels_controller.dart`, `chat_v2_detail_screen.dart`)**:
+>   * Root Cause:
+>     1. Hàm `ChatV2ChannelLocalCache.set()` khởi tạo bằng `map = {for (final c in _cached) c.id: c}` khiến các kênh đã bị xóa trên Odoo backend vẫn tồn tại vĩnh viễn trong local storage và không bao giờ bị dọn dẹp.
+>     2. `_pinnedDirectChannels` và `ChatV2DetailScreen.initState()` không loại trừ `livechat` / kênh hỗ trợ tư vấn, dẫn đến việc các phiên livechat bị coi như chat 1-1 đồng nghiệp và tự động ghim lưu vĩnh viễn vào `pinned_direct_channels_v2`.
+>     3. `leaveChannel` trong channels controller bị dừng trước khi xóa cache cục bộ nếu backend API trả về lỗi (kênh đã bị xóa trên server).
+>   * Giải pháp:
+>     1. Đặt `map = <String, ChatV2Channel>{}` trong `set()` để lấy danh sách từ Odoo server làm chuẩn (SSOT), tự động loại bỏ các kênh không còn tồn tại trên server.
+>     2. Thêm điều kiện loại trừ `livechat`, `isLivechat`, `isCskhChannel`, `tư vấn`, `hỗ trợ` khỏi danh mục ghim 1-1 tại `ChatV2ChannelLocalCache.init()`, `pinDirectChannel()`, `set()` và `ChatV2DetailScreen.initState()`.
+>     3. Đảm bảo `leaveChannel` luôn dọn dẹp cache cục bộ và state UI kể cả khi backend ném lỗi.
+>     4. Đã verify trực tiếp trên Waydroid: 2 kênh rác "Chuyên viên tư vấn" đã hoàn toàn biến mất khỏi danh sách.
+> - **3. [QA/AUDIT] Xác Minh Static Analysis & Tuân Thủ SSOT**:
+>   * `flutter analyze` / `dart analyze`: 0 errors, 0 warnings.
+>   * Build number SSOT: nâng từ `168` lên `169` (`pubspec.yaml`), tag dự kiến `v2.9.22+169`.
 
 ## [v2.9.22+168-patch] — 2026-10-24 (Vá Lỗi Đóng Băng Nút Back Khi Mở Ticket Từ Push Notification & Bổ Sung Foreground Routing)
 

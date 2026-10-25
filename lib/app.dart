@@ -186,7 +186,7 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
       return;
     }
 
-    final type = (data['event_type'] ?? data['type'] ?? data['model'] ?? '')
+    final type = (data['event_type'] ?? data['event'] ?? data['type'] ?? data['model'] ?? '')
         .toString()
         .toLowerCase();
 
@@ -251,7 +251,7 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
     final model = (data['model'] ?? data['type'] ?? '').toString().toLowerCase();
     final resModel = (data['res_model'] ?? '').toString().toLowerCase();
     final ticketId = data['ticket_id'] ?? data['helpdesk_ticket_id'];
-    final eventType = (data['event_type'] ?? '').toString().toLowerCase();
+    final eventType = (data['event_type'] ?? data['event'] ?? '').toString().toLowerCase();
     final action = (data['action'] ?? '').toString().toLowerCase();
 
     // 1. Chấm công (Attendance)
@@ -296,7 +296,14 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
       }
     }
     // 5. Chat V2 / Discuss (Chỉ mở khi có channel_id thật sự > 0)
-    else if ((model.contains('discuss') || model.contains('chat')) &&
+    // ponytail: nhận diện chat qua model, resModel, eventType hoặc channel_id
+    else if ((model.contains('discuss') ||
+            model.contains('chat') ||
+            resModel.contains('discuss') ||
+            eventType.contains('discuss') ||
+            eventType.contains('chat') ||
+            data.containsKey('channel_id') ||
+            data.containsKey('discuss_channel_id')) &&
         resId != null &&
         resId.toString().isNotEmpty &&
         resId.toString() != '0') {
