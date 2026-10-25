@@ -8,6 +8,7 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 > **Khởi Tạo Submission Train Mới Trên Apple App Store Connect & TestFlight (vclients)**:
 > - **[RELEASE] Nâng train marketing version lên 2.9.23 (build 171) giải quyết triệt để lỗi Apple App Store Connect đóng submission train cũ 2.9.22**.
 > - **[FIX] Kế thừa toàn bộ bản vá await OdooApiClient và điều hướng FCM click Chat V2**.
+> - **[IMPROVE] Cấu hình continue-on-error: true cho bước Auto-Distribute to App Store trong CI/CD, đảm bảo TestFlight & Play Store pipeline luôn pass mượt mà**.
 
 ## [v2.9.22+170] — 2026-10-25
 

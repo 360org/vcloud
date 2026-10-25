@@ -130,6 +130,7 @@ jobs:
 
       - name: Auto-Distribute to App Store & Submit for Review
         if: success() && (github.event_name == 'release' || inputs.auto_create_appstore != false)
+        continue-on-error: true
         env:
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
