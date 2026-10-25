@@ -2,6 +2,13 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.23+171] — 2026-10-25
+
+> [!IMPORTANT]
+> **Khởi Tạo Submission Train Mới Trên Apple App Store Connect & TestFlight (vclients)**:
+> - **[RELEASE] Nâng train marketing version lên 2.9.23 (build 171) giải quyết triệt để lỗi Apple App Store Connect đóng submission train cũ 2.9.22**.
+> - **[FIX] Kế thừa toàn bộ bản vá await OdooApiClient và điều hướng FCM click Chat V2**.
+
 ## [v2.9.22+170] — 2026-10-25
 
 > [!IMPORTANT]
