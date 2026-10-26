@@ -12,6 +12,7 @@ import '../../core/api/odoo_api_client.dart';
 import '../../core/theme/app_theme.dart';
 import '../../features/auth/application/auth_controller.dart';
 import '../../features/chat_v2/application/chat_v2_channels_controller.dart';
+import '../../features/menu/presentation/app_drawer_bottom_sheet.dart';
 
 /// Standard scaffold for top-level tabs (Home/Chat/...). Draws the
 /// app bar and the bottom-nav shell. The shell auto-detects which tab is
@@ -167,15 +168,20 @@ class _FloatingTabBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final chatUnread = ref.watch(chatV2TotalUnreadProvider);
+    final authUser = ref.watch(authControllerProvider).valueOrNull;
+    final isPortal = authUser?.isPortal == true;
+    final showAppsDrawer = !isPortal;
+    final insertIndex = showAppsDrawer ? (tabs.length >= 2 ? 2 : tabs.length) : -1;
+
     return SafeArea(
       top: false,
-      minimum: const EdgeInsets.fromLTRB(34, 0, 34, 10),
+      minimum: const EdgeInsets.fromLTRB(20, 0, 20, 10),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(30),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
             decoration: BoxDecoration(
               color: isDark
                   ? AppColors.darkSurface.withValues(alpha: 0.88)
@@ -196,7 +202,21 @@ class _FloatingTabBar extends ConsumerWidget {
             ),
             child: Row(
               children: [
-                for (var i = 0; i < tabs.length; i++)
+                for (var i = 0; i < tabs.length; i++) ...[
+                  if (showAppsDrawer && i == insertIndex)
+                    Expanded(
+                      child: _AppsNavItem(
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          showModalBottomSheet<void>(
+                            context: context,
+                            isScrollControlled: true,
+                            backgroundColor: Colors.transparent,
+                            builder: (ctx) => const AppDrawerBottomSheet(),
+                          );
+                        },
+                      ),
+                    ),
                   Expanded(
                     child: _NavItem(
                       key: ValueKey('tab_item_${tabs[i].path.replaceAll('/', '')}'),
@@ -209,8 +229,78 @@ class _FloatingTabBar extends ConsumerWidget {
                       },
                     ),
                   ),
+                ],
+                if (showAppsDrawer && insertIndex >= tabs.length)
+                  Expanded(
+                    child: _AppsNavItem(
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        showModalBottomSheet<void>(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: Colors.transparent,
+                          builder: (ctx) => const AppDrawerBottomSheet(),
+                        );
+                      },
+                    ),
+                  ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AppsNavItem extends StatelessWidget {
+  const _AppsNavItem({
+    required this.onTap,
+  });
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final color = isDark ? AppColors.darkTextMuted : AppColors.textPrimary;
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Semantics(
+        label: 'Ứng dụng',
+        button: true,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 2),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Icon(
+                  LucideIcons.layoutGrid,
+                  size: 22,
+                  color: color,
+                ),
+              ),
+              const SizedBox(height: 1),
+              SizedBox(
+                width: double.infinity,
+                child: Text(
+                  'Ứng dụng',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: color,
+                    fontWeight: FontWeight.w600,
+                    height: 1.1,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),

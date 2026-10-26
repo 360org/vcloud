@@ -2,6 +2,7 @@
 
 > **Dự án**: VCloud Mobile App (`vclients` Flutter) kết nối Odoo Backend (`v_mobile_17` & `v_mobile_19`)  
 > **Phiên bản hiện tại**: `v2.9.17+157` (Bản dựng TestFlight iOS & AAB Android phát hành Google Play mới nhất)  
+> 🔵 **Tính Năng Đang Chuẩn Bị (2026-10-26)**: `[ ] [PLANNING: Menu Ứng Dụng Đáy (Bottom App Drawer) Lưới 4 Cột & Bộ Định Tuyến Lai Ghép Native/WebView — Hoàn tất SPEC & PLAN, bảo toàn 100% RBAC Odoo res.groups]`  
 > 🔴 **Ghi Nhận Yêu Cầu & Phát Hiện Lỗi UAT Thực Tế Từ Sếp Tân (2026-10-21)**: `[ ] [UAT-PENDING: 5 hạng mục cần xử lý: (1) Bổ sung SĐT vào Profile (đủ 5 mục: Họ tên, Chức vụ, Công ty, Email, SĐT); (2) Sửa lỗi UI/UX vỡ layout khi gửi ảnh/video + text (thumbnail quá to, mất tên người gửi); (3) Sửa lỗi thu hồi tin nhắn vẫn còn hiển thị ở danh sách chat list; (4) Khắc phục lỗi ghim tin nhắn tự biến mất; (5) Phát triển tính năng Chuyển tiếp tin nhắn (Forward Message)]`  
 > 🟢 **Bản Vá Mới (2026-10-14)**: `[x] [L4 — VERIFIED: Triệt Tiêu Lỗi Văng Đăng Nhập Trên Samsung Galaxy S22 / Android One UI: Chuẩn Hóa EncryptedSharedPreferences, Chống Xóa Nhầm Session Khi Knox Keystore Khóa Tạm Thời, Phân Biệt Lỗi Mạng vs Lỗi 401 Khi Cold Start & Khắc Phục Payload Silent Refresh Token (10/10 assert-based self-check tests PASS, 0 dart analyze issues)]`  
 > 🟢 **Bản Phát Hành Mới (Build 164 — 2026-10-13)**: `[x] [L4 — VERIFIED: Smart Direct Chat 1-1 "Chat với CSKH" Cho Khách Hàng Portal Thay Thế Zalo OA, Tự Động Kết Nối CSKH Odoo 17 & 19, FloatingActionButton & Home Action Card (Pass 100% tests, 0 analyze issues)]`  
@@ -331,6 +332,7 @@
 - [x] 6.9 **Yêu cầu Xóa Tài Khoản (Account Deletion - 6.8)**: Tuân thủ nghiêm ngặt chính sách bảo mật của Apple App Store & Google Play, hộp thoại xác nhận bảo vệ dữ liệu kèm nút gửi yêu cầu qua email `support@360.org.vn`.
 - [x] 6.10 **Tối Ưu Độ Tương Phản & Sửa Lỗi Giao Diện Hồ Sơ Trong Dark Mode (Profile Dark Mode Contrast — BUG-023 / Build 146)**: `[CLAUDE-VERIFIED — 11/11 TESTS PASS]` Khắc phục triệt để lỗi tiêu đề trường dữ liệu bị chìm vào nền card tối; thêm vạch chỉ báo accent màu xanh thương hiệu (`AppColors.primary`), nâng cấp tiêu đề lên font w700 Slate 100 `#F1F5F9`, nền khung giá trị Slate 900 `#0F172A` viền Slate 700 `#334155`, đồng bộ AppBar phẳng tối `Color(0xFF1E293B)`. Pass 11/11 tests trong `test/features/profile/edit_profile_dark_mode_test.dart`.
 - [x] 6.11 **Bổ Sung Hiển Thị Số Điện Thoại (SĐT) Trong Hồ Sơ Cá Nhân (5 Mục Thông Tin Chuẩn — UAT 2026-10-21)**: `[x] [L4 — VERIFIED: 18/18 TESTS PASS & 0 ANALYZE ISSUES]` Màn hình Profile / Thông tin cá nhân đã bổ sung trường Số điện thoại (ưu tiên `mobile` > `phone` > `work_phone`), fallback an toàn 'Chưa cập nhật' khi trống.
+- [x] 6.12 **Menu Ứng Dụng Đáy & Điều Hướng Lai Ghép Hybrid (Bottom App Drawer & In-App WebView Launcher — FEAT-BOTTOM-APP-DRAWER-HYBRID / 2026-10-26)**: `[x] [L4 — VERIFIED: 10/10 TESTS PASS & 0 ANALYZE ISSUES]` Icon lưới 4 ô vuông tại thanh điều hướng đáy (Bottom Bar), trượt mở BottomSheet lưới 4 cột Squash Badge 16px hiển thị toàn bộ phân hệ Odoo backend được cấp quyền. Tự động bảo mật phân quyền 100% theo vai trò tài khoản (`res.groups` qua API Odoo `ir.ui.menu.load_menus`). Điều hướng thông minh: Chuyển Native Flutter cho Chat, Timesheet, Ticket, Profile; Khởi chạy In-App WebView có nhúng sẵn session Odoo cho các phân hệ backend còn lại (Kế toán, Tuyển dụng, Khảo sát, eLearning, AI Provider...). Pass 5/5 unit tests (`test/features/menu/menu_test.dart`) và 10/10 RBAC runtime integration tests trên Odoo 19 `vcloud_test_v19`.
 
 ---
 
@@ -343,7 +345,7 @@
 | **3** | **Giao tiếp Nội bộ (Chat V2, Media, WebRTC Call, Push)** | 32 tính năng (+ 24 đối soát Discuss) | `100% PASS` | `✅ CLAUDE-VERIFIED (ĐÃ FIX 4 MỤC UAT 2026-10-21)` | `Build 164+` |
 | **4** | **Quản lý Công việc & Dự án (Home Dashboard, Tasks, Danh bạ)** | 9 tính năng | `100% PASS` | `✅ CLAUDE-VERIFIED (ĐÃ FIX BUG-021 & LIVE WAYDROID)` | `Build 147` |
 | **5** | **Hỗ trợ & Xử lý Yêu cầu (Ticket / Helpdesk, SLA, Portal)** | 16 tính năng (đã bỏ 5.8, đã hoàn tất BUG-024, BUG-025) | `100% PASS` | `✅ CLAUDE-VERIFIED (BUG-024 & BUG-025 VERIFIED L4)` | `Build 147` |
-| **6** | **Tôi (Hồ sơ cá nhân, Dark Theme, Cache, Token, Xóa tài khoản)** | 11 tính năng | `100% PASS` | `✅ CLAUDE-VERIFIED (ĐÃ BỔ SUNG SĐT VÀO PROFILE)` | `Build 147` |
+| **6** | **Tôi & Menu Ứng Dụng (Hồ sơ cá nhân, App Drawer, Dark Theme, Cache)** | 12 tính năng (12/12 PASS 100%) | `100% PASS` | `✅ CLAUDE-VERIFIED (FEAT-BOTTOM-APP-DRAWER-HYBRID VERIFIED L4)` | `Build 147+` |
 
 ---
 
@@ -1679,6 +1681,22 @@ Tab "Tôi" quản lý thông tin nhân sự cá nhân, tùy chỉnh giao diện 
     - `lib/features/auth/data/models/odoo_user.dart`
     - `v_mobile_17/controllers/auth.py`
     - `v_mobile_19/controllers/auth.py`
+
+- [x] **6.12 Menu Ứng Dụng Đáy & Điều Hướng Lai Ghép Hybrid (Bottom App Drawer & In-App WebView Launcher — FEAT-BOTTOM-APP-DRAWER-HYBRID / 2026-10-26)**: `[x] [L4 — VERIFIED: 10/10 TESTS PASS & 0 ANALYZE ISSUES]`
+  - *Mô tả & Bài toán*:
+    Cung cấp icon lưới 4 ô vuông (`LucideIcons.layoutGrid`) tại thanh điều hướng đáy (Bottom Bar), trượt mở BottomSheet lưới 4 cột toàn diện hiển thị danh sách các phân hệ Odoo backend được cấp phép, giải quyết bài toán người dùng mobile cần truy cập hơn 30 phân hệ Odoo (Kế toán, Tuyển dụng, Khảo sát, eLearning...) mà không cần phải lập trình lại Native cho từng phân hệ.
+  - *Đặc tả Kiến trúc Lai Ghép (Hybrid Architecture)*:
+    1. **Bảo mật Role-based Access Control (RBAC 100%)**: Gọi endpoint `/api/v1/mobile/menu/apps` kết nối `ir.ui.menu.load_menus()` của Odoo ORM. Server tự động đối soát `res.groups`, tài khoản không có quyền tuyệt đối không xuất hiện icon phân hệ đó (Admin thấy 24 phân hệ; Nhân viên demo thấy 17 phân hệ nghiệp vụ, ẩn sạch Kế toán/Tuyển dụng/Thiết lập; Portal ẩn hoàn toàn nút 'Ứng dụng' trên thanh Bottom Bar và API trả về [] chặn cứng từ gốc, thanh điều hướng Portal giữ 4 nút: Home, Chat, Ticket, Tôi).
+    2. **Khung Trượt Đáy (App Drawer BottomSheet)**: `DraggableScrollableSheet` góc bo 24px, chiếm 85% chiều cao; thanh tab chuyển đổi `Bookmark` & `All apps`; lưới 4 cột Squash Badge bo tròn 16px; chân sheet có mục "TIỆN ÍCH HỆ THỐNG" (Tài liệu hướng dẫn, Yêu cầu hỗ trợ, Cài đặt).
+    3. **Bộ Điều Hướng Lai Ghép Thông Minh (Hybrid Router)**:
+       - Đã có Native Flutter (`/chat`, `/timesheet`, `/tickets`, `/profile`) ➔ Chuyển route Native tức thì.
+       - Chưa có Native Flutter (Kế toán, Tuyển dụng, eLearning, Khảo sát...) ➔ Khởi chạy `OdooWebViewScreen`, tự động nạp Cookie Session Odoo (`session_id`), ẩn navbar Odoo web mặc định bằng CSS native để trải nghiệm liền mạch như app thật.
+  - *Kết quả Kiểm thử & Nghiệm thu (Verified 2026-10-26)*:
+    - Static analysis: `flutter analyze` ➔ 0 errors / 0 warnings (16.4s).
+    - Unit tests: `flutter test test/features/menu/menu_test.dart` ➔ 5/5 tests PASS.
+    - Runtime RBAC verification: 10/10 test cases verified trên Local Server Odoo 19 (`vcloud_test_v19`, port 1900).
+    - Tệp mã nguồn Frontend: `lib/features/menu/data/menu_item_model.dart`, `lib/features/menu/data/menu_repository.dart`, `lib/features/menu/application/menu_controller.dart`, `lib/features/menu/presentation/app_drawer_bottom_sheet.dart`, `lib/features/menu/presentation/odoo_webview_screen.dart`, `lib/shared/widgets/app_scaffold.dart`, `lib/core/router/app_router.dart`.
+    - Tệp mã nguồn Backend: `v_mobile_19/controllers/menu.py`, `v_mobile_17/controllers/menu.py`.
 
 ---
 

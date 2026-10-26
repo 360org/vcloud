@@ -2,7 +2,7 @@
 
 > **Hệ sinh thái**: VCloud Mobile App (Flutter Client) & Odoo Mobile Addon (`vmobile` - Odoo 17 & Odoo 19)  
 > **Phiên bản chuẩn hóa**: `v2.9.12` (Build 144)  
-> **Nguồn sự thật duy nhất (Single Source of Truth - SSOT)**: Tài liệu đặc tả chức năng toàn diện cho 80 tính năng thuộc 6 phân hệ nghiệp vụ chuẩn mực.
+> **Nguồn sự thật duy nhất (Single Source of Truth - SSOT)**: Tài liệu đặc tả chức năng toàn diện cho 81 tính năng thuộc 6 phân hệ nghiệp vụ chuẩn mực.
 
 > 💡 **HƯỚNG DẪN KHI AUDIT MÃ NGUỒN ODOO BACKEND**:
 > Sau khi pull nhánh `17.0` (`v_mobile_17`) hoặc `19.0` (`v_mobile_19`), người vận hành cần thực hiện nâng cấp (upgrade) module **`vmobile`** trên Odoo Server để nạp toàn bộ các bản vá API và route mới nhất:
@@ -12,7 +12,7 @@
 
 ---
 
-## 📑 BẢNG TỔNG QUAN 6 PHÂN HỆ NGHIỆP VỤ (80 TÍNH NĂNG)
+## 📑 BẢNG TỔNG QUAN 6 PHÂN HỆ NGHIỆP VỤ (81 TÍNH NĂNG)
 
 | STT | Phân Hệ Nghiệp Vụ | Số Lượng Tính Năng | Phạm Vi Kiến Trúc |
 | :---: | :--- | :---: | :--- |
@@ -21,7 +21,7 @@
 | **3** | **Giao tiếp Nội bộ & Hội thoại Đa phương tiện (Chat V2 & Media)** | 28 tính năng | Odoo Discuss, WebRTC Audio, Coturn TURN, WebSocket Bus, SAF, Clean Reply, Mute |
 | **4** | **Quản lý Công việc & Bảng Điều khiển (Dashboard & Tasks)** | 9 tính năng | `project.task`, Subtasks Checklist, SWR Cache, Notification Center |
 | **5** | **Hỗ trợ Kỹ thuật & Phiếu Dịch vụ (Helpdesk Tickets)** | 14 tính năng | `helpdesk.ticket`, SLA Tracker, Odoo Chatter, In-App Attachment Viewer |
-| **6** | **Hồ sơ Cá nhân & Tiện ích Hệ thống (Profile & Settings)** | 9 tính năng | `res.users`, Dark Theme, Cache Cleaner, 4-Tier Secure Logout |
+| **6** | **Hồ sơ Cá nhân & Tiện ích Hệ thống (Profile & Settings)** | 10 tính năng | `res.users`, Dark Theme, Cache Cleaner, 4-Tier Secure Logout, Bottom App Drawer |
 
 ---
 
@@ -360,3 +360,9 @@
 
 ### 6.9. Thu hồi & Xóa Tài khoản Khỏi Thiết bị (Account Deletion & Data Wipe)
 - Cho phép người dùng xóa hoàn toàn thông tin định danh của tài khoản khỏi thiết bị di động, đảm bảo an toàn tuyệt đối khi chuyển giao hoặc nâng cấp điện thoại.
+
+### 6.10. Menu Ứng Dụng Đáy & Điều Hướng Lai Ghép Hybrid (Bottom App Drawer & In-App WebView Launcher)
+- Cung cấp icon lưới 4 ô vuông (`LucideIcons.layoutGrid`) trên thanh điều hướng đáy (Bottom Navigation Bar), chạm vào trượt mở BottomSheet toàn diện dạng lưới 4 cột hiển thị danh sách các phân hệ Odoo được cấp phép.
+- Đồng bộ phân quyền tự động 100% theo vai trò tài khoản (`res.groups` qua API Odoo `ir.ui.menu.load_menus`), tài khoản không có quyền tuyệt đối không hiển thị icon phân hệ đó.
+- Kiến trúc điều hướng lai ghép (Hybrid Router): Tự động chuyển hướng màn hình Native Flutter cho các module đã có (Chat, Timesheet, Ticket, Profile); tự động khởi chạy màn hình In-App WebView có nhúng phiên làm việc Odoo cho các module backend chưa có Native (Kế toán, Tuyển dụng, eLearning, Khảo sát, AI Provider...).
+

@@ -12,6 +12,7 @@ import '../../features/chat/presentation/new_chat_screen.dart';
 import '../../features/chat_v2/presentation/screens/chat_v2_detail_screen.dart';
 import '../../features/chat_v2/presentation/screens/chat_v2_list_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
+import '../../features/menu/presentation/odoo_webview_screen.dart';
 import '../../features/profile/presentation/about_screen.dart';
 import '../../features/profile/presentation/edit_profile_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
@@ -310,6 +311,17 @@ final routerProvider = Provider<GoRouter>((ref) {
             );
           },
         ),
+      ),
+      GoRoute(
+        path: '/webview',
+        pageBuilder: (context, state) {
+          final url = state.uri.queryParameters['url'] ?? '/web';
+          final title = state.uri.queryParameters['title'] ?? 'Vcloud Web';
+          return _buildFadePage(
+            state: state,
+            child: OdooWebViewScreen(url: url, title: title),
+          );
+        },
       ),
     ],
   );
