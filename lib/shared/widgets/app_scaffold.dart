@@ -60,7 +60,8 @@ class AppScaffold extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authUser = ref.watch(authControllerProvider).valueOrNull;
-    final isPortal = authUser?.isPortal == true;
+    final sessionScope = odooApiClient.session?.scope;
+    final isPortal = (authUser != null && authUser.isPortal) || sessionScope == 'portal';
     final hasHelpdesk = authUser?.hasHelpdesk ?? true;
 
     final List<_TabSpec> tabs;
@@ -169,8 +170,9 @@ class _FloatingTabBar extends ConsumerWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final chatUnread = ref.watch(chatV2TotalUnreadProvider);
     final authUser = ref.watch(authControllerProvider).valueOrNull;
-    final isPortal = authUser?.isPortal == true;
-    final showAppsDrawer = !isPortal;
+    final sessionScope = odooApiClient.session?.scope;
+    final isPortal = (authUser != null && authUser.isPortal) || sessionScope == 'portal';
+    final showAppsDrawer = authUser != null && !isPortal;
     final insertIndex = showAppsDrawer ? (tabs.length >= 2 ? 2 : tabs.length) : -1;
 
     return SafeArea(

@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
+import '../../../core/api/odoo_api_client.dart';
+import '../../../core/config/env.dart';
 import '../application/menu_controller.dart';
 import '../data/menu_item_model.dart';
 
@@ -38,10 +40,26 @@ class _AppDrawerBottomSheetState extends ConsumerState<AppDrawerBottomSheet> {
     }
 
     // Mở Hybrid WebView cho các module chưa có native Flutter
-    final url = app.webUrl ??
+    var url = app.webUrl ??
         (app.actionId != null
             ? '/web#action=${app.actionId}&menu_id=${app.id}'
             : '/web#menu_id=${app.id}');
+
+    final session = odooApiClient.session;
+    final dbName = session?.db.isNotEmpty == true
+        ? session!.db
+        : (Env.odooDb.isNotEmpty ? Env.odooDb : 'vcloud_test_v19');
+
+    if (!url.contains('db=')) {
+      if (url.contains('#')) {
+        final parts = url.split('#');
+        final sep = parts[0].contains('?') ? '&' : '?';
+        url = '${parts[0]}${sep}db=$dbName#${parts[1]}';
+      } else {
+        final sep = url.contains('?') ? '&' : '?';
+        url = '$url${sep}db=$dbName';
+      }
+    }
 
     final uri = Uri(
       path: '/webview',
@@ -62,8 +80,24 @@ class _AppDrawerBottomSheetState extends ConsumerState<AppDrawerBottomSheet> {
       return;
     }
 
-    final targetUrl = item.webUrl ?? item.url;
+    var targetUrl = item.webUrl ?? item.url;
     if (targetUrl != null && targetUrl.isNotEmpty) {
+      final session = odooApiClient.session;
+      final dbName = session?.db.isNotEmpty == true
+          ? session!.db
+          : (Env.odooDb.isNotEmpty ? Env.odooDb : 'vcloud_test_v19');
+
+      if (!targetUrl.contains('db=')) {
+        if (targetUrl.contains('#')) {
+          final parts = targetUrl.split('#');
+          final sep = parts[0].contains('?') ? '&' : '?';
+          targetUrl = '${parts[0]}${sep}db=$dbName#${parts[1]}';
+        } else {
+          final sep = targetUrl.contains('?') ? '&' : '?';
+          targetUrl = '$targetUrl${sep}db=$dbName';
+        }
+      }
+
       final uri = Uri(
         path: '/webview',
         queryParameters: {
@@ -696,36 +730,39 @@ class _UtilityTile extends StatelessWidget {
 
     final iconData = _resolveUtilityIcon(item.id, item.icon);
 
-    return ListTile(
-      dense: true,
-      onTap: onTap,
-      leading: Container(
-        width: 32,
-        height: 32,
-        decoration: BoxDecoration(
-          color: brandBlue.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(8),
+    return Material(
+      color: Colors.transparent,
+      child: ListTile(
+        dense: true,
+        onTap: onTap,
+        leading: Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: brandBlue.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            iconData,
+            size: 17,
+            color: brandBlue,
+          ),
         ),
-        child: Icon(
-          iconData,
-          size: 17,
-          color: brandBlue,
+        title: Text(
+          item.name,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: textColor,
+          ),
         ),
-      ),
-      title: Text(
-        item.name,
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-          color: textColor,
+        trailing: Icon(
+          LucideIcons.chevronRight,
+          size: 16,
+          color: textMuted,
         ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
       ),
-      trailing: Icon(
-        LucideIcons.chevronRight,
-        size: 16,
-        color: textMuted,
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
     );
   }
 

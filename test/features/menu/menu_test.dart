@@ -1,7 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:vcloud/core/api/odoo_session.dart';
 import 'package:vcloud/features/menu/application/menu_controller.dart';
 import 'package:vcloud/features/menu/data/menu_item_model.dart';
 import 'package:vcloud/features/menu/data/menu_repository.dart';
+import 'package:vcloud/features/menu/presentation/odoo_webview_screen.dart';
 
 class _FakeMenuRepository extends MenuRepository {
   _FakeMenuRepository({this.shouldThrow = false});
@@ -145,6 +147,63 @@ void main() {
       await controller.loadMenu();
       expect(controller.state.apps, isEmpty);
       expect(controller.state.utilities.length, 3); // default utilities
+    });
+  });
+
+  group('buildTargetWebViewUrl', () {
+    final session19 = OdooSession(
+      accessToken: 'test_token',
+      uid: 2,
+      db: 'vcloud_test_v19',
+      login: 'admin',
+      expiresAt: DateTime.now().add(const Duration(days: 1)),
+      baseUrl: 'http://192.168.1.100:1900',
+    );
+
+    test('uses SSO bridge with token and db when session is present', () {
+      final url = buildTargetWebViewUrl(
+        rawUrl: '/web#action=base.action_res_users',
+        session: session19,
+        baseUrl: 'http://192.168.1.100:1900',
+      );
+      expect(url, contains('/api/v1/mobile/web/auth'));
+      expect(url, contains('token=test_token'));
+      expect(url, contains('db=vcloud_test_v19'));
+      expect(url, contains('redirect='));
+      expect(url, isNot(contains('/web/database/selector')));
+    });
+
+    test('injects db into query parameter before fragment when session is null', () {
+      final url = buildTargetWebViewUrl(
+        rawUrl: '/web#action=210&menu_id=105',
+        session: null,
+        baseUrl: 'http://192.168.1.100:8069',
+      );
+      expect(url, contains('/web?db='));
+      expect(url, contains('#action=210&menu_id=105'));
+      expect(url, isNot(contains('/web/database/selector')));
+    });
+
+    test('preserves existing query parameters and does not duplicate db', () {
+      final url = buildTargetWebViewUrl(
+        rawUrl: '/web?cids=1#action=123',
+        session: null,
+        baseUrl: 'http://192.168.1.100:1900',
+      );
+      expect(url, contains('cids=1'));
+      expect(url, contains('db='));
+      expect(url, contains('#action=123'));
+    });
+
+    test('converts /web to /odoo when baseUrl or db indicates Odoo 19', () {
+      final url = buildTargetWebViewUrl(
+        rawUrl: '/web#action=210&menu_id=105',
+        session: null,
+        baseUrl: 'http://192.168.1.100:1900',
+      );
+      expect(url, contains('/odoo?db='));
+      expect(url, contains('#action=210&menu_id=105'));
+      expect(url, isNot(contains('/web/database/selector')));
     });
   });
 }
