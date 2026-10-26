@@ -110,6 +110,8 @@ class OdooApiClient {
 
   OdooSession? get session => _session;
 
+  String get baseUrl => _activeBaseUrl();
+
   void registerPartnerUserMapping(Object? partnerId, Object? userId) {
     if (partnerId != null && userId != null) {
       final pStr = partnerId.toString().trim();
