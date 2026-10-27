@@ -195,14 +195,15 @@ void main() {
       expect(url, contains('#action=123'));
     });
 
-    test('converts /web to /odoo when baseUrl or db indicates Odoo 19', () {
+    test('preserves /web and appends ?db= before fragment', () {
       final url = buildTargetWebViewUrl(
         rawUrl: '/web#action=210&menu_id=105',
         session: null,
         baseUrl: 'http://192.168.1.100:1900',
       );
-      expect(url, contains('/odoo?db='));
+      expect(url, contains('/web?db='));
       expect(url, contains('#action=210&menu_id=105'));
+      expect(url, isNot(contains('/odoo')));
       expect(url, isNot(contains('/web/database/selector')));
     });
   });

@@ -381,10 +381,9 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
 }
 
 /// Chuẩn hoá URL mở In-App WebView:
-/// 1. Tự động nhận diện Odoo 19 để chuyển /web thành /odoo.
-/// 2. Luôn chèn `?db=database` vào trước dấu # để triệt tiêu màn hình /web/database/selector.
-/// 3. Trên Native Mobile (!kIsWeb): Sử dụng SSO bridge /api/v1/mobile/web/auth khi có accessToken để tự động nạp phiên Odoo.
-/// 4. Trên Web (kIsWeb): Trả về URL trực tiếp kèm ?db= để iframe nạp đúng DB, tránh bị Chrome chặn third-party cookie.
+/// 1. Luôn chèn `?db=database` vào trước dấu # để triệt tiêu màn hình /web/database/selector.
+/// 2. Trên Native Mobile (!kIsWeb): Sử dụng SSO bridge /api/v1/mobile/web/auth khi có accessToken để tự động nạp phiên Odoo.
+/// 3. Trên Web (kIsWeb): Trả về URL trực tiếp kèm ?db= để iframe nạp đúng DB, tránh bị Chrome chặn third-party cookie.
 String buildTargetWebViewUrl({
   required String rawUrl,
   OdooSession? session,
@@ -395,28 +394,11 @@ String buildTargetWebViewUrl({
     target = '/web';
   }
 
-  final resolvedBaseUrl = baseUrl.isNotEmpty
-      ? baseUrl
-      : (session?.baseUrl ?? odooApiClient.baseUrl);
   final db = (session != null && session.db.isNotEmpty)
       ? session.db
       : (Env.odooDb.isNotEmpty ? Env.odooDb : 'vcloud_test_v19');
 
-  // 1. Nhận diện phiên bản Odoo 19: dùng route /odoo thay vì /web
-  final isOdoo19 = resolvedBaseUrl.contains('1900') ||
-      resolvedBaseUrl.contains('19.') ||
-      (session?.scope?.contains('19') ?? false) ||
-      db.contains('19');
-
-  if (isOdoo19) {
-    if (target == '/web' ||
-        target.startsWith('/web?') ||
-        target.startsWith('/web#')) {
-      target = target.replaceFirst('/web', '/odoo');
-    }
-  }
-
-  // 2. Luôn gắn ?db=<database> vào trước dấu # nếu chưa có
+  // Luôn gắn ?db=<database> vào trước dấu # nếu chưa có
   if (db.isNotEmpty && !target.contains('db=')) {
     if (target.contains('#')) {
       final parts = target.split('#');
@@ -428,7 +410,7 @@ String buildTargetWebViewUrl({
     }
   }
 
-  // 3. Trên Native Mobile (!kIsWeb) có accessToken: Sử dụng SSO bridge
+  // Trên Native Mobile (!kIsWeb) có accessToken: Sử dụng SSO bridge
   // Trên Web (kIsWeb): Iframe nạp trực tiếp target có ?db= để tránh bị Chrome chặn third-party cookies trên cross-origin iframe
   if (!kIsWeb && session != null && session.accessToken.isNotEmpty) {
     final ssoUri = Uri(
