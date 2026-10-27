@@ -2,6 +2,19 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.24+173] — 2026-10-26
+
+> [!IMPORTANT]
+> **Menu Ứng Dụng Đáy Lai Ghép & Chuẩn Hóa Điều Hướng In-App WebView (vclients & v_mobile)**:
+> - **[NEW] Menu Ứng dụng đáy (Bottom App Drawer & Hybrid Navigation — FEAT-BOTTOM-APP-DRAWER-HYBRID)**:
+>   * Thêm icon lưới 4 ô vuông (`LucideIcons.layoutGrid`) tại thanh điều hướng đáy, mở BottomSheet lưới 4 cột hiển thị toàn bộ phân hệ Odoo được cấp phép.
+>   * Phân quyền RBAC server-side: Portal ẩn hoàn toàn nút Ứng dụng; Nhân viên chỉ thấy các app có quyền; Quản trị viên thấy đầy đủ.
+>   * Điều hướng lai ghép (Hybrid Router): Module có sẵn Flutter (`/chat`, `/timesheet`, `/tickets`, `/profile`) mở màn hình Native; các module khác mở In-App WebView.
+> - **[FIX] Chuẩn hóa định tuyến In-App WebView & triệt tiêu lỗi Database Selector / 404**:
+>   * Luôn gắn `?db=<dbname>` trực tiếp trước `#` trên mọi URL webview để Odoo backend nhận diện chính xác DB.
+>   * Giữ nguyên endpoint chuẩn `/web` (loại bỏ việc chuyển hướng nhầm `/odoo` gây lỗi 404 trên Odoo 19 core).
+>   * Hỗ trợ iframe cross-origin trên Web (`kIsWeb`) chống bị chặn cookie trình duyệt.
+
 ## [v2.9.23+172] — 2026-10-25
 
 > [!IMPORTANT]
