@@ -381,9 +381,10 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
 }
 
 /// Chuẩn hoá URL mở In-App WebView:
-/// 1. Luôn chèn `?db=database` vào trước dấu # để triệt tiêu màn hình /web/database/selector.
-/// 2. Trên Native Mobile (!kIsWeb): Sử dụng SSO bridge /api/v1/mobile/web/auth khi có accessToken để tự động nạp phiên Odoo.
-/// 3. Trên Web (kIsWeb): Trả về URL trực tiếp kèm ?db= để iframe nạp đúng DB, tránh bị Chrome chặn third-party cookie.
+/// 1. Luôn chèn `?db=database` vào trước dấu # để đảm bảo ngữ cảnh Database.
+/// 2. Sử dụng SSO bridge (/api/v1/mobile/web/auth) khi có accessToken để tự động nạp phiên Odoo,
+///    thiết lập cookie session_id và đăng nhập thẳng vào ứng dụng (cả Native và Web),
+///    triệt tiêu hoàn toàn màn hình /web/database/selector và /web/login.
 String buildTargetWebViewUrl({
   required String rawUrl,
   OdooSession? session,
@@ -410,9 +411,24 @@ String buildTargetWebViewUrl({
     }
   }
 
-  // Trên Native Mobile (!kIsWeb) có accessToken: Sử dụng SSO bridge
-  // Trên Web (kIsWeb): Iframe nạp trực tiếp target có ?db= để tránh bị Chrome chặn third-party cookies trên cross-origin iframe
-  if (!kIsWeb && session != null && session.accessToken.isNotEmpty) {
+  final base = baseUrl.isNotEmpty
+      ? baseUrl
+      : (session?.baseUrl.isNotEmpty == true
+          ? session!.baseUrl
+          : odooApiClient.baseUrl);
+
+  String resolveAbsolute(String path) {
+    if (path.startsWith('http://') || path.startsWith('https://')) return path;
+    if (base.isNotEmpty) {
+      final normalized = path.startsWith('/') ? path : '/$path';
+      return '$base$normalized';
+    }
+    return odooApiClient.absoluteUrl(path);
+  }
+
+  // Sử dụng SSO bridge khi có accessToken (cả Native và Web) để tự động nạp session Odoo,
+  // thiết lập cookie session_id và điều hướng thẳng vào ứng dụng được chỉ định
+  if (session != null && session.accessToken.isNotEmpty) {
     final ssoUri = Uri(
       path: '/api/v1/mobile/web/auth',
       queryParameters: {
@@ -421,8 +437,8 @@ String buildTargetWebViewUrl({
         'redirect': target,
       },
     );
-    return odooApiClient.absoluteUrl(ssoUri.toString());
+    return resolveAbsolute(ssoUri.toString());
   }
 
-  return odooApiClient.absoluteUrl(target);
+  return resolveAbsolute(target);
 }

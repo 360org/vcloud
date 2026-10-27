@@ -13,7 +13,7 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 > - **[FIX] Chuẩn hóa định tuyến In-App WebView & triệt tiêu lỗi Database Selector / 404**:
 >   * Luôn gắn `?db=<dbname>` trực tiếp trước `#` trên mọi URL webview để Odoo backend nhận diện chính xác DB.
 >   * Giữ nguyên endpoint chuẩn `/web` (loại bỏ việc chuyển hướng nhầm `/odoo` gây lỗi 404 trên Odoo 19 core).
->   * Hỗ trợ iframe cross-origin trên Web (`kIsWeb`) chống bị chặn cookie trình duyệt.
+>   * Kích hoạt SSO Bridge `/api/v1/mobile/web/auth` đồng bộ cho cả Web (`kIsWeb`) và Mobile khi có session, thiết lập `session_id` cookie tự động để triệt tiêu màn hình Database Selector (`/web/database/selector`).
 
 ## [v2.9.23+172] — 2026-10-25
 
