@@ -2,6 +2,24 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.24+174] — 2026-10-27
+
+> [!IMPORTANT]
+> **Khắc Phục Lỗi Cleartext & Đồng Bộ Cookie Session Cho In-App WebView Trên Android API 28+ (vclients & v_mobile)**:
+> - **[FIX] Cho phép Cleartext Traffic trên Android API 28+ (`vclients`)**:
+>   * Bổ sung `android:usesCleartextTraffic="true"` và cấu hình `android:networkSecurityConfig="@xml/network_security_config"` trong `AndroidManifest.xml` và `network_security_config.xml`.
+>   * Giải quyết triệt để lỗi `-1: net::ERR_CLEARTEXT_NOT_PERMITTED` khi truy cập máy chủ Local Server hoặc dev server qua giao thức HTTP thường.
+> - **[FIX] Chuẩn hóa Tách Biệt JWT Bearer & Cookie Odoo Session (`vclients`)**:
+>   * Loại bỏ việc inject `session.accessToken` vào cookie `session_id` trong `OdooWebViewScreen`, ngăn chặn ghi đè sai định dạng cookie làm hỏng phiên Odoo web client.
+>   * Giao phó toàn quyền sinh và quản lý Odoo `session_id` chuẩn cho SSO bridge `/api/v1/mobile/web/auth`.
+> - **[FIX] Cookie Flag Thích Ứng HTTP / HTTPS Trên Backend Odoo 17 & 19 (`v_mobile`)**:
+>   * Cập nhật SSO bridge `/api/v1/mobile/web/auth` trong `controllers/auth.py` tự động phát hiện `is_https`.
+>   * Khi chạy HTTP (Dev LAN / Local Server): Sử dụng `secure=False, samesite="Lax"` để Chromium WebView không hủy bỏ cookie; chỉ bật `Secure; SameSite=None; Partitioned` khi có kết nối HTTPS thực tế.
+>   * Triệt tiêu hoàn toàn lỗi trắng màn hình và `SyntaxError: Unexpected token '<', "<!DOCTYPE "... is not valid JSON` do Odoo trả về 404 HTML khi tải `/web/webclient/load_menus`.
+> - **[TEST] Nghiệm Thu Thực Tế Trên Hạ Tầng Redroid Android 11 (Local Server `192.168.1.100:5555`)**:
+>   * Khởi chạy Vcloud trên máy ảo Redroid Docker, mở mượt mà cả "Cài đặt hệ thống" (`/web#action=base.action_res_users`) và "Calendar" Odoo 19.
+>   * Giao diện nhúng liền mạch, tự động ẩn navbar Odoo, không bị hỏi lại database selector.
+
 ## [v2.9.24+173] — 2026-10-26
 
 > [!IMPORTANT]

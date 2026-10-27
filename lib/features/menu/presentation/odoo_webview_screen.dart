@@ -102,26 +102,9 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
       final uri = Uri.parse(fullUrl);
       debugPrint('[VCLOUD_WEBVIEW] Khởi tạo WebViewController cho mobile với uri=$uri');
 
-      // 1. Inject Session Cookie từ OdooApiClient nếu có
-      final session = odooApiClient.session;
-      if (session != null && session.accessToken.isNotEmpty) {
-        try {
-          final cookieManager = WebViewCookieManager();
-          await cookieManager.setCookie(
-            WebViewCookie(
-              name: 'session_id',
-              value: session.accessToken,
-              domain: uri.host,
-              path: '/',
-            ),
-          );
-          debugPrint('[VCLOUD_WEBVIEW] Đã set session_id cookie vào WebView');
-        } catch (e) {
-          debugPrint('[VCLOUD_WEBVIEW] Set cookie error: $e');
-        }
-      }
-
-      // 2. Cấu hình WebViewController cho Mobile
+      // Cấu hình WebViewController cho Mobile
+      // ponytail: Không inject session.accessToken vào cookie 'session_id' vì accessToken là JWT Bearer,
+      // không phải Odoo session_id. SSO bridge (/api/v1/mobile/web/auth) tự sinh và gán Odoo session_id chuẩn.
       final controller = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
         ..setBackgroundColor(Colors.white)

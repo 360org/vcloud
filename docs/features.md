@@ -1691,12 +1691,13 @@ Tab "Tôi" quản lý thông tin nhân sự cá nhân, tùy chỉnh giao diện 
     3. **Bộ Điều Hướng Lai Ghép Thông Minh (Hybrid Router)**:
        - Đã có Native Flutter (`/chat`, `/timesheet`, `/tickets`, `/profile`) ➔ Chuyển route Native tức thì.
        - Chưa có Native Flutter (Kế toán, Tuyển dụng, eLearning, Khảo sát...) ➔ Khởi chạy `OdooWebViewScreen`, tự động nạp Cookie Session Odoo (`session_id`), ẩn navbar Odoo web mặc định bằng CSS native để trải nghiệm liền mạch như app thật.
-  - *Kết quả Kiểm thử & Nghiệm thu (Verified 2026-10-26)*:
+  - *Kết quả Kiểm thử & Nghiệm thu (Verified 2026-10-26 & 2026-10-27)*:
     - Static analysis: `flutter analyze` ➔ 0 errors / 0 warnings (16.4s).
     - Unit tests: `flutter test test/features/menu/menu_test.dart` ➔ 5/5 tests PASS.
     - Runtime RBAC verification: 10/10 test cases verified trên Local Server Odoo 19 (`vcloud_test_v19`, port 1900).
+    - Khắc phục lỗi Cleartext Traffic & Session Cookie (2026-10-27): Bổ sung `android:usesCleartextTraffic="true"`, `network_security_config.xml`, loại bỏ JWT inject vào cookie `session_id` và bổ sung cờ thích ứng HTTP `secure=False, samesite=Lax` trong backend SSO route. Kiểm chứng thực tế 100% trên Redroid Android 11 container (`192.168.1.100:5555`).
     - Tệp mã nguồn Frontend: `lib/features/menu/data/menu_item_model.dart`, `lib/features/menu/data/menu_repository.dart`, `lib/features/menu/application/menu_controller.dart`, `lib/features/menu/presentation/app_drawer_bottom_sheet.dart`, `lib/features/menu/presentation/odoo_webview_screen.dart`, `lib/shared/widgets/app_scaffold.dart`, `lib/core/router/app_router.dart`.
-    - Tệp mã nguồn Backend: `v_mobile_19/controllers/menu.py`, `v_mobile_17/controllers/menu.py`.
+    - Tệp mã nguồn Backend: `v_mobile_19/controllers/menu.py`, `v_mobile_17/controllers/menu.py`, `v_mobile_19/controllers/auth.py`, `v_mobile_17/controllers/auth.py`.
 
 ---
 

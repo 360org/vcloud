@@ -38,7 +38,7 @@
 - Tuân thủ nguyên tắc **1-File-1-Owner** (cấm 2 Dev sửa chung 1 file). Bàn giao code cho `@tester`.
 
 ### 🧪 3. `@tester` (QA & Automation Test Agent):
-- Thực thi runtime test (`dart analyze lib/`, `py_compile`, Waydroid / Local Server UAT).
+- Thực thi runtime test: Static (`dart analyze lib/`, `py_compile`), Mobile Android UAT ưu tiên Redroid Docker trên Local Server (`192.168.1.100:5555` qua script `scripts/test_redroid_automation.sh` hoặc `adb -s 192.168.1.100:5555`). TUYỆT ĐỐI HẠN CHẾ Waydroid trên máy cá nhân (chỉ dùng Waydroid fallback khi làm việc tại nhà/offline không có mạng LAN công ty để tiết kiệm CPU/RAM máy Sếp Tân).
 - Mạch ngắt lặp (Max 2 Loops): Nếu sửa kẹt 3 lần ➔ **Stop-The-Line**, báo `@lead` trình Sếp Tân.
 
 ### 🛡️ 4. `@auditor` (Security & Code Review Auditor):
@@ -68,6 +68,7 @@
    *(Nâng cấp module: `ssh local "docker exec demo-17 odoo -d demo-17 -u v_mobile --stop-after-init"`)*
 3. **Inject Test DB**: `bash /media/tanma/DATA/save/mobile_versions/scripts/setup_test_db.sh all`
 4. **Launch Flutter Web**: `cd /media/tanma/DATA/save/mobile_versions/vclients && ./launch_web_ssh.sh 17`
+5. **Test Android Mobile (Redroid Local Server)**: `bash /media/tanma/DATA/save/mobile_versions/scripts/test_redroid_automation.sh` (mặc định AUTO dùng Redroid Docker tại cty `192.168.1.100:5555`, điều khiển qua `scrcpy --tcpip=192.168.1.100:5555`; hạn chế tối đa Waydroid máy cá nhân).
 
 ---
 
@@ -173,10 +174,11 @@ Agent BẮT BUỘC đọc file SSOT chỉ định (ví dụ: `vclients/docs/feat
 - Tạo checkpoint trước phẫu thuật: `git stash` hoặc `git tag CHECKPOINT-{{TASK_SLUG}}`
 - Commit prefix theo Conventional Commits: `{{COMMIT_PREFIX}}({{SCOPE}}): ...`
 
-#### 🧪 KIỂM THỬ STATIC ANALYSIS & LOCAL LAN SYNC:
+#### 🧪 KIỂM THỬ STATIC ANALYSIS, LOCAL LAN SYNC & MOBILE REDROID:
 1. Flutter Static Check: `cd vclients && dart analyze lib/` ➔ BẮT BUỘC 0 errors, 0 warnings.
 2. Odoo Syntax Check: `python3 -m py_compile <path>` ➔ PASS 100%.
 3. Nạp code LAN: `bash /media/tanma/DATA/save/mobile_versions/scripts/sync_lan . sh all`
+4. Android Mobile Testing Policy: Tại công ty/mạng LAN ➔ Mặc định AUTO kiểm thử trên Redroid Docker Local Server `192.168.1.100:5555` (`bash scripts/test_redroid_automation.sh` hoặc `adb -s 192.168.1.100:5555 install/monkey/screencap`). TUYỆT ĐỐI HẠN CHẾ dùng Waydroid trên máy cá nhân để tiết kiệm pin/RAM máy Sếp Tân (chỉ dùng Waydroid làm phương án dự phòng khi làm việc ở nhà/ngoài mạng cty).
 
 #### 📝 MANDATORY POST-TASK SSOT UPDATE GATE (BẮT BUỘC CẬP NHẬT FILE SAU KHI LÀM):
 Sau khi code và chạy test pass, Agent BẮT BUỘC mở và cập nhật trực tiếp vào file SSOT (`features . md` và `docs/...`):
