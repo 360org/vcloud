@@ -400,12 +400,16 @@ String buildTargetWebViewUrl({
       : (Env.odooDb.isNotEmpty ? Env.odooDb : 'vcloud_test_v19');
 
   // Luôn gắn ?db=<database> vào trước dấu # nếu chưa có
-  if (db.isNotEmpty && !target.contains('db=')) {
-    if (target.contains('#')) {
-      final parts = target.split('#');
-      final sep = parts[0].contains('?') ? '&' : '?';
-      target = '${parts[0]}${sep}db=$db#${parts[1]}';
-    } else {
+  if (db.isNotEmpty) {
+    final hashIndex = target.indexOf('#');
+    if (hashIndex != -1) {
+      final beforeHash = target.substring(0, hashIndex);
+      final afterHash = target.substring(hashIndex + 1);
+      if (!beforeHash.contains('db=')) {
+        final sep = beforeHash.contains('?') ? '&' : '?';
+        target = '$beforeHash${sep}db=$db#$afterHash';
+      }
+    } else if (!target.contains('db=')) {
       final sep = target.contains('?') ? '&' : '?';
       target = '$target${sep}db=$db';
     }

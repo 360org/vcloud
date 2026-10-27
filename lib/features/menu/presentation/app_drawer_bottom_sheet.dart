@@ -40,26 +40,12 @@ class _AppDrawerBottomSheetState extends ConsumerState<AppDrawerBottomSheet> {
     }
 
     // Mở Hybrid WebView cho các module chưa có native Flutter
-    var url = app.webUrl ??
+    final targetUrl = app.webUrl ??
         (app.actionId != null
             ? '/web#action=${app.actionId}&menu_id=${app.id}'
             : '/web#menu_id=${app.id}');
 
-    final session = odooApiClient.session;
-    final dbName = session?.db.isNotEmpty == true
-        ? session!.db
-        : (Env.odooDb.isNotEmpty ? Env.odooDb : 'vcloud_test_v19');
-
-    if (!url.contains('db=')) {
-      if (url.contains('#')) {
-        final parts = url.split('#');
-        final sep = parts[0].contains('?') ? '&' : '?';
-        url = '${parts[0]}${sep}db=$dbName#${parts[1]}';
-      } else {
-        final sep = url.contains('?') ? '&' : '?';
-        url = '$url${sep}db=$dbName';
-      }
-    }
+    final url = formatAppWebUrl(targetUrl);
 
     final uri = Uri(
       path: '/webview',
@@ -80,28 +66,13 @@ class _AppDrawerBottomSheetState extends ConsumerState<AppDrawerBottomSheet> {
       return;
     }
 
-    var targetUrl = item.webUrl ?? item.url;
+    final targetUrl = item.webUrl ?? item.url;
     if (targetUrl != null && targetUrl.isNotEmpty) {
-      final session = odooApiClient.session;
-      final dbName = session?.db.isNotEmpty == true
-          ? session!.db
-          : (Env.odooDb.isNotEmpty ? Env.odooDb : 'vcloud_test_v19');
-
-      if (!targetUrl.contains('db=')) {
-        if (targetUrl.contains('#')) {
-          final parts = targetUrl.split('#');
-          final sep = parts[0].contains('?') ? '&' : '?';
-          targetUrl = '${parts[0]}${sep}db=$dbName#${parts[1]}';
-        } else {
-          final sep = targetUrl.contains('?') ? '&' : '?';
-          targetUrl = '$targetUrl${sep}db=$dbName';
-        }
-      }
-
+      final url = formatAppWebUrl(targetUrl);
       final uri = Uri(
         path: '/webview',
         queryParameters: {
-          'url': targetUrl,
+          'url': url,
           'title': item.name,
         },
       );
@@ -778,4 +749,31 @@ class _UtilityTile extends StatelessWidget {
     }
     return LucideIcons.wrench;
   }
+}
+
+/// Gắn `?db=<session.db>` vào URL đích trước dấu `#` nếu chưa có.
+String formatAppWebUrl(String rawUrl, {String? db}) {
+  final session = odooApiClient.session;
+  final dbName = (db != null && db.isNotEmpty)
+      ? db
+      : (session?.db.isNotEmpty == true
+          ? session!.db
+          : (Env.odooDb.isNotEmpty ? Env.odooDb : 'vcloud_test_v19'));
+
+  var url = rawUrl.trim();
+  if (dbName.isNotEmpty) {
+    final hashIndex = url.indexOf('#');
+    if (hashIndex != -1) {
+      final beforeHash = url.substring(0, hashIndex);
+      final afterHash = url.substring(hashIndex + 1);
+      if (!beforeHash.contains('db=')) {
+        final sep = beforeHash.contains('?') ? '&' : '?';
+        url = '$beforeHash${sep}db=$dbName#$afterHash';
+      }
+    } else if (!url.contains('db=')) {
+      final sep = url.contains('?') ? '&' : '?';
+      url = '$url${sep}db=$dbName';
+    }
+  }
+  return url;
 }

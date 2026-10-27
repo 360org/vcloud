@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
+import '../../core/api/auth_user.dart';
 import '../../core/api/odoo_api_client.dart';
 import '../../core/theme/app_theme.dart';
 import '../../features/auth/application/auth_controller.dart';
@@ -56,6 +57,13 @@ class AppScaffold extends ConsumerWidget {
     _TabSpec(label: 'Ticket', path: '/tickets', icon: LucideIcons.ticket),
     _TabSpec(label: 'Tôi', path: '/profile', icon: LucideIcons.user),
   ];
+
+  /// Nút "Ứng dụng" chỉ được phép hiển thị khi đã đăng nhập và KHÔNG phải là Portal user.
+  static bool shouldShowAppsDrawer({AuthUser? user, String? sessionScope}) {
+    if (user == null) return false;
+    final isPortal = user.isPortal || sessionScope == 'portal';
+    return !isPortal;
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -171,8 +179,10 @@ class _FloatingTabBar extends ConsumerWidget {
     final chatUnread = ref.watch(chatV2TotalUnreadProvider);
     final authUser = ref.watch(authControllerProvider).valueOrNull;
     final sessionScope = odooApiClient.session?.scope;
-    final isPortal = (authUser != null && authUser.isPortal) || sessionScope == 'portal';
-    final showAppsDrawer = authUser != null && !isPortal;
+    final showAppsDrawer = AppScaffold.shouldShowAppsDrawer(
+      user: authUser,
+      sessionScope: sessionScope,
+    );
     final insertIndex = showAppsDrawer ? (tabs.length >= 2 ? 2 : tabs.length) : -1;
 
     return SafeArea(

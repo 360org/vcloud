@@ -1,9 +1,12 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:vcloud/core/api/auth_user.dart';
 import 'package:vcloud/core/api/odoo_session.dart';
 import 'package:vcloud/features/menu/application/menu_controller.dart';
 import 'package:vcloud/features/menu/data/menu_item_model.dart';
 import 'package:vcloud/features/menu/data/menu_repository.dart';
+import 'package:vcloud/features/menu/presentation/app_drawer_bottom_sheet.dart';
 import 'package:vcloud/features/menu/presentation/odoo_webview_screen.dart';
+import 'package:vcloud/shared/widgets/app_scaffold.dart';
 
 class _FakeMenuRepository extends MenuRepository {
   _FakeMenuRepository({this.shouldThrow = false});
@@ -205,6 +208,115 @@ void main() {
       expect(url, contains('#action=210&menu_id=105'));
       expect(url, isNot(contains('/odoo')));
       expect(url, isNot(contains('/web/database/selector')));
+    });
+
+    test('falls back to /web with SSO when rawUrl is empty', () {
+      final url = buildTargetWebViewUrl(
+        rawUrl: '',
+        session: session19,
+        baseUrl: 'http://192.168.1.100:1900',
+      );
+      expect(url, contains('/api/v1/mobile/web/auth'));
+      expect(url, contains('token=test_token'));
+      expect(url, contains('db=vcloud_test_v19'));
+      expect(url, contains('redirect='));
+    });
+  });
+
+  group('formatAppWebUrl', () {
+    test('appends ?db=<db> before # fragment', () {
+      final formatted = formatAppWebUrl(
+        '/web#action=210&menu_id=105',
+        db: 'custom_db',
+      );
+      expect(formatted, equals('/web?db=custom_db#action=210&menu_id=105'));
+    });
+
+    test('appends &db=<db> before # fragment when query params already exist', () {
+      final formatted = formatAppWebUrl(
+        '/web?cids=1#action=210&menu_id=105',
+        db: 'custom_db',
+      );
+      expect(formatted, equals('/web?cids=1&db=custom_db#action=210&menu_id=105'));
+    });
+
+    test('does not duplicate db if db= is already present before #', () {
+      final formatted = formatAppWebUrl(
+        '/web?db=existing_db#action=210',
+        db: 'custom_db',
+      );
+      expect(formatted, equals('/web?db=existing_db#action=210'));
+    });
+
+    test('appends ?db=<db> to URL without fragment', () {
+      final formatted = formatAppWebUrl(
+        '/help/docs',
+        db: 'custom_db',
+      );
+      expect(formatted, equals('/help/docs?db=custom_db'));
+    });
+  });
+
+  group('AppScaffold showAppsDrawer logic', () {
+    test('shouldShowAppsDrawer returns false when user is null', () {
+      expect(
+        AppScaffold.shouldShowAppsDrawer(user: null),
+        isFalse,
+      );
+    });
+
+    test('shouldShowAppsDrawer returns false for Portal user with is_portal=true', () {
+      const portalUser = AuthUser(
+        id: '101',
+        email: 'customer@example.com',
+        userMetadata: {'is_portal': true},
+      );
+      expect(
+        AppScaffold.shouldShowAppsDrawer(user: portalUser),
+        isFalse,
+      );
+    });
+
+    test('shouldShowAppsDrawer returns false for Portal user with user_type=portal', () {
+      const portalUser = AuthUser(
+        id: '102',
+        email: 'portal@example.com',
+        userMetadata: {'user_type': 'portal'},
+      );
+      expect(
+        AppScaffold.shouldShowAppsDrawer(user: portalUser),
+        isFalse,
+      );
+    });
+
+    test('shouldShowAppsDrawer returns false when sessionScope is portal', () {
+      const employeeUser = AuthUser(
+        id: '2',
+        email: 'emp@example.com',
+        userMetadata: {'is_portal': false},
+      );
+      expect(
+        AppScaffold.shouldShowAppsDrawer(
+          user: employeeUser,
+          sessionScope: 'portal',
+        ),
+        isFalse,
+      );
+    });
+
+    test('shouldShowAppsDrawer returns true for internal employee with non-portal scope', () {
+      const employeeUser = AuthUser(
+        id: '2',
+        email: 'employee@360.org.vn',
+        userMetadata: {'is_portal': false, 'user_type': 'internal'},
+      );
+      expect(
+        AppScaffold.shouldShowAppsDrawer(
+          user: employeeUser,
+          sessionScope: null,
+        ),
+        isTrue,
+      );
     });
   });
 }
