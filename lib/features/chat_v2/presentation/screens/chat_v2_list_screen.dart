@@ -502,8 +502,8 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
 
                   if (!hasVMobile && !hasCachedOrData) {
                     return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(32),
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [

@@ -2,6 +2,18 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.24+175] — 2026-10-28
+
+> [!IMPORTANT]
+> **Khắc Phục Lỗi 404 Tiện Ích "Tài Liệu Hướng Dẫn" & Chống Tràn Giao Diện Chat (vclients & v_mobile)**:
+> - **[FIX] Chuẩn hóa URL Tiện ích Tài liệu hướng dẫn (`vclients` & `v_mobile`)**:
+>   * Cập nhật `defaultUtilities` trong `menu_controller.dart` trỏ về route chuẩn `/knowledge/article/126`.
+>   * Bổ sung cơ chế phân giải động `_resolve_docs_url(env)` trong `controllers/menu.py` trên backend Odoo 17 & 19, triệt tiêu hoàn toàn lỗi 404 Not Found khi mở WebView trên thiết bị di động.
+> - **[FIX] Chống tràn giao diện danh sách chat khi trống (`vclients`)**:
+>   * Bổ sung `SingleChildScrollView` cho màn hình danh sách kênh trò chuyện khi chưa có dữ liệu để chống lỗi render overflow trên màn hình nhỏ.
+> - **[DOCS] Tài liệu Kế hoạch Thiết kế UI/UX Trò chuyện Mới (`vclients/docs/update_uiux.md`)**:
+>   * Phác thảo wireframe, chuẩn hóa hệ màu Tech Royal Blue (#0077CD) và Slate Canvas (#F8FAFC) theo nhận diện 360 CORP.
+
 ## [v2.9.24+174] — 2026-10-27
 
 > [!IMPORTANT]

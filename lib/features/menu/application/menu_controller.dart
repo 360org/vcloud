@@ -75,7 +75,7 @@ class MenuController extends StateNotifier<MenuState> {
       id: 'docs',
       name: 'Tài liệu hướng dẫn',
       icon: 'book_open',
-      url: '/help/docs',
+      url: '/knowledge/article/126',
     ),
     AppUtilityItem(
       id: 'support',
