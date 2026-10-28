@@ -55,7 +55,6 @@ class AppScaffold extends ConsumerWidget {
     _TabSpec(label: 'Chat', path: '/chat', icon: LucideIcons.messageCircle),
     _TabSpec(label: 'Timesheet', path: '/timesheet', icon: LucideIcons.clock),
     _TabSpec(label: 'Ticket', path: '/tickets', icon: LucideIcons.ticket),
-    _TabSpec(label: 'Tôi', path: '/profile', icon: LucideIcons.user),
   ];
 
   /// Nút "Ứng dụng" chỉ được phép hiển thị khi đã đăng nhập và KHÔNG phải là Portal user.
@@ -71,6 +70,10 @@ class AppScaffold extends ConsumerWidget {
     final sessionScope = odooApiClient.session?.scope;
     final isPortal = (authUser != null && authUser.isPortal) || sessionScope == 'portal';
     final hasHelpdesk = authUser?.hasHelpdesk ?? true;
+    final showAppsDrawer = shouldShowAppsDrawer(
+      user: authUser,
+      sessionScope: sessionScope,
+    );
 
     final List<_TabSpec> tabs;
     if (isPortal) {
@@ -79,17 +82,20 @@ class AppScaffold extends ConsumerWidget {
         const _TabSpec(label: 'Chat', path: '/chat', icon: LucideIcons.messageCircle),
         if (hasHelpdesk)
           const _TabSpec(label: 'Ticket', path: '/tickets', icon: LucideIcons.ticket),
-        const _TabSpec(label: 'Tôi', path: '/profile', icon: LucideIcons.user),
       ];
     } else {
       tabs = _employeeTabs;
     }
 
     final loc = GoRouterState.of(context).matchedLocation;
+    final isWebview = loc == '/webview' || loc.startsWith('/webview/');
     final activeIndex = () {
       for (var i = 0; i < tabs.length; i++) {
         final p = tabs[i].path;
         if (loc == p || loc.startsWith('$p/')) return i;
+      }
+      if (isWebview && showAppsDrawer) {
+        return tabs.length; // Ứng dụng tab index
       }
       return null;
     }();
@@ -101,13 +107,34 @@ class AppScaffold extends ConsumerWidget {
             : _FloatingTabBar(
                 tabs: tabs,
                 activeIndex: activeIndex,
+                showAppsDrawer: showAppsDrawer,
+                currentPath: loc,
               ));
+
+    // ponytail: compact responsive toolbar dimensions for mobile viewport
+    final screenWidth = MediaQuery.of(context).size.width;
+    final double toolbarHeight;
+    final double titleFontSize;
+    final double actionIconSize;
+    if (screenWidth < 360) {
+      toolbarHeight = 40.0;
+      titleFontSize = 14.0;
+      actionIconSize = 16.0;
+    } else if (screenWidth < 600) {
+      toolbarHeight = 44.0;
+      titleFontSize = 15.0;
+      actionIconSize = 18.0;
+    } else {
+      toolbarHeight = 52.0;
+      titleFontSize = 17.0;
+      actionIconSize = 20.0;
+    }
 
     final effectiveShowBack = showBackButton ?? (activeIndex == null);
     final Widget? effectiveLeading = leading ??
         (effectiveShowBack
             ? IconButton(
-                icon: const Icon(LucideIcons.arrowLeft, color: Colors.white, size: 20),
+                icon: Icon(LucideIcons.arrowLeft, color: Colors.white, size: actionIconSize),
                 tooltip: 'Quay lại',
                 onPressed: onBack ??
                     () {
@@ -125,14 +152,15 @@ class AppScaffold extends ConsumerWidget {
     return Scaffold(
       appBar: showAppBar
           ? AppBar(
+              toolbarHeight: toolbarHeight,
               centerTitle: true,
               elevation: 0,
               scrolledUnderElevation: 0,
               leading: effectiveLeading,
               title: Text(
                 title,
-                style: const TextStyle(
-                  fontSize: 18,
+                style: TextStyle(
+                  fontSize: titleFontSize,
                   fontWeight: FontWeight.w700,
                   color: Colors.white,
                   letterSpacing: -0.2,
@@ -168,22 +196,20 @@ class _FloatingTabBar extends ConsumerWidget {
   const _FloatingTabBar({
     required this.tabs,
     required this.activeIndex,
+    required this.showAppsDrawer,
+    this.currentPath,
   });
 
   final List<_TabSpec> tabs;
   final int activeIndex;
+  final bool showAppsDrawer;
+  final String? currentPath;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final chatUnread = ref.watch(chatV2TotalUnreadProvider);
-    final authUser = ref.watch(authControllerProvider).valueOrNull;
-    final sessionScope = odooApiClient.session?.scope;
-    final showAppsDrawer = AppScaffold.shouldShowAppsDrawer(
-      user: authUser,
-      sessionScope: sessionScope,
-    );
-    final insertIndex = showAppsDrawer ? (tabs.length >= 2 ? 2 : tabs.length) : -1;
+    final isAppsSelected = activeIndex == tabs.length;
 
     return SafeArea(
       top: false,
@@ -214,21 +240,7 @@ class _FloatingTabBar extends ConsumerWidget {
             ),
             child: Row(
               children: [
-                for (var i = 0; i < tabs.length; i++) ...[
-                  if (showAppsDrawer && i == insertIndex)
-                    Expanded(
-                      child: _AppsNavItem(
-                        onTap: () {
-                          HapticFeedback.selectionClick();
-                          showModalBottomSheet<void>(
-                            context: context,
-                            isScrollControlled: true,
-                            backgroundColor: Colors.transparent,
-                            builder: (ctx) => const AppDrawerBottomSheet(),
-                          );
-                        },
-                      ),
-                    ),
+                for (var i = 0; i < tabs.length; i++)
                   Expanded(
                     child: _NavItem(
                       key: ValueKey('tab_item_${tabs[i].path.replaceAll('/', '')}'),
@@ -241,17 +253,18 @@ class _FloatingTabBar extends ConsumerWidget {
                       },
                     ),
                   ),
-                ],
-                if (showAppsDrawer && insertIndex >= tabs.length)
+                if (showAppsDrawer)
                   Expanded(
                     child: _AppsNavItem(
+                      key: const ValueKey('tab_item_apps_drawer'),
+                      selected: isAppsSelected,
                       onTap: () {
                         HapticFeedback.selectionClick();
                         showModalBottomSheet<void>(
                           context: context,
                           isScrollControlled: true,
                           backgroundColor: Colors.transparent,
-                          builder: (ctx) => const AppDrawerBottomSheet(),
+                          builder: (ctx) => AppDrawerBottomSheet(currentPath: currentPath),
                         );
                       },
                     ),
@@ -267,15 +280,20 @@ class _FloatingTabBar extends ConsumerWidget {
 
 class _AppsNavItem extends StatelessWidget {
   const _AppsNavItem({
+    super.key,
     required this.onTap,
+    this.selected = false,
   });
 
   final VoidCallback onTap;
+  final bool selected;
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final color = isDark ? AppColors.darkTextMuted : AppColors.textPrimary;
+    final color = selected
+        ? AppColors.primary
+        : (isDark ? AppColors.darkTextMuted : AppColors.textPrimary);
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,

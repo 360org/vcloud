@@ -122,7 +122,7 @@ void main() {
       expect(user.hasTimesheet, isFalse);
     });
 
-    test('Case 10: Dynamic Portal tab configuration: Home, Chat, Tôi when hasHelpdesk is false', () {
+    test('Case 10: Dynamic Portal tab configuration: Home, Chat when hasHelpdesk is false (Tôi on avatar)', () {
       const portalNoHelpdesk = AuthUser(
         id: '18',
         email: 'client@domain.com',
@@ -132,21 +132,20 @@ void main() {
         },
       );
 
-      // Mô phỏng logic dựng tabs trong AppScaffold
+      // Mô phỏng logic dựng tabs trong AppScaffold (Tôi chuyển lên avatar ở Home)
       final tabs = <String>[
         '/home',
         '/chat',
         if (portalNoHelpdesk.hasHelpdesk) '/tickets',
-        '/profile',
       ];
 
-      expect(tabs, equals(['/home', '/chat', '/profile']));
+      expect(tabs, equals(['/home', '/chat']));
       expect(tabs.contains('/home'), isTrue);
       expect(tabs.contains('/tickets'), isFalse);
-      expect(tabs.length, equals(3));
+      expect(tabs.length, equals(2));
     });
 
-    test('Case 11: Dynamic Portal tab configuration: Home, Chat, Ticket, Tôi when hasHelpdesk is true', () {
+    test('Case 11: Dynamic Portal tab configuration: Home, Chat, Ticket when hasHelpdesk is true (Tôi on avatar)', () {
       const portalWithHelpdesk = AuthUser(
         id: '19',
         email: 'client@domain.com',
@@ -160,20 +159,20 @@ void main() {
         '/home',
         '/chat',
         if (portalWithHelpdesk.hasHelpdesk) '/tickets',
-        '/profile',
       ];
 
-      expect(tabs, equals(['/home', '/chat', '/tickets', '/profile']));
+      expect(tabs, equals(['/home', '/chat', '/tickets']));
       expect(tabs.contains('/home'), isTrue);
       expect(tabs.contains('/tickets'), isTrue);
-      expect(tabs.length, equals(4));
+      expect(tabs.length, equals(3));
     });
 
-    test('Case 12: Internal employee navigation always has 5 tabs', () {
-      const internalTabs = ['/home', '/chat', '/timesheet', '/tickets', '/profile'];
+    test('Case 12: Internal employee navigation always has 5 tabs including apps drawer', () {
+      const internalTabs = ['/home', '/chat', '/timesheet', '/tickets', 'apps'];
       expect(internalTabs.length, equals(5));
       expect(internalTabs.contains('/home'), isTrue);
-      expect(internalTabs.contains('/attendance') || internalTabs.contains('/timesheet'), isTrue);
+      expect(internalTabs.contains('/timesheet'), isTrue);
+      expect(internalTabs.contains('apps'), isTrue);
     });
 
     test('Case 13: Portal user attendance lock logic when hr_attendance is not installed', () {

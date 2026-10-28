@@ -61,9 +61,9 @@ void main() {
     });
 
     // -------------------------------------------------------------
-    // Case 2: AppScaffold 4 tabs for Portal when hasHelpdesk == true
+    // Case 2: AppScaffold 3 tabs for Portal when hasHelpdesk == true
     // -------------------------------------------------------------
-    testWidgets('Case 2: AppScaffold displays 4 tabs (Home, Chat, Ticket, Tôi) for Portal with Helpdesk', (tester) async {
+    testWidgets('Case 2: AppScaffold displays 3 tabs (Home, Chat, Ticket) for Portal with Helpdesk', (tester) async {
       const portalUser = AuthUser(
         id: '101',
         email: 'portal@test.com',
@@ -100,7 +100,7 @@ void main() {
           GoRoute(
             path: '/profile',
             builder: (context, state) => const AppScaffold(
-              title: 'Tôi',
+              title: 'Hồ sơ',
               body: Text('Profile Content'),
             ),
           ),
@@ -128,16 +128,16 @@ void main() {
       expect(find.text('Home'), findsWidgets);
       expect(find.text('Chat'), findsWidgets);
       expect(find.text('Ticket'), findsWidgets);
-      expect(find.text('Tôi'), findsWidgets);
+      expect(find.text('Tôi'), findsNothing);
       // Timesheet tuyệt đối không được có trong tabs của Portal
       expect(find.text('Timesheet'), findsNothing);
       await tester.pumpWidget(const SizedBox());
     });
 
     // -------------------------------------------------------------
-    // Case 3: AppScaffold 3 tabs for Portal when hasHelpdesk == false
+    // Case 3: AppScaffold 2 tabs for Portal when hasHelpdesk == false
     // -------------------------------------------------------------
-    testWidgets('Case 3: AppScaffold displays 3 tabs (Home, Chat, Tôi) for Portal without Helpdesk (Hides Ticket)', (tester) async {
+    testWidgets('Case 3: AppScaffold displays 2 tabs (Home, Chat) for Portal without Helpdesk (Hides Ticket)', (tester) async {
       const portalUser = AuthUser(
         id: '102',
         email: 'portal_no_helpdesk@test.com',
@@ -167,7 +167,7 @@ void main() {
           GoRoute(
             path: '/profile',
             builder: (context, state) => const AppScaffold(
-              title: 'Tôi',
+              title: 'Hồ sơ',
               body: Text('Profile Content'),
             ),
           ),
@@ -194,7 +194,7 @@ void main() {
 
       expect(find.text('Home'), findsWidgets);
       expect(find.text('Chat'), findsWidgets);
-      expect(find.text('Tôi'), findsWidgets);
+      expect(find.text('Tôi'), findsNothing);
       // Cả Ticket và Timesheet đều không có mặt
       expect(find.text('Ticket'), findsNothing);
       expect(find.text('Timesheet'), findsNothing);
@@ -204,7 +204,7 @@ void main() {
     // -------------------------------------------------------------
     // Case 4: AppScaffold 5 tabs for Employee (!isPortal)
     // -------------------------------------------------------------
-    testWidgets('Case 4: AppScaffold displays 5 tabs for Employee (Home, Chat, Timesheet, Ticket, Tôi)', (tester) async {
+    testWidgets('Case 4: AppScaffold displays 5 tabs for Employee (Home, Chat, Timesheet, Ticket, Ứng dụng)', (tester) async {
       const employeeUser = AuthUser(
         id: '2',
         email: 'emp@test.com',
@@ -248,7 +248,8 @@ void main() {
       expect(find.text('Chat'), findsWidgets);
       expect(find.text('Timesheet'), findsWidgets);
       expect(find.text('Ticket'), findsWidgets);
-      expect(find.text('Tôi'), findsWidgets);
+      expect(find.text('Ứng dụng'), findsWidgets);
+      expect(find.text('Tôi'), findsNothing);
       await tester.pumpWidget(const SizedBox());
     });
 

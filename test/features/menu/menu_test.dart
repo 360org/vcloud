@@ -319,4 +319,31 @@ void main() {
       );
     });
   });
+
+  group('extractOdooTargetHash (Pha 1 SPA Routing)', () {
+    test('extracts hash fragment from standard module URL', () {
+      final hash = extractOdooTargetHash('/web#action=72&cids=1&menu_id=214');
+      expect(hash, equals('#action=72&cids=1&menu_id=214'));
+    });
+
+    test('extracts hash fragment from URL with db query param', () {
+      final hash = extractOdooTargetHash('/web?db=vcloud_test_v19#action=120&menu_id=50');
+      expect(hash, equals('#action=120&menu_id=50'));
+    });
+
+    test('converts /home/action-2186 into #action=2186', () {
+      final hash = extractOdooTargetHash('/home/action-2186');
+      expect(hash, equals('#action=2186'));
+    });
+
+    test('converts /home/action-2186?db=xyz into #action=2186', () {
+      final hash = extractOdooTargetHash('/home/action-2186?db=vcloud_test_v19');
+      expect(hash, equals('#action=2186'));
+    });
+
+    test('returns null for URLs without hash or action pattern', () {
+      final hash = extractOdooTargetHash('/help/docs');
+      expect(hash, isNull);
+    });
+  });
 }

@@ -308,10 +308,33 @@ class _ProfileTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.symmetric(vertical: 12),
-      child: Center(
-        child: BrandLogo(height: 90),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(LucideIcons.arrowLeft),
+            tooltip: 'Quay lại',
+            onPressed: () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.go('/home');
+              }
+            },
+          ),
+          const SizedBox(width: 4),
+          Text(
+            'Hồ sơ của tôi',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
+          const Spacer(),
+          const BrandLogo(height: 38),
+        ],
       ),
     );
   }

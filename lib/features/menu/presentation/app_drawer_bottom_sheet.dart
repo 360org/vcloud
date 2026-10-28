@@ -12,7 +12,9 @@ import '../application/menu_controller.dart';
 import '../data/menu_item_model.dart';
 
 class AppDrawerBottomSheet extends ConsumerStatefulWidget {
-  const AppDrawerBottomSheet({super.key});
+  const AppDrawerBottomSheet({super.key, this.currentPath});
+
+  final String? currentPath;
 
   @override
   ConsumerState<AppDrawerBottomSheet> createState() =>
@@ -28,8 +30,20 @@ class _AppDrawerBottomSheetState extends ConsumerState<AppDrawerBottomSheet> {
     super.dispose();
   }
 
+  String _resolveCurrentPath(BuildContext context) {
+    if (widget.currentPath != null && widget.currentPath!.isNotEmpty) {
+      return widget.currentPath!;
+    }
+    try {
+      return GoRouter.of(context).routerDelegate.currentConfiguration.uri.path;
+    } catch (_) {
+      return '';
+    }
+  }
+
   void _onAppTapped(BuildContext context, AppMenuItem app) {
     HapticFeedback.lightImpact();
+    final currentPath = _resolveCurrentPath(context);
     Navigator.of(context).pop();
 
     if (app.isNative &&
@@ -54,11 +68,19 @@ class _AppDrawerBottomSheetState extends ConsumerState<AppDrawerBottomSheet> {
         'title': app.name,
       },
     );
-    context.push(uri.toString());
+
+    final isAlreadyWebview =
+        currentPath == '/webview' || currentPath.startsWith('/webview/');
+    if (isAlreadyWebview) {
+      context.go(uri.toString());
+    } else {
+      context.push(uri.toString());
+    }
   }
 
   void _onUtilityTapped(BuildContext context, AppUtilityItem item) {
     HapticFeedback.lightImpact();
+    final currentPath = _resolveCurrentPath(context);
     Navigator.of(context).pop();
 
     if (item.nativeRoute != null && item.nativeRoute!.isNotEmpty) {
@@ -76,7 +98,13 @@ class _AppDrawerBottomSheetState extends ConsumerState<AppDrawerBottomSheet> {
           'title': item.name,
         },
       );
-      context.push(uri.toString());
+      final isAlreadyWebview =
+          currentPath == '/webview' || currentPath.startsWith('/webview/');
+      if (isAlreadyWebview) {
+        context.go(uri.toString());
+      } else {
+        context.push(uri.toString());
+      }
     }
   }
 

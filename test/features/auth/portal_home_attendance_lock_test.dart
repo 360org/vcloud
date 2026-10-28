@@ -55,16 +55,16 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Kiểm tra có tab Home, Chat, Tôi trong thanh điều hướng
+      // Kiểm tra có tab Home, Chat trong thanh điều hướng (Tôi đã chuyển lên avatar)
       expect(find.text('Home'), findsOneWidget);
       expect(find.text('Chat'), findsOneWidget);
-      expect(find.text('Tôi'), findsOneWidget);
+      expect(find.text('Tôi'), findsNothing);
       // Chắc chắn không có Ticket khi helpdesk == false
       expect(find.text('Ticket'), findsNothing);
       expect(find.text('Timesheet'), findsNothing);
     });
 
-    testWidgets('2. AppScaffold renders Home, Chat, Ticket, Tôi for Portal User with helpdesk', (tester) async {
+    testWidgets('2. AppScaffold renders Home, Chat, Ticket for Portal User with helpdesk', (tester) async {
       const portalUserWithHd = AuthUser(
         id: '101',
         email: 'portal_hd@domain.com',
@@ -103,11 +103,11 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Kiểm tra đầy đủ 4 tabs Portal: Home, Chat, Ticket, Tôi
+      // Kiểm tra 3 tabs Portal: Home, Chat, Ticket (Tôi đã bỏ khỏi bottom bar)
       expect(find.text('Home'), findsOneWidget);
       expect(find.text('Chat'), findsOneWidget);
       expect(find.text('Ticket'), findsOneWidget);
-      expect(find.text('Tôi'), findsOneWidget);
+      expect(find.text('Tôi'), findsNothing);
       // Chắc chắn Timesheet bị ẩn
       expect(find.text('Timesheet'), findsNothing);
     });
