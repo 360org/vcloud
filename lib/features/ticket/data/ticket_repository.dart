@@ -87,7 +87,11 @@ class TicketRepository {
         : '';
 
     final res = await _client.get('$_ticketBasePath/list$queryString');
-    final rawList = (res as List).cast<Map<String, dynamic>>();
+    if (res is! List) return const <Ticket>[];
+    final rawList = res
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
 
     for (final map in rawList) {
       final id = map['id'].toString();
@@ -125,7 +129,11 @@ class TicketRepository {
         if (!ctl.isClosed && _cachedTickets.isNotEmpty) {
           ctl.add(_cachedTickets);
         } else if (!ctl.isClosed) {
-          ctl.add(const <Ticket>[]);
+          if (e is Failure && e.message.contains('Not signed in')) {
+            ctl.add(const <Ticket>[]);
+          } else {
+            ctl.addError(e);
+          }
         }
       }
     }

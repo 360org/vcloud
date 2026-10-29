@@ -12,7 +12,6 @@ import 'core/utils/app_lifecycle_manager.dart';
 import 'features/attendance/application/attendance_controller.dart';
 import 'features/auth/application/auth_controller.dart';
 import 'features/chat_v2/application/chat_v2_call_controller.dart';
-import 'features/chat_v2/application/chat_v2_call_watcher.dart';
 import 'features/chat_v2/application/chat_v2_callkit_service.dart';
 import 'features/chat_v2/application/chat_v2_channels_controller.dart';
 import 'features/chat_v2/data/models/chat_v2_channel.dart';
@@ -137,7 +136,6 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
       ref.read(isAppForegroundProvider.notifier).state = true;
       final user = ref.read(authControllerProvider).valueOrNull;
       if (user == null) return;
-      ref.read(chatV2CallWatcherProvider).onAppResumed();
       ref.read(chatV2ChannelsProvider.notifier).resumeRefresh();
       ref.invalidate(chatV2TotalUnreadProvider);
       ref.invalidate(mobileNotificationsProvider);
@@ -149,7 +147,6 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
                state == AppLifecycleState.detached) {
       ref.read(isAppForegroundProvider.notifier).state = false;
       if (!kIsWeb) {
-        ref.read(chatV2CallWatcherProvider).onAppPaused();
         ref.read(chatV2ChannelsProvider.notifier).pausePolling();
       }
     }
@@ -160,7 +157,7 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
     final event = (data['event'] ?? data['event_type'] ?? '').toString();
 
     // Nếu là sự kiện cuộc gọi
-    if (event == 'incoming_call') {
+    if (event == 'vmobile_call_incoming') {
       final channelId = int.tryParse(data['channel_id']?.toString() ?? '0') ?? 0;
       final callerId = int.tryParse(data['caller_id']?.toString() ?? '0') ?? 0;
       final callerName = data['caller_name']?.toString() ?? 'Đồng nghiệp';
@@ -180,7 +177,7 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
         ref.read(chatV2CallControllerProvider.notifier).setIncomingCall(incomingSession);
       }
       return;
-    } else if (event == 'call_cancelled' || event == 'call_ended') {
+    } else if (event == 'vmobile_call_ended') {
       ref.read(chatV2CallControllerProvider.notifier).reset();
       ChatV2CallKitService.instance.endAllCalls();
       return;

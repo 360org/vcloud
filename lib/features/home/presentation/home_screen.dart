@@ -237,6 +237,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         child: RefreshIndicator(
           key: _fireworksChildKey,
           onRefresh: () async {
+            ref.read(ticketOverrideProvider.notifier).set(null);
+            ref.read(ticketHasMoreProvider.notifier).state = true;
+            ref.invalidate(ticketsProvider);
             ref.invalidate(homeSummaryProvider);
             ref.invalidate(mobileDashboardSummaryProvider);
             ref.invalidate(attendanceTodayProvider);

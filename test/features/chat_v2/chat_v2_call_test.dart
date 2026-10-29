@@ -201,6 +201,8 @@ class FakeWebRtcEngine extends ChatV2WebRtcEngine {
     required int localSessionId,
     required List<int> targetSessionIds,
     required List<dynamic> iceServersData,
+    int? callId,
+    int? channelId,
   }) async {}
 
   @override
@@ -411,7 +413,8 @@ void main() {
 
       controller.setIncomingCall(incoming);
       await controller.rejectCall();
-      expect(controller.state?.state, ChatV2CallState.rejected);
+      expect(controller.state?.state, ChatV2CallState.ended);
+      expect(controller.state?.endReason, 'rejected');
     });
 
     test('TC-06: cancelCall transitions to cancelled', () async {
@@ -423,7 +426,8 @@ void main() {
       );
 
       await controller.cancelCall();
-      expect(controller.state?.state, ChatV2CallState.cancelled);
+      expect(controller.state?.state, ChatV2CallState.ended);
+      expect(controller.state?.endReason, 'cancelled');
     });
 
     test('TC-07: endCall transitions to ended', () async {
@@ -743,7 +747,7 @@ void main() {
       caller3Bus.emitCallEnded(channelId: 8888, sessionId: 202, state: 'rejected', reason: 'busy');
       await Future.delayed(Duration.zero);
 
-      expect(caller3Ctl.state?.state, ChatV2CallState.rejected);
+      expect(caller3Ctl.state?.state, ChatV2CallState.ended);
       expect(caller3Ctl.state?.endReason, 'busy');
 
       caller3Ctl.dispose();

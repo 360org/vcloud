@@ -161,8 +161,9 @@ class OdooBusService {
     final type = item['type']?.toString();
     final payload = item['payload'];
 
-    // Sự kiện Signaling RTC WebRTC P2P
-    if (type == 'discuss.channel.rtc.session/peer_notification') {
+    // Sự kiện Signaling RTC WebRTC P2P (hỗ trợ cả Odoo core và vmobile.call/signaling)
+    if (type == 'discuss.channel.rtc.session/peer_notification' ||
+        type == 'vmobile.call/signaling') {
       if (payload is Map) {
         _peerNotificationController.add(Map<String, dynamic>.from(payload));
       }

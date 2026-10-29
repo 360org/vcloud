@@ -13,23 +13,8 @@ import 'package:vcloud/features/auth/data/auth_repository.dart';
 import 'package:vcloud/features/chat_v2/presentation/screens/chat_v2_detail_screen.dart';
 import 'package:vcloud/features/chat_v2/application/chat_v2_channels_controller.dart';
 import 'package:vcloud/features/chat_v2/application/chat_v2_messages_controller.dart';
-import 'package:vcloud/features/chat_v2/application/chat_v2_call_watcher.dart';
 import 'package:vcloud/features/chat_v2/data/models/chat_v2_channel.dart';
 import 'package:vcloud/features/chat_v2/data/models/chat_v2_message.dart';
-
-class FakeCallWatcher implements ChatV2CallWatcher {
-  @override
-  void dispose() {}
-
-  @override
-  void onAppResumed() {}
-
-  @override
-  void onAppPaused() {}
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
 
 class _FakeChannelsNotifier extends ChatV2ChannelsNotifier {
   @override
@@ -115,7 +100,6 @@ void main() {
           overrides: [
             pushNotificationServiceProvider.overrideWithValue(fakePushService),
             authRepositoryProvider.overrideWithValue(FakeAuthRepository(user: mockUser)),
-            chatV2CallWatcherProvider.overrideWithValue(FakeCallWatcher()),
             chatV2ChannelsProvider.overrideWith(() => _FakeChannelsNotifier()),
             chatV2MessagesProvider.overrideWith(() => _FakeMessagesNotifier()),
           ],
@@ -172,7 +156,6 @@ void main() {
           overrides: [
             pushNotificationServiceProvider.overrideWithValue(fakePushService),
             authRepositoryProvider.overrideWithValue(FakeAuthRepository(user: mockUser)),
-            chatV2CallWatcherProvider.overrideWithValue(FakeCallWatcher()),
             chatV2ChannelsProvider.overrideWith(() => _FakeChannelsNotifier()),
             chatV2MessagesProvider.overrideWith(() => _FakeMessagesNotifier()),
           ],

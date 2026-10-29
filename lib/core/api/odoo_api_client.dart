@@ -440,7 +440,7 @@ class OdooApiClient {
     final lowerLogin = trimmedLogin.toLowerCase();
 
     // Tài khoản trải nghiệm demo / morpheus: Chỉ ép sang demo.vuahethong.com nếu ĐANG KẾT NỐI production vuahethong.net
-    final masterUrl = _baseUrl.isNotEmpty ? _baseUrl : 'https://vuahethong.net';
+    final masterUrl = _baseUrl.isNotEmpty ? _baseUrl : Env.odooApiBaseUrl;
     final isProdMaster = masterUrl.contains('vuahethong.net');
 
     if ((lowerLogin == 'demo' || lowerLogin == 'morpheus') && isProdMaster) {
@@ -601,7 +601,7 @@ class OdooApiClient {
 
       // Khi chạy Local Server (không phải Prod Master) và không tìm thấy DB nào khớp:
       if (!isProdMaster) {
-        final fallbackDb = Env.odooDb.isNotEmpty ? Env.odooDb : 'demo-17';
+        final fallbackDb = Env.odooDb.isNotEmpty ? Env.odooDb : 'vcloud_test_v19';
         return [
           {
             'login': login.trim(),
@@ -659,9 +659,9 @@ class OdooApiClient {
       }
     } else {
       // Môi trường Local Server hoặc IP nội bộ:
-      // Nếu dbName rỗng HOẶC bị truyền nhầm là 'demo', tự động chuẩn hóa về Env.odooDb hoặc 'demo-17'
+      // Nếu dbName rỗng HOẶC bị truyền nhầm là 'demo', tự động chuẩn hóa về Env.odooDb hoặc 'vcloud_test_v19'
       if (effectiveDb.isEmpty || effectiveDb == 'demo') {
-        effectiveDb = Env.odooDb.isNotEmpty ? Env.odooDb : 'demo-17';
+        effectiveDb = Env.odooDb.isNotEmpty ? Env.odooDb : 'vcloud_test_v19';
       }
     }
 

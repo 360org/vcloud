@@ -6,7 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import 'package:vcloud/features/chat_v2/domain/models/chat_v2_call_session.dart';
-import 'package:vcloud/features/chat_v2/presentation/widgets/chat_v2_incoming_call_dialog.dart';
 import 'package:vcloud/features/chat_v2/presentation/screens/chat_v2_call_screen.dart';
 import 'package:vcloud/features/chat_v2/application/chat_v2_call_controller.dart';
 import 'package:vcloud/features/chat_v2/data/chat_v2_call_repository.dart';
@@ -139,7 +138,7 @@ void main() {
   });
 
   group('Chat V2 UI Widget Tests', () {
-    testWidgets('ChatV2IncomingCallDialog displays caller name and answer/reject buttons', (tester) async {
+    testWidgets('ChatV2CallScreen displays caller name and incoming call state', (tester) async {
       const session = ChatV2CallSession(
         id: 1,
         channelId: 10,
@@ -156,14 +155,11 @@ void main() {
 
       await tester.pumpWidget(
         ProviderScope(
-          child: MaterialApp(
-            home: Scaffold(
-              body: ChatV2IncomingCallDialog(
-                session: session,
-                onAccept: () {},
-                onReject: () {},
-              ),
-            ),
+          overrides: [
+            chatV2CallControllerProvider.overrideWith((ref) => FakeCallController(session)),
+          ],
+          child: const MaterialApp(
+            home: ChatV2CallScreen(),
           ),
         ),
       );
@@ -171,9 +167,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
 
       expect(find.text('Marc Demo'), findsOneWidget);
-      expect(find.text('Cuộc gọi thoại đến...'), findsOneWidget);
-      expect(find.text('Từ chối'), findsOneWidget);
-      expect(find.text('Trả lời'), findsOneWidget);
+      expect(find.text('Cuộc gọi đến...'), findsOneWidget);
     });
 
     testWidgets('ChatV2CallScreen displays receiver name and call controls when calling', (tester) async {
@@ -210,47 +204,6 @@ void main() {
       expect(find.text('Joel Willis'), findsNothing);
       expect(find.text('Đang đổ chuông...'), findsOneWidget);
       expect(find.text('Kết thúc'), findsOneWidget);
-    });
-  });
-
-  group('Chat V2 UI Golden Tests', () {
-    testWidgets('Incoming Call Dialog should render correctly and have valid layout', (tester) async {
-      const session = ChatV2CallSession(
-        id: 1,
-        channelId: 10,
-        callerId: 4,
-        callerName: 'Marc Demo',
-        receiverId: 2,
-        receiverName: 'Mitchell Admin',
-        state: ChatV2CallState.incomingRinging,
-        duration: 0,
-        isCaller: false,
-        iceCandidates: [],
-      );
-
-      await tester.pumpWidget(
-        ProviderScope(
-          child: MaterialApp(
-            theme: ThemeData.dark(),
-            home: Scaffold(
-              body: Center(
-                child: ChatV2IncomingCallDialog(
-                  session: session,
-                  onAccept: () {},
-                  onReject: () {},
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-
-      await tester.pump(const Duration(milliseconds: 100));
-
-      // Xác minh dialog hiển thị Marc Demo và các nút tương tác
-      expect(find.text('Marc Demo'), findsOneWidget);
-      expect(find.text('Cuộc gọi thoại đến...'), findsOneWidget);
-      expect(find.byType(ChatV2IncomingCallDialog), findsOneWidget);
     });
   });
 }

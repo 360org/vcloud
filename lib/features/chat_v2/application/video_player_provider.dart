@@ -228,7 +228,7 @@ class ChatV2VideoController extends StateNotifier<ChatV2VideoPlayerState> {
       if (mounted) {
         state = state.copyWith(
           isLoading: false,
-          errorMessage: 'Không thể phát video: ${e.toString()}',
+          errorMessage: 'Không thể tải hoặc phát tệp tin video này. Vui lòng kiểm tra kết nối mạng hoặc thử lại.',
         );
       }
     }

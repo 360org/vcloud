@@ -25,6 +25,19 @@ class _AppDrawerBottomSheetState extends ConsumerState<AppDrawerBottomSheet> {
   final TextEditingController _searchController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        final state = ref.read(menuControllerProvider);
+        if (state.apps.isEmpty && !state.isLoading) {
+          ref.read(menuControllerProvider.notifier).loadMenu();
+        }
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
@@ -264,39 +277,94 @@ class _AppDrawerBottomSheetState extends ConsumerState<AppDrawerBottomSheet> {
                           valueColor: AlwaysStoppedAnimation<Color>(brandBlue),
                         ),
                       )
-                    : CustomScrollView(
-                        controller: scrollController,
-                        physics: const BouncingScrollPhysics(),
-                        slivers: [
-                          if (filteredApps.isEmpty)
-                            SliverFillRemaining(
-                              hasScrollBody: false,
-                              child: Center(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      LucideIcons.searchX,
-                                      size: 44,
-                                      color: textMuted,
+                    : RefreshIndicator(
+                        color: brandBlue,
+                        onRefresh: () =>
+                            ref.read(menuControllerProvider.notifier).loadMenu(),
+                        child: CustomScrollView(
+                          controller: scrollController,
+                          physics: const AlwaysScrollableScrollPhysics(
+                            parent: BouncingScrollPhysics(),
+                          ),
+                          slivers: [
+                            if (filteredApps.isEmpty)
+                              SliverFillRemaining(
+                                hasScrollBody: false,
+                                child: Center(
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 32),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          menuState.error != null
+                                              ? LucideIcons.cloudOff
+                                              : (menuState.activeTab == 'bookmark'
+                                                  ? LucideIcons.bookmark
+                                                  : LucideIcons.searchX),
+                                          size: 44,
+                                          color: textMuted,
+                                        ),
+                                        const SizedBox(height: 12),
+                                        Text(
+                                          menuState.error != null
+                                              ? 'Không thể tải danh sách ứng dụng'
+                                              : (menuState.activeTab ==
+                                                      'bookmark'
+                                                  ? 'Chưa có ứng dụng nào trong Bookmark'
+                                                  : (menuState.searchQuery
+                                                          .isNotEmpty
+                                                      ? 'Không tìm thấy ứng dụng phù hợp'
+                                                      : 'Chưa có ứng dụng nào được cấu hình')),
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: textMuted,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                        if (menuState.activeTab != 'bookmark' &&
+                                            menuState.searchQuery.isEmpty) ...[
+                                          const SizedBox(height: 16),
+                                          ElevatedButton.icon(
+                                            onPressed: () {
+                                              HapticFeedback.lightImpact();
+                                              ref
+                                                  .read(menuControllerProvider
+                                                      .notifier)
+                                                  .loadMenu();
+                                            },
+                                            icon: const Icon(
+                                                LucideIcons.refreshCw,
+                                                size: 16),
+                                            label: const Text('Tải lại',
+                                                style: TextStyle(
+                                                    fontSize: 13,
+                                                    fontWeight:
+                                                        FontWeight.w600)),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: brandBlue,
+                                              foregroundColor: Colors.white,
+                                              elevation: 0,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 18,
+                                                      vertical: 10),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ],
                                     ),
-                                    const SizedBox(height: 12),
-                                    Text(
-                                      menuState.activeTab == 'bookmark'
-                                          ? 'Chưa có ứng dụng nào trong Bookmark'
-                                          : 'Không tìm thấy ứng dụng phù hợp',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: textMuted,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ],
+                                  ),
                                 ),
-                              ),
-                            )
-                          else
-                            SliverPadding(
+                              )
+                            else
+                              SliverPadding(
                               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                               sliver: SliverGrid(
                                 gridDelegate:
@@ -398,6 +466,7 @@ class _AppDrawerBottomSheetState extends ConsumerState<AppDrawerBottomSheet> {
                           ),
                         ],
                       ),
+                    ),
               ),
             ],
           ),

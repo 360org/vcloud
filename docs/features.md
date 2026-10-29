@@ -661,22 +661,22 @@ Phân hệ cốt lõi cung cấp trải nghiệm giao tiếp toàn diện: trò 
   - *Tệp liên quan*: `lib/features/chat_v2/presentation/widgets/chat_v2_voice_message_player.dart`.
   - *Kịch bản nghiệm thu*: Bấm Play ➔ Âm thanh phát rõ ràng qua loa điện thoại kèm thanh thời lượng chạy.
 
-### E. Cuộc gọi Thoại P2P & CallKit (Voice Call WebRTC - Odoo 19 RTC Core) — `[✅ VERIFIED_PASS]`:
+### E. Cuộc gọi Thoại P2P & CallKit (Voice Call WebRTC - Odoo 17 & 19 RTC Core) — `[✅ VERIFIED_PASS]`:
 > ⚠️ **Lưu ý phạm vi hiện tại**: Ứng dụng hiện mới chỉ hỗ trợ cuộc gọi thoại âm thanh 1-1 (Voice Call). Tính năng **Gọi Video 1-1 và Đàm thoại Video Nhóm chưa làm** (xem mục B.2 trong danh sách Backlog).
-- [x] **3.23 Cuộc gọi Thoại 1-1 WebRTC P2P (Native Odoo 19 RTC)** `[✅ VERIFIED_PASS]`
-  - *Mô tả*: Gọi điện thoại trực tiếp hai chiều giữa App Mobile và Odoo 19 Web qua giao thức WebRTC P2P; truyền âm thanh hai chiều sắc nét, không độ trễ.
-  - *3 Khả năng cốt lõi đã kiểm chứng (Verified Capabilities)*:
-    1. **Bắt tay P2P không treo (Zero-Freeze Handshake)**: Bổ sung phát sự kiện `vmobile.call/accepted` và `peer_notification` qua Odoo Bus khi Callee nhấn Accept; hàng đợi `_queuedLocalCandidates` giữ và flush an toàn ICE Candidate khi đối phương vào phòng (`onPeerJoined`), loại bỏ triệt để hiện tượng treo màn hình "Đang gọi / Connecting".
-    2. **Hiện CallKit khi thoát App (Out-of-App Background Push)**: Backend Odoo phát High-Priority Push Notification (FCM v1 data-only) kèm `event_type: "incoming_call"` đánh thức Callee ngoài màn hình khóa / khi tắt hẳn ứng dụng; CallKit Native UI nảy màn hình Trả lời/Từ chối và dập chuông tức thì khi Caller hủy (`call_cancelled`).
-    3. **Đàm thoại chéo Web Odoo <-> Mobile (Cross-Calling Parity)**: Chuẩn hóa 100% định dạng SDP Offer/Answer và ICE Candidate tương thích hoàn toàn với Odoo Discuss Web (`/mail/rtc/*`) và module custom `v_mobile`.
-    4. **Bảo mật IDOR & Chống Phồng RAM (Security & Memory Bounds)**: Ràng buộc người nhận `receiver` bắt buộc thuộc `channel_member_ids` của kênh và chặn Portal user; bổ sung trần giới hạn buffer `_maxQueuedCandidates = 50` cho ICE candidate queue bảo vệ RAM.
-  - *Tệp liên quan*: `lib/features/chat_v2/application/chat_v2_webrtc_engine.dart`, `lib/features/chat_v2/application/chat_v2_call_controller.dart`, `lib/features/chat_v2/data/odoo_bus_service.dart`, `lib/features/chat_v2/presentation/screens/chat_v2_call_screen.dart`, `v_mobile_19/controllers/call.py`, `v_mobile_17/controllers/call.py`.
-  - *Kịch bản nghiệm thu*: Gọi điện thoại giữa Mobile và Web Odoo 19 hoặc giữa 2 thiết bị Mobile ➔ Nhận cuộc gọi ngay cả khi tắt app (CallKit), nhấn Trả lời ➔ Âm thanh thông suốt 2 chiều, không còn bị treo connecting.
+- [x] **3.23 Cuộc gọi Thoại 1-1 WebRTC P2P (Tái Thiết Lập 2 Chiều — 2026-10-29)** `[✅ VERIFIED_PASS]`
+  - *Mô tả*: Gọi điện thoại trực tiếp hai chiều giữa App Mobile và Odoo Web/Mobile qua WebRTC P2P; truyền âm thanh hai chiều sắc nét, không độ trễ.
+  - *Các năng lực cốt lõi sau phẫu thuật mã nguồn (Verified Capabilities 2026-10-29)*:
+    1. **Tháo dỡ mã Legacy Polling & Xung đột DB**: Đập bỏ hoàn toàn timer polling 4s (`chat_v2_call_watcher.dart`) và loại bỏ các trường transient WebRTC (`sdp_offer`, `sdp_answer`, `caller_ice`, `receiver_ice`) trong CSDL PostgreSQL `call_session.py`. Xóa 6 endpoints polling REST rác trong `controllers/call.py`.
+    2. **Đồng bộ Signaling Odoo Bus Realtime (Single Source of Truth)**: Toàn bộ quá trình trao đổi SDP Offer/Answer và ICE Candidate diễn ra tức thì qua Odoo Bus `bus.bus` (`vmobile.call/signaling`), dập chuông tức thì khi cúp máy qua `vmobile.call/ended`.
+    3. **6 State Machine Chuẩn Hóa**: Quản lý vòng đời cuộc gọi chặt chẽ: `idle` ➔ `outgoingRinging` (Caller) / `incomingRinging` (Callee) ➔ `connecting` ➔ `connected` ➔ `ended`.
+    4. **FCM Wake-up Chuẩn Hóa**: Chỉ dùng 2 event FCM: `vmobile_call_incoming` (đánh thức CallKit) và `vmobile_call_ended` (dập CallKit tức thì).
+  - *Tệp liên quan*: `lib/features/chat_v2/application/chat_v2_webrtc_engine.dart`, `lib/features/chat_v2/application/chat_v2_call_controller.dart`, `lib/features/chat_v2/presentation/screens/chat_v2_call_screen.dart`, `lib/features/chat_v2/application/chat_v2_callkit_service.dart`, `lib/core/notifications/push_notification_service.dart`, `v_mobile_19/controllers/call.py`, `v_mobile_17/controllers/call.py`.
+  - *Kịch bản nghiệm thu*: Gọi điện thoại giữa Mobile và Web Odoo hoặc giữa 2 thiết bị Mobile ➔ Nhận cuộc gọi ngay cả khi tắt app (CallKit), nhấn Trả lời ➔ Âm thanh thông suốt 2 chiều, cúp máy lập tức dập chuông và đóng màn hình mượt mà.
 
-- [x] **3.24 Giao diện Cuộc gọi Toàn màn hình (CallKit & Call Control)** `[✅ VERIFIED_PASS]`
-  - *Mô tả*: Tích hợp CallKit (iOS) và Android Incoming Call UI hiển thị cuộc gọi đến toàn màn hình chuẩn điện thoại; nhạc chuông Odoo chính thức, âm quay số (dialing tone), tín hiệu máy bận nhanh (fast-busy); nút Bật/Tắt Mic, Loa ngoài (Speaker), Từ chối và Gác máy tức thì.
-  - *Tệp liên quan*: `lib/features/chat_v2/application/chat_v2_callkit_service.dart`, `lib/features/chat_v2/presentation/widgets/chat_v2_incoming_call_dialog.dart`, `lib/core/notifications/push_notification_service.dart`.
-  - *Kịch bản nghiệm thu*: Có cuộc gọi đến khi khóa màn hình hoặc tắt app ➔ Màn hình bật sáng giao diện CallKit nhận cuộc gọi như cuộc gọi điện thoại thông thường; nhấn Chấp nhận ➔ Khởi tạo đàm thoại ngay lập tức.
+- [x] **3.24 Giao diện Cuộc gọi Toàn màn hình & CallKit Native OS (CallKit & Call Control)** `[✅ VERIFIED_PASS]`
+  - *Mô tả*: 100% hiển thị cuộc gọi đến qua giao diện CallKit Native OS chuẩn hệ điều hành (loại bỏ triệt để popup in-app `ChatV2IncomingCallDialog` màu đen mờ đè màn hình); nhạc chuông Odoo chính thức, nút Bật/Tắt Mic, Loa ngoài (Speaker), đếm thời gian đàm thoại và Gác máy tức thì.
+  - *Tệp liên quan*: `lib/features/chat_v2/application/chat_v2_callkit_service.dart`, `lib/features/chat_v2/presentation/screens/chat_v2_call_screen.dart`, `lib/core/notifications/push_notification_service.dart`.
+  - *Kịch bản nghiệm thu*: Có cuộc gọi đến khi khóa màn hình hoặc tắt app ➔ Màn hình bật sáng giao diện CallKit nhận cuộc gọi chuẩn OS; nhấn Chấp nhận ➔ Mở `ChatV2CallScreen` đàm thoại ngay lập tức; nhấn Từ chối ➔ Dập cuộc gọi và báo bận tức thì.
 
 ### F. Thông báo Đẩy Thời gian thực (Push Notifications & Heads-up Banner):
 - [x] **3.25 Thông báo Đẩy Nổi trên Android (Android Heads-up Notification Banner — Fix Build 144)**

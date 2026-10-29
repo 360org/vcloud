@@ -38,12 +38,24 @@ class _TicketListScreenState extends ConsumerState<TicketListScreen>
   final TextEditingController _searchController = TextEditingController();
   late final ScrollController _doingScrollController;
   late final ScrollController _doneScrollController;
+  bool _initialFetchDone = false;
 
   @override
   void initState() {
     super.initState();
     _doingScrollController = ScrollController()..addListener(() => _checkScroll(_doingScrollController));
     _doneScrollController = ScrollController()..addListener(() => _checkScroll(_doneScrollController));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_initialFetchDone) {
+        _initialFetchDone = true;
+        final current = ref.read(effectiveTicketsProvider);
+        if (current.isEmpty) {
+          ref.read(ticketOverrideProvider.notifier).set(null);
+          ref.read(ticketHasMoreProvider.notifier).state = true;
+          ref.invalidate(ticketsProvider);
+        }
+      }
+    });
   }
 
   void _checkScroll(ScrollController controller) {
@@ -517,6 +529,9 @@ class _TicketList extends ConsumerWidget {
           ref.read(ticketOverrideProvider.notifier).set(null);
           ref.read(ticketHasMoreProvider.notifier).state = true;
           ref.invalidate(ticketsProvider);
+          try {
+            await ref.read(ticketsProvider.future);
+          } catch (_) {}
         },
         child: ListView(
           controller: scrollController,
@@ -547,6 +562,9 @@ class _TicketList extends ConsumerWidget {
         ref.read(ticketOverrideProvider.notifier).set(null);
         ref.read(ticketHasMoreProvider.notifier).state = true;
         ref.invalidate(ticketsProvider);
+        try {
+          await ref.read(ticketsProvider.future);
+        } catch (_) {}
       },
       child: ListView.separated(
         controller: scrollController,

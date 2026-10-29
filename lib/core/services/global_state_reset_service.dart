@@ -11,6 +11,7 @@ import '../../features/chat_v2/data/chat_v2_repository.dart';
 import '../../features/chat_v2/data/odoo_bus_service.dart';
 import '../../features/chat_v2/presentation/widgets/chat_v2_message_item.dart';
 import '../../features/home/application/home_summary_controller.dart';
+import '../../features/menu/application/menu_controller.dart';
 import '../../features/ticket/application/ticket_controller.dart';
 import '../../features/ticket/data/ticket_repository.dart';
 import '../../features/timesheet/application/task_controller.dart';
@@ -101,6 +102,7 @@ class GlobalStateResetService {
         ref.invalidate(mobileDashboardSummaryProvider);
         ref.invalidate(homeSummaryProvider);
         ref.invalidate(chatV2ChannelsProvider);
+        ref.invalidate(menuControllerProvider);
         try {
           ref.read(timesheetTimerControllerProvider.notifier).reset();
         } catch (_) {}
@@ -111,6 +113,7 @@ class GlobalStateResetService {
         container.invalidate(mobileDashboardSummaryProvider);
         container.invalidate(homeSummaryProvider);
         container.invalidate(chatV2ChannelsProvider);
+        container.invalidate(menuControllerProvider);
         try {
           container.read(timesheetTimerControllerProvider.notifier).reset();
         } catch (_) {}

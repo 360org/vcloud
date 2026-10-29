@@ -433,4 +433,32 @@ class ChatV2CallRepository {
       return false;
     }
   }
+
+  /// Gửi WebRTC Signaling (Offer, Answer, Candidate) qua endpoint action /api/v1/mobile/chat/call/action
+  Future<bool> sendSignal({
+    required int callId,
+    required String signalType,
+    required dynamic data,
+    int? channelId,
+  }) async {
+    try {
+      final body = <String, dynamic>{
+        'call_id': callId,
+        'action': 'signal',
+        'signal_type': signalType,
+        'data': data,
+      };
+      if (channelId != null && channelId > 0) {
+        body['channel_id'] = channelId;
+      }
+      final res = await client.post(
+        '/api/v1/mobile/chat/call/action',
+        body: body,
+      );
+      return res is Map && res['status'] == 'success';
+    } catch (e) {
+      debugPrint('[RTC_CALL_LOG][REPO] sendSignal error: $e');
+      return false;
+    }
+  }
 }

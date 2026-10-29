@@ -8,7 +8,6 @@ import 'package:vcloud/features/chat_v2/domain/models/chat_v2_call_session.dart'
 import 'package:vcloud/features/chat_v2/data/chat_v2_call_repository.dart';
 import 'package:vcloud/features/chat_v2/application/chat_v2_call_controller.dart';
 import 'package:vcloud/features/chat_v2/presentation/screens/chat_v2_call_screen.dart';
-import 'package:vcloud/features/chat_v2/presentation/widgets/chat_v2_incoming_call_dialog.dart';
 import 'package:vcloud/core/api/odoo_api_client.dart';
 
 class FakeWidgetCallApiClient extends OdooApiClient {
@@ -164,7 +163,7 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
-    testWidgets('TC-12: Incoming Call Dialog renders caller and Accept / Reject buttons', (tester) async {
+    testWidgets('TC-12: ChatV2CallScreen displays caller info when incoming ringing', (tester) async {
       const session = ChatV2CallSession(
         id: 101,
         channelId: 4255,
@@ -187,7 +186,7 @@ void main() {
           child: MaterialApp(
             theme: ThemeData(splashFactory: InkRipple.splashFactory),
             home: const Scaffold(
-              body: ChatV2IncomingCallDialog(session: session),
+              body: ChatV2CallScreen(),
             ),
           ),
         ),
@@ -195,9 +194,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
 
       expect(find.text('Marc Demo'), findsOneWidget);
-      expect(find.text('Cuộc gọi thoại đến...'), findsOneWidget);
-      expect(find.text('Trả lời'), findsOneWidget);
-      expect(find.text('Từ chối'), findsOneWidget);
+      expect(find.text('Cuộc gọi đến...'), findsOneWidget);
 
       await tester.pumpWidget(const SizedBox.shrink());
     });

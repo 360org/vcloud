@@ -23,6 +23,8 @@ class ChatV2WebRtcEngine {
   final List<RTCIceCandidate> _queuedLocalCandidates = [];
 
   int _localSessionId = 0;
+  int _callId = 0;
+  int _channelId = 0;
   List<int> _targetSessionIds = [];
 
   OnConnectionStateChanged? onConnectionState;
@@ -30,6 +32,8 @@ class ChatV2WebRtcEngine {
   ChatV2WebRtcEngine({required this.repo});
 
   int get localSessionId => _localSessionId;
+  int get callId => _callId;
+  int get channelId => _channelId;
   bool get isMuted => _isMuted;
   bool get isSpeaker => _isSpeaker;
 
@@ -38,9 +42,13 @@ class ChatV2WebRtcEngine {
     required int localSessionId,
     required List<int> targetSessionIds,
     required List<dynamic> iceServersData,
+    int? callId,
+    int? channelId,
   }) async {
     _localSessionId = localSessionId;
-    _targetSessionIds = targetSessionIds;
+    _callId = (callId != null && callId > 0) ? callId : 0;
+    _channelId = channelId ?? 0;
+    _targetSessionIds = List<int>.from(targetSessionIds);
 
     // Nếu phía Odoo joinCall không trả về ICE servers (hoặc thiếu TURN), nạp dynamic config từ API /call/config
     List<dynamic> effectiveIceData = List<dynamic>.from(iceServersData);
@@ -158,10 +166,12 @@ class ChatV2WebRtcEngine {
         }
       };
 
-      // Khi tìm thấy ICE Candidate cục bộ -> gửi sang peer qua Odoo 19 notify_call_members
+      // Khi tìm thấy ICE Candidate cục bộ -> gửi sang peer qua Odoo 19 notify_call_members hoặc Bus vmobile.call/signaling
       pc.onIceCandidate = (RTCIceCandidate candidate) {
         if (candidate.candidate == null) return;
-        if (_targetSessionIds.isNotEmpty && _localSessionId > 0) {
+        final canSend = (_localSessionId > 0 && _targetSessionIds.isNotEmpty) ||
+            (_localSessionId == 0 && _callId > 0);
+        if (canSend) {
           _sendSignaling(
             event: 'ice-candidate',
             payload: {
@@ -329,23 +339,36 @@ class ChatV2WebRtcEngine {
     _queuedRemoteCandidates.clear();
   }
 
-  /// 6. Gửi bản tin Signaling qua Odoo 19 Core
+  /// 6. Gửi bản tin Signaling qua Odoo Core và Bus vmobile.call/signaling
   Future<void> _sendSignaling({
     required String event,
     required Map<String, dynamic> payload,
   }) async {
-    if (_localSessionId == 0 || _targetSessionIds.isEmpty) return;
+    // 1. Odoo 19 Core Signaling qua /mail/rtc/session/notify_call_members
+    if (_localSessionId > 0 && _targetSessionIds.isNotEmpty) {
+      final content = jsonEncode({
+        'event': event,
+        'payload': payload,
+      });
 
-    final content = jsonEncode({
-      'event': event,
-      'payload': payload,
-    });
+      await repo.notifyCallMembers(
+        senderSessionId: _localSessionId,
+        targetSessionIds: _targetSessionIds,
+        content: content,
+      );
+    }
 
-    await repo.notifyCallMembers(
-      senderSessionId: _localSessionId,
-      targetSessionIds: _targetSessionIds,
-      content: content,
-    );
+    // 2. Bus event vmobile.call/signaling qua action endpoint
+    if (_callId > 0) {
+      final sigType = event == 'ice-candidate' ? 'candidate' : event;
+      final sigData = payload['sdp'] ?? payload['candidate'] ?? payload;
+      await repo.sendSignal(
+        callId: _callId,
+        signalType: sigType,
+        data: sigData,
+        channelId: _channelId > 0 ? _channelId : null,
+      );
+    }
   }
 
   /// Bật/Tắt Micro
@@ -384,7 +407,9 @@ class ChatV2WebRtcEngine {
   }
 
   void _flushQueuedLocalCandidates() {
-    if (_localSessionId == 0 || _targetSessionIds.isEmpty) return;
+    final canSend = (_localSessionId > 0 && _targetSessionIds.isNotEmpty) ||
+        (_localSessionId == 0 && _callId > 0);
+    if (!canSend) return;
     for (final candidate in List<RTCIceCandidate>.from(_queuedLocalCandidates)) {
       if (candidate.candidate == null) continue;
       _sendSignaling(

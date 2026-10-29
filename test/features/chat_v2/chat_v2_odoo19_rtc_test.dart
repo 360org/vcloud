@@ -151,6 +151,8 @@ class FakeChatV2WebRtcEngine extends ChatV2WebRtcEngine {
     required int localSessionId,
     required List<int> targetSessionIds,
     required List<dynamic> iceServersData,
+    int? callId,
+    int? channelId,
   }) async {
     initialized = true;
   }
@@ -189,6 +191,10 @@ void main() {
     );
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
       const MethodChannel('xyz.luan/audioplayers'),
+      (methodCall) async => 1,
+    );
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+      const MethodChannel('flutter_callkit_incoming'),
       (methodCall) async => 1,
     );
   });
@@ -336,7 +342,7 @@ void main() {
       await Future.delayed(const Duration(milliseconds: 10));
 
       expect(fakeEngine.lastHandledAnswer, 'mock_remote_answer_sdp');
-      expect(controller.state?.state, ChatV2CallState.outgoingRinging);
+      expect(controller.state?.state, ChatV2CallState.connected);
     });
 
     test('TC-CALL-09: Bus onCallEnded kích hoạt khi đối phương gác máy, chuyển state sang ended', () async {
@@ -368,7 +374,8 @@ void main() {
       bus.emitCallEnded(channelId: 123, state: 'rejected');
       await Future.delayed(const Duration(milliseconds: 10));
 
-      expect(controller.state?.state, ChatV2CallState.rejected);
+      expect(controller.state?.state, ChatV2CallState.ended);
+      expect(controller.state?.endReason, 'rejected');
     });
 
     test('TC-CALL-10: Callee bấm Từ chối gọi leaveCall giải phóng phiên an toàn', () async {
@@ -387,7 +394,8 @@ void main() {
       expect(controller.state?.state, ChatV2CallState.incomingRinging);
 
       await controller.rejectCall();
-      expect(controller.state?.state, ChatV2CallState.rejected);
+      expect(controller.state?.state, ChatV2CallState.ended);
+      expect(controller.state?.endReason, 'rejected');
 
       final leaveCall = apiClient.recordedCalls.any((c) => c['path'] == '/mail/rtc/channel/leave_call');
       expect(leaveCall, true);
@@ -424,7 +432,8 @@ void main() {
       bus.emitCallEnded(sessionId: 789, state: 'rejected');
       await Future.delayed(const Duration(milliseconds: 10));
 
-      expect(controller.state?.state, ChatV2CallState.rejected);
+      expect(controller.state?.state, ChatV2CallState.ended);
+      expect(controller.state?.endReason, 'rejected');
     });
 
     test('TC-CALL-13: OdooBusService bóc tách mail.record/insert với invited_member_ids DELETE ra event rejected', () async {

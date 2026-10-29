@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/odoo_api_client.dart';
@@ -32,8 +33,12 @@ class MenuRepository {
         }
       }
 
-      final appsRaw = dataMap['apps'];
-      final utilsRaw = dataMap['utilities'];
+      final appsRaw =
+          dataMap['apps'] ?? (res is Map ? res['apps'] : null);
+      final utilsRaw = dataMap['utilities'] ??
+          (res is Map
+              ? (res['utilities'] ?? res['system_utilities'])
+              : null);
 
       final List<AppMenuItem> apps = (appsRaw is List)
           ? appsRaw
@@ -49,10 +54,12 @@ class MenuRepository {
               .toList()
           : <AppUtilityItem>[];
 
+      debugPrint(
+          '📱 [MenuRepository] Loaded ${apps.length} apps, ${utilities.length} utilities');
       return (apps: apps, utilities: utilities);
-    } catch (_) {
-      // Fail-soft: mạng lỗi hoặc server chưa deploy route
-      return (apps: <AppMenuItem>[], utilities: <AppUtilityItem>[]);
+    } catch (e, st) {
+      debugPrint('🚨 [MenuRepository.fetchAppsMenu] Error fetching apps: $e\n$st');
+      rethrow;
     }
   }
 }

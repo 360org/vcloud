@@ -36,9 +36,9 @@ Future<void> vcloudFirebaseMessagingBackgroundHandler(
     // Kích hoạt CallKit Incoming Call khi nhận FCM wake-up ở Background / Lock screen
     final data = message.data;
     final eventType = (data['event_type'] ?? data['event'] ?? data['type'] ?? '').toString();
-    if (eventType == 'call_cancelled' || eventType == 'call_ended' || eventType == 'call_rejected') {
+    if (eventType == 'vmobile_call_ended') {
       await ChatV2CallKitService.instance.endAllCalls();
-    } else if (eventType == 'incoming_call' || eventType == 'vmobile_call_incoming' || eventType.contains('call')) {
+    } else if (eventType == 'vmobile_call_incoming') {
       final channelId = int.tryParse(data['channel_id']?.toString() ?? '0') ?? 0;
       final callerId = int.tryParse(data['caller_id']?.toString() ?? '0') ?? 0;
       final callId = int.tryParse(data['call_id']?.toString() ?? '0') ?? 0;
@@ -121,9 +121,9 @@ class PushNotificationService {
 
             final data = message.data;
             final eventType = (data['event_type'] ?? data['event'] ?? data['type'] ?? '').toString();
-            if (eventType == 'call_cancelled' || eventType == 'call_ended' || eventType == 'call_rejected') {
+            if (eventType == 'vmobile_call_ended') {
               ChatV2CallKitService.instance.endAllCalls();
-            } else if (eventType == 'incoming_call' || eventType == 'vmobile_call_incoming') {
+            } else if (eventType == 'vmobile_call_incoming') {
               final channelId = int.tryParse(data['channel_id']?.toString() ?? '0') ?? 0;
               final callerId = int.tryParse(data['caller_id']?.toString() ?? '0') ?? 0;
               final callId = int.tryParse(data['call_id']?.toString() ?? '0') ?? 0;
@@ -145,11 +145,8 @@ class PushNotificationService {
 
             if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
               final notification = message.notification;
-              final isCallPush = eventType == 'incoming_call' ||
-                  eventType == 'vmobile_call_incoming' ||
-                  eventType == 'call_cancelled' ||
-                  eventType == 'call_ended' ||
-                  eventType == 'call_rejected';
+              final isCallPush = eventType == 'vmobile_call_incoming' ||
+                  eventType == 'vmobile_call_ended';
               if (notification != null && !isCallPush) {
                 FlutterLocalNotificationsPlugin().show(
                   id: notification.hashCode,

@@ -11,6 +11,7 @@ import '../../../core/config/env.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../../../shared/widgets/brand_logo.dart';
 import '../../chat_v2/application/chat_v2_channels_controller.dart';
+import '../../ticket/application/ticket_controller.dart';
 import '../application/auth_controller.dart';
 import '../application/auth_memory_state.dart';
 import '../data/db_info.dart';
@@ -216,6 +217,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         }
       }
 
+      // Khi cấu hình cố định database trong Env (Môi trường test / Dev):
+      // Khóa thẳng vào Env.odooDb và Env.odooApiBaseUrl, tuyệt đối KHÔNG nhảy sang link/DB khác
+      if (Env.odooDb.isNotEmpty) {
+        candidateDbs.clear();
+        candidateDbs.add(DbInfo(
+          login: login,
+          databaseName: Env.odooDb,
+          databaseUrl: Env.odooApiBaseUrl,
+          displayName: 'Local Server (${Env.odooDb})',
+          hasVMobile: true,
+        ));
+      }
+
       if (candidateDbs.isEmpty) {
         String fallbackDbName = (lastDb != null && lastDb.isNotEmpty)
             ? lastDb
@@ -226,6 +240,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             fallbackDbName = 'vuahethong';
           } else if (host.contains('demo.vuahethong.com')) {
             fallbackDbName = 'demo';
+          } else {
+            fallbackDbName = 'vcloud_test_v19';
           }
         }
         final fallbackDb = _normalizeCandidateDb(DbInfo(
@@ -642,9 +658,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       // Pre-warm data (chỉ thực hiện nếu database đã cài đặt vmobile)
       if (db.hasVMobile) {
         try {
+          ref.read(ticketOverrideProvider.notifier).set(null);
+          ref.read(ticketHasMoreProvider.notifier).state = true;
+          ref.invalidate(ticketsProvider);
           await Future.wait([
             ref.read(chatV2ChannelsProvider.notifier).refresh(),
-          ]).timeout(const Duration(milliseconds: 2500));
+            ref.read(ticketsProvider.future),
+          ]).timeout(const Duration(milliseconds: 3500));
         } catch (warmupErr) {
           debugPrint('⚠️ [LoginScreen] Pre-warm data sync timed out: $warmupErr');
         }

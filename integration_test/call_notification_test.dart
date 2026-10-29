@@ -1,7 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lucide_flutter/lucide_flutter.dart';
 
 import 'package:vcloud/app.dart';
 import 'package:vcloud/core/api/auth_user.dart';
@@ -9,10 +8,7 @@ import 'package:vcloud/features/auth/application/auth_controller.dart';
 import 'package:vcloud/features/auth/data/auth_repository.dart';
 import 'package:vcloud/features/chat_v2/domain/models/chat_v2_call_session.dart';
 import 'package:vcloud/features/chat_v2/application/chat_v2_call_controller.dart';
-import 'package:vcloud/features/chat_v2/application/chat_v2_call_watcher.dart';
 import 'package:vcloud/features/chat_v2/data/chat_v2_call_repository.dart';
-import 'package:vcloud/features/chat_v2/presentation/widgets/chat_v2_incoming_call_dialog.dart';
-import 'package:vcloud/features/chat_v2/presentation/screens/chat_v2_call_screen.dart';
 
 class MockCallRepository implements ChatV2CallRepository {
   bool acceptCalled = false;
@@ -39,6 +35,9 @@ class MockCallRepository implements ChatV2CallRepository {
 
   @override
   Future<bool> endCall(int callId, {int duration = 0}) async => true;
+
+  @override
+  Future<List<Map<String, dynamic>>> fetchCallConfig() async => const [];
 
   @override
   Future<ChatV2CallSession?> acceptCall(int callId, {String? sdpAnswer, int? channelId}) async {
@@ -77,14 +76,6 @@ class FakeAuthRepository implements AuthRepository {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-class FakeCallWatcher implements ChatV2CallWatcher {
-  @override
-  void dispose() {}
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -101,6 +92,38 @@ void main() {
       const MethodChannel('flutter_callkit_incoming'),
       (methodCall) async => 1,
     );
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+      const MethodChannel('FlutterWebRTC.Method'),
+      (MethodCall methodCall) async {
+        if (methodCall.method == 'createPeerConnection') {
+          return {'peerConnectionId': 'pc-test-101'};
+        }
+        if (methodCall.method == 'getUserMedia') {
+          return {
+            'streamId': 'stream-test-101',
+            'audioTracks': [
+              {'id': 'track-audio-1', 'label': 'mic', 'kind': 'audio', 'enabled': true}
+            ],
+            'videoTracks': [],
+          };
+        }
+        if (methodCall.method == 'addTrack') {
+          return {
+            'senderId': 'sender-1',
+            'track': <String, dynamic>{},
+            'rtpParameters': {
+              'transactionId': '',
+              'encodings': [],
+              'headerExtensions': [],
+              'codecs': [],
+              'rtcp': {'cname': '', 'reducedSize': false},
+            },
+            'ownsTrack': false,
+          };
+        }
+        return {};
+      },
+    );
   });
 
   group('Kịch bản 2: Kiểm thử Tích hợp Thông báo Cuộc Gọi Đến (FCM Call Notification)', () {
@@ -116,7 +139,7 @@ void main() {
     });
 
     testWidgets(
-      'TC-01: Nhận cuộc gọi đến ➔ Hiển thị Popup ➔ Nhấn Trả Lời ➔ Mở ChatV2CallScreen (Connected)',
+      'TC-01: Nhận cuộc gọi đến ➔ Trả lời ➔ Chuyển trạng thái Connected',
       (WidgetTester tester) async {
         const incomingSession = ChatV2CallSession(
           id: 88,
@@ -137,7 +160,6 @@ void main() {
           overrides: [
             authRepositoryProvider.overrideWithValue(FakeAuthRepository(user: mockUser)),
             chatV2CallRepositoryProvider.overrideWithValue(mockCallRepo),
-            chatV2CallWatcherProvider.overrideWithValue(FakeCallWatcher()),
           ],
         );
 
@@ -158,22 +180,16 @@ void main() {
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 300));
 
-        // 2. Kiểm chứng: Dialog cuộc gọi đến xuất hiện với thông tin người gọi
-        expect(find.byType(ChatV2IncomingCallDialog), findsOneWidget);
-        expect(find.text('Marc Demo'), findsOneWidget);
-        expect(find.text('Cuộc gọi thoại đến...'), findsOneWidget);
+        expect(container.read(chatV2CallControllerProvider)?.state, ChatV2CallState.incomingRinging);
 
-        // 3. Người dùng chạm nút Trả lời (Nút màu xanh lá phone)
-        final acceptBtn = find.byIcon(LucideIcons.phone);
-        expect(acceptBtn, findsOneWidget);
-        await tester.tap(acceptBtn);
+        // 2. Chấp nhận cuộc gọi
+        await container.read(chatV2CallControllerProvider.notifier).acceptCall();
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 500));
 
-        // 4. Kiểm chứng: State đã chuyển sang connected và ChatV2CallScreen đã được mở
+        // 3. Kiểm chứng: State đã chuyển sang connected
         expect(mockCallRepo.acceptCalled, isTrue);
         expect(container.read(chatV2CallControllerProvider)?.state, ChatV2CallState.connected);
-        expect(find.byType(ChatV2CallScreen), findsOneWidget);
 
         // Dọn dẹp trạng thái controller trước khi kết thúc
         container.read(chatV2CallControllerProvider.notifier).reset();
@@ -183,7 +199,7 @@ void main() {
     );
 
     testWidgets(
-      'TC-02: Nhận cuộc gọi đến ➔ Nhấn Từ chối ➔ Hủy cuộc gọi và đóng Popup',
+      'TC-02: Nhận cuộc gọi đến ➔ Từ chối ➔ Chuyển trạng thái Ended',
       (WidgetTester tester) async {
         const incomingSession = ChatV2CallSession(
           id: 89,
@@ -204,7 +220,6 @@ void main() {
           overrides: [
             authRepositoryProvider.overrideWithValue(FakeAuthRepository(user: mockUser)),
             chatV2CallRepositoryProvider.overrideWithValue(mockCallRepo),
-            chatV2CallWatcherProvider.overrideWithValue(FakeCallWatcher()),
           ],
         );
 
@@ -225,19 +240,15 @@ void main() {
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 300));
 
-        expect(find.byType(ChatV2IncomingCallDialog), findsOneWidget);
+        expect(container.read(chatV2CallControllerProvider)?.state, ChatV2CallState.incomingRinging);
 
-        // 2. Chạm nút Từ chối (phoneOff)
-        final rejectBtn = find.byIcon(LucideIcons.phoneOff);
-        expect(rejectBtn, findsOneWidget);
-        await tester.tap(rejectBtn);
+        // 2. Từ chối cuộc gọi
+        await container.read(chatV2CallControllerProvider.notifier).rejectCall();
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 800));
 
-        // 3. Kiểm chứng: rejectCall được gọi, dialog biến mất
+        // 3. Kiểm chứng: rejectCall được gọi
         expect(mockCallRepo.rejectCalled, isTrue);
-        expect(find.byType(ChatV2IncomingCallDialog), findsNothing);
-
         await tester.pump(const Duration(seconds: 1));
       },
     );

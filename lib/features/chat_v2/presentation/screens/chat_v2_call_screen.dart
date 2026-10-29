@@ -110,6 +110,16 @@ class _ChatV2CallScreenState extends ConsumerState<ChatV2CallScreen> {
         if (session.endReason == 'network_lost') {
           statusText = 'Cuộc gọi bị ngắt do mất kết nối mạng';
           statusColor = const Color(0xFFEF4444);
+        } else if (session.endReason == 'rejected' || session.endReason == 'busy') {
+          statusText = session.endReason == 'busy'
+              ? 'Người dùng đang trong cuộc gọi khác'
+              : 'Cuộc gọi bị từ chối';
+          statusColor = const Color(0xFFEF4444);
+        } else if (session.endReason == 'missed' || session.endReason == 'timeout') {
+          statusText = 'Không có phản hồi';
+          statusColor = const Color(0xFFEF4444);
+        } else if (session.endReason == 'cancelled') {
+          statusText = 'Đã hủy cuộc gọi';
         } else {
           statusText = 'Cuộc gọi đã kết thúc (${session.formattedDuration})';
         }

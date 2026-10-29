@@ -19,6 +19,9 @@ final chatV2CallControllerProvider =
   return ChatV2CallController(repo: repo, bus: bus);
 });
 
+/// Controller quản lý vòng đời cuộc gọi thoại theo 6 trạng thái chuẩn:
+/// idle ➔ outgoingRinging (Caller) / incomingRinging (Callee) ➔ connecting ➔ connected ➔ ended.
+/// Mọi điều phối trạng thái thực thi trực tiếp qua Odoo Bus Realtime (vmobile.call/*).
 class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
   final ChatV2CallRepository repo;
   final OdooBusService? bus;
@@ -35,7 +38,6 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
   Timer? _ringingTimeoutTimer;
   Timer? _disconnectTimer;
   Timer? _autoResetTimer;
-  Timer? _pollingFallbackTimer;
   AudioPlayer? _audioPlayer;
 
   bool _isDisposed = false;
@@ -63,12 +65,12 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
   void _initBusListeners() {
     bus?.connect();
 
-    // 1. Lắng nghe Signaling SDP / ICE từ Odoo Bus WebSocket
+    // 1. Lắng nghe Signaling SDP / ICE từ Odoo Bus WebSocket (vmobile.call/signaling & discuss.channel.rtc.session/peer_notification)
     _busPeerSub = bus?.onPeerNotification.listen((data) {
       _handlePeerNotification(data);
     });
 
-    // 2. Lắng nghe sự kiện đối phương gác máy hoặc từ chối (Odoo 19 Core & VMobile)
+    // 2. Lắng nghe sự kiện đối phương gác máy hoặc từ chối (vmobile.call/ended)
     _busEndedSub = bus?.onCallEnded.listen((data) {
       final channelId = int.tryParse(data['channel_id']?.toString() ?? '0') ?? 0;
       final sessionId = int.tryParse(data['sessionId']?.toString() ?? '0') ?? 0;
@@ -86,7 +88,7 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
       }
     });
 
-    // 3. Lắng nghe sự kiện Odoo Bus mời tham gia cuộc gọi (RTC Invite Callee)
+    // 3. Lắng nghe sự kiện Odoo Bus mời tham gia cuộc gọi (vmobile.call/incoming)
     _busIncomingCallSub = bus?.onIncomingCall.listen((data) {
       final channelId = int.tryParse(data['channel_id']?.toString() ?? '0') ?? 0;
       final callerId = int.tryParse(data['caller_id']?.toString() ?? '0') ?? 0;
@@ -119,7 +121,7 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
       }
     });
 
-    // 4. Lắng nghe Callee chấp nhận cuộc gọi (Callee accepted call)
+    // 4. Lắng nghe Callee chấp nhận cuộc gọi (vmobile.call/accepted)
     _busAcceptedSub = bus?.onCallAccepted.listen((data) async {
       final channelId = int.tryParse(data['channel_id']?.toString() ?? '0') ?? 0;
       final matchChannel = channelId == 0 || (state != null && state!.channelId == channelId);
@@ -127,8 +129,6 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
 
       if (matchChannel && isCaller) {
         debugPrint('[RTC_CALL_LOG][ACCEPT] Bus onCallAccepted: kênh $channelId');
-        _pollingFallbackTimer?.cancel();
-        _pollingFallbackTimer = null;
         final sdpAnswer = data['sdp_answer'] ?? data['answer'];
         if (sdpAnswer is Map) {
           await _webrtc?.handleAnswer(Map<String, dynamic>.from(sdpAnswer));
@@ -159,7 +159,7 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
     });
   }
 
-  /// Cập nhật Session ID khi server đồng bộ (hoặc Watcher tìm thấy active call)
+  /// Cập nhật Session ID khi server đồng bộ
   void updateSessionId(int id) {
     if (state != null && (state!.id == 0 || state!.id != id) && id > 0) {
       debugPrint('[RTC_CALL_LOG][SIGNAL] Đồng bộ Session ID: ${state!.id} -> $id');
@@ -167,7 +167,7 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
     }
   }
 
-  /// Khởi tạo cuộc gọi mới từ phía Caller (Gọi vào Odoo 19 /mail/rtc/channel/join_call hoặc legacy)
+  /// Khởi tạo cuộc gọi mới từ phía Caller (idle ➔ outgoingRinging)
   Future<bool> startCall({
     required int channelId,
     required String callerName,
@@ -187,7 +187,7 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
       _stopAudio();
       _stopTimers();
 
-      // Thiết lập trạng thái Dialing / Outgoing Ringing ban đầu
+      // Thiết lập trạng thái Outgoing Ringing ban đầu
       state = ChatV2CallSession(
         id: 0,
         channelId: channelId,
@@ -207,8 +207,8 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
       bus?.subscribeChannel(channelId);
       _playDialingTone();
 
-      // 1. Luôn tạo phiên gọi trên server (mobile.api.call.session)
-      // để rung chuông thiết bị người nhận, gửi Push FCM và lấy Call ID chính xác
+      // 1. Khởi tạo phiên gọi trên server (mobile.api.call.session)
+      // phát Bus vmobile.call/incoming và FCM Push
       debugPrint('[RTC_CALL_LOG][INIT] Gọi API initiateCall: channelId=$channelId, receiverId=$receiverId');
       final session = await repo.initiateCall(
         channelId: channelId,
@@ -218,7 +218,7 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
 
       if (session == null) {
         debugPrint('[RTC_CALL_LOG][INIT] ❌ Không thể tạo cuộc gọi trên server');
-        state = state?.copyWith(state: ChatV2CallState.failed);
+        state = state?.copyWith(state: ChatV2CallState.ended, endReason: 'failed');
         _stopAudio();
         return false;
       }
@@ -240,12 +240,11 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
             : session.receiverAvatar,
       );
 
-      // Timeout 45s đổ chuông nếu đối phương không nghe máy
+      // Bắt đầu đếm timeout 45s đổ chuông nếu đối phương không nghe máy
       debugPrint('[RTC_CALL_LOG][SIGNAL] Bắt đầu đổ chuông outgoingRinging, timeout 45s (Kênh: $channelId, Call ID: ${session.id})');
       _startRingingTimeout();
-      _startPollingFallback(channelId, session.id);
 
-      // 2. Khởi tạo WebRTC Engine và thử tham gia phòng RTC Odoo nếu có
+      // 2. Khởi tạo WebRTC Engine và tham gia phòng RTC Odoo nếu có
       OdooRtcJoinResult? joinResult;
       try {
         joinResult = await repo.joinCall(channelId: channelId);
@@ -258,11 +257,13 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
         _webrtc!.onConnectionState = _handleWebrtcConnectionState;
         await _webrtc!.initialize(
           localSessionId: joinResult?.localSessionId ?? session.id,
+          callId: session.id,
+          channelId: channelId,
           targetSessionIds: joinResult?.currentRtcSessionIds ?? [],
           iceServersData: joinResult?.iceServers ?? const [],
         );
 
-        if (joinResult != null && joinResult.currentRtcSessionIds.isNotEmpty) {
+        if (joinResult == null || joinResult.currentRtcSessionIds.isNotEmpty) {
           debugPrint('[RTC_CALL_LOG][SIGNAL] Gửi SDP Offer sang peer');
           await _webrtc!.createAndSendOffer();
         }
@@ -273,21 +274,21 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
       return true;
     } catch (e, st) {
       debugPrint('[RTC_CALL_LOG][INIT] ❌ Lỗi ngoại lệ trong startCall: $e\n$st');
-      state = state?.copyWith(state: ChatV2CallState.failed);
+      state = state?.copyWith(state: ChatV2CallState.ended, endReason: 'failed');
       _stopAudio();
       return false;
     }
   }
 
-  /// Khi nhận thông báo FCM Wake-up có cuộc gọi đến (Callee)
+  /// Khi nhận thông báo FCM Wake-up có cuộc gọi đến (Callee: idle ➔ incomingRinging)
   void setIncomingCall(ChatV2CallSession incomingSession) {
     debugPrint('[RTC_CALL_LOG][INIT] Nhận cuộc gọi đến: id=${incomingSession.id}, channelId=${incomingSession.channelId}, caller=${incomingSession.callerName}');
 
-    // 0. Bỏ qua nếu là thông báo lặp lại của chính cuộc gọi đang tham gia
+    // Bỏ qua nếu là thông báo lặp lại của chính cuộc gọi đang tham gia
     if (state != null && state!.state != ChatV2CallState.idle) {
       if (incomingSession.id == state!.id ||
           (state!.channelId > 0 && incomingSession.channelId == state!.channelId)) {
-        debugPrint('[RTC_CALL_LOG][INIT] Bỏ qua thông báo cuộc gọi trùng lặp cho phiên hiện tại (callId=${incomingSession.id}, channelId=${incomingSession.channelId})');
+        debugPrint('[RTC_CALL_LOG][INIT] Bỏ qua thông báo cuộc gọi trùng lặp (callId=${incomingSession.id}, channelId=${incomingSession.channelId})');
         return;
       }
     }
@@ -308,7 +309,7 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
 
     if (state != null && state!.state != ChatV2CallState.idle) {
       debugPrint('[RTC_CALL_LOG][INIT] ⚠️ Controller đang ở phase ${state!.state}, bỏ qua setIncomingCall mới');
-      return; // Đang quay số hoặc xử lý cuộc gọi khác
+      return;
     }
 
     bus?.subscribeChannel(incomingSession.channelId);
@@ -322,7 +323,7 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
     _startRingingTimeout();
   }
 
-  /// Callee bấm Trả lời cuộc gọi
+  /// Callee bấm Trả lời cuộc gọi (incomingRinging ➔ connecting ➔ connected)
   Future<void> acceptCall() async {
     final current = state;
     if (current == null) {
@@ -351,8 +352,7 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
         }
       }
 
-      // 2. Luôn gọi API acceptCall để cập nhật trạng thái connected trên server
-      // Truyền channelId để backend fallback tìm session khi effectiveCallId == 0
+      // 2. Gọi API acceptCall để xác nhận và phát bus vmobile.call/accepted
       ChatV2CallSession? updated;
       try {
         debugPrint('[RTC_CALL_LOG][ACCEPT] Gọi API acceptCall: callId=$effectiveCallId, channelId=${current.channelId}');
@@ -365,16 +365,15 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
       }
       if (_isDisposed) return;
 
-      // 🛑 CHỐNG ẢO GIÁC OPTIMISTIC UI: Chỉ chuyển connected & chạy timer khi server xác nhận thành công!
-      if (updated == null || updated.state != ChatV2CallState.connected) {
-        debugPrint('[RTC_CALL_LOG][ACCEPT] ❌ Server chưa xác nhận trạng thái connected (updated: $updated). Dừng handshake, chuyển failed.');
-        state = current.copyWith(state: ChatV2CallState.failed);
+      if (updated == null) {
+        debugPrint('[RTC_CALL_LOG][ACCEPT] ❌ Server trả về lỗi khi acceptCall. Dừng handshake, chuyển ended.');
+        state = current.copyWith(state: ChatV2CallState.ended, endReason: 'failed');
         _stopAudio();
         _cleanupWebrtc();
         ChatV2CallKitService.instance.endAllCalls();
         _autoResetTimer?.cancel();
         _autoResetTimer = Timer(const Duration(milliseconds: 1500), () {
-          if (!_isDisposed && mounted && state?.state == ChatV2CallState.failed) {
+          if (!_isDisposed && mounted && state?.state == ChatV2CallState.ended) {
             reset();
           }
         });
@@ -388,9 +387,9 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
         connectedAt: updated.connectedAt ?? DateTime.now(),
         isCaller: false,
       );
-      _startDurationTimer();
+      _onCallConnected();
 
-      // 2. Thử tham gia phòng RTC Odoo nếu có
+      // 3. Khởi tạo WebRTC Engine
       OdooRtcJoinResult? joinResult;
       try {
         joinResult = await repo.joinCall(channelId: current.channelId);
@@ -398,13 +397,14 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
         debugPrint('[RTC_CALL_LOG][ACCEPT] joinCall Odoo info: $e');
       }
 
-      // 3. Khởi tạo WebRTC Engine
       try {
         _webrtc ??= webrtcEngine ?? ChatV2WebRtcEngine(repo: repo);
         _webrtc!.onConnectionState = _handleWebrtcConnectionState;
 
         await _webrtc!.initialize(
-          localSessionId: joinResult?.localSessionId ?? current.id,
+          localSessionId: joinResult?.localSessionId ?? effectiveCallId,
+          callId: effectiveCallId,
+          channelId: current.channelId,
           targetSessionIds: joinResult?.currentRtcSessionIds ?? [],
           iceServersData: joinResult?.iceServers ?? const [],
         );
@@ -413,11 +413,11 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
       }
     } catch (e, st) {
       debugPrint('[RTC_CALL_LOG][ACCEPT] ❌ Lỗi ngoại lệ trong acceptCall: $e\n$st');
-      state = current.copyWith(state: ChatV2CallState.failed);
+      state = current.copyWith(state: ChatV2CallState.ended, endReason: 'failed');
     }
   }
 
-  /// Callee bấm Từ chối cuộc gọi
+  /// Callee bấm Từ chối cuộc gọi (incomingRinging ➔ ended)
   Future<void> rejectCall() async {
     final current = state;
     try {
@@ -433,15 +433,17 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
             await repo.rejectCall(
               current.id,
               channelId: current.channelId > 0 ? current.channelId : null,
+              reason: 'rejected',
             ).catchError((_) => false);
           }
         } else if (!current.isCaller && current.channelId > 0) {
           await repo.rejectCall(
             0,
             channelId: current.channelId,
+            reason: 'rejected',
           ).catchError((_) => false);
         }
-        await repo.leaveCall(channelId: current.channelId, sessionId: current.id).catchError((_) => false);
+        await repo.leaveCall(channelId: current.channelId, sessionId: current.id, reason: 'rejected').catchError((_) => false);
         if (current.channelId > 0) {
           ChatV2ChannelLocalCache.updateChannelLastMessage(
             current.channelId.toString(),
@@ -450,13 +452,13 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
           );
         }
       }
-      state = current?.copyWith(state: ChatV2CallState.rejected);
+      state = current?.copyWith(state: ChatV2CallState.ended, endReason: 'rejected');
       _cleanupWebrtc();
       ChatV2CallKitService.instance.endAllCalls();
 
       _autoResetTimer?.cancel();
       _autoResetTimer = Timer(const Duration(milliseconds: 500), () {
-        if (!_isDisposed && mounted && state?.state == ChatV2CallState.rejected) {
+        if (!_isDisposed && mounted && state?.state == ChatV2CallState.ended) {
           reset();
         }
       });
@@ -466,7 +468,7 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
     }
   }
 
-  /// Caller chủ động Hủy trước khi Callee nghe máy
+  /// Caller chủ động Hủy trước khi Callee nghe máy (outgoingRinging ➔ ended)
   Future<void> cancelCall() async {
     final current = state;
     try {
@@ -479,7 +481,7 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
           await repo.cancelCall(current.id).catchError((_) => false);
         }
         await repo.cancelCallInvitation(channelId: current.channelId).catchError((_) => false);
-        await repo.leaveCall(channelId: current.channelId, sessionId: current.id).catchError((_) => false);
+        await repo.leaveCall(channelId: current.channelId, sessionId: current.id, reason: 'cancelled').catchError((_) => false);
         if (current.channelId > 0) {
           ChatV2ChannelLocalCache.updateChannelLastMessage(
             current.channelId.toString(),
@@ -488,13 +490,13 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
           );
         }
       }
-      state = current?.copyWith(state: ChatV2CallState.cancelled);
+      state = current?.copyWith(state: ChatV2CallState.ended, endReason: 'cancelled');
       _cleanupWebrtc();
       ChatV2CallKitService.instance.endAllCalls();
 
       _autoResetTimer?.cancel();
       _autoResetTimer = Timer(const Duration(milliseconds: 500), () {
-        if (!_isDisposed && mounted && state?.state == ChatV2CallState.cancelled) {
+        if (!_isDisposed && mounted && state?.state == ChatV2CallState.ended) {
           reset();
         }
       });
@@ -504,7 +506,7 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
     }
   }
 
-  /// Gác máy khi đang đàm thoại
+  /// Gác máy khi đang đàm thoại (connected ➔ ended)
   Future<void> endCall() async {
     final current = state;
     try {
@@ -516,7 +518,7 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
         if (current.id != 0) {
           await repo.endCall(current.id, duration: current.duration).catchError((_) => false);
         }
-        await repo.leaveCall(channelId: current.channelId, sessionId: current.id).catchError((_) => false);
+        await repo.leaveCall(channelId: current.channelId, sessionId: current.id, reason: 'normal').catchError((_) => false);
         if (current.channelId > 0) {
           final durationStr = current.duration > 0 ? ' (${current.formattedDuration})' : '';
           ChatV2ChannelLocalCache.updateChannelLastMessage(
@@ -526,7 +528,7 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
           );
         }
       }
-      state = current?.copyWith(state: ChatV2CallState.ended);
+      state = current?.copyWith(state: ChatV2CallState.ended, endReason: 'normal');
       _cleanupWebrtc();
       ChatV2CallKitService.instance.endAllCalls();
     } catch (e) {
@@ -535,11 +537,43 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
     }
   }
 
-  /// Xử lý bản tin WebRTC Signaling nhận từ Odoo Bus
+  /// Xử lý bản tin WebRTC Signaling nhận từ Odoo Bus (vmobile.call/signaling & discuss.channel.rtc.session/peer_notification)
   void _handlePeerNotification(Map<String, dynamic> data) async {
     if (_webrtc == null || state == null) return;
 
     try {
+      // 1. Bản tin Signaling từ Bus: vmobile.call/signaling
+      if (data.containsKey('signal_type') || data.containsKey('data')) {
+        final signalType = data['signal_type']?.toString();
+        final sigData = data['data'];
+        final callId = int.tryParse(data['call_id']?.toString() ?? '0') ?? 0;
+        final channelId = int.tryParse(data['channel_id']?.toString() ?? '0') ?? 0;
+
+        if (state != null && callId > 0 && state!.id > 0 && callId != state!.id) {
+          return;
+        }
+        if (state != null && channelId > 0 && state!.channelId > 0 && channelId != state!.channelId) {
+          return;
+        }
+
+        debugPrint('[RTC_CALL_LOG][SIGNAL] Nhận vmobile.call/signaling: $signalType');
+        if (sigData is Map) {
+          final map = Map<String, dynamic>.from(sigData);
+          if (signalType == 'offer') {
+            await _webrtc!.handleOfferAndSendAnswer(map);
+          } else if (signalType == 'answer') {
+            await _webrtc!.handleAnswer(map);
+            if (state?.state != ChatV2CallState.connected) {
+              _onCallConnected();
+            }
+          } else if (signalType == 'candidate') {
+            await _webrtc!.handleRemoteCandidate(map);
+          }
+        }
+        return;
+      }
+
+      // 2. Bản tin Signaling từ Odoo Core: discuss.channel.rtc.session/peer_notification
       final senderSessionId = int.tryParse(data['sender']?.toString() ?? '0') ?? 0;
       if (senderSessionId > 0) {
         _webrtc!.updateTargetSessionIds([senderSessionId]);
@@ -572,6 +606,9 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
           if (sdp is Map) {
             debugPrint('[RTC_CALL_LOG][SIGNAL] Nhận SDP Answer -> Cập nhật Remote Description');
             await _webrtc!.handleAnswer(Map<String, dynamic>.from(sdp));
+            if (state?.state != ChatV2CallState.connected) {
+              _onCallConnected();
+            }
           }
         } else if (event == 'ice-candidate') {
           final candidate = payload['candidate'];
@@ -613,8 +650,6 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
     debugPrint('[RTC_CALL_LOG][MEDIA] Cuộc gọi thoại đã kết nối thông suốt (Connected)');
     _stopAudio();
     _ringingTimeoutTimer?.cancel();
-    _pollingFallbackTimer?.cancel();
-    _pollingFallbackTimer = null;
     _disconnectTimer?.cancel();
     _disconnectTimer = null;
     state = state?.copyWith(
@@ -635,29 +670,22 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
     final current = state;
     _stopAudio();
     _stopTimers();
-    ChatV2CallState targetState = ChatV2CallState.ended;
-    if (endState == 'rejected' || reason == 'busy') {
-      targetState = ChatV2CallState.rejected;
-    } else if (endState == 'cancelled') {
-      targetState = ChatV2CallState.cancelled;
-    } else if (endState == 'missed' || reason == 'timeout') {
-      targetState = ChatV2CallState.missed;
-    }
-    debugPrint('[RTC_CALL_LOG][END] Đối phương ngắt máy: endState=$endState, reason=$reason -> targetState=$targetState');
+    final effectiveReason = reason ?? endState ?? 'normal';
+    debugPrint('[RTC_CALL_LOG][END] Đối phương ngắt máy: endState=$endState, reason=$reason -> effectiveReason=$effectiveReason');
     state = state?.copyWith(
-      state: targetState,
-      endReason: reason,
+      state: ChatV2CallState.ended,
+      endReason: effectiveReason,
     );
     _cleanupWebrtc();
     ChatV2CallKitService.instance.endAllCalls();
 
     if (current != null && current.channelId > 0) {
       String callSnippet;
-      if (targetState == ChatV2CallState.rejected) {
+      if (effectiveReason == 'rejected' || effectiveReason == 'busy') {
         callSnippet = '🚫 [Cuộc gọi bị từ chối]';
-      } else if (targetState == ChatV2CallState.cancelled) {
+      } else if (effectiveReason == 'cancelled') {
         callSnippet = '📵 [Cuộc gọi đã hủy]';
-      } else if (targetState == ChatV2CallState.missed) {
+      } else if (effectiveReason == 'missed' || effectiveReason == 'timeout') {
         callSnippet = '❌ [Cuộc gọi nhỡ]';
       } else {
         final durationStr = current.duration > 0 ? ' (${current.formattedDuration})' : '';
@@ -670,16 +698,15 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
       );
     }
 
-    // Tự động dọn dẹp state sau 1.2s nếu bận hoặc nhỡ, 2.2s nếu mất mạng để kịp đọc thông báo, 1.5s nếu gác máy bình thường
-    final cleanupDelay = (reason == 'busy' || targetState == ChatV2CallState.missed)
+    final cleanupDelay = (effectiveReason == 'busy' || effectiveReason == 'missed' || effectiveReason == 'timeout')
         ? const Duration(milliseconds: 1200)
-        : ((reason == 'network_lost')
+        : ((effectiveReason == 'network_lost')
             ? const Duration(milliseconds: 2200)
             : const Duration(milliseconds: 1500));
 
     _autoResetTimer?.cancel();
     _autoResetTimer = Timer(cleanupDelay, () {
-      if (!_isDisposed && mounted && state?.state == targetState) {
+      if (!_isDisposed && mounted && state?.state == ChatV2CallState.ended) {
         reset();
       }
     });
@@ -691,7 +718,7 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
     debugPrint('[RTC_CALL_LOG][MEDIA] Toggle Mute: $_isMuted');
     _webrtc?.toggleMute();
     if (state != null) {
-      state = state!.copyWith(); // re-render
+      state = state!.copyWith();
     }
   }
 
@@ -701,13 +728,13 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
     debugPrint('[RTC_CALL_LOG][MEDIA] Toggle Speaker: $_isSpeaker');
     _webrtc?.toggleSpeaker();
     if (state != null) {
-      state = state!.copyWith(); // re-render
+      state = state!.copyWith();
     }
   }
 
   void reset() {
     if (_isDisposed || !mounted) return;
-    debugPrint('[RTC_CALL_LOG][END] Reset Call Controller state về null');
+    debugPrint('[RTC_CALL_LOG][END] Reset Call Controller state về null (idle)');
     _stopAudio();
     _stopTimers();
     _cleanupWebrtc();
@@ -739,10 +766,10 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
       if (state != null &&
           (state!.state == ChatV2CallState.outgoingRinging ||
               state!.state == ChatV2CallState.incomingRinging)) {
-        debugPrint('[RTC_CALL_LOG][SIGNAL] ⏱️ Timeout 45s không có phản hồi -> Chuyển sang missed call');
+        debugPrint('[RTC_CALL_LOG][SIGNAL] ⏱️ Timeout 45s không có phản hồi -> Chuyển sang ended (missed)');
         final currentSession = state;
         _stopAudio();
-        state = state!.copyWith(state: ChatV2CallState.missed);
+        state = state!.copyWith(state: ChatV2CallState.ended, endReason: 'missed');
         _cleanupWebrtc();
         ChatV2CallKitService.instance.endAllCalls();
 
@@ -760,82 +787,10 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
 
         _autoResetTimer?.cancel();
         _autoResetTimer = Timer(const Duration(milliseconds: 1500), () {
-          if (!_isDisposed && mounted && state?.state == ChatV2CallState.missed) {
+          if (!_isDisposed && mounted && state?.state == ChatV2CallState.ended) {
             reset();
           }
         });
-      }
-    });
-  }
-
-  void _startPollingFallback(int channelId, [int? callId]) {
-    _pollingFallbackTimer?.cancel();
-    _pollingFallbackTimer = Timer.periodic(const Duration(milliseconds: 1500), (timer) async {
-      if (_isDisposed || !mounted) {
-        timer.cancel();
-        return;
-      }
-      if (state == null || !state!.isCaller) {
-        timer.cancel();
-        return;
-      }
-      if (state!.state != ChatV2CallState.outgoingRinging &&
-          state!.state != ChatV2CallState.connecting) {
-        timer.cancel();
-        return;
-      }
-
-      final activeCallId = (callId != null && callId > 0) ? callId : state!.id;
-      debugPrint('[RTC_CALL_LOG][SIGNAL] Polling fallback (callId=$activeCallId, channelId=$channelId)...');
-      try {
-        final latestSession = await repo.getCallStatus(
-          callId: activeCallId > 0 ? activeCallId : null,
-          channelId: channelId,
-        );
-
-        if (_isDisposed || !mounted || state == null) return;
-        if (latestSession != null) {
-          // Bỏ qua nếu server trả về call ID không khớp
-          if (activeCallId > 0 && latestSession.id != activeCallId) {
-            debugPrint('[RTC_CALL_LOG][SIGNAL] Bỏ qua kết quả polling vì Call ID không khớp: hiện tại=$activeCallId, server=${latestSession.id}');
-            return;
-          }
-
-          debugPrint('[RTC_CALL_LOG][SIGNAL] Polling fallback kết quả: state=${latestSession.state}');
-          if (latestSession.state == ChatV2CallState.connected) {
-            timer.cancel();
-            debugPrint('[RTC_CALL_LOG][ACCEPT] Polling phát hiện Callee đã accept (state=connected)');
-            if (latestSession.sdpAnswer != null && latestSession.sdpAnswer!.isNotEmpty) {
-              await _webrtc?.handleAnswer({
-                'type': 'answer',
-                'sdp': latestSession.sdpAnswer,
-              });
-            } else if (_webrtc != null) {
-              try {
-                debugPrint('[RTC_CALL_LOG][SIGNAL] Polling kích hoạt Offer cho Caller');
-                await _webrtc!.createAndSendOffer();
-              } catch (e) {
-                debugPrint('[RTC_CALL_LOG][SIGNAL] ⚠️ Error sending offer from polling: $e');
-              }
-            }
-            state = state?.copyWith(
-              state: ChatV2CallState.connected,
-              connectedAt: latestSession.connectedAt ?? DateTime.now(),
-            );
-            _onCallConnected();
-          } else if (latestSession.state == ChatV2CallState.rejected ||
-              latestSession.state == ChatV2CallState.cancelled ||
-              latestSession.state == ChatV2CallState.ended ||
-              latestSession.state == ChatV2CallState.missed) {
-            timer.cancel();
-            _handleRemoteHangup(
-              endState: latestSession.state.name,
-              reason: latestSession.endReason,
-            );
-          }
-        }
-      } catch (e) {
-        debugPrint('[RTC_CALL_LOG][SIGNAL] ⚠️ Polling fallback error: $e');
       }
     });
   }
@@ -873,8 +828,6 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
     _durationTimer = null;
     _ringingTimeoutTimer?.cancel();
     _ringingTimeoutTimer = null;
-    _pollingFallbackTimer?.cancel();
-    _pollingFallbackTimer = null;
     _disconnectTimer?.cancel();
     _disconnectTimer = null;
     _autoResetTimer?.cancel();
