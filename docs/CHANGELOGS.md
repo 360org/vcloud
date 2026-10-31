@@ -2,6 +2,61 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.26+178] — 2026-10-31
+
+> [!IMPORTANT]
+> **Khắc Phục Lỗi RenderFlex Right Overflow 18px Tại Thẻ Hỗ Trợ Trực Tuyến Portal Home (`home_screen.dart`)**:
+> - **[FIX] Bọc Flexible & TextOverflow.ellipsis Chống Tràn Thẻ Hỗ Trợ Trực Tuyến**:
+>   * Sửa lỗi RenderFlex right overflowed by 18 pixels trên màn hình có logical width hẹp <= 360dp (điện thoại Vivo V2116).
+>   * Bọc `Flexible` cho `Text('Hỗ Trợ Trực Tuyến')` và bổ sung `maxLines: 1, overflow: TextOverflow.ellipsis` cho cả tiêu đề và subtitle trong `_PortalSupportActionCard`.
+>   * Tuân thủ Ponytail Rung 6 tối giản diff.
+> - **[TEST] Kiểm Thử Tự Động & UAT Device Thực Tế**:
+>   * `flutter analyze`: 0 errors, 0 warnings.
+>   * `portal_home_adaptation_test.dart`: 10/10 tests PASS (100%).
+>   * UAT: Đã cài debug APK và kiểm chứng runtime 0 overflow trên điện thoại thật Vivo V2116 và Redroid Local Server (`192.168.1.100:5555`).
+
+> [!IMPORTANT]
+> **Khắc Phục Toàn Diện Lịch Sử Media (Ảnh, File, Link) Cho Kênh Chat V2 (vclients, v_mobile_17, v_mobile_19)**:
+> - **[NEW] API Lịch sử Media Kênh Chat O(1) (`controllers/chat.py` trên Odoo 17 & 19)**:
+>   * Endpoint mới: `GET /api/v1/mobile/chat/channels/<id>/media` và alias `/api/v1/mobile/chat/channels/<id>/attachments`.
+>   * Hỗ trợ query tham số: `type` (`all`, `image`, `file`, `link`), phân trang `limit` và `offset`.
+>   * Truy vấn SQL UNION O(1) tổng hợp từ 3 nguồn: `message_attachment_rel`, `ir_attachment` (`res_model = mail.message`), và `res_model = discuss.channel`.
+>   * Phân loại chuẩn MIME type ảnh (`image/*`) và file tài liệu (`application/*`, văn phòng, nén, video).
+>   * Quét và trích xuất URL liên kết thông minh bằng regex từ nội dung tin nhắn (`mail_message.body`), tự động loại trừ link ảnh nhúng và chống trùng lặp.
+>   * Hỗ trợ tự sinh `access_token` hợp lệ nếu attachment thiếu token; đặt `readonly=False` trên Odoo 19 đảm bảo an toàn ghi nhận token vào DB.
+> - **[NEW] Model & Repository Phân Trang Lịch Sử Media (`vclients`)**:
+>   * Model `ChatV2ChannelMediaResult` trong `chat_v2_message.dart` hỗ trợ parsing payload media đầy đủ, lưu trữ tổng số lượng và cờ `hasMore`.
+>   * Thêm hàm `getChannelMedia()` trong `ChatV2Repository` kết nối trực tiếp với backend Odoo.
+> - **[IMPROVE] Infinite Scroll & Pull-to-Refresh Cho Media Hub (`chat_v2_info_sheet.dart`)**:
+>   * Nâng cấp `ChatV2MediaHubScreen` thành `ConsumerStatefulWidget` với 3 `ScrollController` độc lập cho 3 Tab: Ảnh, Tài liệu, Liên kết.
+>   * Tự động tải tiếp trang dữ liệu kế tiếp (`limit: 50, offset: N`) khi người dùng cuộn gần đáy (infinite scroll).
+>   * Tích hợp `RefreshIndicator` làm mới dữ liệu cho từng tab; hiển thị tổng số lượng chuẩn xác lấy từ database server thay vì chỉ đếm tin nhắn gần đây trong RAM.
+> - **[TEST] Kiểm Thử Tự Động Toàn Diện 10/10 Test Cases**:
+>   * Backend Odoo 17 & 19: `test_23_channel_media_history()` kiểm thử 10 kịch bản độc lập (auth, phân quyền, ảnh, file, link, phân trang, alias).
+>   * Flutter Client: `test/features/chat_v2/chat_v2_channel_media_history_test.dart` đạt 10/10 tests PASS (100%), `dart analyze` đạt 0 errors / 0 warnings.
+
+> [!IMPORTANT]
+> **Cải Tiến Toàn Diện UI/UX & Responsive App Drawer Chuẩn Agent OS v3.1 (L4 VERIFIED 2026-10-29)**:
+> - **1. [REFACTOR] Xóa Bỏ Thanh Tìm Kiếm Ứng Dụng (`app_drawer_bottom_sheet.dart`)**:
+>   * Tháo dỡ hoàn toàn `_searchController`, `TextField` tìm kiếm và icon Search ở đầu Bottom Sheet.
+>   * Tiết kiệm ~80px chiều cao màn hình, hiển thị trọn vẹn danh mục ứng dụng ngay khi mở drawer.
+>   * Dọn dẹp bộ nhớ: Loại bỏ controller rác, không còn nguy cơ rò rỉ bộ nhớ.
+> - **2. [NEW] Thiết Kế Lại Header Tinh Gọn & Tab Selector Chuẩn Tiếng Việt (`app_drawer_bottom_sheet.dart`)**:
+>   * Đưa cụm Tab Selector (`Đã ghim` / `Tất cả`) lên hàng trên cùng kèm badge đếm số lượng.
+>   * Bổ sung nút Đóng nhanh (✕) ở góc phải Header (`IconButton` với `LucideIcons.x`).
+> - **3. [IMPROVE] Responsive Đa Thiết Bị Chuẩn Apple iPadOS HIG (`app_drawer_bottom_sheet.dart`)**:
+>   * Mobile nhỏ (< 360px): Lưới 4 cột tinh gọn, kích thước icon co xuống 52px, childAspectRatio 0.68.
+>   * Mobile tiêu chuẩn (360px - 600px): Lưới 4 cột chuẩn tỉ lệ vàng, icon 58px, childAspectRatio 0.72.
+>   * iPad / Tablet (>= 600px): Giới hạn `maxWidth: 620px` căn giữa màn hình (Floating Modal Sheet), tự động mở rộng lên 6 cột, chống kéo dãn icon.
+> - **4. [NEW] Nâng Cấp Empty State Cho Tab Đã Ghim (`app_drawer_bottom_sheet.dart`)**:
+>   * Hiển thị icon `LucideIcons.bookmarkPlus` (size 48, màu brand blue) kèm tiêu đề `Chưa có ứng dụng được ghim` và chỉ dẫn trực quan: `"Nhấn giữ bất kỳ ứng dụng nào ở mục Tất cả để ghim lối tắt vào đây."`
+> - **5. [PERF] Tối Ưu Hóa 120Hz Scrolling & Micro-interaction (`app_drawer_bottom_sheet.dart`)**:
+>   * Bọc `RepaintBoundary` quanh từng app card, bảo toàn raster layer cache cho GPU khi cuộn 120Hz.
+>   * Tích hợp `AnimatedScale` chạm nảy nhẹ (scale 0.96x, 120ms) kết hợp `HapticFeedback`.
+> - **6. [TEST] Kiểm Thử Tự Động & Static Analysis**:
+>   * `flutter analyze`: 0 errors, 0 warnings (100% PASS).
+>   * Bộ test `test/features/menu/`: 36/36 tests PASS (12/12 widget UI/UX tests & 24/24 unit tests).
+
 ## [v2.9.24+175] — 2026-10-28
 
 > [!IMPORTANT]

@@ -1544,6 +1544,9 @@ Tab "Tôi" quản lý thông tin nhân sự cá nhân, tùy chỉnh giao diện 
     + ✅ **Tiêu chí 2 (Portal không Helpdesk `!hasHelpdesk`)**: Ẩn nút "Tạo ticket" trên header; ẩn ô "Ticket" trong grid để chống dead-click; hiển thị thẻ ngang `_PortalSupportBannerPill` (Online ca trực) + 2 thẻ Chưa đọc/Hội thoại; khối dưới hiển thị 2 thẻ dịch vụ Livechat 1-touch kết nối CSKH & Tech Support.
     + ✅ **Tiêu chí 3 (Portal có Helpdesk `hasHelpdesk`)**: Hiển thị nút "Tạo ticket"; lưới 4 ô (Ticket, Chưa đọc, Hội thoại, Hỗ trợ); khối dưới render `_PortalRecentTicketsSection` hiển thị danh sách vé gần đây hoặc empty state.
     + ✅ **Tiêu chí 4 (Đồng bộ Bottom Bar `app_scaffold.dart`)**: 4 tab khi `hasHelpdesk == true` (`Home`, `Chat`, `Ticket`, `Tôi`); 3 tab khi `hasHelpdesk == false` (`Home`, `Chat`, `Tôi`).
+    + ✅ **Khắc phục Lỗi RenderFlex Right Overflow 18px Thẻ Hỗ Trợ Trực Tuyến (2026-10-31 — UAT Vivo V2116)**:
+      * Bọc `Flexible` kèm `maxLines: 1, overflow: TextOverflow.ellipsis` cho `Text('Hỗ Trợ Trực Tuyến')` và bổ sung ellipsis cho subtitle trong `_PortalSupportActionCard`.
+      * Triệt tiêu hoàn toàn lỗi vỡ layout 18px trên thiết bị màn hình hẹp 360dp (Vivo V2116) và Redroid Local Server.
     + ✅ **Kiểm thử tự động**: Bộ 10 test case độc lập trong `portal_home_adaptation_test.dart` PASS 10/10; `flutter analyze` đạt 0 errors / 0 warnings.
   - *Đối soát thực tế (`4.png` - localhost:8089/#/home)*:
     + 🔴 **LỖI 1 (Data & UI Leak Nghiêm trọng)**: Khối `_TodayWork` ("Công việc hôm nay" kèm nút "Mở Timesheet") hiển thị trên tài khoản khách hàng Portal (`isPortal == true`). Khách hàng bấm vào bị Router Guard đá văng về `/home`. Portal khách hàng bên ngoài tuyệt đối không được thấy các tính năng chấm công, timesheet hay công việc dự án nội bộ.

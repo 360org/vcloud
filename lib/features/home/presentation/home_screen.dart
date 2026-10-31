@@ -948,15 +948,20 @@ class _PortalSupportActionCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // ponytail: Flexible + ellipsis prevents RenderFlex overflow on narrow screens (<=360dp)
                     Row(
                       children: [
-                        Text(
-                          'Hỗ Trợ Trực Tuyến',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                            color: isDark ? Colors.white : const Color(0xFF0F172A),
-                            letterSpacing: -0.3,
+                        Flexible(
+                          child: Text(
+                            'Hỗ Trợ Trực Tuyến',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: isDark ? Colors.white : const Color(0xFF0F172A),
+                              letterSpacing: -0.3,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -998,6 +1003,8 @@ class _PortalSupportActionCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       'Chạm để kết nối chuyên viên CSKH hoặc Kỹ thuật',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
