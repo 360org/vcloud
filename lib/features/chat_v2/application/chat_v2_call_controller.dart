@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
@@ -38,6 +39,7 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
   Timer? _ringingTimeoutTimer;
   Timer? _disconnectTimer;
   Timer? _autoResetTimer;
+  Timer? _vibrationTimer;
   AudioPlayer? _audioPlayer;
 
   bool _isDisposed = false;
@@ -628,9 +630,15 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
     if (connState == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
       _disconnectTimer?.cancel();
       _disconnectTimer = null;
+      if (state != null && state!.isReconnecting) {
+        state = state!.copyWith(isReconnecting: false);
+      }
       _onCallConnected();
     } else if (connState == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected ||
         connState == RTCPeerConnectionState.RTCPeerConnectionStateFailed) {
+      if (state != null && !state!.isReconnecting) {
+        state = state!.copyWith(isReconnecting: true);
+      }
       // Grace period 10s cho ICE restart / hồi phục kết nối mạng
       if (_disconnectTimer == null) {
         debugPrint('[RTC_CALL_LOG][MEDIA] WebRTC disconnected/failed -> Bắt đầu đếm ngược 10 giây chờ hồi phục...');
@@ -655,6 +663,7 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
     state = state?.copyWith(
       state: ChatV2CallState.connected,
       connectedAt: state?.connectedAt ?? DateTime.now(),
+      isReconnecting: false,
     );
     _startDurationTimer();
     if (state != null && state!.id > 0) {
@@ -807,6 +816,7 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
 
   void _playRingtone() {
     _stopAudio();
+    _startVibration();
     try {
       final player = AudioPlayer();
       _audioPlayer = player;
@@ -815,7 +825,17 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
     } catch (_) {}
   }
 
+  void _startVibration() {
+    _vibrationTimer?.cancel();
+    HapticFeedback.vibrate();
+    _vibrationTimer = Timer.periodic(const Duration(milliseconds: 1500), (_) {
+      HapticFeedback.vibrate();
+    });
+  }
+
   void _stopAudio() {
+    _vibrationTimer?.cancel();
+    _vibrationTimer = null;
     try {
       _audioPlayer?.stop();
       _audioPlayer?.dispose();
@@ -832,6 +852,8 @@ class ChatV2CallController extends StateNotifier<ChatV2CallSession?> {
     _disconnectTimer = null;
     _autoResetTimer?.cancel();
     _autoResetTimer = null;
+    _vibrationTimer?.cancel();
+    _vibrationTimer = null;
   }
 
   @override

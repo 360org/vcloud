@@ -45,7 +45,11 @@ class OdooBusService {
   bool get isConnected => _isConnected;
 
   /// Xây dựng URL WebSocket Bus tương thích các cổng gevent dev local và production
-  static String buildWsUrl({required String baseUrl, required OdooSession session}) {
+  static String buildWsUrl({
+    required String baseUrl,
+    required OdooSession session,
+    String? version,
+  }) {
     final uri = Uri.parse(baseUrl);
     final wsScheme = uri.scheme == 'https' ? 'wss' : 'ws';
 
@@ -61,7 +65,15 @@ class OdooBusService {
     }
     final portSuffix = (wsPort != null && wsPort != 80 && wsPort != 443) ? ':$wsPort' : '';
     final dbParam = session.db.isNotEmpty ? '&db=${session.db}' : '';
-    return '$wsScheme://${uri.host}$portSuffix/websocket?access_token=${session.accessToken}$dbParam&version=17.0-3';
+
+    final isOdoo19 = (uri.hasPort && (uri.port == 1900 || uri.port == 1972)) ||
+        baseUrl.contains('1900') ||
+        baseUrl.contains('1972') ||
+        session.db.contains('19') ||
+        session.db.contains('v19');
+    final targetVersion = version ?? (isOdoo19 ? '19.0-2' : '17.0-3');
+
+    return '$wsScheme://${uri.host}$portSuffix/websocket?access_token=${session.accessToken}$dbParam&version=$targetVersion';
   }
 
   /// Khởi tạo kết nối WebSocket Bus với Odoo 19

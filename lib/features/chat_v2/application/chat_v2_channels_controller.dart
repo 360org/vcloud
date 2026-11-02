@@ -1312,6 +1312,33 @@ class ChatV2ChannelsNotifier
     }
   }
 
+  Future<String?> updateChannelAvatar(
+    String channelId, {
+    String? base64Image,
+    bool isRemove = false,
+  }) async {
+    final res = await ref.read(chatV2RepositoryProvider).updateChannelAvatar(
+      channelId: channelId,
+      base64Image: base64Image,
+      isRemove: isRemove,
+    );
+    final rawUrl = res['avatar_url'] as String?;
+    final newUrl = rawUrl != null ? odooApiClient.resolveAvatarUrl(rawUrl) : null;
+
+    final current = state.valueOrNull ?? ChatV2ChannelLocalCache.cached;
+    final idx = current.indexWhere((c) => c.id == channelId);
+    if (idx != -1) {
+      final old = current[idx];
+      final updatedChannel = old.copyWith(
+        avatarUrl: newUrl,
+        clearAvatar: isRemove || newUrl == null,
+      );
+      ChatV2ChannelLocalCache.updateSingleChannel(updatedChannel);
+      state = AsyncData(ChatV2ChannelLocalCache.cached);
+    }
+    return newUrl;
+  }
+
   Future<void> updateMemberNickname({
     required String channelId,
     int? memberId,

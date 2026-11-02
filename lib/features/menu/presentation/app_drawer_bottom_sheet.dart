@@ -22,25 +22,20 @@ class AppDrawerBottomSheet extends ConsumerStatefulWidget {
 }
 
 class _AppDrawerBottomSheetState extends ConsumerState<AppDrawerBottomSheet> {
-  final TextEditingController _searchController = TextEditingController();
-
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         final state = ref.read(menuControllerProvider);
+        if (state.searchQuery.isNotEmpty) {
+          ref.read(menuControllerProvider.notifier).setSearchQuery('');
+        }
         if (state.apps.isEmpty && !state.isLoading) {
           ref.read(menuControllerProvider.notifier).loadMenu();
         }
       }
     });
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
   }
 
   String _resolveCurrentPath(BuildContext context) {
@@ -135,340 +130,359 @@ class _AppDrawerBottomSheetState extends ConsumerState<AppDrawerBottomSheet> {
     final textMuted = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
     const brandBlue = Color(0xFF0077CD);
 
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isTablet = screenWidth >= 600;
+
+    // Tính toán số cột và tỉ lệ động theo thiết bị
+    final int crossAxisCount = isTablet ? 6 : 4;
+    final double iconBoxSize = screenWidth < 360 ? 52.0 : 58.0;
+    final double childAspectRatio =
+        isTablet ? 0.82 : (screenWidth < 360 ? 0.68 : 0.72);
+
     return DraggableScrollableSheet(
       initialChildSize: 0.85,
       maxChildSize: 0.95,
       minChildSize: 0.5,
       expand: false,
       builder: (context, scrollController) {
-        return Container(
-          decoration: BoxDecoration(
-            color: bgColor,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x33000000),
-                blurRadius: 20,
-                offset: Offset(0, -4),
-              ),
-            ],
-          ),
-          child: Column(
-            children: [
-              // Thanh kéo drag handle
-              Center(
-                child: Container(
-                  margin: const EdgeInsets.only(top: 10, bottom: 8),
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: isDark
-                        ? Colors.white.withValues(alpha: 0.2)
-                        : Colors.black.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(2),
+        return Align(
+          alignment: Alignment.bottomCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 620),
+            child: Container(
+              width: double.infinity,
+              height: double.infinity,
+              decoration: BoxDecoration(
+                color: bgColor,
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(24)),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x33000000),
+                    blurRadius: 20,
+                    offset: Offset(0, -4),
                   ),
-                ),
+                ],
               ),
-
-              // Header: Search & Tab Selector
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                child: Column(
-                  children: [
-                    // Search bar
-                    Container(
-                      height: 44,
+              child: Column(
+                children: [
+                  // Thanh kéo drag handle
+                  Center(
+                    child: Container(
+                      margin: const EdgeInsets.only(top: 10, bottom: 8),
+                      width: 36,
+                      height: 4,
                       decoration: BoxDecoration(
-                        color: surfaceColor,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: isDark
-                              ? Colors.white.withValues(alpha: 0.08)
-                              : const Color(0xFFE2E8F0),
-                        ),
-                      ),
-                      child: TextField(
-                        controller: _searchController,
-                        style: TextStyle(fontSize: 14, color: textColor),
-                        cursorColor: brandBlue,
-                        decoration: InputDecoration(
-                          hintText: 'Tìm kiếm ứng dụng...',
-                          hintStyle: TextStyle(
-                            fontSize: 14,
-                            color: textMuted,
-                          ),
-                          prefixIcon: Icon(
-                            LucideIcons.search,
-                            size: 18,
-                            color: textMuted,
-                          ),
-                          suffixIcon: _searchController.text.isNotEmpty
-                              ? IconButton(
-                                  icon: Icon(
-                                    LucideIcons.x,
-                                    size: 16,
-                                    color: textMuted,
-                                  ),
-                                  onPressed: () {
-                                    _searchController.clear();
-                                    ref
-                                        .read(menuControllerProvider.notifier)
-                                        .setSearchQuery('');
-                                  },
-                                )
-                              : null,
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 12,
-                          ),
-                        ),
-                        onChanged: (val) {
-                          ref
-                              .read(menuControllerProvider.notifier)
-                              .setSearchQuery(val);
-                        },
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.2)
+                            : Colors.black.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(2),
                       ),
                     ),
-                    const SizedBox(height: 12),
+                  ),
 
-                    // Tab selector (Bookmark / All apps)
-                    Row(
+                  // Header: Tab Selector & Nút Đóng (✕)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 6, 12, 12),
+                    child: Row(
                       children: [
-                        _TabButton(
-                          label: 'Bookmark',
-                          icon: LucideIcons.bookmark,
-                          isSelected: menuState.activeTab == 'bookmark',
-                          badgeCount: menuState.bookmarkedIds.length,
-                          onTap: () {
-                            HapticFeedback.selectionClick();
-                            ref
-                                .read(menuControllerProvider.notifier)
-                                .setActiveTab('bookmark');
-                          },
+                        // Segmented Tabs: Bookmark & All Apps
+                        Expanded(
+                          child: Row(
+                            children: [
+                              _TabButton(
+                                label: 'Đã ghim',
+                                icon: LucideIcons.bookmark,
+                                isSelected: menuState.activeTab == 'bookmark',
+                                badgeCount: menuState.bookmarkedIds.length,
+                                onTap: () {
+                                  HapticFeedback.selectionClick();
+                                  ref
+                                      .read(menuControllerProvider.notifier)
+                                      .setActiveTab('bookmark');
+                                },
+                              ),
+                              const SizedBox(width: 8),
+                              _TabButton(
+                                label: 'Tất cả',
+                                icon: LucideIcons.layoutGrid,
+                                isSelected: menuState.activeTab == 'all',
+                                badgeCount: menuState.apps.length,
+                                onTap: () {
+                                  HapticFeedback.selectionClick();
+                                  ref
+                                      .read(menuControllerProvider.notifier)
+                                      .setActiveTab('all');
+                                },
+                              ),
+                            ],
+                          ),
                         ),
-                        const SizedBox(width: 8),
-                        _TabButton(
-                          label: 'All apps',
-                          icon: LucideIcons.layoutGrid,
-                          isSelected: menuState.activeTab == 'all',
-                          badgeCount: menuState.apps.length,
-                          onTap: () {
-                            HapticFeedback.selectionClick();
-                            ref
-                                .read(menuControllerProvider.notifier)
-                                .setActiveTab('all');
-                          },
+                        // Nút Đóng nhanh
+                        IconButton(
+                          icon: Icon(
+                            LucideIcons.x,
+                            size: 20,
+                            color: textMuted,
+                          ),
+                          splashRadius: 20,
+                          tooltip: 'Đóng',
+                          onPressed: () => Navigator.of(context).pop(),
                         ),
                       ],
                     ),
-                  ],
-                ),
-              ),
+                  ),
 
-              const Divider(height: 1, thickness: 0.5),
+                  const Divider(height: 1, thickness: 0.5),
 
-              // Body: GridView các Apps & Footer Utilities
-              Expanded(
-                child: menuState.isLoading
-                    ? const Center(
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          valueColor: AlwaysStoppedAnimation<Color>(brandBlue),
-                        ),
-                      )
-                    : RefreshIndicator(
-                        color: brandBlue,
-                        onRefresh: () =>
-                            ref.read(menuControllerProvider.notifier).loadMenu(),
-                        child: CustomScrollView(
-                          controller: scrollController,
-                          physics: const AlwaysScrollableScrollPhysics(
-                            parent: BouncingScrollPhysics(),
-                          ),
-                          slivers: [
-                            if (filteredApps.isEmpty)
-                              SliverFillRemaining(
-                                hasScrollBody: false,
-                                child: Center(
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 32),
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          menuState.error != null
-                                              ? LucideIcons.cloudOff
-                                              : (menuState.activeTab == 'bookmark'
-                                                  ? LucideIcons.bookmark
-                                                  : LucideIcons.searchX),
-                                          size: 44,
-                                          color: textMuted,
-                                        ),
-                                        const SizedBox(height: 12),
-                                        Text(
-                                          menuState.error != null
-                                              ? 'Không thể tải danh sách ứng dụng'
-                                              : (menuState.activeTab ==
-                                                      'bookmark'
-                                                  ? 'Chưa có ứng dụng nào trong Bookmark'
-                                                  : (menuState.searchQuery
-                                                          .isNotEmpty
-                                                      ? 'Không tìm thấy ứng dụng phù hợp'
-                                                      : 'Chưa có ứng dụng nào được cấu hình')),
-                                          textAlign: TextAlign.center,
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            color: textMuted,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                        if (menuState.activeTab != 'bookmark' &&
-                                            menuState.searchQuery.isEmpty) ...[
-                                          const SizedBox(height: 16),
-                                          ElevatedButton.icon(
-                                            onPressed: () {
-                                              HapticFeedback.lightImpact();
-                                              ref
-                                                  .read(menuControllerProvider
-                                                      .notifier)
-                                                  .loadMenu();
-                                            },
-                                            icon: const Icon(
-                                                LucideIcons.refreshCw,
-                                                size: 16),
-                                            label: const Text('Tải lại',
-                                                style: TextStyle(
-                                                    fontSize: 13,
-                                                    fontWeight:
-                                                        FontWeight.w600)),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: brandBlue,
-                                              foregroundColor: Colors.white,
-                                              elevation: 0,
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                      horizontal: 18,
-                                                      vertical: 10),
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              )
-                            else
-                              SliverPadding(
-                              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                              sliver: SliverGrid(
-                                gridDelegate:
-                                    const SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: 4,
-                                  mainAxisSpacing: 16,
-                                  crossAxisSpacing: 10,
-                                  childAspectRatio: 0.72,
-                                ),
-                                delegate: SliverChildBuilderDelegate(
-                                  (context, index) {
-                                    final app = filteredApps[index];
-                                    final isBookmarked =
-                                        menuState.isAppBookmarked(app);
-                                    return _AppCardItem(
-                                      app: app,
-                                      isBookmarked: isBookmarked,
-                                      isDark: isDark,
-                                      onTap: () => _onAppTapped(context, app),
-                                      onLongPress: () {
-                                        HapticFeedback.mediumImpact();
-                                        ref
-                                            .read(
-                                                menuControllerProvider.notifier)
-                                            .toggleBookmark(app.id);
-                                      },
-                                    );
-                                  },
-                                  childCount: filteredApps.length,
-                                ),
-                              ),
+                  // Body: GridView các Apps & Footer Utilities
+                  Expanded(
+                    child: menuState.isLoading
+                        ? const Center(
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(brandBlue),
                             ),
-
-                          // Footer: Tiện ích hệ thống
-                          SliverToBoxAdapter(
-                            child: Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Divider(height: 24, thickness: 0.5),
-                                  Padding(
-                                    padding: const EdgeInsets.only(
-                                      left: 4,
-                                      bottom: 8,
+                          )
+                        : RefreshIndicator(
+                            color: brandBlue,
+                            onRefresh: () => ref
+                                .read(menuControllerProvider.notifier)
+                                .loadMenu(),
+                            child: CustomScrollView(
+                              controller: scrollController,
+                              physics: const AlwaysScrollableScrollPhysics(
+                                parent: BouncingScrollPhysics(),
+                              ),
+                              slivers: [
+                                if (filteredApps.isEmpty)
+                                  SliverFillRemaining(
+                                    hasScrollBody: false,
+                                    child: Center(
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 32),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            if (menuState.error != null) ...[
+                                              Icon(
+                                                LucideIcons.cloudOff,
+                                                size: 44,
+                                                color: textMuted,
+                                              ),
+                                              const SizedBox(height: 12),
+                                              Text(
+                                                'Không thể tải danh sách ứng dụng',
+                                                textAlign: TextAlign.center,
+                                                style: TextStyle(
+                                                  fontSize: 14,
+                                                  color: textMuted,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            ] else if (menuState.activeTab ==
+                                                'bookmark') ...[
+                                              Icon(
+                                                LucideIcons.bookmarkPlus,
+                                                size: 48,
+                                                color: brandBlue
+                                                    .withValues(alpha: 0.6),
+                                              ),
+                                              const SizedBox(height: 12),
+                                              Text(
+                                                'Chưa có ứng dụng được ghim',
+                                                style: TextStyle(
+                                                  fontSize: 15,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: textColor,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 6),
+                                              Text(
+                                                'Nhấn giữ bất kỳ ứng dụng nào ở mục Tất cả để ghim lối tắt vào đây.',
+                                                textAlign: TextAlign.center,
+                                                style: TextStyle(
+                                                  fontSize: 13,
+                                                  color: textMuted,
+                                                ),
+                                              ),
+                                            ] else ...[
+                                              Icon(
+                                                LucideIcons.layoutGrid,
+                                                size: 44,
+                                                color: textMuted,
+                                              ),
+                                              const SizedBox(height: 12),
+                                              Text(
+                                                'Chưa có ứng dụng nào được cấu hình',
+                                                textAlign: TextAlign.center,
+                                                style: TextStyle(
+                                                  fontSize: 14,
+                                                  color: textMuted,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 16),
+                                              ElevatedButton.icon(
+                                                onPressed: () {
+                                                  HapticFeedback.lightImpact();
+                                                  ref
+                                                      .read(
+                                                          menuControllerProvider
+                                                              .notifier)
+                                                      .loadMenu();
+                                                },
+                                                icon: const Icon(
+                                                    LucideIcons.refreshCw,
+                                                    size: 16),
+                                                label: const Text('Tải lại',
+                                                    style: TextStyle(
+                                                        fontSize: 13,
+                                                        fontWeight:
+                                                            FontWeight.w600)),
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor: brandBlue,
+                                                  foregroundColor: Colors.white,
+                                                  elevation: 0,
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                          horizontal: 18,
+                                                          vertical: 10),
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            12),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      ),
                                     ),
-                                    child: Text(
-                                      'TIỆN ÍCH HỆ THỐNG',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w700,
-                                        color: textMuted,
-                                        letterSpacing: 0.8,
+                                  )
+                                else
+                                  SliverPadding(
+                                    padding:
+                                        const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                                    sliver: SliverGrid(
+                                      gridDelegate:
+                                          SliverGridDelegateWithFixedCrossAxisCount(
+                                        crossAxisCount: crossAxisCount,
+                                        mainAxisSpacing: 16,
+                                        crossAxisSpacing: isTablet ? 12 : 10,
+                                        childAspectRatio: childAspectRatio,
+                                      ),
+                                      delegate: SliverChildBuilderDelegate(
+                                        (context, index) {
+                                          final app = filteredApps[index];
+                                          final isBookmarked =
+                                              menuState.isAppBookmarked(app);
+                                          return _AppCardItem(
+                                            app: app,
+                                            isBookmarked: isBookmarked,
+                                            isDark: isDark,
+                                            iconBoxSize: iconBoxSize,
+                                            onTap: () =>
+                                                _onAppTapped(context, app),
+                                            onLongPress: () {
+                                              HapticFeedback.mediumImpact();
+                                              ref
+                                                  .read(
+                                                      menuControllerProvider
+                                                          .notifier)
+                                                  .toggleBookmark(app.id);
+                                            },
+                                          );
+                                        },
+                                        childCount: filteredApps.length,
                                       ),
                                     ),
                                   ),
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      color: surfaceColor,
-                                      borderRadius: BorderRadius.circular(16),
-                                      border: Border.all(
-                                        color: isDark
-                                            ? Colors.white
-                                                .withValues(alpha: 0.06)
-                                            : const Color(0xFFE2E8F0),
-                                      ),
-                                    ),
+
+                                // Footer: Tiện ích hệ thống
+                                SliverToBoxAdapter(
+                                  child: Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                        16, 12, 16, 24),
                                     child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
-                                        for (var i = 0;
-                                            i < menuState.utilities.length;
-                                            i++) ...[
-                                          _UtilityTile(
-                                            item: menuState.utilities[i],
-                                            isDark: isDark,
-                                            onTap: () => _onUtilityTapped(
-                                              context,
-                                              menuState.utilities[i],
+                                        const Divider(height: 24, thickness: 0.5),
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            left: 4,
+                                            bottom: 8,
+                                          ),
+                                          child: Text(
+                                            'TIỆN ÍCH HỆ THỐNG',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w700,
+                                              color: textMuted,
+                                              letterSpacing: 0.8,
                                             ),
                                           ),
-                                          if (i <
-                                              menuState.utilities.length - 1)
-                                            Divider(
-                                              height: 1,
-                                              thickness: 0.5,
-                                              indent: 48,
+                                        ),
+                                        Container(
+                                          decoration: BoxDecoration(
+                                            color: surfaceColor,
+                                            borderRadius:
+                                                BorderRadius.circular(16),
+                                            border: Border.all(
                                               color: isDark
-                                                  ? Colors.white
-                                                      .withValues(alpha: 0.06)
+                                                  ? Colors.white.withValues(
+                                                      alpha: 0.06)
                                                   : const Color(0xFFE2E8F0),
                                             ),
-                                        ],
+                                          ),
+                                          child: Column(
+                                            children: [
+                                              for (var i = 0;
+                                                  i <
+                                                      menuState
+                                                          .utilities.length;
+                                                  i++) ...[
+                                                _UtilityTile(
+                                                  item: menuState.utilities[i],
+                                                  isDark: isDark,
+                                                  onTap: () => _onUtilityTapped(
+                                                    context,
+                                                    menuState.utilities[i],
+                                                  ),
+                                                ),
+                                                if (i <
+                                                    menuState.utilities.length -
+                                                        1)
+                                                  Divider(
+                                                    height: 1,
+                                                    thickness: 0.5,
+                                                    indent: 48,
+                                                    color: isDark
+                                                        ? Colors.white
+                                                            .withValues(
+                                                                alpha: 0.06)
+                                                        : const Color(
+                                                            0xFFE2E8F0),
+                                                  ),
+                                              ],
+                                            ],
+                                          ),
+                                        ),
                                       ],
                                     ),
                                   ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
                           ),
-                        ],
-                      ),
-                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         );
       },
@@ -574,13 +588,14 @@ class _TabButton extends StatelessWidget {
   }
 }
 
-class _AppCardItem extends StatelessWidget {
+class _AppCardItem extends StatefulWidget {
   const _AppCardItem({
     required this.app,
     required this.isBookmarked,
     required this.isDark,
     required this.onTap,
     required this.onLongPress,
+    this.iconBoxSize = 58.0,
   });
 
   final AppMenuItem app;
@@ -588,95 +603,116 @@ class _AppCardItem extends StatelessWidget {
   final bool isDark;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
+  final double iconBoxSize;
+
+  @override
+  State<_AppCardItem> createState() => _AppCardItemState();
+}
+
+class _AppCardItemState extends State<_AppCardItem> {
+  bool _isPressed = false;
 
   @override
   Widget build(BuildContext context) {
-    final textColor = isDark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A);
-    final cardBg = isDark
+    final textColor =
+        widget.isDark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A);
+    final cardBg = widget.isDark
         ? const Color(0xFF1E293B).withValues(alpha: 0.7)
         : const Color(0xFFF8FAFC);
-    final borderColor = isDark
+    final borderColor = widget.isDark
         ? Colors.white.withValues(alpha: 0.08)
         : const Color(0xFFE2E8F0);
 
-    return InkWell(
-      onTap: onTap,
-      onLongPress: onLongPress,
-      borderRadius: BorderRadius.circular(16),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Icon Box
-          Stack(
-            clipBehavior: Clip.none,
+    return RepaintBoundary(
+      child: AnimatedScale(
+        scale: _isPressed ? 0.96 : 1.0,
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOutCubic,
+        child: InkWell(
+          onTap: widget.onTap,
+          onLongPress: widget.onLongPress,
+          onHighlightChanged: (highlighted) {
+            if (_isPressed != highlighted) {
+              setState(() => _isPressed = highlighted);
+            }
+          },
+          borderRadius: BorderRadius.circular(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 58,
-                height: 58,
-                decoration: BoxDecoration(
-                  color: cardBg,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: borderColor, width: 1),
-                  boxShadow: [
-                    BoxShadow(
-                      color: isDark
-                          ? const Color(0x22000000)
-                          : const Color(0x080F172A),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: Center(
-                  child: _buildIcon(app, isDark),
-                ),
-              ),
-              if (isBookmarked)
-                Positioned(
-                  top: -2,
-                  right: -2,
-                  child: Container(
-                    padding: const EdgeInsets.all(2.5),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFF59E0B),
-                      shape: BoxShape.circle,
+              // Icon Box
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    width: widget.iconBoxSize,
+                    height: widget.iconBoxSize,
+                    decoration: BoxDecoration(
+                      color: cardBg,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: borderColor, width: 1),
                       boxShadow: [
                         BoxShadow(
-                          color: Color(0x33F59E0B),
-                          blurRadius: 4,
-                          offset: Offset(0, 1),
+                          color: widget.isDark
+                              ? const Color(0x22000000)
+                              : const Color(0x080F172A),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
                         ),
                       ],
                     ),
-                    child: const Icon(
-                      LucideIcons.bookmark,
-                      size: 10,
-                      color: Colors.white,
+                    child: Center(
+                      child: _buildIcon(widget.app, widget.isDark),
                     ),
                   ),
+                  if (widget.isBookmarked)
+                    Positioned(
+                      top: -2,
+                      right: -2,
+                      child: Container(
+                        padding: const EdgeInsets.all(2.5),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFF59E0B),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Color(0x33F59E0B),
+                              blurRadius: 4,
+                              offset: Offset(0, 1),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          LucideIcons.bookmark,
+                          size: 10,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 6),
+
+              // Label
+              SizedBox(
+                width: widget.iconBoxSize > 54 ? 72 : 66,
+                child: Text(
+                  widget.app.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: widget.iconBoxSize < 56 ? 11.0 : 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
+                    height: 1.2,
+                    letterSpacing: -0.1,
+                  ),
                 ),
+              ),
             ],
           ),
-          const SizedBox(height: 6),
-
-          // Label
-          SizedBox(
-            width: 72,
-            child: Text(
-              app.name,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w600,
-                color: textColor,
-                height: 1.2,
-                letterSpacing: -0.1,
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -689,8 +725,8 @@ class _AppCardItem extends StatelessWidget {
         final bytes = base64Decode(base64String);
         return Image.memory(
           bytes,
-          width: 32,
-          height: 32,
+          width: widget.iconBoxSize < 56 ? 28 : 32,
+          height: widget.iconBoxSize < 56 ? 28 : 32,
           fit: BoxFit.contain,
           errorBuilder: (context, error, stackTrace) =>
               _buildFallbackIcon(app, isDark),
@@ -706,7 +742,7 @@ class _AppCardItem extends StatelessWidget {
     final iconData = _resolveIconData(app.name, app.xmlid);
     return Icon(
       iconData,
-      size: 26,
+      size: widget.iconBoxSize < 56 ? 24 : 26,
       color: const Color(0xFF0077CD),
     );
   }

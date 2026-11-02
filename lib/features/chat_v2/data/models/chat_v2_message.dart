@@ -178,6 +178,151 @@ class ChatV2Attachment {
   }
 }
 
+@immutable
+class ChatV2ChannelMediaResult {
+  final String type;
+  final int limit;
+  final int offset;
+  final List<ChatV2Attachment> images;
+  final List<ChatV2Attachment> files;
+  final List<String> links;
+  final int totalImages;
+  final int totalFiles;
+  final int totalLinks;
+  final bool hasMore;
+
+  const ChatV2ChannelMediaResult({
+    this.type = 'all',
+    this.limit = 50,
+    this.offset = 0,
+    this.images = const [],
+    this.files = const [],
+    this.links = const [],
+    this.totalImages = 0,
+    this.totalFiles = 0,
+    this.totalLinks = 0,
+    this.hasMore = false,
+  });
+
+  factory ChatV2ChannelMediaResult.fromMap(Map<String, dynamic> map, {String type = 'all'}) {
+    final rawType = (map['type'] ?? map['media_type'] ?? type).toString().toLowerCase();
+    final limit = (map['limit'] is num) ? (map['limit'] as num).toInt() : 50;
+    final offset = (map['offset'] is num) ? (map['offset'] as num).toInt() : 0;
+
+    if (rawType == 'image') {
+      final items = (map['items'] as List?)
+              ?.whereType<Map>()
+              .map((m) => ChatV2Attachment.fromMap(Map<String, dynamic>.from(m)))
+              .toList() ??
+          const [];
+      final total = (map['total'] is num)
+          ? (map['total'] as num).toInt()
+          : (map['total_images'] is num ? (map['total_images'] as num).toInt() : items.length);
+      final hasMore = map['has_more'] == true;
+      return ChatV2ChannelMediaResult(
+        type: rawType,
+        limit: limit,
+        offset: offset,
+        images: items,
+        totalImages: total,
+        hasMore: hasMore,
+      );
+    }
+
+    if (rawType == 'file') {
+      final items = (map['items'] as List?)
+              ?.whereType<Map>()
+              .map((m) => ChatV2Attachment.fromMap(Map<String, dynamic>.from(m)))
+              .toList() ??
+          const [];
+      final total = (map['total'] is num)
+          ? (map['total'] as num).toInt()
+          : (map['total_files'] is num ? (map['total_files'] as num).toInt() : items.length);
+      final hasMore = map['has_more'] == true;
+      return ChatV2ChannelMediaResult(
+        type: rawType,
+        limit: limit,
+        offset: offset,
+        files: items,
+        totalFiles: total,
+        hasMore: hasMore,
+      );
+    }
+
+    if (rawType == 'link') {
+      final List<String> rawLinks = [];
+      final list = map['links'] ?? map['items'];
+      if (list is List) {
+        for (final item in list) {
+          if (item is Map) {
+            final u = item['url']?.toString();
+            if (u != null && u.isNotEmpty) rawLinks.add(u);
+          } else if (item != null) {
+            final s = item.toString().trim();
+            if (s.isNotEmpty) rawLinks.add(s);
+          }
+        }
+      }
+      final total = (map['total'] is num)
+          ? (map['total'] as num).toInt()
+          : (map['total_links'] is num ? (map['total_links'] as num).toInt() : rawLinks.length);
+      final hasMore = map['has_more'] == true;
+      return ChatV2ChannelMediaResult(
+        type: rawType,
+        limit: limit,
+        offset: offset,
+        links: rawLinks,
+        totalLinks: total,
+        hasMore: hasMore,
+      );
+    }
+
+    // type == 'all'
+    final rawImages = (map['images'] as List?)
+            ?.whereType<Map>()
+            .map((m) => ChatV2Attachment.fromMap(Map<String, dynamic>.from(m)))
+            .toList() ??
+        const [];
+    final rawFiles = (map['files'] as List?)
+            ?.whereType<Map>()
+            .map((m) => ChatV2Attachment.fromMap(Map<String, dynamic>.from(m)))
+            .toList() ??
+        const [];
+    final rawLinks = (map['links'] as List?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        const [];
+
+    final totalImages = (map['total_images'] is num)
+        ? (map['total_images'] as num).toInt()
+        : rawImages.length;
+    final totalFiles = (map['total_files'] is num)
+        ? (map['total_files'] as num).toInt()
+        : rawFiles.length;
+    final totalLinks = (map['total_links'] is num)
+        ? (map['total_links'] as num).toInt()
+        : rawLinks.length;
+
+    final hasMore = map['has_more'] == true ||
+        map['has_more_images'] == true ||
+        map['has_more_files'] == true ||
+        map['has_more_links'] == true;
+
+    return ChatV2ChannelMediaResult(
+      type: rawType,
+      limit: limit,
+      offset: offset,
+      images: rawImages,
+      files: rawFiles,
+      links: rawLinks,
+      totalImages: totalImages,
+      totalFiles: totalFiles,
+      totalLinks: totalLinks,
+      hasMore: hasMore,
+    );
+  }
+}
+
 /// Model tin nhắn trò chuyện V2
 class ChatV2Message {
   const ChatV2Message({

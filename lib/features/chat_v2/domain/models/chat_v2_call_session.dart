@@ -53,6 +53,7 @@ class ChatV2CallSession {
   final DateTime? startedAt;
   final DateTime? connectedAt;
   final DateTime? endedAt;
+  final bool isReconnecting;
 
   const ChatV2CallSession({
     required this.id,
@@ -73,6 +74,7 @@ class ChatV2CallSession {
     this.startedAt,
     this.connectedAt,
     this.endedAt,
+    this.isReconnecting = false,
   });
 
   /// Định dạng thời lượng đàm thoại thành mm:ss (VD: 65s -> 01:05)
@@ -135,6 +137,7 @@ class ChatV2CallSession {
     DateTime? startedAt,
     DateTime? connectedAt,
     DateTime? endedAt,
+    bool? isReconnecting,
   }) {
     return ChatV2CallSession(
       id: id ?? this.id,
@@ -155,6 +158,7 @@ class ChatV2CallSession {
       startedAt: startedAt ?? this.startedAt,
       connectedAt: connectedAt ?? this.connectedAt,
       endedAt: endedAt ?? this.endedAt,
+      isReconnecting: isReconnecting ?? this.isReconnecting,
     );
   }
 }

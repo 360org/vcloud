@@ -2641,6 +2641,31 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
       return;
     }
 
+    // PRE-FLIGHT GUARD 4: Kiểm tra quyền Micro trước khi quay số chống lỗi listen-only
+    final micStatus = await Permission.microphone.request();
+    if (!micStatus.isGranted) {
+      if (mounted) setState(() => _isDialingLock = false);
+      if (!context.mounted) return;
+
+      if (micStatus.isPermanentlyDenied) {
+        _showMicPermissionDialog(context);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Vui lòng cấp quyền Micro để thực hiện cuộc gọi thoại.'),
+            duration: Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+
+    if (!context.mounted) {
+      if (mounted) setState(() => _isDialingLock = false);
+      return;
+    }
+
     // 1. Mở Call Screen ngay lập tức (giữ lock cho đến khi CallScreen đóng)
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -2664,6 +2689,31 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
           receiverName: receiverName,
           receiverAvatar: receiverAvatar,
         );
+  }
+
+  void _showMicPermissionDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Yêu cầu quyền Micro'),
+        content: const Text(
+          'Ứng dụng cần quyền truy cập Micro để thực hiện cuộc gọi thoại. Vui lòng mở Cài đặt và cấp quyền cho ứng dụng.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Để sau'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              openAppSettings();
+            },
+            child: const Text('Mở Cài đặt'),
+          ),
+        ],
+      ),
+    );
   }
 }
 

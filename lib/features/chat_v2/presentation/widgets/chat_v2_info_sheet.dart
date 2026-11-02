@@ -1,8 +1,10 @@
+import 'dart:convert';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -74,7 +76,9 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
   bool _isPinned = false;
   bool _isLeaving = false;
   bool _isLoadingMembers = false;
+  bool _isUploadingAvatar = false;
   String? _customName;
+  String? _customAvatarUrl;
 
   List<ChatV2Member> _members = [];
   int _memberCount = 0;
@@ -83,6 +87,9 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
   final List<ChatV2Attachment> _images = [];
   final List<ChatV2Attachment> _files = [];
   final List<String> _links = [];
+  int _totalImages = 0;
+  int _totalFiles = 0;
+  int _totalLinks = 0;
 
   @override
   void initState() {
@@ -91,7 +98,49 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
     _isMuted = ChatV2ChannelLocalCache.isUserMuted(widget.channel.id);
     _initMembers();
     _extractMedia();
+    _totalImages = _images.length;
+    _totalFiles = _files.length;
+    _totalLinks = _links.length;
+    _loadRemoteMedia();
     _loadRemoteMembers();
+  }
+
+  Future<void> _loadRemoteMedia() async {
+    try {
+      final repo = ref.read(chatV2RepositoryProvider);
+      final mediaRes = await repo.getChannelMedia(
+        widget.channel.id.toString(),
+        type: 'all',
+        limit: 20,
+      );
+      if (!mounted) return;
+
+      setState(() {
+        if (mediaRes.totalImages > 0) _totalImages = mediaRes.totalImages;
+        if (mediaRes.totalFiles > 0) _totalFiles = mediaRes.totalFiles;
+        if (mediaRes.totalLinks > 0) _totalLinks = mediaRes.totalLinks;
+
+        for (final img in mediaRes.images) {
+          if (!_images.any((x) =>
+              (x.id.isNotEmpty && img.id.isNotEmpty && x.id == img.id) ||
+              (x.url == img.url && img.url != null))) {
+            _images.add(img);
+          }
+        }
+        for (final f in mediaRes.files) {
+          if (!_files.any((x) =>
+              (x.id.isNotEmpty && f.id.isNotEmpty && x.id == f.id) ||
+              (x.url == f.url && f.url != null))) {
+            _files.add(f);
+          }
+        }
+        for (final l in mediaRes.links) {
+          if (!_links.contains(l)) {
+            _links.add(l);
+          }
+        }
+      });
+    } catch (_) {}
   }
 
   void _initMembers() {
@@ -435,10 +484,14 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => ChatV2MediaHubScreen(
+          channelId: widget.channel.id.toString(),
           channelName: widget.channel.getCleanName(widget.currentUserName),
           images: _images,
           files: _files,
           links: _links,
+          totalImages: _totalImages,
+          totalFiles: _totalFiles,
+          totalLinks: _totalLinks,
         ),
       ),
     );
@@ -510,6 +563,221 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
       if (mounted) {
         setState(() => _isLeaving = false);
       }
+    }
+  }
+
+  void _showGroupAvatarOptions({
+    required BuildContext context,
+    required bool isDark,
+    required String? currentAvatarUrl,
+    required String cleanName,
+  }) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Ảnh đại diện nhóm',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A),
+                ),
+              ),
+              const SizedBox(height: 16),
+              if (currentAvatarUrl != null && currentAvatarUrl.isNotEmpty) ...[
+                ListTile(
+                  leading: const Icon(LucideIcons.eye, color: Color(0xFF00C83A)),
+                  title: Text(
+                    'Xem ảnh nhóm',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A),
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    final fullUrl = currentAvatarUrl.startsWith('http')
+                        ? currentAvatarUrl
+                        : odooApiClient.absoluteUrl(currentAvatarUrl);
+                    Navigator.of(context).push(
+                      ChatV2ImageViewerScreen.route(
+                        imageUrl: fullUrl,
+                        title: cleanName,
+                      ),
+                    );
+                  },
+                ),
+              ],
+              ListTile(
+                leading: const Icon(LucideIcons.camera, color: Color(0xFF00C83A)),
+                title: Text(
+                  'Chụp ảnh mới',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A),
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickAndUploadGroupAvatar(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const Icon(LucideIcons.image, color: Color(0xFF00C83A)),
+                title: Text(
+                  'Chọn từ thư viện ảnh',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A),
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickAndUploadGroupAvatar(ImageSource.gallery);
+                },
+              ),
+              if (currentAvatarUrl != null && currentAvatarUrl.isNotEmpty) ...[
+                ListTile(
+                  leading: const Icon(LucideIcons.trash2, color: Color(0xFFEF4444)),
+                  title: const Text(
+                    'Xóa ảnh đại diện',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFFEF4444),
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _removeGroupAvatar();
+                  },
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickAndUploadGroupAvatar(ImageSource source) async {
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: source,
+        maxWidth: 512,
+        maxHeight: 512,
+        imageQuality: 85,
+      );
+      if (picked == null) return;
+
+      setState(() => _isUploadingAvatar = true);
+      final bytes = await picked.readAsBytes();
+      final base64Str = base64Encode(bytes);
+
+      final newUrl = await ref
+          .read(chatV2ChannelsProvider.notifier)
+          .updateChannelAvatar(widget.channel.id.toString(), base64Image: base64Str);
+
+      if (!mounted) return;
+      setState(() {
+        _customAvatarUrl = newUrl;
+        _isUploadingAvatar = false;
+      });
+
+      AppToast.success(
+        context,
+        title: 'Cập nhật thành công',
+        message: 'Đã cập nhật ảnh đại diện nhóm trò chuyện.',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isUploadingAvatar = false);
+      AppToast.error(
+        context,
+        title: 'Lỗi cập nhật ảnh',
+        message: e.toString().replaceFirst('Exception: ', ''),
+      );
+    }
+  }
+
+  Future<void> _removeGroupAvatar() async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(LucideIcons.trash2, color: Color(0xFFEF4444), size: 22),
+            SizedBox(width: 8),
+            Text('Xóa ảnh đại diện?', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17)),
+          ],
+        ),
+        content: Text(
+          'Ảnh đại diện nhóm sẽ được đặt lại về chữ cái mặc định.',
+          style: TextStyle(
+            fontSize: 14,
+            height: 1.4,
+            color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy', style: TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Xóa', style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _isUploadingAvatar = true);
+    try {
+      await ref
+          .read(chatV2ChannelsProvider.notifier)
+          .updateChannelAvatar(widget.channel.id.toString(), isRemove: true);
+
+      if (!mounted) return;
+      setState(() {
+        _customAvatarUrl = '';
+        _isUploadingAvatar = false;
+      });
+
+      AppToast.success(
+        context,
+        title: 'Đã xóa ảnh đại diện',
+        message: 'Ảnh đại diện nhóm đã được gỡ bỏ.',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isUploadingAvatar = false);
+      AppToast.error(
+        context,
+        title: 'Lỗi gỡ ảnh',
+        message: e.toString().replaceFirst('Exception: ', ''),
+      );
     }
   }
 
@@ -1067,7 +1335,9 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
         : (_memberCount > 0 ? _memberCount : _members.length);
 
     // Tự động phân giải avatar URL của đối phương nếu channel.avatarUrl chưa có và là chat 1-1
-    String? resolvedAvatarUrl = widget.channel.avatarUrl;
+    String? resolvedAvatarUrl = _customAvatarUrl != null
+        ? (_customAvatarUrl!.isNotEmpty ? _customAvatarUrl : null)
+        : (activeChannel.avatarUrl ?? widget.channel.avatarUrl);
     if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
       if (!isGroup && !widget.channel.isChannel) {
         final currentPartnerId = odooApiClient.session?.partnerId?.toString();
@@ -1159,7 +1429,14 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
                       children: [
                         GestureDetector(
                           onTap: () {
-                            if (resolvedAvatarUrl != null &&
+                            if (isGroup) {
+                              _showGroupAvatarOptions(
+                                context: context,
+                                isDark: isDark,
+                                currentAvatarUrl: resolvedAvatarUrl,
+                                cleanName: cleanName,
+                              );
+                            } else if (resolvedAvatarUrl != null &&
                                 resolvedAvatarUrl.isNotEmpty) {
                               final fullUrl = resolvedAvatarUrl.startsWith('http')
                                   ? resolvedAvatarUrl
@@ -1217,6 +1494,20 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
                                       errorBuilder: (context, error, stackTrace) =>
                                           const SizedBox.shrink(),
                                     ),
+                                  if (_isUploadingAvatar)
+                                    Container(
+                                      color: Colors.black45,
+                                      child: const Center(
+                                        child: SizedBox(
+                                          width: 24,
+                                          height: 24,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2.5,
+                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
                                 ],
                               ),
                             ),
@@ -1226,22 +1517,35 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
                           Positioned(
                             right: 0,
                             bottom: 0,
-                            child: Container(
-                              padding: const EdgeInsets.all(5),
-                              decoration: BoxDecoration(
-                                color: isDark ? const Color(0xFF1E293B) : Colors.white,
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.1),
-                                    blurRadius: 4,
-                                  ),
-                                ],
+                            child: GestureDetector(
+                              onTap: () => _showGroupAvatarOptions(
+                                context: context,
+                                isDark: isDark,
+                                currentAvatarUrl: resolvedAvatarUrl,
+                                cleanName: cleanName,
                               ),
-                              child: const Icon(
-                                LucideIcons.users,
-                                size: 14,
-                                color: Color(0xFF00C83A),
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF00C83A),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: isDark ? const Color(0xFF0F172A) : Colors.white,
+                                    width: 2,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(alpha: 0.2),
+                                      blurRadius: 4,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  LucideIcons.camera,
+                                  size: 14,
+                                  color: Colors.white,
+                                ),
                               ),
                             ),
                           ),
@@ -1374,7 +1678,7 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
-                                    '${_images.length} ảnh, ${_files.length} file, ${_links.length} link',
+                                    '${_totalImages > _images.length ? _totalImages : _images.length} ảnh, ${_totalFiles > _files.length ? _totalFiles : _files.length} file, ${_totalLinks > _links.length ? _totalLinks : _links.length} link',
                                     style: TextStyle(
                                       fontSize: 12.5,
                                       fontWeight: FontWeight.w500,
@@ -1886,38 +2190,284 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
 // CHAT V2 MEDIA HUB SCREEN (ẢNH, TÀI LIỆU, LIÊN KẾT)
 // ─────────────────────────────────────────────────────────────────────────────
 
-class ChatV2MediaHubScreen extends StatefulWidget {
+class ChatV2MediaHubScreen extends ConsumerStatefulWidget {
+  final String channelId;
   final String channelName;
   final List<ChatV2Attachment> images;
   final List<ChatV2Attachment> files;
   final List<String> links;
+  final int? totalImages;
+  final int? totalFiles;
+  final int? totalLinks;
 
   const ChatV2MediaHubScreen({
     super.key,
+    required this.channelId,
     required this.channelName,
     required this.images,
     required this.files,
     required this.links,
+    this.totalImages,
+    this.totalFiles,
+    this.totalLinks,
   });
 
   @override
-  State<ChatV2MediaHubScreen> createState() => _ChatV2MediaHubScreenState();
+  ConsumerState<ChatV2MediaHubScreen> createState() => _ChatV2MediaHubScreenState();
 }
 
-class _ChatV2MediaHubScreenState extends State<ChatV2MediaHubScreen>
+class _ChatV2MediaHubScreenState extends ConsumerState<ChatV2MediaHubScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final ScrollController _imagesScrollController = ScrollController();
+  final ScrollController _filesScrollController = ScrollController();
+  final ScrollController _linksScrollController = ScrollController();
+
+  late List<ChatV2Attachment> _images;
+  late List<ChatV2Attachment> _files;
+  late List<String> _links;
+
+  late int _totalImages;
+  late int _totalFiles;
+  late int _totalLinks;
+
+  bool _isLoadingImages = false;
+  bool _isLoadingFiles = false;
+  bool _isLoadingLinks = false;
+
+  bool _hasMoreImages = false;
+  bool _hasMoreFiles = false;
+  bool _hasMoreLinks = false;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+
+    _images = List.from(widget.images);
+    _files = List.from(widget.files);
+    _links = List.from(widget.links);
+
+    _totalImages = widget.totalImages ?? _images.length;
+    _totalFiles = widget.totalFiles ?? _files.length;
+    _totalLinks = widget.totalLinks ?? _links.length;
+
+    _hasMoreImages = _images.length < _totalImages;
+    _hasMoreFiles = _files.length < _totalFiles;
+    _hasMoreLinks = _links.length < _totalLinks;
+
+    _imagesScrollController.addListener(_onImagesScroll);
+    _filesScrollController.addListener(_onFilesScroll);
+    _linksScrollController.addListener(_onLinksScroll);
+
+    // Đồng bộ toàn bộ media từ server khi vào màn hình để lấy lịch sử quá khứ
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fetchInitialMedia();
+    });
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _imagesScrollController.dispose();
+    _filesScrollController.dispose();
+    _linksScrollController.dispose();
     super.dispose();
+  }
+
+  void _onImagesScroll() {
+    if (_imagesScrollController.position.pixels >=
+        _imagesScrollController.position.maxScrollExtent - 200) {
+      _loadMoreImages();
+    }
+  }
+
+  void _onFilesScroll() {
+    if (_filesScrollController.position.pixels >=
+        _filesScrollController.position.maxScrollExtent - 200) {
+      _loadMoreFiles();
+    }
+  }
+
+  void _onLinksScroll() {
+    if (_linksScrollController.position.pixels >=
+        _linksScrollController.position.maxScrollExtent - 200) {
+      _loadMoreLinks();
+    }
+  }
+
+  Future<void> _fetchInitialMedia() async {
+    if (widget.channelId.isEmpty) return;
+    try {
+      final repo = ref.read(chatV2RepositoryProvider);
+      final res = await repo.getChannelMedia(
+        widget.channelId,
+        type: 'all',
+        limit: 50,
+        offset: 0,
+      );
+      if (!mounted) return;
+      setState(() {
+        if (res.images.isNotEmpty || res.totalImages > 0) {
+          _images = res.images;
+          _totalImages = res.totalImages;
+          _hasMoreImages = res.images.length < res.totalImages;
+        }
+        if (res.files.isNotEmpty || res.totalFiles > 0) {
+          _files = res.files;
+          _totalFiles = res.totalFiles;
+          _hasMoreFiles = res.files.length < res.totalFiles;
+        }
+        if (res.links.isNotEmpty || res.totalLinks > 0) {
+          _links = res.links;
+          _totalLinks = res.totalLinks;
+          _hasMoreLinks = res.links.length < res.totalLinks;
+        }
+      });
+    } catch (e) {
+      debugPrint('[ChatV2MediaHub] _fetchInitialMedia error: $e');
+    }
+  }
+
+  Future<void> _refreshImages() async {
+    if (widget.channelId.isEmpty) return;
+    try {
+      final repo = ref.read(chatV2RepositoryProvider);
+      final res = await repo.getChannelMedia(
+        widget.channelId,
+        type: 'image',
+        limit: 50,
+        offset: 0,
+      );
+      if (!mounted) return;
+      setState(() {
+        _images = res.images;
+        _totalImages = res.totalImages;
+        _hasMoreImages = res.hasMore;
+      });
+    } catch (e) {
+      debugPrint('[ChatV2MediaHub] _refreshImages error: $e');
+    }
+  }
+
+  Future<void> _loadMoreImages() async {
+    if (_isLoadingImages || !_hasMoreImages || widget.channelId.isEmpty) return;
+    setState(() => _isLoadingImages = true);
+    try {
+      final repo = ref.read(chatV2RepositoryProvider);
+      final res = await repo.getChannelMedia(
+        widget.channelId,
+        type: 'image',
+        limit: 50,
+        offset: _images.length,
+      );
+      if (!mounted) return;
+      setState(() {
+        final existingIds = _images.map((e) => e.id).where((id) => id.isNotEmpty).toSet();
+        final newItems = res.images.where((e) => e.id.isEmpty || !existingIds.contains(e.id)).toList();
+        _images.addAll(newItems);
+        _totalImages = res.totalImages > _images.length ? res.totalImages : _images.length;
+        _hasMoreImages = res.hasMore;
+      });
+    } catch (e) {
+      debugPrint('[ChatV2MediaHub] _loadMoreImages error: $e');
+    } finally {
+      if (mounted) setState(() => _isLoadingImages = false);
+    }
+  }
+
+  Future<void> _refreshFiles() async {
+    if (widget.channelId.isEmpty) return;
+    try {
+      final repo = ref.read(chatV2RepositoryProvider);
+      final res = await repo.getChannelMedia(
+        widget.channelId,
+        type: 'file',
+        limit: 50,
+        offset: 0,
+      );
+      if (!mounted) return;
+      setState(() {
+        _files = res.files;
+        _totalFiles = res.totalFiles;
+        _hasMoreFiles = res.hasMore;
+      });
+    } catch (e) {
+      debugPrint('[ChatV2MediaHub] _refreshFiles error: $e');
+    }
+  }
+
+  Future<void> _loadMoreFiles() async {
+    if (_isLoadingFiles || !_hasMoreFiles || widget.channelId.isEmpty) return;
+    setState(() => _isLoadingFiles = true);
+    try {
+      final repo = ref.read(chatV2RepositoryProvider);
+      final res = await repo.getChannelMedia(
+        widget.channelId,
+        type: 'file',
+        limit: 50,
+        offset: _files.length,
+      );
+      if (!mounted) return;
+      setState(() {
+        final existingIds = _files.map((e) => e.id).where((id) => id.isNotEmpty).toSet();
+        final newItems = res.files.where((e) => e.id.isEmpty || !existingIds.contains(e.id)).toList();
+        _files.addAll(newItems);
+        _totalFiles = res.totalFiles > _files.length ? res.totalFiles : _files.length;
+        _hasMoreFiles = res.hasMore;
+      });
+    } catch (e) {
+      debugPrint('[ChatV2MediaHub] _loadMoreFiles error: $e');
+    } finally {
+      if (mounted) setState(() => _isLoadingFiles = false);
+    }
+  }
+
+  Future<void> _refreshLinks() async {
+    if (widget.channelId.isEmpty) return;
+    try {
+      final repo = ref.read(chatV2RepositoryProvider);
+      final res = await repo.getChannelMedia(
+        widget.channelId,
+        type: 'link',
+        limit: 50,
+        offset: 0,
+      );
+      if (!mounted) return;
+      setState(() {
+        _links = res.links;
+        _totalLinks = res.totalLinks;
+        _hasMoreLinks = res.hasMore;
+      });
+    } catch (e) {
+      debugPrint('[ChatV2MediaHub] _refreshLinks error: $e');
+    }
+  }
+
+  Future<void> _loadMoreLinks() async {
+    if (_isLoadingLinks || !_hasMoreLinks || widget.channelId.isEmpty) return;
+    setState(() => _isLoadingLinks = true);
+    try {
+      final repo = ref.read(chatV2RepositoryProvider);
+      final res = await repo.getChannelMedia(
+        widget.channelId,
+        type: 'link',
+        limit: 50,
+        offset: _links.length,
+      );
+      if (!mounted) return;
+      setState(() {
+        final existingLinks = _links.toSet();
+        final newLinks = res.links.where((l) => !existingLinks.contains(l)).toList();
+        _links.addAll(newLinks);
+        _totalLinks = res.totalLinks > _links.length ? res.totalLinks : _links.length;
+        _hasMoreLinks = res.hasMore;
+      });
+    } catch (e) {
+      debugPrint('[ChatV2MediaHub] _loadMoreLinks error: $e');
+    } finally {
+      if (mounted) setState(() => _isLoadingLinks = false);
+    }
   }
 
   @override
@@ -1960,242 +2510,332 @@ class _ChatV2MediaHubScreenState extends State<ChatV2MediaHubScreen>
           indicatorColor: const Color(0xFF00C83A),
           indicatorWeight: 2.5,
           tabs: [
-            Tab(text: 'Ảnh (${widget.images.length})'),
-            Tab(text: 'Tài liệu (${widget.files.length})'),
-            Tab(text: 'Liên kết (${widget.links.length})'),
+            Tab(text: 'Ảnh ($_totalImages)'),
+            Tab(text: 'Tài liệu ($_totalFiles)'),
+            Tab(text: 'Liên kết ($_totalLinks)'),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tabController,
         children: [
-          // 1. Images Grid
-          widget.images.isEmpty
-              ? _buildEmptyState(isDark, LucideIcons.image, 'Chưa có hình ảnh nào')
-              : GridView.builder(
-                  padding: const EdgeInsets.all(16),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3,
-                    crossAxisSpacing: 8,
-                    mainAxisSpacing: 8,
-                  ),
-                  itemCount: widget.images.length,
-                  itemBuilder: (context, idx) {
-                    final img = widget.images[idx];
-                    final memBytes = img.bytes ??
-                        (img.id.isNotEmpty ? ChatV2AttachmentImage.imageCache[img.id] : null) ??
-                        LocalAttachmentCache.get(img.id.isNotEmpty ? img.id : null);
-                    final fullUrl = img.resolveFullUrl(odooApiClient.absoluteUrl(''));
-
-                    final heroTag = 'info_gallery_img_${img.id.isNotEmpty ? img.id : (fullUrl.isNotEmpty ? fullUrl : img.name)}';
-
-                    return GestureDetector(
-                      onTap: () {
-                        Navigator.of(context).push(
-                          ChatV2ImageViewerScreen.route(
-                            images: widget.images,
-                            initialIndex: idx,
-                            imageUrl: fullUrl,
-                            title: '',
-                            bytes: memBytes,
-                            attachmentId: img.id.isNotEmpty ? img.id : null,
-                            heroTag: heroTag,
+          // 1. Images Grid với Infinite Scroll & Refresh
+          RefreshIndicator(
+            color: const Color(0xFF00C83A),
+            onRefresh: _refreshImages,
+            child: _images.isEmpty
+                ? SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    child: SizedBox(
+                      height: MediaQuery.of(context).size.height * 0.6,
+                      child: _buildEmptyState(isDark, LucideIcons.image, 'Chưa có hình ảnh nào'),
+                    ),
+                  )
+                : CustomScrollView(
+                    controller: _imagesScrollController,
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    slivers: [
+                      SliverPadding(
+                        padding: const EdgeInsets.all(16),
+                        sliver: SliverGrid(
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 3,
+                            crossAxisSpacing: 8,
+                            mainAxisSpacing: 8,
                           ),
-                        );
-                      },
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Container(
-                          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
-                          child: Hero(
-                            tag: heroTag,
-                            child: memBytes != null && memBytes.isNotEmpty
-                                ? Image.memory(
-                                    memBytes,
-                                    fit: BoxFit.cover,
-                                    gaplessPlayback: true,
-                                  )
-                                : (fullUrl.isNotEmpty
-                                    ? Image.network(
-                                        fullUrl,
-                                        fit: BoxFit.cover,
-                                        headers: odooApiClient.authHeaders,
-                                        errorBuilder: (c, e, s) => _buildEmptyMediaBox(isDark, LucideIcons.image),
-                                        loadingBuilder: (_, child, progress) {
-                                          if (progress == null) return child;
-                                          return const Center(
-                                            child: SizedBox(
-                                              width: 16,
-                                              height: 16,
-                                              child: CircularProgressIndicator(strokeWidth: 2),
-                                            ),
-                                          );
-                                        },
-                                      )
-                                    : _buildEmptyMediaBox(isDark, LucideIcons.image)),
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
+                          delegate: SliverChildBuilderDelegate(
+                            (context, idx) {
+                              final img = _images[idx];
+                              final memBytes = img.bytes ??
+                                  (img.id.isNotEmpty ? ChatV2AttachmentImage.imageCache[img.id] : null) ??
+                                  LocalAttachmentCache.get(img.id.isNotEmpty ? img.id : null);
+                              final fullUrl = img.resolveFullUrl(odooApiClient.absoluteUrl(''));
 
-          // 2. Files List
-          widget.files.isEmpty
-              ? _buildEmptyState(isDark, LucideIcons.fileText, 'Chưa có tài liệu nào')
-              : ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: widget.files.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 8),
-                  itemBuilder: (context, idx) {
-                    final file = widget.files[idx];
-                    final ext = file.name.contains('.') ? file.name.split('.').last.toUpperCase() : 'FILE';
-                    final cachedBytes = file.bytes ??
-                        LocalAttachmentCache.get(file.id) ??
-                        LocalAttachmentCache.get(file.name);
-                    final size = file.fileSize ?? cachedBytes?.lengthInBytes;
-                    final sizeStr = size != null ? _formatFileSize(size) : null;
+                              final heroTag = 'info_gallery_img_${img.id.isNotEmpty ? img.id : (fullUrl.isNotEmpty ? fullUrl : img.name)}_hub_$idx';
 
-                    return InkWell(
-                      onTap: () async {
-                        final targetPath = (file.downloadUrl != null && file.downloadUrl!.isNotEmpty)
-                            ? file.downloadUrl!
-                            : ((file.url != null && file.url!.isNotEmpty)
-                                ? file.url!
-                                : ((int.tryParse(file.id) != null && file.id.isNotEmpty)
-                                    ? '/web/content/${file.id}/${file.name}'
-                                    : ''));
-
-                        await ChatV2AttachmentViewer.open(
-                          context: context,
-                          filename: file.name,
-                          attachmentId: int.tryParse(file.id),
-                          downloadUrl: targetPath.isNotEmpty ? targetPath : null,
-                          directBytes: cachedBytes,
-                        );
-                      },
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF1E293B).withValues(alpha: 0.5) : const Color(0xFFF8FAFC),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: isDark ? Colors.white10 : const Color(0xFFE2E8F0),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            FoldedPageIcon(
-                              ext: ext,
-                              color: _getFileAccentColor(ext),
-                              width: 34,
-                              height: 42,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    file.name,
-                                    style: TextStyle(
-                                      fontSize: 13.5,
-                                      fontWeight: FontWeight.w600,
-                                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                              return GestureDetector(
+                                onTap: () {
+                                  Navigator.of(context).push(
+                                    ChatV2ImageViewerScreen.route(
+                                      images: _images,
+                                      initialIndex: idx,
+                                      imageUrl: fullUrl,
+                                      title: '',
+                                      bytes: memBytes,
+                                      attachmentId: img.id.isNotEmpty ? img.id : null,
+                                      heroTag: heroTag,
                                     ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(height: 3),
-                                  Text(
-                                    sizeStr != null ? '$sizeStr • $ext' : '$ext File',
-                                    style: TextStyle(
-                                      fontSize: 11.5,
-                                      fontWeight: FontWeight.w400,
-                                      color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                  );
+                                },
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Container(
+                                    color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+                                    child: Hero(
+                                      tag: heroTag,
+                                      child: memBytes != null && memBytes.isNotEmpty
+                                          ? Image.memory(
+                                              memBytes,
+                                              fit: BoxFit.cover,
+                                              gaplessPlayback: true,
+                                            )
+                                          : (fullUrl.isNotEmpty
+                                              ? Image.network(
+                                                  fullUrl,
+                                                  fit: BoxFit.cover,
+                                                  headers: odooApiClient.authHeaders,
+                                                  errorBuilder: (c, e, s) => _buildEmptyMediaBox(isDark, LucideIcons.image),
+                                                  loadingBuilder: (_, child, progress) {
+                                                    if (progress == null) return child;
+                                                    return const Center(
+                                                      child: SizedBox(
+                                                        width: 16,
+                                                        height: 16,
+                                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                                      ),
+                                                    );
+                                                  },
+                                                )
+                                              : _buildEmptyMediaBox(isDark, LucideIcons.image)),
                                     ),
                                   ),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              width: 32,
-                              height: 32,
-                              decoration: BoxDecoration(
-                                color: isDark
-                                    ? Colors.white.withValues(alpha: 0.1)
-                                    : const Color(0xFF00C83A).withValues(alpha: 0.12),
-                                shape: BoxShape.circle,
-                              ),
-                              alignment: Alignment.center,
-                              child: const Icon(
-                                LucideIcons.download,
-                                size: 15,
-                                color: Color(0xFF00C83A),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-
-          // 3. Links List
-          widget.links.isEmpty
-              ? _buildEmptyState(isDark, LucideIcons.link, 'Chưa có liên kết nào')
-              : ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: widget.links.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 8),
-                  itemBuilder: (context, idx) {
-                    final url = widget.links[idx];
-                    return InkWell(
-                      onTap: () async {
-                        final targetUrl = url.contains('://') ? url : 'https://$url';
-                        final uri = Uri.tryParse(targetUrl);
-                        if (uri != null) {
-                          await launchUrl(uri, mode: LaunchMode.externalApplication);
-                        }
-                      },
-                      borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF1E293B).withValues(alpha: 0.5) : const Color(0xFFF8FAFC),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: isDark ? Colors.white10 : const Color(0xFFE2E8F0),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              LucideIcons.globe,
-                              color: Color(0xFF00C83A),
-                              size: 18,
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                url,
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  color: Color(0xFF2563EB),
-                                  decoration: TextDecoration.underline,
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
+                              );
+                            },
+                            childCount: _images.length,
+                          ),
                         ),
                       ),
-                    );
-                  },
-                ),
+                      if (_isLoadingImages)
+                        const SliverToBoxAdapter(
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(vertical: 16),
+                            child: Center(
+                              child: SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00C83A)),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+          ),
+
+          // 2. Files List với Infinite Scroll & Refresh
+          RefreshIndicator(
+            color: const Color(0xFF00C83A),
+            onRefresh: _refreshFiles,
+            child: _files.isEmpty
+                ? SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    child: SizedBox(
+                      height: MediaQuery.of(context).size.height * 0.6,
+                      child: _buildEmptyState(isDark, LucideIcons.fileText, 'Chưa có tài liệu nào'),
+                    ),
+                  )
+                : ListView.separated(
+                    controller: _filesScrollController,
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _files.length + (_isLoadingFiles ? 1 : 0),
+                    separatorBuilder: (_, _) => const SizedBox(height: 8),
+                    itemBuilder: (context, idx) {
+                      if (idx == _files.length) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                          child: Center(
+                            child: SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00C83A)),
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+                      final file = _files[idx];
+                      final ext = file.name.contains('.') ? file.name.split('.').last.toUpperCase() : 'FILE';
+                      final cachedBytes = file.bytes ??
+                          LocalAttachmentCache.get(file.id) ??
+                          LocalAttachmentCache.get(file.name);
+                      final size = file.fileSize ?? cachedBytes?.lengthInBytes;
+                      final sizeStr = size != null ? _formatFileSize(size) : null;
+
+                      return InkWell(
+                        onTap: () async {
+                          final targetPath = (file.downloadUrl != null && file.downloadUrl!.isNotEmpty)
+                              ? file.downloadUrl!
+                              : ((file.url != null && file.url!.isNotEmpty)
+                                  ? file.url!
+                                  : ((int.tryParse(file.id) != null && file.id.isNotEmpty)
+                                      ? '/web/content/${file.id}/${file.name}'
+                                      : ''));
+
+                          await ChatV2AttachmentViewer.open(
+                            context: context,
+                            filename: file.name,
+                            attachmentId: int.tryParse(file.id),
+                            downloadUrl: targetPath.isNotEmpty ? targetPath : null,
+                            directBytes: cachedBytes,
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF1E293B).withValues(alpha: 0.5) : const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isDark ? Colors.white10 : const Color(0xFFE2E8F0),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              FoldedPageIcon(
+                                ext: ext,
+                                color: _getFileAccentColor(ext),
+                                width: 34,
+                                height: 42,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      file.name,
+                                      style: TextStyle(
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.w600,
+                                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      sizeStr != null ? '$sizeStr • $ext' : '$ext File',
+                                      style: TextStyle(
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w400,
+                                        color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                width: 32,
+                                height: 32,
+                                decoration: BoxDecoration(
+                                  color: isDark
+                                      ? Colors.white.withValues(alpha: 0.1)
+                                      : const Color(0xFF00C83A).withValues(alpha: 0.12),
+                                  shape: BoxShape.circle,
+                                ),
+                                alignment: Alignment.center,
+                                child: const Icon(
+                                  LucideIcons.download,
+                                  size: 15,
+                                  color: Color(0xFF00C83A),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+
+          // 3. Links List với Infinite Scroll & Refresh
+          RefreshIndicator(
+            color: const Color(0xFF00C83A),
+            onRefresh: _refreshLinks,
+            child: _links.isEmpty
+                ? SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    child: SizedBox(
+                      height: MediaQuery.of(context).size.height * 0.6,
+                      child: _buildEmptyState(isDark, LucideIcons.link, 'Chưa có liên kết nào'),
+                    ),
+                  )
+                : ListView.separated(
+                    controller: _linksScrollController,
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _links.length + (_isLoadingLinks ? 1 : 0),
+                    separatorBuilder: (_, _) => const SizedBox(height: 8),
+                    itemBuilder: (context, idx) {
+                      if (idx == _links.length) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                          child: Center(
+                            child: SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00C83A)),
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+                      final url = _links[idx];
+                      return InkWell(
+                        onTap: () async {
+                          final targetUrl = url.contains('://') ? url : 'https://$url';
+                          final uri = Uri.tryParse(targetUrl);
+                          if (uri != null) {
+                            await launchUrl(uri, mode: LaunchMode.externalApplication);
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF1E293B).withValues(alpha: 0.5) : const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: isDark ? Colors.white10 : const Color(0xFFE2E8F0),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                LucideIcons.globe,
+                                color: Color(0xFF00C83A),
+                                size: 18,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  url,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    color: Color(0xFF2563EB),
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
         ],
       ),
     );

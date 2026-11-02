@@ -1,0 +1,1 @@
+/media/tanma/DATA/save/mobile_versions/docs/UPDATE_UI_UX.md

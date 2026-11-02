@@ -1171,5 +1171,41 @@ void main() {
       controller.dispose();
       fakeBus.dispose();
     });
+
+    test('TC-43: isReconnecting flag is set on ICE disconnect and cleared on reconnect', () async {
+      final fakeClient = FakeCallApiClient();
+      final testRepo = ChatV2CallRepository(client: fakeClient);
+      final fakeBus = FakeOdooBusService();
+      final fakeEngine = FakeWebRtcEngine(repo: testRepo);
+      final ctl = ChatV2CallController(repo: testRepo, bus: fakeBus, webrtcEngine: fakeEngine);
+
+      const call = ChatV2CallSession(
+        id: 101,
+        channelId: 4255,
+        callerId: 2,
+        callerName: 'Marc Demo',
+        receiverId: 5,
+        receiverName: 'Bùi Tuấn Kiệt',
+        state: ChatV2CallState.incomingRinging,
+        isCaller: false,
+      );
+      ctl.setIncomingCall(call);
+      await ctl.acceptCall();
+
+      fakeEngine.triggerConnectionState(RTCPeerConnectionState.RTCPeerConnectionStateConnected);
+      expect(ctl.state?.state, ChatV2CallState.connected);
+      expect(ctl.state?.isReconnecting, isFalse);
+
+      // Khi WebRTC Disconnected: cờ isReconnecting được bật
+      fakeEngine.triggerConnectionState(RTCPeerConnectionState.RTCPeerConnectionStateDisconnected);
+      expect(ctl.state?.isReconnecting, isTrue);
+
+      // Khi WebRTC khôi phục Connected: cờ isReconnecting được tắt
+      fakeEngine.triggerConnectionState(RTCPeerConnectionState.RTCPeerConnectionStateConnected);
+      expect(ctl.state?.isReconnecting, isFalse);
+
+      ctl.dispose();
+      fakeBus.dispose();
+    });
   });
 }

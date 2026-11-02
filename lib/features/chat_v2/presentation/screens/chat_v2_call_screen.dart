@@ -205,6 +205,43 @@ class _ChatV2CallScreenState extends ConsumerState<ChatV2CallScreen> {
                 ),
               ),
             ),
+
+            // Banner cảnh báo mạng yếu & Reconnecting
+            if (session.isReconnecting)
+              Positioned(
+                top: 16,
+                left: 20,
+                right: 20,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF59E0B),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.3),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(LucideIcons.wifiOff, color: Colors.white, size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        'Đang kết nối lại tín hiệu...',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -312,8 +349,36 @@ class _ChatV2CallScreenState extends ConsumerState<ChatV2CallScreen> {
     ChatV2CallSession? session,
     ChatV2CallController controller,
   ) {
+    final isIncoming = session?.state == ChatV2CallState.incomingRinging;
     final isConnected = session?.state == ChatV2CallState.connected;
     final isOutgoing = session?.state == ChatV2CallState.outgoingRinging;
+
+    // Khi có cuộc gọi đến: Hiển thị 2 nút lớn Từ chối (Đỏ) và Trả lời (Xanh lá)
+    if (isIncoming) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 48),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            // Nút Từ chối (Đỏ 0xFFEF4444)
+            _buildActionButton(
+              icon: LucideIcons.phoneOff,
+              label: 'Từ chối',
+              color: const Color(0xFFEF4444),
+              onPressed: () => controller.rejectCall(),
+            ),
+            // Nút Trả lời (Xanh lá 0xFF10B981)
+            _buildActionButton(
+              icon: LucideIcons.phoneCall,
+              label: 'Trả lời',
+              color: const Color(0xFF10B981),
+              isPulse: true,
+              onPressed: () => controller.acceptCall(),
+            ),
+          ],
+        ),
+      );
+    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -349,6 +414,67 @@ class _ChatV2CallScreenState extends ConsumerState<ChatV2CallScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onPressed,
+    bool isPulse = false,
+  }) {
+    final Widget button = GestureDetector(
+      onTap: onPressed,
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 68,
+            height: 68,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: color,
+              boxShadow: [
+                BoxShadow(
+                  color: color.withValues(alpha: 0.45),
+                  blurRadius: 18,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: Icon(
+              icon,
+              size: 30,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: color == const Color(0xFFEF4444)
+                  ? const Color(0xFFFCA5A5)
+                  : const Color(0xFF6EE7B7),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (isPulse) {
+      return button
+          .animate(onPlay: (c) => c.repeat(reverse: true))
+          .scale(
+            begin: const Offset(1.0, 1.0),
+            end: const Offset(1.08, 1.08),
+            duration: 800.ms,
+            curve: Curves.easeInOut,
+          );
+    }
+    return button;
   }
 
   Widget _buildCircleButton({

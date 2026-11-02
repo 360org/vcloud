@@ -417,6 +417,39 @@ class ChatV2Repository {
     return messages;
   }
 
+  /// Lấy toàn bộ lịch sử media (ảnh, tài liệu, liên kết) của phòng chat từ backend O(1).
+  Future<ChatV2ChannelMediaResult> getChannelMedia(
+    String channelId, {
+    String type = 'all',
+    int limit = 50,
+    int offset = 0,
+  }) async {
+    final cid = int.tryParse(channelId);
+    if (cid == null || cid <= 0) return const ChatV2ChannelMediaResult();
+
+    try {
+      final dynamic data = await _client.get(
+        '/api/v1/mobile/chat/channels/$channelId/media',
+        query: {
+          'type': type,
+          'limit': limit.toString(),
+          'offset': offset.toString(),
+        },
+      );
+
+      if (data is Map) {
+        return ChatV2ChannelMediaResult.fromMap(
+          Map<String, dynamic>.from(data),
+          type: type,
+        );
+      }
+      return const ChatV2ChannelMediaResult();
+    } catch (e) {
+      debugPrint('[ChatV2Repository] getChannelMedia error: $e');
+      return const ChatV2ChannelMediaResult();
+    }
+  }
+
   Future<ChatV2Attachment> uploadAttachment({
     required String filename,
     required Uint8List bytes,
@@ -1018,6 +1051,45 @@ class ChatV2Repository {
       } catch (e) {
         if (kDebugMode) {
           debugPrint('[ChatV2Repository] renameChannel error: $e');
+        }
+        rethrow;
+      }
+    }
+  }
+
+  Future<Map<String, dynamic>> updateChannelAvatar({
+    required String channelId,
+    String? base64Image,
+    bool isRemove = false,
+  }) async {
+    final cid = int.tryParse(channelId) ?? 0;
+    final body = <String, dynamic>{
+      'channel_id': cid,
+      if (isRemove) 'action': 'remove',
+      if (!isRemove && base64Image != null) 'avatar': base64Image,
+    };
+    try {
+      final res = await _client.post(
+        '/api/v1/mobile/chat/channels/$channelId/avatar',
+        body: body,
+      );
+      if (res is Map<String, dynamic>) {
+        return res;
+      }
+      return {'status': 'success'};
+    } catch (_) {
+      try {
+        final fallbackRes = await _client.post(
+          '/api/v1/mobile/avatar/channels/$channelId/upload',
+          body: body,
+        );
+        if (fallbackRes is Map<String, dynamic>) {
+          return fallbackRes;
+        }
+        return {'status': 'success'};
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint('[ChatV2Repository] updateChannelAvatar error: $e');
         }
         rethrow;
       }

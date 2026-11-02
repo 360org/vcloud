@@ -6,7 +6,7 @@ void main() {
   group('OdooBusService.buildWsUrl Tests', () {
     final expires = DateTime.now().add(const Duration(days: 7));
 
-    test('1. Chuyển đổi port 1900 sang gevent 1972 kèm db vcloud_test_v19', () {
+    test('1. Chuyển đổi port 1900 sang gevent 1972 kèm db vcloud_test_v19 (tự động nhận diện Odoo 19)', () {
       final session = OdooSession(
         accessToken: 'jwt_token_1900',
         uid: 2,
@@ -21,7 +21,7 @@ void main() {
       );
       expect(
         url,
-        'ws://192.168.1.100:1972/websocket?access_token=jwt_token_1900&db=vcloud_test_v19&version=17.0-3',
+        'ws://192.168.1.100:1972/websocket?access_token=jwt_token_1900&db=vcloud_test_v19&version=19.0-2',
       );
     });
 
@@ -148,6 +148,74 @@ void main() {
       expect(
         OdooBusService.buildWsUrl(baseUrl: 'https://localhost', session: sessionHttps).startsWith('wss://'),
         isTrue,
+      );
+    });
+
+    test('8. Truyền tường minh version: 19.0-2 ghi đè cấu hình mặc định', () {
+      final session = OdooSession(
+        accessToken: 'jwt_token_custom',
+        uid: 2,
+        db: 'demo-17',
+        login: 'admin',
+        expiresAt: expires,
+        baseUrl: 'http://192.168.1.100:8069',
+      );
+      final url = OdooBusService.buildWsUrl(
+        baseUrl: 'http://192.168.1.100:8069',
+        session: session,
+        version: '19.0-2',
+      );
+      expect(
+        url,
+        'ws://192.168.1.100:8069/websocket?access_token=jwt_token_custom&db=demo-17&version=19.0-2',
+      );
+    });
+
+    test('9. Truyền tường minh version: 17.0-3 ghi đè khi kết nối Odoo 19', () {
+      final session = OdooSession(
+        accessToken: 'jwt_token_custom_17',
+        uid: 2,
+        db: 'vcloud_test_v19',
+        login: 'admin',
+        expiresAt: expires,
+        baseUrl: 'http://192.168.1.100:1900',
+      );
+      final url = OdooBusService.buildWsUrl(
+        baseUrl: 'http://192.168.1.100:1900',
+        session: session,
+        version: '17.0-3',
+      );
+      expect(
+        url,
+        'ws://192.168.1.100:1972/websocket?access_token=jwt_token_custom_17&db=vcloud_test_v19&version=17.0-3',
+      );
+    });
+
+    test('10. Tự động nhận diện Odoo 19 qua baseUrl chứa 1972 hoặc session.db chứa 19', () {
+      final sessionDb19 = OdooSession(
+        accessToken: 'jwt_db19',
+        uid: 5,
+        db: 'my_company_19_prod',
+        login: 'user',
+        expiresAt: expires,
+        baseUrl: 'https://erp.example.com',
+      );
+      expect(
+        OdooBusService.buildWsUrl(baseUrl: 'https://erp.example.com', session: sessionDb19),
+        'wss://erp.example.com/websocket?access_token=jwt_db19&db=my_company_19_prod&version=19.0-2',
+      );
+
+      final sessionGevevnt1972 = OdooSession(
+        accessToken: 'jwt_1972',
+        uid: 5,
+        db: 'custom_db',
+        login: 'user',
+        expiresAt: expires,
+        baseUrl: 'http://192.168.1.100:1972',
+      );
+      expect(
+        OdooBusService.buildWsUrl(baseUrl: 'http://192.168.1.100:1972', session: sessionGevevnt1972),
+        'ws://192.168.1.100:1972/websocket?access_token=jwt_1972&db=custom_db&version=19.0-2',
       );
     });
   });

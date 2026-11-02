@@ -8,6 +8,7 @@ import 'package:vcloud/features/chat_v2/domain/models/chat_v2_call_session.dart'
 import 'package:vcloud/features/chat_v2/data/chat_v2_call_repository.dart';
 import 'package:vcloud/features/chat_v2/application/chat_v2_call_controller.dart';
 import 'package:vcloud/features/chat_v2/presentation/screens/chat_v2_call_screen.dart';
+import 'package:vcloud/features/chat_v2/presentation/widgets/chat_v2_call_listener.dart';
 import 'package:vcloud/core/api/odoo_api_client.dart';
 
 class FakeWidgetCallApiClient extends OdooApiClient {
@@ -51,9 +52,24 @@ class MockCallController extends ChatV2CallController {
     state = initialSession;
   }
 
+  bool acceptCalled = false;
+  bool rejectCalled = false;
+
   @override
   void setIncomingCall(ChatV2CallSession session) {
     state = session;
+  }
+
+  @override
+  Future<void> acceptCall() async {
+    acceptCalled = true;
+    state = state?.copyWith(state: ChatV2CallState.connected);
+  }
+
+  @override
+  Future<void> rejectCall() async {
+    rejectCalled = true;
+    state = state?.copyWith(state: ChatV2CallState.ended, endReason: 'rejected');
   }
 }
 
@@ -67,6 +83,10 @@ void main() {
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
     const MethodChannel('xyz.luan/audioplayers'),
     (MethodCall methodCall) async => 1,
+  );
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+    const MethodChannel('flutter_callkit_incoming'),
+    (MethodCall methodCall) async => null,
   );
 
   group('ChatV2CallScreen Widget Tests', () {
@@ -163,7 +183,7 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
-    testWidgets('TC-12: ChatV2CallScreen displays caller info when incoming ringing', (tester) async {
+    testWidgets('TC-12: ChatV2CallScreen displays caller info, Accept & Reject buttons when incoming ringing', (tester) async {
       const session = ChatV2CallSession(
         id: 101,
         channelId: 4255,
@@ -195,6 +215,99 @@ void main() {
 
       expect(find.text('Marc Demo'), findsOneWidget);
       expect(find.text('Cuộc gọi đến...'), findsOneWidget);
+      expect(find.text('Trả lời'), findsOneWidget);
+      expect(find.text('Từ chối'), findsOneWidget);
+      expect(find.byIcon(LucideIcons.phoneCall), findsOneWidget);
+      expect(find.byIcon(LucideIcons.phoneOff), findsOneWidget);
+
+      // Tap Trả lời button
+      await tester.tap(find.text('Trả lời'));
+      await tester.pump();
+      expect(ctrl.acceptCalled, isTrue);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('TC-13: ChatV2CallScreen shows reconnecting banner when session.isReconnecting is true', (tester) async {
+      const session = ChatV2CallSession(
+        id: 101,
+        channelId: 4255,
+        callerId: 2,
+        callerName: 'Marc Demo',
+        receiverId: 5,
+        receiverName: 'Bùi Tuấn Kiệt',
+        state: ChatV2CallState.connected,
+        duration: 30,
+        isCaller: true,
+        isReconnecting: true,
+      );
+
+      final ctrl = MockCallController(repo: repo, initialSession: session);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            chatV2CallRepositoryProvider.overrideWithValue(repo),
+            chatV2CallControllerProvider.overrideWith((ref) => ctrl),
+          ],
+          child: MaterialApp(
+            theme: ThemeData(splashFactory: InkRipple.splashFactory),
+            home: const Scaffold(
+              body: ChatV2CallScreen(),
+            ),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.text('Đang kết nối lại tín hiệu...'), findsOneWidget);
+      expect(find.byIcon(LucideIcons.wifiOff), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('TC-14: ChatV2CallListener renders In-App Incoming Call Banner when foreground and incomingRinging', (tester) async {
+      const session = ChatV2CallSession(
+        id: 101,
+        channelId: 4255,
+        callerId: 2,
+        callerName: 'Marc Demo',
+        receiverId: 5,
+        receiverName: 'Bùi Tuấn Kiệt',
+        state: ChatV2CallState.incomingRinging,
+        isCaller: false,
+      );
+
+      final ctrl = MockCallController(repo: repo, initialSession: session);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            chatV2CallRepositoryProvider.overrideWithValue(repo),
+            chatV2CallControllerProvider.overrideWith((ref) => ctrl),
+          ],
+          child: MaterialApp(
+            theme: ThemeData(splashFactory: InkRipple.splashFactory),
+            home: const Scaffold(
+              body: ChatV2CallListener(
+                child: Center(child: Text('Main Screen Content')),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Main Screen Content'), findsOneWidget);
+      expect(find.text('Cuộc gọi thoại đến...'), findsOneWidget);
+      expect(find.text('Marc Demo'), findsOneWidget);
+      expect(find.byIcon(LucideIcons.phoneCall), findsOneWidget);
+      expect(find.byIcon(LucideIcons.phoneOff), findsOneWidget);
+
+      // Tap nút Từ chối trên banner
+      await tester.tap(find.byIcon(LucideIcons.phoneOff));
+      await tester.pump();
+      expect(ctrl.rejectCalled, isTrue);
 
       await tester.pumpWidget(const SizedBox.shrink());
     });
