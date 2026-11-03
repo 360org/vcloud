@@ -23,6 +23,7 @@ import '../../livechat/application/livechat_controller.dart';
 import '../../livechat/data/models/livechat_channel_model.dart';
 import '../../livechat/presentation/widgets/livechat_selection_bottom_sheet.dart';
 import '../../timesheet/application/task_controller.dart';
+import 'widgets/mobile_notification_sheet.dart';
 
 
 import '../../timesheet/application/timesheet_controller.dart';
@@ -135,8 +136,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ref.invalidate(mobileDashboardSummaryProvider);
     } catch (e, stackTrace) {
       if (mounted) {
+        final errorMsg = e is Failure ? e.message : e.toString();
+        final lower = errorMsg.toLowerCase();
         if (isLocationError(e)) {
-          await showLocationPromptDialog(context, message: e is Failure ? e.message : e.toString());
+          await showLocationPromptDialog(context, message: errorMsg);
+        } else if (lower.contains('employee_not_found') ||
+            lower.contains('không tìm thấy thông tin nhân viên')) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Tài khoản chưa được liên kết hồ sơ nhân viên để chấm công.'),
+            ),
+          );
         } else {
           await _showErrorDialog(e, stackTrace);
         }
@@ -157,15 +167,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final dashboard = ref.watch(mobileDashboardSummaryProvider).valueOrNull;
     final notificationState = ref.watch(mobileNotificationsProvider);
     final dismissedIds = ref.watch(dismissedNotificationIdsProvider);
-    final allNotifs = notificationState.valueOrNull?.items ?? const <MobileNotificationItem>[];
+    // DO NOT MODIFY OR REFACTOR THIS AVATAR LOADING LOGIC. IT IS THE SOURCE OF TRUTH FOR USER AVATAR DISPLAY.
+    // CẤM SỬA HOẶC XÓA LOGIC TẢI AVATAR NÀY - ĐÂY LÀ NGUỒN SỰ THẬT HIỂN THỊ AVATAR DÙNG CHUNG.
+    final user = ref.watch(authControllerProvider).valueOrNull;
+    final rawNotifs = notificationState.valueOrNull?.items ?? const <MobileNotificationItem>[];
+    final allNotifs = (user?.isPortal == true)
+        ? rawNotifs
+            .where((it) => const {
+                  'ticket',
+                  'ticket_message',
+                  'livechat',
+                  'system',
+                }.contains(it.eventType.toLowerCase()))
+            .toList()
+        : rawNotifs;
     final notificationCount = allNotifs
         .where((it) =>
             !dismissedIds.contains(it.id.toString()) &&
             !dismissedIds.contains('${it.eventType}_${it.id}'))
         .length;
-    // DO NOT MODIFY OR REFACTOR THIS AVATAR LOADING LOGIC. IT IS THE SOURCE OF TRUTH FOR USER AVATAR DISPLAY.
-    // CẤM SỬA HOẶC XÓA LOGIC TẢI AVATAR NÀY - ĐÂY LÀ NGUỒN SỰ THẬT HIỂN THỊ AVATAR DÙNG CHUNG.
-    final user = ref.watch(authControllerProvider).valueOrNull;
     final meta = user?.userMetadata;
     final rawName = meta?['display_name'];
     final name = (rawName is String ? rawName : (rawName != null && rawName != false ? rawName.toString() : null))?.trim();
@@ -302,14 +322,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _openNotifications(BuildContext context) {
-    context.push(
-      Uri(
-        path: '/webview',
-        queryParameters: {
-          'url': '/home/action-2186',
-          'title': 'Thông báo',
-        },
-      ).toString(),
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => const MobileNotificationSheet(),
     );
   }
 }

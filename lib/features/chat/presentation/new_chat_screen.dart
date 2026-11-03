@@ -259,7 +259,7 @@ class _NewChatScreenState extends ConsumerState<NewChatScreen>
                       (currentPartnerId != null &&
                           (p.partnerId == currentPartnerId ||
                               p.id == currentPartnerId));
-                  return !isSelf;
+                  return !isSelf && !p.isPortal;
                 }).toList();
               });
 
@@ -496,28 +496,6 @@ class _DirectChatListState extends State<_DirectChatList> {
                                     ),
                                   ),
                                 ),
-                                if (p.isPortal) ...[
-                                  const SizedBox(width: 6),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF0077CD).withValues(alpha: 0.12),
-                                      borderRadius: BorderRadius.circular(4),
-                                      border: Border.all(
-                                        color: const Color(0xFF0077CD).withValues(alpha: 0.3),
-                                        width: 0.8,
-                                      ),
-                                    ),
-                                    child: const Text(
-                                      'Khách hàng',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w600,
-                                        color: Color(0xFF0077CD),
-                                      ),
-                                    ),
-                                  ),
-                                ],
                               ],
                             ),
                             subtitle: Text(
@@ -616,7 +594,7 @@ class _GroupFormState extends ConsumerState<_GroupForm> {
               (currentPartnerId != null &&
                   (p.partnerId == currentPartnerId ||
                       p.id == currentPartnerId));
-          return !isSelf;
+          return !isSelf && !p.isPortal;
         }).toList();
 
         final rawQ = _query.trim();
@@ -761,17 +739,6 @@ class _GroupFormState extends ConsumerState<_GroupForm> {
                                           : const Color(0xFF0F172A),
                                     ),
                                   ),
-                                  if (p.isPortal) ...[
-                                    const SizedBox(width: 4),
-                                    const Text(
-                                      '(KH)',
-                                      style: TextStyle(
-                                        fontSize: 10.5,
-                                        fontWeight: FontWeight.w700,
-                                        color: Color(0xFF0077CD),
-                                      ),
-                                    ),
-                                  ],
                                 ],
                               ),
                               backgroundColor: isDark
@@ -832,28 +799,6 @@ class _GroupFormState extends ConsumerState<_GroupForm> {
                           ),
                         ),
                       ),
-                      if (p.isPortal) ...[
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF0077CD).withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(
-                              color: const Color(0xFF0077CD).withValues(alpha: 0.3),
-                              width: 0.8,
-                            ),
-                          ),
-                          child: const Text(
-                            'Khách hàng',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF0077CD),
-                            ),
-                          ),
-                        ),
-                      ],
                     ],
                   ),
                   subtitle: Text(

@@ -3163,7 +3163,7 @@ class _AddGroupMemberBottomSheetState
                     final isAlreadyMember = (pId.isNotEmpty && existingMemberIds.contains(pId)) ||
                         (uId.isNotEmpty && existingMemberIds.contains(uId)) ||
                         (name.isNotEmpty && existingMemberNames.contains(name));
-                    return !isAlreadyMember;
+                    return !isAlreadyMember && !u.isPortal;
                   }).toList();
 
                   final rawQ = _searchQuery.trim();
@@ -3241,28 +3241,6 @@ class _AddGroupMemberBottomSheetState
                                 ),
                               ),
                             ),
-                            if (u.isPortal) ...[
-                              const SizedBox(width: 6),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF0077CD).withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(4),
-                                  border: Border.all(
-                                    color: const Color(0xFF0077CD).withValues(alpha: 0.3),
-                                    width: 0.8,
-                                  ),
-                                ),
-                                child: const Text(
-                                  'Khách hàng',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF0077CD),
-                                  ),
-                                ),
-                              ),
-                            ],
                           ],
                         ),
                         subtitle: Text(

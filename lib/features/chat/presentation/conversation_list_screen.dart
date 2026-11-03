@@ -1020,7 +1020,7 @@ class _NewMessageSheetState extends ConsumerState<_NewMessageSheet> {
                   data: (users) {
                     final currentUserId = widget.currentUser?.id;
                     final others = users
-                        .where((user) => user.id != currentUserId)
+                        .where((user) => user.id != currentUserId && !user.isPortal)
                         .toList();
                     if (others.isEmpty) {
                       return const Center(
@@ -2080,7 +2080,7 @@ final _allUsersProvider = FutureProvider.autoDispose<List<Profile>>((
 final _userSearchProvider = FutureProvider.autoDispose
     .family<List<Profile>, String>((ref, query) async {
       final repo = ref.read(chatRepositoryProvider);
-      return repo.searchUsers(query);
+      return repo.searchUsers(query, type: 'internal');
     });
 
 /// Bottom sheet for creating new conversations (Direct + Group tabs).
@@ -2221,7 +2221,7 @@ class _DirectTabState extends ConsumerState<_DirectTab> {
     final users =
         ref.watch(_userSearchProvider(_searchQuery.trim())).value ?? [];
     final me = ref.read(authControllerProvider).value?.id ?? '';
-    final others = users.where((u) => u.id != me).toList();
+    final others = users.where((u) => u.id != me && !u.isPortal).toList();
 
     final filtered = _searchQuery.isEmpty
         ? others
@@ -2340,34 +2340,36 @@ class _GroupTabState extends ConsumerState<_GroupTab> {
   Widget build(BuildContext context) {
     final users = ref.watch(_allUsersProvider);
     return users.when(
-      data: (list) => Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: TextField(
-              controller: _name,
-              onChanged: (_) => setState(() {}),
-              decoration: InputDecoration(
-                hintText: 'Tên nhóm',
-                prefixIcon: const Icon(
-                  LucideIcons.users,
-                  color: AppColors.textMuted,
-                ),
-                filled: true,
-                fillColor: AppColors.bg,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
+      data: (list) {
+        final internalList = list.where((u) => !u.isPortal).toList();
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: TextField(
+                controller: _name,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  hintText: 'Tên nhóm',
+                  prefixIcon: const Icon(
+                    LucideIcons.users,
+                    color: AppColors.textMuted,
+                  ),
+                  filled: true,
+                  fillColor: AppColors.bg,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
                 ),
               ),
             ),
-          ),
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: list.length,
-              itemBuilder: (_, index) {
-                final user = list[index];
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: internalList.length,
+                itemBuilder: (_, index) {
+                  final user = internalList[index];
                 final selected = _selected.contains(user.id);
                 return CheckboxListTile(
                   value: selected,
@@ -2417,7 +2419,8 @@ class _GroupTabState extends ConsumerState<_GroupTab> {
             ),
           ),
         ],
-      ),
+      );
+      },
       loading: () => const LoadingView(),
       error: (e, _) =>
           ErrorView(error: e, onRetry: () => ref.invalidate(_allUsersProvider)),

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
 import '../../../core/api/odoo_api_client.dart';
+import '../../../core/services/biometric_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/local_attachment_cache.dart';
 import '../../../shared/widgets/app_scaffold.dart';
@@ -99,6 +100,7 @@ class ProfileScreen extends ConsumerWidget {
                     color: AppColors.primary,
                     onTap: () => context.push('/profile/edit'),
                   ),
+                  const _BiometricSettingRow(),
                   _ThemeRow(),
                   const _CacheRow(),
                   _SettingsRow(
@@ -848,6 +850,177 @@ class _CacheRowState extends State<_CacheRow> {
   }
 }
 
+class _BiometricSettingRow extends ConsumerStatefulWidget {
+  const _BiometricSettingRow();
+
+  @override
+  ConsumerState<_BiometricSettingRow> createState() => _BiometricSettingRowState();
+}
+
+class _BiometricSettingRowState extends ConsumerState<_BiometricSettingRow> {
+  bool _available = false;
+  bool _enabled = false;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadState();
+  }
+
+  Future<void> _loadState() async {
+    try {
+      final bio = ref.read(biometricServiceProvider);
+      final avail = await bio.isHardwareAvailable();
+      final en = await bio.isBiometricEnabled();
+      if (mounted) {
+        setState(() {
+          _available = avail;
+          _enabled = en;
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _toggle(bool value) async {
+    final bio = ref.read(biometricServiceProvider);
+    if (!value) {
+      await bio.disableBiometrics();
+      if (mounted) {
+        setState(() => _enabled = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Đã tắt đăng nhập bằng sinh trắc học.')),
+        );
+      }
+      return;
+    }
+
+    final authed = await bio.authenticate(
+      reason: 'Xác thực vân tay hoặc Face ID để kích hoạt tính năng',
+    );
+    if (!authed) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Xác thực sinh trắc học không thành công hoặc đã bị hủy.')),
+        );
+      }
+      return;
+    }
+
+    if (!mounted) return;
+    final pwdController = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Xác nhận mật khẩu'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Nhập mật khẩu tài khoản hiện tại để lưu an toàn vào phần cứng máy (Keystore/Keychain) cho các lần mở khóa sau:',
+              style: TextStyle(fontSize: 13.5),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: pwdController,
+              obscureText: true,
+              autofocus: true,
+              decoration: const InputDecoration(
+                hintText: 'Nhập mật khẩu của bạn',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Kích hoạt'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && pwdController.text.isNotEmpty && mounted) {
+      final user = ref.read(authControllerProvider).value;
+      final session = odooApiClient.session;
+      final login = user?.email ?? session?.login ?? '';
+      final db = session?.db ?? '';
+      await bio.enableBiometrics(
+        login: login,
+        password: pwdController.text,
+        db: db,
+      );
+      if (mounted) {
+        setState(() => _enabled = true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Đã kích hoạt khóa sinh trắc học thành công!')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading || !_available) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: AppColors.soft(const Color(0xFF0077CD)),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(
+              LucideIcons.fingerprint,
+              color: Color(0xFF0077CD),
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 14),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Khóa sinh trắc học (Face ID / Vân tay)',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                Text(
+                  'Mở khóa ứng dụng nhanh và bảo mật',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textMuted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch.adaptive(
+            value: _enabled,
+            onChanged: _toggle,
+            activeTrackColor: const Color(0xFF0077CD),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 BoxDecoration _cardDecoration(BuildContext context, {double radius = 22}) {
   final isDark = Theme.of(context).brightness == Brightness.dark;

@@ -459,11 +459,14 @@ class ChatRepository {
     return _channelId(res);
   }
 
-  Future<List<Profile>> searchUsers(String query) async {
+  Future<List<Profile>> searchUsers(String query, {String? type}) async {
     try {
       final res = await _client.get(
         '/api/v1/mobile/users/search',
-        query: <String, Object?>{'q': query.trim()},
+        query: <String, Object?>{
+          'q': query.trim(),
+          if (type != null && type.isNotEmpty) 'type': type,
+        },
       );
       final records = _userSearchRecords(res);
       return records.map(_profileFromUserSearch).toList();
@@ -480,11 +483,13 @@ class ChatRepository {
         return list.map((map) {
           final pId = map['partner_id'];
           final partnerIdStr = pId is List && pId.isNotEmpty ? pId.first.toString() : null;
+          final isShare = map['share'] == true;
           return Profile(
             id: map['id'].toString(),
             email: (map['login'] ?? '').toString(),
             displayName: (map['name'] ?? map['display_name'] ?? '').toString(),
             partnerId: partnerIdStr,
+            role: isShare ? 'portal' : 'employee',
           );
         }).toList();
       } catch (_) {
@@ -493,9 +498,9 @@ class ChatRepository {
     }
   }
 
-  /// Retained for group creation, which still uses the user IDs returned by
-  /// the internal-user search endpoint.
-  Future<List<Profile>> allUsers() => searchUsers('');
+  /// ponytail: Mặc định allUsers() phục vụ tạo chat nội bộ & nhóm nội bộ nên luôn lọc type='internal'
+  Future<List<Profile>> allUsers({String type = 'internal'}) =>
+      searchUsers('', type: type);
 
   List<Map<String, dynamic>> _userSearchRecords(Object? response) {
     final raw = response is Map

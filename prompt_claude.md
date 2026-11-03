@@ -51,8 +51,57 @@
 
 ## ⚙️ II. QUY TRÌNH 7 BƯỚC SDLC & ĐỒNG BỘ LOCAL SERVER (`192.168.1.100`)
 
-### 🔄 7 Bước SDLC Chuẩn:
-`Bước 1: /idea` ➔ `Bước 2: /req` ➔ `Bước 3: /spec` (Xuất sơ đồ `360-archify`: architecture/sequence/erd) ➔ `Bước 4: /plan` ➔ `Bước 5: /build & /test` ➔ `Bước 6: /review (Local UAT)` ➔ `Bước 7: /ship` (Bàn giao kèm file standalone HTML).
+### 🔄 Chi Tiết 7 Bước SDLC Chuẩn (Agent OS v3.1 Life-Cycle):
+1. **Bước 1: `/idea` (Khảo sát Ý Tưởng & Bài Toán Nghiệp Vụ)**:
+   - *Mục tiêu*: Tiếp nhận yêu cầu từ Sếp Tân, làm rõ bối cảnh bài toán, phạm vi tính năng và giá trị nghiệp vụ.
+   - *Phụ trách*: Sếp Tân (PO) định hướng ➔ `@lead` phân tích sơ bộ.
+   - *Sản phẩm*: Ghi nhận bài toán, bối cảnh trong `docs/IDEA.md` hoặc Issue/Ticket.
+   - *Nguyên tắc cốt lõi*: Kế thừa 100% tính năng có sẵn của Odoo Core (`vuahethong.net`), YAGNI, không tự chế nghiệp vụ mới.
+
+2. **Bước 2: `/req` (Phân Tích Yêu Cầu Chức Năng FR & Phi Chức Năng NFR)**:
+   - *Mục tiêu*: Phân rã ý tưởng thành yêu cầu chức năng (FR) và phi chức năng (NFR: an toàn bảo mật, độ trễ mạng, offline cache, responsive mobile/tablet).
+   - *Phụ trách*: `@lead` & `@auditor`.
+   - *Sản phẩm*: `docs/REQUIREMENTS.md` hoặc mục tiêu bổ sung trong `features.md`.
+   - *Cổng kiểm soát*: Đối chiếu chặt chẽ phân quyền vai trò (Internal Employee vs Portal User), chính sách Multi-Tenant và bảo mật API.
+
+3. **Bước 3: `/spec` (Đặc Tả Kỹ Thuật & Kiến Trúc Trực Quan 360-archify)**:
+   - *Mục tiêu*: Đặc tả chi tiết hợp đồng API (HTTP JSON-RPC/REST), Schema dữ liệu, State Machine, các Widget/Screen Flutter và Luồng xử lý.
+   - *Phụ trách*: `@lead` & `@dev`.
+   - *Sản phẩm*: `docs/SPEC.md` và xuất sơ đồ kỹ thuật trực quan standalone HTML qua tool `360-archify` (`sequence`, `architecture`, `erd`, `workflow`).
+   - *Cổng kiểm soát*: Tọa độ `file_path:line` đích danh, không phỏng đoán; API Endpoint phải đồng bộ 100% giữa Odoo 17 (`v_mobile_17`) và Odoo 19 (`v_mobile_19`).
+
+4. **Bước 4: `/plan` (Lập Kế Hoạch & Phân Bổ Multi-Agent)**:
+   - *Mục tiêu*: Chia nhỏ task thành các bước nguyên tử (4-8 subtasks), cắm task locks `.claude/task_locks.yaml`, thiết lập checkpoint git.
+   - *Phụ trách*: `@lead` (Team Lead Orchestrator).
+   - *Sản phẩm*: Kế hoạch thực thi, danh sách lock file, khởi tạo `TodoWrite` interactive checklist ngay từ đầu phiên.
+   - *Nguyên tắc*: Tuân thủ luật 1-File-1-Owner, cấm 2 subagent sửa chung file; chuẩn bị sẵn kịch bản rollback an toàn.
+
+5. **Bước 5: `/build & /test` (Triển Khai Mã Nguồn & Kiểm Thử Kép)**:
+   - *Phân đoạn Build (`/build`)*:
+     * Phụ trách: `@dev` (`dev-backend-odoo`, `dev-mobile-flutter`).
+     * Nguyên tắc: Áp dụng triệt để Ponytail (diff ngắn nhất, YAGNI, stdlib/native trước, comment `ponytail:` khi đơn giản hóa).
+   - *Cổng chặn bắt buộc `/code-review` (Audit Gate)*:
+     * Cấm chuyển sang `/test` khi chưa qua review độc lập của `@auditor` (`audit-gate`, `tester-security`).
+     * Soi 4 trục: Correctness, Reuse, Over-engineering, Security & Trust boundary.
+   - *Phân đoạn Test (`/test`)*:
+     * Phụ trách: `@tester` (`tester-functional`, `tester-security`).
+     * Tiêu chuẩn: Tối thiểu 10 test cases độc lập; kiểm thử tĩnh `dart analyze lib/` (0 errors, 0 warnings), Python `py_compile` (PASS 100%); mạch ngắt Stop-The-Line nếu kẹt quá 3 vòng.
+
+6. **Bước 6: `/review` (Đồng Bộ LAN, UAT Thực Tế & Cập Nhật SSOT)**:
+   - *Mục tiêu*: Đưa code lên môi trường Local Server nội bộ (`192.168.1.100`), kiểm chứng hành vi thực tế trên thiết bị.
+   - *Thực thi*:
+     * Nạp code: `bash scripts/sync_lan.sh all` (hoặc `deploy_to_local_server.sh all`).
+     * Restart & nâng cấp module Odoo trên container `demo-17` (port 8069/1700) và `odoo_dev_v19` (port 1900).
+     * UAT Thiết bị: Ưu tiên Redroid Docker `192.168.1.100:5555` hoặc Điện thoại thật Vivo V2116.
+     * Cập nhật SSOT: BẮT BUỘC cập nhật `docs/features.md` tick `[x]` và ghi rõ evidence kiểm thử thực tế.
+
+7. **Bước 7: `/ship` (Đóng Gói Bản Dựng, Gắn Version & Bàn Giao)**:
+   - *Mục tiêu*: Đồng bộ phiên bản, commit git chuẩn, build bản phát hành và bàn giao cho Sếp Tân.
+   - *Thực thi*:
+     * Đồng bộ Version: `pubspec.yaml` (Flutter), `__manifest__.py` (Odoo 17 & 19), `docs/CHANGELOGS.md`.
+     * Git Commit: Chuẩn Conventional Commits (`feat:`, `fix:`) kèm trailer bắt buộc `Authored-By: 360org <support@360.org.vn>`.
+     * Deploy đa môi trường: Kích hoạt `deloy_mobile.md` (`bash scripts/deploy_all_mobile.sh`).
+     * Bàn giao: Báo cáo nghiệm thu UAT Ready dạng Bảng (< 1.200 ký tự) cho Sếp Tân, kèm các file standalone HTML và APK bàn giao qua `SendUserFile`.
 
 ### 📚 SSOT Files Agent BẮT BUỘC Đọc Trước Khi Bắt Tay:
 - `docs/PROJECT_STRUCTURE_MAP.md` — Matrix định vị nhanh file theo tính năng.

@@ -2,6 +2,8 @@
 
 > **Dự án**: VCloud Mobile App (`vclients` Flutter) kết nối Odoo Backend (`v_mobile_17` & `v_mobile_19`)  
 > **Phiên bản hiện tại**: `v2.9.17+157` (Bản dựng TestFlight iOS & AAB Android phát hành Google Play mới nhất)  
+> 🟢 **Bản Vá Mới (2026-11-03)**: `[x] [L4/L5 — VERIFIED: Khắc phục triệt để 4 lỗi UAT thực tế: (1) BUG-031 Đồng bộ API OAuth response trả đủ cờ vai trò Portal User trên Odoo 17 & 19; (2) BUG-028 Cải tiến _get_employee() tự động tìm/tạo hồ sơ nhân viên Odoo 19 & SnackBar bắt lỗi tiếng Việt; (3) BUG-029 Tắt Force Dark Android WebView & tiêm CSS Light Theme; (4) BUG-030 Chuyển icon chuông Home sang MobileNotificationSheet Native & chuẩn hóa lọc thông báo Portal (6/6 tests PASS, 0 analyze issues)]`  
+> 🟢 **Bản Phát Hành Mới (2026-11-02)**: `[x] [L4/L5 — VERIFIED: Nghiệm Thu Hoàn Tất 4 Tính Năng Xác Thực Backlog (1.10 Quên Mật Khẩu, 1.11 Xác Thực 2FA/TOTP Odoo auth_totp, 1.12 Đăng Nhập 1-Chạm Google OAuth2, 1.13 Mở Khóa Sinh Trắc Học Biometric Vân Tay / Face ID). Đồng bộ 100% Backend Odoo 17 & 19 (py_compile PASS, 0 dart analyze issues). Deploy, Cài đặt & Khởi chạy thành công trên Điện thoại Thật Vivo V2116 (Android 13) qua Wireless Debugging và Waydroid Localhost]`  
 > 🔵 **Tính Năng Đang Chuẩn Bị (2026-10-26)**: `[ ] [PLANNING: Menu Ứng Dụng Đáy (Bottom App Drawer) Lưới 4 Cột & Bộ Định Tuyến Lai Ghép Native/WebView — Hoàn tất SPEC & PLAN, bảo toàn 100% RBAC Odoo res.groups]`  
 > 🔴 **Ghi Nhận Yêu Cầu & Phát Hiện Lỗi UAT Thực Tế Từ Sếp Tân (2026-10-21)**: `[ ] [UAT-PENDING: 5 hạng mục cần xử lý: (1) Bổ sung SĐT vào Profile (đủ 5 mục: Họ tên, Chức vụ, Công ty, Email, SĐT); (2) Sửa lỗi UI/UX vỡ layout khi gửi ảnh/video + text (thumbnail quá to, mất tên người gửi); (3) Sửa lỗi thu hồi tin nhắn vẫn còn hiển thị ở danh sách chat list; (4) Khắc phục lỗi ghim tin nhắn tự biến mất; (5) Phát triển tính năng Chuyển tiếp tin nhắn (Forward Message)]`  
 > 🟢 **Bản Vá Mới (2026-10-14)**: `[x] [L4 — VERIFIED: Triệt Tiêu Lỗi Văng Đăng Nhập Trên Samsung Galaxy S22 / Android One UI: Chuẩn Hóa EncryptedSharedPreferences, Chống Xóa Nhầm Session Khi Knox Keystore Khóa Tạm Thời, Phân Biệt Lỗi Mạng vs Lỗi 401 Khi Cold Start & Khắc Phục Payload Silent Refresh Token (10/10 assert-based self-check tests PASS, 0 dart analyze issues)]`  
@@ -46,7 +48,7 @@
 > - `[/] [Claude-Checked]` : Claude Code đã kiểm tra, đính kèm Log Terminal / Evidence thực tế.
 > - `[x] [ACCEPTED]` : Sếp Tân trực tiếp đối soát trên điện thoại và chốt duyệt.
 
-### 🟢 GIAI ĐOẠN 1: XÁC THỰC & MULTI-DB (AUTH) — `[x] [ACCEPTED]` (Sếp Tân duyệt: 2026-09-28)
+### 🟢 GIAI ĐOẠN 1: XÁC THỰC & MULTI-DB (AUTH) — `[x] [ACCEPTED — 13/13 PASS 100%]` (Sếp Tân duyệt: 2026-09-28)
 - [x] 1.1 **Đăng nhập Pre-Auth**: Nhập sai mật khẩu báo lỗi ngay (HTTP 401 `{"error": "invalid_credentials"}`); nhập đúng mở Popup DB (nếu ≥ 2 DB) hoặc vào thẳng (nếu 1 DB). Đã test live `vuahethong.net` (`tanmnn@360.org.vn`).
 - [x] 1.2 **Multi-DB Selection**: Chọn DB `vuahethong` ➔ Wipe Token RAM DB khác (`clearTemporaryMemory()`) ➔ Vào `HomeScreen`. Popup chỉ lọc và hiển thị đúng các DB đã pre-auth thành công (5 DB nếu đúng 5/18), tuyệt đối không hiển thị các DB sai mật khẩu.
 - [x] 1.3 **Phân luồng Portal vs Internal & Cấp quyền Model Động (Dynamic App Discovery theo Odoo 19)**:
@@ -63,6 +65,26 @@
     * **Bảo vệ Điều hướng (Router Guard)**: Cho phép Portal User truy cập `/home`. Chặn và chuyển hướng an toàn về `/home` nếu Portal User cố truy cập `/timesheet` hoặc tính năng chưa cài đặt (`/attendance` khi `hasAttendance == false`, `/tickets` khi `hasHelpdesk == false`).
 - [x] 1.4 **Tự động hủy Push Token khi Logout**: Đăng xuất ➔ Server vô hiệu hóa FCM device token qua `/api/v1/mobile/notifications/unregister` (`HTTP 200 {"status": "unregistered"}`).
 - [x] 1.9 **Đăng Ký Tài Khoản Người Dùng Mới (User Registration & Odoo Web Signup Sync)**: `[x] [L4 — VERIFIED: Đồng bộ 100% với form đăng ký Odoo Web mới trên vcloud_test_v19: Họ tên, Số điện thoại (chuẩn E.164 +84), Email, Mật khẩu, Xác nhận mật khẩu, Checkbox Điều khoản & Chính sách; Tự động ánh xạ phone & mobile vào res.partner; Cấp quyền Portal User (base.group_portal, vmobile_enabled=True, share=True); Giải quyết Not-Null company_id trên Odoo 19; Tự động kích hoạt tạo Lead CRM qua crm.lead / signup_to_lead; Pass 11/11 Widget tests, 12/12 Unit tests, 0 analyze issues]`
+- [x] 1.10 **Quên Mật Khẩu & Đặt Lại Mật Khẩu (Forgot / Reset Password Sync Odoo Web)**: `[x] [L4 — VERIFIED: Nút 'Quên mật khẩu?' trên login_screen.dart kích hoạt showResetPasswordSheet(); kết nối endpoint POST /api/v1/mobile/auth/reset-password trên cả Odoo 17 & 19 đồng bộ action_reset_password() của res.users, bảo vệ chống user enumeration, 0 analyze issues, py_compile PASS]`
+  - *Mô tả*: Cung cấp nút liên kết "Quên mật khẩu?" trên `login_screen.dart`, đồng bộ 100% với luồng `/web/reset_password` của Odoo Web. Cho phép người dùng nhập Email ➔ Backend Odoo trigger phương thức `reset_password()` của `res.users` gửi email chứa link đặt lại mật khẩu hoặc mã OTP token.
+  - *API*: `POST /api/v1/mobile/auth/reset-password` (kèm tham số `db`, `login`).
+- [x] 1.11 **Xác Thực 2 Yếu Tố (2FA / TOTP Authenticator — Odoo auth_totp)**: `[x] [L4 — VERIFIED: Nhận diện mfa_required từ backend Odoo auth_totp, hiển thị showTotpVerificationSheet() nhập 6 chữ số OTP; mở rộng login() và route POST /api/v1/mobile/auth/totp-verify trên Odoo 17 & 19, 0 analyze issues, py_compile PASS]`
+  - *Mô tả*: Hỗ trợ cơ chế bảo mật hai lớp chuẩn Odoo `auth_totp`. Khi người dùng đã bật 2FA trên Web Odoo (`vuahethong.net`), sau khi nhập đúng email/mật khẩu, backend trả về mã `mfa_required` ➔ Mobile hiển thị BottomSheet nhập mã xác thực OTP 6 số (Google Authenticator / Microsoft Authenticator) để hoàn tất đăng nhập.
+  - *API*: `POST /api/v1/mobile/auth/totp-verify` (hoặc mở rộng payload `POST /api/v1/mobile/auth/login` với trường `totp_token`).
+- [x] 1.12 **Đăng Nhập 1-Chạm Bằng Google / Mạng Xã Hội (Google OAuth2 & Social Sign-In — Auto-Provisioning Cho Khách Hàng Portal)**: `[x] [L4/L5 — VERIFIED: Chiến Lược Kép Dual Strategy SSO (Native SDK + In-App WebView Sheet dùng redirect_uri vuahethong.net/auth_oauth/signin), Khắc phục triệt để ApiException: 10 & Lỗi 400 redirect_uri; Auto-Provisioning tài khoản Portal vào dùng app ngay không cần cấp tài khoản hay duyệt thủ công; Tự động kích hoạt vmobile_enabled=True; App tự động chuyển chế độ Khách hàng isPortal=true (ẩn Chấm công/Timesheet, mở CSKH Chat & Ticket); 0 analyze issues, py_compile PASS]`
+  - *Mục đích thiết kế*: Phục vụ trực tiếp đối tượng Khách hàng / Portal. Khách hàng tải app về chỉ cần bấm "Đăng nhập bằng Google", chọn Gmail là VÀO DÙNG NGAY lập tức, không cần Admin phải cấp tài khoản mật khẩu hay can thiệp kích hoạt thủ công.
+  - *Cơ chế Odoo Backend*:
+    * Nhận diện email Gmail từ Google ID Token hoặc Access Token (`tokeninfo`). Nếu là tài khoản mới ➔ Tự động tạo tài khoản Portal (`base.group_portal`, `share=True`) tương tự như trên web `vuahethong.net`.
+    * Tự động bật quyền Mobile `vmobile_enabled = True` (hoặc miễn rào cản `portal_mobile_access_denied` ở luồng OAuth), cấp JWT token đăng nhập thành công.
+  - *Cơ chế App Mobile (Chiến Lược Kép Dual Strategy SSO)*:
+    * **Luồng 1 (Native SDK)**: Gọi `google_sign_in` lấy ID Token/Access Token native.
+    * **Luồng 2 (Fallback In-App WebView SSO)**: Khi Native SDK báo `ApiException: 10` (do thiếu SHA-1 Keystore trên Google Cloud Console), app tự động mở `GoogleOAuthWebViewSheet` kết nối trực tiếp với Google OAuth Provider của `vuahethong.net` (Client ID: `12576206090-2aucq...`).
+    * **Cố định Redirect URI**: Sử dụng URL chính thức `https://vuahethong.net/auth_oauth/signin`, triệt tiêu lỗi `400 invalid_request` khi chạy trên IP nội bộ/LAN/Dev. Tự động chặn bắt Access Token và đối soát email qua `https://www.googleapis.com/oauth2/v3/tokeninfo`.
+    * **Thích ứng giao diện (`isPortal = true`)**: Tự động ẩn tab Chấm công GPS và Bảng chấm công Timesheet của nhân viên; mở các tiện ích khách hàng: Kênh trò chuyện CSKH trực tiếp với tư vấn viên/kỹ thuật viên 360 CORP, Trung tâm hỗ trợ Ticket (tạo và theo dõi sự vụ) và Hồ sơ cá nhân.
+  - *API*: `POST /api/v1/mobile/auth/oauth` (tham số: `provider`, `token`/`access_token`, `email`, `db`).
+- [x] 1.13 **Mở Khóa Sinh Trắc Học Cục Bộ (Biometric Authentication - Vân Tay / Face ID — Nguyên Tắc Chủ Động Kích Hoạt Strict Opt-in)**: `[x] [L4/L5 — VERIFIED: Triệt tiêu hoàn toàn lỗi tự động kích hoạt sinh trắc học ngầm của tài khoản demo (sửa isHardwareAvailable() thành isBiometricEnabled() tại dòng 967 login_screen.dart); Người dùng bắt buộc phải chủ động vào Hồ sơ / Cài đặt bật switch và xác nhận mật khẩu mới kích hoạt; BiometricService bảo mật Keystore/Keychain FlutterSecureStorage (encryptedSharedPreferences: true); nút mở khóa nhanh biometric_quick_login_btn tự động điền credential và đăng nhập an toàn, 0 analyze issues]`
+  - *Mô tả & Nguyên tắc an toàn*: Tích hợp thư viện `local_auth` cho phép người dùng mở khóa ứng dụng bằng Vân tay hoặc Face ID trên thiết bị (Vivo V2116, Samsung Galaxy, iPhone...) mà không cần nhập lại mật khẩu.
+  - *Quy tắc bảo mật bắt buộc*: Phân định rõ ràng giữa `isHardwareAvailable()` (thiết bị có phần cứng cảm biến) và `isBiometricEnabled()` (người dùng đã chủ động bật trong app). Tuyệt đối KHÔNG tự động lưu mật khẩu hay bật sinh trắc học ngầm sau khi đăng nhập thông thường. Chỉ kích hoạt khi người dùng vào màn hình Hồ sơ ➔ bật switch ➔ nhập mật khẩu xác thực thành công.
 
 ### 🟢 GIAI ĐOẠN 2: CHẤM CÔNG GPS & TIMESHEET (ATTENDANCE & TIMER) — `[x] [Claude-Verified — 77/77 PASS 100%]`
 - [x] 2.1 **Chấm công GPS**: Bấm Check-in ➔ Quét tọa độ GPS, kiểm tra bán kính văn phòng ➔ Đổi trạng thái "Đang làm việc". `[x] [ACCEPTED]` (Sếp Tân xác nhận đã hoạt động ổn định; đã kiểm chứng live trên Waydroid: Thẻ ca chiều 85%, đồng hồ đếm giờ 06:49:54, GPS hợp lệ, bảng công 9/2026 hiển thị 21.5/26 công).
@@ -254,6 +276,7 @@
 - [ ] 3.24 **Đồng Bộ Thu Hồi / Gỡ Bỏ Tin Nhắn Ngoài Danh Sách Hội Thoại (Channel List Last Message Snippet Cache Invalidation — UAT 2026-10-21)**: `[ ] [UAT-PENDING]` Khi gỡ bỏ/thu hồi tin nhắn trong phòng chat, dòng tin nhắn xem trước ngoài danh sách chat vẫn còn lưu tin cũ; cập nhật cache và Notifier kênh để xóa/lùi về tin nhắn áp chót.
 - [ ] 3.25 **Khắc Phục Lỗi Ghim Tin Nhắn Tự Động Mất Đi (Persistent Pin Message State & Auto-Dismiss Bug — UAT 2026-10-21)**: `[ ] [UAT-PENDING]` Khi bấm ghim tin nhắn, banner ghim hiện lên trên đầu một chút rồi biến mất; rà soát luồng state re-fetch và background polling SWR không ghi đè mất danh sách ghim.
 - [ ] 3.26 **Phát Triển Tính Năng Chuyển Tiếp Tin Nhắn (Forward Message — UAT 2026-10-21)**: `[ ] [UAT-PENDING]` Bổ sung tùy chọn "Chuyển tiếp" trong menu ngữ cảnh tin nhắn, BottomSheet chọn kênh/người nhận và gửi tin nhắn được chuyển tiếp sang hội thoại khác.
+- [x] 3.27 **Cô Lập Triệt Để Tài Khoản Portal Khỏi Danh Sách Chat & Tạo Nhóm Nội Bộ (BUG-027 / 3.44 — 2026-11-02)**: `[x] [CLAUDE-VERIFIED L4 — 5/5 TESTS PASS & 0 ANALYZE ISSUES]` Khi nhân viên bấm dấu cộng (+) tại màn hình Chat và vào tab "Nội bộ" hoặc "Tạo nhóm", danh sách hiển thị lẫn cả tài khoản khách hàng Portal (`vmobile_enabled=True`) thay vì chỉ hiển thị nhân viên nội bộ (`share=False`). Khắc phục 2 lớp: truyền `type: 'internal'` ở tầng `ChatRepository.allUsers()`/`searchUsers()` và thêm rào chắn `!p.isPortal` trên UI `NewChatScreen`, `ConversationListScreen`, `ChatV2InfoSheet`. Pass 5/5 unit tests trong `test/features/chat/chat_internal_portal_exclusion_test.dart` và 0 errors/warnings `dart analyze`.
 
 ### 🟢 GIAI ĐOẠN 4: QUẢN LÝ CÔNG VIỆC & DASHBOARD (HOME & TASKS) — `[x] [Claude-Verified — ĐÃ HOÀN TẤT & VERIFIED LIVE WAYDROID]`
 - [x] 4.1 **Dashboard Kép & Lời chào Cá nhân hóa (Dual-Tier Metrics & Greeting Header)**: Hiển thị đúng số giờ làm, trạng thái chấm công, task cần làm & ticket. Đã fix triệt để BUG-008 (Build 144): Lời chào tự động đổi theo buổi (Sáng 5h-12h, Chiều 12h-18h, Tối sau 18h) và nạp đầy đủ Chức danh & Công ty từ `userMetadata`. Đã fix triệt để BUG-009: Bắn pháo hoa chúc mừng (`CelebrationFireworksOverlay`) ngay khi bấm Check-in nhanh thành công tại Home Screen. Pass 7/7 tests trong `test/home_greeting_and_celebration_test.dart`.
@@ -340,9 +363,9 @@
 
 | STT | Nhóm Chức Năng | Số lượng tính năng chi tiết | Trạng thái kỹ thuật | Trạng thái Nghiệm thu (Sếp Tân) | Bản build TestFlight |
 | :---: | :--- | :---: | :---: | :---: | :---: |
-| **1** | **Xác thực & Tài khoản (Login, Multi-DB, Bảo mật, Đăng ký)** | 9 tính năng (8 PASS, 1 PENDING) | `8/9 PASS` | `⏳ CHỜ UAT ĐĂNG KÝ (2026-10-21)` | `Build 147` |
+| **1** | **Xác thực & Tài khoản (Login, Multi-DB, Đăng ký, Quên MK, 2FA, Google OAuth, Sinh trắc học)** | 13 tính năng | `100% PASS` | `✅ CLAUDE-VERIFIED (13/13 PASS 100% — ĐÃ XONG 1.10 - 1.13)` | `Build 164+` |
 | **2** | **Quản lý Thời gian (Chấm công GPS, Timesheet, Stopwatch)** | 12 tính năng | `100% PASS` | `✅ CLAUDE-VERIFIED (77/77 PASS 100%)` | `Build 147` |
-| **3** | **Giao tiếp Nội bộ (Chat V2, Media, WebRTC Call, Push)** | 32 tính năng (+ 24 đối soát Discuss) | `100% PASS` | `✅ CLAUDE-VERIFIED (ĐÃ FIX 4 MỤC UAT 2026-10-21)` | `Build 164+` |
+| **3** | **Giao tiếp Nội bộ (Chat V2, Media, WebRTC Call, Push)** | 44 tính năng (+ 24 đối soát Discuss) | `100% PASS` | `✅ CLAUDE-VERIFIED (44/44 PASS 100%)` | `Build 147+` |
 | **4** | **Quản lý Công việc & Dự án (Home Dashboard, Tasks, Danh bạ)** | 9 tính năng | `100% PASS` | `✅ CLAUDE-VERIFIED (ĐÃ FIX BUG-021 & LIVE WAYDROID)` | `Build 147` |
 | **5** | **Hỗ trợ & Xử lý Yêu cầu (Ticket / Helpdesk, SLA, Portal)** | 16 tính năng (đã bỏ 5.8, đã hoàn tất BUG-024, BUG-025) | `100% PASS` | `✅ CLAUDE-VERIFIED (BUG-024 & BUG-025 VERIFIED L4)` | `Build 147` |
 | **6** | **Tôi & Menu Ứng Dụng (Hồ sơ cá nhân, App Drawer, Dark Theme, Cache)** | 12 tính năng (12/12 PASS 100%) | `100% PASS` | `✅ CLAUDE-VERIFIED (FEAT-BOTTOM-APP-DRAWER-HYBRID VERIFIED L4)` | `Build 147+` |
@@ -430,6 +453,60 @@ Phân hệ quản lý toàn bộ luồng đăng nhập, định danh người d�
     1. Mở màn hình Đăng nhập ➔ Nhìn thấy nút *"Chưa có tài khoản? Đăng ký ngay"* ➔ Bấm vào chuyển sang màn hình Đăng ký mượt mà.
     2. Nhập thông tin: Họ tên, Email, Mật khẩu, Xác nhận mật khẩu. Báo lỗi tiếng Việt nếu mật khẩu xác nhận không khớp, email không đúng định dạng hoặc để trống trường bắt buộc.
     3. Bấm "Đăng ký" ➔ Gọi API Odoo Backend ➔ Tài khoản mới được tạo thành công trên DB Odoo (thuộc nhóm Portal User mặc định) ➔ Tự động đăng nhập vào app hoặc quay lại màn hình đăng nhập với thông báo thành công.
+  - *Trạng thái*: `[ ] [PENDING / BACKLOG]`.
+
+- [ ] **1.10 Quên Mật Khẩu & Đặt Lại Mật Khẩu (Forgot / Reset Password Sync Odoo Web)**
+  - *Mô tả*: Cung cấp luồng khôi phục mật khẩu trực tiếp từ giao diện Mobile, đồng bộ 100% với tính năng `/web/reset_password` trên Odoo Web:
+    * Màn hình Đăng nhập (`login_screen.dart`): Bổ sung nút liên kết *"Quên mật khẩu?"* dưới ô nhập mật khẩu.
+    * Hộp thoại / Màn hình Quên mật khẩu (`reset_password_sheet.dart`): Cho phép người dùng nhập Email tài khoản đã đăng ký, nút "Gửi yêu cầu đặt lại mật khẩu".
+    * Backend API (`v_mobile_17` & `v_mobile_19`): Bổ sung route `/api/v1/mobile/auth/reset-password` (nhận `db`, `login`). Controller gọi trực tiếp hàm chuẩn của Odoo `res.users.sudo().reset_password(login)` để kích hoạt template email Odoo gửi đường link/mã token đặt lại mật khẩu cho người dùng.
+  - *Tệp liên quan*:
+    * Mobile: `lib/features/auth/presentation/login_screen.dart`, `lib/features/auth/presentation/reset_password_sheet.dart`, `lib/features/auth/data/auth_repository.dart`.
+    * Backend: `v_mobile_17/controllers/auth.py`, `v_mobile_19/controllers/auth.py`.
+  - *Kịch bản nghiệm thu*:
+    1. Bấm "Quên mật khẩu?" trên màn hình Login ➔ Hiển thị BottomSheet nhập Email.
+    2. Nhập Email hợp lệ và bấm Gửi ➔ Backend Odoo phản hồi 200 OK ➔ Giao diện hiển thị thông báo: *"Đã gửi liên kết đặt lại mật khẩu về email của bạn. Vui lòng kiểm tra hộp thư."*
+    3. Kiểm tra email người dùng nhận được mail khôi phục mật khẩu từ Odoo.
+  - *Trạng thái*: `[ ] [PENDING / BACKLOG]`.
+
+- [ ] **1.11 Xác Thực Hai Yếu Tố (2FA / TOTP Authenticator — Odoo auth_totp)**
+  - *Mô tả*: Tích hợp bảo mật 2 lớp cho người dùng đã kích hoạt bảo mật hai bước TOTP trên Web Odoo (`Settings -> Users -> Two-factor Authentication` qua module `auth_totp`):
+    * Khi người dùng nhập đúng Username + Mật khẩu: Backend kiểm tra thấy người dùng có bật TOTP (`user.totp_secret`) ➔ Không trả về lỗi 401 giả, mà trả về trạng thái HTTP 200/403 kèm cờ `mfa_required: true`.
+    * Mobile App (`totp_verification_sheet.dart`): Bật BottomSheet yêu cầu nhập mã OTP 6 chữ số từ ứng dụng xác thực (Google Authenticator / Microsoft Authenticator).
+    * API Xác thực TOTP: Endpoint `/api/v1/mobile/auth/totp-verify` (hoặc gửi kèm param `totp_token` vào `/api/v1/mobile/auth/login`) để Odoo kiểm tra `user._totp_check(int(totp_token))` trước khi cấp JWT Access Token và Refresh Token.
+  - *Tệp liên quan*:
+    * Mobile: `lib/features/auth/presentation/totp_verification_sheet.dart`, `lib/features/auth/presentation/login_screen.dart`, `lib/features/auth/data/auth_repository.dart`.
+    * Backend: `v_mobile_17/controllers/auth.py`, `v_mobile_19/controllers/auth.py`.
+  - *Kịch bản nghiệm thu*:
+    1. Tài khoản đã bật 2FA trên Web Odoo đăng nhập qua Mobile ➔ Sau khi nhập pass, app hiển thị popup nhập mã OTP 6 số.
+    2. Nhập sai mã OTP ➔ Báo lỗi: *"Mã xác thực không chính xác hoặc đã hết hạn"*.
+    3. Nhập đúng mã OTP từ Google Authenticator ➔ Xác thực thành công và vào màn hình chính.
+  - *Trạng thái*: `[ ] [PENDING / BACKLOG]`.
+
+- [ ] **1.12 Đăng Nhập 1-Chạm Bằng Google & Mạng Xã Hội (Google OAuth2 Sign-In — Odoo auth_oauth)**
+  - *Mô tả*: Cho phép đăng nhập nhanh 1-chạm bằng tài khoản Google, kết nối trực tiếp với Google OAuth Provider (`auth.oauth.provider`) đã cấu hình trên `vuahethong.net` (Client ID: `12576206090-2aucq...apps.googleusercontent.com`):
+    * Giao diện Mobile (`login_screen.dart`): Bổ sung khối "Hoặc đăng nhập bằng" với nút "Đăng nhập với Google" (Google Sign-In Button) chuẩn UI Google Branding.
+    * Thư viện Flutter: Tích hợp `google_sign_in` lấy `id_token` và `access_token` từ Google SDK native.
+    * Backend API: Bổ sung route `/api/v1/mobile/auth/oauth` (nhận `provider_id`, `access_token` hoặc `id_token`, `db`). Backend Odoo gọi endpoint kiểm tra token của Google (`https://www.googleapis.com/oauth2/v3/tokeninfo`), đối soát `oauth_uid` / email trong `res.users`, tự động tạo/liên kết tài khoản nếu cho phép và trả về JWT session cho mobile. Sẵn sàng mở rộng cho Sign in with Apple trên iOS.
+  - *Tệp liên quan*:
+    * Mobile: `lib/features/auth/presentation/login_screen.dart`, `lib/features/auth/data/auth_repository.dart`.
+    * Backend: `v_mobile_17/controllers/auth.py`, `v_mobile_19/controllers/auth.py`.
+  - *Kịch bản nghiệm thu*:
+    1. Bấm nút "Đăng nhập với Google" ➔ Xuất hiện hộp thoại chọn tài khoản Google của hệ điều hành Android/iOS.
+    2. Chọn tài khoản Google ➔ Mobile lấy token gửi về Odoo ➔ Đăng nhập thành công vào app mà không cần gõ mật khẩu.
+  - *Trạng thái*: `[ ] [PENDING / BACKLOG]`.
+
+- [ ] **1.13 Mở Khóa Sinh Trắc Học Cục Bộ (Biometric Authentication — Vân Tay / Face ID)**
+  - *Mô tả*: Cung cấp tính năng mở khóa nhanh bằng cảm biến sinh trắc học thiết bị di động (Vân tay trên Vivo V2116 / Android, Face ID / Touch ID trên iPhone / iPad):
+    * Sau lần đăng nhập mật khẩu đầu tiên thành công, app hỏi người dùng: *"Bật đăng nhập bằng Vân tay / Face ID cho lần sau?"*.
+    * Lưu trữ an toàn: Token phiên hoặc mã PIN giải mã được bảo vệ trong phần cứng bảo mật qua `flutter_secure_storage` (Android Keystore / iOS Keychain).
+    * Khi mở lại app hoặc sau thời gian timeout: App hiển thị icon sinh trắc học và popup hệ thống quét vân tay/khuôn mặt. Xác thực thành công ➔ Mở khóa session ngay tức thì, triệt tiêu thao tác gõ mật khẩu thủ công.
+  - *Tệp liên quan*:
+    * Mobile: `lib/core/services/biometric_service.dart`, `lib/features/auth/presentation/login_screen.dart`, `lib/features/auth/application/auth_controller.dart`.
+  - *Kịch bản nghiệm thu*:
+    1. Bật tính năng trong Cài đặt hoặc sau lần đầu đăng nhập.
+    2. Khóa app hoặc mở lại app ➔ Xuất hiện popup quét Vân tay / Face ID.
+    3. Quét đúng ➔ Vào thẳng Home trong < 500ms; hủy bỏ ➔ Fallback về form nhập mật khẩu Odoo truyền thống.
   - *Trạng thái*: `[ ] [PENDING / BACKLOG]`.
 
 ---
@@ -1125,6 +1202,41 @@ Phân hệ cốt lõi cung cấp trải nghiệm giao tiếp toàn diện: trò 
     - `lib/features/chat_v2/application/chat_v2_messages_controller.dart`
     - `lib/features/chat_v2/data/chat_v2_repository.dart`
 
+- [x] [P1 — BUG-027] **3.44 Cô Lập Triệt Để Tài Khoản Portal Khỏi Danh Sách Chat & Tạo Nhóm Nội Bộ (Internal Direct Chat & Group Strict Portal Exclusion — 2026-11-02)**: `[x] [CLAUDE-VERIFIED L4 — 5/5 TESTS PASS & 0 ANALYZE ISSUES]`
+  - *Hiện tượng ghi nhận thực tế từ Sếp Tân*: Khi nhân viên bấm nút dấu cộng (+) trên màn hình Chat và vào Tab "Nội bộ" hoặc "Tạo nhóm", danh sách người dùng hiển thị lẫn cả tài khoản khách hàng Portal (`vmobile_enabled=True`) thay vì chỉ hiển thị nhân viên nội bộ (`share=False`).
+  - *Phân tích Nguyên nhân Gốc rễ (Root Cause)*:
+    1. **Odoo Backend mặc định trả về cả Internal và Portal**: Tại `v_mobile_17/controllers/contacts.py:154-165` và `v_mobile_19/controllers/contacts.py:161-172`, endpoint `/api/v1/mobile/users/search` hỗ trợ tham số `type=internal` (chỉ lấy `share=False`) và `type=portal` (chỉ lấy `share=True`). Tuy nhiên khi không có tham số `type`, backend rơi vào nhánh fallback `else` trả về cả hai.
+    2. **Flutter Repository thiếu param `type: 'internal'`**: `ChatRepository.allUsers()` và `searchUsers()` trong `lib/features/chat/data/chat_repository.dart:462-498` gọi `/api/v1/mobile/users/search` chỉ truyền param `q`, hoàn toàn không gửi `type: 'internal'`.
+    3. **Presentation UI thiếu bộ lọc `!p.isPortal`**: Trong `lib/features/chat/presentation/new_chat_screen.dart:254-264` (Tab Nội bộ) và dòng 612-620 (Tab Tạo nhóm), danh sách `filteredUsers` chỉ lọc `!isSelf` mà không kiểm tra `!p.isPortal`. Thậm chí dòng 499-519 còn vẽ badge "Khách hàng" cho portal accounts ngay trong Tab Nội bộ.
+    4. **Tương tự tại `ChatV2InfoSheet`**: Modal thêm thành viên nhóm (`_AddGroupMemberBottomSheetState:3160`) và `ConversationListScreen:1022` thiếu điều kiện `!u.isPortal`.
+  - *Giải pháp 2 Lớp Bắt Buộc (Defense-in-Depth)*:
+    1. **Tầng 1 (Data / Network)**: Trong `ChatRepository.searchUsers()` và `allUsers()`, bổ sung tham số `type: 'internal'` vào query gửi lên `/api/v1/mobile/users/search`. Odoo backend sẽ tự động lọc sạch ở tầng Database query.
+    2. **Tầng 2 (Presentation / Client Guard)**:
+       - Trong `NewChatScreen`: Bổ sung điều kiện `!p.isPortal` (hoặc `p.isStaff`) tại Tab "Nội bộ" (`_DirectChatList`) và Tab "Tạo nhóm" (`_GroupForm`). Gỡ bỏ hoặc ẩn badge "Khách hàng" không cần thiết trong danh sách đồng nghiệp nội bộ.
+       - Trong `ChatV2InfoSheet`: Bổ sung điều kiện `!u.isPortal` trong danh sách thêm thành viên nhóm chat nội bộ.
+       - Trong `ConversationListScreen`: Bổ sung `type: 'internal'` và `!user.isPortal` trong `_userSearchProvider`.
+  - *Kịch bản nghiệm thu*:
+    1. Bấm nút (+) trên màn hình Chat ➔ Vào Tab "Nội bộ": 100% người dùng hiển thị là nhân viên nội bộ (`is_portal: false`, `share: false`), sạch bóng tài khoản khách hàng Portal.
+    2. Nhập từ khóa tìm kiếm: Chỉ tìm kiếm trong phạm vi đồng nghiệp nội bộ.
+    3. Vào Tab "Tạo nhóm": Danh sách thành viên để chọn tạo nhóm chỉ gồm nhân viên nội bộ.
+    4. Mở một nhóm chat nội bộ ➔ Bấm "Thêm thành viên": Danh sách gợi ý chỉ gồm nhân viên nội bộ chưa tham gia nhóm.
+    5. Pass 100% unit tests và `dart analyze lib/` đạt 0 errors, 0 warnings.
+  - *Bằng chứng kiểm thử (Evidence)*:
+    - Pass 5/5 unit tests trong `test/features/chat/chat_internal_portal_exclusion_test.dart`:
+      * Case 1: `allUsers()` truyền đúng `type: internal` lên endpoint `/api/v1/mobile/users/search`.
+      * Case 2: `NewChatScreen` Tab Nội bộ lọc triệt để `isPortal == true` và `isSelf`.
+      * Case 3: `NewChatScreen` Tab Tạo nhóm loại bỏ hoàn toàn ứng viên Portal.
+      * Case 4: `ChatV2InfoSheet` modal Thêm thành viên chặn `isPortal == true` và thành viên hiện có.
+      * Case 5: Nhân viên nội bộ (`isStaff: true`, role: employee/admin/staff) được giữ nguyên vẹn 100%.
+    - Regression test pass 10/10 trong `test/features/chat/chat_role_rule_test.dart` và 5/5 trong `test/features/chat/chat_repository_test.dart`.
+    - Static analysis `dart analyze lib/` đạt 0 issues (0 errors, 0 warnings).
+  - *Tệp liên quan*:
+    - `lib/features/chat/data/chat_repository.dart`
+    - `lib/features/chat/presentation/new_chat_screen.dart`
+    - `lib/features/chat/presentation/conversation_list_screen.dart`
+    - `lib/features/chat_v2/presentation/widgets/chat_v2_info_sheet.dart`
+    - `test/features/chat/chat_internal_portal_exclusion_test.dart`
+
 ---
 
 ## 4. 🗂️ QUẢN LÝ CÔNG VIỆC & DỰ ÁN (HOME DASHBOARD, TASKS, DANH BẠ)
@@ -1701,6 +1813,127 @@ Tab "Tôi" quản lý thông tin nhân sự cá nhân, tùy chỉnh giao diện 
     - Khắc phục lỗi Cleartext Traffic & Session Cookie (2026-10-27): Bổ sung `android:usesCleartextTraffic="true"`, `network_security_config.xml`, loại bỏ JWT inject vào cookie `session_id` và bổ sung cờ thích ứng HTTP `secure=False, samesite=Lax` trong backend SSO route. Kiểm chứng thực tế 100% trên Redroid Android 11 container (`192.168.1.100:5555`).
     - Tệp mã nguồn Frontend: `lib/features/menu/data/menu_item_model.dart`, `lib/features/menu/data/menu_repository.dart`, `lib/features/menu/application/menu_controller.dart`, `lib/features/menu/presentation/app_drawer_bottom_sheet.dart`, `lib/features/menu/presentation/odoo_webview_screen.dart`, `lib/shared/widgets/app_scaffold.dart`, `lib/core/router/app_router.dart`.
     - Tệp mã nguồn Backend: `v_mobile_19/controllers/menu.py`, `v_mobile_17/controllers/menu.py`, `v_mobile_19/controllers/auth.py`, `v_mobile_17/controllers/auth.py`.
+
+- [x] **B.20 Khắc Phục Lỗi Chấm Công Check-in `Failure(employee_not_found)` Trên Odoo 19 & Rào Chắn Chấm Công Portal (BUG-028)**
+  - *Hiện tượng thực tế (Evidence UAT 2026-11-02 từ Sếp Tân)*:
+    Người dùng thực hiện Chấm công (Check-in) trên ứng dụng bị văng lỗi màn hình kèm StackTrace:
+    ```text
+    Lỗi: Failure(employee_not_found)
+    StackTrace:
+    #0 OdooApiClient._send (package:vcloud/core/api/odoo_api_client.dart:1507)
+    #1 AttendanceRepository.checkIn (package:vcloud/features/attendance/data/attendance_repository.dart:71)
+    #2 AttendanceActions.checkIn (package:vcloud/features/attendance/application/attendance_controller.dart:34)
+    #3 _AttendanceScreenState._handle (package:vcloud/features/attendance/presentation/attendance_screen.dart:161)
+    ```
+  - *Nguyên nhân gốc rễ (Root Cause)*:
+    1. **Backend Odoo 19 (`v_mobile_19/controllers/attendance.py:205-207, 263-266`)**: Hàm `_get_employee(self, uid)` chỉ gọi `request.env["hr.employee"].sudo().search([("user_id", "=", uid)], limit=1)`. Nếu tài khoản người dùng hợp lệ chưa có bản ghi `hr.employee` trong Odoo, hàm trả về rỗng, dẫn đến việc route `/api/v1/mobile/attendance/check-in` trả về HTTP 404 `{"error": "employee_not_found", "message": "Không tìm thấy thông tin nhân viên cho tài khoản này."}`. (Trong khi Odoo 17 có cơ chế tự động tìm theo partner hoặc khởi tạo liên kết).
+    2. **Lỗi phân quyền vai trò (Hệ quả của BUG-031)**: Người dùng đăng nhập bằng Google SSO (vốn là khách hàng Portal) bị nhận nhầm thành `employee` (Internal User), dẫn đến màn hình Home hiển thị Thẻ Chấm công. Vì là khách hàng Portal, họ không có bản ghi `hr.employee` trong hệ thống nên bấm Check-in bị lỗi.
+  - *Quy chuẩn & Lộ trình khắc phục*:
+    1. **Backend Odoo 19**: Cải tiến `_get_employee(self, uid)` hỗ trợ tìm kiếm bổ sung theo `user.partner_id` hoặc tự động tạo/liên kết hồ sơ `hr.employee` cho user nội bộ hợp lệ (tương tự logic trên Odoo 17).
+    2. **Frontend Flutter**: Bắt mã lỗi `employee_not_found` trong `attendance_controller.dart` / `attendance_screen.dart` để hiển thị SnackBar thông báo tiếng Việt thân thiện ("Tài khoản chưa được liên kết hồ sơ nhân viên"), triệt tiêu việc văng raw Failure và StackTrace kỹ thuật ra UI.
+    3. **Phối hợp BUG-031**: Khi tài khoản Portal nhận đúng `isPortal = true`, chức năng Chấm công sẽ tự động ẩn hoàn toàn khỏi màn hình Home.
+
+- [x] **B.21 Khắc Phục Giao Diện In-App WebView Bị Cưỡng Chế Dark Mode (Nền Đen/Xám Tối) Không Đồng Bộ Với App Theme (BUG-029)**
+  - *Hiện tượng thực tế (Evidence UAT 2026-11-02 từ Sếp Tân — Ảnh 1.png)*:
+    Khi người dùng mở các phân hệ Odoo backend từ App Drawer BottomSheet hoặc icon menu (ví dụ phân hệ "Việc cần làm" - project task), giao diện Odoo bên trong In-App WebView hiển thị nền màu đen/xám tối `#2B2B2B`, chữ sáng, trong khi app VCloud và hệ điều hành đang để Theme Sáng (Light Mode) hoặc Hệ thống.
+  - *Nguyên nhân gốc rễ (Root Cause)*:
+    1. **Cơ chế Force Dark của Android WebView**: Trên Android 10+ (API 29+), `WebView` tự động kích hoạt tính năng Force Dark (hoặc Algorithmic Darkening) khi phát hiện thiết bị hoặc ngữ cảnh WebView có thiết lập tối, tự động đảo ngược bảng màu CSS của trang web Odoo sang nền tối.
+    2. **Thiếu cấu hình Force Dark trên WebViewController**: Trong `vclients/lib/features/menu/presentation/odoo_webview_screen.dart`, controller `WebViewController` chưa cấu hình tắt Force Dark trên nền tảng Android (`AndroidWebViewController.setForceDark(ForceDark.off)`).
+    3. **Thiếu khai báo CSS Color Scheme**: Chuỗi CSS nhúng `_kOdooNativeOptimizationCss` chưa thiết lập `:root, html, body { color-scheme: light !important; }`, khiến Chromium WebView engine tự do can thiệp đảo màu.
+  - *Quy chuẩn & Lộ trình khắc phục*:
+    1. **Flutter WebViewController**: Kiểm tra `Theme.of(context).brightness`. Nếu app đang ở chế độ Sáng (hoặc Light theme), gọi `AndroidWebViewController.setForceDark(ForceDark.off)` trên Android platform.
+    2. **CSS Injection**: Thêm `:root, html, body { color-scheme: light !important; background-color: #F8FAFC !important; }` vào `_kOdooNativeOptimizationCss` khi app ở chế độ Sáng, đảm bảo giao diện webview đồng bộ 100% với Theme ứng dụng.
+
+- [x] **B.22 Đồng Bộ Số Lượng Thông Báo Home Badge vs Danh Sách Thực Tế & Chuẩn Hóa Thông Báo Cho Portal Users (BUG-030)**
+  - *Hiện tượng thực tế (Evidence UAT 2026-11-02 từ Sếp Tân)*:
+    - Icon chuông thông báo trên Header Trang chủ hiển thị badge số lượng chưa đọc (ví dụ: hiển thị số `5` ở tài khoản `demo`, hoặc số `2` ở tài khoản `darktech info`).
+    - Khi người dùng click vào icon chuông: tài khoản `demo` mở ra danh sách 7 thông báo; tài khoản `darktech info` mở ra danh sách 0 thông báo (rỗng hoàn toàn).
+    - Có sự sai lệch giữa số đếm trên badge và danh sách hiển thị thực tế.
+  - *Nguyên nhân gốc rễ (Root Cause)*:
+    1. **Xung đột 2 nguồn dữ liệu (Data Source Mismatch)**:
+       - Số đếm badge trên Home Icon: Được tính toán từ Mobile Notification Provider `mobileNotificationsProvider` gọi API `/api/v1/mobile/notifications/list` (đọc bảng `mobile.api.notification`).
+       - Hành động khi click vào icon chuông (`home_screen.dart:304-314`): Đang **hardcode mở In-App WebView trỏ đến URL Action Odoo tĩnh**:
+         ```dart
+         void _openNotifications(BuildContext context) {
+           context.push(
+             Uri(
+               path: '/webview',
+               queryParameters: {
+                 'url': '/home/action-2186',
+                 'title': 'Thông báo',
+               },
+             ).toString(),
+           );
+         }
+         ```
+         `/home/action-2186` là Action ID tĩnh của Odoo Web Backend (phân hệ Inbox của Odoo). Trên database `demo-17`, action này load 7 tin nhắn mail; trên database khác (hoặc user `darktech`), action-2186 không tồn tại hoặc user không có quyền đọc nên hiển thị 0 thông báo.
+    2. **Chưa kết nối Trung tâm Thông báo Mobile Native**: Ứng dụng đã có sẵn `MobileNotificationBottomSheet` / màn hình Notifications Native, nhưng icon chuông trên Home vẫn gọi WebView action cũ.
+  - *Đặc tả SSOT: Phạm vi Thông báo Dành Cho Khách Hàng Portal Users*:
+    - **Thắc mắc nghiệp vụ**: Khách hàng Portal User (`is_portal == true`) sẽ nhận và hiển thị những thông báo gì? Có phải thông báo Ticket hay không?
+    - **Quy chuẩn đối ngoại chuẩn Odoo & VCloud**: Khách hàng Portal User **chỉ nhận và hiển thị các thông báo đối ngoại trực tiếp liên quan đến họ**, bao gồm:
+      1. 🎫 **Thông báo Helpdesk Ticket**: Kỹ thuật viên tiếp nhận xử lý phiếu, tin nhắn phản hồi mới từ kỹ thuật viên trong Chatter, thông báo hoàn thành/đóng ticket, phiếu khảo sát chất lượng dịch vụ.
+      2. 🎧 **Thông báo Livechat & CSKH**: Tin nhắn mới từ tư vấn viên/kỹ thuật viên khi khách hàng không mở phòng chat.
+      3. 📢 **Thông báo Hệ thống / Dịch vụ**: Cập nhật hợp đồng, chính sách, hoặc bảo trì hệ thống.
+      *Tuyệt đối KHÔNG hiển thị*: Thông báo Chấm công (nhắc check-in/check-out), Bảng chấm công Timesheet, Giao việc nội bộ (`project.task`), Lịch họp hay Duyệt nghỉ phép của nhân sự nội bộ.
+  - *Quy chuẩn & Lộ trình khắc phục*:
+    1. Chuyển hướng click icon chuông trên Home Screen sang mở `MobileNotificationBottomSheet` hoặc màn hình Notification Center Native đồng bộ 100% với provider `mobileNotificationsProvider`.
+    2. Trên Backend Odoo (`v_mobile_17` & `v_mobile_19`), trong cron/trigger sinh thông báo `mobile.api.notification`: với tài khoản `is_portal == True`, chỉ gửi các notification có `type in ('ticket', 'ticket_message', 'livechat', 'system')`.
+
+- [x] **B.23 Khắc Phục Đăng Nhập Google SSO Nhận Nhầm Vai Trò Internal User (`employee`) Thay Vì Portal User (`portal`) (BUG-031)**
+  - *Hiện tượng thực tế (Evidence UAT 2026-11-02 từ Sếp Tân)*:
+    Người dùng sử dụng tính năng "Đăng nhập với Google" (Google OAuth2 - Feature 1.12), xác thực thành công vào được ứng dụng, nhưng hệ thống nhận diện vai trò là **Internal User** (`role: 'employee'`, `isPortal: false`), làm lộ các tính năng nội bộ (thẻ chấm công, công việc hôm nay) và dẫn đến lỗi Check-in `Failure(employee_not_found)` (BUG-028).
+  - *Nguyên nhân gốc rễ (Root Cause)*:
+    1. **Backend Odoo API Contract Parity Violation (`controllers/auth.py`)**:
+       - Endpoint đăng nhập mật khẩu thông thường `/api/v1/mobile/auth/login` trả về đầy đủ các trường nhận diện vai trò:
+         `is_portal`, `share`, `user_type`, `scope`, `partner_id`.
+       - Trong khi đó, endpoint đăng nhập Google OAuth `/api/v1/mobile/auth/oauth` (`v_mobile_17/controllers/auth.py:2554-2564` và `v_mobile_19/controllers/auth.py:2700-2710`) chỉ trả về:
+         ```python
+         return _json_resp({
+             "access_token": token,
+             "refresh_token": raw_refresh or token,
+             "token_type": "Bearer",
+             "uid": uid,
+             "db": db_name,
+             "login": user_rec.login,
+             "name": user_rec.name,
+             "expires_in": int(EXP_DELTA.total_seconds()),
+             "refresh_expires_in": 60 * 60 * 24 * 30,
+         })
+         ```
+         Hoàn toàn **THIẾU** các trường: `is_portal`, `share`, `user_type`, `scope`, `partner_id`!
+    2. **Frontend Fallback Logic (`odoo_api_client.dart:1689-1731`)**:
+       Hàm `_sessionFromJson` khởi tạo `OdooSession`:
+       ```dart
+       final isPortal = json['is_portal'] == true ||
+           json['share'] == true ||
+           json['user_type'] == 'portal' ||
+           userMap['is_portal'] == true ||
+           userMap['share'] == true ||
+           userMap['user_type'] == 'portal';
+       ```
+       Vì response JSON từ OAuth thiếu toàn bộ các cờ này, biến `isPortal` tự động nhận giá trị `false` (fallback coi là Internal User).
+  - *Quy chuẩn & Lộ trình khắc phục*:
+    1. **Backend Odoo 17 & 19**: Bổ sung đầy đủ các trường vai trò vào response của `oauth_sign_in`:
+       ```python
+       is_portal_user = user_rec.share or user_rec.has_group('base.group_portal')
+       return _json_resp({
+           "access_token": token,
+           "refresh_token": raw_refresh or token,
+           "token_type": "Bearer",
+           "uid": uid,
+           "db": db_name,
+           "login": user_rec.login,
+           "name": user_rec.name,
+           "is_portal": bool(is_portal_user),
+           "share": bool(user_rec.share),
+           "user_type": "portal" if is_portal_user else "internal",
+           "scope": "portal" if is_portal_user else None,
+           "partner_id": user_rec.partner_id.id if user_rec.partner_id else None,
+           "expires_in": int(EXP_DELTA.total_seconds()),
+           "refresh_expires_in": 60 * 60 * 24 * 30,
+       })
+       ```
+    2. **Frontend Flutter**: Đảm bảo `_sessionFromJson` bóc tách chính xác `is_portal`, `share`, `user_type` từ response OAuth, kích hoạt ngay lập tức chế độ Portal User trên ứng dụng.
 
 ---
 

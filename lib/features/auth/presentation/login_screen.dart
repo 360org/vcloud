@@ -4,10 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
 import '../../../core/api/odoo_session.dart';
 import '../../../core/config/env.dart';
+import '../../../core/error/failure.dart';
+import '../../../core/services/biometric_service.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../../../shared/widgets/brand_logo.dart';
 import '../../chat_v2/application/chat_v2_channels_controller.dart';
@@ -15,6 +18,9 @@ import '../../ticket/application/ticket_controller.dart';
 import '../application/auth_controller.dart';
 import '../application/auth_memory_state.dart';
 import '../data/db_info.dart';
+import 'widgets/google_oauth_webview_sheet.dart';
+import 'widgets/reset_password_sheet.dart';
+import 'widgets/totp_verification_sheet.dart';
 
 /// WhatsApp-style premium light-themed login screen với Master Directory Lookup & Direct Client Auth.
 class LoginScreen extends ConsumerStatefulWidget {
@@ -39,6 +45,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _passwordFocus = FocusNode();
   final _serverUrlFocus = FocusNode();
   final _databaseNameFocus = FocusNode();
+  bool _biometricAvailable = false;
 
   @override
   void initState() {
@@ -48,6 +55,150 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _serverUrl.addListener(_onFieldChanged);
     _databaseName.addListener(_onFieldChanged);
     _loadSavedEmail();
+    _checkBiometric();
+  }
+
+  Future<void> _checkBiometric() async {
+    try {
+      final service = ref.read(biometricServiceProvider);
+      final enabled = await service.isBiometricEnabled();
+      if (mounted) {
+        setState(() => _biometricAvailable = enabled);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _biometricLogin() async {
+    try {
+      final service = ref.read(biometricServiceProvider);
+      final creds = await service.getCredentials();
+      if (creds == null) return;
+
+      final authenticated = await service.authenticate(
+        reason: 'Quét vân tay hoặc khuôn mặt để mở khóa Vua Hệ Thống',
+      );
+      if (!authenticated || !mounted) return;
+
+      setState(() {
+        _email.text = creds['login'] ?? '';
+        _password.text = creds['password'] ?? '';
+        if (creds['db'] != null && creds['db']!.isNotEmpty) {
+          _databaseName.text = creds['db']!;
+        }
+      });
+      await _submit();
+    } catch (e) {
+      if (mounted) {
+        setState(() => _error = 'Xác thực sinh trắc học thất bại: $e');
+      }
+    }
+  }
+
+  Future<void> _signInWithGoogle() async {
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      final targetDb = _isManualMode
+          ? _databaseName.text.trim()
+          : (Env.odooDb.isNotEmpty ? Env.odooDb : 'vcloud_test_v19');
+      final targetUrl = _isManualMode
+          ? _serverUrl.text.trim()
+          : Env.odooApiBaseUrl;
+
+      String? oauthToken;
+      String? oauthEmail;
+
+      // Luồng Google Sign-In kết nối SSO Odoo (Chiến Lược Kép: Native SDK + Fallback WebView SSO)
+      try {
+        final googleSignIn = GoogleSignIn(
+          serverClientId: '12576206090-2aucq3jt479mghm0qmnoa63f8emdekhc.apps.googleusercontent.com',
+          scopes: const ['email', 'profile'],
+        );
+        final account = await googleSignIn.signIn();
+        if (account != null) {
+          final auth = await account.authentication;
+          oauthToken = auth.idToken ?? auth.accessToken;
+          oauthEmail = account.email;
+        } else {
+          // Người dùng chủ động huỷ / đóng dialog chọn tài khoản Google
+          if (mounted) {
+            setState(() => _submitting = false);
+          }
+          return;
+        }
+      } catch (nativeErr) {
+        debugPrint('[GoogleSignIn] Native SDK error: $nativeErr -> Kích hoạt Luồng 2 Fallback SSO In-App WebView');
+        if (!mounted) return;
+        final webResult = await GoogleOAuthWebViewSheet.show(
+          context,
+          targetUrl: targetUrl,
+          targetDb: targetDb,
+        );
+        if (webResult != null && webResult.accessToken.isNotEmpty) {
+          oauthToken = webResult.accessToken;
+          oauthEmail = webResult.email;
+        } else {
+          if (mounted) {
+            setState(() => _submitting = false);
+          }
+          return;
+        }
+      }
+
+      if (oauthToken == null || oauthToken.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _submitting = false;
+            _error = 'Không thể lấy thông tin xác thực từ tài khoản Google.';
+          });
+        }
+        return;
+      }
+
+      await ref.read(authControllerProvider.notifier).signInWithOAuth(
+            provider: 'google',
+            accessToken: oauthToken,
+            email: oauthEmail,
+            db: targetDb,
+            targetBaseUrl: targetUrl,
+          );
+
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+        _showSuccessTransition = true;
+      });
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (mounted) context.go('/chat');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+        _error = _cleanErrorMessage(e);
+      });
+    }
+  }
+
+  Widget _buildGoogleIcon() {
+    return Container(
+      width: 22,
+      height: 22,
+      alignment: Alignment.center,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        shape: BoxShape.circle,
+      ),
+      child: const Text(
+        'G',
+        style: TextStyle(
+          color: Color(0xFF4285F4),
+          fontWeight: FontWeight.w900,
+          fontSize: 16,
+        ),
+      ),
+    );
   }
 
   void _onFieldChanged() {
@@ -323,6 +474,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           db: single.db,
           session: single.session,
           login: login,
+          password: password,
         );
         AuthMemoryState.clearTemporaryMemory();
         return;
@@ -346,6 +498,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           db: matched.db,
           session: matched.session,
           login: login,
+          password: password,
         );
       }
       // [Phương án 1 - Immediate Memory Wipe]: Xóa sạch hoàn toàn các token tạm còn lại khỏi RAM
@@ -634,6 +787,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     required DbInfo db,
     required OdooSession session,
     required String login,
+    String? password,
   }) async {
     setState(() => _submitting = true);
     debugPrint('''
@@ -652,6 +806,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
       // [Phương án 1 - Protocol V2.1]: Token DB đích đã lưu vào SecureStorage -> Wipe sạch RAM ngay
       AuthMemoryState.clearTemporaryMemory();
+
+      // [Feature 1.13]: Cập nhật thông tin sinh trắc học nếu người dùng ĐÃ BẬT trước đó
+      if (password != null && password.isNotEmpty) {
+        try {
+          final biometricService = ref.read(biometricServiceProvider);
+          final isAlreadyEnabled = await biometricService.isBiometricEnabled();
+          if (isAlreadyEnabled) {
+            await biometricService.enableBiometrics(
+              login: login,
+              password: password,
+              db: db.databaseName,
+            );
+          }
+        } catch (bioErr) {
+          debugPrint('⚠️ [LoginScreen] Update biometrics error: $bioErr');
+        }
+      }
 
       if (!mounted) return;
 
@@ -790,6 +961,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
       if (!mounted) return;
 
+      // [Feature 1.13]: Cập nhật thông tin sinh trắc học NẾU người dùng đã chủ động kích hoạt trước đó
+      // TUYỆT ĐỐI KHÔNG tự động enable ngầm khi người dùng chưa bật trong Cài đặt/Hồ sơ
+      try {
+        final biometricService = ref.read(biometricServiceProvider);
+        if (await biometricService.isBiometricEnabled()) {
+          await biometricService.enableBiometrics(
+            login: login,
+            password: password,
+            db: effectiveDb.databaseName,
+          );
+        }
+      } catch (_) {}
+
       // Bước 5: Chuyển hướng màn hình chính
       setState(() {
         _submitting = false;
@@ -815,6 +999,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     } catch (e, st) {
       if (!mounted) return;
       debugPrint('🚨 [LoginScreen._executeClientAuth] Error: $e\n$st');
+
+      // [Feature 1.11]: Mở BottomSheet xác thực 2 yếu tố (2FA / TOTP)
+      if (e is MfaRequiredFailure) {
+        setState(() => _submitting = false);
+        final verified = await showTotpVerificationSheet(
+          context,
+          login: login,
+          password: password,
+          db: effectiveDb.databaseName,
+          targetBaseUrl: effectiveDb.databaseUrl,
+        );
+        if (verified == true && mounted) {
+          setState(() {
+            _submitting = false;
+            _showSuccessTransition = true;
+          });
+          await Future.delayed(const Duration(milliseconds: 300));
+          if (mounted) context.go('/chat');
+        }
+        return;
+      }
+
       final cleanMsg = _cleanErrorMessage(e);
       setState(() {
         _submitting = false;
@@ -848,6 +1054,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         .replaceFirst('Failure(', '')
         .replaceFirst(')', '')
         .trim();
+    if (rawMsg.contains('Invalid field auth.oauth.provider') ||
+        rawMsg.contains('oauth_server_error')) {
+      return 'Máy chủ chưa cấu hình dịch vụ Đăng nhập Google. Vui lòng đăng nhập bằng Email & Mật khẩu.';
+    }
+    if (rawMsg.contains('oauth_authentication_failed')) {
+      return 'Không tìm thấy tài khoản phù hợp với thông tin Google trên hệ thống. Vui lòng kiểm tra lại email hoặc đăng ký tài khoản.';
+    }
+    if (rawMsg.contains('405') || rawMsg.contains('Method Not Allowed')) {
+      return 'Máy chủ chưa hỗ trợ API Đăng nhập Google (HTTP 405). Vui lòng cập nhật vmobile trên server hoặc đăng nhập bằng Email & Mật khẩu.';
+    }
+    if (rawMsg.contains('404') || rawMsg.contains('Not Found')) {
+      return 'Máy chủ chưa kích hoạt tính năng này (HTTP 404). Vui lòng đăng nhập bằng Email & Mật khẩu.';
+    }
     if (rawMsg.contains('does not exist') || rawMsg.contains('FATAL: database')) {
       return 'Cơ sở dữ liệu không tồn tại hoặc đã bị xóa trên máy chủ.';
     }
@@ -954,7 +1173,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               ),
                               const SizedBox(height: 6),
                               const Text(
-                                'Đăng nhập vào tài khoản VCloud của bạn.',
+                                'Đăng nhập vào tài khoản Vua Hệ Thống của bạn.',
                                 style: TextStyle(
                                   fontSize: 14,
                                   color: Color(0xFF64748B),
@@ -1083,6 +1302,34 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 validator: (v) => (v == null || v.isEmpty)
                                     ? 'Vui lòng nhập mật khẩu'
                                     : null,
+                              ),
+
+                              // [Feature 1.10]: Quên mật khẩu
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton(
+                                  key: const ValueKey('login_forgot_password_btn'),
+                                  onPressed: () {
+                                    showResetPasswordSheet(
+                                      context,
+                                      initialLogin: _email.text.trim(),
+                                      initialDb: _isManualMode ? _databaseName.text.trim() : null,
+                                      baseUrl: _isManualMode ? _serverUrl.text.trim() : null,
+                                    );
+                                  },
+                                  style: TextButton.styleFrom(
+                                    visualDensity: VisualDensity.compact,
+                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                  ),
+                                  child: const Text(
+                                    'Quên mật khẩu?',
+                                    style: TextStyle(
+                                      color: Color(0xFF64748B),
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
                               ),
 
                               // Manual Mode Expandable Fields
@@ -1245,6 +1492,38 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                               const SizedBox(height: 24),
 
+                              // [Feature 1.13]: Nút mở khóa nhanh bằng Sinh trắc học
+                              if (_biometricAvailable) ...[
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 48,
+                                  child: OutlinedButton.icon(
+                                    key: const ValueKey('biometric_quick_login_btn'),
+                                    icon: const Icon(
+                                      LucideIcons.fingerprint,
+                                      color: Color(0xFF0077CD),
+                                      size: 20,
+                                    ),
+                                    label: const Text(
+                                      'Mở khóa nhanh bằng Sinh trắc học',
+                                      style: TextStyle(
+                                        color: Color(0xFF0077CD),
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    style: OutlinedButton.styleFrom(
+                                      side: const BorderSide(color: Color(0xFF0077CD), width: 1.2),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                    ),
+                                    onPressed: _submitting ? null : _biometricLogin,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                              ],
+
                               // Primary Submit Button
                               SizedBox(
                                 width: double.infinity,
@@ -1314,6 +1593,57 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                         ),
                                       ],
                                     ),
+                                  ),
+                                ),
+                              ),
+
+                              // [Feature 1.12]: Đăng nhập qua Google OAuth2 / Social Sign-In
+                              const SizedBox(height: 14),
+                              const Row(
+                                children: [
+                                  Expanded(child: Divider(color: Color(0xFFE2E8F0))),
+                                  Padding(
+                                    padding: EdgeInsets.symmetric(horizontal: 12),
+                                    child: Text(
+                                      'Hoặc đăng nhập bằng',
+                                      style: TextStyle(
+                                        color: Color(0xFF94A3B8),
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                  Expanded(child: Divider(color: Color(0xFFE2E8F0))),
+                                ],
+                              ),
+                              const SizedBox(height: 14),
+                              SizedBox(
+                                width: double.infinity,
+                                height: 48,
+                                child: OutlinedButton(
+                                  key: const ValueKey('google_signin_btn'),
+                                  style: OutlinedButton.styleFrom(
+                                    backgroundColor: Colors.white,
+                                    side: const BorderSide(color: Color(0xFFE2E8F0)),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                  ),
+                                  onPressed: _submitting ? null : _signInWithGoogle,
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      _buildGoogleIcon(),
+                                      const SizedBox(width: 10),
+                                      const Text(
+                                        'Đăng nhập với Google',
+                                        style: TextStyle(
+                                          color: Color(0xFF0F172A),
+                                          fontSize: 14.5,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
@@ -1419,7 +1749,7 @@ class _WhatsAppSuccessOverlayState extends State<_WhatsAppSuccessOverlay> {
                 _step == 0
                     ? 'Đã xác thực tài khoản...'
                     : (_step == 1
-                        ? 'Đang kết nối VCloud Server...'
+                        ? 'Đang kết nối Vua Hệ Thống Server...'
                         : 'Đồng bộ dữ liệu mã hóa...'),
                 key: ValueKey(_step),
                 style: const TextStyle(

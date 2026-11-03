@@ -190,8 +190,17 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
       }
     } catch (e, stackTrace) {
       if (mounted) {
+        final errorMsg = e is Failure ? e.message : e.toString();
+        final lower = errorMsg.toLowerCase();
         if (isLocationError(e)) {
-          await showLocationPromptDialog(context, message: e is Failure ? e.message : e.toString());
+          await showLocationPromptDialog(context, message: errorMsg);
+        } else if (lower.contains('employee_not_found') ||
+            lower.contains('không tìm thấy thông tin nhân viên')) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Tài khoản chưa được liên kết hồ sơ nhân viên để chấm công.'),
+            ),
+          );
         } else {
           await _showErrorDialog(e, stackTrace);
         }

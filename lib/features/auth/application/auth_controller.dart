@@ -174,6 +174,75 @@ class AuthController extends AsyncNotifier<AuthUser?> {
     state = const AsyncData(null);
   }
 
+  /// [Feature 1.10]: Gửi yêu cầu đặt lại mật khẩu về email
+  Future<String> requestPasswordReset(String login, {String? db, String? baseUrl}) {
+    return _repo.requestPasswordReset(login, db: db, baseUrl: baseUrl);
+  }
+
+  /// [Feature 1.11]: Xác thực mã OTP 2 lớp (TOTP)
+  Future<void> verifyTotp({
+    required String login,
+    required String password,
+    required String totpToken,
+    String? db,
+    String? targetBaseUrl,
+  }) async {
+    state = const AsyncLoading();
+    try {
+      await GlobalStateResetService.clearAllUserDataOnLogout(ref: ref);
+      final user = await _repo.verifyTotp(
+        login: login,
+        password: password,
+        totpToken: totpToken,
+        db: db,
+        targetBaseUrl: targetBaseUrl,
+      );
+      unawaited(_registerPushDevice().catchError((_) {}));
+      state = AsyncData(user);
+    } catch (e, st) {
+      state = AsyncError(e, st);
+      rethrow;
+    }
+  }
+
+  /// [Feature 1.12]: Đăng nhập qua Google OAuth2 / Social Sign-In
+  Future<void> signInWithOAuth({
+    required String provider,
+    required String accessToken,
+    String? idToken,
+    String? email,
+    String? db,
+    String? targetBaseUrl,
+  }) async {
+    state = const AsyncLoading();
+    try {
+      await GlobalStateResetService.clearAllUserDataOnLogout(ref: ref);
+      final user = await _repo.signInWithOAuth(
+        provider: provider,
+        accessToken: accessToken,
+        idToken: idToken,
+        email: email,
+        db: db,
+        targetBaseUrl: targetBaseUrl,
+      );
+      unawaited(_registerPushDevice().catchError((_) {}));
+      state = AsyncData(user);
+    } catch (e, st) {
+      state = AsyncError(e, st);
+      rethrow;
+    }
+  }
+
+  /// [Feature 1.13]: Quản lý Sinh trắc học
+  Future<bool> isBiometricEnabled() => _repo.isBiometricEnabled();
+  Future<Map<String, String>?> getBiometricCredentials() => _repo.getBiometricCredentials();
+  Future<void> saveBiometricCredentials({
+    required String login,
+    required String password,
+    required String db,
+  }) => _repo.saveBiometricCredentials(login: login, password: password, db: db);
+  Future<void> clearBiometricCredentials() => _repo.clearBiometricCredentials();
+
   Future<void> uploadAvatar(String base64Image) async {
     try {
       PaintingBinding.instance.imageCache.clear();

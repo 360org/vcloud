@@ -78,6 +78,8 @@
 	<string>Vua Hệ Thống sử dụng thư viện ảnh để bạn có thể lưu hình ảnh từ tin nhắn và phiếu hỗ trợ.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Vua Hệ Thống sử dụng microphone để ghi âm tin nhắn thoại và thực hiện cuộc gọi thoại.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Vua Hệ Thống cần quyền Face ID để mở khóa tài khoản nhanh chóng và bảo mật.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>

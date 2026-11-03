@@ -35,7 +35,7 @@ class _FakeChatV2Repository extends Fake implements ChatV2Repository {
 
 class _FakeChatRepository extends Fake implements ChatRepository {
   @override
-  Future<List<Profile>> allUsers() async {
+  Future<List<Profile>> allUsers({String type = 'internal'}) async {
     return const [
       Profile(id: '1', partnerId: '1', email: 'a@example.com', displayName: 'Nguyễn Văn A'),
       Profile(id: '2', partnerId: '2', email: 'b@example.com', displayName: 'Trần Thị B'),

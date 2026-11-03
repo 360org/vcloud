@@ -358,6 +358,208 @@ class OdooApiClient {
     return session;
   }
 
+  /// [Feature 1.10]: Gửi yêu cầu đặt lại mật khẩu về email (Forgot / Reset Password).
+  Future<String> requestPasswordReset({
+    required String login,
+    String? db,
+    String? baseUrl,
+    Duration timeout = const Duration(seconds: 15),
+  }) async {
+    final trimmedLogin = login.trim();
+    final primaryBaseUrl = (baseUrl != null && baseUrl.isNotEmpty)
+        ? baseUrl
+        : (_baseUrl.isNotEmpty ? _baseUrl : Env.odooApiBaseUrl);
+    final targetDb = (db != null && db.trim().isNotEmpty)
+        ? db.trim()
+        : (Env.odooDb.isNotEmpty ? Env.odooDb : 'vcloud_test_v19');
+
+    final body = <String, dynamic>{
+      'login': trimmedLogin,
+      if (targetDb.isNotEmpty) 'db': targetDb,
+    };
+
+    final uri = Uri.parse('$primaryBaseUrl/api/v1/mobile/auth/reset-password');
+    final response = await _http
+        .post(
+          uri,
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            if (targetDb.isNotEmpty) 'X-Odoo-Database': targetDb,
+          },
+          body: jsonEncode(body),
+        )
+        .timeout(timeout);
+
+    final text = response.body;
+    Object? decoded;
+    if (text.isNotEmpty) {
+      try {
+        decoded = jsonDecode(text);
+      } catch (e, st) {
+        debugPrint('🚨 [requestPasswordReset] JSON parse failed: ${response.statusCode}\n$e\n$st');
+        if (response.statusCode >= 400) {
+          throw Failure('Máy chủ phản hồi lỗi (${response.statusCode}).');
+        }
+        throw Failure('Dữ liệu từ máy chủ không đúng định dạng.');
+      }
+    }
+
+    if (response.statusCode >= 400 || decoded is! Map || decoded['error'] != null) {
+      final msg = (decoded is Map ? (decoded['message'] ?? decoded['error']) : null)?.toString();
+      throw Failure(msg ?? 'Yêu cầu đặt lại mật khẩu thất bại (${response.statusCode}).');
+    }
+
+    return (decoded['message'] ?? 'Liên kết đặt lại mật khẩu đã được gửi đến email của bạn.').toString();
+  }
+
+  /// [Feature 1.11]: Xác thực 2 yếu tố (TOTP) và cấp phiên OdooSession.
+  Future<OdooSession> verifyTotp({
+    required String login,
+    required String password,
+    required String totpToken,
+    String? db,
+    String? targetBaseUrl,
+    Duration timeout = const Duration(seconds: 15),
+  }) async {
+    final primaryBaseUrl = (targetBaseUrl != null && targetBaseUrl.isNotEmpty)
+        ? targetBaseUrl
+        : (_baseUrl.isNotEmpty ? _baseUrl : Env.odooApiBaseUrl);
+    final targetDb = (db != null && db.trim().isNotEmpty)
+        ? db.trim()
+        : (Env.odooDb.isNotEmpty ? Env.odooDb : 'vcloud_test_v19');
+
+    final body = <String, dynamic>{
+      'login': login.trim(),
+      'password': password,
+      'totp_token': totpToken.trim(),
+      if (targetDb.isNotEmpty) 'db': targetDb,
+    };
+
+    final uri = Uri.parse('$primaryBaseUrl/api/v1/mobile/auth/login');
+    final response = await _http
+        .post(
+          uri,
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            if (targetDb.isNotEmpty) 'X-Odoo-Database': targetDb,
+          },
+          body: jsonEncode(body),
+        )
+        .timeout(timeout);
+
+    final text = response.body;
+    Object? decoded;
+    if (text.isNotEmpty) {
+      try {
+        decoded = jsonDecode(text);
+      } catch (e, st) {
+        debugPrint('🚨 [verifyTotp] JSON parse failed: ${response.statusCode}\n$e\n$st');
+        if (response.statusCode >= 400) {
+          throw Failure('Máy chủ phản hồi lỗi (${response.statusCode}).');
+        }
+        throw Failure('Dữ liệu từ máy chủ không đúng định dạng.');
+      }
+    }
+
+    if (response.statusCode >= 400 || decoded is! Map || decoded['error'] != null) {
+      final msg = (decoded is Map ? (decoded['message'] ?? decoded['error']) : null)?.toString();
+      throw Failure(msg ?? 'Mã xác thực 2 lớp (OTP) không chính xác hoặc đã hết hạn.');
+    }
+
+    final session = _sessionFromJson(
+      Map<String, dynamic>.from(decoded),
+      fallbackLogin: login,
+      fallbackDb: targetDb,
+      fallbackBaseUrl: primaryBaseUrl,
+    );
+    _session = session;
+    await _sessionStore.write(session);
+    return session;
+  }
+
+  /// [Feature 1.12]: Đăng nhập qua Google OAuth2 / Social Provider và cấp phiên OdooSession.
+  Future<OdooSession> loginOAuth({
+    required String provider,
+    required String accessToken,
+    String? idToken,
+    String? email,
+    String? db,
+    String? targetBaseUrl,
+    Duration timeout = const Duration(seconds: 15),
+  }) async {
+    final primaryBaseUrl = (targetBaseUrl != null && targetBaseUrl.isNotEmpty)
+        ? targetBaseUrl
+        : (_baseUrl.isNotEmpty ? _baseUrl : Env.odooApiBaseUrl);
+    final targetDb = (db != null && db.trim().isNotEmpty)
+        ? db.trim()
+        : (Env.odooDb.isNotEmpty ? Env.odooDb : 'vcloud_test_v19');
+
+    final body = <String, dynamic>{
+      'provider': provider,
+      'provider_id': provider,
+      'access_token': accessToken,
+      if (idToken != null && idToken.isNotEmpty) 'id_token': idToken,
+      if (email != null && email.isNotEmpty) 'email': email,
+      if (targetDb.isNotEmpty) 'db': targetDb,
+    };
+
+    final uri = Uri.parse('$primaryBaseUrl/api/v1/mobile/auth/oauth');
+    final response = await _http
+        .post(
+          uri,
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            if (targetDb.isNotEmpty) 'X-Odoo-Database': targetDb,
+          },
+          body: jsonEncode(body),
+        )
+        .timeout(timeout);
+
+    final text = response.body;
+
+    if (response.statusCode == 405) {
+      throw Failure(
+        'Máy chủ chưa hỗ trợ API Đăng nhập Google (HTTP 405). Vui lòng cập nhật vmobile trên server hoặc đăng nhập bằng Email & Mật khẩu.',
+      );
+    }
+    if (response.statusCode == 404) {
+      throw Failure(
+        'Máy chủ chưa kích hoạt API Đăng nhập Google (HTTP 404). Vui lòng đăng nhập bằng Email & Mật khẩu.',
+      );
+    }
+
+    Object? decoded;
+    if (text.isNotEmpty) {
+      try {
+        decoded = jsonDecode(text);
+      } catch (e, st) {
+        debugPrint('🚨 [loginOAuth] JSON parse failed: ${response.statusCode}\n$e\n$st');
+        if (response.statusCode >= 400) {
+          throw Failure('Máy chủ phản hồi lỗi (${response.statusCode}).');
+        }
+        throw Failure('Dữ liệu từ máy chủ không đúng định dạng.');
+      }
+    }
+
+    if (response.statusCode >= 400 || decoded is! Map || decoded['error'] != null) {
+      final msg = (decoded is Map ? (decoded['message'] ?? decoded['error']) : null)?.toString();
+      throw Failure(msg ?? 'Đăng nhập Google thất bại (${response.statusCode}).');
+    }
+
+    final session = _sessionFromJson(
+      Map<String, dynamic>.from(decoded),
+      fallbackLogin: email ?? 'google_user',
+      fallbackDb: targetDb,
+      fallbackBaseUrl: primaryBaseUrl,
+    );
+    _session = session;
+    await _sessionStore.write(session);
+    return session;
+  }
+
   Future<OdooSession> _tryFullLoginAt({
     required String targetBaseUrl,
     required String login,
@@ -675,6 +877,8 @@ class OdooApiClient {
         targetDb: effectiveDb,
         timeout: timeout,
       );
+    } on MfaRequiredFailure {
+      rethrow;
     } catch (e) {
       if (e is Failure) {
         final msg = e.message.toLowerCase();
@@ -754,6 +958,8 @@ class OdooApiClient {
         password: password,
         timeout: timeout,
       );
+    } on MfaRequiredFailure {
+      rethrow;
     } catch (e) {
       debugPrint('⚠️ [verifyCredentialOnClient] Thất bại trên $dbName ($targetBaseUrl): $e');
       return null;
@@ -809,6 +1015,18 @@ class OdooApiClient {
     if (multiTenants != null) throw multiTenants;
     final tenantNotFound = _tryTenantNotFound(decoded, response.statusCode);
     if (tenantNotFound != null) throw tenantNotFound;
+
+    // [Feature 1.11]: Kiểm tra cờ yêu cầu xác thực hai lớp (2FA / TOTP Authenticator)
+    if (decoded is Map && decoded['mfa_required'] == true) {
+      throw MfaRequiredFailure(
+        login: login,
+        db: targetDb,
+        targetBaseUrl: targetBaseUrl,
+        mfaType: decoded['mfa_type']?.toString() ?? 'totp',
+        message: decoded['message']?.toString() ??
+            'Tài khoản đã kích hoạt bảo mật hai lớp. Vui lòng nhập mã OTP.',
+      );
+    }
 
     final uid = decoded is Map ? _intOrNull(decoded['uid']) : null;
     if (response.statusCode >= 400 ||

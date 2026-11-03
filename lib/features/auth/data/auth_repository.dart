@@ -169,6 +169,140 @@ class AuthRepository {
 
   static const _savedEmailKey = 'saved_login_email';
   static const _savedDbKey = 'saved_last_database';
+  static const _biometricEnabledKey = 'biometric_auth_enabled';
+  static const _biometricLoginKey = 'biometric_login_user';
+  static const _biometricPasswordKey = 'biometric_login_secret';
+  static const _biometricDbKey = 'biometric_login_database';
+
+  /// [Feature 1.10]: Gửi yêu cầu đặt lại mật khẩu về email
+  Future<String> requestPasswordReset(String login, {String? db, String? baseUrl}) async {
+    try {
+      return await _client.requestPasswordReset(login: login, db: db, baseUrl: baseUrl);
+    } on Failure {
+      rethrow;
+    } catch (e, st) {
+      debugPrint('[AuthRepository.requestPasswordReset] Error: $e\n$st');
+      throw Failure('Không thể gửi yêu cầu đặt lại mật khẩu: $e');
+    }
+  }
+
+  /// [Feature 1.11]: Xác thực mã OTP 2 lớp (TOTP)
+  Future<AuthUser> verifyTotp({
+    required String login,
+    required String password,
+    required String totpToken,
+    String? db,
+    String? targetBaseUrl,
+  }) async {
+    try {
+      await saveLastLoginEmail(login);
+      if (db != null && db.isNotEmpty) {
+        await saveLastSelectedDb(db);
+      }
+      final session = await _client.verifyTotp(
+        login: login,
+        password: password,
+        totpToken: totpToken,
+        db: db,
+        targetBaseUrl: targetBaseUrl,
+      );
+      return await _toUser(session);
+    } on Failure {
+      rethrow;
+    } catch (e, st) {
+      debugPrint('[AuthRepository.verifyTotp] Error: $e\n$st');
+      throw Failure('Xác thực OTP thất bại: $e');
+    }
+  }
+
+  /// [Feature 1.12]: Đăng nhập qua Google OAuth2 / Social Sign-In
+  Future<AuthUser> signInWithOAuth({
+    required String provider,
+    required String accessToken,
+    String? idToken,
+    String? email,
+    String? db,
+    String? targetBaseUrl,
+  }) async {
+    try {
+      if (email != null && email.isNotEmpty) {
+        await saveLastLoginEmail(email);
+      }
+      if (db != null && db.isNotEmpty) {
+        await saveLastSelectedDb(db);
+      }
+      final session = await _client.loginOAuth(
+        provider: provider,
+        accessToken: accessToken,
+        idToken: idToken,
+        email: email,
+        db: db,
+        targetBaseUrl: targetBaseUrl,
+      );
+      return await _toUser(session);
+    } on Failure {
+      rethrow;
+    } catch (e, st) {
+      debugPrint('[AuthRepository.signInWithOAuth] Error: $e\n$st');
+      throw Failure('Đăng nhập Google thất bại: $e');
+    }
+  }
+
+  /// [Feature 1.13]: Quản lý thông tin xác thực Sinh trắc học an toàn
+  Future<void> saveBiometricCredentials({
+    required String login,
+    required String password,
+    required String db,
+  }) async {
+    try {
+      await _storage.write(key: _biometricEnabledKey, value: 'true');
+      await _storage.write(key: _biometricLoginKey, value: login.trim());
+      await _storage.write(key: _biometricPasswordKey, value: password);
+      await _storage.write(key: _biometricDbKey, value: db.trim());
+    } catch (e, st) {
+      debugPrint('[AuthRepository.saveBiometricCredentials] Error: $e\n$st');
+    }
+  }
+
+  Future<bool> isBiometricEnabled() async {
+    try {
+      final val = await _storage.read(key: _biometricEnabledKey);
+      return val == 'true';
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<Map<String, String>?> getBiometricCredentials() async {
+    try {
+      final isEnabled = await isBiometricEnabled();
+      if (!isEnabled) return null;
+      final login = await _storage.read(key: _biometricLoginKey);
+      final password = await _storage.read(key: _biometricPasswordKey);
+      final db = await _storage.read(key: _biometricDbKey);
+      if (login != null && login.isNotEmpty && password != null && password.isNotEmpty) {
+        return {
+          'login': login,
+          'password': password,
+          'db': db ?? '',
+        };
+      }
+    } catch (e, st) {
+      debugPrint('[AuthRepository.getBiometricCredentials] Error: $e\n$st');
+    }
+    return null;
+  }
+
+  Future<void> clearBiometricCredentials() async {
+    try {
+      await _storage.delete(key: _biometricEnabledKey);
+      await _storage.delete(key: _biometricLoginKey);
+      await _storage.delete(key: _biometricPasswordKey);
+      await _storage.delete(key: _biometricDbKey);
+    } catch (e, st) {
+      debugPrint('[AuthRepository.clearBiometricCredentials] Error: $e\n$st');
+    }
+  }
 
   Future<void> saveLastLoginEmail(String email) async {
     try {

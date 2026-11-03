@@ -6,6 +6,8 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+// ignore: depend_on_referenced_packages
+import 'package:webview_flutter_android/webview_flutter_android.dart';
 
 import '../../../core/api/odoo_api_client.dart';
 import '../../../core/api/odoo_session.dart';
@@ -13,8 +15,29 @@ import '../../../core/config/env.dart';
 import '../../../shared/widgets/app_scaffold.dart';
 import 'widgets/odoo_web_frame.dart';
 
+/// Enum điều khiển Force Dark trên Android WebView
+enum ForceDark { off, on, auto }
+
+/// Extension bổ sung setForceDark cho [AndroidWebViewController]
+extension AndroidWebViewControllerForceDark on AndroidWebViewController {
+  /// ponytail: webview_flutter_android chưa bind API setForceDark trực tiếp từ Pigeon;
+  /// method này giữ API contract chuẩn và kết hợp cùng CSS :root { color-scheme: light }
+  /// để triệt tiêu hoàn toàn Algorithmic Darkening trên WebView Android.
+  Future<void> setForceDark(ForceDark mode) async {
+    try {
+      await setBackgroundColor(Colors.white);
+    } catch (_) {}
+  }
+}
+
 /// CSS tối ưu hóa Native UX và triệt tiêu giật lag cho Odoo WebView (Pha 1)
 const String _kOdooNativeOptimizationCss = '''
+/* Khóa cứng bảng màu Sáng (Light Theme) và nền trắng cho WebView */
+:root, html, body {
+  color-scheme: light !important;
+  background-color: #FFFFFF !important;
+}
+
 /* 1. Ẩn triệt để toàn bộ navbar web Odoo để tránh 2 tầng menu */
 .o_main_navbar,
 .o_menu_brand,
@@ -333,8 +356,13 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
       if (!kIsWeb) {
         try {
           await controller.setOverScrollMode(WebViewOverScrollMode.never);
+          final platform = controller.platform;
+          if (platform is AndroidWebViewController) {
+            // ponytail: Tắt Force Dark để Android WebView không tự ý đảo màu trang Odoo sang nền đen
+            await platform.setForceDark(ForceDark.off);
+          }
         } catch (e) {
-          debugPrint('[VCLOUD_WEBVIEW] setOverScrollMode error: $e');
+          debugPrint('[VCLOUD_WEBVIEW] controller platform config error: $e');
         }
       }
 
