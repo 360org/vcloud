@@ -87,3 +87,15 @@ app.*.map.json
 # Firebase credentials & configs (do not commit)
 *firebase-adminsdk*.json
 firebase_service_account.json
+
+# Root workflow symlinks
+/deloy.md
+/deloy_mobile.md
+/error.md
+/error_mobile.md
+/git.md
+/prompt_deloy.md
+/prompt_deploy.md
+/prompt_git.md
+/prompt_release.md
+/release.md

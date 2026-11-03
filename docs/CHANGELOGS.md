@@ -2,6 +2,27 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.27+180] — 2026-11-03
+
+> [!IMPORTANT]
+> **Khắc Phục Lỗi Đăng Nhập Google SSO Tài Khoản Mới, Tiêu Đề Push Livechat & Đồng Bộ Badge Count (L4 VERIFIED 2026-11-03)**:
+> - **[FIX] Tương Thích Động Odoo 19 & Odoo 17 Cho Auto-Provisioning Portal User**:
+>   * Sửa lỗi `Invalid field 'groups_id' in 'res.users'` trên Odoo 19 bằng `group_field = "group_ids" if "group_ids" in Users._fields else "groups_id"`.
+>   * Khởi tạo tài khoản Portal cho email Google mới (`nhattannguyenma@gmail.com`) với `base.group_portal`, `vmobile_enabled=True`, `active=True`.
+>   * Đồng bộ lên Local Server (`192.168.1.100:1900`), kiểm thử thực tế qua curl và PostgreSQL: Tài khoản UID 3717 tạo thành công, chỉ thuộc nhóm Portal, đăng nhập JWT HTTP 200 OK.
+> - **[FIX] Chuẩn Hóa Tiêu Đề Push Notification Livechat Cho Khách Hàng Portal (`mail_thread.py`)**:
+>   * Khi người dùng Portal kết nối kênh Hỗ trợ trực tuyến (`channel_type == 'livechat'`), tiêu đề thông báo đẩy FCM hiển thị đúng tên bộ phận phụ trách (`channel.livechat_channel_id.name`, vd: *Technical Support* hoặc *Customer Care*), thay vì tên cá nhân của chuyên viên trực ca nội bộ (*Chau, Le Ba*).
+>   * Đối với nhân viên trực ca nhận tin nhắn từ khách hàng: Tiêu đề hiển thị dạng `<Tên khách hàng> (<Tên bộ phận>)`.
+>   * Loại bỏ việc chèn tên cá nhân chuyên viên vào phần đầu nội dung tin nhắn (`body_text`) đối với khách hàng Portal.
+> - **[FIX] Đồng Bộ Số Lượng Tin Nhắn Chưa Đọc & Badge Launcher Icon (`notification.py` & `push_notification_service.dart`)**:
+>   * Tính toán chính xác số tin nhắn chưa đọc của người nhận qua subquery `mail.message` và `discuss_channel_member` (bỏ qua tin thông báo hệ thống và tin nhắn do chính họ gửi).
+>   * Nhúng `notification_count: unread_count` vào `android.notification` (Android Launcher Badge) và `badge: unread_count` vào `apns.payload.aps` (iOS Launcher Badge) trong payload chuẩn FCM HTTP v1.
+>   * Bổ sung `number: badgeNumber` vào `AndroidNotificationDetails` trên Flutter để cập nhật badge số tin nhắn chưa đọc trên các launcher Android (Vivo Funtouch OS, Samsung OneUI, Xiaomi MIUI).
+> - **[IMPROVE] Trải Nghiệm Chuyển Cảnh Mượt Mà Khi Đăng Nhập Google SSO (`login_screen.dart`)**:
+>   * Bổ sung `_GoogleSsoLoadingOverlay` toàn màn hình hiển thị trạng thái động ("Đang kết nối tài khoản Google...", "Đang xác thực với máy chủ...") khi người dùng chọn tài khoản Google.
+>   * Loại bỏ hiện tượng chớp giật quay về form đăng nhập mật khẩu trước khi vào màn hình chính.
+>   * Điều hướng trực tiếp theo vai trò: Portal User ➔ `/home`, Internal User ➔ `/chat`.
+
 ## [v2.9.26+178] — 2026-10-31
 
 > [!IMPORTANT]

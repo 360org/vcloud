@@ -277,6 +277,10 @@
 - [ ] 3.25 **Khắc Phục Lỗi Ghim Tin Nhắn Tự Động Mất Đi (Persistent Pin Message State & Auto-Dismiss Bug — UAT 2026-10-21)**: `[ ] [UAT-PENDING]` Khi bấm ghim tin nhắn, banner ghim hiện lên trên đầu một chút rồi biến mất; rà soát luồng state re-fetch và background polling SWR không ghi đè mất danh sách ghim.
 - [ ] 3.26 **Phát Triển Tính Năng Chuyển Tiếp Tin Nhắn (Forward Message — UAT 2026-10-21)**: `[ ] [UAT-PENDING]` Bổ sung tùy chọn "Chuyển tiếp" trong menu ngữ cảnh tin nhắn, BottomSheet chọn kênh/người nhận và gửi tin nhắn được chuyển tiếp sang hội thoại khác.
 - [x] 3.27 **Cô Lập Triệt Để Tài Khoản Portal Khỏi Danh Sách Chat & Tạo Nhóm Nội Bộ (BUG-027 / 3.44 — 2026-11-02)**: `[x] [CLAUDE-VERIFIED L4 — 5/5 TESTS PASS & 0 ANALYZE ISSUES]` Khi nhân viên bấm dấu cộng (+) tại màn hình Chat và vào tab "Nội bộ" hoặc "Tạo nhóm", danh sách hiển thị lẫn cả tài khoản khách hàng Portal (`vmobile_enabled=True`) thay vì chỉ hiển thị nhân viên nội bộ (`share=False`). Khắc phục 2 lớp: truyền `type: 'internal'` ở tầng `ChatRepository.allUsers()`/`searchUsers()` và thêm rào chắn `!p.isPortal` trên UI `NewChatScreen`, `ConversationListScreen`, `ChatV2InfoSheet`. Pass 5/5 unit tests trong `test/features/chat/chat_internal_portal_exclusion_test.dart` và 0 errors/warnings `dart analyze`.
+- [x] 3.28 **Chuẩn Hóa Tiêu Đề Push Notification Livechat & Đồng Bộ Badge Count Số Tin Nhắn Chưa Đọc (BUG-028 — 2026-11-03)**: `[x] [CLAUDE-VERIFIED L4 — BACKEND ODOO 17/19 & FLUTTER]`
+  * Tiêu đề Push Livechat: Khi khách hàng Portal kết nối kênh Hỗ trợ trực tuyến (`channel_type == 'livechat'`), tiêu đề thông báo đẩy FCM hiển thị đúng tên bộ phận phụ trách (`channel.livechat_channel_id.name`, vd: *Technical Support* hoặc *Customer Care*), thay vì tên cá nhân của chuyên viên trực ca nội bộ (*Chau, Le Ba*).
+  * Tiêu đề cho Operator: Nhân viên trực ca nhận thông báo với tiêu đề `<Tên khách hàng> (<Tên bộ phận>)`.
+  * Đồng bộ Badge Launcher Icon: Subquery đếm số tin nhắn chưa đọc thực tế trên `mail.message` và `discuss_channel_member`, nhúng vào FCM HTTP v1 payload (`android.notification.notification_count` và `apns.payload.aps.badge`) cùng `AndroidNotificationDetails(number: badgeNumber)` trên Flutter. Đã kiểm thử verify trực tiếp trên DB `vcloud_test_v19` Local Server và build APK mới nạp lên thiết bị thật Vivo V2116.
 
 ### 🟢 GIAI ĐOẠN 4: QUẢN LÝ CÔNG VIỆC & DASHBOARD (HOME & TASKS) — `[x] [Claude-Verified — ĐÃ HOÀN TẤT & VERIFIED LIVE WAYDROID]`
 - [x] 4.1 **Dashboard Kép & Lời chào Cá nhân hóa (Dual-Tier Metrics & Greeting Header)**: Hiển thị đúng số giờ làm, trạng thái chấm công, task cần làm & ticket. Đã fix triệt để BUG-008 (Build 144): Lời chào tự động đổi theo buổi (Sáng 5h-12h, Chiều 12h-18h, Tối sau 18h) và nạp đầy đủ Chức danh & Công ty từ `userMetadata`. Đã fix triệt để BUG-009: Bắn pháo hoa chúc mừng (`CelebrationFireworksOverlay`) ngay khi bấm Check-in nhanh thành công tại Home Screen. Pass 7/7 tests trong `test/home_greeting_and_celebration_test.dart`.
@@ -483,18 +487,19 @@ Phân hệ quản lý toàn bộ luồng đăng nhập, định danh người d�
     3. Nhập đúng mã OTP từ Google Authenticator ➔ Xác thực thành công và vào màn hình chính.
   - *Trạng thái*: `[ ] [PENDING / BACKLOG]`.
 
-- [ ] **1.12 Đăng Nhập 1-Chạm Bằng Google & Mạng Xã Hội (Google OAuth2 Sign-In — Odoo auth_oauth)**
-  - *Mô tả*: Cho phép đăng nhập nhanh 1-chạm bằng tài khoản Google, kết nối trực tiếp với Google OAuth Provider (`auth.oauth.provider`) đã cấu hình trên `vuahethong.net` (Client ID: `12576206090-2aucq...apps.googleusercontent.com`):
+- [x] **1.12 Đăng Nhập 1-Chạm Bằng Google & Mạng Xã Hội (Google OAuth2 Sign-In — Odoo auth_oauth & Auto-Provisioning Portal)**
+  - *Mô tả*: Cho phép đăng nhập nhanh 1-chạm bằng tài khoản Google, kết nối trực tiếp với Google OAuth Provider (`auth.oauth.provider`) đã cấu hình trên `vuahethong.net`:
     * Giao diện Mobile (`login_screen.dart`): Bổ sung khối "Hoặc đăng nhập bằng" với nút "Đăng nhập với Google" (Google Sign-In Button) chuẩn UI Google Branding.
     * Thư viện Flutter: Tích hợp `google_sign_in` lấy `id_token` và `access_token` từ Google SDK native.
-    * Backend API: Bổ sung route `/api/v1/mobile/auth/oauth` (nhận `provider_id`, `access_token` hoặc `id_token`, `db`). Backend Odoo gọi endpoint kiểm tra token của Google (`https://www.googleapis.com/oauth2/v3/tokeninfo`), đối soát `oauth_uid` / email trong `res.users`, tự động tạo/liên kết tài khoản nếu cho phép và trả về JWT session cho mobile. Sẵn sàng mở rộng cho Sign in with Apple trên iOS.
+    * Backend API: Bổ sung route `/api/v1/mobile/auth/oauth` (nhận `provider_id`, `access_token` hoặc `id_token`, `db`). Backend Odoo gọi endpoint kiểm tra token của Google (`https://www.googleapis.com/oauth2/v3/tokeninfo`), đối soát `oauth_uid` / email trong `res.users`.
+    * **Zero-Friction Portal Access**: Khi người dùng chưa có tài khoản trên hệ thống, backend tự động tạo bản ghi `res.users` phân quyền Portal (`base.group_portal`), tương thích động `group_ids` (Odoo 19) và `groups_id` (Odoo 17), gán `vmobile_enabled = True` và cấp JWT token đăng nhập trực tiếp mà không cần admin duyệt hay cấp mật khẩu thủ công.
   - *Tệp liên quan*:
     * Mobile: `lib/features/auth/presentation/login_screen.dart`, `lib/features/auth/data/auth_repository.dart`.
     * Backend: `v_mobile_17/controllers/auth.py`, `v_mobile_19/controllers/auth.py`.
   - *Kịch bản nghiệm thu*:
     1. Bấm nút "Đăng nhập với Google" ➔ Xuất hiện hộp thoại chọn tài khoản Google của hệ điều hành Android/iOS.
-    2. Chọn tài khoản Google ➔ Mobile lấy token gửi về Odoo ➔ Đăng nhập thành công vào app mà không cần gõ mật khẩu.
-  - *Trạng thái*: `[ ] [PENDING / BACKLOG]`.
+    2. Chọn tài khoản Google ➔ Mobile lấy token gửi về Odoo ➔ Tự động tạo tài khoản Portal và đăng nhập thành công vào chế độ Khách Hàng (Portal).
+  - *Trạng thái*: `[x] [L4/L5 — VERIFIED]`.
 
 - [ ] **1.13 Mở Khóa Sinh Trắc Học Cục Bộ (Biometric Authentication — Vân Tay / Face ID)**
   - *Mô tả*: Cung cấp tính năng mở khóa nhanh bằng cảm biến sinh trắc học thiết bị di động (Vân tay trên Vivo V2116 / Android, Face ID / Touch ID trên iPhone / iPad):

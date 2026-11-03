@@ -148,6 +148,7 @@ class PushNotificationService {
               final isCallPush = eventType == 'vmobile_call_incoming' ||
                   eventType == 'vmobile_call_ended';
               if (notification != null && !isCallPush) {
+                final badgeNumber = int.tryParse(data['badge']?.toString() ?? data['unread_count']?.toString() ?? '') ?? 1;
                 FlutterLocalNotificationsPlugin().show(
                   id: notification.hashCode,
                   title: title,
@@ -161,6 +162,7 @@ class PushNotificationService {
                       importance: Importance.max,
                       priority: Priority.high,
                       icon: '@mipmap/ic_launcher',
+                      number: badgeNumber,
                     ),
                   ),
                   payload: jsonEncode(data),

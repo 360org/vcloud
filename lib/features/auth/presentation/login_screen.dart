@@ -39,6 +39,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final bool _isManualMode = false;
   bool _submitting = false;
   bool _showSuccessTransition = false;
+  bool _isGoogleAuthProcessing = false;
+  String _googleAuthStatus = 'Đang xác thực tài khoản Google...';
   String? _error;
   bool _obscurePassword = true;
   final _emailFocus = FocusNode();
@@ -97,6 +99,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _signInWithGoogle() async {
     setState(() {
       _submitting = true;
+      _isGoogleAuthProcessing = true;
+      _googleAuthStatus = 'Đang kết nối tài khoản Google...';
       _error = null;
     });
     try {
@@ -118,13 +122,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         );
         final account = await googleSignIn.signIn();
         if (account != null) {
+          if (mounted) {
+            setState(() {
+              _googleAuthStatus = 'Đang đồng bộ dữ liệu người dùng...';
+            });
+          }
           final auth = await account.authentication;
           oauthToken = auth.idToken ?? auth.accessToken;
           oauthEmail = account.email;
         } else {
           // Người dùng chủ động huỷ / đóng dialog chọn tài khoản Google
           if (mounted) {
-            setState(() => _submitting = false);
+            setState(() {
+              _submitting = false;
+              _isGoogleAuthProcessing = false;
+            });
           }
           return;
         }
@@ -141,7 +153,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           oauthEmail = webResult.email;
         } else {
           if (mounted) {
-            setState(() => _submitting = false);
+            setState(() {
+              _submitting = false;
+              _isGoogleAuthProcessing = false;
+            });
           }
           return;
         }
@@ -151,10 +166,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         if (mounted) {
           setState(() {
             _submitting = false;
+            _isGoogleAuthProcessing = false;
             _error = 'Không thể lấy thông tin xác thực từ tài khoản Google.';
           });
         }
         return;
+      }
+
+      if (mounted) {
+        setState(() {
+          _googleAuthStatus = 'Đang xác thực với máy chủ...';
+        });
       }
 
       await ref.read(authControllerProvider.notifier).signInWithOAuth(
@@ -168,14 +190,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (!mounted) return;
       setState(() {
         _submitting = false;
-        _showSuccessTransition = true;
+        _isGoogleAuthProcessing = false;
       });
-      await Future.delayed(const Duration(milliseconds: 300));
-      if (mounted) context.go('/chat');
+
+      // Điều hướng trực tiếp theo vai trò: Portal -> /home, Internal -> /chat
+      final currentUser = ref.read(authControllerProvider).valueOrNull;
+      final targetPath = (currentUser?.isPortal ?? false) ? '/home' : '/chat';
+      if (mounted) {
+        context.go(targetPath);
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _submitting = false;
+        _isGoogleAuthProcessing = false;
         _error = _cleanErrorMessage(e);
       });
     }
@@ -1663,6 +1691,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
           ),
 
+          // Google SSO Processing Overlay
+          if (_isGoogleAuthProcessing)
+            _GoogleSsoLoadingOverlay(status: _googleAuthStatus),
+
           // Post-Login Success Transition Overlay
           if (_showSuccessTransition) const _WhatsAppSuccessOverlay(),
         ],
@@ -1796,5 +1828,94 @@ class _WhatsAppSuccessOverlayState extends State<_WhatsAppSuccessOverlay> {
         ),
       ),
     ).animate().fade(duration: 300.ms);
+  }
+}
+
+/// Overlay loading toàn màn hình khi người dùng chọn đăng nhập Google SSO.
+/// Ngăn chặn việc lộ form đăng nhập và thông báo trạng thái rõ ràng cho người dùng.
+class _GoogleSsoLoadingOverlay extends StatelessWidget {
+  final String status;
+  const _GoogleSsoLoadingOverlay({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      color: const Color(0xFF0F172A).withValues(alpha: 0.65),
+      child: Center(
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 36),
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF0F172A).withValues(alpha: 0.25),
+                blurRadius: 36,
+                offset: const Offset(0, 14),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  const SizedBox(
+                    width: 72,
+                    height: 72,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 3.0,
+                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0077CD)),
+                    ),
+                  ),
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFF8FAFC),
+                      shape: BoxShape.circle,
+                    ),
+                    alignment: Alignment.center,
+                    child: const Text(
+                      'G',
+                      style: TextStyle(
+                        color: Color(0xFF4285F4),
+                        fontWeight: FontWeight.w900,
+                        fontSize: 26,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              Text(
+                status,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF0F172A),
+                  letterSpacing: -0.2,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Vui lòng chờ trong giây lát...',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Color(0xFF64748B),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ).animate().fade(duration: 250.ms);
   }
 }

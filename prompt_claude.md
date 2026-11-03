@@ -13,11 +13,11 @@
 | **IV** | Bảo Vệ Context, Locks & Rollback | `/compact`, `task_locks.yaml`, Checkpoint, Conventional Commits |
 | **V** | Changelog & Chống Lạm Phát Version | 5 Tags `[NEW/FIX/IMPROVE/REFACTOR/SECURITY]` |
 | **VI** | Manifest & Đồng Bộ Phiên Bản | `pubspec.yaml` SSOT, `__manifest__.py` format |
-| **VII** | Deploy & CI/CD Pipeline 3 Tầng | LAN → Odoo SaaS → TestFlight & Google Play |
+| **VII** | Deploy & CI/CD Pipeline 3 Tầng (deloy.md, release.md, error_mobile.md) | LAN 4-in-1 → Odoo SaaS → TestFlight & Google Play CI/CD Watch Loop |
 | **VIII** | Rào Chắn Odoo 17 & 19 (Mandatory Gate) | Field Mapping, ORM, XML, Porting 7 bước |
 | **IX** | Zero-Trust Execution Gate (14 điều) | Task Mode, Read Before Write, Preserve Work, Least Privilege, Side-Effect, Agent Cap, Evidence, UI/Release, Final Report, SSOT Update, Todo Checklist, Desktop UI Widgets, Specialized Audit Toolkit, Visual Architecture Gate (360-archify) |
 | **X** | Tiếp Nhận Báo Cáo & Phân Rã Việc | Fact-Check chống bịa ➔ Root Cause ➔ Multi-Agent Dispatch chống chạy lâu |
-| **XI** | Pre-Push Audit & Quality Gate (audit_claude.md) | Thẩm định 4 trục: Tối ưu hệ thống, Đúng version, Bảo mật, Chịu tải trước khi push GitLab (17/19) & GitHub (main) |
+| **XI** | Pre-Push Audit & Git Quality Gate (audit_claude.md, git.md) | Thẩm định 4 trục & Tuân thủ 100% git.md: Chống đè code, kiểm tra GitLab/GitHub trước khi push, push đầy đủ code sau commit |
 
 ---
 
@@ -106,6 +106,10 @@
 ### 📚 SSOT Files Agent BẮT BUỘC Đọc Trước Khi Bắt Tay:
 - `docs/PROJECT_STRUCTURE_MAP.md` — Matrix định vị nhanh file theo tính năng.
 - `docs/features.md` — Danh mục 71 tính năng & trạng thái verified.
+- `error_mobile.md` (hoặc `error.md`) — Sổ cái 10 lỗi CI/CD & Mobile, nguyên nhân gốc rễ và cơ chế tự động ghi nhận log khi build thất bại.
+- `release.md` (hoặc `prompt_release.md`) — Quy chuẩn phát hành Cloud CI/CD qua GitHub Actions (theo dõi `gh run watch` đến khi xong, tự động cập nhật `error_mobile.md` nếu fail).
+- `deloy.md` (hoặc `prompt_deloy.md`, `deloy_mobile.md`) — Quy chuẩn triển khai 4-in-1 cho Vivo, Redroid, Waydroid và Local Server.
+- `git.md` (hoặc `docs/rules/RULE_GIT.md`) — Quy chuẩn quản trị Git, chống đè code, kiểm tra GitLab/GitHub trước khi push, push đầy đủ code sau commit.
 - `docs/guides/TAI_KHOAN_TEST.md` — Database test, port, tài khoản & hạ tầng Docker Local Server.
 - `docs/rules/RULE_ODOO_VERSIONS.md` — Quy chuẩn phân version Backend 17 vs 19.
 
@@ -326,13 +330,15 @@ Mọi mục thay đổi trong Changelog phải gán đúng 1 trong các Tag:
 - Thực thi nâng cấp Module Odoo Zero-Downtime trên Pod/Server.
 - 🚨 **CẢNH BÁO TỐI QUAN TRỌNG KHI DEPLOY BACKEND**: Tuyệt đối **KHÔNG SỬA CODE / ĐỔI LOGIC API** trong lúc deploy. Nếu sửa sai làm 246 bài test bị FAIL ➔ GitHub Actions CI/CD Frontend sẽ bị **LỖI ĐỎ (BUILD FAILED)** ➔ Chặn hoàn toàn việc ra bản build TestFlight mới!
 
-### 3. Deploy Tầng 3 — Frontend Release Store (TestFlight & Google Play):
-- **Apple TestFlight**: Khi Merge PR vào `main` ➔ GitHub Actions (`deploy.yml`) tự động kích hoạt build IPA và nộp lên TestFlight cho iPhone của Sếp Tân.
+### 3. Deploy Tầng 3 — Frontend Release Store (TestFlight & Google Play qua release.md):
+> 📖 **Hợp đồng thực thi phát hành chuẩn**: [release.md](release.md) (hoặc [prompt_release.md](prompt_release.md))  
+> 📘 **Sổ cái 10 lỗi kinh điển & Self-Healing**: [error_mobile.md](error_mobile.md) (hoặc [error.md](error.md))
+- **Apple TestFlight**: Khi kích hoạt Release hoặc Tag `v*` ➔ GitHub Actions (`deploy.yml`) tự động kích hoạt build IPA và nộp lên TestFlight cho iPhone của Sếp Tân.
 - **Google Play Console (Direct-to-Production)**: 1 Giai đoạn duy nhất — Đẩy thẳng tệp `.aab` vào **Production Track** trên CH Play, bỏ qua các bước thử nghiệm rườm rà.
-- 🛡️ **3 Rào Chắn CI/CD Diệt Lỗi Ngớ Ngẩn (Release Self-Healing SSOT)**:
-  1. *Linter Guard*: Tuyệt đối không để `return Future` thiếu `await` trong khối `try/catch` (`unawaited_return_in_try_block`) khiến Dart Analyzer trên CI đánh fail build.
-  2. *Closed Release Train Guard*: Khi Apple đóng train cũ (Error 90186: `Invalid Pre-Release Train. The train version is closed for new build submissions`), tăng `BUILD` number là chưa đủ; BẮT BUỘC phải bump Marketing Version trong `pubspec.yaml` (ví dụ `2.9.22` ➔ `2.9.23`) để mở train mới.
-  3. *Pipeline Step Guard*: Luôn đặt `continue-on-error: true` cho bước `Auto-Distribute to App Store & Submit for Review` trong `.github/workflows/deploy.yml` để việc trễ trạng thái `PROCESSING` của Apple không làm gián đoạn pipeline TestFlight & Google Play.
+- 🛡️ **Quy trình Kiểm soát Lỗi & Giám sát CI/CD Bắt Buộc**:
+  1. *Pre-Flight Error Audit*: BẮT BUỘC đọc [error_mobile.md](error_mobile.md) trước khi release, kiểm tra đủ 10 tiêu chí (ERR-001 đến ERR-010).
+  2. *Mandatory Watch Loop*: Agent BẮT BUỘC theo dõi workflow qua `gh run watch <run_id>` cho đến khi hoàn thành (xanh hoặc đỏ), không được bỏ dở giữa chừng.
+  3. *Self-Healing on Failure*: Nếu GitHub Actions bị FAIL (Đỏ), Agent trích xuất log lỗi qua `gh run view <run_id> --log-failed`, tìm nguyên nhân gốc rễ và cập nhật ngay vào `error_mobile.md` để ngăn tái phạm.
 
 ---
 
@@ -477,10 +483,11 @@ TUYỆT ĐỐI KHÔNG tin ngay báo cáo của agent, KHÔNG vội vàng nhận 
 
 ---
 
-## 🛡️ XI. HỆ THỐNG AUDIT & QUALITY GATE LIÊN KẾT CHUYÊN DỤNG (audit_claude.md)
+## 🛡️ XI. HỆ THỐNG AUDIT & GIT QUALITY GATE LIÊN KẾT CHUYÊN DỤNG (audit_claude.md & git.md)
 
-Để tinh gọn quy trình, chống phân mảnh tài liệu và bảo đảm an toàn tuyệt đối trước khi đưa code lên remote, `prompt_claude.md` liên kết chặt chẽ với file SSOT chuyên trách kiểm toán:
+Để tinh gọn quy trình, chống phân mảnh tài liệu và bảo đảm an toàn tuyệt đối trước khi đưa code lên remote, `prompt_claude.md` liên kết chặt chẽ với 2 file SSOT chuyên trách:
 👉 **File SSOT Audit độc quyền**: [audit_claude.md](audit_claude.md) (tại root và `vclients/audit_claude.md`).
+👉 **File SSOT Git & Push Guard độc quyền**: [git.md](git.md) (Quy chuẩn quản trị Git, chống đè code, kiểm tra GitLab/GitHub trước khi push, push đầy đủ code sau commit).
 
 ### 🏛️ Các Hạng Mục Kiểm Toán Bắt Buộc Trước Khi Push Code:
 1. **Tối ưu hệ thống (Performance)**: Triệt tiêu N+1 ORM query, dọn dẹp RAM cursor/controller, tối ưu rebuild Flutter widget, compact network payload.
@@ -488,13 +495,18 @@ TUYỆT ĐỐI KHÔNG tin ngay báo cáo của agent, KHÔNG vội vàng nhận 
 3. **An toàn bảo mật (Security)**: Kiểm soát quyền sở hữu Anti-IDOR, bảo vệ Token/Credentials trong SecureStorage, phân lập dữ liệu đa công ty/tenant, sanitize log & chống XSS.
 4. **Chịu tải & Concurrency (High Load)**: Triệt tiêu 504 Gateway Timeout bằng async background worker, an toàn multi-worker Gevent, rate limiting và mobile resilience.
 5. **Diệt N+1 Query & Lỗi ngớ ngẩn (Silly Mistakes)**: Thanh trừng 5 mẫu lỗi N+1 kinh điển, lỗi Expected singleton, quên context.mounted sau await, dùng bang operator (!), nuốt chửng exception, mutable default arg, lỗi `unawaited_return_in_try_block` chặn CI/CD, lỗi đóng submission train Apple 90186 và fail oan ở bước phụ auto-distribute.
+6. **Tuân thủ Tuyệt đối 7 Quy tắc Vàng về Git ([git.md](git.md))**:
+   * *Mỗi khi commit luôn push đầy đủ code*: Cấm commit dở dang rồi để quên local, stage đủ code, docs và `.claude/`.
+   * *Chống đè code 2 chiều*: CẤM TUYỆT ĐỐI `git push --force` / `-f` trên các nhánh chính (`main`, `17.0`, `19.0`).
+   * *Luôn kiểm tra GitLab/GitHub trước khi commit/push*: Chạy `vcloud-sync check` hoặc `git fetch`. Nếu có commit mới từ đồng đội ➔ stash ➔ pull rebase ➔ pop stash ➔ giải quyết conflict ➔ mới commit & push.
+   * *Tuân thủ Pre-Push Guard 7 bước*: Chống nhầm nhánh, nhầm repo, nhầm version.
 
 ### 📋 Pre-Push Verification Target Branches:
 - **GitLab `17.0` (`v_mobile_17`)**: MR only, py_compile 0 lỗi, XML không `attrs=`, test update module trên container `demo-17`.
 - **GitLab `19.0` (`v_mobile_19`)**: MR only, py_compile 0 lỗi, tương thích `discuss.channel`, test update module trên container `odoo_dev_v19`.
 - **GitHub `main` (`vclients`)**: `flutter analyze` 0 errors/0 warnings, `flutter test` 100% pass, `flutter build web --no-pub` pass.
 
-> 📖 **Xem chi tiết toàn bộ checklist, công cụ và mẫu báo cáo**: Mở file [audit_claude.md](audit_claude.md).
+> 📖 **Xem chi tiết toàn bộ checklist, công cụ và mẫu báo cáo**: Mở file [audit_claude.md](audit_claude.md) và [git.md](git.md).
 
 
 
