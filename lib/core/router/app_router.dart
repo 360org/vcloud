@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/activity/presentation/screens/activity_center_screen.dart';
 import '../../features/attendance/presentation/attendance_history_screen.dart';
 import '../../features/attendance/presentation/attendance_screen.dart';
 import '../../features/auth/application/auth_controller.dart';
@@ -311,6 +312,10 @@ final routerProvider = Provider<GoRouter>((ref) {
             );
           },
         ),
+      ),
+      GoRoute(
+        path: '/activities',
+        builder: (_, _) => const ActivityCenterScreen(),
       ),
       GoRoute(
         path: '/webview',

@@ -331,4 +331,18 @@ class AuthController extends AsyncNotifier<AuthUser?> {
       debugPrint('Push unregister skipped: $e');
     }
   }
+
+  /// Làm mới hồ sơ người dùng từ server và cập nhật state
+  Future<AuthUser?> reloadProfile() async {
+    try {
+      final user = await _repo.currentUser();
+      if (user != null) {
+        state = AsyncData(user);
+      }
+      return user;
+    } catch (e, st) {
+      debugPrint('[AuthController.reloadProfile] error: $e\n$st');
+      return state.valueOrNull;
+    }
+  }
 }

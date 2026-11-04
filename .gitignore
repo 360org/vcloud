@@ -50,6 +50,8 @@ app.*.symbols
 app.*.map.json
 
 # Android Studio will place build artifacts here
+/android/build/
+/android/app/build/
 /android/app/debug
 /android/app/profile
 /android/app/release
@@ -99,3 +101,6 @@ firebase_service_account.json
 /prompt_git.md
 /prompt_release.md
 /release.md
+/prompt_theme_sync.md
+/prompt_vivo_sprint.md
+/prompt_vivo.md

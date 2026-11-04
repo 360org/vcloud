@@ -845,7 +845,7 @@ class ChatV2Channel {
 
   /// Kiểm tra có phải kênh Zalo OA hay không (Fix 4: Tuyệt đối không đếm Livechat vào Zalo OA)
   bool get isZaloOA {
-    if (channelType == 'livechat') return false;
+    if (channelType == 'channel' || channelType == 'livechat') return false;
     if (isZaloChannel ||
         channelType == 'zalo' ||
         channelType == 'zalo_oa' ||
@@ -1086,7 +1086,7 @@ class ChatV2Channel {
         map['zalo_user_id'] != null;
 
     final rawIsCskh = map['is_cskh_channel'] ?? map['is_cskh'];
-    final bool isCskhChannel = (effectiveChannelType != 'livechat') && (
+    final bool isCskhChannel = (effectiveChannelType != 'livechat') && (effectiveChannelType != 'channel') && (
         rawIsCskh == true ||
         rawIsCskh == 1 ||
         rawIsCskh == 'true' ||

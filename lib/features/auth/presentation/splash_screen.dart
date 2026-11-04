@@ -47,7 +47,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       final user = authState.valueOrNull;
       if (user != null) {
         _warmupAndNavigate();
-      } else if (!authState.isLoading) {
+      } else {
         context.go('/login');
       }
     });
@@ -339,7 +339,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                   Padding(
                     padding: const EdgeInsets.only(bottom: 20),
                     child: Text(
-                      '360 CORP • v2.9.1',
+                      '360 CORP',
                       style: TextStyle(
                         color: footerTextColor,
                         fontSize: 10.5,

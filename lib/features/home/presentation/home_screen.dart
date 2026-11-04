@@ -322,12 +322,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _openNotifications(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => const MobileNotificationSheet(),
-    );
+    final user = ref.read(authControllerProvider).valueOrNull;
+    if (user?.isPortal == true) {
+      showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (ctx) => const MobileNotificationSheet(),
+      );
+    } else {
+      context.push('/activities');
+    }
   }
 }
 
@@ -1079,16 +1084,20 @@ class _QuickNavGrid extends ConsumerWidget {
     final dashboard = ref.watch(mobileDashboardSummaryProvider).valueOrNull;
     final serverUnread = dashboard?.unreadMessageCount;
     final localUnreadCount = ref.watch(chatV2TotalUnreadProvider);
-    final channelCount = ref.watch(chatV2ChannelsProvider.select((c) => c.valueOrNull?.length ?? 0));
+    final channelsAsync = ref.watch(chatV2ChannelsProvider);
+    final channelCount = channelsAsync.valueOrNull?.length ?? 0;
     final effectiveTickets = ref.watch(effectiveTicketsProvider);
     final localDoingTicketsCount = effectiveTickets.where((t) => t.status != TicketStatus.done).length;
     final liveTicketCount = localDoingTicketsCount > 0
         ? localDoingTicketsCount
         : (ticketCount > 0 ? ticketCount : 0);
 
-    // Nguồn chân lý đếm tổng: Ưu tiên local unread, nếu 0 thì đọc trực tiếp từ Server Dashboard Summary
+    // Nguồn chân lý đếm tổng: Khi danh sách kênh đã nạp xong, dùng localUnreadCount để đảm bảo đồng bộ 100% với màn hình Chat.
+    // Khi đang nạp ban đầu, dùng serverUnread làm placeholder.
     final liveChatCount = chatCount > 0 ? chatCount : (channelCount > 0 ? channelCount : 0);
-    final liveUnreadCount = localUnreadCount > 0 ? localUnreadCount : (serverUnread ?? localUnreadCount);
+    final liveUnreadCount = channelsAsync.hasValue
+        ? localUnreadCount
+        : (serverUnread ?? localUnreadCount);
 
     final livechatChannels = ref.watch(livechatChannelsProvider).valueOrNull ?? const <LivechatChannelModel>[];
     final availableLivechatCount = livechatChannels.where((c) => c.isAvailable).length;

@@ -8,6 +8,7 @@ import 'package:lucide_flutter/lucide_flutter.dart';
 
 import '../../../core/api/odoo_api_client.dart';
 import '../../../core/config/env.dart';
+import '../../../shared/widgets/app_toast.dart';
 import '../application/menu_controller.dart';
 import '../data/menu_item_model.dart';
 
@@ -387,13 +388,30 @@ class _AppDrawerBottomSheetState extends ConsumerState<AppDrawerBottomSheet> {
                                             iconBoxSize: iconBoxSize,
                                             onTap: () =>
                                                 _onAppTapped(context, app),
-                                            onLongPress: () {
+                                            onLongPress: () async {
                                               HapticFeedback.mediumImpact();
-                                              ref
+                                              final isAdded = await ref
                                                   .read(
                                                       menuControllerProvider
                                                           .notifier)
                                                   .toggleBookmark(app.id);
+                                              if (context.mounted) {
+                                                if (isAdded) {
+                                                  AppToast.success(
+                                                    context,
+                                                    title: 'Đã ghim ứng dụng',
+                                                    message:
+                                                        'Đã thêm "${app.name}" vào danh sách lối tắt.',
+                                                  );
+                                                } else {
+                                                  AppToast.info(
+                                                    context,
+                                                    title: 'Đã bỏ ghim',
+                                                    message:
+                                                        'Đã gỡ "${app.name}" khỏi danh sách lối tắt.',
+                                                  );
+                                                }
+                                              }
                                             },
                                           );
                                         },

@@ -4,5 +4,6 @@ Widget? buildHtmlIframe({
   required String url,
   required VoidCallback onLoaded,
   void Function(String error)? onError,
+  bool isDark = false,
 }) =>
     null;

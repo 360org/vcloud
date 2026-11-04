@@ -10,6 +10,7 @@ class OdooSession {
     this.tenantId,
     this.scope,
     this.partnerId,
+    this.sessionId,
   });
 
   final String accessToken;
@@ -22,6 +23,7 @@ class OdooSession {
   final int? tenantId;
   final String? scope;
   final int? partnerId;
+  final String? sessionId;
 
   bool get isExpired => DateTime.now().toUtc().isAfter(expiresAt);
 
@@ -36,6 +38,7 @@ class OdooSession {
     if (tenantId != null) 'tenant_id': tenantId,
     if (scope != null) 'scope': scope,
     if (partnerId != null) 'partner_id': partnerId,
+    if (sessionId != null) 'session_id': sessionId,
   };
 
   factory OdooSession.fromJson(Map<String, dynamic> json) => OdooSession(
@@ -49,5 +52,32 @@ class OdooSession {
     tenantId: (json['tenant_id'] as num?)?.toInt(),
     scope: json['scope'] as String?,
     partnerId: (json['partner_id'] as num?)?.toInt(),
+    sessionId: json['session_id'] as String?,
+  );
+
+  OdooSession copyWith({
+    String? accessToken,
+    String? refreshToken,
+    int? uid,
+    String? db,
+    String? login,
+    DateTime? expiresAt,
+    String? baseUrl,
+    int? tenantId,
+    String? scope,
+    int? partnerId,
+    String? sessionId,
+  }) => OdooSession(
+    accessToken: accessToken ?? this.accessToken,
+    refreshToken: refreshToken ?? this.refreshToken,
+    uid: uid ?? this.uid,
+    db: db ?? this.db,
+    login: login ?? this.login,
+    expiresAt: expiresAt ?? this.expiresAt,
+    baseUrl: baseUrl ?? this.baseUrl,
+    tenantId: tenantId ?? this.tenantId,
+    scope: scope ?? this.scope,
+    partnerId: partnerId ?? this.partnerId,
+    sessionId: sessionId ?? this.sessionId,
   );
 }

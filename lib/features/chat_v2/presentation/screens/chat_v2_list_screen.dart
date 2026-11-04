@@ -715,7 +715,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                         }
                       } else if (_selectedFilterIndex == 3) {
                         // 3: Kênh
-                        if (!c.isChannel || c.isSupportChannel) {
+                        if (!c.isChannel) {
                           return false;
                         }
                       } else if (_selectedFilterIndex == 4) {

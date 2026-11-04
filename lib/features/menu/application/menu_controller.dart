@@ -1,4 +1,8 @@
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../data/menu_item_model.dart';
 import '../data/menu_repository.dart';
@@ -64,11 +68,22 @@ class MenuState {
 }
 
 class MenuController extends StateNotifier<MenuState> {
-  MenuController(this._repository) : super(const MenuState()) {
-    loadMenu();
+  MenuController(this._repository, [FlutterSecureStorage? storage])
+      : _storage = storage ??
+            const FlutterSecureStorage(
+              aOptions: AndroidOptions(
+                encryptedSharedPreferences: true,
+                resetOnError: false,
+              ),
+            ),
+        super(const MenuState()) {
+    _initAndLoad();
   }
 
   final MenuRepository _repository;
+  final FlutterSecureStorage _storage;
+
+  static const _storageKey = 'vcloud_pinned_apps_ids_v1';
 
   static const List<AppUtilityItem> defaultUtilities = [
     AppUtilityItem(
@@ -90,6 +105,24 @@ class MenuController extends StateNotifier<MenuState> {
       webUrl: '/web#action=base.action_res_users',
     ),
   ];
+
+  Future<void> _initAndLoad() async {
+    try {
+      final raw = await _storage.read(key: _storageKey);
+      if (raw != null && raw.isNotEmpty) {
+        final decoded = jsonDecode(raw);
+        if (decoded is List) {
+          final saved = decoded.whereType<num>().map((e) => e.toInt()).toSet();
+          if (saved.isNotEmpty) {
+            state = state.copyWith(bookmarkedIds: saved);
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[MenuController._initAndLoad] read storage error: $e');
+    }
+    await loadMenu();
+  }
 
   Future<void> loadMenu() async {
     state = state.copyWith(isLoading: true, error: null);
@@ -128,14 +161,27 @@ class MenuController extends StateNotifier<MenuState> {
     state = state.copyWith(activeTab: tab);
   }
 
-  void toggleBookmark(int appId) {
+  /// Bật/tắt ghim ứng dụng và lưu bền vững vào FlutterSecureStorage.
+  /// Trả về `true` nếu vừa ghim, `false` nếu vừa bỏ ghim.
+  Future<bool> toggleBookmark(int appId) async {
     final updated = Set<int>.from(state.bookmarkedIds);
-    if (updated.contains(appId)) {
-      updated.remove(appId);
-    } else {
+    final isAdded = !updated.contains(appId);
+    if (isAdded) {
       updated.add(appId);
+    } else {
+      updated.remove(appId);
     }
     state = state.copyWith(bookmarkedIds: updated);
+
+    try {
+      await _storage.write(
+        key: _storageKey,
+        value: jsonEncode(updated.toList()),
+      );
+    } catch (e) {
+      debugPrint('[MenuController.toggleBookmark] save error: $e');
+    }
+    return isAdded;
   }
 }
 

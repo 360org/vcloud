@@ -19,6 +19,14 @@ class EditProfileScreen extends ConsumerStatefulWidget {
 class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   bool _isUploading = false;
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(authControllerProvider.notifier).reloadProfile();
+    });
+  }
+
   Future<void> _pickAndUploadAvatar(ImageSource source) async {
     final picker = ImagePicker();
     final picked = await picker.pickImage(
@@ -142,7 +150,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       final rawComp = (meta?['company'] as String?)?.trim() ?? (meta?['company_name'] as String?)?.trim();
       company = (rawComp != null && rawComp.isNotEmpty) ? rawComp : '360 CORP';
     }
-    final email = user?.email ?? '';
+    final rawEmail = (meta?['email'] as String?)?.trim() ?? user?.email ?? '';
+    final email = rawEmail.isNotEmpty ? rawEmail : 'Chưa cập nhật';
     final rawPhone = meta?['mobile'] ?? meta?['phone'] ?? meta?['work_phone'];
     final phone = (rawPhone is String ? rawPhone : (rawPhone != null && rawPhone != false ? rawPhone.toString() : '')).trim();
 
@@ -157,9 +166,14 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
     return AppScaffold(
       title: 'Hồ sơ cá nhân',
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
+      body: RefreshIndicator(
+        onRefresh: () =>
+            ref.read(authControllerProvider.notifier).reloadProfile(),
+        color: AppColors.primary,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          children: [
           Center(
             child: Stack(
               children: [
@@ -255,7 +269,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           ),
         ],
       ),
-    );
+    ),
+  );
   }
 }
 

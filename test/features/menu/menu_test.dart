@@ -1,3 +1,4 @@
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vcloud/core/api/auth_user.dart';
 import 'package:vcloud/core/api/odoo_session.dart';
@@ -55,6 +56,9 @@ class _FakeMenuRepository extends MenuRepository {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  FlutterSecureStorage.setMockInitialValues({});
+
   group('AppMenuItem & AppUtilityItem model', () {
     test('fromJson and toJson roundtrip correctly', () {
       final json = {
@@ -150,6 +154,23 @@ void main() {
       await controller.loadMenu();
       expect(controller.state.apps, isEmpty);
       expect(controller.state.utilities.length, 3); // default utilities
+    });
+
+    test('persists bookmarked items across instances via storage', () async {
+      FlutterSecureStorage.setMockInitialValues({});
+      final fakeRepo = _FakeMenuRepository();
+      final controller1 = MenuController(fakeRepo);
+      await controller1.loadMenu();
+
+      // Bookmark 108
+      final isAdded = await controller1.toggleBookmark(108);
+      expect(isAdded, isTrue);
+      expect(controller1.state.bookmarkedIds.contains(108), isTrue);
+
+      // Create new instance of controller representing app restart
+      final controller2 = MenuController(fakeRepo);
+      await controller2.loadMenu();
+      expect(controller2.state.bookmarkedIds.contains(108), isTrue);
     });
   });
 

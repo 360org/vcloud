@@ -418,16 +418,36 @@ class AuthRepository {
         (session.partnerId ?? _many2OneId(profile?['partner_id']))?.toString();
     final name = _stringOrNull(profile?['name']);
     final login = _stringOrNull(profile?['login']) ?? session.login;
+    var email = _stringOrNull(profile?['email']);
     final companyName = _stringOrNull(profile?['company_name']);
     var function =
         _stringOrNull(profile?['job_title'] ?? profile?['function']);
+    var phone = _stringOrNull(profile?['phone'] ?? profile?['mobile']);
+    var mobile = _stringOrNull(profile?['mobile'] ?? profile?['phone']);
+    final department = _stringOrNull(profile?['department']);
+    final partnerCompanyName = _stringOrNull(profile?['partner_company_name']);
 
-    if (hasVMobile && (function == null || function.isEmpty) && partnerId != null) {
+    if (hasVMobile &&
+        partnerId != null &&
+        ((function == null || function.isEmpty) ||
+            (phone == null || phone.isEmpty) ||
+            (email == null || email.isEmpty))) {
       try {
         final contactRes =
             await _client.get('/api/v1/mobile/contacts/$partnerId');
         if (contactRes is Map) {
-          function = _stringOrNull(contactRes['function']);
+          if (function == null || function.isEmpty) {
+            function = _stringOrNull(contactRes['function']);
+          }
+          if (phone == null || phone.isEmpty) {
+            phone = _stringOrNull(contactRes['phone'] ?? contactRes['mobile']);
+          }
+          if (mobile == null || mobile.isEmpty) {
+            mobile = _stringOrNull(contactRes['mobile'] ?? contactRes['phone']);
+          }
+          if (email == null || email.isEmpty) {
+            email = _stringOrNull(contactRes['email']);
+          }
         }
       } catch (_) {}
     }
@@ -480,7 +500,19 @@ class AuthRepository {
     };
     if (partnerId != null) metadata['partner_id'] = partnerId;
     if (companyName != null) metadata['company'] = companyName;
-    if (function != null && function.isNotEmpty) metadata['role'] = function;
+    if (function != null && function.isNotEmpty) {
+      metadata['role'] = function;
+      metadata['job_title'] = function;
+      metadata['function'] = function;
+    }
+    if (phone != null && phone.isNotEmpty) metadata['phone'] = phone;
+    if (mobile != null && mobile.isNotEmpty) metadata['mobile'] = mobile;
+    if (email != null && email.isNotEmpty) metadata['email'] = email;
+    metadata['login'] = login;
+    if (department != null && department.isNotEmpty) metadata['department'] = department;
+    if (partnerCompanyName != null && partnerCompanyName.isNotEmpty) {
+      metadata['partner_company_name'] = partnerCompanyName;
+    }
 
     // Xác định phân loại Database & Version
     final lowerDb = session.db.toLowerCase();
@@ -536,9 +568,12 @@ class AuthRepository {
 
     metadata['avatar_url'] = avatar;
 
+    final resolvedEmail =
+        (email != null && email.isNotEmpty) ? email : login;
+
     return AuthUser(
       id: session.uid.toString(),
-      email: login,
+      email: resolvedEmail,
       userMetadata: metadata,
     );
   }

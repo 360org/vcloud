@@ -349,7 +349,7 @@
 
 ### 🟢 GIAI ĐOẠN 6: HỒ SƠ CÁ NHÂN & TIỆN ÍCH HỆ THỐNG (PROFILE & UTILS) — `[x] [Claude-Verified — 19/19 PASS 100% & Live Waydroid]`
 - [x] 6.1 **Thẻ Hồ sơ Định danh Hero Card (6.1)**: `[x] [L4 — VERIFIED]` Đã xóa bỏ hoàn toàn hardcode fallback và phân luồng hiển thị chức vụ/công ty cho tài khoản Portal vs Internal. Portal (`cac`): chức vụ "Khách hàng" (khi không có function), công ty "Khách hàng cá nhân" (khi không có parent_id / partner_company_name). Internal (`tanmnn@360.org.vn`): đọc động chức vụ (`job_title` / `role` / `function` -> 'Chưa cập nhật') và công ty (`company` / `company_name` -> '360 CORP') từ Odoo API. Pass 10/10 assertions self-check và 13/13 widget tests profile.
-- [x] 6.2 **Dark Theme Controller (6.3)**: Chuyển 3 chế độ Tối / Sáng / Hệ thống (giờ VN 6h-18h) qua BottomSheet "Chọn giao diện", lưu vào user preferences. Đã kiểm chứng thực tế mở BottomSheet trên Waydroid.
+- [x] 6.2 **Dark Theme Controller (6.3)**: `[x] [L4 — VERIFIED: Đồng bộ Theme Sáng / Tối toàn diện theo Native OS platformBrightness, WebView adaptive CSS & SSO cookie, xóa bỏ hoàn toàn hardcode giờ (10/10 tests PASS)]` Chuyển 3 chế độ Tối / Sáng / Hệ thống (lắng nghe trực tiếp platformBrightness của hệ điều hành) qua BottomSheet "Chọn giao diện", lưu vào user preferences. Đồng bộ Force Dark và tiêm CSS linh hoạt theo chế độ Theme cho In-App WebView.
 - [x] 6.3 **Clear Cache (6.4)**: Bấm Dọn dẹp bộ nhớ đệm ➔ Hộp thoại xác nhận hiển thị dung lượng (0.0 MB), xác nhận dọn dẹp sạch an toàn ➔ SnackBar thông báo "Đã dọn dẹp bộ nhớ đệm thành công!" hiển thị rõ ràng trên Waydroid.
 - [x] 6.4 **Secure Logout (6.9)**: Đăng xuất an toàn, hủy FCM token trên server, xóa sạch dữ liệu 4 lớp (RAM cache 10 module, storage, state, calls) an toàn tuyệt đối. Pass 12/12 test cases trong `test/features/auth/logout_session_wipe_test.dart`.
 - [x] 6.5 **Tra cứu FCM Token (6.5)**: Đạt chuẩn nghiệm thu theo thiết kế của Sếp Tân (chủ đích ẩn mã Token kỹ thuật khỏi UI người dùng cuối để giữ giao diện sạch, bảo mật).
@@ -1939,6 +1939,91 @@ Tab "Tôi" quản lý thông tin nhân sự cá nhân, tùy chỉnh giao diện 
        })
        ```
     2. **Frontend Flutter**: Đảm bảo `_sessionFromJson` bóc tách chính xác `is_portal`, `share`, `user_type` từ response OAuth, kích hoạt ngay lập tức chế độ Portal User trên ứng dụng.
+
+- [x] **B.24 Khắc Phục Lỗi Tràn Viền Giao Diện Right Overflowed by 18px ở Thẻ Trực Ca Hỗ Trợ Trực Tuyến (BUG-032 — L4 VERIFIED 2026-11-03)**
+  - *Hiện tượng thực tế (Evidence UAT từ Sếp Tân trên Vivo V2116)*:
+    Khi người dùng tài khoản Portal bấm mở BottomSheet "Hỗ trợ trực tuyến" từ Home Screen, thẻ kênh hỗ trợ bị văng viền đỏ vàng cảnh báo: `A RenderFlex overflowed by 18 pixels on the right` tại dòng hiển thị trạng thái chuyên viên trực ca.
+  - *Nguyên nhân gốc rễ (Root Cause)*:
+    Tại `vclients/lib/features/livechat/presentation/widgets/livechat_selection_bottom_sheet.dart:397-404`, widget `Text(statusText)` hiển thị chuỗi `🟢 Đang có chuyên viên trực ca • Phản hồi ~2 phút`. Dòng Text này nằm trong `Column` bên trong thẻ `Row` có Avatar (44px) và padding (16px), trên các thiết bị màn hình hẹp như Vivo V2116 không đủ diện tích bề ngang cho 48 ký tự không xuống dòng, gây tràn đúng 18 logical pixels.
+  - *Quy chuẩn & Lộ trình khắc phục*:
+    1. Bổ sung `maxLines: 1, overflow: TextOverflow.ellipsis` cho `Text(statusText)`.
+    2. Bọc `Text` trong `Flexible` hoặc cho phép `softWrap: true` để tự động xuống dòng an toàn khi màn hình thiết bị thu nhỏ.
+
+- [ ] **B.25 Tính Năng Đổi Ảnh Đại Diện Nhóm Chat (Group Avatar Upload) Trong Phân Hệ Chat Odoo (FEAT-CHAT-04)**
+  - *Hiện tượng & Yêu cầu thực tế từ Sếp Tân*:
+    Người dùng và Quản trị viên nhóm chat trên mobile mong muốn có thể chủ động cập nhật ảnh đại diện (avatar/icon) của nhóm chat trực tiếp từ điện thoại, đồng bộ với tính năng của Odoo Backend (`mail.channel.image_128`).
+  - *Thiết kế UI/UX & Luồng dữ liệu*:
+    1. **Vị trí nút bấm**: Nằm trong màn hình Chi tiết / Cài đặt Kênh Chat (`ChatV2ChannelInfoScreen`), hiển thị nút icon Camera nổi tròn nhỏ đè ở góc dưới bên phải avatar nhóm hiện tại.
+    2. **Thao tác người dùng**: Chạm vào nút Camera ➔ Mở ActionSheet chọn "Chụp ảnh mới" hoặc "Chọn từ thư viện ảnh" ➔ Cắt ảnh vuông (Crop 1:1) ➔ Bấm xác nhận ➔ Tự động nén ảnh JPEG và upload lên Odoo.
+    3. **Backend API**:
+       - Endpoint: `/api/v1/mobile/chat/channel/<id>/avatar` (POST multipart/form-data hoặc base64 JSON).
+       - Backend cập nhật trường `image_128` trên model `mail.channel` (Odoo 17) hoặc `discuss.channel` (Odoo 19).
+       - Broadcast socket/bus notification cập nhật avatar mới tức thì cho toàn bộ thành viên trong nhóm.
+
+- [x] **B.26 Trung Tâm Hoạt Động & Việc Cần Làm Native mail.activity Cho Nhân Viên Internal (Action-2186) Kèm Đầy Đủ 4 Bộ Lọc (FEAT-ACTIVITY-01 — L4 VERIFIED 2026-11-03)**
+  - *Hiện tượng & Yêu cầu thực tế từ Sếp Tân*:
+    - Icon chuông thông báo trên Header Trang chủ của tài khoản Internal phải mở ra danh sách Hoạt động / Việc cần làm (`mail.activity` tương ứng URL `https://vuahethong.net/home/action-2186` trên Odoo backend).
+    - Cần xây dựng màn hình Native Flutter thay vì WebView để đảm bảo tốc độ phản hồi < 100ms, đồng bộ Theme Sáng/Tối 100% và không bị gãy ID action giữa các database Odoo.
+  - *Danh mục Bộ lọc & Gom nhóm chuẩn Odoo vuahethong.net*:
+    1. **Nhóm Lọc Theo Hạn chót (Deadline / State)**:
+       - 🔴 **Quá hạn (Late / Overdue)**: `date_deadline < context_today()`
+       - 🟢 **Hôm nay (Today)**: `date_deadline == context_today()`
+       - 🟡 **Tương lai (Future / Upcoming)**: `date_deadline > context_today()`
+    2. **Nhóm Lọc Theo Phụ trách & Phân quyền (Ownership)**:
+       - **Hoạt động của tôi (My Activities)**: `user_id == uid` (Mặc định chọn).
+       - **Hoạt động của nhóm / Tất cả (All Activities)**: Toàn bộ hoạt động trong công ty/phòng ban.
+       - **Do tôi giao (Created by Me)**: `create_uid == uid`.
+    3. **Nhóm Lọc Theo Loại Hoạt động (`activity_type_id`)**:
+       - 📞 Cuộc gọi (Call), ✉️ Email, 📋 Cần làm (To-Do), 👥 Cuộc họp (Meeting), 📄 Tải tài liệu (Upload Document).
+    4. **Nhóm Lọc Theo Nguồn gốc Phân hệ (`res_model`)**:
+       - 🎫 Ticket hỗ trợ (`helpdesk.ticket`), 🛠️ Task dự án (`project.task`), 💼 Khách hàng tiềm năng (`crm.lead`), 📑 Đơn bán hàng (`sale.order`).
+    5. **Nhóm Gom nhóm (Group By)**:
+       - Gom theo Hạn chót (Deadline theo ngày/tuần/tháng), Gom theo Loại hoạt động, Gom theo Phân hệ, Gom theo Người phụ trách.
+  - *Thiết kế Giao diện Native Mobile*:
+    - Thanh Tab trượt nhanh ở đỉnh: `[Tất cả] | [🔴 Quá hạn] | [🟢 Hôm nay] | [🟡 Sắp tới]`.
+    - Dropdown / Filter Chips lọc theo Loại việc và Nguồn gốc.
+    - Card Hoạt động hiển thị: Tiêu đề việc, hạn chót, tên Ticket/Task liên quan, kèm 2 nút bấm thao tác nhanh **[✔ Hoàn tất]** (`action_done`) và **[✖ Hủy]** (`unlink`).
+
+- [x] **B.27 Lọc Danh Bạ Tạo Kênh Chat Nội Bộ Loại Bỏ Tài Khoản Portal (BUG-033 — L4 VERIFIED 2026-11-03)**
+  - *Hiện tượng thực tế từ Sếp Tân*:
+    Khi nhân viên nội bộ bấm vào icon (+) trong phân hệ Chat và chọn tạo cuộc hội thoại nội bộ, danh sách liên hệ hiển thị lẫn lộn cả tài khoản Portal (khách hàng), gây nhầm lẫn khi tạo nhóm nội bộ.
+  - *Nguyên nhân gốc rễ (Root Cause)*:
+    API danh bạ liên hệ `/api/v1/mobile/chat/contacts` (hoặc `users`) chưa áp dụng domain loại trừ người dùng Portal `[('share', '=', False)]`.
+  - *Quy chuẩn & Lộ trình khắc phục*:
+    - Backend `v_mobile_17` và `v_mobile_19`: Áp dụng bộ lọc `[('share', '=', False)]` và `active = True` khi lấy danh bạ nhân viên nội bộ cho phân hệ chat.
+    - Frontend Flutter: Đảm bảo màn hình tạo chat nội bộ hiển thị badge/tag "Nội bộ" rõ ràng, chỉ hiển thị nhân sự công ty.
+
+- [x] **B.28 Đồng Bộ Đầy Đủ Số Điện Thoại & Siết Chặt Metadata Hồ Sơ Cá Nhân (BUG-034 — L4 VERIFIED 2026-11-04)**
+  - *Hiện tượng thực tế từ Sếp Tân*:
+    Tại màn hình Hồ sơ cá nhân (`/profile/edit`), trường Số điện thoại luôn hiển thị "Chưa cập nhật" đối với tài khoản `admin/admin` và các tài khoản người dùng khác dù trên Odoo đã có hoặc chưa có số điện thoại.
+  - *Nguyên nhân gốc rễ (Root Cause)*:
+    1. **Code Frontend**: Tại `auth_repository.dart:_toUser()`, dữ liệu trả về từ API `/api/v1/auth/me` (gồm `phone`, `mobile`, `department`, `partner_company_name`) không được lưu vào `userMetadata`, khiến `meta?['mobile']` và `meta?['phone']` trong `edit_profile_screen.dart` luôn luôn trả về `null`.
+    2. **Dữ liệu Database Seed**: Script tái lập DB `scripts/setup_test_db.sh` khởi tạo tài khoản `admin` và `demo` mà không gán số điện thoại vào `res.partner`.
+  - *Quy chuẩn & Đã khắc phục*:
+    - Cập nhật `vclients/lib/features/auth/data/auth_repository.dart`: Bổ sung bóc tách `phone`, `mobile`, `job_title`, `function`, `department`, `partner_company_name` và nạp đầy đủ vào `metadata`, đồng thời tự động gọi fallback `/api/v1/mobile/contacts/$partnerId` nếu API profile thiếu số điện thoại.
+    - Cập nhật `scripts/setup_test_db.sh`: Cấp số điện thoại mẫu (`0908 360 360` cho admin, `0901 360 360` cho demo) và chức danh công việc trong danh bạ `res.partner` khi khởi tạo/cập nhật database.
+
+- [x] **B.29 Phân Tách Chính Xác Email và Tên Đăng Nhập (Login) Trong Hồ Sơ Cá Nhân (BUG-035 — L4 VERIFIED 2026-11-04)**
+  - *Hiện tượng thực tế từ Sếp Tân*:
+    Khi Sếp đổi tên hiển thị thành `admin` trên Odoo Web, trường Email trên màn hình Hồ sơ cá nhân ứng dụng mobile bị hiển thị nhầm thành `admin` thay vì địa chỉ thư điện tử thực tế `admin@vuahethong.net`.
+  - *Nguyên nhân gốc rễ (Root Cause)*:
+    Trong `auth_repository.dart`, `AuthUser` được khởi tạo gán trường `email: login`. Khi `edit_profile_screen.dart` đọc `user?.email`, ứng dụng hiển thị giá trị `login` (`admin`) thay vì `email` (`admin@vuahethong.net`).
+  - *Quy chuẩn & Đã khắc phục*:
+    - Cập nhật `auth_repository.dart`: Bóc tách trường `email` từ backend `/api/v1/auth/me`, fallback qua `/api/v1/mobile/contacts/$partnerId`, lưu vào `metadata['email']` và gán `resolvedEmail = (email != null && email.isNotEmpty) ? email : login`.
+    - Bổ sung hàm `reloadProfile()` trong `AuthController`, tự động làm mới khi mở màn hình Hồ sơ cá nhân qua `addPostFrameCallback` và hỗ trợ kéo để làm mới (`RefreshIndicator`).
+    - *Nghiệm thu thực tế trên Vivo V2116*: Màn hình Hồ sơ cá nhân hiển thị chuẩn Họ tên `admin`, Email `admin@vuahethong.net`, Chức vụ `Director`, SĐT `+84 836 360 360`.
+
+- [x] **B.30 Khắc Phục Triệt Để Lỗi Vòng Đời InheritedTheme Khi Mở Model Odoo WebView (BUG-036 — L4 VERIFIED 2026-11-04)**
+  - *Hiện tượng thực tế từ Sếp Tân*:
+    Khi mở các Model Odoo (như Knowledge/Kiến thức) từ menu Ứng dụng, app hiển thị thông báo lỗi "Không thể kết nối đến máy chủ" kèm biệt lệ Flutter:
+    `dependOnInheritedWidgetOfExactType<_InheritedTheme>() or dependOnInheritedElement() was called before _OdooWebViewScreenState.initState() completed.`
+    Khi bấm nút "Thử lại", ứng dụng lại truy cập được bình thường.
+  - *Nguyên nhân gốc rễ (Root Cause)*:
+    Trong Flutter framework, `Theme.of(context)` gọi `dependOnInheritedWidgetOfExactType` bên dưới. Khi hàm này được gọi đồng bộ bên trong `initState()` (thông qua luồng `_startLoadingWorkflow() -> _applyAppTheme()`), State widget chưa hoàn thành việc gắn kết vào Element tree, dẫn tới việc framework ném Exception. Khi người dùng bấm "Thử lại", `initState()` đã hoàn tất từ trước nên không bị lỗi nữa.
+  - *Quy chuẩn & Đã khắc phục*:
+    - Cập nhật `odoo_webview_screen.dart`: Chuyển lời gọi `_startLoadingWorkflow()` vào `WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) _startLoadingWorkflow(); });`.
+    - Tạo getter an toàn `_isDarkTheme` có bọc try-catch và fallback sang `platformDispatcher.platformBrightness == Brightness.dark`.
+    - *Nghiệm thu thực tế trên Vivo V2116*: Nhấp trực tiếp vào icon `Knowledge` từ menu Ứng dụng, trang Knowledge Odoo tải ngay lập tức không còn xuất hiện hộp thoại lỗi hay nút Thử lại.
 
 ---
 

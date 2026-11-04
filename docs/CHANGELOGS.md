@@ -2,6 +2,26 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.31+184] — 2026-11-04
+
+> [!IMPORTANT]
+> **Khắc Phục Triệt Để Lỗi Odoo Session Expired Trên Trung Tâm Hoạt Động & Việc Cần Làm (L4 VERIFIED 2026-11-04)**:
+> - **[FIX] Thu Nhận Cookie session_id Trực Tiếp Từ HTTP 303 Redirect (`odoo_api_client.dart`)**:
+>   * Cấu hình `http.Request` với `req.followRedirects = false` trên endpoint SSO `/api/v1/mobile/web/auth` để không bị nuốt mất header `set-cookie`.
+>   * Bóc tách cookie đa tầng: Nguồn 1 từ header `set-cookie` (`session_id=...`), Nguồn 2 từ tham số query URL của header `location`, Nguồn 3 từ JSON payload.
+>   * Tự động lưu `sessionId` vào `OdooSession` và đồng bộ vào `SecureStorage`.
+> - **[FIX] Cơ Chế Phòng Thủ Chủ Động & Tự Động Khôi Phục Session Trong `OdooApiClient._send` & `ActivityRepository`**:
+>   * Tự động kiểm tra và gọi `ensureSessionCookie()` trước khi phát bất kỳ request nào vào Odoo Core web/ORM routes (`/web/*`).
+>   * Bắt lỗi `Session Expired` (JSON-RPC code 100), tự động gọi `ensureSessionCookie(forceRefresh: true)` để cấp mới cookie và thử lại 1 lần duy nhất trong suốt với người dùng.
+> - **[NEW] Đồng Bộ Backend Controller Activities Trên Cả Odoo 17 & 19 (`v_mobile_17` & `v_mobile_19`)**:
+>   * Bổ sung controller `/api/v1/mobile/activities`, `/done`, `/unlink`, `/activity-types` chuẩn xác cho Odoo 17 & 19.
+>   * Đảm bảo CORS, CSRF disabled và xác thực JWT token nhất quán trên cả 2 phiên bản.
+> - **[VERIFIED] Kiểm Chứng Thực Tế Toàn Diện Trên Điện Thoại Thật Vivo V2116 (L4)**:
+>   * Build và cài đặt APK lên điện thoại Vivo V2116.
+>   * Mở màn hình Hoạt động & Việc cần làm: Tải sạch sẽ 52 hoạt động thực tế (`Việc cần làm (52)`), triệt tiêu hoàn toàn lỗi `Odoo Session Expired` và trạng thái rỗng `Việc cần làm (0)`.
+>   * 46/46 unit tests PASS, tĩnh kiểm `flutter analyze` đạt 0 errors / 0 warnings.
+
+
 ## [v2.9.30+183] — 2026-11-04
 
 > [!IMPORTANT]

@@ -10,6 +10,7 @@ Widget? buildHtmlIframe({
   required String url,
   required VoidCallback onLoaded,
   void Function(String error)? onError,
+  bool isDark = false,
 }) {
   try {
     final clean = url.trim();
@@ -19,7 +20,7 @@ Widget? buildHtmlIframe({
     }
 
     final viewType = 'vcloud-odoo-frame-${clean.hashCode & 0x7fffffff}';
-    debugPrint('[OdooWebFrame] Khởi tạo HtmlIframe: viewType=$viewType, url=$clean');
+    debugPrint('[OdooWebFrame] Khởi tạo HtmlIframe: viewType=$viewType, url=$clean, isDark=$isDark');
 
     if (_registeredFrames.add(viewType)) {
       ui_web.platformViewRegistry.registerViewFactory(viewType, (
@@ -35,7 +36,7 @@ Widget? buildHtmlIframe({
             ..height = '100%'
             ..border = '0'
             ..display = 'block'
-            ..backgroundColor = '#FFFFFF';
+            ..backgroundColor = isDark ? '#0F1729' : '#FFFFFF';
           iframe.allow =
               'camera; microphone; geolocation; fullscreen; clipboard-read; clipboard-write';
 

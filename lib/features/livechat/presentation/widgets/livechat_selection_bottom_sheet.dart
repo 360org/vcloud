@@ -396,6 +396,9 @@ class _LivechatSelectionBottomSheetState extends ConsumerState<LivechatSelection
                       const SizedBox(height: 8),
                       Text(
                         statusText,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        softWrap: true,
                         style: TextStyle(
                           fontSize: 11.5,
                           fontWeight: FontWeight.w500,

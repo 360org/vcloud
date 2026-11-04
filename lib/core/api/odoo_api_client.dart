@@ -997,6 +997,16 @@ class OdooApiClient {
         )
         .timeout(timeout);
 
+    // Trích xuất session_id cookie từ Odoo HTTP header nếu có
+    String? sessionId;
+    final rawCookies = response.headers['set-cookie'];
+    if (rawCookies != null && rawCookies.isNotEmpty) {
+      final match = RegExp(r'session_id=([^;]+)').firstMatch(rawCookies);
+      if (match != null) {
+        sessionId = match.group(1);
+      }
+    }
+
     final text = response.body;
     Object? decoded;
     if (text.isNotEmpty) {
@@ -1042,6 +1052,7 @@ class OdooApiClient {
       fallbackLogin: login,
       fallbackDb: targetDb,
       fallbackBaseUrl: targetBaseUrl,
+      fallbackSessionId: sessionId,
     );
   }
 
@@ -1141,6 +1152,7 @@ class OdooApiClient {
             fallbackBaseUrl: targetBaseUrl,
             fallbackUid: uid,
             fallbackPartnerId: partnerId,
+            fallbackSessionId: sessionId,
           );
         }
       } else if (jwtResponse.statusCode == 403) {
@@ -1176,6 +1188,7 @@ class OdooApiClient {
       tenantId: null,
       scope: 'odoo_web_session',
       partnerId: partnerId,
+      sessionId: sessionId,
     );
   }
 
@@ -1304,6 +1317,8 @@ class OdooApiClient {
       'Accept': '*/*',
       if (_session != null) 'Authorization': 'Bearer ${_session!.accessToken}',
       if (_session != null && _session!.db.isNotEmpty) 'X-Odoo-Database': _session!.db,
+      if (_session?.sessionId != null && _session!.sessionId!.isNotEmpty)
+        'Cookie': 'session_id=${_session!.sessionId}',
     };
     
     try {
@@ -1406,6 +1421,7 @@ class OdooApiClient {
     Object? body,
     Map<String, Object?> query = const <String, Object?>{},
     bool auth = true,
+    bool isRetry = false,
   }) async {
     if (auth && (_session == null || _session!.isExpired)) {
       await restoreSession();
@@ -1423,11 +1439,21 @@ class OdooApiClient {
     final uri = queryParameters.isEmpty
         ? baseUri
         : baseUri.replace(queryParameters: queryParameters);
+
+    // Chủ động lấy session cookie trước nếu request nhắm vào Odoo Core web/ORM routes
+    if (auth &&
+        path.startsWith('/web/') &&
+        (_session?.sessionId == null || _session!.sessionId!.isEmpty)) {
+      await ensureSessionCookie();
+    }
+
     final headers = <String, String>{
       'Accept': 'application/json',
       if (body != null) 'Content-Type': 'application/json',
       if (auth && _session != null) 'Authorization': 'Bearer ${_session!.accessToken}',
       if (_session != null && _session!.db.isNotEmpty) 'X-Odoo-Database': _session!.db,
+      if (auth && _session?.sessionId != null && _session!.sessionId!.isNotEmpty)
+        'Cookie': 'session_id=${_session!.sessionId}',
     };
 
     if (kDebugMode) {
@@ -1509,7 +1535,140 @@ class OdooApiClient {
         statusCode: response.statusCode,
       );
     }
+
+    // Tự động làm mới session cookie nếu Odoo Core ORM call_kw trả về Session Expired
+    if (!isRetry &&
+        path.startsWith('/web/dataset/call_kw') &&
+        decoded is Map &&
+        decoded['error'] != null) {
+      final err = decoded['error'];
+      final errMsg = err is Map
+          ? (err['message'] ?? err['data']?['message'] ?? '').toString()
+          : err.toString();
+      if (errMsg.contains('Session Expired') ||
+          errMsg.contains('SessionExpiredException') ||
+          errMsg.contains('Session Invalid')) {
+        debugPrint('🔄 [OdooApiClient] Odoo ORM báo Session Expired, đang tự động cấp mới session cookie...');
+        final newSid = await ensureSessionCookie(forceRefresh: true);
+        if (newSid != null && newSid.isNotEmpty) {
+          return await _send(
+            method,
+            path,
+            body: body,
+            query: query,
+            auth: auth,
+            isRetry: true,
+          );
+        }
+      }
+    }
+
     return decoded;
+  }
+
+  Completer<String?>? _sessionCookieCompleter;
+
+  /// Đảm bảo luôn có Odoo Session Cookie (session_id) hợp lệ cho các request gọi ORM dataset / web
+  Future<String?> ensureSessionCookie({bool forceRefresh = false}) async {
+    final curSession = _session;
+    if (curSession == null) return null;
+
+    if (!forceRefresh &&
+        curSession.sessionId != null &&
+        curSession.sessionId!.isNotEmpty) {
+      return curSession.sessionId;
+    }
+
+    if (_sessionCookieCompleter != null) {
+      return _sessionCookieCompleter!.future;
+    }
+
+    final completer = Completer<String?>();
+    _sessionCookieCompleter = completer;
+
+    try {
+      final ssoUri = Uri.parse('${curSession.baseUrl}/api/v1/mobile/web/auth').replace(
+        queryParameters: {
+          'token': curSession.accessToken,
+          if (curSession.db.isNotEmpty) 'db': curSession.db,
+        },
+      );
+
+      // QUAN TRỌNG: Dùng http.Request với followRedirects = false để bắt trực tiếp
+      // response HTTP 303 See Other từ Odoo SSO bridge.
+      // Khi followRedirects = true (mặc định của _http.get), Dart HTTP client sẽ theo dõi redirect
+      // tới trang đích /web HTML, làm mất header Set-Cookie của response 303 trung gian!
+      final req = http.Request('GET', ssoUri);
+      req.followRedirects = false;
+      req.maxRedirects = 1;
+      req.headers.addAll({
+        'Accept': 'text/html,application/json',
+        'Authorization': 'Bearer ${curSession.accessToken}',
+        if (curSession.db.isNotEmpty) 'X-Odoo-Database': curSession.db,
+      });
+
+      final streamedResp = await _http.send(req).timeout(const Duration(seconds: 15));
+      final resp = await http.Response.fromStream(streamedResp);
+
+      String? newSid;
+
+      // 1. Nguồn 1: Bóc tách trực tiếp từ header set-cookie (HTTP 303 / 302 / 200)
+      final rawCookies = resp.headers['set-cookie'];
+      if (rawCookies != null && rawCookies.isNotEmpty) {
+        final match = RegExp(r'session_id=([^;,\s]+)').firstMatch(rawCookies);
+        if (match != null) {
+          newSid = match.group(1);
+        }
+      }
+
+      // 2. Nguồn 2: Bóc tách từ header Location nếu Odoo chuyển hướng kèm query session_id
+      if (newSid == null || newSid.isEmpty) {
+        final location = resp.headers['location'];
+        if (location != null && location.isNotEmpty) {
+          final locUri = Uri.tryParse(location);
+          final sidFromQuery = locUri?.queryParameters['session_id'];
+          if (sidFromQuery != null && sidFromQuery.isNotEmpty) {
+            newSid = sidFromQuery;
+          } else {
+            final match = RegExp(r'[?&]session_id=([^&#\s]+)').firstMatch(location);
+            if (match != null) {
+              newSid = match.group(1);
+            }
+          }
+        }
+      }
+
+      // 3. Nguồn 3: Fallback phòng thủ nếu server trả về JSON payload
+      if ((newSid == null || newSid.isEmpty) && resp.body.isNotEmpty) {
+        try {
+          final decoded = jsonDecode(resp.body);
+          if (decoded is Map) {
+            final sid = decoded['session_id'] ?? decoded['sid'] ?? decoded['result']?['session_id'];
+            if (sid is String && sid.isNotEmpty) {
+              newSid = sid;
+            }
+          }
+        } catch (_) {}
+      }
+
+      if (newSid != null && newSid.isNotEmpty) {
+        _session = curSession.copyWith(sessionId: newSid);
+        await _sessionStore.write(_session!);
+        debugPrint('[OdooApiClient] Đã tự động cấp mới session_id cookie thành công: ${newSid.substring(0, newSid.length > 8 ? 8 : newSid.length)}...');
+        completer.complete(newSid);
+        return newSid;
+      } else {
+        debugPrint('[OdooApiClient] Không tìm thấy session_id từ SSO bridge (status: ${resp.statusCode}, headers: ${resp.headers.keys.toList()})');
+        completer.complete(null);
+        return null;
+      }
+    } catch (e) {
+      debugPrint('[OdooApiClient] ensureSessionCookie error: $e');
+      completer.complete(null);
+      return null;
+    } finally {
+      _sessionCookieCompleter = null;
+    }
   }
 
   /// Cố gắng refresh token silent. Trả về `true` nếu refresh thành công.
@@ -1693,6 +1852,7 @@ class OdooApiClient {
     required String fallbackBaseUrl,
     int? fallbackUid,
     int? fallbackPartnerId,
+    String? fallbackSessionId,
   }) {
     final user = json['user'];
     final userMap = user is Map ? user : const <String, dynamic>{};
@@ -1727,6 +1887,7 @@ class OdooApiClient {
           _intOrNull(json['partner_id']) ??
           _intOrNull(userMap['partner_id']) ??
           fallbackPartnerId,
+      sessionId: (json['session_id'] as String?) ?? fallbackSessionId,
     );
   }
 }
