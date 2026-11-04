@@ -2,6 +2,77 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.30+183] — 2026-11-04
+
+> [!IMPORTANT]
+> **Đồng Bộ Giao Diện Sáng / Tối Giữa Mobile App Vcloud & Odoo Hybrid WebView (L4 VERIFIED 2026-11-04)**:
+> - **[FIX] Dynamic CSS Injection & Bootstrap 5 Dark Mode Styling Cho Odoo WebView (`odoo_webview_screen.dart`)**:
+>   * Bổ sung khối quy tắc CSS Dark Mode toàn diện cho Odoo Web Client (`:root`, `.o_content`, `.o_control_panel`, `.o_kanban_record`, `.o_list_table`, `.o_form_sheet`, `.o_searchview`).
+>   * Đồng bộ màu nền `#0F1729`, thẻ card `#1E293B`, đường viền `#334155` và chữ sáng `#F1F5F9`.
+>   * Tự động điều chỉnh `AndroidWebViewController.setForceDark(on/off)` và `WebViewController.setBackgroundColor` theo theme app.
+>   * Lắng nghe biến đổi trạng thái tức thì qua `ref.listen(themeControllerProvider)` để re-inject CSS thời gian thực khi người dùng đổi theme mà không cần reload lại trang web.
+>   * Khôi phục 100% giao diện sáng chuẩn gốc của Odoo khi app chuyển sang chế độ Sáng (`AppThemeMode.light`).
+> - **[NEW] Bộ Test Đồng Bộ Theme (`test/features/profile/theme_sync_test.dart`)**:
+>   * 12 test cases độc lập bao phủ toàn diện từ kiểm tra `themeMode`, URL token SSO bridge, CSS Dark Mode đến CSS Light Mode.
+>   * Tỷ lệ đạt: 12/12 tests PASS (100%), tĩnh kiểm 0 errors / 0 warnings.
+> - **[VERIFIED] Kiểm Chứng Thực Tế Hai Chiều Trên Điện Thoại Thật Vivo V2116 (L4)**:
+>   * **Chiều 1 (Dark Mode)**: Bật Theme "Tối" trong Hồ sơ ➔ Mở menu Ứng dụng ➔ Chọn model bất kỳ (Contacts/Knowledge) ➔ WebView Odoo hiển thị nền tối `#0F1729`, thẻ kanban `#1E293B`, chữ `#F1F5F9` sắc nét rõ ràng (`screen_webview_dark_loaded.png`).
+>   * **Chiều 2 (Light Mode)**: Bật Theme "Sáng" trong Hồ sơ ➔ Mở lại model trong Ứng dụng ➔ WebView Odoo tự động chuyển lại nền trắng `#FFFFFF` gốc chuẩn chỉ (`screen_webview_light.png`).
+
+## [v2.9.29+182] — 2026-11-04
+
+> [!IMPORTANT]
+> **Khắc Phục Lỗi Email Hồ Sơ Cá Nhân & Triệt Tiêu Biệt Lệ Vòng Đời InheritedTheme Odoo WebView (L4 VERIFIED 2026-11-04)**:
+> - **[FIX] Phân Tách Email & Login Trong Hồ Sơ Cá Nhân (`auth_repository.dart` & `edit_profile_screen.dart`)**:
+>   * Bóc tách chính xác trường `email` từ endpoint `/api/v1/auth/me` và danh bạ `/api/v1/mobile/contacts/$partnerId`, lưu vào `metadata['email']`.
+>   * Khắc phục triệt để lỗi hiển thị nhầm tên đăng nhập `admin` thay cho địa chỉ thư điện tử `admin@vuahethong.net`.
+>   * Bổ sung cơ chế `reloadProfile()` và vuốt kéo làm mới (`RefreshIndicator`) trên màn hình Hồ sơ cá nhân.
+> - **[FIX] Khắc Phục Triệt Để Biệt Lệ Vòng Đời Flutter Khi Mở Model Odoo WebView (`odoo_webview_screen.dart`)**:
+>   * Hoãn lời gọi `_startLoadingWorkflow()` sang sau frame đầu tiên qua `WidgetsBinding.instance.addPostFrameCallback`.
+>   * Cung cấp getter an toàn `_isDarkTheme` có bọc try-catch và fallback sang `platformBrightness`.
+>   * Giải quyết triệt để lỗi "Không thể kết nối đến máy chủ" kèm biệt lệ `dependOnInheritedWidgetOfExactType<_InheritedTheme>() called before initState() completed`.
+> - **[VERIFIED] Kiểm Chứng Thực Tế Trên Điện Thoại Vivo V2116 (L4)**:
+>   * Đã cài đặt và kiểm thử trực tiếp trên điện thoại thật Vivo V2116.
+>   * Mở model `Knowledge` từ menu Ứng dụng tải mượt mà 100% không còn xuất hiện hộp thoại lỗi "Thử lại".
+>   * Hồ sơ cá nhân hiển thị chuẩn xác Họ tên `admin`, Email `admin@vuahethong.net`, Chức vụ `Director`, SĐT `+84 836 360 360`.
+
+## [v2.9.28+181] — 2026-11-03
+
+> [!IMPORTANT]
+> **Đồng Bộ Theme OS, Trung Tâm Hoạt Động Native (Action-2186), Sửa Lỗi Tràn Viền 18px & Phân Tuyến Role (prompt_vivo_sprint.md - L4 VERIFIED 2026-11-03)**:
+> - **[NEW] Trung Tâm Hoạt Động & Việc Cần Làm Native (`mail.activity` / Action-2186)**:
+>   * Xây dựng Native Activity Center (`ActivityCenterScreen`) thay thế WebView cho nhân viên nội bộ (`user_type == 'internal'`), phản hồi < 100ms.
+>   * 4 tab lọc hạn chót: `[Tất cả]`, `[🔴 Quá hạn]`, `[🟢 Hôm nay]`, `[🟡 Sắp tới]`.
+>   * Thanh filter chips ngang lọc theo Loại hoạt động (`activity_type_id`: Gọi điện, Email, To-do, Cuộc họp, Tải tài liệu...).
+>   * Huy hiệu SLA deadline cảnh báo trực quan theo ngày/giờ.
+>   * 2 nút hành động nhanh trên mỗi thẻ: `[✔ Hoàn tất]` (`action_done`) và `[✖ Hủy]` (`unlink`).
+>   * Bộ điều hướng vai trò: Nhân viên nội bộ bấm chuông mở `/activities`, tài khoản Portal mở `MobileNotificationSheet()`.
+>   * Backend Odoo 17 & 19: REST controller `/api/v1/mobile/activities`, `/done`, `/unlink`, `/activity-types`.
+> - **[FIX] Khắc Phục Lỗi Tràn Viền 18px Thẻ Trực Ca Livechat (`livechat_selection_bottom_sheet.dart`)**:
+>   * Bọc dòng chữ trạng thái ca trực `statusText` với `maxLines: 1`, `overflow: TextOverflow.ellipsis` và `softWrap: true`.
+>   * Triệt tiêu hoàn toàn lỗi `A RenderFlex overflowed by 18 pixels on the right` trên màn hình hẹp và điện thoại Vivo V2116.
+> - **[FIX] Chuẩn Hóa ThemeController Theo Hệ Điều Hành (`theme_controller.dart`)**:
+>   * Trả về trực tiếp `ThemeMode.system` của Flutter engine, xóa bỏ triệt để heuristic giờ giấc tự chế `hour >= 6 && hour < 18`.
+>   * Ứng dụng phản hồi chuẩn xác theo `platformBrightness` của điện thoại (Dark Mode ban ngày vẫn hiển thị chuẩn giao diện tối).
+> - **[FIX] Dynamic Adaptive Theme & ForceDark Trong In-App WebView (`odoo_webview_screen.dart`)**:
+>   * Xóa bỏ CSS khóa cứng màu Sáng `color-scheme: light !important; background-color: #FFFFFF !important;` và cờ tắt ForceDark cứng.
+>   * Bộ sinh CSS động `buildOdooNativeOptimizationCss({required bool isDark})`, chuyển màu nền `#0F1729` (Tối) / `#FFFFFF` (Sáng) và đổi `color-scheme`.
+>   * Kích hoạt `ForceDark.on` và gán `setBackgroundColor(0xFF0F1729)` khi app ở chế độ Dark Mode.
+> - **[FIX] Đồng Bộ Màu Nền Iframe Odoo Trên Web (`odoo_web_frame_web.dart` & `odoo_web_frame_stub.dart`)**:
+>   * Tham số `bool isDark = false` trên `buildHtmlIframe()`, đổi màu nền theo Dark Mode (`#0F1729` / `#FFFFFF`).
+> - **[FIX] Phân Tách Quyền Hạn Role Google SSO & Attendance Check-in**:
+>   * Đảm bảo Google SSO xác định đúng `is_portal`, `share`, `user_type`.
+>   * Attendance check-in tự động fallback tìm nhân viên liên kết qua `user_id` khi chưa gắn `employee_id`.
+> - **[FIX] Loại Bỏ Tài Khoản Portal Khỏi Tìm Kiếm Liên Hệ Chat Nội Bộ**:
+>   * Backend Odoo 17/19 áp dụng `[('share', '=', False)]` trong contact search nội bộ.
+> - **[BUILD] Đóng Gói Debug APK & Kiểm Thử Triển Khai Vivo V2116**:
+>   * Xây dựng Shadow SDK và cấu hình JVM/Gradle sandbox, build thành công `app-debug.apk` (229MB).
+>   * Kiểm thử `scripts/deploy_all_mobile.sh --vivo --no-build` sẵn sàng nạp tự động qua Wireless ADB.
+> - **[TEST] Kiểm Thử Tự Động & Phân Tích Mã Nguồn**:
+>   * `flutter analyze`: 0 errors, 0 warnings.
+>   * `activity_item_test.dart`: 10/10 test cases PASS (100%).
+>   * `theme_sync_test.dart`: 10/10 test cases PASS (100%).
+
 ## [v2.9.27+180] — 2026-11-03
 
 > [!IMPORTANT]

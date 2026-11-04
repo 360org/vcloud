@@ -13,6 +13,7 @@ import '../../../core/api/odoo_api_client.dart';
 import '../../../core/api/odoo_session.dart';
 import '../../../core/config/env.dart';
 import '../../../shared/widgets/app_scaffold.dart';
+import '../../profile/application/theme_controller.dart';
 import 'widgets/odoo_web_frame.dart';
 
 /// Enum điều khiển Force Dark trên Android WebView
@@ -21,21 +22,199 @@ enum ForceDark { off, on, auto }
 /// Extension bổ sung setForceDark cho [AndroidWebViewController]
 extension AndroidWebViewControllerForceDark on AndroidWebViewController {
   /// ponytail: webview_flutter_android chưa bind API setForceDark trực tiếp từ Pigeon;
-  /// method này giữ API contract chuẩn và kết hợp cùng CSS :root { color-scheme: light }
-  /// để triệt tiêu hoàn toàn Algorithmic Darkening trên WebView Android.
+  /// method này giữ API contract chuẩn và kết hợp cùng CSS :root { color-scheme: light/dark }
+  /// để điều khiển hiển thị trên WebView Android.
   Future<void> setForceDark(ForceDark mode) async {
     try {
-      await setBackgroundColor(Colors.white);
+      final color = mode == ForceDark.on ? const Color(0xFF0F1729) : Colors.white;
+      await setBackgroundColor(color);
     } catch (_) {}
   }
 }
 
-/// CSS tối ưu hóa Native UX và triệt tiêu giật lag cho Odoo WebView (Pha 1)
-const String _kOdooNativeOptimizationCss = '''
-/* Khóa cứng bảng màu Sáng (Light Theme) và nền trắng cho WebView */
+/// Sinh CSS tối ưu hóa Native UX và thích ứng chính xác theo Theme Sáng / Tối
+@visibleForTesting
+String buildOdooNativeOptimizationCss({required bool isDark}) {
+  final colorScheme = isDark ? 'dark' : 'light';
+  final bgColor = isDark ? '#0F1729' : '#FFFFFF';
+  final textColor = isDark ? '#F1F5F9' : '#0F172A';
+
+  final darkModeRules = isDark
+      ? '''
+/* 7. Dark Mode Styling toàn diện cho Odoo Web Client khi App ở chế độ Tối */
+:root {
+  --body-bg: #0F1729 !important;
+  --body-color: #F1F5F9 !important;
+  --bs-body-bg: #0F1729 !important;
+  --bs-body-color: #F1F5F9 !important;
+  --bs-card-bg: #1E293B !important;
+  --bs-card-border-color: #334155 !important;
+  --bs-border-color: #334155 !important;
+  --bs-tertiary-bg: #1E293B !important;
+  --KanbanRecord-background: #1E293B !important;
+  --KanbanRecord-color: #F1F5F9 !important;
+  --ControlPanel-background: #0F1729 !important;
+  --o-view-background-color: #0F1729 !important;
+  --o-webclient-background-color: #0F1729 !important;
+  --o-form-lightsecondary: #1E293B !important;
+  --o-searchview-background: #0F1729 !important;
+}
+
+/* Background & Text vùng nội dung */
+.o_content,
+.o_view_controller,
+.o_form_sheet_bg,
+.o_kanban_view,
+.o_list_view,
+.o_calendar_view,
+.o_activity_view,
+.o_pivot_view,
+.o_graph_view {
+  background-color: #0F1729 !important;
+  color: #F1F5F9 !important;
+}
+
+/* Control Panel, Search Bar & Breadcrumbs */
+.o_control_panel,
+.o_cp_top,
+.o_cp_bottom,
+.o_cp_searchview,
+.o_searchview,
+.o_searchview_input_container {
+  background-color: #0F1729 !important;
+  color: #F1F5F9 !important;
+  border-color: #334155 !important;
+}
+.o_control_panel .breadcrumb,
+.o_control_panel .breadcrumb-item,
+.o_control_panel .breadcrumb-item a {
+  color: #F1F5F9 !important;
+}
+
+/* Kanban Cards, Records & Columns */
+.o_kanban_renderer,
+.o_kanban_view .o_kanban_record,
+.o_kanban_record,
+.o_kanban_group,
+.o_kanban_header,
+.o_kanban_quick_create,
+.card {
+  background-color: #1E293B !important;
+  color: #F1F5F9 !important;
+  border-color: #334155 !important;
+}
+.o_kanban_record * {
+  color: inherit;
+}
+.o_kanban_record strong,
+.o_kanban_record h1,
+.o_kanban_record h2,
+.o_kanban_record h3,
+.o_kanban_record h4,
+.o_kanban_record h5,
+.o_kanban_record b {
+  color: #F1F5F9 !important;
+}
+.o_kanban_record .text-muted,
+.o_kanban_record small,
+.o_kanban_record .o_field_widget {
+  color: #94A3B8 !important;
+}
+.o_kanban_counter_side {
+  color: #94A3B8 !important;
+}
+
+/* List View & Tables */
+.o_list_table,
+.table,
+thead,
+tbody,
+tr,
+th,
+td {
+  background-color: #1E293B !important;
+  color: #F1F5F9 !important;
+  border-color: #334155 !important;
+}
+.table-striped > tbody > tr:nth-of-type(odd) > * {
+  background-color: #0F1729 !important;
+  color: #F1F5F9 !important;
+}
+.table-striped > tbody > tr:nth-of-type(even) > * {
+  background-color: #1E293B !important;
+  color: #F1F5F9 !important;
+}
+.table-hover > tbody > tr:hover > * {
+  background-color: #334155 !important;
+}
+
+/* Form View, Sheet & Group */
+.o_form_sheet,
+.o_form_view .o_form_sheet,
+.o_form_statusbar,
+.o_statusbar_status,
+.o_group {
+  background-color: #1E293B !important;
+  color: #F1F5F9 !important;
+  border-color: #334155 !important;
+  box-shadow: none !important;
+}
+
+/* Input Fields & Selects */
+.o_input,
+input,
+select,
+textarea,
+.form-control,
+.form-select {
+  background-color: #0F1729 !important;
+  color: #F1F5F9 !important;
+  border-color: #334155 !important;
+}
+input::placeholder,
+textarea::placeholder {
+  color: #64748B !important;
+}
+
+/* Secondary Buttons & Pagination */
+.btn-secondary,
+.btn-light,
+.btn-default,
+.btn-outline-secondary,
+.o_pager_buttons .btn {
+  background-color: #334155 !important;
+  color: #F1F5F9 !important;
+  border-color: #475569 !important;
+}
+.btn-link {
+  color: #38BDF8 !important;
+}
+
+/* Dropdowns & Popovers */
+.dropdown-menu,
+.modal-content,
+.popover,
+.o_popover {
+  background-color: #1E293B !important;
+  color: #F1F5F9 !important;
+  border-color: #334155 !important;
+}
+.dropdown-item {
+  color: #F1F5F9 !important;
+}
+.dropdown-item:hover,
+.dropdown-item:focus {
+  background-color: #334155 !important;
+  color: #F1F5F9 !important;
+}
+'''
+      : '';
+
+  return '''
 :root, html, body {
-  color-scheme: light !important;
-  background-color: #FFFFFF !important;
+  color-scheme: $colorScheme !important;
+  background-color: $bgColor !important;
+  color: $textColor !important;
 }
 
 /* 1. Ẩn triệt để toàn bộ navbar web Odoo để tránh 2 tầng menu */
@@ -63,6 +242,7 @@ html, body {
   top: 0 !important;
   height: 100vh !important;
   overflow-y: auto !important;
+  background-color: $bgColor !important;
   -webkit-overflow-scrolling: touch !important;
 }
 
@@ -93,7 +273,10 @@ button, a, .o_dropdown_button, .o_kanban_record, .o_data_row, [role="button"] {
 * {
   -webkit-font-smoothing: antialiased !important;
 }
+
+$darkModeRules
 ''';
+}
 
 /// Trích xuất hash fragment của Odoo từ URL thô (dùng cho SPA Hash Routing tức thì)
 String? extractOdooTargetHash(String rawUrl) {
@@ -134,11 +317,28 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
   int _webFrameKey = 0;
   Timer? _webTimeoutTimer;
 
+  bool get _isDarkTheme {
+    try {
+      final themeMode = ref.read(themeControllerProvider).valueOrNull;
+      if (themeMode == AppThemeMode.dark) return true;
+      if (themeMode == AppThemeMode.light) return false;
+      if (mounted) {
+        return Theme.of(context).brightness == Brightness.dark;
+      }
+    } catch (_) {}
+    return WidgetsBinding.instance.platformDispatcher.platformBrightness ==
+        Brightness.dark;
+  }
+
   @override
   void initState() {
     super.initState();
     debugPrint('[VCLOUD_WEBVIEW] initState: rawUrl=${widget.url}, title=${widget.title}');
-    _startLoadingWorkflow();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _startLoadingWorkflow();
+      }
+    });
   }
 
   @override
@@ -286,10 +486,12 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
 
   String _buildTargetUrl() {
     try {
+      final isDark = _isDarkTheme;
       final resolved = buildTargetWebViewUrl(
         rawUrl: widget.url,
         session: odooApiClient.session,
         baseUrl: odooApiClient.baseUrl,
+        colorScheme: isDark ? 'dark' : 'light',
       );
       debugPrint('[VCLOUD_WEBVIEW] buildTargetWebViewUrl resolved: $resolved');
       return resolved;
@@ -305,13 +507,16 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
       final uri = Uri.parse(fullUrl);
       debugPrint('[VCLOUD_WEBVIEW] Khởi tạo WebViewController cho mobile với uri=$uri');
 
+      final isDark = _isDarkTheme;
+      final themeBgColor = isDark ? const Color(0xFF0F1729) : Colors.white;
+
       // Cấu hình WebViewController cho Mobile
       // ponytail: Không inject session.accessToken vào cookie 'session_id' vì accessToken là JWT Bearer,
       // không phải Odoo session_id. SSO bridge (/api/v1/mobile/web/auth) tự sinh và gán Odoo session_id chuẩn.
       final controller = WebViewController();
       controller
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
-        ..setBackgroundColor(Colors.white)
+        ..setBackgroundColor(themeBgColor)
         ..setNavigationDelegate(
           NavigationDelegate(
             onProgress: (int progress) {
@@ -358,8 +563,8 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
           await controller.setOverScrollMode(WebViewOverScrollMode.never);
           final platform = controller.platform;
           if (platform is AndroidWebViewController) {
-            // ponytail: Tắt Force Dark để Android WebView không tự ý đảo màu trang Odoo sang nền đen
-            await platform.setForceDark(ForceDark.off);
+            // Tự động bật Force Dark khi app ở Dark Mode để Android WebView đảo màu đồng bộ
+            await platform.setForceDark(isDark ? ForceDark.on : ForceDark.off);
           }
         } catch (e) {
           debugPrint('[VCLOUD_WEBVIEW] controller platform config error: $e');
@@ -390,7 +595,8 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
   Future<void> _injectNativeOptimizationCss([WebViewController? targetController]) async {
     try {
       final ctrl = targetController ?? _controller;
-      final minifiedCss = _kOdooNativeOptimizationCss
+      final isDark = _isDarkTheme;
+      final minifiedCss = buildOdooNativeOptimizationCss(isDark: isDark)
           .replaceAll('\n', ' ')
           .replaceAll(RegExp(r'\s+'), ' ')
           .replaceAll("'", r"\'");
@@ -403,6 +609,8 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
             existing = document.createElement('style');
             existing.id = styleId;
             existing.type = 'text/css';
+            (document.head || document.documentElement).appendChild(existing);
+          } else {
             (document.head || document.documentElement).appendChild(existing);
           }
           existing.textContent = '$minifiedCss';
@@ -486,6 +694,13 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<AsyncValue<AppThemeMode>>(themeControllerProvider, (prev, next) {
+      if (next.hasValue && prev?.value != next.value) {
+        debugPrint('[VCLOUD_WEBVIEW] Theme đổi sang: ${next.value} -> Cập nhật CSS');
+        _injectNativeOptimizationCss();
+      }
+    });
+
     final fullUrl = _buildTargetUrl();
 
     return PopScope(
@@ -608,6 +823,7 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
                           key: ValueKey('web-frame-$_webFrameKey'),
                           child: buildHtmlIframe(
                                 url: fullUrl,
+                                isDark: Theme.of(context).brightness == Brightness.dark,
                                 onLoaded: () {
                                   debugPrint('[VCLOUD_WEBVIEW] Flutter Web: Iframe onLoaded triggered');
                                   if (mounted) {
@@ -655,6 +871,7 @@ String buildTargetWebViewUrl({
   required String rawUrl,
   OdooSession? session,
   String baseUrl = '',
+  String? colorScheme,
 }) {
   try {
     var target = rawUrl.trim();
@@ -711,6 +928,7 @@ String buildTargetWebViewUrl({
           'token': session.accessToken,
           if (db.isNotEmpty) 'db': db,
           'redirect': target,
+          if (colorScheme != null && colorScheme.isNotEmpty) 'color_scheme': colorScheme,
         },
       );
       return resolveAbsolute(ssoUri.toString());
