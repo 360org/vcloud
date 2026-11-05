@@ -110,5 +110,53 @@ Tài liệu ghi nhận toàn bộ bối cảnh, bài toán cốt lõi, danh mụ
 - Tự động phân bổ phiên chat tới các Operator đang online trong mục **`Looking for help`** của ca trực.
 - Tự động đếm và ghi nhận số lượng **Sessions** tại `/home/livechat` phục vụ báo cáo KPI và đánh giá chất lượng phản hồi.
 
+---
+
+## 💡 5. ĐỊNH HƯỚNG CẢI TIẾN & ĐỔI MỚI GIAO DIỆN CHAT LIST (MODERN CHAT UI/UX & PERFORMANCE)
+*Được Sếp Tân định hướng & phê duyệt ngày 2026-11-05*
+
+### 5.1. Khung Giao Diện Đổi Mới Chuẩn (Modern Chat Wireframe)
+```text
+┌───────────────────────────────────────────────┐
+│ [Avatar User]   Trò chuyện      [🔍]  [➕]   │ ── App Bar chuẩn: Tích hợp nút Soạn tin & Search
+├───────────────────────────────────────────────┤
+│ [ Tất cả (80) ] [ Chưa đọc (51) ] [ Nhóm ]... │ ── Segmented/Filter bar thanh mảnh, đồng bộ badge
+├───────────────────────────────────────────────┤
+│ 📌 ĐÃ GHIM (1)                                │ ── Phân nhóm Pinned rõ ràng
+│ [Avatar] Internal          ✓ Bạn: Dạ Sếp...   │
+├───────────────────────────────────────────────┤
+│ 💬 TẤT CẢ CUỘC TRÒ CHUYỆN                     │
+│ [Avatar] Hồng Ngọc         Dạ em gửi email... │
+│ [Avatar] Chị Thảo          🔗 Liên kết CRM    │ ── Format URL sạch sẽ, hiển thị preview ngắn
+│ ...                                           │
+└───────────────────────────────────────────────┘
+```
+
+### 5.2. Các Hạng Mục Cải Tiến UI/UX Cốt Lõi
+1. **Khắc phục lỗi khoảng trống Header (Double SafeArea / Top Padding)**:
+   - Loại bỏ việc cộng dồn `MediaQuery.of(context).padding.top` bên trong `ChatV2ListScreen` khi `AppScaffold` đã có `SafeArea(child: body)`.
+   - Tối ưu hóa không gian hiển thị, loại bỏ khoảng trắng vô nghĩa (~130px) trên đỉnh màn hình.
+2. **Đưa nút Tạo cuộc trò chuyện (+) lên góc trên bên phải (Top-Right Action)**:
+   - Bỏ hoàn toàn nút FAB tròn xanh lá ở góc dưới để trả lại 100% diện tích cho danh sách tin nhắn, tránh che khuất các phần tử ở cuối danh sách.
+   - Góc trên bên phải tích hợp 2 action: Tìm kiếm `[🔍]` và Soạn tin mới `[➕]` (chuẩn Apple Messages / Telegram / Zalo).
+3. **Phân tách khu vực Ghim (Pinned Conversations Section)**:
+   - Gom các phòng chat quan trọng/ghim lên một khu vực riêng biệt có tiêu đề `📌 ĐÃ GHIM`, nền highlight nhẹ phân cách với danh sách thông thường.
+4. **Làm sạch Subtitle (Rich Message Snippet Formatting)**:
+   - Rút gọn và format các liên kết dài thành dạng thân thiện: `🔗 [Liên kết CRM]` hoặc `🔗 [Trang web]`.
+   - Bổ sung icon trạng thái trực quan: `📷 [Hình ảnh]`, `🎤 [Ghi âm]`, `📄 [Tài liệu]`.
+   - Phân định rõ 2 tick xanh khi tin nhắn gửi đi đã được đối phương đọc.
+5. **Thao tác Vuốt Tiện Lợi (Swipe Gestures)**:
+   - Vuốt phải: Ghim / Bỏ ghim, Đánh dấu Đã đọc / Chưa đọc.
+   - Vuốt trái: Tắt chuông thông báo, Lưu trữ / Ẩn hội thoại.
+
+### 5.3. Tối Ưu Hóa Hiệu Năng (Performance Optimization)
+1. **Tách Deduplication & Sắp xếp ra khỏi `build()`**:
+   - Chuyển toàn bộ logic lọc diacritics tiếng Việt, dedup và sort từ `ChatV2ListScreen.build()` sang controller/state management, tránh giật lag khi có tin nhắn mới hoặc đổi tab.
+2. **Cố định kích thước cell danh sách (`prototypeItem`)**:
+   - Sử dụng `prototypeItem` cho `ListView.separated` để giảm chi phí đo đạc layout động khi cuộn lướt nhanh.
+3. **Bộ nhớ đệm Avatar chuyên dụng**:
+   - Quản lý cache avatar theo `partner_id` / `channel_id` (kết hợp Memory + Disk cache) thay vì re-fetch nhiều lần bằng `Image.network`.
+
+
 
 
