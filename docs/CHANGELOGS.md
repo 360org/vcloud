@@ -2,6 +2,18 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.33+186] — 2026-11-05
+
+> [!IMPORTANT]
+> **Phát Hành Bản Chuẩn CI/CD Tự Động Lên App Store & Google Play (L4 VERIFIED 2026-11-05)**:
+> - **[RELEASE] Đồng Bộ Tính Năng & Tối Ưu Tương Tác Ticket Portal**:
+>   * Phân định chính xác nhãn chuyên viên hỗ trợ và khách hàng Portal trong thảo luận ticket.
+>   * Hiển thị trực tiếp ảnh inline và tệp đính kèm tài liệu trong luồng bình luận ticket.
+>   * Cô lập trạng thái và reset cache đa tài khoản khi chuyển đổi người dùng.
+> - **[VERIFIED] Kiểm Thử Hệ Thống & Tự Động Hóa Pipeline**:
+>   * Toàn bộ test suite và static analysis đạt 0 errors, 0 warnings.
+>   * Kích hoạt pipeline CI/CD phát hành tự động lên App Store Connect và Google Play Console.
+
 ## [v2.9.32+185] — 2026-11-05
 
 > [!IMPORTANT]
