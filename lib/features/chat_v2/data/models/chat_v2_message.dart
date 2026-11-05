@@ -64,6 +64,14 @@ class ChatV2Attachment {
     if (mime.startsWith('video/')) return true;
     if (mime.startsWith('audio/')) return false;
     final lowerName = name.toLowerCase();
+    final lowerUrl = (url ?? '').toLowerCase();
+    final lowerDownloadUrl = (downloadUrl ?? '').toLowerCase();
+    final isZaloVideoUrl = lowerUrl.contains('video-stal') ||
+        lowerUrl.contains('.dlmd.me') ||
+        lowerDownloadUrl.contains('video-stal') ||
+        lowerDownloadUrl.contains('.dlmd.me');
+    if (isZaloVideoUrl) return true;
+
     return lowerName.endsWith('.mp4') ||
         lowerName.endsWith('.mov') ||
         lowerName.endsWith('.mkv') ||
@@ -97,7 +105,7 @@ class ChatV2Attachment {
   factory ChatV2Attachment.fromMap(Map<String, dynamic> map) {
     final id = _stringOr(map['id'] ?? map['attachment_id'], '');
     final rawName = _stringOr(map['name'] ?? map['filename'], 'attachment');
-    final mimetype = _stringOrNull(map['mimetype']);
+    var mimetype = _stringOrNull(map['mimetype']);
     final rawSize = map['file_size'];
     final fileSize = (rawSize is num)
         ? rawSize.toInt()
@@ -106,9 +114,26 @@ class ChatV2Attachment {
     final downloadUrl = _stringOrNull(map['download_url']) ?? url ?? (id.isNotEmpty ? '/api/v1/mobile/attachments/$id/download' : null);
     final accessToken = _stringOrNull(map['access_token']);
 
+    var name = rawName;
+    final lowerUrl = (url ?? '').toLowerCase();
+    final lowerDownloadUrl = (downloadUrl ?? '').toLowerCase();
+    final isZaloVideoUrl = lowerUrl.contains('video-stal') ||
+        lowerUrl.contains('.dlmd.me') ||
+        lowerDownloadUrl.contains('video-stal') ||
+        lowerDownloadUrl.contains('.dlmd.me');
+
+    if (isZaloVideoUrl) {
+      if (mimetype == null || mimetype == 'application/octet-stream') {
+        mimetype = 'video/mp4';
+      }
+      if (!name.contains('.')) {
+        name = '$name.mp4';
+      }
+    }
+
     return ChatV2Attachment(
       id: id,
-      name: rawName,
+      name: name,
       mimetype: mimetype,
       fileSize: fileSize,
       url: url,
@@ -805,6 +830,29 @@ class ChatV2Message {
               downloadUrl: '/api/v1/mobile/attachments/$sId/download',
               mimetype: isImgName ? 'image/jpeg' : 'application/octet-stream',
             ),
+          );
+        }
+      }
+    }
+
+    // ponytail: Tự động nhận diện video nếu body chứa [VIDEO] hoặc URL video Zalo
+    final isBodyVideoTag = rawBody.toUpperCase().contains('[VIDEO]') ||
+        rawBody.contains('video-stal') ||
+        rawBody.contains('.dlmd.me');
+    if (isBodyVideoTag && parsedAttachments.isNotEmpty) {
+      for (int i = 0; i < parsedAttachments.length; i++) {
+        final a = parsedAttachments[i];
+        if (!a.isVideo && !a.isImage && !a.isAudio) {
+          final newName = a.name.contains('.') ? a.name : '${a.name}.mp4';
+          parsedAttachments[i] = ChatV2Attachment(
+            id: a.id,
+            name: newName,
+            mimetype: 'video/mp4',
+            fileSize: a.fileSize,
+            url: a.url,
+            downloadUrl: a.downloadUrl,
+            accessToken: a.accessToken,
+            bytes: a.bytes,
           );
         }
       }

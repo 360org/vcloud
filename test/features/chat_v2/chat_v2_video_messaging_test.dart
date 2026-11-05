@@ -341,5 +341,45 @@ void main() {
       expect(find.byTooltip('Lưu vào máy'), findsOneWidget);
       expect(find.byIcon(LucideIcons.download), findsOneWidget);
     });
+
+    // -------------------------------------------------------------
+    // Test Case 17: Zalo Video URL và tên tệp không đuôi được tự động nhận diện video/mp4
+    // -------------------------------------------------------------
+    test('Case 17: ChatV2Attachment.fromMap normalizes Zalo video CDN URL and numeric filename', () {
+      final att = ChatV2Attachment.fromMap({
+        'id': '93502',
+        'name': '1789272426',
+        'mimetype': 'application/octet-stream',
+        'url': 'https://video-stal-1.dlmd.me/no/ec430feea8dc75822ccd/2aOboQyHiEJqmrzGQbnm0lgrtREHBRqm1ARdVW9w',
+      });
+
+      expect(att.isVideo, isTrue);
+      expect(att.mimetype, equals('video/mp4'));
+      expect(att.name, equals('1789272426.mp4'));
+    });
+
+    // -------------------------------------------------------------
+    // Test Case 18: ChatV2Message.fromMap nhận diện tag [VIDEO] và chuyển attachment sang video/mp4
+    // -------------------------------------------------------------
+    test('Case 18: ChatV2Message.fromMap parses [VIDEO] body tag and converts attachments to video', () {
+      final msg = ChatV2Message.fromMap({
+        'id': '601212',
+        'body': '<p>[VIDEO] Tin nhắn video từ Zalo</p>',
+        'attachments': [
+          {
+            'id': '93502',
+            'name': '1789272426',
+            'mimetype': 'application/octet-stream',
+            'url': 'https://video-stal-1.dlmd.me/no/sample',
+          }
+        ],
+      });
+
+      expect(msg.attachments, isNotEmpty);
+      final att = msg.attachments.first;
+      expect(att.isVideo, isTrue);
+      expect(att.mimetype, equals('video/mp4'));
+      expect(att.name.endsWith('.mp4'), isTrue);
+    });
   });
 }

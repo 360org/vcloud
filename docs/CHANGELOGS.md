@@ -5,7 +5,12 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 ## [v2.9.33+187] — 2026-11-05
 
 > [!IMPORTANT]
-> **Phát Hành Bản Chuẩn CI/CD Tự Động Lên App Store & Google Play (L4 VERIFIED 2026-11-05)**:
+> **Phát Hành Bản Chuẩn CI/CD Tự Động Lên App Store & Google Play & Fix Phát Video Zalo (L4 VERIFIED 2026-11-05)**:
+> - **[FIX] Nhận Diện & Phát Video Zalo Trong Kênh Thảo Luận (`chat_v2`)**:
+>   * Tự động nhận diện CDN URL video Zalo (`video-stal`, `.dlmd.me`) và tag `[VIDEO]` trong body tin nhắn.
+>   * Chuẩn hóa mimetype `video/mp4` và tự động bù phần mở rộng `.mp4` cho các tệp định danh dạng số timestamp của Zalo.
+>   * Bổ sung cơ chế phát video In-App trực tiếp và hiển thị thông báo rõ ràng khi video Zalo đã hết hạn trên máy chủ.
+>   * Thêm kiểm tra magic bytes (`ftyp`, `%PDF`, PNG, JPG) bảo vệ các tệp đính kèm khi lưu tạm ra disk.
 > - **[FIX] Chuẩn Hóa Payload Xác Thực Master Auth & Bộ Lọc Thông Báo Portal**:
 >   * Khắc phục inject nhầm tham số db trong luồng đăng nhập master resolver và master admin.
 >   * Đồng bộ bộ lọc sự kiện thông báo Portal nhận diện đầy đủ tin nhắn chat và thông báo vé hỗ trợ.

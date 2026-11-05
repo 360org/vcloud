@@ -9,6 +9,7 @@ import 'package:video_player/video_player.dart';
 
 import '../../../../core/api/mobile_attachment_repository.dart';
 import '../../../../core/api/odoo_api_client.dart';
+import '../../../../core/error/failure.dart';
 import '../../../../core/utils/gallery_saver.dart';
 import '../../../../core/utils/local_attachment_cache.dart';
 
@@ -172,6 +173,8 @@ class ChatV2VideoController extends StateNotifier<ChatV2VideoPlayerState> {
       startHideControlsTimer();
     } catch (e) {
       debugPrint('[ChatV2VideoPlayer] Network init failed: $e, trying download fallback...');
+      String? specificError;
+      final isZaloUrl = args.videoUrl.contains('video-stal') || args.videoUrl.contains('.dlmd.me');
 
       // 3. Fallback: Nếu stream trực tiếp lỗi do auth/redirect, tải file về máy và phát offline
       if (!kIsWeb && mounted) {
@@ -222,13 +225,20 @@ class ChatV2VideoController extends StateNotifier<ChatV2VideoPlayerState> {
           }
         } catch (downloadErr) {
           debugPrint('[ChatV2VideoPlayer] Download fallback failed: $downloadErr');
+          if (downloadErr is Failure) {
+            specificError = downloadErr.message;
+          }
         }
       }
 
       if (mounted) {
+        final errorMsg = specificError ??
+            (isZaloUrl
+                ? 'Video Zalo này đã hết hạn lưu trữ trên CDN của Zalo và không còn tồn tại trên máy chủ.'
+                : 'Không thể tải hoặc phát tệp tin video này. Vui lòng kiểm tra kết nối mạng hoặc thử lại.');
         state = state.copyWith(
           isLoading: false,
-          errorMessage: 'Không thể tải hoặc phát tệp tin video này. Vui lòng kiểm tra kết nối mạng hoặc thử lại.',
+          errorMessage: errorMsg,
         );
       }
     }

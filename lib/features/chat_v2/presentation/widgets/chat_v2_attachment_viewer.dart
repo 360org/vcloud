@@ -46,12 +46,16 @@ class ChatV2AttachmentViewer {
 
     // 0. Nếu là tệp Video, mở trực tiếp trình phát Video In-App
     final extLower = cleanName.toLowerCase();
+    final lowerUrl = (downloadUrl ?? '').toLowerCase();
     final isVideo = extLower.endsWith('.mp4') ||
         extLower.endsWith('.mov') ||
         extLower.endsWith('.mkv') ||
         extLower.endsWith('.avi') ||
         extLower.endsWith('.3gp') ||
-        (extLower.endsWith('.webm') && !extLower.startsWith('voice_'));
+        (extLower.endsWith('.webm') && !extLower.startsWith('voice_')) ||
+        lowerUrl.contains('video-stal') ||
+        lowerUrl.contains('.dlmd.me') ||
+        cleanName.toLowerCase().startsWith('video_');
 
     if (isVideo) {
       final targetUrl = downloadUrl ??
@@ -62,10 +66,12 @@ class ChatV2AttachmentViewer {
           ? targetUrl
           : odooApiClient.absoluteUrl(targetUrl);
 
+      final videoTitle = cleanName.contains('.') ? cleanName : '$cleanName.mp4';
+
       Navigator.of(context).push(
         ChatV2VideoPlayerScreen.route(
           videoUrl: fullUrl,
-          title: cleanName,
+          title: videoTitle,
           headers: odooApiClient.authHeaders,
           bytes: directBytes,
           attachmentId: attachmentId != null ? '$attachmentId' : null,
@@ -254,7 +260,26 @@ class ChatV2AttachmentViewer {
 
       final safeName = cleanName.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
       final prefix = attachmentId != null ? 'att_${attachmentId}_' : '';
-      final filePath = '$dirPath/$prefix$safeName';
+      var finalName = safeName;
+      if (!finalName.contains('.')) {
+        if (bytes.length >= 8 &&
+            bytes[4] == 0x66 &&
+            bytes[5] == 0x74 &&
+            bytes[6] == 0x79 &&
+            bytes[7] == 0x70) {
+          finalName = '$finalName.mp4';
+        } else if (MagicBytesValidator.isValidPdfBytes(bytes)) {
+          finalName = '$finalName.pdf';
+        } else if (MagicBytesValidator.isPngBytes(bytes)) {
+          finalName = '$finalName.png';
+        } else if (bytes.length >= 3 &&
+            bytes[0] == 0xFF &&
+            bytes[1] == 0xD8 &&
+            bytes[2] == 0xFF) {
+          finalName = '$finalName.jpg';
+        }
+      }
+      final filePath = '$dirPath/$prefix$finalName';
       final file = File(filePath);
       file.writeAsBytesSync(bytes, flush: true);
 
