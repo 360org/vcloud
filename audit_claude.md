@@ -1,8 +1,9 @@
 # 🛡️ CLAUDE CODE PRE-PUSH AUDIT & QUALITY GATE (SSOT)
 # File: audit_claude.md
 # Director & Single Authority: Sếp Tân
-# Version: Audit Protocol v2.1 (N+1 Anti-Patterns & Rookie Mistakes Blacklist Edition)
-# Liên kết hệ thống: `prompt_claude.md` (Execution SSOT) ⇄ `audit_claude.md` (Audit SSOT)
+# Version: Audit Protocol v3.0 (1M Users Concurrency, Anti-IDOR, Shared Web Defense & 100-Point Scorecard)
+# Liên kết hệ thống: `prompt_claude.md` (Execution SSOT) ⇄ `audit_claude.md` (Audit SSOT) ⇄ `prompt_audit_lv4.md` (Master Audit Prompt)
+# Kích hoạt nhanh: "audit lv4", "kiem toan", "prompt_audit.md", "prompt_audit_lv4.md"
 
 ---
 
