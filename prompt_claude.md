@@ -487,7 +487,7 @@ TUYỆT ĐỐI KHÔNG tin ngay báo cáo của agent, KHÔNG vội vàng nhận 
 
 Để tinh gọn quy trình, chống phân mảnh tài liệu và bảo đảm an toàn tuyệt đối trước khi đưa code lên remote, `prompt_claude.md` liên kết chặt chẽ với 2 file SSOT chuyên trách:
 👉 **File SSOT Audit độc quyền**: [audit_claude.md](audit_claude.md) (tại root và `vclients/audit_claude.md`).
-👉 **File SSOT Git & Push Guard độc quyền**: [git.md](git.md) (Quy chuẩn quản trị Git, chống đè code, kiểm tra GitLab/GitHub trước khi push, push đầy đủ code sau commit).
+👉 **File SSOT Git & Push Guard độc quyền**: [git.md](git.md) & [prompt_push_multi_repo.md](prompt_push_multi_repo.md) (Quy chuẩn quản trị Git, chống đè code, kiểm tra GitLab/GitHub trước khi push, gom code push & auto-merge đa repo an toàn).
 
 ### 🏛️ Các Hạng Mục Kiểm Toán Bắt Buộc Trước Khi Push Code:
 1. **Tối ưu hệ thống (Performance)**: Triệt tiêu N+1 ORM query, dọn dẹp RAM cursor/controller, tối ưu rebuild Flutter widget, compact network payload.
