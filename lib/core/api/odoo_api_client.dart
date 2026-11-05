@@ -571,7 +571,12 @@ class OdooApiClient {
     final dbName = targetDb ??
         (targetBaseUrl.contains('demo')
             ? 'demo'
-            : Env.odooDb);
+            : (targetBaseUrl == Env.odooApiBaseUrl ||
+                    targetBaseUrl.contains('192.168.1.100') ||
+                    targetBaseUrl.contains('localhost') ||
+                    targetBaseUrl.contains('127.0.0.1')
+                ? Env.odooDb
+                : ''));
     try {
       return await _attemptLoginAt(
         targetBaseUrl: targetBaseUrl,
@@ -1195,11 +1200,12 @@ class OdooApiClient {
   Future<OdooSession> _loginMasterAdmin({
     required String login,
     required String password,
+    String? db,
   }) async {
     final body = <String, dynamic>{
       'login': login,
       'password': password,
-      if (Env.odooDb.isNotEmpty) 'db': Env.odooDb,
+      if (db != null && db.isNotEmpty) 'db': db,
     };
     final res = await post('/api/v1/auth/login', body: body, auth: false);
     final map = _responseMap(res);

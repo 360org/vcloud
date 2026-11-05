@@ -200,7 +200,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             .where((it) => const {
                   'ticket',
                   'ticket_message',
+                  'ticket_assigned',
                   'livechat',
+                  'message',
                   'system',
                 }.contains(it.eventType.toLowerCase()))
             .toList()

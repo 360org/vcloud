@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
+import 'package:vcloud/core/api/auth_user.dart';
 import 'package:vcloud/core/api/odoo_api_client.dart';
 import 'package:vcloud/core/notifications/push_notification_controller.dart';
 import 'package:vcloud/core/notifications/push_notification_repository.dart';
 import 'package:vcloud/features/attendance/application/attendance_controller.dart';
+import 'package:vcloud/features/auth/application/auth_controller.dart';
 import 'package:vcloud/features/chat/application/conversations_controller.dart';
 import 'package:vcloud/features/home/presentation/home_screen.dart';
 import 'package:vcloud/features/ticket/application/ticket_controller.dart';
@@ -266,6 +268,15 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            authControllerProvider.overrideWith(
+              () => _MockAuthController(
+                const AuthUser(
+                  id: '1',
+                  email: 'portal@test.com',
+                  userMetadata: {'is_portal': true},
+                ),
+              ),
+            ),
             attendanceTodayProvider.overrideWith(
               (ref) => Stream<Attendance?>.value(null),
             ),
@@ -593,4 +604,12 @@ class _FakeTimerProjectClient extends OdooApiClient {
     }
     throw StateError('Unexpected GET $path');
   }
+}
+
+class _MockAuthController extends AuthController {
+  _MockAuthController(this._user);
+  final AuthUser? _user;
+
+  @override
+  Future<AuthUser?> build() async => _user;
 }

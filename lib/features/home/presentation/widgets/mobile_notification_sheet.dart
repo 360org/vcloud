@@ -20,7 +20,9 @@ class _MobileNotificationSheetState extends ConsumerState<MobileNotificationShee
   static const _portalAllowedEvents = <String>{
     'ticket',
     'ticket_message',
+    'ticket_assigned',
     'livechat',
+    'message',
     'system',
   };
 
