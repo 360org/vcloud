@@ -124,6 +124,7 @@ class Ticket {
     this.attachments = const <MobileAttachment>[],
     this.partnerName,
     this.assignedUserName,
+    this.resModel,
   });
 
   final String id;
@@ -141,6 +142,7 @@ class Ticket {
   final List<MobileAttachment> attachments;
   final String? partnerName;
   final String? assignedUserName;
+  final String? resModel;
 
   bool get isOverdue {
     if (status == TicketStatus.done) return false;
@@ -161,6 +163,7 @@ class Ticket {
     List<MobileAttachment>? attachments,
     String? partnerName,
     String? assignedUserName,
+    String? resModel,
   }) => Ticket(
     id: id,
     title: title,
@@ -177,6 +180,7 @@ class Ticket {
     attachments: attachments ?? this.attachments,
     partnerName: partnerName ?? this.partnerName,
     assignedUserName: assignedUserName ?? this.assignedUserName,
+    resModel: resModel ?? this.resModel,
   );
 
   factory Ticket.fromMap(Map<String, dynamic> map) {
@@ -224,6 +228,7 @@ class Ticket {
       attachments: attachmentsList,
       partnerName: _parseString(rawPartnerName),
       assignedUserName: _parseString(rawUserName),
+      resModel: _parseString(map['res_model'] ?? map['model']),
     );
   }
 

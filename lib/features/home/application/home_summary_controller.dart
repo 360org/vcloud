@@ -79,7 +79,16 @@ final dashboardRepositoryProvider = Provider<DashboardRepository>(
 );
 
 final mobileDashboardSummaryProvider =
-    FutureProvider<MobileDashboardSummary>((ref) {
-  ref.keepAlive();
-  return ref.read(dashboardRepositoryProvider).summary();
+    FutureProvider.autoDispose<MobileDashboardSummary>((ref) async {
+  final auth = ref.watch(authControllerProvider).valueOrNull;
+  if (auth == null) {
+    return const MobileDashboardSummary(
+      isCheckedIn: false,
+      todayMinutes: 0,
+      openTickets: 0,
+      recentConversationCount: 0,
+      unreadMessageCount: 0,
+    );
+  }
+  return ref.watch(dashboardRepositoryProvider).summary();
 });

@@ -2,6 +2,22 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.32+185] — 2026-11-05
+
+> [!IMPORTANT]
+> **Khắc Phục Hiển Thị Portal Ticket, Bình Luận Chuyên Viên & Cô Lập Cache Tài Khoản (L4 VERIFIED 2026-11-05)**:
+> - **[FIX] Phân Định Chính Xác Nhãn Chuyên Viên Hỗ Trợ (`ticket_chatter.dart`, `ticket_comment.dart`)**:
+>   * Khách hàng Portal khi gửi phản hồi không bị gắn nhãn nhầm thành chuyên viên hỗ trợ.
+>   * Bình luận của chính tài khoản đăng nhập (`isMe`) luôn hiển thị nhãn "Bạn". Chỉ kỹ thuật viên/nhân viên nội bộ được phân công mới hiển thị huy hiệu "Chuyên viên hỗ trợ".
+> - **[NEW] Hiển Thị Ảnh Inline & Tệp Đính Kèm Trong Bình Luận Ticket (`ticket_chatter.dart`, `ticket_comment_repository.dart`)**:
+>   * Bổ sung hiển thị trực tiếp ảnh inline và tệp đính kèm tài liệu trong luồng thảo luận ticket.
+>   * Hỗ trợ xem trước và tải tệp đính kèm mượt mà cả với tin nhắn mới gửi (optimistic rendering).
+> - **[FIX] Cô Lập Trạng Thái & Reset Cache Khi Chuyển Đổi Tài Khoản (`global_state_reset_service.dart`, `home_summary_controller.dart`)**:
+>   * Triệt tiêu hiện tượng dính số liệu cache vé/thông báo cũ của Admin khi đăng xuất chuyển sang tài khoản Portal.
+>   * `GlobalStateResetService` dọn dẹp triệt để 4 tầng: In-Memory RAM Repositories, Local Storage Cache, State Controllers và kết nối dịch vụ ngoại vi.
+> - **[VERIFIED] Kiểm Thử Tự Động Hoàn Tất (10/10 Cases Pass)**:
+>   * 10/10 test cases trong `test/ticket_portal_and_home_cache_fix_test.dart` pass 100%, `flutter analyze` 0 errors / 0 warnings.
+
 ## [v2.9.31+184] — 2026-11-04
 
 > [!IMPORTANT]

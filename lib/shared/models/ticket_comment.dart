@@ -1,3 +1,5 @@
+import '../../core/api/mobile_attachment_repository.dart';
+
 /// TicketComment model — represents a comment on a ticket.
 class TicketComment {
   const TicketComment({
@@ -8,6 +10,8 @@ class TicketComment {
     required this.createdAt,
     this.authorName,
     this.authorAvatarUrl,
+    this.attachments = const <MobileAttachment>[],
+    this.isTechnician = false,
   });
 
   final String id;
@@ -17,6 +21,8 @@ class TicketComment {
   final DateTime createdAt;
   final String? authorName;
   final String? authorAvatarUrl;
+  final List<MobileAttachment> attachments;
+  final bool isTechnician;
 
   factory TicketComment.fromMap(Map<String, dynamic> m) {
     final rawDate = m['created_at'] ?? m['date'] ?? m['create_date'];
@@ -47,6 +53,17 @@ class TicketComment {
         ? rawAvatar.toString()
         : null;
 
+    final rawAtts = m['attachments'];
+    List<MobileAttachment> parsedAttachments = const <MobileAttachment>[];
+    if (rawAtts is List) {
+      parsedAttachments = rawAtts
+          .whereType<Map>()
+          .map((e) => MobileAttachment.fromMap(Map<String, dynamic>.from(e)))
+          .toList();
+    }
+
+    final isTech = m['is_technician'] == true || m['isTechnician'] == true;
+
     return TicketComment(
       id: m['id']?.toString() ?? '0',
       ticketId: m['ticket_id']?.toString() ?? '',
@@ -55,6 +72,8 @@ class TicketComment {
       createdAt: parsedDate,
       authorName: authorNameStr,
       authorAvatarUrl: authorAvatarStr,
+      attachments: parsedAttachments,
+      isTechnician: isTech,
     );
   }
 
@@ -97,6 +116,19 @@ class TicketComment {
       'created_at': createdAt.toIso8601String(),
       'author_name': authorName,
       'author_avatar_url': authorAvatarUrl,
+      'attachments': attachments
+          .map((a) => {
+                'id': a.id,
+                'attachment_id': a.attachmentId,
+                'name': a.name,
+                'mimetype': a.mimetype,
+                'file_size': a.fileSize,
+                'url': a.url,
+                'download_url': a.downloadUrl,
+                'access_token': a.accessToken,
+              })
+          .toList(),
+      'is_technician': isTechnician,
     };
   }
 
@@ -108,6 +140,8 @@ class TicketComment {
     DateTime? createdAt,
     String? authorName,
     String? authorAvatarUrl,
+    List<MobileAttachment>? attachments,
+    bool? isTechnician,
   }) {
     return TicketComment(
       id: id ?? this.id,
@@ -117,6 +151,8 @@ class TicketComment {
       createdAt: createdAt ?? this.createdAt,
       authorName: authorName ?? this.authorName,
       authorAvatarUrl: authorAvatarUrl ?? this.authorAvatarUrl,
+      attachments: attachments ?? this.attachments,
+      isTechnician: isTechnician ?? this.isTechnician,
     );
   }
 }

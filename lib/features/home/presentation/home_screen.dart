@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
+import '../../../core/api/auth_user.dart';
 import '../../../core/error/failure.dart';
 import '../../../core/notifications/push_notification_controller.dart';
 import '../../../core/notifications/push_notification_repository.dart';
@@ -57,6 +58,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         });
       }
     });
+  }
+
+  Future<void> _refreshAllHomeData() async {
+    ref.read(ticketOverrideProvider.notifier).set(null);
+    ref.read(ticketHasMoreProvider.notifier).state = true;
+    ref.invalidate(ticketsProvider);
+    ref.invalidate(homeSummaryProvider);
+    ref.invalidate(mobileDashboardSummaryProvider);
+    ref.invalidate(attendanceTodayProvider);
+    ref.invalidate(attendanceStreamProvider);
+    ref.invalidate(todayTasksProvider);
+    ref.invalidate(openSessionProvider);
+    ref.invalidate(chatV2ChannelsProvider);
+    ref.invalidate(mobileNotificationsProvider);
   }
 
   Future<void> _showErrorDialog(dynamic error, StackTrace stackTrace) async {
@@ -162,6 +177,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<AsyncValue<AuthUser?>>(authControllerProvider, (previous, next) {
+      final prevUser = previous?.valueOrNull;
+      final nextUser = next.valueOrNull;
+      if (prevUser?.id != nextUser?.id) {
+        debugPrint('[HomeScreen] Auth user changed (${prevUser?.id} -> ${nextUser?.id}), auto refreshing all home widgets...');
+        _refreshAllHomeData();
+      }
+    });
+
     final summary = ref.watch(homeSummaryProvider);
     final todayState = ref.watch(attendanceTodayProvider);
     final dashboard = ref.watch(mobileDashboardSummaryProvider).valueOrNull;
@@ -233,9 +257,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     final effectiveTickets = ref.watch(effectiveTicketsProvider);
     final localDoingTicketsCount = effectiveTickets.where((t) => t.status != TicketStatus.done).length;
-    final openTickets = localDoingTicketsCount > 0
-        ? localDoingTicketsCount
-        : (dashboard?.openTickets ?? summary?.openTickets ?? 0);
+    final serverTicketCount = dashboard?.openTickets ?? summary?.openTickets;
+    final openTickets = (serverTicketCount != null && serverTicketCount >= 0)
+        ? serverTicketCount
+        : localDoingTicketsCount;
     final loadedChatChannels = ref.watch(chatV2ChannelsProvider).valueOrNull;
     final serverChatCount = (dashboard?.recentConversationCount != null && dashboard!.recentConversationCount! > 0)
         ? dashboard.recentConversationCount!
@@ -256,19 +281,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         autoTrigger: (user?.hasAttendance ?? true) && (shiftProgress?.isCompleted ?? (todayMinutes >= ShiftConfig.forDate(DateTime.now()).targetWorkMinutes)),
         child: RefreshIndicator(
           key: _fireworksChildKey,
-          onRefresh: () async {
-            ref.read(ticketOverrideProvider.notifier).set(null);
-            ref.read(ticketHasMoreProvider.notifier).state = true;
-            ref.invalidate(ticketsProvider);
-            ref.invalidate(homeSummaryProvider);
-            ref.invalidate(mobileDashboardSummaryProvider);
-            ref.invalidate(attendanceTodayProvider);
-            ref.invalidate(attendanceStreamProvider);
-            ref.invalidate(todayTasksProvider);
-            ref.invalidate(openSessionProvider);
-            ref.invalidate(chatV2ChannelsProvider);
-            ref.invalidate(mobileNotificationsProvider);
-          },
+          onRefresh: _refreshAllHomeData,
           color: AppColors.primary,
           backgroundColor: Theme.of(context).cardColor,
 

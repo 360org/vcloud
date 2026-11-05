@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../features/attendance/application/attendance_controller.dart';
 import '../../features/attendance/data/attendance_repository.dart';
 import '../../features/chat_v2/application/chat_v2_callkit_service.dart';
 import '../../features/chat_v2/application/chat_v2_channels_controller.dart';
@@ -103,6 +104,16 @@ class GlobalStateResetService {
         ref.invalidate(homeSummaryProvider);
         ref.invalidate(chatV2ChannelsProvider);
         ref.invalidate(menuControllerProvider);
+        ref.invalidate(ticketsProvider);
+        ref.invalidate(todayTasksProvider);
+        ref.invalidate(attendanceTodayProvider);
+        ref.invalidate(attendanceStreamProvider);
+        ref.invalidate(openSessionProvider);
+        ref.invalidate(mobileNotificationsProvider);
+        try {
+          ref.read(ticketOverrideProvider.notifier).set(null);
+          ref.read(ticketHasMoreProvider.notifier).state = true;
+        } catch (_) {}
         try {
           ref.read(timesheetTimerControllerProvider.notifier).reset();
         } catch (_) {}
@@ -114,6 +125,16 @@ class GlobalStateResetService {
         container.invalidate(homeSummaryProvider);
         container.invalidate(chatV2ChannelsProvider);
         container.invalidate(menuControllerProvider);
+        container.invalidate(ticketsProvider);
+        container.invalidate(todayTasksProvider);
+        container.invalidate(attendanceTodayProvider);
+        container.invalidate(attendanceStreamProvider);
+        container.invalidate(openSessionProvider);
+        container.invalidate(mobileNotificationsProvider);
+        try {
+          container.read(ticketOverrideProvider.notifier).set(null);
+          container.read(ticketHasMoreProvider.notifier).state = true;
+        } catch (_) {}
         try {
           container.read(timesheetTimerControllerProvider.notifier).reset();
         } catch (_) {}

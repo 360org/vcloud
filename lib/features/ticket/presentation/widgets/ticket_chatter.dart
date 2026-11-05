@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
+import '../../../../core/api/odoo_api_client.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/date_format.dart';
+import '../../../chat_v2/presentation/screens/chat_v2_image_viewer_screen.dart';
+import '../../../chat_v2/presentation/widgets/chat_v2_attachment_viewer.dart';
+import '../../../chat_v2/presentation/widgets/chat_v2_message_item.dart';
 import '../../../../shared/models/ticket_comment.dart';
 import '../../../../shared/widgets/app_scaffold.dart';
 
@@ -17,21 +21,32 @@ class TicketCommentCard extends StatelessWidget {
     super.key,
     required this.comment,
     required this.myId,
+    this.myPartnerId,
+    this.myName,
     this.pending = false,
     this.isTechnician = false,
   });
 
   final TicketComment comment;
   final String myId;
+  final String? myPartnerId;
+  final String? myName;
   final bool pending;
   final bool isTechnician;
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final isMe = comment.authorId == myId;
+    final normMyName = myName?.trim().toLowerCase();
+    final normAuthorName = comment.authorName?.trim().toLowerCase();
+    final isMe = comment.authorId == myId ||
+        (myPartnerId != null && myPartnerId!.isNotEmpty && comment.authorId == myPartnerId) ||
+        (normMyName != null && normMyName.isNotEmpty && normAuthorName == normMyName);
+
+    // Tác giả là chính mình -> Tuyệt đối không hiển thị nhãn "Chuyên viên hỗ trợ"
+    final effectiveIsTechnician = !isMe && isTechnician;
     // Strict isolation: chỉ lấy tên tác giả từ comment, không fallback về ticket creator
-    final name = comment.authorName ?? (isMe ? 'Bạn' : 'Người dùng');
+    final name = isMe ? 'Bạn' : (comment.authorName ?? 'Người dùng');
 
     return Opacity(
       opacity: pending ? 0.72 : 1,
@@ -80,7 +95,7 @@ class TicketCommentCard extends StatelessWidget {
                               ),
                             ),
                           ),
-                          if (isTechnician) ...[
+                          if (effectiveIsTechnician) ...[
                             const SizedBox(width: 6),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -128,10 +143,27 @@ class TicketCommentCard extends StatelessWidget {
             Builder(
               builder: (_) {
                 final rawContent = comment.content.trim();
+                final hasImages = comment.attachments.any((a) {
+                  final ext = a.name.contains('.') ? a.name.split('.').last.toLowerCase() : '';
+                  return switch (ext) {
+                    'jpg' || 'jpeg' || 'png' || 'gif' || 'webp' => true,
+                    _ => (a.mimetype?.startsWith('image/') ?? false),
+                  };
+                });
+                // Nếu người dùng chỉ gửi hình ảnh kèm thông báo tự động "Đã gửi tệp đính kèm: ...",
+                // ẩn dòng chữ này để chỉ hiển thị ảnh inline trực quan như chat ứng dụng hiện đại.
+                final isAutoAttachmentText = rawContent.startsWith('Đã gửi tệp đính kèm:') ||
+                    (rawContent.startsWith('Đã gửi ') && rawContent.contains('tệp đính kèm'));
+                if (hasImages && isAutoAttachmentText) {
+                  return const SizedBox.shrink();
+                }
+
                 // ponytail: Tránh ngộ nhận sai tác giả đã tạo ticket
                 final displayContent = rawContent.isNotEmpty
                     ? rawContent
-                    : '$name đã gửi một cập nhật.';
+                    : (comment.attachments.isNotEmpty ? '' : '$name đã gửi một cập nhật.');
+                if (displayContent.isEmpty) return const SizedBox.shrink();
+
                 return Text(
                   displayContent,
                   style: TextStyle(
@@ -145,6 +177,185 @@ class TicketCommentCard extends StatelessWidget {
                 );
               },
             ),
+            if (comment.attachments.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Builder(
+                builder: (context) {
+                  final imageAttachments = comment.attachments.where((a) {
+                    final ext = a.name.contains('.') ? a.name.split('.').last.toLowerCase() : '';
+                    return switch (ext) {
+                      'jpg' || 'jpeg' || 'png' || 'gif' || 'webp' => true,
+                      _ => (a.mimetype?.startsWith('image/') ?? false),
+                    };
+                  }).toList();
+
+                  final fileAttachments = comment.attachments.where((a) => !imageAttachments.contains(a)).toList();
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (imageAttachments.length == 1) ...[
+                        Builder(
+                          builder: (context) {
+                            final img = imageAttachments.first;
+                            final key = 'att_${img.id}';
+                            final memBytes = ChatV2AttachmentImage.imageCache[key] ??
+                                ChatV2AttachmentImage.imageCache[img.name];
+                            final fullUrl = odooApiClient.authenticatedUrl(
+                              img.downloadUrl ?? '/api/v1/mobile/attachments/${img.id}/download',
+                              accessToken: img.accessToken,
+                            );
+                            return GestureDetector(
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  ChatV2ImageViewerScreen.route(
+                                    imageUrl: fullUrl,
+                                    title: img.name,
+                                    attachmentId: img.id.toString(),
+                                  ),
+                                );
+                              },
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  constraints: const BoxConstraints(maxHeight: 220, maxWidth: 280),
+                                  decoration: BoxDecoration(
+                                    color: isDark ? Colors.white10 : Colors.black12,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: memBytes != null && memBytes.isNotEmpty
+                                      ? Image.memory(memBytes, fit: BoxFit.cover)
+                                      : (fullUrl.isNotEmpty
+                                          ? Image.network(
+                                              fullUrl,
+                                              headers: odooApiClient.authHeaders,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (context, error, stackTrace) => Container(
+                                                height: 100,
+                                                width: 140,
+                                                alignment: Alignment.center,
+                                                child: const Icon(LucideIcons.imageOff, size: 24, color: Colors.grey),
+                                              ),
+                                            )
+                                          : const SizedBox.shrink()),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ] else if (imageAttachments.length > 1) ...[
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            for (final img in imageAttachments) ...[
+                              Builder(
+                                builder: (context) {
+                                  final key = 'att_${img.id}';
+                                  final memBytes = ChatV2AttachmentImage.imageCache[key] ??
+                                      ChatV2AttachmentImage.imageCache[img.name];
+                                  final fullUrl = odooApiClient.authenticatedUrl(
+                                    img.downloadUrl ?? '/api/v1/mobile/attachments/${img.id}/download',
+                                    accessToken: img.accessToken,
+                                  );
+                                  return GestureDetector(
+                                    onTap: () {
+                                      Navigator.of(context).push(
+                                        ChatV2ImageViewerScreen.route(
+                                          imageUrl: fullUrl,
+                                          title: img.name,
+                                          attachmentId: img.id.toString(),
+                                        ),
+                                      );
+                                    },
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(10),
+                                      child: Container(
+                                        width: 84,
+                                        height: 84,
+                                        color: isDark ? Colors.white10 : Colors.black12,
+                                        child: memBytes != null && memBytes.isNotEmpty
+                                            ? Image.memory(memBytes, fit: BoxFit.cover)
+                                            : (fullUrl.isNotEmpty
+                                                ? Image.network(
+                                                    fullUrl,
+                                                    headers: odooApiClient.authHeaders,
+                                                    fit: BoxFit.cover,
+                                                    errorBuilder: (context, error, stackTrace) => const Center(
+                                                      child: Icon(LucideIcons.imageOff, size: 20, color: Colors.grey),
+                                                    ),
+                                                  )
+                                                : const SizedBox.shrink()),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                      if (fileAttachments.isNotEmpty) ...[
+                        if (imageAttachments.isNotEmpty) const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
+                          children: [
+                            for (final file in fileAttachments) ...[
+                              InkWell(
+                                borderRadius: BorderRadius.circular(8),
+                                onTap: () async {
+                                  final effectiveUrl = odooApiClient.authenticatedUrl(
+                                    file.downloadUrl ?? '/api/v1/mobile/attachments/${file.id}/download',
+                                    accessToken: file.accessToken,
+                                  );
+                                  await ChatV2AttachmentViewer.open(
+                                    context: context,
+                                    filename: file.name,
+                                    attachmentId: file.id,
+                                    downloadUrl: effectiveUrl,
+                                    accessToken: file.accessToken,
+                                  );
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: isDark ? Colors.white12 : const Color(0xFFCBD5E1),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(LucideIcons.paperclip, size: 14, color: AppColors.primary),
+                                      const SizedBox(width: 6),
+                                      ConstrainedBox(
+                                        constraints: const BoxConstraints(maxWidth: 200),
+                                        child: Text(
+                                          file.name,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: isDark ? Colors.white : AppColors.textPrimary,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ],
+                  );
+                },
+              ),
+            ],
           ],
         ),
       ),
@@ -160,12 +371,14 @@ class TicketCommentComposer extends StatelessWidget {
     required this.sending,
     required this.onSubmit,
     this.onAttach,
+    this.onPickImage,
   });
 
   final TextEditingController controller;
   final bool sending;
   final VoidCallback onSubmit;
   final VoidCallback? onAttach;
+  final VoidCallback? onPickImage;
 
   @override
   Widget build(BuildContext context) {
@@ -184,12 +397,20 @@ class TicketCommentComposer extends StatelessWidget {
         top: false,
         child: Row(
           children: [
+            if (onPickImage != null) ...[
+              IconButton(
+                icon: const Icon(LucideIcons.image, size: 20),
+                color: isDark ? Colors.white60 : AppColors.textSecondary,
+                onPressed: sending ? null : onPickImage,
+                tooltip: 'Gửi ảnh',
+              ),
+            ],
             if (onAttach != null) ...[
               IconButton(
                 icon: const Icon(LucideIcons.paperclip, size: 20),
                 color: isDark ? Colors.white60 : AppColors.textSecondary,
                 onPressed: sending ? null : onAttach,
-                tooltip: 'Đính kèm tệp / ảnh',
+                tooltip: 'Đính kèm tệp',
               ),
               const SizedBox(width: 4),
             ],

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import '../../../core/api/mobile_attachment_repository.dart';
 import '../../../core/api/odoo_api_client.dart';
 import '../../../core/error/failure.dart';
 import '../../../core/utils/html_text.dart';
@@ -23,6 +24,15 @@ class TicketCommentRepository {
         final res = await _client.get('/api/v1/mobile/ticket/$ticketId');
         final detail = Map<String, dynamic>.from(res as Map);
         final initialDescription = _normalizedContent(detail['description']);
+
+        // Nạp và phân giải danh sách tệp đính kèm của toàn bộ ticket
+        final rawAttachments = (detail['attachments'] as List? ?? const <dynamic>[])
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .map(MobileAttachment.fromMap)
+            .toList();
+        final attachmentLookup = {for (final a in rawAttachments) a.id: a};
+
         final messages = (detail['messages'] as List? ?? const <dynamic>[])
             .whereType<Map>()
             .map((e) => Map<String, dynamic>.from(e))
@@ -32,7 +42,7 @@ class TicketCommentRepository {
                   _normalizedContent(message['body'] ?? message['preview']) !=
                       initialDescription,
             )
-            .map((m) => _commentFromMessage(ticketId, m))
+            .map((m) => _commentFromMessage(ticketId, m, attachmentLookup))
             .map(TicketComment.fromMap)
             .toList();
         if (!ctl.isClosed) ctl.add(messages);
@@ -96,8 +106,9 @@ class TicketCommentRepository {
 
   Map<String, dynamic> _commentFromMessage(
     String ticketId,
-    Map<String, dynamic> map,
-  ) {
+    Map<String, dynamic> map, [
+    Map<int, MobileAttachment>? attachmentLookup,
+  ]) {
     final rawAuthor = map['author_id'];
     String authorId = '0';
     String? authorName = map['author_name']?.toString();
@@ -123,6 +134,38 @@ class TicketCommentRepository {
         ? rawAvatar.toString()
         : null;
 
+    // Phân giải danh sách tệp đính kèm của riêng comment này
+    List<Map<String, dynamic>> resolvedAttachments = const [];
+    final rawMsgAtts = map['attachments'];
+    if (rawMsgAtts is List && rawMsgAtts.isNotEmpty) {
+      resolvedAttachments = rawMsgAtts
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    } else if (attachmentLookup != null && attachmentLookup.isNotEmpty) {
+      final rawAttIds = map['attachment_ids'];
+      if (rawAttIds is List && rawAttIds.isNotEmpty) {
+        resolvedAttachments = rawAttIds
+            .map((id) => int.tryParse(id.toString()))
+            .whereType<int>()
+            .map((id) => attachmentLookup[id])
+            .whereType<MobileAttachment>()
+            .map((a) => {
+                  'id': a.id,
+                  'attachment_id': a.attachmentId,
+                  'name': a.name,
+                  'mimetype': a.mimetype,
+                  'file_size': a.fileSize,
+                  'url': a.url,
+                  'download_url': a.downloadUrl,
+                  'access_token': a.accessToken,
+                })
+            .toList();
+      }
+    }
+
+    final isTech = map['is_technician'] == true || map['isTechnician'] == true;
+
     return <String, dynamic>{
       'id': map['id']?.toString() ?? '0',
       'ticket_id': ticketId,
@@ -131,6 +174,8 @@ class TicketCommentRepository {
       'created_at': dateStr,
       'author_name': authorName,
       'author_avatar_url': avatarStr,
+      'attachments': resolvedAttachments,
+      'is_technician': isTech,
     };
   }
 

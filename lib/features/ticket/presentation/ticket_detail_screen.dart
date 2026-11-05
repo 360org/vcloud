@@ -160,6 +160,44 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
     }
   }
 
+  Future<void> _pickImageComment() async {
+    try {
+      final picker = ImagePicker();
+      final image = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 82,
+        maxWidth: 2200,
+      );
+      if (image == null || !mounted) return;
+      final bytes = await image.readAsBytes();
+      if (bytes.length > MobileAttachmentRepository.maxFileSizeBytes) {
+        if (mounted) {
+          AppToast.warning(
+            context,
+            title: 'Tệp quá dung lượng',
+            message: 'Dung lượng tệp vượt quá mức cho phép (25 MB). Vui lòng chọn tệp nhỏ hơn.',
+          );
+        }
+        return;
+      }
+      setState(() {
+        _commentAttachments.add(_TicketCommentAttachmentDraft(
+          name: image.name,
+          bytes: bytes,
+          mimetype: _commentMimetypeForName(image.name),
+        ));
+      });
+    } catch (e) {
+      if (mounted) {
+        AppToast.error(
+          context,
+          title: 'Không thể chọn ảnh',
+          message: '$e',
+        );
+      }
+    }
+  }
+
   Future<void> _sendComment() async {
     final text = _commentController.text.trim();
     if (text.isEmpty && _commentAttachments.isEmpty) return;
@@ -170,6 +208,21 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
             ? 'Đã gửi tệp đính kèm: ${_commentAttachments.first.name}'
             : 'Đã gửi ${_commentAttachments.length} tệp đính kèm');
 
+    final draftsToSend = List<_TicketCommentAttachmentDraft>.from(_commentAttachments);
+
+    final pendingAttachments = draftsToSend.map((d) {
+      final key = 'att_pending_${DateTime.now().microsecondsSinceEpoch}';
+      ChatV2AttachmentImage.imageCache[key] = d.bytes;
+      ChatV2AttachmentImage.imageCache[d.name] = d.bytes;
+      return MobileAttachment(
+        id: DateTime.now().microsecondsSinceEpoch,
+        attachmentId: 0,
+        name: d.name,
+        mimetype: d.mimetype,
+        fileSize: d.bytes.length,
+      );
+    }).toList();
+
     final pendingComment = TicketComment(
       id: 'pending-${DateTime.now().microsecondsSinceEpoch}',
       ticketId: widget.ticketId,
@@ -177,9 +230,8 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
       content: displayText,
       createdAt: DateTime.now(),
       authorName: 'Bạn',
+      attachments: pendingAttachments,
     );
-
-    final draftsToSend = List<_TicketCommentAttachmentDraft>.from(_commentAttachments);
 
     setState(() {
       _sendingComment = true;
@@ -191,6 +243,8 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
 
     try {
       final uploadedIds = <int>[];
+      final uploadedAttachments = <MobileAttachment>[];
+      final targetResModel = _ticket?.resModel ?? 'helpdesk.ticket';
       for (final draft in draftsToSend) {
         try {
           final res = await MobileAttachmentRepository().upload(
@@ -198,23 +252,30 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
               filename: draft.name,
               bytes: draft.bytes,
               mimetype: draft.mimetype,
-              resModel: 'helpdesk.ticket',
+              resModel: targetResModel,
               resId: int.tryParse(widget.ticketId),
             ),
           );
           uploadedIds.add(res.attachmentId);
+          uploadedAttachments.add(res);
+          // In-memory cache để hiển thị ảnh ngay tức thì
+          ChatV2AttachmentImage.imageCache['att_${res.attachmentId}'] = draft.bytes;
+          ChatV2AttachmentImage.imageCache[draft.name] = draft.bytes;
         } catch (uploadErr) {
           debugPrint('[TicketDetail] Attachment upload warning: $uploadErr');
         }
       }
 
-      final savedComment = await ref
+      var savedComment = await ref
           .read(ticketCommentActionsProvider)
           .add(
             widget.ticketId,
             displayText,
             attachmentIds: uploadedIds.isNotEmpty ? uploadedIds : null,
           );
+      if (savedComment.attachments.isEmpty && uploadedAttachments.isNotEmpty) {
+        savedComment = savedComment.copyWith(attachments: uploadedAttachments);
+      }
       if (mounted) {
         setState(() {
           final index = _optimisticComments.indexWhere(
@@ -271,23 +332,46 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
     return comments;
   }
 
-  bool _isTechnicianComment(TicketComment comment, Ticket? ticket, bool isPortal) {
+  bool _isTechnicianComment(
+    TicketComment comment,
+    Ticket? ticket,
+    bool isPortal, {
+    String? myPartnerId,
+    String? myName,
+  }) {
     if (ticket == null) return false;
-    if (isPortal && comment.authorId == _myId) return false;
+
+    // 1. Tác giả là chính mình -> Tuyệt đối không gán nhãn chuyên viên
+    final normMyName = myName?.trim().toLowerCase();
+    final normAuthorName = comment.authorName?.trim().toLowerCase();
+    final isMe = comment.authorId == _myId ||
+        (myPartnerId != null && myPartnerId.isNotEmpty && comment.authorId == myPartnerId) ||
+        (normMyName != null && normMyName.isNotEmpty && normAuthorName == normMyName);
+    if (isMe) return false;
+
+    // 2. Tác giả là người tạo ticket (khách hàng yêu cầu) -> Không phải chuyên viên
     if (ticket.createdBy.isNotEmpty && comment.authorId == ticket.createdBy) {
       return false;
     }
+    if (myPartnerId != null && myPartnerId.isNotEmpty && ticket.createdBy == myPartnerId) {
+      return false;
+    }
+
+    // 3. Backend đã gắn cờ xác định chuyên viên
+    if (comment.isTechnician) {
+      return true;
+    }
+
+    // 4. Khớp với nhân viên kỹ thuật được giao phụ trách ticket
     if (ticket.assignedTo.isNotEmpty && comment.authorId == ticket.assignedTo) {
       return true;
     }
     if (ticket.assignedUserName != null &&
-        comment.authorName != null &&
-        comment.authorName!.trim().toLowerCase() == ticket.assignedUserName!.trim().toLowerCase()) {
+        normAuthorName != null &&
+        normAuthorName == ticket.assignedUserName!.trim().toLowerCase()) {
       return true;
     }
-    if (isPortal && comment.authorName != 'Hệ thống' && comment.authorId != '0') {
-      return true;
-    }
+
     return false;
   }
 
@@ -784,7 +868,10 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
       });
     }
 
-    final isPortal = ref.watch(authControllerProvider).valueOrNull?.isPortal ?? false;
+    final authUser = ref.watch(authControllerProvider).valueOrNull;
+    final isPortal = authUser?.isPortal ?? false;
+    final myPartnerId = authUser?.userMetadata['partner_id']?.toString();
+    final myName = authUser?.userMetadata['name']?.toString();
     final comments = ticket != null ? ref.watch(ticketCommentsProvider(widget.ticketId)) : null;
 
     return PopScope(
@@ -872,8 +959,16 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
                               child: _CommentCard(
                                 comment: comment,
                                 myId: _myId,
+                                myPartnerId: myPartnerId,
+                                myName: myName,
                                 pending: comment.id.startsWith('pending-'),
-                                isTechnician: _isTechnicianComment(comment, ticket, isPortal),
+                                isTechnician: _isTechnicianComment(
+                                  comment,
+                                  ticket,
+                                  isPortal,
+                                  myPartnerId: myPartnerId,
+                                  myName: myName,
+                                ),
                               ),
                             ),
                           if (hiddenCount > 0) ...[
@@ -897,8 +992,16 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
                                 child: _CommentCard(
                                   comment: comment,
                                   myId: _myId,
+                                  myPartnerId: myPartnerId,
+                                  myName: myName,
                                   pending: true,
-                                  isTechnician: _isTechnicianComment(comment, ticket, isPortal),
+                                  isTechnician: _isTechnicianComment(
+                                    comment,
+                                    ticket,
+                                    isPortal,
+                                    myPartnerId: myPartnerId,
+                                    myName: myName,
+                                  ),
                                 ),
                               ),
                           ],
@@ -1049,6 +1152,7 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
               sending: _sendingComment,
               onSubmit: _sendComment,
               onAttach: _addCommentAttachment,
+              onPickImage: _pickImageComment,
             ),
           ],
           ],
