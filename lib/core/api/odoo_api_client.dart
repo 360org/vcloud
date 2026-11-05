@@ -356,7 +356,11 @@ class OdooApiClient {
       } catch (e, st) {
         debugPrint('🚨 [signUp] JSON parse failed: ${response.statusCode}\n$e\n$st');
         if (response.statusCode >= 400) {
-          throw Failure('Máy chủ phản hồi lỗi (${response.statusCode}).');
+          final htmlMsg = _extractHtmlErrorMessage(text);
+          if (htmlMsg != null && htmlMsg.isNotEmpty) {
+            throw Failure(htmlMsg, statusCode: response.statusCode);
+          }
+          throw Failure('Máy chủ phản hồi lỗi (${response.statusCode}).', statusCode: response.statusCode);
         }
         throw Failure('Dữ liệu từ máy chủ không đúng định dạng.');
       }
@@ -1525,7 +1529,11 @@ class OdooApiClient {
         }
       } catch (_) {
         if (response.statusCode >= 400) {
-          throw Failure('Máy chủ phản hồi lỗi (${response.statusCode}).');
+          final htmlMsg = _extractHtmlErrorMessage(text);
+          if (htmlMsg != null && htmlMsg.isNotEmpty) {
+            throw Failure(htmlMsg, statusCode: response.statusCode);
+          }
+          throw Failure('Máy chủ phản hồi lỗi (${response.statusCode}).', statusCode: response.statusCode);
         }
         throw Failure('Dữ liệu từ máy chủ không đúng định dạng.');
       }
@@ -1846,6 +1854,27 @@ class OdooApiClient {
       405 => 'Phương thức yêu cầu không được máy chủ hỗ trợ (405).',
       _ => 'Máy chủ phản hồi lỗi ($statusCode).',
     };
+  }
+
+  /// Trích xuất thông báo lỗi người dùng từ trang HTML (Werkzeug / Odoo 422 Unprocessable Entity)
+  static String? _extractHtmlErrorMessage(String text) {
+    if (text.isEmpty || !text.contains('<')) return null;
+    try {
+      final pMatch = RegExp(r'<p[^>]*>(.*?)</p>', caseSensitive: false, dotAll: true).firstMatch(text);
+      if (pMatch != null && pMatch.groupCount >= 1) {
+        final raw = pMatch.group(1)!.replaceAll(RegExp(r'<[^>]*>'), '').trim();
+        if (raw.isNotEmpty) {
+          if (raw.contains('Your password must contain at least') && raw.contains('characters')) {
+            final m = RegExp(r'at least (\d+) characters and only has (\d+)').firstMatch(raw);
+            if (m != null) {
+              return 'Mật khẩu phải có ít nhất ${m.group(1)} ký tự (hiện tại có ${m.group(2)} ký tự).';
+            }
+          }
+          return raw;
+        }
+      }
+    } catch (_) {}
+    return null;
   }
 
   static int? _intOrNull(Object? value) {

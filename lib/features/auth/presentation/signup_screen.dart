@@ -398,7 +398,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                                   fontWeight: FontWeight.w600,
                                 ),
                                 decoration: InputDecoration(
-                                  labelText: 'Mật khẩu (tối thiểu 6)',
+                                  labelText: 'Mật khẩu (tối thiểu 9 ký tự)',
                                   labelStyle: const TextStyle(color: Color(0xFF64748B)),
                                   prefixIcon: const Icon(
                                     LucideIcons.lock,
@@ -436,8 +436,8 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                                     ),
                                   ),
                                 ),
-                                validator: (v) => (v == null || v.length < 6)
-                                    ? 'Dùng ít nhất 6 ký tự'
+                                validator: (v) => (v == null || v.length < 9)
+                                    ? 'Dùng ít nhất 9 ký tự'
                                     : null,
                               ),
                               const SizedBox(height: 16),

@@ -2,6 +2,22 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.34+189] — 2026-11-05
+
+> [!IMPORTANT]
+> **Tối Ưu Hóa Xác Thực Google OAuth WebView, Bắt Lỗi HTML Odoo & Đồng Bộ Password Policy (L4 VERIFIED 2026-11-05)**:
+> - **[FIX/AUTH] Tối Ưu Hóa In-App Google OAuth WebView Sheet (`google_oauth_webview_sheet.dart`)**:
+>   * Giả lập platform User-Agent chuẩn Safari/Chrome Mobile tương ứng cho từng nền tảng iOS và Android.
+>   * Bổ sung cơ chế thăm dò `Timer.periodic` đa điểm (onNavigationRequest, onUrlChange, onPageFinished, window.location.href) chống hiện tượng treo đơ sau bước xác thực SMS 2FA của Google.
+>   * Hỗ trợ trích xuất access_token đa dạng: hash fragment `#access_token=`, query param `?access_token=` và regex fallback.
+>   * Bắt các trường hợp lỗi OAuth (`error_description` / `error=access_denied`) và phản hồi lỗi trực quan cho người dùng.
+> - **[FIX/SIGNUP] Đồng Bộ Password Policy & Xử Lý Lỗi HTML Thân Thiện (`signup_screen.dart`, `odoo_api_client.dart`)**:
+>   * Cập nhật validation mật khẩu tối thiểu 9 ký tự trên màn hình Đăng ký (`signup_screen.dart`) khớp với chính sách mật khẩu hệ thống `auth_password_policy`.
+>   * Bổ sung hàm helper `_extractHtmlErrorMessage` trong `OdooApiClient` để bóc tách thông báo lỗi thân thiện khi máy chủ Odoo trả về mã HTML (400/422).
+> - **[TEST/AUTH] Bổ Sung Test Suite Google OAuth & Signup (`google_oauth_webview_sheet_test.dart`, `signup_screen_widget_test.dart`)**:
+>   * 10/10 test cases đơn vị kiểm thử các kịch bản URL Google OAuth.
+>   * 11/11 test cases widget & validation cho màn hình Signup. 100% PASS.
+
 ## [v2.9.34+188] — 2026-11-05
 
 > [!IMPORTANT]

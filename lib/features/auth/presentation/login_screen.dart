@@ -119,12 +119,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       // Luồng Google Sign-In kết nối SSO Odoo (Chiến Lược Kép: Native SDK + Fallback WebView SSO)
       // Trên iOS: Điều hướng an toàn trực tiếp qua In-App WebView SSO để chống văng app (crash do missing native GIDSignIn config)
       final isIos = defaultTargetPlatform == TargetPlatform.iOS;
+      final hintEmail = _email.text.trim().isNotEmpty ? _email.text.trim() : null;
       if (isIos) {
         if (!mounted) return;
         final webResult = await GoogleOAuthWebViewSheet.show(
           context,
           targetUrl: targetUrl,
           targetDb: targetDb,
+          initialEmail: hintEmail,
         );
         if (webResult != null && webResult.accessToken.isNotEmpty) {
           oauthToken = webResult.accessToken;
@@ -134,6 +136,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             setState(() {
               _submitting = false;
               _isGoogleAuthProcessing = false;
+              if (webResult?.error != null && webResult!.error!.isNotEmpty) {
+                _error = 'Đăng nhập Google bị gián đoạn: ${webResult.error}';
+              }
             });
           }
           return;
@@ -171,6 +176,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             context,
             targetUrl: targetUrl,
             targetDb: targetDb,
+            initialEmail: hintEmail,
           );
           if (webResult != null && webResult.accessToken.isNotEmpty) {
             oauthToken = webResult.accessToken;
@@ -180,6 +186,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               setState(() {
                 _submitting = false;
                 _isGoogleAuthProcessing = false;
+                if (webResult?.error != null && webResult!.error!.isNotEmpty) {
+                  _error = 'Đăng nhập Google bị gián đoạn: ${webResult.error}';
+                }
               });
             }
             return;

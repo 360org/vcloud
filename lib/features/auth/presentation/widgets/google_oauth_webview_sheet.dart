@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:lucide_flutter/lucide_flutter.dart';
@@ -8,7 +10,8 @@ import 'package:webview_flutter/webview_flutter.dart';
 class GoogleOAuthResult {
   final String accessToken;
   final String? email;
-  const GoogleOAuthResult({required this.accessToken, this.email});
+  final String? error;
+  const GoogleOAuthResult({required this.accessToken, this.email, this.error});
 }
 
 /// Sheet mở In-App WebView xác thực Google OAuth2 (Luồng 2 trong Chiến Lược Kép).
@@ -59,6 +62,7 @@ class _GoogleOAuthWebViewSheetState extends State<GoogleOAuthWebViewSheet> {
   bool _isLoading = true;
   double _progress = 0.0;
   bool _completed = false;
+  Timer? _redirectPollTimer;
 
   static const String _officialRedirectUri = 'https://vuahethong.net/auth_oauth/signin';
 
@@ -99,19 +103,29 @@ class _GoogleOAuthWebViewSheetState extends State<GoogleOAuthWebViewSheet> {
     return Uri.https('accounts.google.com', '/o/oauth2/auth', queryParams);
   }
 
+  String get _platformUserAgent {
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      return 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
+    }
+    return 'Mozilla/5.0 (Linux; Android 11; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36';
+  }
+
   @override
   void initState() {
     super.initState();
     _initController();
   }
 
+  @override
+  void dispose() {
+    _redirectPollTimer?.cancel();
+    super.dispose();
+  }
+
   void _initController() {
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      // Giả lập Chrome Mobile tiêu chuẩn để vượt qua kiểm tra disallowed_useragent của Google
-      ..setUserAgent(
-        'Mozilla/5.0 (Linux; Android 11; V2116) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36',
-      )
+      ..setUserAgent(_platformUserAgent)
       ..setNavigationDelegate(
         NavigationDelegate(
           onProgress: (int progress) {
@@ -129,11 +143,26 @@ class _GoogleOAuthWebViewSheetState extends State<GoogleOAuthWebViewSheet> {
             final url = change.url;
             if (url != null) _checkIntercept(url);
           },
+          onPageFinished: (String url) {
+            _handlePageFinished(url);
+          },
           onNavigationRequest: (NavigationRequest request) {
-            if (_isTargetRedirect(request.url)) {
-              _checkIntercept(request.url);
+            // 1. Kiểm tra ngay xem URL có chứa access_token hay không
+            final token = _extractAccessToken(request.url);
+            if (token != null && token.isNotEmpty) {
+              _completeWithToken(token, request.url);
               return NavigationDecision.prevent;
             }
+
+            // 2. Kiểm tra xem có lỗi OAuth trả về hay không
+            final error = _extractError(request.url);
+            if (error != null && error.isNotEmpty) {
+              _completeWithError(error);
+              return NavigationDecision.prevent;
+            }
+
+            // 3. QUAN TRỌNG: Nếu là URL redirect đích nhưng CHƯA CÓ token trong URL này (do hash fragment chưa nạp),
+            // TUYỆT ĐỐI KHÔNG prevent! Cho phép navigate để WebView nạp URL và cập nhật onUrlChange/onPageFinished có kèm fragment!
             return NavigationDecision.navigate;
           },
         ),
@@ -147,43 +176,173 @@ class _GoogleOAuthWebViewSheetState extends State<GoogleOAuthWebViewSheet> {
         url.startsWith(_officialRedirectUri);
   }
 
+  /// Trích xuất access_token từ URL (hỗ trợ hash fragment, query params và regex)
+  static String? _extractAccessToken(String url) {
+    try {
+      final uri = Uri.tryParse(url);
+      if (uri != null) {
+        if (uri.fragment.isNotEmpty) {
+          final params = Uri.splitQueryString(uri.fragment);
+          final token = params['access_token'];
+          if (token != null && token.isNotEmpty) return token;
+        }
+        final queryToken = uri.queryParameters['access_token'];
+        if (queryToken != null && queryToken.isNotEmpty) return queryToken;
+      }
+
+      // Regex fallback dự phòng khi URL encoding phức tạp
+      final regMatch = RegExp(r'[#?&]access_token=([^&]+)').firstMatch(url);
+      if (regMatch != null && regMatch.groupCount >= 1) {
+        return Uri.decodeComponent(regMatch.group(1)!);
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// Trích xuất lỗi OAuth từ URL nếu người dùng từ chối cấp quyền
+  static String? _extractError(String url) {
+    try {
+      final uri = Uri.tryParse(url);
+      if (uri != null) {
+        if (uri.fragment.isNotEmpty) {
+          final params = Uri.splitQueryString(uri.fragment);
+          final err = params['error_description'] ?? params['error'];
+          if (err != null && err.isNotEmpty) return err;
+        }
+        final queryErr = uri.queryParameters['error_description'] ?? uri.queryParameters['error'];
+        if (queryErr != null && queryErr.isNotEmpty) return queryErr;
+      }
+
+      final regMatch = RegExp(r'[#?&]error=([^&]+)').firstMatch(url);
+      if (regMatch != null && regMatch.groupCount >= 1) {
+        return Uri.decodeComponent(regMatch.group(1)!);
+      }
+    } catch (_) {}
+    return null;
+  }
+
   Future<void> _checkIntercept(String url) async {
     if (_completed) return;
-    if (!_isTargetRedirect(url)) return;
 
-    final uri = Uri.tryParse(url);
-    if (uri == null) return;
-
-    String? accessToken;
-    final fragment = uri.fragment;
-    if (fragment.isNotEmpty) {
-      final params = Uri.splitQueryString(fragment);
-      accessToken = params['access_token'];
+    final token = _extractAccessToken(url);
+    if (token != null && token.isNotEmpty) {
+      await _completeWithToken(token, url);
+      return;
     }
-    accessToken ??= uri.queryParameters['access_token'];
 
-    if (accessToken != null && accessToken.isNotEmpty) {
-      _completed = true;
-      String? resolvedEmail;
+    final error = _extractError(url);
+    if (error != null && error.isNotEmpty) {
+      _completeWithError(error);
+      return;
+    }
+
+    // Nếu đang điều hướng tới URL đích hoặc trang trung gian xác thực của Google,
+    // khởi chạy timer thăm dò DOM ngắn hạn để chống treo sau bước SMS 2FA
+    if (_isTargetRedirect(url) || url.contains('accounts.google.com')) {
+      _startRedirectPolling();
+    }
+  }
+
+  /// Xử lý khi trang hoàn tất tải: thăm dò DOM window.location.href để bắt hash fragment
+  Future<void> _handlePageFinished(String url) async {
+    if (_completed) return;
+    await _checkIntercept(url);
+
+    if (!_completed) {
       try {
-        final tokenInfoUri = Uri.parse(
-          'https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=$accessToken',
-        );
-        final resp = await http.get(tokenInfoUri).timeout(const Duration(seconds: 4));
-        if (resp.statusCode == 200) {
-          final tdata = jsonDecode(resp.body);
-          resolvedEmail = tdata['email'] as String?;
+        final currentUrl = await _controller.currentUrl();
+        if (currentUrl != null && currentUrl.isNotEmpty) {
+          await _checkIntercept(currentUrl);
         }
-      } catch (e) {
-        debugPrint('[GoogleOAuthWebViewSheet] tokeninfo fetch error: $e');
+      } catch (_) {}
+    }
+
+    if (!_completed && (_isTargetRedirect(url) || url.contains('auth_oauth'))) {
+      try {
+        final jsResult = await _controller.runJavaScriptReturningResult('window.location.href');
+        final cleanUrl = jsResult.toString().replaceAll('"', '').trim();
+        if (cleanUrl.isNotEmpty) {
+          await _checkIntercept(cleanUrl);
+        }
+      } catch (_) {}
+    }
+  }
+
+  /// Thăm dò liên tục URL hiện tại trong vòng 8 giây sau bước SMS OTP để chống đơ
+  void _startRedirectPolling() {
+    if (_redirectPollTimer != null && _redirectPollTimer!.isActive) return;
+    int pollCount = 0;
+    _redirectPollTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) async {
+      pollCount++;
+      if (_completed || !mounted || pollCount > 16) {
+        timer.cancel();
+        return;
       }
 
-      if (mounted) {
-        Navigator.of(context).pop(GoogleOAuthResult(
-          accessToken: accessToken,
-          email: resolvedEmail,
-        ));
+      try {
+        final currentUrl = await _controller.currentUrl();
+        if (currentUrl != null && currentUrl.isNotEmpty) {
+          final token = _extractAccessToken(currentUrl);
+          if (token != null && token.isNotEmpty) {
+            timer.cancel();
+            await _completeWithToken(token, currentUrl);
+            return;
+          }
+        }
+
+        // Đọc trực tiếp từ window.location.href trong trường hợp trình duyệt không kích hoạt delegate
+        final jsHref = await _controller.runJavaScriptReturningResult('window.location.href');
+        final cleanHref = jsHref.toString().replaceAll('"', '').trim();
+        if (cleanHref.isNotEmpty) {
+          final jsToken = _extractAccessToken(cleanHref);
+          if (jsToken != null && jsToken.isNotEmpty) {
+            timer.cancel();
+            await _completeWithToken(jsToken, cleanHref);
+            return;
+          }
+        }
+      } catch (_) {}
+    });
+  }
+
+  Future<void> _completeWithToken(String accessToken, String url) async {
+    if (_completed) return;
+    _completed = true;
+    _redirectPollTimer?.cancel();
+
+    String? resolvedEmail;
+    try {
+      final tokenInfoUri = Uri.parse(
+        'https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=$accessToken',
+      );
+      // Timeout 1.5 giây để đóng sheet nhanh chóng, không làm khựng màn hình người dùng
+      final resp = await http.get(tokenInfoUri).timeout(const Duration(milliseconds: 1500));
+      if (resp.statusCode == 200) {
+        final tdata = jsonDecode(resp.body);
+        resolvedEmail = tdata['email'] as String?;
       }
+    } catch (e) {
+      debugPrint('[GoogleOAuthWebViewSheet] tokeninfo fetch error (non-fatal): $e');
+    }
+
+    if (mounted) {
+      Navigator.of(context).pop(GoogleOAuthResult(
+        accessToken: accessToken,
+        email: resolvedEmail ?? widget.initialEmail,
+      ));
+    }
+  }
+
+  void _completeWithError(String error) {
+    if (_completed) return;
+    _completed = true;
+    _redirectPollTimer?.cancel();
+
+    if (mounted) {
+      Navigator.of(context).pop(GoogleOAuthResult(
+        accessToken: '',
+        error: error,
+      ));
     }
   }
 

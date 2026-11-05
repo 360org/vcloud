@@ -189,7 +189,7 @@ void main() {
       expect(find.text('Email không đúng định dạng'), findsOneWidget);
     });
 
-    testWidgets('6. Validation: Mật khẩu < 6 ký tự hiển thị "Dùng ít nhất 6 ký tự"', (tester) async {
+    testWidgets('6. Validation: Mật khẩu < 9 ký tự hiển thị "Dùng ít nhất 9 ký tự"', (tester) async {
       tester.view.physicalSize = const Size(800, 1400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -200,13 +200,13 @@ void main() {
       await tester.enterText(find.byType(TextFormField).at(0), 'Nguyễn Văn Test');
       await tester.enterText(find.byType(TextFormField).at(1), '0912345678');
       await tester.enterText(find.byType(TextFormField).at(2), 'valid@vcloud.vn');
-      await tester.enterText(find.byType(TextFormField).at(3), '12345');
+      await tester.enterText(find.byType(TextFormField).at(3), '12345678');
       final submitBtn = find.byKey(const ValueKey('signup_submit_btn'));
       await tester.ensureVisible(submitBtn);
       await tester.tap(submitBtn);
       await tester.pumpAndSettle();
 
-      expect(find.text('Dùng ít nhất 6 ký tự'), findsOneWidget);
+      expect(find.text('Dùng ít nhất 9 ký tự'), findsOneWidget);
     });
 
     testWidgets('7. Validation: Mật khẩu xác nhận không khớp hiển thị lỗi', (tester) async {
@@ -220,8 +220,8 @@ void main() {
       await tester.enterText(find.byType(TextFormField).at(0), 'Nguyễn Văn Test');
       await tester.enterText(find.byType(TextFormField).at(1), '0912345678');
       await tester.enterText(find.byType(TextFormField).at(2), 'valid@vcloud.vn');
-      await tester.enterText(find.byType(TextFormField).at(3), '123456');
-      await tester.enterText(find.byType(TextFormField).at(4), '654321');
+      await tester.enterText(find.byType(TextFormField).at(3), 'SecurePass123');
+      await tester.enterText(find.byType(TextFormField).at(4), 'WrongPass456');
       final submitBtn = find.byKey(const ValueKey('signup_submit_btn'));
       await tester.ensureVisible(submitBtn);
       await tester.tap(submitBtn);
@@ -241,8 +241,8 @@ void main() {
       await tester.enterText(find.byType(TextFormField).at(0), 'Nguyễn Văn Test');
       await tester.enterText(find.byType(TextFormField).at(1), '0912345678');
       await tester.enterText(find.byType(TextFormField).at(2), 'valid@vcloud.vn');
-      await tester.enterText(find.byType(TextFormField).at(3), '123456');
-      await tester.enterText(find.byType(TextFormField).at(4), '123456');
+      await tester.enterText(find.byType(TextFormField).at(3), 'SecurePass123');
+      await tester.enterText(find.byType(TextFormField).at(4), 'SecurePass123');
 
       final submitBtn = find.byKey(const ValueKey('signup_submit_btn'));
       await tester.ensureVisible(submitBtn);
@@ -330,8 +330,8 @@ void main() {
       await tester.enterText(find.byType(TextFormField).at(0), 'Nguyễn Văn Test');
       await tester.enterText(find.byType(TextFormField).at(1), '0912345678');
       await tester.enterText(find.byType(TextFormField).at(2), 'existing@vcloud.vn');
-      await tester.enterText(find.byType(TextFormField).at(3), '123456');
-      await tester.enterText(find.byType(TextFormField).at(4), '123456');
+      await tester.enterText(find.byType(TextFormField).at(3), 'ValidPassword123');
+      await tester.enterText(find.byType(TextFormField).at(4), 'ValidPassword123');
 
       // Tick checkbox
       await tester.tap(find.byType(Checkbox));

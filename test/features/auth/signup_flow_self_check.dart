@@ -120,6 +120,10 @@ class TestOdooApiClient {
         decoded = jsonDecode(text);
       } catch (e) {
         if (response.statusCode >= 400) {
+          final htmlMsg = _extractHtmlErrorMessage(text);
+          if (htmlMsg != null && htmlMsg.isNotEmpty) {
+            throw MockFailure(htmlMsg);
+          }
           throw MockFailure('Máy chủ phản hồi lỗi (${response.statusCode}).');
         }
         throw MockFailure('Dữ liệu từ máy chủ không đúng định dạng.');
@@ -220,7 +224,27 @@ String? _validateEmail(String? v) {
   return null;
 }
 
-String? _validatePassword(String? v) => (v == null || v.length < 6) ? 'Dùng ít nhất 6 ký tự' : null;
+String? _validatePassword(String? v) => (v == null || v.length < 9) ? 'Dùng ít nhất 9 ký tự' : null;
+
+String? _extractHtmlErrorMessage(String text) {
+  if (text.isEmpty || !text.contains('<')) return null;
+  try {
+    final pMatch = RegExp(r'<p[^>]*>(.*?)</p>', caseSensitive: false, dotAll: true).firstMatch(text);
+    if (pMatch != null && pMatch.groupCount >= 1) {
+      final raw = pMatch.group(1)!.replaceAll(RegExp(r'<[^>]*>'), '').trim();
+      if (raw.isNotEmpty) {
+        if (raw.contains('Your password must contain at least') && raw.contains('characters')) {
+          final m = RegExp(r'at least (\d+) characters and only has (\d+)').firstMatch(raw);
+          if (m != null) {
+            return 'Mật khẩu phải có ít nhất ${m.group(1)} ký tự (hiện tại có ${m.group(2)} ký tự).';
+          }
+        }
+        return raw;
+      }
+    }
+  } catch (_) {}
+  return null;
+}
 
 String? _validateConfirmPassword(String? v, String refPass) {
   if (v == null || v.isEmpty) return 'Vui lòng xác nhận mật khẩu';
@@ -236,7 +260,7 @@ String? _validateAcceptTerms(bool acceptTerms) {
 }
 
 void main() async {
-  print('--- BẮT ĐẦU KIỂM THỬ 12 CASE CHO SIGNUP FLOW ---');
+  print('--- BẮT ĐẦU KIỂM THỬ 16 CASE CHO SIGNUP FLOW ---');
 
   // TC-01: Validator họ tên không rỗng
   assert(_validateName(null) == 'Vui lòng nhập họ tên', 'TC-01 fail: null name');
@@ -263,12 +287,13 @@ void main() async {
   assert(_validateEmail('test.user@vuahethong.net') == null, 'TC-03 fail: valid email 2');
   print('✅ TC-03 PASS: Validator Email định dạng regex chuẩn');
 
-  // TC-04: Validator mật khẩu >= 6 ký tự
-  assert(_validatePassword(null) == 'Dùng ít nhất 6 ký tự', 'TC-04 fail: null password');
-  assert(_validatePassword('12345') == 'Dùng ít nhất 6 ký tự', 'TC-04 fail: short password');
-  assert(_validatePassword('123456') == null, 'TC-04 fail: 6 chars password');
-  assert(_validatePassword('P@ssw0rd!') == null, 'TC-04 fail: strong password');
-  print('✅ TC-04 PASS: Validator Mật khẩu tối thiểu 6 ký tự');
+  // TC-04: Validator mật khẩu >= 9 ký tự
+  assert(_validatePassword(null) == 'Dùng ít nhất 9 ký tự', 'TC-04 fail: null password');
+  assert(_validatePassword('12345') == 'Dùng ít nhất 9 ký tự', 'TC-04 fail: 5 chars password');
+  assert(_validatePassword('12345678') == 'Dùng ít nhất 9 ký tự', 'TC-04 fail: 8 chars password');
+  assert(_validatePassword('123456789') == null, 'TC-04 fail: 9 chars password');
+  assert(_validatePassword('P@ssw0rd123!') == null, 'TC-04 fail: strong password');
+  print('✅ TC-04 PASS: Validator Mật khẩu tối thiểu 9 ký tự');
 
   // TC-05: Validator xác nhận mật khẩu khớp
   const referencePassword = 'SecurePassword123';
@@ -451,5 +476,43 @@ void main() async {
   assert(fallbackTest3.length == 1 && fallbackTest3.first == 'tenant_db_1', 'TC-14 fail: keep rawDbs');
   print('✅ TC-14 PASS: Candidate DB Fallback bảo đảm candidateDbs không bị rỗng nhầm');
 
-  print('--- HOÀN TẤT: TOÀN BỘ 14/14 TEST CASES ĐẠT CHUẨN 100% ---');
+  // TC-15: _extractHtmlErrorMessage bóc tách và dịch lỗi Werkzeug Odoo 422 sang tiếng Việt
+  const sampleOdoo422Html = '<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">\n'
+      '<title>422 Unprocessable Entity</title>\n'
+      '<h1>Unprocessable Entity</h1>\n'
+      '<p>Your password must contain at least 9 characters and only has 6.</p>';
+  final extractedMsg = _extractHtmlErrorMessage(sampleOdoo422Html);
+  assert(
+    extractedMsg == 'Mật khẩu phải có ít nhất 9 ký tự (hiện tại có 6 ký tự).',
+    'TC-15 fail: HTML error extraction mismatch, got $extractedMsg',
+  );
+  print('✅ TC-15 PASS: _extractHtmlErrorMessage trích xuất và dịch thông báo Odoo 422');
+
+  // TC-16: TestOdooApiClient.signUp xử lý HTML 422 ném đúng thông báo thân thiện
+  final html422Client = TestOdooApiClient(
+    baseUrl: 'https://vuahethong.net',
+    httpHandler: (req) async => MockHttpResponse(
+      statusCode: 422,
+      body: sampleOdoo422Html,
+    ),
+  );
+  bool didCatch422 = false;
+  try {
+    await html422Client.signUp(
+      name: 'Tan Test',
+      email: 'tan123@gmail.com',
+      password: 'pass',
+      phone: '0904902313',
+    );
+  } on MockFailure catch (f) {
+    didCatch422 = true;
+    assert(
+      f.message == 'Mật khẩu phải có ít nhất 9 ký tự (hiện tại có 6 ký tự).',
+      'TC-16 fail: expected translated message, got ${f.message}',
+    );
+  }
+  assert(didCatch422, 'TC-16 fail: did not throw MockFailure on 422 HTML');
+  print('✅ TC-16 PASS: TestOdooApiClient.signUp hiển thị thông báo tiếng Việt khi nhận HTML 422');
+
+  print('--- HOÀN TẤT: TOÀN BỘ 16/16 TEST CASES ĐẠT CHUẨN 100% ---');
 }
