@@ -63,6 +63,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
   int? _selectedFilterIndex; // null: Mặc định (Tất cả), 0: Chưa đọc, 1: Trực tiếp, 2: Nhóm, 3: Kênh, 4: Zalo OA
   Timer? _searchDebounceTimer;
   bool _dismissedVMobileWarning = false;
+  bool _isSearchExpanded = false;
 
   int? _resolveFilterIndex(String? filter) {
     if (filter == null || filter.isEmpty || filter == 'all' || filter == 'tatca') return null;
@@ -190,143 +191,212 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
     final isPortal = currentUser?.isPortal == true;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isTablet = screenWidth >= 600;
+    final horizontalPadding = isTablet ? 20.0 : 16.0;
+
+    final rawAvatar = meta?['avatar_url'] ??
+        meta?['avatar_128_url'] ??
+        meta?['image_128_url'] ??
+        (currentUser != null ? '/api/v1/mobile/avatar/users/${currentUser.id}' : null);
+    final currentUserAvatarUrl = rawAvatar is String && rawAvatar.isNotEmpty ? rawAvatar : null;
+
     return AppScaffold(
       title: 'Trò chuyện',
       showAppBar: false,
-      floatingActionButton: isPortal
-          ? FloatingActionButton.extended(
-              heroTag: 'chat_cskh_fab',
-              onPressed: _openCskhChat,
-              backgroundColor: const Color(0xFF0077CD),
-              foregroundColor: Colors.white,
-              elevation: 4,
-              icon: const Icon(LucideIcons.headphones, size: 22),
-              label: const Text(
-                'Hỗ trợ trực tuyến',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 14,
-                ),
-              ),
-            )
-          : FloatingActionButton(
-              heroTag: 'chat_new_fab',
-              onPressed: () => context.push('/chat/new'),
-              backgroundColor: const Color(0xFF00C83A),
-              foregroundColor: Colors.white,
-              elevation: 4,
-              shape: const CircleBorder(),
-              child: const Icon(LucideIcons.plus, size: 26),
-            ),
+      floatingActionButton: null,
       body: Container(
         color: isDark ? const Color(0xFF1E293B) : Colors.white,
-        child: Column(
-          children: [
-          // ── 1. Top Header ───────────────────────────────────────────────
-          Container(
-            padding: EdgeInsets.only(
-              top: MediaQuery.of(context).padding.top + 10,
-              left: 20,
-              right: 16,
-              bottom: 12,
-            ),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E293B) : Colors.white,
-              border: Border(
-                bottom: BorderSide(
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.08)
-                      : const Color(0xFFE2E8F0),
-                  width: 0.8,
-                ),
-              ),
-            ),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 880),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Trò chuyện',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800,
-                    color: isDark ? Colors.white : const Color(0xFF0F172A),
-                    letterSpacing: -0.5,
-                  ),
-                  overflow: TextOverflow.ellipsis,
+              // ── 1. Top Header ───────────────────────────────────────────────
+              Container(
+                padding: EdgeInsets.only(
+                  top: isTablet ? 12 : 8,
+                  left: horizontalPadding,
+                  right: horizontalPadding,
+                  bottom: 10,
                 ),
-                const SizedBox(height: 12),
-                // ── 2. Search Bar (Full Width) ──────────────────────────────
-                Container(
-                  height: 42,
-                  clipBehavior: Clip.antiAlias,
-                  decoration: BoxDecoration(
-                    color: isDark
-                        ? const Color(0xFF0F172A)
-                        : const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isDark ? Colors.white10 : const Color(0xFFE2E8F0),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                  border: Border(
+                    bottom: BorderSide(
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.08)
+                          : const Color(0xFFE2E8F0),
                       width: 0.8,
                     ),
                   ),
-                  child: TextField(
-                    controller: _searchController,
-                    onChanged: _onSearchChanged,
-                    textAlignVertical: TextAlignVertical.center,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: isDark ? Colors.white : const Color(0xFF0F172A),
-                    ),
-                    decoration: InputDecoration(
-                      isDense: true,
-                      hintText: 'Tìm kiếm cuộc trò chuyện...',
-                      hintStyle: TextStyle(
-                        fontSize: 14,
-                        color: isDark
-                            ? Colors.white38
-                            : const Color(0xFF94A3B8),
-                      ),
-                      prefixIcon: Icon(
-                        LucideIcons.search,
-                        size: 18,
-                        color: isDark
-                            ? Colors.white54
-                            : const Color(0xFF94A3B8),
-                      ),
-                      prefixIconConstraints: const BoxConstraints(
-                        minWidth: 40,
-                        minHeight: 42,
-                      ),
-                      suffixIcon: _searchQuery.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(LucideIcons.x, size: 16),
-                              color: isDark
-                                  ? Colors.white54
-                                  : const Color(0xFF94A3B8),
-                              onPressed: () {
-                                _searchController.clear();
-                                setState(() => _searchQuery = '');
-                              },
-                            )
-                          : null,
-                      suffixIconConstraints: const BoxConstraints(
-                        minWidth: 36,
-                        minHeight: 42,
-                      ),
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                    ),
-                  ),
                 ),
-                const SizedBox(height: 12),
-                // ── 3. Horizontal Filter Chips (6 Chips một chạm) ───────────
-                channelsAsync.maybeWhen(
-                  data: (channels) {
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Top Row: [Avatar User]   Trò chuyện      [🔍]  [➕]
+                    Row(
+                      children: [
+                        GestureDetector(
+                          onTap: () => context.push('/profile'),
+                          child: UserAvatar(
+                            userId: currentUserId ?? '',
+                            displayName: currentUserName ?? 'User',
+                            email: currentUser?.email,
+                            avatarUrl: currentUserAvatarUrl,
+                            size: isTablet ? 38 : 34,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Trò chuyện',
+                            style: TextStyle(
+                              fontSize: isTablet ? 24 : 21,
+                              fontWeight: FontWeight.w800,
+                              color: isDark ? Colors.white : const Color(0xFF0F172A),
+                              letterSpacing: -0.4,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        // Action 1: Search [🔍]
+                        Material(
+                          color: _isSearchExpanded
+                              ? (isDark ? Colors.white12 : const Color(0xFFE2E8F0))
+                              : Colors.transparent,
+                          shape: const CircleBorder(),
+                          clipBehavior: Clip.antiAlias,
+                          child: IconButton(
+                            icon: Icon(
+                              _isSearchExpanded ? LucideIcons.x : LucideIcons.search,
+                              size: isTablet ? 21 : 19,
+                              color: isDark ? Colors.white70 : const Color(0xFF475569),
+                            ),
+                            tooltip: _isSearchExpanded ? 'Đóng tìm kiếm' : 'Tìm kiếm',
+                            onPressed: () {
+                              setState(() {
+                                if (_isSearchExpanded) {
+                                  _isSearchExpanded = false;
+                                  _searchController.clear();
+                                  _searchQuery = '';
+                                  _searchResults = [];
+                                } else {
+                                  _isSearchExpanded = true;
+                                }
+                              });
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        // Action 2: New Chat [➕] / CSKH
+                        Material(
+                          color: isPortal ? const Color(0xFF0077CD) : const Color(0xFF00C83A),
+                          borderRadius: BorderRadius.circular(isTablet ? 12 : 10),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(isTablet ? 12 : 10),
+                            onTap: isPortal ? _openCskhChat : () => context.push('/chat/new'),
+                            child: Container(
+                              width: isTablet ? 38 : 34,
+                              height: isTablet ? 38 : 34,
+                              alignment: Alignment.center,
+                              child: Icon(
+                                isPortal ? LucideIcons.headphones : LucideIcons.plus,
+                                color: Colors.white,
+                                size: isTablet ? 20 : 18,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    // Expandable Search Bar
+                    AnimatedSize(
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeInOut,
+                      child: (_isSearchExpanded || _searchQuery.isNotEmpty)
+                          ? Padding(
+                              padding: const EdgeInsets.only(top: 10),
+                              child: Container(
+                                height: 40,
+                                clipBehavior: Clip.antiAlias,
+                                decoration: BoxDecoration(
+                                  color: isDark
+                                      ? const Color(0xFF0F172A)
+                                      : const Color(0xFFF1F5F9),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: isDark ? Colors.white10 : const Color(0xFFE2E8F0),
+                                    width: 0.8,
+                                  ),
+                                ),
+                                child: TextField(
+                                  controller: _searchController,
+                                  onChanged: _onSearchChanged,
+                                  autofocus: _isSearchExpanded && _searchQuery.isEmpty,
+                                  textAlignVertical: TextAlignVertical.center,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                                  ),
+                                  decoration: InputDecoration(
+                                    isDense: true,
+                                    hintText: 'Tìm kiếm cuộc trò chuyện...',
+                                    hintStyle: TextStyle(
+                                      fontSize: 13.5,
+                                      color: isDark
+                                          ? Colors.white38
+                                          : const Color(0xFF94A3B8),
+                                    ),
+                                    prefixIcon: Icon(
+                                      LucideIcons.search,
+                                      size: 17,
+                                      color: isDark
+                                          ? Colors.white54
+                                          : const Color(0xFF94A3B8),
+                                    ),
+                                    prefixIconConstraints: const BoxConstraints(
+                                      minWidth: 38,
+                                      minHeight: 40,
+                                    ),
+                                    suffixIcon: _searchQuery.isNotEmpty
+                                        ? IconButton(
+                                            icon: const Icon(LucideIcons.x, size: 15),
+                                            color: isDark
+                                                ? Colors.white54
+                                                : const Color(0xFF94A3B8),
+                                            onPressed: () {
+                                              _searchController.clear();
+                                              setState(() {
+                                                _searchQuery = '';
+                                                _searchResults = [];
+                                              });
+                                            },
+                                          )
+                                        : null,
+                                    suffixIconConstraints: const BoxConstraints(
+                                      minWidth: 34,
+                                      minHeight: 40,
+                                    ),
+                                    border: InputBorder.none,
+                                    enabledBorder: InputBorder.none,
+                                    focusedBorder: InputBorder.none,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 8,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            )
+                          : const SizedBox.shrink(),
+                    ),
+                    const SizedBox(height: 10),
+                    // ── 3. Horizontal Filter Chips (6 Chips một chạm) ───────────
+                Builder(
+                  builder: (context) {
+                    final channels = channelsAsync.valueOrNull ?? ChatV2ChannelLocalCache.cached;
                     final unreadCount = ref.watch(chatV2TotalUnreadProvider);
                     final directCount = channels
                         .where((c) => c.isInternalDirect(currentUserName))
@@ -383,7 +453,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                               onTap: () => setState(() => _selectedFilterIndex = 2),
                             ),
                           ],
-                          if (channelCount > 0) ...[
+                          if (!isPortal || channelCount > 0) ...[
                             const SizedBox(width: 8),
                             _buildChip(
                               label: 'Kênh',
@@ -419,7 +489,6 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                       ),
                     );
                   },
-                  orElse: () => const SizedBox.shrink(),
                 ),
               ],
             ),
@@ -829,24 +898,118 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                     final isLoadingMore = channelsNotifier.isLoadingMore;
                     final isFiltered = _searchQuery.isNotEmpty || _selectedFilterIndex != null;
 
+                    // Phân nhóm cuộc trò chuyện: Đã ghim và Thông thường
+                    final pinnedChannels = filtered
+                        .where((c) => ChatV2ChannelLocalCache.isUserPinned(c.id))
+                        .toList();
+                    final regularChannels = filtered
+                        .where((c) => !ChatV2ChannelLocalCache.isUserPinned(c.id))
+                        .toList();
+                    final showSections = _searchQuery.isEmpty && pinnedChannels.isNotEmpty;
+
+                    final entries = <_ChatListEntry>[];
+                    if (showSections) {
+                      entries.add(_ChatSectionHeaderEntry(
+                        title: 'ĐÃ GHIM',
+                        icon: LucideIcons.pin,
+                        count: pinnedChannels.length,
+                      ));
+                      for (final ch in pinnedChannels) {
+                        entries.add(_ChatChannelEntry(channel: ch, isPinned: true));
+                      }
+
+                      if (regularChannels.isNotEmpty) {
+                        entries.add(_ChatSectionHeaderEntry(
+                          title: 'TẤT CẢ CUỘC TRÒ CHUYỆN',
+                          icon: LucideIcons.messagesSquare,
+                          count: regularChannels.length,
+                        ));
+                        for (final ch in regularChannels) {
+                          entries.add(_ChatChannelEntry(channel: ch, isPinned: false));
+                        }
+                      }
+                    } else {
+                      for (final ch in filtered) {
+                        entries.add(_ChatChannelEntry(
+                          channel: ch,
+                          isPinned: ChatV2ChannelLocalCache.isUserPinned(ch.id),
+                        ));
+                      }
+                    }
+
+                    if (!isFiltered) {
+                      if (isLoadingMore) {
+                        entries.add(const _ChatLoadingMoreEntry());
+                      } else if (!hasMore && filtered.length >= 40) {
+                        entries.add(_ChatAllLoadedEntry(filtered.length));
+                      }
+                    }
+
                     listContent = ListView.separated(
                       controller: _scrollController,
                       physics: const AlwaysScrollableScrollPhysics(),
                       addRepaintBoundaries: true,
                       addAutomaticKeepAlives: false,
-                      itemCount: filtered.length + ((!isFiltered && (isLoadingMore || (!hasMore && filtered.length >= 40))) ? 1 : 0),
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      separatorBuilder: (_, _) => Divider(
-                        height: 1,
-                        indent: 76,
-                        endIndent: 16,
-                        color: isDark
-                            ? Colors.white.withValues(alpha: 0.06)
-                            : const Color(0xFFE2E8F0).withValues(alpha: 0.7),
-                      ),
+                      itemCount: entries.length,
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      separatorBuilder: (_, index) {
+                        final current = entries[index];
+                        final next = index + 1 < entries.length ? entries[index + 1] : null;
+                        if (current is _ChatSectionHeaderEntry || next is _ChatSectionHeaderEntry) {
+                          return const SizedBox.shrink();
+                        }
+                        if (current is _ChatLoadingMoreEntry || current is _ChatAllLoadedEntry) {
+                          return const SizedBox.shrink();
+                        }
+                        return Divider(
+                          height: 1,
+                          indent: 76,
+                          endIndent: 16,
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.06)
+                              : const Color(0xFFE2E8F0).withValues(alpha: 0.7),
+                        );
+                      },
                       itemBuilder: (context, index) {
-                        if (index == filtered.length) {
-                          if (isLoadingMore) {
+                        final entry = entries[index];
+                        switch (entry) {
+                          case _ChatSectionHeaderEntry():
+                            return Container(
+                              padding: const EdgeInsets.fromLTRB(18, 12, 16, 6),
+                              color: isDark
+                                  ? const Color(0xFF1E293B)
+                                  : const Color(0xFFF8FAFC),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    entry.icon,
+                                    size: 13,
+                                    color: const Color(0xFF0077CD),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    '${entry.title} (${entry.count})',
+                                    style: TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 0.5,
+                                      color: isDark
+                                          ? Colors.white60
+                                          : const Color(0xFF64748B),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          case _ChatChannelEntry():
+                            return _ChannelListItem(
+                              key: ValueKey(entry.channel.id),
+                              channel: entry.channel,
+                              currentUserName: currentUserName,
+                              currentPartnerId: currentPartnerId,
+                              currentUserId: currentUserId,
+                            );
+                          case _ChatLoadingMoreEntry():
                             return const Center(
                               child: Padding(
                                 padding: EdgeInsets.symmetric(vertical: 16),
@@ -860,13 +1023,12 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                                 ),
                               ),
                             );
-                          }
-                          if (!hasMore) {
+                          case _ChatAllLoadedEntry():
                             return Center(
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(vertical: 16),
                                 child: Text(
-                                  'Đã hiển thị tất cả cuộc trò chuyện (${filtered.length})',
+                                  'Đã hiển thị tất cả cuộc trò chuyện (${entry.totalCount})',
                                   style: TextStyle(
                                     fontSize: 12,
                                     color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
@@ -874,18 +1036,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                                 ),
                               ),
                             );
-                          }
-                          return const SizedBox.shrink();
                         }
-
-                        final channel = filtered[index];
-                        return _ChannelListItem(
-                          key: ValueKey(channel.id),
-                          channel: channel,
-                          currentUserName: currentUserName,
-                          currentPartnerId: currentPartnerId,
-                          currentUserId: currentUserId,
-                        );
                       },
                     );
                   }
@@ -908,7 +1059,9 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
           ),
         ],
       ),
-    ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -984,6 +1137,39 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
       ),
     );
   }
+}
+
+sealed class _ChatListEntry {
+  const _ChatListEntry();
+}
+
+class _ChatSectionHeaderEntry extends _ChatListEntry {
+  final String title;
+  final IconData icon;
+  final int count;
+  const _ChatSectionHeaderEntry({
+    required this.title,
+    required this.icon,
+    required this.count,
+  });
+}
+
+class _ChatChannelEntry extends _ChatListEntry {
+  final ChatV2Channel channel;
+  final bool isPinned;
+  const _ChatChannelEntry({
+    required this.channel,
+    this.isPinned = false,
+  });
+}
+
+class _ChatLoadingMoreEntry extends _ChatListEntry {
+  const _ChatLoadingMoreEntry();
+}
+
+class _ChatAllLoadedEntry extends _ChatListEntry {
+  final int totalCount;
+  const _ChatAllLoadedEntry(this.totalCount);
 }
 
 class _ChannelListItem extends ConsumerWidget {
@@ -1202,7 +1388,11 @@ class _ChannelListItem extends ConsumerWidget {
             ? (isDark
                 ? const Color(0xFF1E293B)
                 : Colors.white)
-            : Colors.transparent,
+            : (ChatV2ChannelLocalCache.isUserPinned(channel.id)
+                ? (isDark
+                    ? const Color(0xFF1E293B).withValues(alpha: 0.5)
+                    : const Color(0xFFF8FAFC))
+                : Colors.transparent),
         child: InkWell(
           onTap: () {
             ref.read(chatV2ReadStateProvider.notifier).markChannelAsRead(channel.id);
@@ -1893,6 +2083,16 @@ class _ChannelListItem extends ConsumerWidget {
       displayText = '[Ghi âm]';
     } else if (isDoc && !msg.startsWith('[Tập tin]') && !msg.startsWith('[Tài liệu]') && !msg.startsWith('[Tệp tin]')) {
       displayText = '[Tập tin]';
+    } else if (isUrl) {
+      final uri = Uri.tryParse(msg.trim());
+      final host = uri?.host.toLowerCase() ?? '';
+      if (host.contains('vuahethong') || lower.contains('/crm') || lower.contains('/odoo')) {
+        displayText = '[Liên kết Hệ thống]';
+      } else if (host.isNotEmpty) {
+        displayText = '[Liên kết: $host]';
+      } else {
+        displayText = '[Liên kết]';
+      }
     } else if (isMissedCall) {
       displayText = isMine ? '[Cuộc gọi nhỡ đi]' : '[Cuộc gọi nhỡ]';
     } else if (isVoiceCall) {
@@ -2022,6 +2222,13 @@ class _ChannelListItem extends ConsumerWidget {
             LucideIcons.fileText,
             size: 14,
             color: hasUnread ? const Color(0xFF2563EB) : const Color(0xFF60A5FA),
+          ),
+          const SizedBox(width: 4),
+        ] else if (isUrl) ...[
+          Icon(
+            LucideIcons.link,
+            size: 14,
+            color: hasUnread ? const Color(0xFF0077CD) : const Color(0xFF38BDF8),
           ),
           const SizedBox(width: 4),
         ] else if (isImageFilename) ...[
@@ -2362,6 +2569,3 @@ class _SyncStatusBanner extends StatelessWidget {
     );
   }
 }
-
-
-

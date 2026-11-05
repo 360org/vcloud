@@ -7,7 +7,6 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
 import '../../../core/api/odoo_api_client.dart';
-import '../../../core/config/env.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../application/menu_controller.dart';
 import '../data/menu_item_model.dart';
@@ -905,11 +904,12 @@ class _UtilityTile extends StatelessWidget {
 /// Gắn `?db=<session.db>` vào URL đích trước dấu `#` nếu chưa có.
 String formatAppWebUrl(String rawUrl, {String? db}) {
   final session = odooApiClient.session;
+  final effectiveBase = session?.baseUrl.isNotEmpty == true ? session!.baseUrl : odooApiClient.baseUrl;
   final dbName = (db != null && db.isNotEmpty)
       ? db
       : (session?.db.isNotEmpty == true
           ? session!.db
-          : (Env.odooDb.isNotEmpty ? Env.odooDb : 'vcloud_test_v19'));
+          : OdooApiClient.resolveDefaultDbForUrl(effectiveBase));
 
   var url = rawUrl.trim();
   if (dbName.isNotEmpty) {

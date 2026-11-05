@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
+import '../../../core/api/odoo_api_client.dart';
 import '../../../core/api/odoo_session.dart';
 import '../../../core/config/env.dart';
 import '../../../core/error/failure.dart';
@@ -104,44 +106,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _error = null;
     });
     try {
-      final targetDb = _isManualMode
-          ? _databaseName.text.trim()
-          : (Env.odooDb.isNotEmpty ? Env.odooDb : 'vcloud_test_v19');
       final targetUrl = _isManualMode
           ? _serverUrl.text.trim()
           : Env.odooApiBaseUrl;
+      final targetDb = _isManualMode
+          ? _databaseName.text.trim()
+          : OdooApiClient.resolveDefaultDbForUrl(targetUrl);
 
       String? oauthToken;
       String? oauthEmail;
 
       // Luồng Google Sign-In kết nối SSO Odoo (Chiến Lược Kép: Native SDK + Fallback WebView SSO)
-      try {
-        final googleSignIn = GoogleSignIn(
-          serverClientId: '12576206090-2aucq3jt479mghm0qmnoa63f8emdekhc.apps.googleusercontent.com',
-          scopes: const ['email', 'profile'],
-        );
-        final account = await googleSignIn.signIn();
-        if (account != null) {
-          if (mounted) {
-            setState(() {
-              _googleAuthStatus = 'Đang đồng bộ dữ liệu người dùng...';
-            });
-          }
-          final auth = await account.authentication;
-          oauthToken = auth.idToken ?? auth.accessToken;
-          oauthEmail = account.email;
-        } else {
-          // Người dùng chủ động huỷ / đóng dialog chọn tài khoản Google
-          if (mounted) {
-            setState(() {
-              _submitting = false;
-              _isGoogleAuthProcessing = false;
-            });
-          }
-          return;
-        }
-      } catch (nativeErr) {
-        debugPrint('[GoogleSignIn] Native SDK error: $nativeErr -> Kích hoạt Luồng 2 Fallback SSO In-App WebView');
+      // Trên iOS: Điều hướng an toàn trực tiếp qua In-App WebView SSO để chống văng app (crash do missing native GIDSignIn config)
+      final isIos = defaultTargetPlatform == TargetPlatform.iOS;
+      if (isIos) {
         if (!mounted) return;
         final webResult = await GoogleOAuthWebViewSheet.show(
           context,
@@ -159,6 +137,53 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             });
           }
           return;
+        }
+      } else {
+        try {
+          final googleSignIn = GoogleSignIn(
+            serverClientId: '12576206090-2aucq3jt479mghm0qmnoa63f8emdekhc.apps.googleusercontent.com',
+            scopes: const ['email', 'profile'],
+          );
+          final account = await googleSignIn.signIn();
+          if (account != null) {
+            if (mounted) {
+              setState(() {
+                _googleAuthStatus = 'Đang đồng bộ dữ liệu người dùng...';
+              });
+            }
+            final auth = await account.authentication;
+            oauthToken = auth.idToken ?? auth.accessToken;
+            oauthEmail = account.email;
+          } else {
+            // Người dùng chủ động huỷ / đóng dialog chọn tài khoản Google
+            if (mounted) {
+              setState(() {
+                _submitting = false;
+                _isGoogleAuthProcessing = false;
+              });
+            }
+            return;
+          }
+        } catch (nativeErr) {
+          debugPrint('[GoogleSignIn] Native SDK error: $nativeErr -> Kích hoạt Luồng 2 Fallback SSO In-App WebView');
+          if (!mounted) return;
+          final webResult = await GoogleOAuthWebViewSheet.show(
+            context,
+            targetUrl: targetUrl,
+            targetDb: targetDb,
+          );
+          if (webResult != null && webResult.accessToken.isNotEmpty) {
+            oauthToken = webResult.accessToken;
+            oauthEmail = webResult.email;
+          } else {
+            if (mounted) {
+              setState(() {
+                _submitting = false;
+                _isGoogleAuthProcessing = false;
+              });
+            }
+            return;
+          }
         }
       }
 
@@ -396,9 +421,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         }
       }
 
-      // Khi cấu hình cố định database trong Env (Môi trường test / Dev):
-      // Khóa thẳng vào Env.odooDb và Env.odooApiBaseUrl, tuyệt đối KHÔNG nhảy sang link/DB khác
-      if (Env.odooDb.isNotEmpty) {
+      // Khi cấu hình cố định database trong Env (chỉ áp dụng riêng cho Debug Mode trên Local Server LAN):
+      // Tuyệt đối KHÔNG ghi đè khi đang chạy Release Mode hoặc kết nối domain SaaS / Production
+      if (kDebugMode &&
+          Env.odooDb.isNotEmpty &&
+          Env.odooApiBaseUrl.contains('192.168.1.100')) {
         candidateDbs.clear();
         candidateDbs.add(DbInfo(
           login: login,
@@ -414,14 +441,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ? lastDb
             : (Env.odooDb.isNotEmpty ? Env.odooDb : '');
         if (fallbackDbName.isEmpty) {
-          final host = Uri.tryParse(Env.odooApiBaseUrl)?.host.toLowerCase() ?? '';
-          if (host.contains('vuahethong.net')) {
-            fallbackDbName = 'vuahethong';
-          } else if (host.contains('demo.vuahethong.com')) {
-            fallbackDbName = 'demo';
-          } else {
-            fallbackDbName = 'vcloud_test_v19';
-          }
+          final targetBase = _isManualMode ? _serverUrl.text.trim() : Env.odooApiBaseUrl;
+          fallbackDbName = OdooApiClient.resolveDefaultDbForUrl(targetBase);
         }
         final fallbackDb = _normalizeCandidateDb(DbInfo(
           login: login,

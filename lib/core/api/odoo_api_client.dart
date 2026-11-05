@@ -90,6 +90,26 @@ class TenantNotFoundFailure extends Failure {
 class OdooApiClient {
   static void Function()? onSessionExpired;
 
+  /// [Smart DB Resolver]: Giải quyết tên database mặc định tương ứng với Base URL đích.
+  /// Tuyệt đối KHÔNG fallback cứng 'vcloud_test_v19' khi kết nối tới Production vuahethong.net
+  /// hoặc các domain tenant khách hàng.
+  static String resolveDefaultDbForUrl(String url) {
+    if (Env.odooDb.isNotEmpty) return Env.odooDb;
+    final lower = url.toLowerCase();
+    if (lower.contains('vuahethong.net')) {
+      return 'vuahethong';
+    }
+    if (lower.contains('demo.vuahethong.com')) {
+      return 'demo';
+    }
+    if (lower.contains('192.168.1.100') ||
+        lower.contains('localhost') ||
+        lower.contains('127.0.0.1')) {
+      return 'vcloud_test_v19';
+    }
+    return '';
+  }
+
   OdooApiClient({
     http.Client? httpClient,
     OdooSessionStore? sessionStore,
@@ -302,7 +322,7 @@ class OdooApiClient {
     final primaryBaseUrl = _baseUrl.isNotEmpty ? _baseUrl : Env.odooApiBaseUrl;
     final targetDb = db?.trim().isNotEmpty == true
         ? db!.trim()
-        : (Env.odooDb.isNotEmpty ? Env.odooDb : 'vcloud_test_v19');
+        : resolveDefaultDbForUrl(primaryBaseUrl);
 
     final body = <String, dynamic>{
       'name': trimmedName,
@@ -371,7 +391,7 @@ class OdooApiClient {
         : (_baseUrl.isNotEmpty ? _baseUrl : Env.odooApiBaseUrl);
     final targetDb = (db != null && db.trim().isNotEmpty)
         ? db.trim()
-        : (Env.odooDb.isNotEmpty ? Env.odooDb : 'vcloud_test_v19');
+        : resolveDefaultDbForUrl(primaryBaseUrl);
 
     final body = <String, dynamic>{
       'login': trimmedLogin,
@@ -427,7 +447,7 @@ class OdooApiClient {
         : (_baseUrl.isNotEmpty ? _baseUrl : Env.odooApiBaseUrl);
     final targetDb = (db != null && db.trim().isNotEmpty)
         ? db.trim()
-        : (Env.odooDb.isNotEmpty ? Env.odooDb : 'vcloud_test_v19');
+        : resolveDefaultDbForUrl(primaryBaseUrl);
 
     final body = <String, dynamic>{
       'login': login.trim(),
@@ -494,7 +514,7 @@ class OdooApiClient {
         : (_baseUrl.isNotEmpty ? _baseUrl : Env.odooApiBaseUrl);
     final targetDb = (db != null && db.trim().isNotEmpty)
         ? db.trim()
-        : (Env.odooDb.isNotEmpty ? Env.odooDb : 'vcloud_test_v19');
+        : resolveDefaultDbForUrl(primaryBaseUrl);
 
     final body = <String, dynamic>{
       'provider': provider,
@@ -864,7 +884,9 @@ class OdooApiClient {
       if (effectiveDb.isEmpty) {
         effectiveDb = 'demo';
       }
-    } else {
+    } else if (host.contains('192.168.1.100') ||
+        host.contains('localhost') ||
+        host.contains('127.0.0.1')) {
       // Môi trường Local Server hoặc IP nội bộ:
       // Nếu dbName rỗng HOẶC bị truyền nhầm là 'demo', tự động chuẩn hóa về Env.odooDb hoặc 'vcloud_test_v19'
       if (effectiveDb.isEmpty || effectiveDb == 'demo') {

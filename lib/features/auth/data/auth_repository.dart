@@ -497,6 +497,8 @@ class AuthRepository {
       'installed_modules': installedModules,
       if (profile?['vmobile_enabled'] != null)
         'vmobile_enabled': profile!['vmobile_enabled'] == true,
+      if (profile?['color_scheme'] != null || profile?['theme'] != null)
+        'color_scheme': (profile?['color_scheme'] ?? profile?['theme']).toString(),
     };
     if (partnerId != null) metadata['partner_id'] = partnerId;
     if (companyName != null) metadata['company'] = companyName;

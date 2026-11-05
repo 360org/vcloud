@@ -835,7 +835,10 @@ class ChatV2Channel {
   }
 
   /// Kiểm tra có phải kênh thảo luận Odoo (channel) hay không
-  bool get isChannel => channelType == 'channel';
+  bool get isChannel =>
+      channelType == 'channel' ||
+      name.trim().startsWith('#') ||
+      displayName.trim().startsWith('#');
 
   /// Kiểm tra có phải kênh hỗ trợ trực tuyến Livechat hay không
   bool get isLivechat => channelType == 'livechat';
@@ -972,6 +975,7 @@ class ChatV2Channel {
     // Parse unread count
     final unread = _intOr(
         map['unread_count'] ??
+            map['unread_counter'] ??
             map['message_unread_counter'] ??
             map['message_needaction_counter'] ??
             map['unread_messages'],
@@ -1000,7 +1004,10 @@ class ChatV2Channel {
       isGroup = true;
     }
     String effectiveChannelType = channelType;
-    if (isGroup && (effectiveChannelType == 'chat' || effectiveChannelType.isEmpty)) {
+    if (effectiveName.trim().startsWith('#') || name.trim().startsWith('#')) {
+      effectiveChannelType = 'channel';
+      isGroup = true;
+    } else if (isGroup && (effectiveChannelType == 'chat' || effectiveChannelType.isEmpty)) {
       effectiveChannelType = isInternalChannel ? 'channel' : 'group';
     }
 

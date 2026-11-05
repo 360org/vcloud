@@ -2,6 +2,33 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.34+188] — 2026-11-05
+
+> [!IMPORTANT]
+> **Hiện Đại Hoá Giao Diện Chat V2, Đồng Bộ Theme Odoo Backend, Smart DB Resolver SSOT & Verified Vivo V2116 (L4 VERIFIED 2026-11-05)**:
+> - **[NEW] Hiện Đại Hoá Danh Sách Trò Chuyện Chat V2 (`chat_v2_list_screen.dart`, `chat_v2_channel.dart`)**:
+>   * Thiết kế lại Top Header theo phong cách Refined Tech Luxury: tích hợp Profile Avatar góc trái, nút Tìm kiếm mở rộng động, nút khởi tạo hội thoại mới.
+>   * Bổ sung bộ lọc danh mục trực quan: *Tất cả*, *Chưa đọc*, *Trực tiếp*, *Nhóm*, *Kênh*, *Zalo OA* với badge đếm số lượng thời gian thực.
+>   * Hỗ trợ bố cục Responsive: breakpoint Tablet (`>= 600px`) và Mobile (`< 600px`), ràng buộc MaxWidth 880px chống vỡ tràn khung hình trên màn hình lớn.
+>   * Chuẩn hoá nhận diện kênh Odoo Discuss (`isChannel`): hỗ trợ nhận diện kênh tiền tố `#`, xử lý đa dạng các trường đếm tin nhắn chưa đọc (`unread_counter`, `message_unread_counter`, `message_needaction_counter`).
+> - **[NEW] Đồng Bộ Theme Động Theo Vua Hệ Thống (`theme_controller.dart`, `user_preferences_repository.dart`)**:
+>   * Bổ sung chế độ giao diện `AppThemeMode.vuahethong`: tự động nạp và phản ánh `color_scheme` từ hồ sơ người dùng trên Odoo backend (`vuahethong.net`).
+>   * Hỗ trợ đầy đủ các tuỳ chọn: Đồng bộ Vua Hệ Thống, Sáng, Tối, và Theo thiết bị di động (`system`).
+>   * Lưu trữ cấu hình theme an toàn vào `FlutterSecureStorage` (mã hóa Keychain iOS & EncryptedSharedPreferences Android).
+> - **[FIX] Bộ Phân Giải Cơ Sở Dữ Liệu Động Smart DB Resolver SSOT (`odoo_api_client.dart`, `login_screen.dart`)**:
+>   * Xây dựng hàm chuẩn hoá `OdooApiClient.resolveDefaultDbForUrl()` làm Single Source of Truth toàn ứng dụng.
+>   * Loại bỏ triệt để các vị trí hardcode và fallback ngầm về DB test (`vcloud_test_v19`, `demo-17`, `demo-19`) khi kết nối Production (`vuahethong.net`), Demo (`demo.vuahethong.com`) hoặc domain khách hàng SaaS.
+>   * Giới hạn khóa cứng `Env.odooDb` chỉ kích hoạt riêng trong `kDebugMode` trên mạng LAN Local Server `192.168.1.100`.
+>   * Đồng bộ cơ chế phân giải DB cho WebView Odoo (`odoo_webview_screen.dart`, `app_drawer_bottom_sheet.dart`).
+> - **[FIX] An Toàn Xác Thực Google Sign-In Trên iOS & Fastlane Release Guard**:
+>   * Trên iOS: Tự động điều hướng qua In-App WebView SSO an toàn, loại bỏ hoàn toàn nguy cơ văng crash ứng dụng do thiếu cấu hình client ID native.
+>   * Bổ sung `CFBundleURLTypes` redirect scheme trong `ios/Runner/Info.plist`.
+>   * Fastlane IPA build: Cố định cờ `--dart-define=VCLOUD_ODOO_DB=""` ngăn ngừa nhúng DB test vào bản phát hành App Store.
+> - **[VERIFIED] Kiểm Thử Thực Tế Thiết Bị Thật & 30 Test Cases Tự Động**:
+>   * Cài đặt APK Debug và khởi chạy mượt mà trên thiết bị thật **Vivo V2116** qua ADB không dây (`192.168.1.5:45299`).
+>   * Đã kiểm chứng trực quan: Tab Trò chuyện tải 85 hội thoại/16 chưa đọc; Tab Trang chủ đồng bộ ca làm việc/6 ticket; Tab Ticket hiển thị chuẩn xác bộ lọc.
+>   * 30/30 test cases mới đạt 100% pass: `chat_v2_channel_and_theme_test.dart` (10 tests), `chat_v2_responsive_list_test.dart` (10 tests), `smart_db_resolver_test.dart` (10 tests). Toàn bộ test suite 1172 tests và `flutter analyze` đạt 0 errors, 0 warnings.
+
 ## [v2.9.33+187] — 2026-11-05
 
 > [!IMPORTANT]

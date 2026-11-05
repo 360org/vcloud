@@ -1,5 +1,29 @@
 # CHANGELOG
 
+## [2.9.34 - Build 188] - 2026-11-05
+
+### 🚀 Hiện Đại Hoá Chat V2, Đồng Bộ Theme Vua Hệ Thống, Smart DB Resolver SSOT & Verified Vivo V2116
+- **Giao diện Chat V2 Hiện Đại (`chat_v2_list_screen.dart`, `chat_v2_channel.dart`)**:
+  * Tích hợp Profile Avatar góc trái, thanh tìm kiếm mở rộng động, nút tạo chat mới.
+  * Bộ lọc danh mục trực quan: Tất cả, Chưa đọc, Trực tiếp, Nhóm, Kênh, Zalo OA với badge thời gian thực.
+  * Responsive layout: Hỗ trợ Tablet (>= 600px) và Mobile (< 600px), giới hạn MaxWidth 880px chống vỡ giao diện.
+  * Nhận diện chuẩn kênh thảo luận Odoo Discuss (`#`), đa dạng trường đếm tin chưa đọc.
+- **Đồng Bộ Theme Odoo Backend (`theme_controller.dart`, `user_preferences_repository.dart`)**:
+  * Bổ sung chế độ `AppThemeMode.vuahethong`, tự động nạp `color_scheme` từ hồ sơ người dùng trên Odoo backend.
+  * Hỗ trợ đầy đủ: Đồng bộ Vua Hệ Thống, Sáng, Tối, Theo thiết bị di động (`system`).
+  * Lưu trữ an toàn bằng `FlutterSecureStorage`.
+- **Smart DB Resolver SSOT (`odoo_api_client.dart`, `login_screen.dart`, `odoo_webview_screen.dart`)**:
+  * Xây dựng hàm `OdooApiClient.resolveDefaultDbForUrl()` phân giải database động theo URL kết nối.
+  * Gỡ bỏ hoàn toàn fallback DB test (`vcloud_test_v19`, `demo-17`) trên Production và SaaS tenants.
+  * Khóa `Env.odooDb` chỉ kích hoạt trong `kDebugMode` trên mạng LAN Local Server `192.168.1.100`.
+- **An Toàn Google Sign-In Trên iOS & Fastlane Release Guard**:
+  * Điều hướng Google OAuth trên iOS qua In-App WebView SSO an toàn chống văng app.
+  * Thêm `CFBundleURLTypes` redirect scheme cho iOS.
+  * Cố định `--dart-define=VCLOUD_ODOO_DB=""` khi đóng gói IPA.
+- **Kiểm Thử & Đảm Bảo Chất Lượng**:
+  * Đã kiểm chứng thực tế và khởi chạy mượt mà trên điện thoại thật Vivo V2116.
+  * 30 test cases mới pass 100%, toàn bộ 1172 tests toàn hệ thống pass 100%, `flutter analyze` 0 errors / 0 warnings.
+
 ## [2.9.20 - Build 164] - 2026-10-14
 
 ### 🚀 Smart Direct Chat 1-1 "Chat với CSKH" Cho Khách Hàng Portal (Thay Thế Zalo OA)

@@ -322,17 +322,13 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
     ref.watch(attendanceReminderSyncProvider);
 
     final router = ref.watch(routerProvider);
-    final themeMode = ref.watch(themeControllerProvider);
+    final themeMode = ref.watch(currentThemeModeProvider);
     return MaterialApp.router(
       title: 'Vua Hệ Thống',
       debugShowCheckedModeBanner: false,
       theme: buildLightTheme(),
       darkTheme: buildDarkTheme(),
-      themeMode: themeMode.when(
-        data: (mode) => mode.themeMode,
-        loading: () => AppThemeMode.system.themeMode,
-        error: (e, st) => AppThemeMode.system.themeMode,
-      ),
+      themeMode: themeMode,
       scaffoldMessengerKey: rootScaffoldMessengerKey,
       routerConfig: router,
       builder: (context, child) => ChatV2CallListener(child: child ?? const SizedBox.shrink()),

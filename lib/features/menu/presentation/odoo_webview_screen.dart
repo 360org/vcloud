@@ -11,7 +11,6 @@ import 'package:webview_flutter_android/webview_flutter_android.dart';
 
 import '../../../core/api/odoo_api_client.dart';
 import '../../../core/api/odoo_session.dart';
-import '../../../core/config/env.dart';
 import '../../../shared/widgets/app_scaffold.dart';
 import '../../profile/application/theme_controller.dart';
 import 'widgets/odoo_web_frame.dart';
@@ -879,9 +878,15 @@ String buildTargetWebViewUrl({
       target = '/web';
     }
 
+    final base = baseUrl.isNotEmpty
+        ? baseUrl
+        : (session?.baseUrl.isNotEmpty == true
+            ? session!.baseUrl
+            : odooApiClient.baseUrl);
+
     final db = (session != null && session.db.isNotEmpty)
         ? session.db
-        : (Env.odooDb.isNotEmpty ? Env.odooDb : 'vcloud_test_v19');
+        : OdooApiClient.resolveDefaultDbForUrl(base);
 
     // Luôn gắn ?db=<database> vào trước dấu # nếu chưa có
     if (db.isNotEmpty) {
@@ -898,12 +903,6 @@ String buildTargetWebViewUrl({
         target = '$target${sep}db=$db';
       }
     }
-
-    final base = baseUrl.isNotEmpty
-        ? baseUrl
-        : (session?.baseUrl.isNotEmpty == true
-            ? session!.baseUrl
-            : odooApiClient.baseUrl);
 
     String resolveAbsolute(String path) {
       try {

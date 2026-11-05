@@ -89,5 +89,17 @@
 	</array>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.12576206090-2aucq3jt479mghm0qmnoa63f8emdekhc</string>
+				<string>com.w360s.wcloudapp</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

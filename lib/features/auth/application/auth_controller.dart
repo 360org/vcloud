@@ -11,6 +11,7 @@ import '../../../core/notifications/push_notification_controller.dart';
 import '../../../core/notifications/push_notification_service.dart';
 import '../../../core/services/global_state_reset_service.dart';
 import '../../../shared/widgets/app_toast.dart';
+import '../../profile/application/theme_controller.dart';
 import '../data/auth_repository.dart';
 import '../data/db_info.dart';
 
@@ -40,6 +41,7 @@ class AuthController extends AsyncNotifier<AuthUser?> {
     try {
       final user = await _repo.currentUser();
       if (user != null) {
+        _syncThemeFromUser(user);
         unawaited(_registerPushDevice().catchError((_) {}));
       }
       return user;
@@ -91,6 +93,7 @@ class AuthController extends AsyncNotifier<AuthUser?> {
         session: session,
         login: login,
       );
+      _syncThemeFromUser(user);
       unawaited(_registerPushDevice().catchError((_) {}));
       state = AsyncData(user);
     } catch (e, st) {
@@ -113,6 +116,7 @@ class AuthController extends AsyncNotifier<AuthUser?> {
         login: login,
         password: password,
       );
+      _syncThemeFromUser(user);
       unawaited(_registerPushDevice().catchError((_) {}));
       state = AsyncData(user);
     } catch (e, st) {
@@ -130,6 +134,7 @@ class AuthController extends AsyncNotifier<AuthUser?> {
         password: password,
         tenantId: tenantId,
       );
+      _syncThemeFromUser(user);
       unawaited(_registerPushDevice().catchError((_) {}));
       state = AsyncData(user);
     } catch (e, st) {
@@ -159,6 +164,7 @@ class AuthController extends AsyncNotifier<AuthUser?> {
         confirmPassword: confirmPassword,
         tenantId: tenantId,
       );
+      _syncThemeFromUser(user);
       unawaited(_registerPushDevice().catchError((_) {}));
       state = AsyncData(user);
     } catch (e, st) {
@@ -332,11 +338,20 @@ class AuthController extends AsyncNotifier<AuthUser?> {
     }
   }
 
+  void _syncThemeFromUser(AuthUser? user) {
+    if (user == null) return;
+    final colorScheme = user.userMetadata['color_scheme'] as String?;
+    if (colorScheme != null && colorScheme.isNotEmpty) {
+      unawaited(ref.read(themeControllerProvider.notifier).syncServerTheme(colorScheme));
+    }
+  }
+
   /// Làm mới hồ sơ người dùng từ server và cập nhật state
   Future<AuthUser?> reloadProfile() async {
     try {
       final user = await _repo.currentUser();
       if (user != null) {
+        _syncThemeFromUser(user);
         state = AsyncData(user);
       }
       return user;
