@@ -1,0 +1,1 @@
+../prompt_deploy_mobile_release.md
