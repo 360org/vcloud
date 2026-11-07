@@ -1656,55 +1656,58 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               ),
 
                               // [Feature 1.12]: Đăng nhập qua Google OAuth2 / Social Sign-In
-                              const SizedBox(height: 14),
-                              const Row(
-                                children: [
-                                  Expanded(child: Divider(color: Color(0xFFE2E8F0))),
-                                  Padding(
-                                    padding: EdgeInsets.symmetric(horizontal: 12),
-                                    child: Text(
-                                      'Hoặc đăng nhập bằng',
-                                      style: TextStyle(
-                                        color: Color(0xFF94A3B8),
-                                        fontSize: 12.5,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ),
-                                  Expanded(child: Divider(color: Color(0xFFE2E8F0))),
-                                ],
-                              ),
-                              const SizedBox(height: 14),
-                              SizedBox(
-                                width: double.infinity,
-                                height: 48,
-                                child: OutlinedButton(
-                                  key: const ValueKey('google_signin_btn'),
-                                  style: OutlinedButton.styleFrom(
-                                    backgroundColor: Colors.white,
-                                    side: const BorderSide(color: Color(0xFFE2E8F0)),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                  ),
-                                  onPressed: _submitting ? null : _signInWithGoogle,
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      _buildGoogleIcon(),
-                                      const SizedBox(width: 10),
-                                      const Text(
-                                        'Đăng nhập với Google',
+                              // Tuân thủ Apple Review Guideline 4.8.0: Tạm ẩn Social Login trên iOS để duyệt App Store
+                              if (defaultTargetPlatform != TargetPlatform.iOS) ...[
+                                const SizedBox(height: 14),
+                                const Row(
+                                  children: [
+                                    Expanded(child: Divider(color: Color(0xFFE2E8F0))),
+                                    Padding(
+                                      padding: EdgeInsets.symmetric(horizontal: 12),
+                                      child: Text(
+                                        'Hoặc đăng nhập bằng',
                                         style: TextStyle(
-                                          color: Color(0xFF0F172A),
-                                          fontSize: 14.5,
-                                          fontWeight: FontWeight.w600,
+                                          color: Color(0xFF94A3B8),
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.w500,
                                         ),
                                       ),
-                                    ],
+                                    ),
+                                    Expanded(child: Divider(color: Color(0xFFE2E8F0))),
+                                  ],
+                                ),
+                                const SizedBox(height: 14),
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 48,
+                                  child: OutlinedButton(
+                                    key: const ValueKey('google_signin_btn'),
+                                    style: OutlinedButton.styleFrom(
+                                      backgroundColor: Colors.white,
+                                      side: const BorderSide(color: Color(0xFFE2E8F0)),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                    ),
+                                    onPressed: _submitting ? null : _signInWithGoogle,
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        _buildGoogleIcon(),
+                                        const SizedBox(width: 10),
+                                        const Text(
+                                          'Đăng nhập với Google',
+                                          style: TextStyle(
+                                            color: Color(0xFF0F172A),
+                                            fontSize: 14.5,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
-                              ),
+                              ],
                             ],
                           ),
                         )

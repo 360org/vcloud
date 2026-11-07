@@ -2,6 +2,20 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.34+190] — 2026-11-07
+
+> [!IMPORTANT]
+> **Tuân Thủ Apple App Store Review Guideline 4.8.0 (Login Services) & Tạm Ẩn Google Sign-In Trên iOS (L4 VERIFIED 2026-11-07)**:
+> - **[FIX/AUTH] Tạm Ẩn Social Login Trên Nền Tảng iOS (`login_screen.dart`)**:
+>   * Ràng buộc hiển thị nút "Đăng nhập với Google" và nhãn phân cách "Hoặc đăng nhập bằng" qua điều kiện `defaultTargetPlatform != TargetPlatform.iOS`.
+>   * Trên iOS: Màn hình đăng nhập chỉ còn phương thức chứng thực tài khoản nội bộ (Email / Password), đạt diện miễn trừ 100% đối với Apple Guideline 4.8.0 mà không bắt buộc có Sign in with Apple.
+>   * Trên Android và Desktop / Web: Giữ nguyên vẹn tính năng Google Sign-In (Feature 1.12), không ảnh hưởng trải nghiệm người dùng ngoài iOS.
+> - **[DOCS/SPEC] Hoàn Thiện Hồ Sơ Kiến Trúc Đăng Nhập Apple (`SPEC_APPLE_SIGN_IN.md`, `features.md`)**:
+>   * Biên soạn tài liệu đặc tả kỹ thuật chi tiết [docs/SPEC_APPLE_SIGN_IN.md](docs/SPEC_APPLE_SIGN_IN.md) làm căn cứ triển khai Sign in with Apple (Feature 1.14) sau khi Apple duyệt phát hành.
+>   * Rà soát 6 điều kiện tiên quyết (Apple Developer Capability, Provisioning Profile, Apple Privacy `apple_sub`, Odoo Backend `/api/v1/mobile/auth/oauth`).
+> - **[TEST/AUTH] Bổ Sung Test Suite Nền Tảng Đăng Nhập (`login_screen_google_platform_visibility_test.dart`)**:
+>   * 10/10 test cases độc lập xác minh hành vi ẩn/hiển thị trên iOS, Android, Desktop và kiểm tra SSOT Versioning Build 190. 100% PASS.
+
 ## [v2.9.34+189] — 2026-11-05
 
 > [!IMPORTANT]
