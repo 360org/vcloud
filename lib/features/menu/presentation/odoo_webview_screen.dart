@@ -303,6 +303,15 @@ class OdooWebViewScreen extends ConsumerStatefulWidget {
   final String url;
   final String title;
 
+  /// Biến cờ tĩnh ghi nhận WebView đã được xác thực SSO thành công trong phiên làm việc.
+  /// Khi đã có session cookie, các lần tải trang sau không cần redirect qua SSO bridge, giúp tiết kiệm round-trip mạng.
+  static bool hasSsoAuthenticated = false;
+
+  /// Reset trạng thái SSO khi người dùng đăng xuất hoặc phiên hết hạn
+  static void resetSso() {
+    hasSsoAuthenticated = false;
+  }
+
   @override
   ConsumerState<OdooWebViewScreen> createState() => _OdooWebViewScreenState();
 }
@@ -491,6 +500,7 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
         session: odooApiClient.session,
         baseUrl: odooApiClient.baseUrl,
         colorScheme: isDark ? 'dark' : 'light',
+        useDirectUrlIfAuthenticated: true,
       );
       debugPrint('[VCLOUD_WEBVIEW] buildTargetWebViewUrl resolved: $resolved');
       return resolved;
@@ -524,6 +534,10 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
                   _progress = progress / 100.0;
                 });
               }
+              // Eager CSS Injection: Tiêm style sớm ngay khi DOM vừa bắt đầu dựng (tránh chớp trắng & giấu navbar ngay)
+              if (progress >= 20 && progress < 100) {
+                _injectNativeOptimizationCss(controller);
+              }
             },
             onPageStarted: (String url) {
               debugPrint('[VCLOUD_WEBVIEW] Mobile onPageStarted: $url');
@@ -540,6 +554,10 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
                 setState(() {
                   _isLoading = false;
                 });
+              }
+              // Đánh dấu phiên WebView đã sẵn sàng cookie session Odoo nếu đã vào các trang web client chính
+              if (!url.contains('/api/v1/mobile/web/auth') && (url.contains('/web') || url.contains('/odoo'))) {
+                OdooWebViewScreen.hasSsoAuthenticated = true;
               }
               // 3. Inject CSS tối ưu hóa Native UX và triệt tiêu giật lag (Pha 1)
               await _injectNativeOptimizationCss(controller);
@@ -564,6 +582,8 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
           if (platform is AndroidWebViewController) {
             // Tự động bật Force Dark khi app ở Dark Mode để Android WebView đảo màu đồng bộ
             await platform.setForceDark(isDark ? ForceDark.on : ForceDark.off);
+            // Kích hoạt bộ nhớ đệm và quyền truy cập file cho tài nguyên HTML5 / OWL Odoo Web Client
+            await platform.setAllowFileAccess(true);
           }
         } catch (e) {
           debugPrint('[VCLOUD_WEBVIEW] controller platform config error: $e');
@@ -604,15 +624,18 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
         (function() {
           var styleId = 'vcloud-native-optimization-style';
           var existing = document.getElementById(styleId);
+          var root = document.head || document.documentElement;
           if (!existing) {
             existing = document.createElement('style');
             existing.id = styleId;
             existing.type = 'text/css';
-            (document.head || document.documentElement).appendChild(existing);
-          } else {
-            (document.head || document.documentElement).appendChild(existing);
+            if (root) root.appendChild(existing);
+          } else if (existing.parentNode !== root && root) {
+            root.appendChild(existing);
           }
-          existing.textContent = '$minifiedCss';
+          if (existing) {
+            existing.textContent = '$minifiedCss';
+          }
         })();
       ''');
     } catch (cssErr) {
@@ -871,6 +894,7 @@ String buildTargetWebViewUrl({
   OdooSession? session,
   String baseUrl = '',
   String? colorScheme,
+  bool useDirectUrlIfAuthenticated = false,
 }) {
   try {
     var target = rawUrl.trim();
@@ -916,6 +940,15 @@ String buildTargetWebViewUrl({
         debugPrint('[VCLOUD_WEBVIEW] resolveAbsolute error: $e');
         return path;
       }
+    }
+
+    // Tối ưu Cache Fast-Path: Nếu WebView đã xác thực SSO và session còn hạn,
+    // đi thẳng tới URL đích (đã có ?db=...), không cần redirect qua SSO bridge nữa.
+    if (useDirectUrlIfAuthenticated &&
+        OdooWebViewScreen.hasSsoAuthenticated &&
+        session != null &&
+        !session.isExpired) {
+      return resolveAbsolute(target);
     }
 
     // Sử dụng SSO bridge khi có accessToken (cả Native và Web) để tự động nạp session Odoo,

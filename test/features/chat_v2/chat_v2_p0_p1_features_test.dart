@@ -215,10 +215,10 @@ void main() {
     // ---------------------------------------------------------
     // Test Case 10: Multi-file size limit validation logic
     // ---------------------------------------------------------
-    test('Case 10: Multi-file size verification rejects files exceeding 25MB', () {
-      const maxDocumentSizeBytes = 25 * 1024 * 1024;
-      const file1Size = 10 * 1024 * 1024; // 10MB -> Valid
-      const file2Size = 26 * 1024 * 1024; // 26MB -> Invalid
+    test('Case 10: Multi-file size verification rejects files exceeding 128MB', () {
+      const maxDocumentSizeBytes = 128 * 1024 * 1024;
+      const file1Size = 60 * 1024 * 1024; // 60MB -> Valid
+      const file2Size = 130 * 1024 * 1024; // 130MB -> Invalid
 
       expect(file1Size <= maxDocumentSizeBytes, isTrue);
       expect(file2Size <= maxDocumentSizeBytes, isFalse);

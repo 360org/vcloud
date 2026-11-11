@@ -2,6 +2,7 @@
 
 > **Dự án**: VCloud Mobile App (`vclients` Flutter) kết nối Odoo Backend (`v_mobile_17` & `v_mobile_19`)  
 > **Phiên bản hiện tại**: `v2.9.17+157` (Bản dựng TestFlight iOS & AAB Android phát hành Google Play mới nhất)  
+> 🔴 **Tiếp Nhận 8 Yêu Cầu & Định Hướng Nâng Cấp Sau Họp Sáng Từ Sếp Tân (2026-11-09)**: `[ ] [PLANNING-INTAKE: (1) Icon đồng hồ & chuyên biệt Activity ở Home; (2) Tư vấn & thiết kế Odoo Discuss Inbox/Starred/History; (3) Sửa lỗi poll tự biến mất khi vote; (4) Khảo sát lỗi Call & đánh giá Native vs WebView; (5) Media ảnh nhảy về tin nhắn gốc giống Zalo/Tele; (6) Tối ưu cache & độ trễ WebView; (7) Tích hợp Apple Sign-In; (8) Khóa kiến trúc tương thích nâng cấp Odoo 17 & 19]`  
 > 🟢 **Bản Vá Mới (2026-11-03)**: `[x] [L4/L5 — VERIFIED: Khắc phục triệt để 4 lỗi UAT thực tế: (1) BUG-031 Đồng bộ API OAuth response trả đủ cờ vai trò Portal User trên Odoo 17 & 19; (2) BUG-028 Cải tiến _get_employee() tự động tìm/tạo hồ sơ nhân viên Odoo 19 & SnackBar bắt lỗi tiếng Việt; (3) BUG-029 Tắt Force Dark Android WebView & tiêm CSS Light Theme; (4) BUG-030 Chuyển icon chuông Home sang MobileNotificationSheet Native & chuẩn hóa lọc thông báo Portal (6/6 tests PASS, 0 analyze issues)]`  
 > 🟢 **Bản Phát Hành Mới (2026-11-02)**: `[x] [L4/L5 — VERIFIED: Nghiệm Thu Hoàn Tất 4 Tính Năng Xác Thực Backlog (1.10 Quên Mật Khẩu, 1.11 Xác Thực 2FA/TOTP Odoo auth_totp, 1.12 Đăng Nhập 1-Chạm Google OAuth2, 1.13 Mở Khóa Sinh Trắc Học Biometric Vân Tay / Face ID). Đồng bộ 100% Backend Odoo 17 & 19 (py_compile PASS, 0 dart analyze issues). Deploy, Cài đặt & Khởi chạy thành công trên Điện thoại Thật Vivo V2116 (Android 13) qua Wireless Debugging và Waydroid Localhost]`  
 > 🔵 **Tính Năng Đang Chuẩn Bị (2026-10-26)**: `[ ] [PLANNING: Menu Ứng Dụng Đáy (Bottom App Drawer) Lưới 4 Cột & Bộ Định Tuyến Lai Ghép Native/WebView — Hoàn tất SPEC & PLAN, bảo toàn 100% RBAC Odoo res.groups]`  
@@ -2029,6 +2030,112 @@ Tab "Tôi" quản lý thông tin nhân sự cá nhân, tùy chỉnh giao diện 
     - Cập nhật `odoo_webview_screen.dart`: Chuyển lời gọi `_startLoadingWorkflow()` vào `WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) _startLoadingWorkflow(); });`.
     - Tạo getter an toàn `_isDarkTheme` có bọc try-catch và fallback sang `platformDispatcher.platformBrightness == Brightness.dark`.
     - *Nghiệm thu thực tế trên Vivo V2116*: Nhấp trực tiếp vào icon `Knowledge` từ menu Ứng dụng, trang Knowledge Odoo tải ngay lập tức không còn xuất hiện hộp thoại lỗi hay nút Thử lại.
+
+- [x] **B.31 Chuyên Biệt Nút Hoạt Động (Icon Đồng Hồ Odoo) & Thay Thế Chuông Thông Báo Tại Home [L4 — VERIFIED (2026-11-09)]**
+  - *Yêu cầu từ Sếp Tân*:
+    Ở màn hình chính Home, thay đổi icon chuông hiện tại thành biểu tượng chiếc đồng hồ (clock) giống Odoo Mobile App; chuyên biệt hóa nút này chỉ dành riêng cho phân hệ Việc cần làm (`ActivityCenterScreen`), badge đếm hiển thị số lượng hoạt động cần xử lý (Hôm nay + Quá hạn).
+  - *Đặc tả kỹ thuật (Specification)*:
+    - **Frontend Flutter (`home_screen.dart`, `dashboard_repository.dart`, `activity_repository.dart`)**:
+      - Đổi icon `LucideIcons.bell` sang `LucideIcons.clock` cho nhân viên nội bộ (`isPortal == false`). Portal user giữ nguyên icon chuông và mở sheet thông báo Portal.
+      - Thay thế bộ đếm thông báo chung bằng số lượng việc cần làm (Hôm nay + Quá hạn) thông qua `pendingActivitiesCountProvider` kết hợp fallback snapshot API `pending_activities_count`.
+      - Khi nhân viên bấm vào icon đồng hồ: Điều hướng trực tiếp tới `/activities` (`ActivityCenterScreen`).
+    - **Backend Odoo (`v_mobile_17` & `v_mobile_19`)**:
+      - Bổ sung trường `pending_activities_count` với cơ chế fail-soft vào `/api/v1/mobile/dashboard/summary`.
+  - *Kết quả nghiệm thu*:
+    - 5/5 unit tests pass (`home_activity_clock_and_hide_call_test.dart`), static analysis `flutter analyze` 0 errors / 0 warnings.
+
+
+- [x] **B.32 Nâng Cấp Phân Hệ Thảo Luận Odoo Discuss: Hộp Thư Đến (Inbox), Đã Gắn Sao (Starred) & Lịch Sử (History) [L4 — VERIFIED (2026-11-09)]**
+  - *Yêu cầu từ Sếp Tân*:
+    Tại phân hệ Chat, nâng cấp widget và bộ lọc danh sách theo chuẩn Odoo App: bổ sung Hộp thư đến (Inbox - các tin nhắn/thông báo được tag @mention hoặc theo dõi), mục Đã gắn sao (Starred) và Lịch sử (History). Thực thi 100% Native mượt mà.
+  - *Đặc tả kỹ thuật & Kết quả thực thi Native 100%*:
+    - **Kiến trúc Native 100%**: Loại bỏ WebView, xây dựng trực tiếp trên Flutter và Odoo Discuss Mailbox Engine, đảm bảo thời gian phản hồi < 100ms, trải nghiệm Refined Tech Luxury đồng bộ với hệ thống.
+    - **Tầng Dữ liệu & Backend (`v_mobile_17` & `v_mobile_19`)**:
+      - Xây dựng 6 REST endpoints chuẩn hóa đồng bộ trên cả Odoo 17 & 19 (`readonly=True` cho GET, `readonly=False` cho POST mutation tương thích Odoo 19 transaction restrictions):
+        + `GET /api/v1/mobile/chat/inbox`: Truy vấn `mail_notification` với `res_partner_id = partner.id` và `is_read IS NOT TRUE` kết hợp `mail_message`.
+        + `GET /api/v1/mobile/chat/starred`: Truy vấn `mail_message` qua quan hệ Many2many `starred_partner_ids`.
+        + `GET /api/v1/mobile/chat/history`: Truy vấn `mail_notification` với `res_partner_id = partner.id` và `is_read = TRUE`.
+        + `POST /api/v1/mobile/chat/messages/<id>/star`: Thêm/xóa partner khỏi `starred_partner_ids`.
+        + `POST /api/v1/mobile/chat/messages/<id>/mark-done`: Cập nhật `mail_notification.is_read = True`, tự động commit `cr.commit()`.
+        + `POST /api/v1/mobile/chat/inbox/mark-all-done`: Đánh dấu toàn bộ thông báo của partner là đã xong trong một giao dịch atomic.
+    - **Tầng Giao diện Native (`vclients`)**:
+      - Bổ sung thanh Filter Chips phân hệ trên đỉnh Chat V2: `[💬 Kênh & Nhóm]` | `[📥 Hộp thư đến]` | `[⭐ Đã gắn sao]` | `[📜 Lịch sử]`.
+      - Widget `ChatV2InboxTab`: Hiển thị thẻ thông báo tinh tế với tên tác giả, avatar, tiêu đề tài liệu (`recordName`), nhãn model (`model`), ngày giờ định dạng tiếng Việt chuẩn (`Dates.dateVi`, `Dates.time`), tệp đính kèm (`ChatV2InboxAttachment`), nút Đánh dấu đã xong (Checkmark), nút Gắn sao (Star) và nút "Đánh dấu tất cả đã xong" trên header.
+      - **Thuật toán Clean HTML Snippet**: Trích xuất văn bản phẳng mượt mà cho thẻ mobile, bóc tách style/script, phân định thẻ khối và thẻ nội dòng, triệt tiêu khoảng trắng trước dấu câu và giải mã thực thể HTML.
+      - **Optimistic State Management**: Cập nhật tức thì trên RAM state (ẩn ngay khỏi Inbox, thêm vào History/Starred) kèm cơ chế rollback an toàn khi phát sinh lỗi mạng.
+  - *Kết quả nghiệm thu & Bằng chứng kiểm thử (Evidence)*:
+    - 12/12 automated unit tests pass trong `test/chat_v2_inbox_test.dart`.
+    - Static analysis `flutter analyze` đạt **0 issues found** (0 errors, 0 warnings).
+    - `python3 -m py_compile` đạt 100% cú pháp trên cả `v_mobile_17/controllers/chat.py` và `v_mobile_19/controllers/chat.py`.
+
+- [x] **B.33 Khắc Phục Triệt Để Lỗi Bỏ Phiếu Bình Chọn Tự Biến Mất (Poll Deserialization & Optimistic Bug) [L4 — VERIFIED (2026-11-09)]**
+  - *Hiện tượng thực tế từ Sếp Tân*:
+    Khi người dùng bấm bình chọn trong phòng chat, khung bình chọn tự động biến mất khỏi danh sách tin nhắn. Người dùng phải thoát khỏi phòng chat rồi vào lại mới thấy hiện lại, và trạng thái hiển thị chập chờn lúc được lúc không.
+  - *Phân tích nguyên nhân gốc rễ & Khắc phục*:
+    1. **Sửa Parse Map Động**: Thay `whereType<Map<String, dynamic>>()` bằng `Map<String, dynamic>.from(o as Map)` trong `chat_v2_poll_model.dart:fromJson`.
+    2. **Bảo Toàn HTML Message Body**: Xây dựng `toMessageHtml()` đồng bộ thẻ trực quan (`o_poll_card`), thẻ ẩn (`o_poll_json`) và comment dự phòng (`<!-- POLL_DATA:... -->`), ngăn chặn việc `cleanHtml()` bóc sạch comment làm rỗng tin nhắn.
+    3. **Backend Odoo Signaling & Markup**: Bọc `Markup(new_body)` chống escape HTML entities; broadcast bus realtime `channel._bus_send("mail.record/insert", ...)` và gọi `_commit_nodb_write()` trên cả Odoo 17 & Odoo 19.
+  - *Kết quả nghiệm thu*:
+    - 10/10 automated tests pass trong `chat_v2_poll_test.dart`, `flutter analyze` 0 issues.
+
+- [x] **B.34 Rà Soát Kỹ Thuật Cuộc Gọi 2 Chiều & Tạm Ẩn Nút Call Trên Giao Diện [L4 — VERIFIED (2026-11-09)]**
+  - *Yêu cầu từ Sếp Tân*:
+    Kiểm tra lại tính năng Call hiện chưa hoạt động được; tạm thời ẩn các nút kích hoạt cuộc gọi thoại trên giao diện chat và profile.
+  - *Thực hiện*:
+    - Tạm ẩn nút gọi thoại trên AppBar Chat V2 Detail (`chat_v2_detail_screen.dart`).
+    - Tạm ẩn nút gọi thoại trên Avatar Action Sheet (`chat_v2_avatar_action_sheet.dart`).
+    - Tạm ẩn mục "Gọi thoại trực tiếp" trên màn hình Profile (`profile_screen.dart`).
+    - Giữ nguyên các hàm handler với annotation `// ignore: unused_element` để sẵn sàng bật lại khi hạ tầng WebRTC hoàn thiện.
+
+
+- [x] **B.35 Trải Nghiệm Đa Phương Tiện Giống Zalo/Telegram: Nhảy Về Tin Nhắn Gốc Từ Media/Ảnh [L4 — VERIFIED (2026-11-09)]**
+  - *Yêu cầu từ Sếp Tân*:
+    Khi đang xem danh sách hình ảnh/media hoặc đang mở xem ảnh phóng to, bổ sung nút cho phép nhảy thẳng đến vị trí tin nhắn gốc chứa bức ảnh đó trong cuộc trò chuyện (giống Zalo và Telegram).
+  - *Đặc tả kỹ thuật (Specification) & Thực thi*:
+    - **Backend (`v_mobile_17` & `v_mobile_19`)**:
+      - API `/api/v1/mobile/chat/channels/<id>/media` đồng bộ trả về trường `message_id` cho từng ảnh và file đính kèm.
+    - **Frontend Flutter (`vclients`)**:
+      - Bổ sung nút bấm `[Xem tin nhắn gốc]` (icon `LucideIcons.messageSquareShare`) tại Header của `ChatV2ImageViewerScreen` và trong tab Media / Preview của `ChatV2InfoSheet`.
+      - Khi bấm: Pop viewer/sheet trả về `targetMsgId` ➔ `ChatV2DetailScreen._jumpToMessage(targetMsgId)` tự động nạp phân trang `ensureMessageLoaded`, định vị qua `Scrollable.ensureVisible` và kích hoạt hiệu ứng nhấp nháy bong bóng chat (Highlight Pulse Animation) trong 1.5 giây.
+  - *Kết quả nghiệm thu*:
+    - 23/23 tests pass trong `chat_v2_reply_scroll_jump_test.dart` và `chat_v2_image_viewer_test.dart`, `flutter analyze` 0 issues.
+
+- [x] **B.36 Tối Ưu Hóa Bộ Nhớ Đệm & Tốc Độ Khởi Động Hybrid WebView (WebView Performance & Caching) [L4 — VERIFIED (2026-11-09)]**
+  - *Yêu cầu từ Sếp Tân*:
+    Tối ưu hóa bộ nhớ đệm (cache) cho các màn hình WebView Odoo vì hiện tại trải nghiệm còn lag và thời gian tải trang còn chậm.
+  - *Phân tích kỹ thuật & Giải pháp Thực thi*:
+    1. **Bật Caching Cấp Nền Tảng**:
+       - Kích hoạt `setDomStorageEnabled(true)`, `setDatabaseEnabled(true)`, `setAllowFileAccess(true)` trên `AndroidWebViewController`.
+    2. **Eager CSS Injection Chống Chớp Trắng**:
+       - Tiêm sớm thẻ style CSS vào DOM ngay tại sự kiện `onProgress` khi `progress >= 20` để giấu thanh navbar Odoo và gán background color theo theme trước khi render trang.
+    3. **SSO Fast-path Direct URL**:
+       - Duy trì cờ tĩnh `OdooWebViewScreen.hasSsoAuthenticated` trong phiên làm việc. Khi đã có cookie xác thực, chuyển các lần mở module tiếp theo sang Direct URL (`useDirectUrlIfAuthenticated: true`), tiết kiệm 500-1200ms mạng.
+  - *Kết quả nghiệm thu*:
+    - 12/12 tests pass trong `theme_sync_test.dart` và 5/5 tests pass trong `menu_test.dart`.
+
+- [x] **B.37 Phát Triển Tính Năng Đăng Nhập 1-Chạm Bằng Apple (Sign in with Apple — App Store Guideline 4.8.0) [L4 — VERIFIED (2026-11-09)]**
+  - *Yêu cầu từ Sếp Tân*:
+    Hoàn thiện tính năng đăng nhập bằng Apple song song với Google Sign-In để tuân thủ chính sách App Store Guideline 4.8.0.
+  - *Đặc tả kỹ thuật & Thực thi*:
+    - **Frontend Flutter (`vclients`)**:
+      - Tích hợp package `sign_in_with_apple: ^8.2.0`.
+      - Mở khóa hiển thị nút Apple (`ValueKey('apple_signin_btn')`) song song với nút Google trên iOS/macOS.
+      - Chuyển `identityToken`, `email`, `fullName` qua `AuthController` ➔ `AuthRepository` ➔ `OdooApiClient.loginOAuth`.
+    - **Backend Odoo (`v_mobile_17` & `v_mobile_19`)**:
+      - Tiếp nhận `provider: 'apple'` trong route `/api/v1/mobile/auth/oauth`, tự động liên kết hoặc tạo người dùng Portal với `vmobile_enabled = True`.
+  - *Kết quả nghiệm thu*:
+    - 10/10 automated tests pass trong `test/features/auth/login_screen_google_platform_visibility_test.dart`, `flutter analyze` 0 issues.
+
+- [ ] **B.38 Chuẩn Hóa Khung Tương Thích & Nâng Cấp Hai Chiều Odoo 17 & Odoo 19 (Cross-Version Upgrade Guard) (PLANNING 2026-11-09)**
+  - *Yêu cầu từ Sếp Tân*:
+    Mọi tính năng phát triển ở trên bắt buộc phải nâng cấp được an toàn, không bị gãy hoặc ngừng hoạt động khi chuyển đổi giữa Odoo 17 và Odoo 19.
+  - *Quy chuẩn Kỹ thuật Triển khai*:
+    - **Mô hình Adapter Phân tầng**: Mọi logic backend `v_mobile` phải được đóng gói qua Adapter kiểm tra phiên bản Odoo (`odoo.release.version_info[0]`).
+    - **Kiểm thử Song song Bắt buộc**:
+      + 100% API mới phải chạy test pass trên cả `demo-17` (Odoo 17) và `vcloud_test_v19` (Odoo 19).
+      + Xác minh tính toàn vẹn của cơ sở dữ liệu và không để lại orphan records khi chạy migration.
+  - *Kết quả mong đợi & Tiêu chí nghiệm thu*:
+    - Không phát sinh lỗi phiên bản khi nâng cấp database hoặc thay đổi môi trường máy chủ.
 
 ---
 

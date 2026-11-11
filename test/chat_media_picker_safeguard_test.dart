@@ -39,17 +39,17 @@ void main() {
       expect(isVideoFile('document.pdf', 'application/pdf'), isFalse);
     });
 
-    test('Image file size threshold is strictly 10 MB and Document threshold is 25 MB', () {
-      const maxImageSizeBytes = 10 * 1024 * 1024;
-      const maxDocumentSizeBytes = 25 * 1024 * 1024;
+    test('Image file size threshold is 25 MB and Document threshold is 128 MB (Odoo standard)', () {
+      const maxImageSizeBytes = 25 * 1024 * 1024;
+      const maxDocumentSizeBytes = 128 * 1024 * 1024;
 
-      expect(maxImageSizeBytes, 10485760);
-      expect(maxDocumentSizeBytes, 26214400);
+      expect(maxImageSizeBytes, 26214400);
+      expect(maxDocumentSizeBytes, 134217728);
 
-      const withinLimitImage = 9 * 1024 * 1024;
-      const exceedsLimitImage = 11 * 1024 * 1024;
-      expect(withinLimitImage <= maxImageSizeBytes, isTrue);
-      expect(exceedsLimitImage > maxImageSizeBytes, isTrue);
+      const withinLimitDoc = 120 * 1024 * 1024;
+      const exceedsLimitDoc = 130 * 1024 * 1024;
+      expect(withinLimitDoc <= maxDocumentSizeBytes, isTrue);
+      expect(exceedsLimitDoc > maxDocumentSizeBytes, isTrue);
     });
 
     test('AndroidManifest.xml removes third-party media permissions per Google Play Oct 2026 policy', () {

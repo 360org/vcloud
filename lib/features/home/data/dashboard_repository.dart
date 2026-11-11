@@ -7,6 +7,7 @@ class MobileDashboardSummary {
     this.openTickets,
     this.recentConversationCount,
     this.unreadMessageCount,
+    this.pendingActivitiesCount,
   });
 
   final bool? isCheckedIn;
@@ -14,6 +15,7 @@ class MobileDashboardSummary {
   final int? openTickets;
   final int? recentConversationCount;
   final int? unreadMessageCount;
+  final int? pendingActivitiesCount;
 
   factory MobileDashboardSummary.fromMap(Map<String, dynamic> map) {
     final attendance = _mapOrEmpty(
@@ -51,6 +53,12 @@ class MobileDashboardSummary {
         map['unread_chat_count'] ??
             map['unread_message_count'] ??
             chat['unread_count'],
+      ),
+      pendingActivitiesCount: _intOrNull(
+        map['pending_activities_count'] ??
+            map['activities_count'] ??
+            map['pending_activities'] ??
+            (map['activities'] is Map ? (map['activities'] as Map)['pending_count'] ?? (map['activities'] as Map)['count'] : null),
       ),
     );
   }

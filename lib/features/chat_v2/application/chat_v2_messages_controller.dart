@@ -257,10 +257,14 @@ class ChatV2MessagesNotifier
   Timer? _pollingTimer;
   StreamSubscription? _wsSub;
   StreamSubscription? _busNicknameSub;
+  DateTime _lastActiveTime = DateTime.now();
+  bool _isDisposed = false;
 
   @override
   FutureOr<List<ChatV2Message>> build(String arg) async {
     debugPrint('🟢 [TRACE] ChatV2MessagesNotifier.build() START - channel: $arg');
+    _isDisposed = false;
+    _lastActiveTime = DateTime.now();
     final channelId = arg;
     final repo = ref.watch(chatV2RepositoryProvider);
     final user = ref.watch(authControllerProvider).valueOrNull;
@@ -283,20 +287,21 @@ class ChatV2MessagesNotifier
     _wsSub?.cancel();
     _wsSub = realtime.onMessageReceived.listen((newMsg) {
       if (newMsg.channelId == channelId) {
+        _lastActiveTime = DateTime.now();
         ChatV2MessageLocalCache.prepend(channelId, newMsg);
         final currentList = state.valueOrNull ?? const [];
         if (!currentList.any((m) => m.id == newMsg.id)) {
           final merged = _mergeMessages(currentList, [newMsg]);
           state = AsyncData(merged);
         }
+        _scheduleNextPoll(const Duration(milliseconds: 2000));
       }
     });
 
     // Lắng nghe sự kiện cập nhật Biệt danh realtime từ Odoo Bus
-    bool isDisposed = false;
     _busNicknameSub?.cancel();
     _busNicknameSub = busService.onNicknameNotification.listen((data) {
-      if (isDisposed) return;
+      if (_isDisposed) return;
       final chId = data['channel_id']?.toString();
       if (chId != channelId) return;
 
@@ -326,48 +331,22 @@ class ChatV2MessagesNotifier
       }
     });
 
-    // Smart Sequential Polling (8s): Chạy tuần tự, chỉ poll khi người dùng đang ở trong phòng chat
+    // Tự động phục hồi hoặc dừng Polling khi Foreground / Background
+    ref.listen<bool>(isAppForegroundProvider, (prev, isForeground) {
+      if (isForeground) {
+        _lastActiveTime = DateTime.now();
+        triggerImmediateFetch();
+        _scheduleNextPoll();
+      } else {
+        _pollingTimer?.cancel();
+        _pollingTimer = null;
+      }
+    });
 
-    void scheduleNextPoll() {
-      if (isDisposed) return;
-      _pollingTimer?.cancel();
-      _pollingTimer = Timer(const Duration(seconds: 8), () async {
-        if (isDisposed) return;
-        final isForeground = ref.read(isAppForegroundProvider);
-        if (isForeground && !state.isLoading && state.hasValue) {
-          if (ref.read(chatV2ChannelAccessDeniedProvider(channelId))) return;
-          try {
-            final latest = await repo.getMessages(
-              channelId,
-              currentPartnerId: partnerId,
-              currentUserId: userId,
-            );
-            if (!isDisposed && latest.isNotEmpty) {
-              final currentList = state.valueOrNull ?? const [];
-              final merged = _mergeMessages(currentList, latest);
-
-              if (_hasDifferences(currentList, merged)) {
-                ChatV2MessageLocalCache.set(channelId, merged);
-                state = AsyncData(merged);
-              }
-            }
-          } catch (e) {
-            final errStr = e.toString().toLowerCase();
-            if (e is ChatV2AccessDeniedException || errStr.contains('access denied') || errStr.contains('forbidden')) {
-              ref.read(chatV2ChannelAccessDeniedProvider(channelId).notifier).state = true;
-            }
-          }
-        }
-        if (!isDisposed && isForeground) {
-          scheduleNextPoll();
-        }
-      });
-    }
-
-    scheduleNextPoll();
+    _scheduleNextPoll();
 
     ref.onDispose(() {
-      isDisposed = true;
+      _isDisposed = true;
       _wsSub?.cancel();
       _wsSub = null;
       _busNicknameSub?.cancel();
@@ -608,12 +587,83 @@ class ChatV2MessagesNotifier
     return false;
   }
 
+  /// Cơ chế Adaptive Polling: 2.5s khi vừa có tin nhắn (hoạt động tích cực), 6s khi phòng chat rảnh rỗi
+  void _scheduleNextPoll([Duration? customDelay]) {
+    if (_isDisposed) return;
+    _pollingTimer?.cancel();
+
+    final Duration delay;
+    if (customDelay != null) {
+      delay = customDelay;
+    } else {
+      final timeSinceActive = DateTime.now().difference(_lastActiveTime);
+      delay = timeSinceActive < const Duration(seconds: 45)
+          ? const Duration(milliseconds: 2500)
+          : const Duration(seconds: 6);
+    }
+
+    _pollingTimer = Timer(delay, () async {
+      if (_isDisposed) return;
+      final isForeground = ref.read(isAppForegroundProvider);
+      if (isForeground && !state.isLoading && state.hasValue) {
+        if (ref.read(chatV2ChannelAccessDeniedProvider(arg))) return;
+        try {
+          final repo = ref.read(chatV2RepositoryProvider);
+          final user = ref.read(authControllerProvider).valueOrNull;
+          final meta = user?.userMetadata;
+          final partnerId = meta?['partner_id']?.toString() ??
+              meta?['partner']?['id']?.toString();
+          final userId = user?.id;
+
+          final latest = await repo.getMessages(
+            arg,
+            currentPartnerId: partnerId,
+            currentUserId: userId,
+          );
+          if (!_isDisposed && latest.isNotEmpty) {
+            final currentList = state.valueOrNull ?? const [];
+            final merged = _mergeMessages(currentList, latest);
+
+            if (_hasDifferences(currentList, merged)) {
+              _lastActiveTime = DateTime.now();
+              ChatV2MessageLocalCache.set(arg, merged);
+              state = AsyncData(merged);
+              if (merged.isNotEmpty) {
+                final topMsg = merged.first;
+                ChatV2ChannelLocalCache.updateChannelLastMessage(
+                  arg,
+                  lastMessage: topMsg.content.isNotEmpty
+                      ? topMsg.content
+                      : (topMsg.attachments.isNotEmpty ? '[Đính kèm]' : ''),
+                  lastMessageDate: topMsg.createdAt ?? DateTime.now(),
+                  authorId: topMsg.authorId,
+                  authorName: topMsg.authorName,
+                  unreadCount: 0,
+                  addIfMissing: true,
+                );
+              }
+            }
+          }
+        } catch (e) {
+          final errStr = e.toString().toLowerCase();
+          if (e is ChatV2AccessDeniedException || errStr.contains('access denied') || errStr.contains('forbidden')) {
+            ref.read(chatV2ChannelAccessDeniedProvider(arg).notifier).state = true;
+          }
+        }
+      }
+      if (!_isDisposed && ref.read(isAppForegroundProvider)) {
+        _scheduleNextPoll();
+      }
+    });
+  }
+
   /// Kích hoạt fetch tin nhắn mới ngay lập tức khi nhận FCM Foreground Push.
-  /// Thay vì chờ nhịp polling 8s, method này bắn HTTP GET ngay để Chat UI
+  /// Thay vì chờ nhịp polling, method này bắn HTTP GET ngay để Chat UI
   /// đồng bộ tức thì với Push Notification đã hiển thị trên màn hình.
   /// ponytail: fetch thay vì delta-insert vì FCM payload chỉ có metadata (message_id, channel_id),
   /// không đủ trường để dựng ChatV2Message hoàn chỉnh. Nâng cấp khi backend bổ sung full payload.
   Future<void> triggerImmediateFetch() async {
+    _lastActiveTime = DateTime.now();
     final channelId = arg;
     final repo = ref.read(chatV2RepositoryProvider);
     final user = ref.read(authControllerProvider).valueOrNull;
@@ -650,6 +700,7 @@ class ChatV2MessagesNotifier
           }
         }
       }
+      _scheduleNextPoll(const Duration(milliseconds: 1500));
     } catch (e) {
       debugPrint('⚡ [FCM TRIGGER] triggerImmediateFetch error: $e');
     }
@@ -854,6 +905,9 @@ class ChatV2MessagesNotifier
         );
       } catch (_) {}
 
+      _lastActiveTime = DateTime.now();
+      _scheduleNextPoll(const Duration(milliseconds: 1500));
+
       // Channel list will auto-update via WebSocket (onChannelUpdated / onMessageReceived)
       // ref.invalidate(chatV2ChannelsProvider);
     } catch (e, st) {
@@ -871,15 +925,36 @@ class ChatV2MessagesNotifier
     }
   }
 
+  final Map<String, UploadCancelToken> _uploadCancelTokens = {};
+
+  void _updateMessageProgress(String messageId, double progress) {
+    final currentList = state.valueOrNull;
+    if (currentList == null) return;
+    final idx = currentList.indexWhere((m) => m.id == messageId);
+    if (idx == -1) return;
+    final updated = List<ChatV2Message>.from(currentList);
+    updated[idx] = updated[idx].copyWith(uploadProgress: progress);
+    state = AsyncData(updated);
+  }
+
+  void cancelUpload(String messageId) {
+    _uploadCancelTokens.remove(messageId)?.cancel();
+    deleteTempMessage(messageId);
+  }
+
   Future<void> sendImage({
     required String filename,
     required Uint8List bytes,
+    String? filePath,
+    int? fileSize,
     String? mimetype,
     String? caption,
   }) async {
     await sendAttachment(
       filename: filename,
       bytes: bytes,
+      filePath: filePath,
+      fileSize: fileSize,
       mimetype: mimetype ?? 'image/jpeg',
       caption: caption,
     );
@@ -888,12 +963,16 @@ class ChatV2MessagesNotifier
   Future<void> sendFile({
     required String filename,
     required Uint8List bytes,
+    String? filePath,
+    int? fileSize,
     String? mimetype,
     String? caption,
   }) async {
     await sendAttachment(
       filename: filename,
       bytes: bytes,
+      filePath: filePath,
+      fileSize: fileSize,
       mimetype: mimetype ?? 'application/octet-stream',
       caption: caption,
     );
@@ -903,6 +982,8 @@ class ChatV2MessagesNotifier
     required String filename,
     required Uint8List bytes,
     required String mimetype,
+    String? filePath,
+    int? fileSize,
     String? caption,
   }) async {
     final channelId = arg;
@@ -917,10 +998,13 @@ class ChatV2MessagesNotifier
 
     // 1. Optimistic message cập nhật ngay lập tức lên UI
     final tempId = 'temp_att_${DateTime.now().millisecondsSinceEpoch}';
-    ChatV2AttachmentImage.cacheBytes(tempId, bytes);
-    LocalAttachmentCache.save(filename, bytes);
-    LocalAttachmentCache.save(tempId, bytes);
+    if (bytes.isNotEmpty) {
+      ChatV2AttachmentImage.cacheBytes(tempId, bytes);
+      LocalAttachmentCache.save(filename, bytes);
+      LocalAttachmentCache.save(tempId, bytes);
+    }
 
+    final effectiveSize = fileSize ?? (bytes.isNotEmpty ? bytes.length : null);
     final tempMsg = ChatV2Message(
       id: tempId,
       channelId: channelId,
@@ -930,37 +1014,62 @@ class ChatV2MessagesNotifier
       createdAt: DateTime.now(),
       isMine: true,
       status: 'pending',
+      uploadProgress: 0.0,
       attachments: [
         ChatV2Attachment(
           id: tempId,
           name: filename,
           mimetype: mimetype,
-          bytes: bytes,
+          fileSize: effectiveSize,
+          bytes: bytes.isNotEmpty ? bytes : null,
+          filePath: filePath,
         ),
       ],
     );
+
+    final cancelToken = UploadCancelToken();
+    _uploadCancelTokens[tempId] = cancelToken;
 
     final previousState = state.valueOrNull ?? const [];
     state = AsyncData([tempMsg, ...previousState]);
     ChatV2MessageLocalCache.prepend(channelId, tempMsg);
 
+    double lastReportedProgress = 0.0;
+    void onProgress(int sent, int total) {
+      if (total <= 0) return;
+      final ratio = (sent / total).clamp(0.0, 1.0);
+      if (ratio - lastReportedProgress >= 0.02 || ratio >= 1.0) {
+        lastReportedProgress = ratio;
+        _updateMessageProgress(tempId, ratio);
+      }
+    }
+
     try {
-      // 2. Upload attachment lên Odoo backend
+      // 2. Upload attachment lên Odoo backend qua multipart/form-data
       final att = await repo.uploadAttachment(
         filename: filename,
         bytes: bytes,
+        filePath: filePath,
         mimetype: mimetype,
+        onProgress: onProgress,
+        cancelToken: cancelToken,
       );
 
       final attIdInt = int.tryParse(att.id);
       if (attIdInt == null) {
         throw Exception('ID đính kèm tệp không hợp lệ.');
       }
-      final attachedWithBytes = att.copyWith(bytes: bytes);
-      ChatV2AttachmentImage.cacheBytes(att.id.toString(), bytes);
-      ChatV2AttachmentImage.cacheBytes(filename, bytes);
-      LocalAttachmentCache.save(att.id, bytes);
-      LocalAttachmentCache.save(filename, bytes);
+      final attachedWithBytes = att.copyWith(
+        bytes: bytes.isNotEmpty ? bytes : null,
+        filePath: filePath,
+        fileSize: att.fileSize ?? effectiveSize,
+      );
+      if (bytes.isNotEmpty) {
+        ChatV2AttachmentImage.cacheBytes(att.id.toString(), bytes);
+        ChatV2AttachmentImage.cacheBytes(filename, bytes);
+        LocalAttachmentCache.save(att.id, bytes);
+        LocalAttachmentCache.save(filename, bytes);
+      }
 
       // 3. Gửi tin nhắn với attachment ID vào Odoo Chatter
       final bodyText = (caption != null && caption.isNotEmpty) ? caption : '';
@@ -973,8 +1082,10 @@ class ChatV2MessagesNotifier
         authorName: userName,
       );
 
-      ChatV2AttachmentImage.cacheBytes(sentMsg.id.toString(), bytes);
-      LocalAttachmentCache.save(sentMsg.id, bytes);
+      if (bytes.isNotEmpty) {
+        ChatV2AttachmentImage.cacheBytes(sentMsg.id.toString(), bytes);
+        LocalAttachmentCache.save(sentMsg.id, bytes);
+      }
 
       // 4. Cập nhật state với tin nhắn đã gửi thành công
       final currentList = (state.valueOrNull ?? []).where((m) => m.id != tempId).toList();
@@ -982,6 +1093,7 @@ class ChatV2MessagesNotifier
         isMine: true,
         status: 'sent',
         attachments: [attachedWithBytes],
+        clearUploadProgress: true,
       ));
 
       ChatV2MessageLocalCache.set(channelId, currentList);
@@ -1014,7 +1126,13 @@ class ChatV2MessagesNotifier
         authorName: userName,
         unreadCount: 0,
       );
+    } on UploadCancelledException {
+      deleteTempMessage(tempId);
     } catch (e) {
+      if (cancelToken.isCancelled) {
+        deleteTempMessage(tempId);
+        return;
+      }
       debugPrint('❌ [ERROR] sendAttachment error: $e');
       final currentList = state.valueOrNull ?? const [];
       final hasTemp = currentList.any((m) => m.id == tempId);
@@ -1022,12 +1140,14 @@ class ChatV2MessagesNotifier
         state = AsyncData(
           currentList.map((m) {
             if (m.id == tempId) {
-              return m.copyWith(status: 'error');
+              return m.copyWith(status: 'error', clearUploadProgress: true);
             }
             return m;
           }).toList(),
         );
       }
+    } finally {
+      _uploadCancelTokens.remove(tempId);
     }
   }
 
@@ -1084,18 +1204,34 @@ class ChatV2MessagesNotifier
       createdAt: DateTime.now(),
       isMine: true,
       status: 'pending',
+      uploadProgress: 0.0,
       attachments: tempAttachments,
     );
+
+    final cancelToken = UploadCancelToken();
+    _uploadCancelTokens[tempId] = cancelToken;
 
     final previousState = state.valueOrNull ?? const [];
     state = AsyncData([tempMsg, ...previousState]);
     ChatV2MessageLocalCache.prepend(channelId, tempMsg);
 
+    double lastReportedProgress = 0.0;
+    void onProgress(int sent, int total) {
+      if (total <= 0) return;
+      final ratio = (sent / total).clamp(0.0, 1.0);
+      if (ratio - lastReportedProgress >= 0.02 || ratio >= 1.0) {
+        lastReportedProgress = ratio;
+        _updateMessageProgress(tempId, ratio);
+      }
+    }
+
     try {
-      // 2. Upload batch với hard timeout 30 giây
-      final uploadedAtts = await repo
-          .uploadAttachmentsBatch(files: files)
-          .timeout(const Duration(seconds: 30));
+      // 2. Upload batch qua multipart/form-data với timeout động theo dung lượng
+      final uploadedAtts = await repo.uploadAttachmentsBatch(
+        files: files,
+        onProgress: onProgress,
+        cancelToken: cancelToken,
+      );
 
       final attIds = uploadedAtts
           .map((a) => int.tryParse(a.id))
@@ -1137,6 +1273,7 @@ class ChatV2MessagesNotifier
           isMine: true,
           status: 'sent',
           attachments: attachedWithBytes,
+          clearUploadProgress: true,
         ),
       );
 
@@ -1157,20 +1294,28 @@ class ChatV2MessagesNotifier
         authorName: userName,
         unreadCount: 0,
       );
+    } on UploadCancelledException {
+      deleteTempMessage(tempId);
     } catch (e) {
+      if (cancelToken.isCancelled) {
+        deleteTempMessage(tempId);
+        return;
+      }
       debugPrint('❌ [ERROR] sendBatchImages error: $e');
       final currentList = state.valueOrNull ?? const [];
       final hasTemp = currentList.any((m) => m.id == tempId);
       if (hasTemp) {
         final updatedList = currentList.map((m) {
           if (m.id == tempId) {
-            return m.copyWith(status: 'error');
+            return m.copyWith(status: 'error', clearUploadProgress: true);
           }
           return m;
         }).toList();
         ChatV2MessageLocalCache.set(channelId, updatedList);
         state = AsyncData(updatedList);
       }
+    } finally {
+      _uploadCancelTokens.remove(tempId);
     }
   }
 
@@ -1215,12 +1360,37 @@ class ChatV2MessagesNotifier
       }
     }
 
+    if (msg.attachments.isNotEmpty) {
+      final att = msg.attachments.first;
+      final bytes = att.bytes ??
+          (att.id.isNotEmpty ? ChatV2AttachmentImage.imageCache[att.id] : null) ??
+          (att.name.isNotEmpty ? LocalAttachmentCache.get(att.name) : null) ??
+          Uint8List(0);
+      final filePath = att.filePath;
+      if ((filePath != null && filePath.isNotEmpty) || bytes.isNotEmpty) {
+        final filteredList = (state.valueOrNull ?? []).where((m) => m.id != messageId).toList();
+        state = AsyncData(filteredList);
+        await sendAttachment(
+          filename: att.name,
+          bytes: bytes,
+          filePath: filePath,
+          fileSize: att.fileSize,
+          mimetype: att.mimetype ?? 'application/octet-stream',
+          caption: (msg.content.isNotEmpty && msg.content != att.name)
+              ? msg.content
+              : null,
+        );
+        return;
+      }
+    }
+
     final filtered = (state.valueOrNull ?? []).where((m) => m.id != messageId).toList();
     state = AsyncData(filtered);
     await sendMessage(msg.content, parentId: msg.parentId);
   }
 
   void deleteTempMessage(String messageId) {
+    _uploadCancelTokens.remove(messageId)?.cancel();
     final channelId = arg;
     final currentList = (state.valueOrNull ?? []).where((m) => m.id != messageId).toList();
     ChatV2MessageLocalCache.set(channelId, currentList);
@@ -1454,7 +1624,7 @@ class ChatV2MessagesNotifier
         totalVoters: updatedOptions.map((o) => o.voterIds).expand((x) => x).toSet().length,
       );
 
-      final newBody = '<!-- POLL_DATA:${json.encode(newPoll.toJson())} -->';
+      final newBody = newPoll.toMessageHtml();
       final updatedMsg = targetMsg.copyWith(
         content: newBody,
         rawBody: newBody,
@@ -1468,7 +1638,7 @@ class ChatV2MessagesNotifier
     try {
       final updatedPoll = await repo.votePoll(messageId: messageId, optionId: optionId);
       if (updatedPoll != null) {
-        final newBody = '<!-- POLL_DATA:${json.encode(updatedPoll.toJson())} -->';
+        final newBody = updatedPoll.toMessageHtml();
         final freshList = (state.valueOrNull ?? const []).map((m) {
           if (m.id == messageId) {
             return m.copyWith(

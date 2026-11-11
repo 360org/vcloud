@@ -5,6 +5,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/router/app_router.dart';
 import '../../../features/chat_v2/application/chat_v2_channels_controller.dart';
 import '../../../features/home/application/home_summary_controller.dart';
 import '../../../features/profile/application/theme_controller.dart';
@@ -76,6 +77,33 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     }
 
     if (mounted) {
+      // 1. Ưu tiên cao nhất: Deep Link chờ từ Push Notification khi cold-start
+      if (AppNavigationState.pendingDeepLink != null) {
+        final target = AppNavigationState.pendingDeepLink!;
+        AppNavigationState.pendingDeepLink = null;
+        context.go(target);
+        return;
+      }
+
+      // 2. Nếu router đã được điều hướng tới màn hình đích cụ thể khác /splash, dừng lại không ghi đè
+      final router = ref.read(routerProvider);
+      final currentLoc = router.routeInformationProvider.value.uri.toString();
+      if (!currentLoc.startsWith('/splash')) {
+        return;
+      }
+
+      // 3. Nếu có tham số ?from= trên URL /splash
+      final fromParam = GoRouterState.of(context).uri.queryParameters['from'];
+      if (fromParam != null && fromParam.isNotEmpty) {
+        try {
+          final decoded = Uri.decodeQueryComponent(fromParam);
+          if (decoded.isNotEmpty && !decoded.startsWith('/splash') && !decoded.startsWith('/login')) {
+            context.go(decoded);
+            return;
+          }
+        } catch (_) {}
+      }
+
       final user = ref.read(authControllerProvider).valueOrNull;
       final destination = (user?.isPortal == true) ? '/home' : '/chat';
       context.go(destination);

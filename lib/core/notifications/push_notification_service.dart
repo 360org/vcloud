@@ -96,6 +96,7 @@ class PushNotificationService {
   StreamSubscription<RemoteMessage>? _onMessageSubscription;
   StreamSubscription<RemoteMessage>? _onMessageOpenedAppSubscription;
   StreamSubscription<String>? _tokenRefreshSubscription;
+  RemoteMessage? _initialLocalNotificationMessage;
   bool _onMessageWired = false;
   bool _onMessageOpenedAppWired = false;
 
@@ -221,7 +222,9 @@ class PushNotificationService {
   Future<RemoteMessage?> getInitialMessage() async {
     try {
       if (!await _ensureInitialized()) return null;
-      return await _messaging?.getInitialMessage();
+      final fcmInitial = await _messaging?.getInitialMessage();
+      if (fcmInitial != null) return fcmInitial;
+      return _initialLocalNotificationMessage;
     } catch (e) {
       debugPrint('getInitialMessage error: $e');
       return null;
@@ -392,6 +395,34 @@ class PushNotificationService {
       );
       if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
         final flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+        const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
+        await flutterLocalNotificationsPlugin.initialize(
+          settings: const InitializationSettings(android: androidInit),
+          onDidReceiveNotificationResponse: (response) {
+            final payload = response.payload;
+            if (payload != null && payload.isNotEmpty) {
+              try {
+                final dynamic decoded = jsonDecode(payload);
+                if (decoded is Map<String, dynamic>) {
+                  _onMessageOpenedAppController.add(RemoteMessage(data: decoded));
+                }
+              } catch (e) {
+                debugPrint('Local notification payload parse error: $e');
+              }
+            }
+          },
+        );
+
+        final details = await flutterLocalNotificationsPlugin.getNotificationAppLaunchDetails();
+        if (details != null && details.didNotificationLaunchApp && details.notificationResponse?.payload != null) {
+          try {
+            final dynamic decoded = jsonDecode(details.notificationResponse!.payload!);
+            if (decoded is Map<String, dynamic>) {
+              _initialLocalNotificationMessage = RemoteMessage(data: decoded);
+            }
+          } catch (_) {}
+        }
+
         await flutterLocalNotificationsPlugin
             .resolvePlatformSpecificImplementation<
                 AndroidFlutterLocalNotificationsPlugin>()

@@ -21,16 +21,17 @@ class EmptyState extends StatelessWidget {
     return Semantics(
       label: '$title${subtitle != null ? ", $subtitle" : ""}',
       child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
+        child: SingleChildScrollView(
+          physics: const ClampingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           child: GlassCard(
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 40),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  width: 64,
-                  height: 64,
+                  width: 56,
+                  height: 56,
                   decoration: BoxDecoration(
                     gradient: AppColors.featureGrad(
                       AppColors.textMuted,
@@ -38,9 +39,9 @@ class EmptyState extends StatelessWidget {
                     ),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(icon, size: 28, color: Colors.white),
+                  child: Icon(icon, size: 26, color: Colors.white),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
                 Text(
                   title,
                   style: AppTextStyles.title.copyWith(

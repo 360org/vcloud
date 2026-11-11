@@ -56,6 +56,11 @@ CustomTransitionPage<void> _buildFadePage({
 
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 
+/// Quản lý Deep Link từ Push Notification / External Intent khi mở app (chống race condition với SplashScreen)
+class AppNavigationState {
+  static String? pendingDeepLink;
+}
+
 final routerProvider = Provider<GoRouter>((ref) {
   final listenable = _AuthListenable(ref);
   ref.onDispose(listenable.dispose);
@@ -77,7 +82,9 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       if (sub.isLoading) {
         if (onAuthScreen) return null;
-        return isSplash ? null : '/splash';
+        if (isSplash) return null;
+        final fromParam = Uri.encodeQueryComponent(fullPath);
+        return '/splash?from=$fromParam';
       }
 
       final user = sub.valueOrNull;
@@ -89,6 +96,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
 
       if (isSplash || onAuthScreen) {
+        // Ưu tiên 1: Deep Link từ Push Notification khi cold-start
+        if (AppNavigationState.pendingDeepLink != null) {
+          final target = AppNavigationState.pendingDeepLink!;
+          AppNavigationState.pendingDeepLink = null;
+          return target;
+        }
+
         final fromParam = state.uri.queryParameters['from'];
         if (fromParam != null && fromParam.isNotEmpty) {
           try {

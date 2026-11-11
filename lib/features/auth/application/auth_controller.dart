@@ -211,12 +211,13 @@ class AuthController extends AsyncNotifier<AuthUser?> {
     }
   }
 
-  /// [Feature 1.12]: Đăng nhập qua Google OAuth2 / Social Sign-In
+  /// [Feature 1.12]: Đăng nhập qua Google / Apple OAuth2 / Social Sign-In
   Future<void> signInWithOAuth({
     required String provider,
     required String accessToken,
     String? idToken,
     String? email,
+    String? name,
     String? db,
     String? targetBaseUrl,
   }) async {
@@ -228,6 +229,7 @@ class AuthController extends AsyncNotifier<AuthUser?> {
         accessToken: accessToken,
         idToken: idToken,
         email: email,
+        name: name,
         db: db,
         targetBaseUrl: targetBaseUrl,
       );

@@ -431,6 +431,9 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                 controller: _searchController,
                 autofocus: true,
                 style: TextStyle(fontSize: 14, color: textColor),
+                cursorColor: const Color(0xFF00C83A),
+                textAlignVertical: TextAlignVertical.center,
+                textInputAction: TextInputAction.search,
                 decoration: InputDecoration(
                   hintText: 'Tìm kiếm tin nhắn...',
                   hintStyle: TextStyle(
@@ -438,10 +441,19 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                     fontSize: 13.5,
                   ),
                   border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  errorBorder: InputBorder.none,
+                  disabledBorder: InputBorder.none,
                   isDense: true,
                   contentPadding: const EdgeInsets.symmetric(vertical: 8),
                   filled: false,
                 ),
+                onSubmitted: (_) {
+                  if (_matchedIndices.isNotEmpty) {
+                    _nextSearchResult(messages);
+                  }
+                },
                 onChanged: (val) => _onSearchQueryChanged(val, messages),
               ),
             ),
@@ -470,15 +482,15 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               margin: const EdgeInsets.symmetric(horizontal: 2),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+                color: const Color(0xFF00C83A).withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
                 '$currentIndex / $totalMatches',
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
-                  color: isDark ? Colors.white70 : const Color(0xFF475569),
+                  color: Color(0xFF00C83A),
                 ),
               ),
             ),
@@ -503,6 +515,9 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
             ),
           ),
         IconButton(
+          visualDensity: VisualDensity.compact,
+          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+          padding: const EdgeInsets.all(4),
           icon: const Icon(LucideIcons.chevronUp, size: 20),
           color: totalMatches > 0
               ? textColor
@@ -511,6 +526,9 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
           tooltip: 'Kết quả trước',
         ),
         IconButton(
+          visualDensity: VisualDensity.compact,
+          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+          padding: const EdgeInsets.all(4),
           icon: const Icon(LucideIcons.chevronDown, size: 20),
           color: totalMatches > 0
               ? textColor
@@ -692,6 +710,8 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
   Future<void> _handleSendImage({
     required Uint8List bytes,
     required String filename,
+    String? filePath,
+    int? fileSize,
     String? mimetype,
     String? caption,
   }) async {
@@ -702,6 +722,8 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
           .sendImage(
             filename: filename,
             bytes: bytes,
+            filePath: filePath,
+            fileSize: fileSize,
             mimetype: mimetype,
             caption: caption,
           );
@@ -748,6 +770,8 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
   Future<void> _handleSendFile({
     required Uint8List bytes,
     required String filename,
+    String? filePath,
+    int? fileSize,
     String? mimetype,
     String? caption,
   }) async {
@@ -758,6 +782,8 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
           .sendFile(
             filename: filename,
             bytes: bytes,
+            filePath: filePath,
+            fileSize: fileSize,
             mimetype: mimetype,
             caption: caption,
           );
@@ -842,9 +868,10 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
               (a.id.isNotEmpty ? ChatV2AttachmentImage.imageCache[a.id] : null) ??
               (msg.id.isNotEmpty ? ChatV2AttachmentImage.imageCache[msg.id] : null) ??
               LocalAttachmentCache.get(a.id.isNotEmpty ? a.id : null);
-          final resolved = existingBytes != null && (a.bytes == null || a.bytes!.isEmpty)
-              ? a.copyWith(bytes: existingBytes)
-              : a;
+          final resolved = a.copyWith(
+            bytes: existingBytes != null && (a.bytes == null || a.bytes!.isEmpty) ? existingBytes : a.bytes,
+            messageId: a.messageId ?? msg.id,
+          );
           final alreadyAdded = channelImages.any((x) {
             if (x.id.isNotEmpty && resolved.id.isNotEmpty) {
               return x.id == resolved.id;
@@ -869,6 +896,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
           url: '',
           bytes: memoryBytes,
           mimetype: 'image/jpeg',
+          messageId: msg.id,
         );
         if (!channelImages.any((x) => x.id.isNotEmpty && x.id == histAtt.id)) {
           channelImages.add(histAtt);
@@ -888,29 +916,38 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
       targetIndex = channelImages.indexWhere((x) => x.bytes != null && (identical(x.bytes, targetAtt.bytes) || x.bytes == targetAtt.bytes));
     }
     if (targetIndex < 0 && messageId != null && messageId.isNotEmpty) {
-      targetIndex = channelImages.indexWhere((x) => x.id == messageId);
+      targetIndex = channelImages.indexWhere((x) => x.id == messageId || x.messageId == messageId);
     }
     if (targetIndex < 0) {
       targetIndex = channelImages.indexWhere((x) => identical(x, targetAtt));
     }
 
+    final resolvedTargetAtt = targetAtt.copyWith(
+      messageId: targetAtt.messageId ?? messageId,
+    );
+
     if (targetIndex < 0) {
-      channelImages.add(targetAtt);
+      channelImages.add(resolvedTargetAtt);
       targetIndex = channelImages.length - 1;
     }
 
-    final fullUrl = targetAtt.resolveFullUrl(odooApiClient.absoluteUrl(''));
-    Navigator.of(context).push(
+    final fullUrl = resolvedTargetAtt.resolveFullUrl(odooApiClient.absoluteUrl(''));
+    Navigator.of(context).push<String?>(
       ChatV2ImageViewerScreen.route(
         images: channelImages,
         initialIndex: targetIndex,
         imageUrl: fullUrl,
         title: '',
-        bytes: targetAtt.bytes,
-        attachmentId: targetAtt.id.isNotEmpty ? targetAtt.id : null,
+        bytes: resolvedTargetAtt.bytes,
+        attachmentId: resolvedTargetAtt.id.isNotEmpty ? resolvedTargetAtt.id : null,
         heroTag: heroTag,
+        messageId: resolvedTargetAtt.messageId ?? messageId,
       ),
-    );
+    ).then((targetMsgId) {
+      if (targetMsgId != null && targetMsgId.isNotEmpty && mounted) {
+        _jumpToMessage(targetMsgId);
+      }
+    });
   }
 
   bool _isSameDay(DateTime? d1, DateTime? d2) {
@@ -1219,15 +1256,23 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                 tooltip: 'Quay lại',
               ),
               actions: [
-                if (!isPortal) ...[
-                  IconButton(
-                    icon: const Icon(LucideIcons.phone, size: 21),
-                    color: isDark ? Colors.white70 : const Color(0xFF475569),
-                    tooltip: 'Gọi thoại',
-                    onPressed: () => _handleVoiceCall(context, currentChannel, displayTitle, resolvedAvatarUrl),
-                  ),
-                  const SizedBox(width: 4),
-                ],
+                IconButton(
+                  icon: const Icon(LucideIcons.search, size: 21),
+                  color: isDark ? Colors.white70 : const Color(0xFF475569),
+                  tooltip: 'Tìm kiếm tin nhắn',
+                  onPressed: () {
+                    setState(() {
+                      _isSearching = true;
+                    });
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(LucideIcons.images, size: 21),
+                  color: isDark ? Colors.white70 : const Color(0xFF475569),
+                  tooltip: 'Ảnh, file, link đã gửi',
+                  onPressed: () => _openMediaHub(displayTitle, messages),
+                ),
+                const SizedBox(width: 4),
               ],
         titleSpacing: 0,
         title: InkWell(
@@ -1768,6 +1813,21 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                       );
                                     },
                                     onMentionTap: _handleMentionTap,
+                                    onCancelUpload: message.status == 'pending'
+                                        ? () => ref
+                                            .read(chatV2MessagesProvider(widget.channelId).notifier)
+                                            .cancelUpload(message.id)
+                                        : null,
+                                    onRetry: message.status == 'error'
+                                        ? () => ref
+                                            .read(chatV2MessagesProvider(widget.channelId).notifier)
+                                            .retryMessage(message.id)
+                                        : null,
+                                    onDelete: message.status == 'error'
+                                        ? () => ref
+                                            .read(chatV2MessagesProvider(widget.channelId).notifier)
+                                            .deleteTempMessage(message.id)
+                                        : null,
                                     onImageTap: (att, heroTag, [idx = -1, allImgs, msgId]) =>
                                         _handleChannelImageTap(att, heroTag, messages, idx, allImgs, msgId),
                                     onReplyTap: (parentId) {
@@ -2347,6 +2407,19 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
     );
   }
 
+  void _openMediaHub(String displayTitle, List<ChatV2Message> messages) {
+    ChatV2InfoSheet.openMediaHub(
+      context,
+      channelId: widget.channelId,
+      channelName: displayTitle,
+      messages: messages,
+    ).then((targetMsgId) {
+      if (targetMsgId != null && targetMsgId.isNotEmpty && mounted) {
+        _jumpToMessage(targetMsgId);
+      }
+    });
+  }
+
   void _handleHeaderTap(BuildContext context, ChatV2Channel? channel, bool isDark) {
     if (channel == null) return;
     final currentUser = ref.read(authControllerProvider).valueOrNull;
@@ -2504,7 +2577,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
         ChatV2MessageLocalCache.get(widget.channelId) ??
         [];
 
-    Navigator.of(context).push(
+    Navigator.of(context).push<String?>(
       MaterialPageRoute(
         builder: (ctx) => ChatV2InfoSheet(
           channel: channel,
@@ -2517,9 +2590,14 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
           },
         ),
       ),
-    );
+    ).then((targetMsgId) {
+      if (targetMsgId != null && targetMsgId.isNotEmpty && mounted) {
+        _jumpToMessage(targetMsgId);
+      }
+    });
   }
 
+  // ignore: unused_element
   void _handleVoiceCall(
     BuildContext context,
     ChatV2Channel? channel,

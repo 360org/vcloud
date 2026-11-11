@@ -71,12 +71,12 @@ void main() {
       expect(isCancelled(-120.0), isTrue);
     });
 
-    test('File picker document size threshold is strictly 25 MB and photo is 10 MB', () {
-      const maxDocumentSizeBytes = 25 * 1024 * 1024;
-      const maxImageSizeBytes = 10 * 1024 * 1024;
+    test('File picker document size threshold is strictly 128 MB and photo is 25 MB', () {
+      const maxDocumentSizeBytes = 128 * 1024 * 1024;
+      const maxImageSizeBytes = 25 * 1024 * 1024;
 
-      expect(maxDocumentSizeBytes, 26214400);
-      expect(maxImageSizeBytes, 10485760);
+      expect(maxDocumentSizeBytes, 134217728);
+      expect(maxImageSizeBytes, 26214400);
     });
   });
 

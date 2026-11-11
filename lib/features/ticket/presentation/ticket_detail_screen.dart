@@ -1,4 +1,5 @@
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -82,6 +83,8 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
     if (source == null || !mounted) return;
 
     try {
+      final maxBytes = odooApiClient.maxUploadBytes;
+      final maxMb = (maxBytes / (1024 * 1024)).round();
       if (source == _CommentAttachmentSource.camera || source == _CommentAttachmentSource.photo) {
         final picker = ImagePicker();
         final image = await picker.pickImage(
@@ -93,12 +96,12 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
         );
         if (image == null || !mounted) return;
         final bytes = await image.readAsBytes();
-        if (bytes.length > MobileAttachmentRepository.maxFileSizeBytes) {
+        if (bytes.length > maxBytes) {
           if (mounted) {
             AppToast.warning(
               context,
               title: 'Tệp quá dung lượng',
-              message: 'Dung lượng tệp vượt quá mức cho phép (25 MB). Vui lòng chọn tệp nhỏ hơn.',
+              message: 'Dung lượng tệp vượt quá mức cho phép ($maxMb MB). Vui lòng chọn tệp nhỏ hơn.',
             );
           }
           return;
@@ -107,13 +110,14 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
           _commentAttachments.add(_TicketCommentAttachmentDraft(
             name: image.name,
             bytes: bytes,
+            fileSize: bytes.length,
             mimetype: _commentMimetypeForName(image.name),
           ));
         });
       } else if (source == _CommentAttachmentSource.document) {
         final result = await FilePicker.platform.pickFiles(
           allowMultiple: false,
-          withData: true,
+          withData: kIsWeb,
           type: FileType.custom,
           allowedExtensions: const <String>[
             'pdf',
@@ -130,13 +134,15 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
           ],
         );
         final file = result?.files.single;
-        if (file == null || file.bytes == null || !mounted) return;
-        if (file.size > MobileAttachmentRepository.maxFileSizeBytes) {
+        if (file == null || !mounted) return;
+        final hasDiskPath = !kIsWeb && file.path != null && file.path!.isNotEmpty;
+        if (!hasDiskPath && file.bytes == null) return;
+        if (file.size > maxBytes) {
           if (mounted) {
             AppToast.warning(
               context,
               title: 'Tệp quá dung lượng',
-              message: 'Dung lượng tệp vượt quá mức cho phép (25 MB). Vui lòng chọn tệp nhỏ hơn.',
+              message: 'Dung lượng tệp vượt quá mức cho phép ($maxMb MB). Vui lòng chọn tệp nhỏ hơn.',
             );
           }
           return;
@@ -144,7 +150,9 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
         setState(() {
           _commentAttachments.add(_TicketCommentAttachmentDraft(
             name: file.name,
-            bytes: file.bytes!,
+            bytes: file.bytes ?? Uint8List(0),
+            filePath: hasDiskPath ? file.path : null,
+            fileSize: file.size,
             mimetype: _commentMimetypeForName(file.name),
           ));
         });
@@ -162,6 +170,8 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
 
   Future<void> _pickImageComment() async {
     try {
+      final maxBytes = odooApiClient.maxUploadBytes;
+      final maxMb = (maxBytes / (1024 * 1024)).round();
       final picker = ImagePicker();
       final image = await picker.pickImage(
         source: ImageSource.gallery,
@@ -170,12 +180,12 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
       );
       if (image == null || !mounted) return;
       final bytes = await image.readAsBytes();
-      if (bytes.length > MobileAttachmentRepository.maxFileSizeBytes) {
+      if (bytes.length > maxBytes) {
         if (mounted) {
           AppToast.warning(
             context,
             title: 'Tệp quá dung lượng',
-            message: 'Dung lượng tệp vượt quá mức cho phép (25 MB). Vui lòng chọn tệp nhỏ hơn.',
+            message: 'Dung lượng tệp vượt quá mức cho phép ($maxMb MB). Vui lòng chọn tệp nhỏ hơn.',
           );
         }
         return;
@@ -184,6 +194,7 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
         _commentAttachments.add(_TicketCommentAttachmentDraft(
           name: image.name,
           bytes: bytes,
+          fileSize: bytes.length,
           mimetype: _commentMimetypeForName(image.name),
         ));
       });
@@ -212,14 +223,16 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
 
     final pendingAttachments = draftsToSend.map((d) {
       final key = 'att_pending_${DateTime.now().microsecondsSinceEpoch}';
-      ChatV2AttachmentImage.imageCache[key] = d.bytes;
-      ChatV2AttachmentImage.imageCache[d.name] = d.bytes;
+      if (d.bytes.isNotEmpty) {
+        ChatV2AttachmentImage.imageCache[key] = d.bytes;
+        ChatV2AttachmentImage.imageCache[d.name] = d.bytes;
+      }
       return MobileAttachment(
         id: DateTime.now().microsecondsSinceEpoch,
         attachmentId: 0,
         name: d.name,
         mimetype: d.mimetype,
-        fileSize: d.bytes.length,
+        fileSize: d.fileSize ?? d.bytes.length,
       );
     }).toList();
 
@@ -251,6 +264,8 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
             MobileAttachmentUpload(
               filename: draft.name,
               bytes: draft.bytes,
+              filePath: draft.filePath,
+              fileSize: draft.fileSize,
               mimetype: draft.mimetype,
               resModel: targetResModel,
               resId: int.tryParse(widget.ticketId),
@@ -259,8 +274,10 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
           uploadedIds.add(res.attachmentId);
           uploadedAttachments.add(res);
           // In-memory cache để hiển thị ảnh ngay tức thì
-          ChatV2AttachmentImage.imageCache['att_${res.attachmentId}'] = draft.bytes;
-          ChatV2AttachmentImage.imageCache[draft.name] = draft.bytes;
+          if (draft.bytes.isNotEmpty) {
+            ChatV2AttachmentImage.imageCache['att_${res.attachmentId}'] = draft.bytes;
+            ChatV2AttachmentImage.imageCache[draft.name] = draft.bytes;
+          }
         } catch (uploadErr) {
           debugPrint('[TicketDetail] Attachment upload warning: $uploadErr');
         }
@@ -2791,11 +2808,15 @@ class _TicketCommentAttachmentDraft {
   const _TicketCommentAttachmentDraft({
     required this.name,
     required this.bytes,
+    this.filePath,
+    this.fileSize,
     this.mimetype,
   });
 
   final String name;
   final Uint8List bytes;
+  final String? filePath;
+  final int? fileSize;
   final String? mimetype;
 }
 

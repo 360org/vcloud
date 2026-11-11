@@ -444,12 +444,14 @@ class ChatV2ChannelLocalCache {
 
   static void set(List<ChatV2Channel> channels) {
     final map = <String, ChatV2Channel>{};
+    final currentLocalMap = {for (final ch in _cached) ch.id: ch};
+
     for (final c in channels) {
       final cachedMsgs = ChatV2MessageLocalCache.get(c.id);
       final cachedFirst = (cachedMsgs != null && cachedMsgs.isNotEmpty) ? cachedMsgs.first : null;
       final cachedDate = cachedFirst?.createdAt;
+      String? cachedContent;
       if (cachedDate != null && (c.lastMessageDate == null || cachedDate.toUtc().isAfter(c.lastMessageDate!.toUtc()))) {
-        String? cachedContent;
         if (cachedFirst != null) {
           final contentLower = cachedFirst.content.toLowerCase().trim();
           final isVoice = cachedFirst.hasAudio ||
@@ -548,15 +550,47 @@ class ChatV2ChannelLocalCache {
                 : (isImageAtt ? '[Hình ảnh]' : '[Tập tin]');
           }
         }
-        final cleanName = ChatV2Channel.cleanChannelName(c.name);
-        map[c.id] = c.copyWith(
-          name: cleanName,
-          lastMessageDate: cachedDate,
-          lastMessage: cachedContent ?? c.lastMessage,
-        );
-      } else {
-        final cleanName = ChatV2Channel.cleanChannelName(c.name);
-        map[c.id] = c.copyWith(name: cleanName);
+      }
+
+      final cleanName = ChatV2Channel.cleanChannelName(c.name);
+      var resolvedChannel = c.copyWith(
+        name: cleanName,
+        lastMessageDate: cachedDate ?? c.lastMessageDate,
+        lastMessage: cachedContent ?? c.lastMessage,
+      );
+
+      // ⚡ Instant Cache Preservation: Bảo vệ tin nhắn mới nhận từ Push Notification / Realtime.
+      // Nếu localExisting có lastMessageDate mới hơn API trả về (do vừa nhận Push / Realtime),
+      // giữ lại tin nhắn mới nhất đó để không bị lùi lại tin cũ do network lag từ API getChannels.
+      final localExisting = currentLocalMap[c.id];
+      if (localExisting != null) {
+        final localDate = localExisting.lastMessageDate;
+        final apiDate = resolvedChannel.lastMessageDate;
+        if (localDate != null && (apiDate == null || localDate.toUtc().isAfter(apiDate.toUtc()))) {
+          resolvedChannel = resolvedChannel.copyWith(
+            lastMessage: localExisting.lastMessage ?? resolvedChannel.lastMessage,
+            lastMessageDate: localDate,
+            lastMessageAuthorId: localExisting.lastMessageAuthorId ?? resolvedChannel.lastMessageAuthorId,
+            lastMessageAuthorName: localExisting.lastMessageAuthorName ?? resolvedChannel.lastMessageAuthorName,
+            unreadCount: (localExisting.unreadCount > resolvedChannel.unreadCount)
+                ? localExisting.unreadCount
+                : resolvedChannel.unreadCount,
+          );
+        }
+      }
+
+      map[c.id] = resolvedChannel;
+    }
+
+    // Bảo tồn các kênh vừa có tin nhắn gần đây hoặc có tin chưa đọc mà API phân trang chưa kịp trả về
+    for (final entry in currentLocalMap.entries) {
+      if (!map.containsKey(entry.key)) {
+        final localCh = entry.value;
+        if (localCh.unreadCount > 0 ||
+            (localCh.lastMessageDate != null &&
+                DateTime.now().difference(localCh.lastMessageDate!).inHours < 24)) {
+          map[entry.key] = localCh;
+        }
       }
     }
     bool cleanedPinned = false;
@@ -709,7 +743,6 @@ class ChatV2ChannelsNotifier
   int _resumeRetryAttempt = 0;
   bool _isResumeRefreshing = false;
   bool _isDisposed = false;
-  bool _isFetching = false;
   bool _isLoadingMore = false;
   bool _hasMore = true;
 
@@ -757,83 +790,6 @@ class ChatV2ChannelsNotifier
         state = AsyncData(ChatV2ChannelLocalCache.cached);
       }
     };
-
-    bool hasChannelsChanged(List<ChatV2Channel> currentList, List<ChatV2Channel> freshList) {
-      if (freshList.isEmpty && currentList.isNotEmpty) return false;
-      if (currentList.isEmpty && freshList.isNotEmpty) return true;
-      if (currentList.length != freshList.length) return true;
-      final currentMap = {for (final c in currentList) c.id: c};
-      for (final freshItem in freshList) {
-        final match = currentMap[freshItem.id];
-        if (match == null ||
-            match.lastMessage != freshItem.lastMessage ||
-            match.lastMessageDate != freshItem.lastMessageDate ||
-            match.unreadCount != freshItem.unreadCount ||
-            match.imStatus != freshItem.imStatus) {
-          return true;
-        }
-      }
-      return false;
-    }
-
-    Future<void> fetchFreshChannels() async {
-      if (_isFetching || _isDisposed) return;
-      _isFetching = true;
-      try {
-        final fresh = await repo.getChannels(limit: 80);
-        if (_isDisposed) return;
-        if (fresh.isNotEmpty) {
-          final presenceNotifier = ref.read(chatV2PresenceProvider.notifier);
-          for (final f in fresh) {
-            if (f.isMuted) {
-              ChatV2ChannelLocalCache.setUserMuted(f.id, true);
-            }
-            final pId = f.partnerId ?? f.directPartnerId;
-            if (pId != null && pId.isNotEmpty && f.imStatus.isNotEmpty) {
-              presenceNotifier.updatePresence(pId, f.imStatus);
-            }
-            if (f.members.isNotEmpty) {
-              presenceNotifier.updateMembersPresence(f.members);
-            }
-          }
-        }
-        final current = state.valueOrNull ?? ChatV2ChannelLocalCache.cached;
-        if (fresh.isNotEmpty && hasChannelsChanged(current, fresh)) {
-          // Hiển thị in-app banner khi phát hiện có tin nhắn mới gửi đến
-          final currentMap = {for (final c in current) c.id: c};
-          for (final f in fresh) {
-            final old = currentMap[f.id];
-            if (old != null &&
-                f.unreadCount > old.unreadCount &&
-                (f.lastMessage != null && f.lastMessage!.isNotEmpty)) {
-              final isMuted = ChatV2ChannelLocalCache.isUserMuted(f.id);
-              if (!isMuted) {
-                inAppNotifier.show(
-                  title: f.directPartnerName ?? f.displayName,
-                  body: f.lastMessage ?? '',
-                  channelId: f.id,
-                );
-              }
-            }
-          }
-
-          // Giữ lại imStatus cũ nếu fresh trả offline nhưng cũ đang online
-          // tránh nhấp nháy indicator do latency poll
-          final merged = fresh.map((f) {
-            final old = currentMap[f.id];
-            if (old != null && old.imStatus == 'online' && f.imStatus == 'offline') {
-              return f.copyWith(imStatus: 'online');
-            }
-            return f;
-          }).toList();
-          ChatV2ChannelLocalCache.set(merged);
-          state = AsyncData(ChatV2ChannelLocalCache.cached);
-        }
-      } catch (_) {
-      } finally {
-        _isFetching = false;
-      }
-    }
 
     _wsMessageSub?.cancel();
     _wsMessageSub = realtime.onMessageReceived.listen((msg) {
@@ -888,7 +844,7 @@ class ChatV2ChannelsNotifier
         state = AsyncData(reordered);
       } else {
         _debounceTimer?.cancel();
-        _debounceTimer = Timer(const Duration(milliseconds: 900), fetchFreshChannels);
+        _debounceTimer = Timer(const Duration(milliseconds: 900), _executeResumeRefresh);
       }
     });
 
@@ -896,7 +852,7 @@ class ChatV2ChannelsNotifier
     _wsUpdateSub = realtime.onChannelUpdated.listen((chId) {
       if (_isDisposed) return;
       _debounceTimer?.cancel();
-      _debounceTimer = Timer(const Duration(milliseconds: 900), fetchFreshChannels);
+      _debounceTimer = Timer(const Duration(milliseconds: 900), _executeResumeRefresh);
     });
 
     _busMuteSub?.cancel();
@@ -944,28 +900,20 @@ class ChatV2ChannelsNotifier
       }
     });
 
-    void scheduleNextPoll() {
-      if (_isDisposed) return;
-      _pollingTimer?.cancel();
-      _pollingTimer = Timer(const Duration(seconds: 8), () async {
-        if (_isDisposed) return;
-        try {
-          final isForeground = ref.read(isAppForegroundProvider);
-          if (isForeground && !state.isLoading && state.hasValue) {
-            await fetchFreshChannels();
-          }
-          if (!_isDisposed && isForeground && !state.hasError) {
-            scheduleNextPoll();
-          }
-        } catch (_) {}
-      });
-    }
+    // Tự động phục hồi hoặc tạm dừng Polling Timer khi app Foreground / Background
+    ref.listen<bool>(isAppForegroundProvider, (prev, isForeground) {
+      if (isForeground) {
+        resumeRefresh();
+      } else {
+        pausePolling();
+      }
+    });
 
     final cached = ChatV2ChannelLocalCache.cached;
     if (cached.isNotEmpty) {
       if (hasVMobile) {
-        scheduleNextPoll();
-        unawaited(fetchFreshChannels().catchError((_) {}));
+        _scheduleNextPoll();
+        unawaited(_executeResumeRefresh().catchError((_) {}));
       }
       return cached;
     }
@@ -992,7 +940,7 @@ class ChatV2ChannelsNotifier
       ChatV2ChannelLocalCache.set(fresh);
       syncStatusNotifier.state = ChatV2SyncStatus.synced;
       if (hasVMobile) {
-        scheduleNextPoll();
+        _scheduleNextPoll();
       }
       return ChatV2ChannelLocalCache.cached;
     } catch (e) {
@@ -1001,6 +949,23 @@ class ChatV2ChannelsNotifier
       syncStatusNotifier.state = ChatV2SyncStatus.offline;
       rethrow;
     }
+  }
+
+  void _scheduleNextPoll() {
+    if (_isDisposed) return;
+    _pollingTimer?.cancel();
+    _pollingTimer = Timer(const Duration(seconds: 8), () async {
+      if (_isDisposed) return;
+      try {
+        final isForeground = ref.read(isAppForegroundProvider);
+        if (isForeground && !state.isLoading && state.hasValue) {
+          await _executeResumeRefresh();
+        }
+      } catch (_) {}
+      if (!_isDisposed && ref.read(isAppForegroundProvider)) {
+        _scheduleNextPoll();
+      }
+    });
   }
 
   bool _isTransientError(Object error) {
@@ -1038,16 +1003,8 @@ class ChatV2ChannelsNotifier
   Future<void> resumeRefresh() async {
     final authState = ref.read(authControllerProvider);
     final hasVMobile = (authState.valueOrNull?.userMetadata['has_v_mobile'] as bool?) ?? true;
-    if (hasVMobile && _pollingTimer == null && !_isDisposed) {
-      _pollingTimer = Timer(const Duration(seconds: 8), () async {
-        if (_isDisposed) return;
-        try {
-          final isForeground = ref.read(isAppForegroundProvider);
-          if (isForeground && !state.isLoading && state.hasValue) {
-            await _executeResumeRefresh();
-          }
-        } catch (_) {}
-      });
+    if (hasVMobile && !_isDisposed) {
+      _scheduleNextPoll();
     }
 
     if (_isResumeRefreshing) {

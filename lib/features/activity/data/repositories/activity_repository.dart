@@ -3,11 +3,30 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/api/odoo_api_client.dart';
 import '../../../../core/error/failure.dart';
+import '../../../auth/application/auth_controller.dart';
 import '../models/activity_item.dart';
 import '../models/activity_type.dart';
 
 final activityRepositoryProvider = Provider<ActivityRepository>((ref) {
   return ActivityRepository(odooApiClient);
+});
+
+/// Provider tính toán tổng số việc cần làm (quá hạn + hôm nay)
+/// để hiển thị trên badge đồng hồ màn hình chính (HomeScreen).
+final pendingActivitiesCountProvider = FutureProvider.autoDispose<int>((ref) async {
+  final user = ref.watch(authControllerProvider).valueOrNull;
+  if (user == null || user.isPortal) return 0;
+
+  final repo = ref.watch(activityRepositoryProvider);
+  try {
+    final overdueFuture = repo.getActivities(filter: 'overdue');
+    final todayFuture = repo.getActivities(filter: 'today');
+    final results = await Future.wait([overdueFuture, todayFuture]);
+    return results[0].length + results[1].length;
+  } catch (e) {
+    debugPrint('[pendingActivitiesCountProvider] Error fetching activities count: $e');
+    return 0;
+  }
 });
 
 class ActivityRepository {

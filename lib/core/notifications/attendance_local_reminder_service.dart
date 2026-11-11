@@ -192,9 +192,33 @@ class AttendanceLocalReminderService {
     return true;
   }
 
+  /// Kiểm tra xem thời điểm hiện tại đã quá giờ hết hạn nhắc nhở check-in ca sáng (sau 12:00 hoặc giờ nghỉ trưa) hay chưa.
+  static bool isPastMorningCheckInCutoff({
+    required DateTime currentTime,
+    ShiftConfig? shiftConfig,
+  }) {
+    final cfg = shiftConfig ?? ShiftConfig.forDate(currentTime);
+    final cutoffHour = cfg.lunchStartHour > 0 ? cfg.lunchStartHour : 12;
+    final cutoffMinute = cfg.lunchStartMinute;
+    if (currentTime.hour > cutoffHour) return true;
+    if (currentTime.hour == cutoffHour && currentTime.minute >= cutoffMinute) return true;
+    return false;
+  }
+
+  /// Kiểm tra xem thời điểm hiện tại đã quá giờ hết hạn nhắc nhở check-out ca chiều (mặc định sau 22:00 đêm) hay chưa.
+  static bool isPastAfternoonCheckOutCutoff({
+    required DateTime currentTime,
+    int cutoffHour = 22,
+    int cutoffMinute = 0,
+  }) {
+    if (currentTime.hour > cutoffHour) return true;
+    if (currentTime.hour == cutoffHour && currentTime.minute >= cutoffMinute) return true;
+    return false;
+  }
+
   /// Cập nhật trạng thái nhắc nhở dựa trên bản ghi Chấm công hiện tại
-  /// - Nếu chưa check-in sáng nay: Lên lịch nhắc Check-in lúc 08:05
-  /// - Nếu đã check-in nhưng chưa check-out: Hủy nhắc check-in & Lên lịch nhắc Check-out lúc 17:35
+  /// - Nếu chưa check-in sáng nay: Lên lịch nhắc Check-in lúc 08:05 (hủy nếu quá 12:00 trưa)
+  /// - Nếu đã check-in nhưng chưa check-out: Hủy nhắc check-in & Lên lịch nhắc Check-out lúc 17:35 (hủy nếu quá 22:00 đêm)
   /// - Nếu đã hoàn tất cả check-in và check-out: Hủy toàn bộ nhắc nhở hôm nay
   Future<void> syncAttendanceReminders({
     required Attendance? openAttendance,
@@ -217,31 +241,47 @@ class AttendanceLocalReminderService {
     final isOpen = openAttendance != null && openAttendance.checkoutTime == null;
 
     if (!hasCheckedInToday) {
-      // 1. Chưa check-in hôm nay -> Lên lịch nhắc Check-in
-      await _scheduleCheckInReminder(
-        targetHour: cfg.shiftStartHour,
-        targetMinute: cfg.shiftStartMinute + 5, // Trễ 5 phút sau ca bắt đầu
-      );
+      // 1. Chưa check-in hôm nay
+      // Kiểm tra giờ hết hạn ca sáng: Nếu thời điểm kích hoạt/đồng bộ đã quá buổi trưa (sau 12:00 hoặc giờ nghỉ trưa)
+      // thì tự động hủy bỏ nhắc nhở check-in, tránh tình trạng Android hoãn báo thức rồi xả nhầm vào ban đêm.
+      if (isPastMorningCheckInCutoff(currentTime: now, shiftConfig: cfg)) {
+        debugPrint('[AttendanceReminder] Past morning shift cutoff (>= 12:00/lunch). Canceling checkin reminder.');
+        await cancelCheckInReminder();
+      } else {
+        await _scheduleCheckInReminder(
+          targetHour: cfg.shiftStartHour,
+          targetMinute: cfg.shiftStartMinute + 5, // Trễ 5 phút sau ca bắt đầu
+          expireHour: cfg.lunchStartHour > 0 ? cfg.lunchStartHour : 12,
+          expireMinute: cfg.lunchStartMinute,
+        );
+      }
       await cancelCheckOutReminder();
     } else if (isOpen) {
-      // 2. Đã check-in và đang mở ca -> Hủy nhắc check-in, lên lịch nhắc Check-out
+      // 2. Đã check-in và đang mở ca -> Hủy nhắc check-in
       await cancelCheckInReminder();
 
-      // Giờ tan ca quy định hoặc sau 8 tiếng làm việc
-      await _scheduleCheckOutReminder(
-        targetHour: cfg.shiftEndHour,
-        targetMinute: cfg.shiftEndMinute + 5, // 5 phút sau ca kết thúc
-      );
+      // Nếu đã quá 22:00 đêm thì không lập lịch nhắc check-out nữa, tránh nổ lúc nửa đêm
+      if (isPastAfternoonCheckOutCutoff(currentTime: now)) {
+        debugPrint('[AttendanceReminder] Past 22:00 night cutoff. Canceling checkout reminder.');
+        await cancelCheckOutReminder();
+      } else {
+        await _scheduleCheckOutReminder(
+          targetHour: cfg.shiftEndHour,
+          targetMinute: cfg.shiftEndMinute + 5, // 5 phút sau ca kết thúc
+        );
+      }
     } else {
       // 3. Đã check-in và đã check-out đủ các ca -> Hủy toàn bộ nhắc nhở
       await cancelAllAttendanceReminders();
     }
   }
 
-  /// Lên lịch nhắc Check-in buổi sáng
+  /// Lên lịch nhắc Check-in buổi sáng (có cơ chế tự hủy khi quá giờ trưa 12:00)
   Future<void> _scheduleCheckInReminder({
     required int targetHour,
     required int targetMinute,
+    int expireHour = 12,
+    int expireMinute = 0,
   }) async {
     if (kIsWeb || _isUnitTest) return;
 
@@ -256,19 +296,36 @@ class AttendanceLocalReminderService {
         targetMinute,
       );
 
-      // Nếu đã qua giờ nhắc hôm nay thì bỏ qua
-      if (now.isAfter(scheduledDate)) {
+      final expireDate = tz.TZDateTime(
+        tz.local,
+        now.year,
+        now.month,
+        now.day,
+        expireHour,
+        expireMinute,
+      );
+
+      // Nếu đã qua giờ nhắc hoặc đã quá giờ hết hạn ca sáng (sau 12:00) thì hủy và bỏ qua
+      if (now.isAfter(scheduledDate) || now.isAfter(expireDate) || now.isAtSameMomentAs(expireDate)) {
         await cancelCheckInReminder();
         return;
       }
 
-      const androidDetails = AndroidNotificationDetails(
+      // Giới hạn thời gian notification tồn tại trên Android qua timeoutAfter:
+      // Tính từ lúc scheduledDate đến lúc hết ca sáng (12:00), Android tự hủy nếu bị hoãn quá thời hạn này
+      final timeoutDuration = expireDate.difference(scheduledDate);
+      final timeoutMs = timeoutDuration.inMilliseconds > 0
+          ? timeoutDuration.inMilliseconds
+          : 14400000; // fallback 4 giờ
+
+      final androidDetails = AndroidNotificationDetails(
         'attendance_reminders_channel',
         'Nhắc nhở Chấm công',
         channelDescription: 'Thông báo nhắc nhở Check-in và Check-out hàng ngày',
         importance: Importance.high,
         priority: Priority.high,
         icon: '@mipmap/ic_launcher',
+        timeoutAfter: timeoutMs,
       );
 
       const iosDetails = DarwinNotificationDetails(
@@ -277,7 +334,7 @@ class AttendanceLocalReminderService {
         presentSound: true,
       );
 
-      const notifDetails = NotificationDetails(
+      final notifDetails = NotificationDetails(
         android: androidDetails,
         iOS: iosDetails,
       );
@@ -306,17 +363,20 @@ class AttendanceLocalReminderService {
 
       debugPrint(
         '[AttendanceReminder] Scheduled Check-in reminder at '
-        '${scheduledDate.hour}:${scheduledDate.minute.toString().padLeft(2, '0')}',
+        '${scheduledDate.hour}:${scheduledDate.minute.toString().padLeft(2, '0')}, '
+        'cutoff at ${expireDate.hour}:${expireDate.minute.toString().padLeft(2, '0')}',
       );
     } catch (e) {
       debugPrint('[AttendanceReminder] Error scheduling checkin reminder: $e');
     }
   }
 
-  /// Lên lịch nhắc Check-out buổi chiều
+  /// Lên lịch nhắc Check-out buổi chiều (có cơ chế tự hủy khi quá 22:00 đêm)
   Future<void> _scheduleCheckOutReminder({
     required int targetHour,
     required int targetMinute,
+    int expireHour = 22,
+    int expireMinute = 0,
   }) async {
     if (kIsWeb || _isUnitTest) return;
 
@@ -331,19 +391,36 @@ class AttendanceLocalReminderService {
         targetMinute,
       );
 
-      // Nếu đã qua giờ nhắc hôm nay thì bỏ qua
-      if (now.isAfter(scheduledDate)) {
+      final expireDate = tz.TZDateTime(
+        tz.local,
+        now.year,
+        now.month,
+        now.day,
+        expireHour,
+        expireMinute,
+      );
+
+      // Nếu đã qua giờ nhắc hoặc đã qua 22:00 đêm thì bỏ qua
+      if (now.isAfter(scheduledDate) || now.isAfter(expireDate) || now.isAtSameMomentAs(expireDate)) {
         await cancelCheckOutReminder();
         return;
       }
 
-      const androidDetails = AndroidNotificationDetails(
+      // Giới hạn thời gian notification tồn tại trên Android qua timeoutAfter:
+      // Tính từ lúc scheduledDate đến lúc 22:00 đêm
+      final timeoutDuration = expireDate.difference(scheduledDate);
+      final timeoutMs = timeoutDuration.inMilliseconds > 0
+          ? timeoutDuration.inMilliseconds
+          : 18000000; // fallback 5 giờ
+
+      final androidDetails = AndroidNotificationDetails(
         'attendance_reminders_channel',
         'Nhắc nhở Chấm công',
         channelDescription: 'Thông báo nhắc nhở Check-in và Check-out hàng ngày',
         importance: Importance.high,
         priority: Priority.high,
         icon: '@mipmap/ic_launcher',
+        timeoutAfter: timeoutMs,
       );
 
       const iosDetails = DarwinNotificationDetails(
@@ -352,7 +429,7 @@ class AttendanceLocalReminderService {
         presentSound: true,
       );
 
-      const notifDetails = NotificationDetails(
+      final notifDetails = NotificationDetails(
         android: androidDetails,
         iOS: iosDetails,
       );
@@ -381,7 +458,8 @@ class AttendanceLocalReminderService {
 
       debugPrint(
         '[AttendanceReminder] Scheduled Check-out reminder at '
-        '${scheduledDate.hour}:${scheduledDate.minute.toString().padLeft(2, '0')}',
+        '${scheduledDate.hour}:${scheduledDate.minute.toString().padLeft(2, '0')}, '
+        'cutoff at ${expireDate.hour}:${expireDate.minute.toString().padLeft(2, '0')}',
       );
     } catch (e) {
       debugPrint('[AttendanceReminder] Error scheduling checkout reminder: $e');

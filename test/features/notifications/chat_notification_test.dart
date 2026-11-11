@@ -19,11 +19,20 @@ import 'package:vcloud/features/chat_v2/data/models/chat_v2_message.dart';
 class _FakeChannelsNotifier extends ChatV2ChannelsNotifier {
   @override
   Future<List<ChatV2Channel>> build() async => const [];
+
+  @override
+  Future<void> resumeRefresh() async {}
+
+  @override
+  void pausePolling() {}
 }
 
 class _FakeMessagesNotifier extends ChatV2MessagesNotifier {
   @override
   FutureOr<List<ChatV2Message>> build(String arg) async => const [];
+
+  @override
+  Future<void> triggerImmediateFetch() async {}
 }
 
 class FakePushNotificationService implements PushNotificationService {

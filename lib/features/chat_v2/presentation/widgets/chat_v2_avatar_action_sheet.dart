@@ -327,6 +327,7 @@ class _ChatV2AvatarActionSheetState
     );
   }
 
+  // ignore: unused_element
   Future<void> _startDirectCall(BuildContext context) async {
     if (_isDialing) return;
     setState(() => _isDialing = true);
@@ -582,6 +583,8 @@ class _ChatV2AvatarActionSheetState
                 onTap: () => _openDirectChat(context),
                 isDark: isDark,
               ),
+              // ponytail: Tạm ẩn tính năng gọi thoại theo quyết định kiến trúc, chờ nâng cấp WebRTC native ổn định
+              /*
               _buildActionTile(
                 context,
                 icon: LucideIcons.phone,
@@ -592,6 +595,7 @@ class _ChatV2AvatarActionSheetState
                 onTap: () => _startDirectCall(context),
                 isDark: isDark,
               ),
+              */
               _buildActionTile(
                 context,
                 icon: LucideIcons.image,

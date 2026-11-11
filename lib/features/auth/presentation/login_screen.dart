@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../../../core/api/odoo_api_client.dart';
 import '../../../core/api/odoo_session.dart';
@@ -38,7 +39,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _password = TextEditingController();
   final _serverUrl = TextEditingController();
   final _databaseName = TextEditingController();
-  final bool _isManualMode = false;
+  bool _isManualMode = false;
   bool _submitting = false;
   bool _showSuccessTransition = false;
   bool _isGoogleAuthProcessing = false;
@@ -50,16 +51,44 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _serverUrlFocus = FocusNode();
   final _databaseNameFocus = FocusNode();
   bool _biometricAvailable = false;
+  bool _isAppleSignInAvailable = false;
 
   @override
   void initState() {
     super.initState();
+    _isAppleSignInAvailable = _isApplePlatform;
     _email.addListener(_onFieldChanged);
     _password.addListener(_onFieldChanged);
     _serverUrl.addListener(_onFieldChanged);
     _databaseName.addListener(_onFieldChanged);
     _loadSavedEmail();
     _checkBiometric();
+    _checkAppleSignInAvailability();
+  }
+
+  bool get _isApplePlatform =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.iOS ||
+          defaultTargetPlatform == TargetPlatform.macOS);
+
+  Future<void> _checkAppleSignInAvailability() async {
+    // Apple Sign-In chỉ áp dụng trên nền tảng Apple (iOS/macOS) theo chuẩn App Store Guideline 4.8.0
+    if (!_isApplePlatform) {
+      if (mounted) {
+        setState(() => _isAppleSignInAvailable = false);
+      }
+      return;
+    }
+    try {
+      final isAvailable = await SignInWithApple.isAvailable();
+      if (mounted) {
+        setState(() => _isAppleSignInAvailable = isAvailable);
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isAppleSignInAvailable = true);
+      }
+    }
   }
 
   Future<void> _checkBiometric() async {
@@ -243,6 +272,105 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
+  Future<void> _signInWithApple() async {
+    if (!_isApplePlatform) {
+      setState(() => _error = 'Đăng nhập Apple chỉ hỗ trợ trên thiết bị iOS / macOS.');
+      return;
+    }
+    setState(() {
+      _submitting = true;
+      _isGoogleAuthProcessing = true;
+      _googleAuthStatus = 'Đang kết nối tài khoản Apple...';
+      _error = null;
+    });
+
+    try {
+      final targetUrl = _isManualMode
+          ? _serverUrl.text.trim()
+          : Env.odooApiBaseUrl;
+      final targetDb = _isManualMode
+          ? _databaseName.text.trim()
+          : OdooApiClient.resolveDefaultDbForUrl(targetUrl);
+
+      final credential = await SignInWithApple.getAppleIDCredential(
+        scopes: [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+      );
+
+      final identityToken = credential.identityToken;
+      if (identityToken == null || identityToken.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _submitting = false;
+            _isGoogleAuthProcessing = false;
+            _error = 'Không thể lấy mã định danh từ tài khoản Apple.';
+          });
+        }
+        return;
+      }
+
+      final appleEmail = credential.email;
+      final fullName = [credential.givenName, credential.familyName]
+          .where((s) => s != null && s.isNotEmpty)
+          .join(' ');
+
+      if (mounted) {
+        setState(() {
+          _googleAuthStatus = 'Đang xác thực với máy chủ...';
+        });
+      }
+
+      await ref.read(authControllerProvider.notifier).signInWithOAuth(
+            provider: 'apple',
+            accessToken: identityToken,
+            email: appleEmail,
+            name: fullName.isNotEmpty ? fullName : null,
+            db: targetDb,
+            targetBaseUrl: targetUrl,
+          );
+
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+        _isGoogleAuthProcessing = false;
+      });
+
+      // Điều hướng trực tiếp theo vai trò: Portal -> /home, Internal -> /chat
+      final currentUser = ref.read(authControllerProvider).valueOrNull;
+      final targetPath = (currentUser?.isPortal ?? false) ? '/home' : '/chat';
+      if (mounted) {
+        context.go(targetPath);
+      }
+    } on SignInWithAppleAuthorizationException catch (e) {
+      if (mounted) {
+        setState(() {
+          _submitting = false;
+          _isGoogleAuthProcessing = false;
+          if (e.code != AuthorizationErrorCode.canceled) {
+            _error = 'Đăng nhập Apple thất bại: ${e.message}';
+          }
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+        _isGoogleAuthProcessing = false;
+        _error = _cleanErrorMessage(e);
+      });
+    }
+  }
+
+  Widget _buildAppleIcon() {
+    return const Icon(
+      LucideIcons.apple,
+      color: Colors.white,
+      size: 19,
+    );
+  }
+
   Widget _buildGoogleIcon() {
     return Container(
       width: 22,
@@ -414,9 +542,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
       // [Bước 1]: Gửi API tra cứu DB ứng viên lên Master: POST /api/v1/auth/lookup-db
       final lastDb = await ref.read(authControllerProvider.notifier).getLastSelectedDb();
-      final rawDbs = await ref
-          .read(authControllerProvider.notifier)
-          .lookupDb(login, preferredDb: lastDb);
+      List<DbInfo> rawDbs = const [];
+      try {
+        rawDbs = await ref
+            .read(authControllerProvider.notifier)
+            .lookupDb(login, preferredDb: lastDb);
+      } catch (lookupErr) {
+        debugPrint('[LoginScreen] lookupDb error: $lookupErr');
+      }
 
       // Khử trùng lặp và chuẩn hóa Candidate DBs
       final seenKeys = <String>{};
@@ -1221,13 +1354,40 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                'Chào mừng trở lại 👋',
-                                style: TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w800,
-                                  color: Color(0xFF0F172A),
-                                ),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    'Chào mừng trở lại 👋',
+                                    style: TextStyle(
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.w800,
+                                      color: Color(0xFF0F172A),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    key: const ValueKey('toggle_manual_server_btn'),
+                                    icon: Icon(
+                                      _isManualMode
+                                          ? LucideIcons.serverCog
+                                          : LucideIcons.server,
+                                      size: 20,
+                                      color: _isManualMode
+                                          ? const Color(0xFF10B981)
+                                          : const Color(0xFF94A3B8),
+                                    ),
+                                    tooltip: 'Cấu hình máy chủ',
+                                    onPressed: () {
+                                      setState(() {
+                                        _isManualMode = !_isManualMode;
+                                        if (_isManualMode &&
+                                            _serverUrl.text.trim().isEmpty) {
+                                          _serverUrl.text = Env.odooApiBaseUrl;
+                                        }
+                                      });
+                                    },
+                                  ),
+                                ],
                               ),
                               const SizedBox(height: 6),
                               const Text(
@@ -1655,50 +1815,52 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 ),
                               ),
 
-                              // [Feature 1.12]: Đăng nhập qua Google OAuth2 / Social Sign-In
-                              // Tuân thủ Apple Review Guideline 4.8.0: Tạm ẩn Social Login trên iOS để duyệt App Store
-                              if (defaultTargetPlatform != TargetPlatform.iOS) ...[
-                                const SizedBox(height: 14),
-                                const Row(
-                                  children: [
-                                    Expanded(child: Divider(color: Color(0xFFE2E8F0))),
-                                    Padding(
-                                      padding: EdgeInsets.symmetric(horizontal: 12),
-                                      child: Text(
-                                        'Hoặc đăng nhập bằng',
-                                        style: TextStyle(
-                                          color: Color(0xFF94A3B8),
-                                          fontSize: 12.5,
-                                          fontWeight: FontWeight.w500,
-                                        ),
+                              // [Feature 1.12 & B.37]: Đăng nhập qua Apple / Google OAuth2 Social Sign-In (App Store Guideline 4.8.0)
+                              const SizedBox(height: 14),
+                              const Row(
+                                children: [
+                                  Expanded(child: Divider(color: Color(0xFFE2E8F0))),
+                                  Padding(
+                                    padding: EdgeInsets.symmetric(horizontal: 12),
+                                    child: Text(
+                                      'Hoặc đăng nhập bằng',
+                                      style: TextStyle(
+                                        color: Color(0xFF94A3B8),
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w500,
                                       ),
                                     ),
-                                    Expanded(child: Divider(color: Color(0xFFE2E8F0))),
-                                  ],
-                                ),
-                                const SizedBox(height: 14),
+                                  ),
+                                  Expanded(child: Divider(color: Color(0xFFE2E8F0))),
+                                ],
+                              ),
+                              const SizedBox(height: 14),
+
+                              // Nút Đăng nhập bằng Apple (Chỉ hiển thị trên Apple iOS & macOS theo chuẩn App Store Guideline 4.8.0; ẩn hoàn toàn trên Android)
+                              if (_isApplePlatform && _isAppleSignInAvailable) ...[
                                 SizedBox(
                                   width: double.infinity,
                                   height: 48,
-                                  child: OutlinedButton(
-                                    key: const ValueKey('google_signin_btn'),
-                                    style: OutlinedButton.styleFrom(
-                                      backgroundColor: Colors.white,
-                                      side: const BorderSide(color: Color(0xFFE2E8F0)),
+                                  child: ElevatedButton(
+                                    key: const ValueKey('apple_signin_btn'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.black,
+                                      foregroundColor: Colors.white,
+                                      elevation: 0,
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(16),
                                       ),
                                     ),
-                                    onPressed: _submitting ? null : _signInWithGoogle,
+                                    onPressed: _submitting ? null : _signInWithApple,
                                     child: Row(
                                       mainAxisAlignment: MainAxisAlignment.center,
                                       children: [
-                                        _buildGoogleIcon(),
+                                        _buildAppleIcon(),
                                         const SizedBox(width: 10),
                                         const Text(
-                                          'Đăng nhập với Google',
+                                          'Đăng nhập với Apple',
                                           style: TextStyle(
-                                            color: Color(0xFF0F172A),
+                                            color: Colors.white,
                                             fontSize: 14.5,
                                             fontWeight: FontWeight.w600,
                                           ),
@@ -1707,7 +1869,40 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                     ),
                                   ),
                                 ),
+                                const SizedBox(height: 10),
                               ],
+
+                              // Nút Đăng nhập với Google
+                              SizedBox(
+                                width: double.infinity,
+                                height: 48,
+                                child: OutlinedButton(
+                                  key: const ValueKey('google_signin_btn'),
+                                  style: OutlinedButton.styleFrom(
+                                    backgroundColor: Colors.white,
+                                    side: const BorderSide(color: Color(0xFFE2E8F0)),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                  ),
+                                  onPressed: _submitting ? null : _signInWithGoogle,
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      _buildGoogleIcon(),
+                                      const SizedBox(width: 10),
+                                      const Text(
+                                        'Đăng nhập với Google',
+                                        style: TextStyle(
+                                          color: Color(0xFF0F172A),
+                                          fontSize: 14.5,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
                             ],
                           ),
                         )
