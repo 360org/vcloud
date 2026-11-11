@@ -44,7 +44,7 @@ void main() {
       expect(find.byIcon(LucideIcons.maximize2), findsOneWidget);
     });
 
-    testWidgets('2. Render đủ 4 Quick Actions với nhãn & mô tả rõ ràng', (tester) async {
+    testWidgets('2. Render đủ Quick Actions với nhãn & mô tả rõ ràng', (tester) async {
       await tester.pumpWidget(
         ProviderScope(
           child: MaterialApp(
@@ -65,8 +65,9 @@ void main() {
       expect(find.text('Xem chi tiết thông tin cá nhân'), findsOneWidget);
       expect(find.text('Nhắn tin cá nhân'), findsOneWidget);
       expect(find.text('Trò chuyện trực tiếp 1-1'), findsOneWidget);
-      expect(find.text('Gọi thoại'), findsOneWidget);
-      expect(find.text('Cuộc gọi đàm thoại WebRTC 1-1'), findsOneWidget);
+      // ponytail: Gọi thoại đang tạm ẩn theo quyết định kiến trúc
+      // expect(find.text('Gọi thoại'), findsOneWidget);
+      // expect(find.text('Cuộc gọi đàm thoại WebRTC 1-1'), findsOneWidget);
       expect(find.text('Xem ảnh đại diện'), findsOneWidget);
       expect(find.text('Phóng to và lưu ảnh vào máy'), findsOneWidget);
     });
@@ -288,7 +289,8 @@ void main() {
       expect(find.text('Vũ Minh Tuấn'), findsOneWidget);
       expect(find.text('Tech Lead'), findsOneWidget);
       expect(find.text('Nhắn tin cá nhân'), findsOneWidget);
-      expect(find.text('Gọi thoại trực tiếp'), findsOneWidget);
+      // ponytail: Gọi thoại tạm ẩn theo quyết định kiến trúc
+      // expect(find.text('Gọi thoại trực tiếp'), findsOneWidget);
       expect(find.text('Xem ảnh đại diện (phóng to)'), findsOneWidget);
     });
 

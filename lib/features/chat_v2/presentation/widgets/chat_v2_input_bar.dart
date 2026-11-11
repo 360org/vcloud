@@ -65,6 +65,8 @@ class ChatV2InputBar extends StatefulWidget {
   final Future<void> Function({
     required Uint8List bytes,
     required String filename,
+    String? filePath,
+    int? fileSize,
     String? mimetype,
     String? caption,
   })? onSendImage;
@@ -75,6 +77,8 @@ class ChatV2InputBar extends StatefulWidget {
   final Future<void> Function({
     required Uint8List bytes,
     required String filename,
+    String? filePath,
+    int? fileSize,
     String? mimetype,
     String? caption,
   })? onSendFile;
@@ -97,12 +101,18 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
   bool _isFocused = false;
 
   Uint8List? _selectedBytes;
+  String? _selectedFilePath;
+  int? _selectedFileSize;
   String? _selectedFilename;
   String? _selectedMimetype;
   bool _isSelectedImage = false;
   bool _isSelectedVideo = false;
   Timer? _typingDebounce;
   bool _isTyping = false;
+
+  bool get _hasSelectedAttachment =>
+      _selectedBytes != null ||
+      (_selectedFilePath != null && _selectedFilePath!.isNotEmpty);
 
   // Tracked mentions
   final Map<String, ChatV2Member> _trackedMentions = {};
@@ -501,8 +511,10 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
       final text = _controller.text.trim();
 
       // Nếu có tệp/ảnh/video đang được chọn -> gửi tệp kèm caption
-      if (_selectedBytes != null) {
-        final bytes = _selectedBytes!;
+      if (_hasSelectedAttachment) {
+        final bytes = _selectedBytes ?? Uint8List(0);
+        final filePath = _selectedFilePath;
+        final fileSize = _selectedFileSize ?? _selectedBytes?.length;
         final filename = _selectedFilename ??
             (_isSelectedImage
                 ? 'image_${DateTime.now().millisecondsSinceEpoch}.jpg'
@@ -518,6 +530,8 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
 
         setState(() {
           _selectedBytes = null;
+          _selectedFilePath = null;
+          _selectedFileSize = null;
           _selectedFilename = null;
           _selectedMimetype = null;
           _isSelectedImage = false;
@@ -536,6 +550,8 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
             await widget.onSendImage!(
               bytes: bytes,
               filename: filename,
+              filePath: filePath,
+              fileSize: fileSize,
               mimetype: mime,
               caption: caption,
             );
@@ -543,6 +559,8 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
             await widget.onSendFile!(
               bytes: bytes,
               filename: filename,
+              filePath: filePath,
+              fileSize: fileSize,
               mimetype: mime,
               caption: caption,
             );
@@ -550,6 +568,8 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
             await widget.onSendImage!(
               bytes: bytes,
               filename: filename,
+              filePath: filePath,
+              fileSize: fileSize,
               mimetype: mime,
               caption: caption,
             );
@@ -604,8 +624,11 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
     }
   }
 
-  static const int maxDocumentSizeBytes = 25 * 1024 * 1024; // 25 MB
-  static const int maxImageSizeBytes = 10 * 1024 * 1024; // 10 MB
+  static const int maxDocumentSizeBytes = OdooApiClient.defaultMaxUploadBytes; // 128 MB
+  static const int maxImageSizeBytes = 25 * 1024 * 1024; // 25 MB
+
+  int get _maxDocumentSizeBytes =>
+      odooApiClient.maxUploadBytes > 0 ? odooApiClient.maxUploadBytes : maxDocumentSizeBytes;
 
   void _showFileSizeExceededDialog({
     required BuildContext context,
@@ -685,7 +708,7 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Gợi ý: Vui lòng nén nhỏ tệp tin hoặc tải lên Google Drive / OneDrive rồi dán liên kết vào cuộc trò chuyện.',
+                        'Gợi ý: Vui lòng nén tệp hoặc chọn tệp có dung lượng dưới $maxFormatted MB để gửi trực tiếp trong cuộc trò chuyện.',
                         style: TextStyle(
                           fontSize: 12.5,
                           color: isDark ? Colors.white70 : const Color(0xFF64748B),
@@ -827,7 +850,7 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
         if (files.length == 1) {
           final file = files.first;
           final isVideo = isVideoFile(file);
-          final maxLimit = isVideo ? maxDocumentSizeBytes : maxImageSizeBytes;
+          final maxLimit = isVideo ? _maxDocumentSizeBytes : maxImageSizeBytes;
 
           final sizeInBytes = await file.length();
           if (sizeInBytes > maxLimit) {
@@ -842,8 +865,12 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
             return;
           }
 
-          final rawBytes = await file.readAsBytes();
-          final bytes = isVideo ? rawBytes : await _compressImageBytes(rawBytes);
+          final canStreamFromDisk = isVideo && !kIsWeb && file.path.isNotEmpty;
+          final Uint8List? bytes = canStreamFromDisk
+              ? null
+              : (isVideo
+                  ? await file.readAsBytes()
+                  : await _compressImageBytes(await file.readAsBytes()));
           final filename = file.name.isNotEmpty
               ? (isVideo
                   ? file.name
@@ -858,6 +885,8 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
           if (mounted) {
             setState(() {
               _selectedBytes = bytes;
+              _selectedFilePath = canStreamFromDisk ? file.path : null;
+              _selectedFileSize = canStreamFromDisk ? sizeInBytes : bytes?.length;
               _selectedFilename = filename;
               _selectedMimetype = mime;
               _isSelectedImage = !isVideo;
@@ -875,28 +904,38 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
         }
 
         final batchFiles = <({String filename, Uint8List bytes, String? mimetype})>[];
-        final videoFiles = <({String filename, Uint8List bytes, String? mimetype})>[];
+        final videoFiles = <({
+          String filename,
+          Uint8List bytes,
+          String? filePath,
+          int? fileSize,
+          String? mimetype,
+        })>[];
 
         for (var i = 0; i < files.length; i++) {
           final file = files[i];
           final isVideo = isVideoFile(file);
-          final maxLimit = isVideo ? maxDocumentSizeBytes : maxImageSizeBytes;
+          final maxLimit = isVideo ? _maxDocumentSizeBytes : maxImageSizeBytes;
           final sizeInBytes = await file.length();
           if (sizeInBytes > maxLimit) {
             continue;
           }
 
-          final rawBytes = await file.readAsBytes();
           if (isVideo) {
+            final canStream = !kIsWeb && file.path.isNotEmpty;
+            final rawBytes = canStream ? Uint8List(0) : await file.readAsBytes();
             final filename = file.name.isNotEmpty
                 ? file.name
                 : 'video_${DateTime.now().millisecondsSinceEpoch}_$i.mp4';
             videoFiles.add((
               filename: filename,
               bytes: rawBytes,
+              filePath: canStream ? file.path : null,
+              fileSize: sizeInBytes,
               mimetype: file.mimeType ?? 'video/mp4',
             ));
           } else {
+            final rawBytes = await file.readAsBytes();
             final compressedBytes = await _compressImageBytes(rawBytes);
             final filename = file.name.isNotEmpty
                 ? file.name
@@ -915,6 +954,8 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
         setState(() {
           _hasText = false;
           _selectedBytes = null;
+          _selectedFilePath = null;
+          _selectedFileSize = null;
           _selectedFilename = null;
           _selectedMimetype = null;
           _isSelectedImage = false;
@@ -942,6 +983,7 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
                   await sendCallback(
                     bytes: item.bytes,
                     filename: item.filename,
+                    fileSize: item.bytes.length,
                     mimetype: item.mimetype,
                     caption: (i == 0) ? initialCaption : null,
                   );
@@ -960,6 +1002,8 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
               await widget.onSendFile!(
                 bytes: v.bytes,
                 filename: v.filename,
+                filePath: v.filePath,
+                fileSize: v.fileSize,
                 mimetype: v.mimetype,
               );
             } catch (e) {
@@ -1064,25 +1108,27 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
     try {
       FilePickerResult? result;
       try {
+        // ponytail: trên mobile/desktop ưu tiên withData: false để stream trực tiếp từ file.path, không nạp tệp 128MB vào RAM
         result = await FilePicker.platform.pickFiles(
           allowMultiple: true,
-          withData: true,
+          withData: kIsWeb,
         );
       } on PlatformException catch (pe) {
-        debugPrint('[ChatInputBar] pickFiles withData=true failed: ${pe.code} - ${pe.message}');
-        // Fallback Tier 2: Thử withData: false để lấy đường dẫn tệp thực tế (SAF / DocumentsUI)
+        debugPrint('[ChatInputBar] pickFiles primary failed: ${pe.code} - ${pe.message}');
         try {
           result = await FilePicker.platform.pickFiles(
             allowMultiple: false,
-            withData: false,
+            withData: true,
           );
         } on PlatformException catch (pe2) {
-          debugPrint('[ChatInputBar] pickFiles fallback withData=false failed: ${pe2.code} - ${pe2.message}');
+          debugPrint('[ChatInputBar] pickFiles fallback failed: ${pe2.code} - ${pe2.message}');
           rethrow;
         }
       }
 
       if (result == null || result.files.isEmpty) return;
+
+      final maxLimit = _maxDocumentSizeBytes;
 
       // Xử lý khi người dùng chọn nhiều tệp
       if (result.files.length > 1) {
@@ -1097,32 +1143,45 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
           );
         }
 
-        final validFiles = <({String filename, Uint8List bytes, String? mimetype})>[];
+        final validFiles = <({
+          String filename,
+          Uint8List bytes,
+          String? filePath,
+          int? fileSize,
+          String? mimetype,
+        })>[];
         for (final file in rawFiles) {
           final sizeInBytes = file.size;
-          if (sizeInBytes > maxDocumentSizeBytes) {
+          if (sizeInBytes > maxLimit) {
             if (mounted) {
               _showFileSizeExceededDialog(
                 context: context,
                 filename: file.name,
                 fileSizeBytes: sizeInBytes,
-                maxSizeBytes: maxDocumentSizeBytes,
+                maxSizeBytes: maxLimit,
               );
             }
             continue;
           }
+          final hasDiskPath = !kIsWeb && file.path != null && file.path!.isNotEmpty;
           Uint8List? bytes = file.bytes;
-          if (bytes == null && file.path != null && file.path!.isNotEmpty && !kIsWeb) {
+          if (!hasDiskPath && bytes == null && file.path != null && file.path!.isNotEmpty) {
             try {
               bytes = await File(file.path!).readAsBytes();
             } catch (ioErr) {
               debugPrint('[ChatInputBar] readAsBytes multi-file failed: $ioErr');
             }
           }
-          if (bytes != null) {
+          if (hasDiskPath || bytes != null) {
             final ext = file.extension?.toLowerCase();
             final mime = _guessMimeType(ext);
-            validFiles.add((filename: file.name, bytes: bytes, mimetype: mime));
+            validFiles.add((
+              filename: file.name,
+              bytes: bytes ?? Uint8List(0),
+              filePath: hasDiskPath ? file.path : null,
+              fileSize: sizeInBytes,
+              mimetype: mime,
+            ));
           }
         }
 
@@ -1136,6 +1195,8 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
               await sendCallback(
                 bytes: f.bytes,
                 filename: f.filename,
+                filePath: f.filePath,
+                fileSize: f.fileSize,
                 mimetype: f.mimetype,
               );
             }
@@ -1149,31 +1210,13 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
       final file = result.files.first;
       final sizeInBytes = file.size;
 
-      if (sizeInBytes > maxDocumentSizeBytes) {
+      if (sizeInBytes > maxLimit) {
         if (mounted) {
           _showFileSizeExceededDialog(
             context: context,
             filename: file.name,
             fileSizeBytes: sizeInBytes,
-            maxSizeBytes: maxDocumentSizeBytes,
-          );
-        }
-        return;
-      }
-
-      Uint8List? bytes = file.bytes;
-      if (bytes == null && file.path != null && file.path!.isNotEmpty && !kIsWeb) {
-        try {
-          bytes = await File(file.path!).readAsBytes();
-        } catch (ioErr) {
-          debugPrint('[ChatInputBar] readAsBytes single file failed: $ioErr');
-        }
-      }
-
-      if (bytes == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Không thể đọc dữ liệu tệp')),
+            maxSizeBytes: maxLimit,
           );
         }
         return;
@@ -1189,11 +1232,38 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
           ext == 'heic' ||
           ext == 'heif';
 
-      Uint8List finalBytes = bytes;
+      final hasDiskPath = !kIsWeb && file.path != null && file.path!.isNotEmpty;
+      Uint8List? bytes = file.bytes;
+
+      // Chỉ đọc vào RAM nếu là ảnh cần nén/preview hoặc khi không có đường dẫn đĩa (Web)
+      if ((isImg || !hasDiskPath) &&
+          bytes == null &&
+          file.path != null &&
+          file.path!.isNotEmpty &&
+          !kIsWeb) {
+        try {
+          bytes = await File(file.path!).readAsBytes();
+        } catch (ioErr) {
+          debugPrint('[ChatInputBar] readAsBytes single file failed: $ioErr');
+        }
+      }
+
+      if (bytes == null && !hasDiskPath) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Không thể đọc dữ liệu tệp')),
+          );
+        }
+        return;
+      }
+
+      Uint8List? finalBytes = bytes;
+      String? finalFilePath = hasDiskPath ? file.path : null;
+      int finalFileSize = sizeInBytes > 0 ? sizeInBytes : (bytes?.length ?? 0);
       String finalFilename = file.name;
       String finalMime = _guessMimeType(ext);
 
-      if (isImg) {
+      if (isImg && bytes != null) {
         try {
           final compressed = await FlutterImageCompress.compressWithList(
             bytes,
@@ -1204,6 +1274,8 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
           );
           if (compressed.isNotEmpty) {
             finalBytes = compressed;
+            finalFilePath = null;
+            finalFileSize = compressed.length;
           }
         } catch (_) {
           // Fallback to original bytes if compression fails
@@ -1225,6 +1297,8 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
 
       setState(() {
         _selectedBytes = finalBytes;
+        _selectedFilePath = finalFilePath;
+        _selectedFileSize = finalFileSize;
         _selectedFilename = finalFilename;
         _selectedMimetype = finalMime;
         _isSelectedImage = isImg;
@@ -1248,8 +1322,11 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
   Future<void> _handlePickVideo(ImageSource source) async {
     try {
       Uint8List? bytes;
+      String? filePath;
+      int? fileSize;
       String? filename;
       String? mime;
+      final maxLimit = _maxDocumentSizeBytes;
 
       if (source == ImageSource.gallery) {
         // ponytail: FilePicker an toàn hơn image_picker trên Android khi chọn video từ bộ nhớ
@@ -1258,18 +1335,18 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
           res = await FilePicker.platform.pickFiles(
             type: FileType.video,
             allowMultiple: false,
-            withData: true,
+            withData: kIsWeb,
           );
         } on PlatformException catch (pe) {
-          debugPrint('[ChatInputBar] FilePicker pick video withData=true failed: $pe');
+          debugPrint('[ChatInputBar] FilePicker pick video primary failed: $pe');
           try {
             res = await FilePicker.platform.pickFiles(
               type: FileType.video,
               allowMultiple: false,
-              withData: false,
+              withData: true,
             );
           } catch (pe2) {
-            debugPrint('[ChatInputBar] FilePicker pick video withData=false failed: $pe2');
+            debugPrint('[ChatInputBar] FilePicker pick video fallback failed: $pe2');
           }
         } catch (e) {
           debugPrint('[ChatInputBar] FilePicker pick video error: $e');
@@ -1278,20 +1355,24 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
         if (res == null || res.files.isEmpty) return;
 
         final f = res.files.single;
-        if (f.size > maxDocumentSizeBytes) {
+        if (f.size > maxLimit) {
           if (mounted) {
             _showFileSizeExceededDialog(
               context: context,
               filename: f.name,
               fileSizeBytes: f.size,
-              maxSizeBytes: maxDocumentSizeBytes,
+              maxSizeBytes: maxLimit,
             );
           }
           return;
         }
 
+        final hasDiskPath = !kIsWeb && f.path != null && f.path!.isNotEmpty;
         bytes = f.bytes;
-        if (bytes == null && f.path != null && f.path!.isNotEmpty && !kIsWeb) {
+        if (hasDiskPath) {
+          filePath = f.path;
+          fileSize = f.size;
+        } else if (bytes == null && f.path != null && f.path!.isNotEmpty && !kIsWeb) {
           try {
             bytes = await File(f.path!).readAsBytes();
           } catch (ioErr) {
@@ -1299,7 +1380,7 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
           }
         }
 
-        if (bytes != null) {
+        if (hasDiskPath || bytes != null) {
           final ext = f.extension?.toLowerCase() ?? 'mp4';
           filename = f.name.isNotEmpty
               ? f.name
@@ -1308,6 +1389,7 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
           if (mime == 'application/octet-stream') {
             mime = ext == 'mov' ? 'video/quicktime' : 'video/mp4';
           }
+          fileSize ??= bytes?.length;
         }
       } else {
         // source == ImageSource.camera: dùng máy ảnh quay video
@@ -1340,19 +1422,25 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
         if (file == null) return;
 
         final sizeInBytes = await file.length();
-        if (sizeInBytes > maxDocumentSizeBytes) {
+        if (sizeInBytes > maxLimit) {
           if (mounted) {
             _showFileSizeExceededDialog(
               context: context,
               filename: file.name.isNotEmpty ? file.name : 'video.mp4',
               fileSizeBytes: sizeInBytes,
-              maxSizeBytes: maxDocumentSizeBytes,
+              maxSizeBytes: maxLimit,
             );
           }
           return;
         }
 
-        bytes = await file.readAsBytes();
+        if (!kIsWeb && file.path.isNotEmpty) {
+          filePath = file.path;
+          fileSize = sizeInBytes;
+        } else {
+          bytes = await file.readAsBytes();
+          fileSize = bytes.length;
+        }
         final ext = file.name.contains('.') ? file.name.split('.').last.toLowerCase() : 'mp4';
         filename = file.name.isNotEmpty
             ? file.name
@@ -1360,11 +1448,13 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
         mime = file.mimeType ?? (ext == 'mov' ? 'video/quicktime' : 'video/mp4');
       }
 
-      if (bytes == null || filename == null) return;
+      if ((bytes == null && filePath == null) || filename == null) return;
 
       if (mounted) {
         setState(() {
           _selectedBytes = bytes;
+          _selectedFilePath = filePath;
+          _selectedFileSize = fileSize;
           _selectedFilename = filename;
           _selectedMimetype = mime;
           _isSelectedImage = false;
@@ -2072,7 +2162,8 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isBusy = widget.isSending || _isUploading;
-    final canSend = (_hasText || _selectedBytes != null) && !isBusy;
+    final canSend = (_hasText || _hasSelectedAttachment) && !isBusy;
+    final selectedDisplaySize = _selectedFileSize ?? _selectedBytes?.length ?? 0;
     final viewInsetsBottom = MediaQuery.of(context).viewInsets.bottom;
     final viewPaddingBottom = MediaQuery.of(context).padding.bottom;
     final bottomInset = viewInsetsBottom > 0
@@ -2100,7 +2191,7 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
                   else if (_channelSuggestions.isNotEmpty)
                     _buildChannelSuggestionsBox(context, isDark),
                   // Preview tệp/ảnh trước khi gửi nếu có tệp được chọn
-                  if (_selectedBytes != null) ...[
+                  if (_hasSelectedAttachment) ...[
                     Container(
                       margin: const EdgeInsets.only(left: 4, right: 4, bottom: 8),
                       padding: const EdgeInsets.all(8),
@@ -2117,11 +2208,21 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
                       ),
                       child: Row(
                         children: [
-                          if (_isSelectedImage)
+                          if (_isSelectedImage && _selectedBytes != null && _selectedBytes!.isNotEmpty)
                             ClipRRect(
                               borderRadius: BorderRadius.circular(10),
                               child: Image.memory(
                                 _selectedBytes!,
+                                width: 46,
+                                height: 46,
+                                fit: BoxFit.cover,
+                              ),
+                            )
+                          else if (_isSelectedImage && _selectedFilePath != null && !kIsWeb)
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: Image.file(
+                                File(_selectedFilePath!),
                                 width: 46,
                                 height: 46,
                                 fit: BoxFit.cover,
@@ -2196,9 +2297,9 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  _selectedBytes!.length >= 1024 * 1024
-                                      ? '${(_selectedBytes!.length / (1024 * 1024)).toStringAsFixed(1)} MB'
-                                      : '${(_selectedBytes!.length / 1024).toStringAsFixed(1)} KB',
+                                  selectedDisplaySize >= 1024 * 1024
+                                      ? '${(selectedDisplaySize / (1024 * 1024)).toStringAsFixed(1)} MB'
+                                      : '${(selectedDisplaySize / 1024).toStringAsFixed(1)} KB',
                                   style: TextStyle(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w500,
@@ -2217,6 +2318,8 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
                               onTap: () {
                                 setState(() {
                                   _selectedBytes = null;
+                                  _selectedFilePath = null;
+                                  _selectedFileSize = null;
                                   _selectedFilename = null;
                                   _selectedMimetype = null;
                                   _isSelectedImage = false;

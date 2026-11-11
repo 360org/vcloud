@@ -19,6 +19,7 @@ import '../../../shared/widgets/location_prompt_dialog.dart';
 import '../../attendance/application/attendance_controller.dart';
 import '../../attendance/domain/shift_calculator.dart';
 import '../../auth/application/auth_controller.dart';
+import '../../activity/data/repositories/activity_repository.dart';
 import '../../chat_v2/application/chat_v2_channels_controller.dart';
 import '../../livechat/application/livechat_controller.dart';
 import '../../livechat/data/models/livechat_channel_model.dart';
@@ -72,6 +73,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     ref.invalidate(openSessionProvider);
     ref.invalidate(chatV2ChannelsProvider);
     ref.invalidate(mobileNotificationsProvider);
+    ref.invalidate(pendingActivitiesCountProvider);
   }
 
   Future<void> _showErrorDialog(dynamic error, StackTrace stackTrace) async {
@@ -212,6 +214,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             !dismissedIds.contains(it.id.toString()) &&
             !dismissedIds.contains('${it.eventType}_${it.id}'))
         .length;
+    final pendingActivitiesCount = ref.watch(pendingActivitiesCountProvider).valueOrNull;
+    final effectiveActivitiesCount = (user?.isPortal == true)
+        ? notificationCount
+        : (dashboard?.pendingActivitiesCount ?? pendingActivitiesCount ?? 0);
+    final isActivitiesLoading = (user?.isPortal == true)
+        ? notificationState.isLoading
+        : (ref.watch(pendingActivitiesCountProvider).isLoading && dashboard?.pendingActivitiesCount == null);
     final meta = user?.userMetadata;
     final rawName = meta?['display_name'];
     final name = (rawName is String ? rawName : (rawName != null && rawName != false ? rawName.toString() : null))?.trim();
@@ -305,8 +314,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 onOpenCskhChat: _openCskhChat,
                 todayMinutes: todayMinutes,
                 checkinTime: openSession?.checkinTime,
-                notificationCount: notificationCount,
-                notificationsLoading: notificationState.isLoading,
+                notificationCount: effectiveActivitiesCount,
+                notificationsLoading: isActivitiesLoading,
                 onNotificationsTap: () => _openNotifications(context),
                 onOpenAttendance: () => context.push('/attendance'),
               ),
@@ -538,8 +547,8 @@ class _GreetingHeader extends ConsumerWidget {
                                 ),
                               ),
                             )
-                          : const Icon(
-                              LucideIcons.bell,
+                          : Icon(
+                              isPortal ? LucideIcons.bell : LucideIcons.clock,
                               color: AppColors.primary,
                               size: 20,
                             ),

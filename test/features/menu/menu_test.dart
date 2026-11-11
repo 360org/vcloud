@@ -242,6 +242,19 @@ void main() {
       expect(url, contains('db=vcloud_test_v19'));
       expect(url, contains('redirect='));
     });
+
+    test('optimizes with direct URL when useDirectUrlIfAuthenticated is true and hasSsoAuthenticated is true', () {
+      OdooWebViewScreen.hasSsoAuthenticated = true;
+      final url = buildTargetWebViewUrl(
+        rawUrl: '/web#action=210',
+        session: session19,
+        baseUrl: 'http://192.168.1.100:1900',
+        useDirectUrlIfAuthenticated: true,
+      );
+      expect(url, equals('http://192.168.1.100:1900/web?db=vcloud_test_v19#action=210'));
+      expect(url, isNot(contains('/api/v1/mobile/web/auth')));
+      OdooWebViewScreen.hasSsoAuthenticated = false; // Reset sau test
+    });
   });
 
   group('formatAppWebUrl', () {

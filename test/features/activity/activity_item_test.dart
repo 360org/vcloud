@@ -1,4 +1,7 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:vcloud/core/api/odoo_api_client.dart';
@@ -7,6 +10,7 @@ import 'package:vcloud/core/api/odoo_session_store.dart';
 import 'package:vcloud/features/activity/data/models/activity_item.dart';
 import 'package:vcloud/features/activity/data/models/activity_type.dart';
 import 'package:vcloud/features/activity/data/repositories/activity_repository.dart';
+import 'package:vcloud/features/activity/presentation/screens/activity_center_screen.dart';
 
 class _MockActivityApiClient implements OdooApiClient {
   @override
@@ -504,6 +508,175 @@ void main() {
       expect(client.session?.sessionId, equals('brand_new_refreshed_sid_555'));
     });
   });
+
+  group('ActivityCenterScreen Native List + WebView Detail Tests', () {
+    test('buildActivityDetailWebUrl builds /mail/view URL with model and res_id', () {
+      const item = ActivityItem(
+        id: 501,
+        summary: 'Upsell',
+        note: 'Gia hạn dịch vụ',
+        state: 'overdue',
+        resModel: 'sale.order',
+        resId: 837,
+        resName: 'SO837',
+      );
+
+      final url = ActivityCenterScreen.buildActivityDetailWebUrl(item);
+      expect(url, contains('/mail/view?model=sale.order&res_id=837'));
+    });
+
+    test('buildActivityDetailWebUrl falls back to /web#action=2186 when resModel or resId missing', () {
+      const itemNoModel = ActivityItem(
+        id: 502,
+        summary: 'Việc nội bộ',
+        note: '',
+        state: 'today',
+        resModel: '',
+        resId: 0,
+      );
+
+      final url = ActivityCenterScreen.buildActivityDetailWebUrl(itemNoModel);
+      expect(url, contains('/web'));
+      expect(url, contains('#action=2186'));
+    });
+
+    test('buildActivityDetailTitle prioritizes resName then summary then id', () {
+      const withResName = ActivityItem(
+        id: 1,
+        summary: 'Follow-up on payment',
+        note: '',
+        state: 'overdue',
+        resName: 'INV/2025/03/0017 (SUB065)',
+      );
+      expect(
+        ActivityCenterScreen.buildActivityDetailTitle(withResName),
+        equals('INV/2025/03/0017 (SUB065)'),
+      );
+
+      const withoutResName = ActivityItem(
+        id: 2,
+        summary: 'Follow-up on payment',
+        note: '',
+        state: 'overdue',
+      );
+      expect(
+        ActivityCenterScreen.buildActivityDetailTitle(withoutResName),
+        equals('Follow-up on payment'),
+      );
+
+      const emptyBoth = ActivityItem(
+        id: 3,
+        summary: '   ',
+        note: '',
+        state: 'today',
+      );
+      expect(
+        ActivityCenterScreen.buildActivityDetailTitle(emptyBoth),
+        equals('Hoạt động #3'),
+      );
+    });
+
+    testWidgets(
+      'ActivityCenterScreen removes Notifications tab/bell and opens WebView on card tap',
+      (tester) async {
+        final mockClient = _DetailTestActivityApiClient();
+        String? pushedWebUrl;
+        String? pushedWebTitle;
+
+        final router = GoRouter(
+          initialLocation: '/activities',
+          routes: [
+            GoRoute(
+              path: '/activities',
+              builder: (_, _) => const ActivityCenterScreen(),
+            ),
+            GoRoute(
+              path: '/webview',
+              builder: (_, state) {
+                pushedWebUrl = state.uri.queryParameters['url'];
+                pushedWebTitle = state.uri.queryParameters['title'];
+                return Scaffold(
+                  appBar: AppBar(title: Text(pushedWebTitle ?? '')),
+                  body: Text(pushedWebUrl ?? ''),
+                );
+              },
+            ),
+          ],
+        );
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              activityRepositoryProvider.overrideWithValue(
+                ActivityRepository(mockClient),
+              ),
+            ],
+            child: MaterialApp.router(
+              theme: ThemeData(splashFactory: NoSplash.splashFactory),
+              routerConfig: router,
+            ),
+          ),
+        );
+
+        await tester.pumpAndSettle();
+
+        // 1. Tiêu đề chỉ còn "Việc cần làm", hoàn toàn không còn tab "Thông báo"
+        expect(find.text('Việc cần làm'), findsAtLeastNWidgets(1));
+        expect(find.text('Việc cần làm & Hoạt động'), findsNothing);
+        expect(find.text('Thông báo'), findsNothing);
+        expect(find.byTooltip('Thông báo hệ thống'), findsNothing);
+
+        // 2. Hiển thị đủ 4 tab hạn chót và thẻ công việc
+        expect(find.text('Tất cả'), findsOneWidget);
+        expect(find.text('🔴 Quá hạn'), findsOneWidget);
+        expect(find.text('🟢 Hôm nay'), findsOneWidget);
+        expect(find.text('🟡 Sắp tới'), findsOneWidget);
+        expect(find.text('Upsell'), findsOneWidget);
+        expect(find.text('SO837'), findsOneWidget);
+        expect(find.text('Xem chi tiết'), findsOneWidget);
+
+        // 3. Chạm vào thẻ công việc -> mở thẳng /webview với route /mail/view?model=sale.order&res_id=837
+        await tester.tap(find.byKey(const ValueKey('activity_card_837')));
+        await tester.pumpAndSettle();
+
+        expect(pushedWebTitle, equals('SO837'));
+        expect(pushedWebUrl, isNotNull);
+        expect(pushedWebUrl, contains('/mail/view?model=sale.order&res_id=837'));
+      },
+    );
+  });
+}
+
+class _DetailTestActivityApiClient extends _MockActivityApiClient {
+  @override
+  Future<dynamic> get(
+    String path, {
+    Map<String, dynamic>? query,
+    Map<String, String>? headers,
+    bool auth = true,
+    Duration? timeout,
+  }) async {
+    if (path == '/api/v1/mobile/activities/types') {
+      return [
+        {'id': 4, 'name': 'Việc cần làm', 'summary': 'Todo'}
+      ];
+    }
+    return [
+      {
+        'id': 837,
+        'summary': 'Upsell',
+        'note': 'Phần trăm dịch vụ hỗ trợ đã dùng vượt 80%',
+        'date_deadline': '2025-07-02',
+        'state': 'overdue',
+        'activity_type_id': 4,
+        'activity_type_name': 'Việc cần làm',
+        'res_model': 'sale.order',
+        'res_id': 837,
+        'res_name': 'SO837',
+        'user_name': 'Ma Nguyễn Nhật Tân',
+      }
+    ];
+  }
 }
 
 class _TestMemorySessionStore implements OdooSessionStore {

@@ -87,8 +87,112 @@ class TenantNotFoundFailure extends Failure {
         );
 }
 
+class UploadCancelledException implements Exception {
+  const UploadCancelledException([this.message = 'Đã hủy tải tệp lên.']);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+class UploadCancelToken {
+  bool _isCancelled = false;
+  final Completer<void> _completer = Completer<void>();
+
+  bool get isCancelled => _isCancelled;
+  Future<void> get whenCancelled => _completer.future;
+
+  void cancel() {
+    if (_isCancelled) return;
+    _isCancelled = true;
+    if (!_completer.isCompleted) {
+      _completer.complete();
+    }
+  }
+}
+
+class MultipartUploadFile {
+  const MultipartUploadFile({
+    required this.field,
+    required this.filename,
+    this.filePath,
+    this.bytes,
+    this.mimetype,
+  });
+
+  final String field;
+  final String filename;
+  final String? filePath;
+  final Uint8List? bytes;
+  final String? mimetype;
+}
+
+class _ProgressMultipartRequest extends http.MultipartRequest {
+  _ProgressMultipartRequest(
+    super.method,
+    super.url, {
+    this.onProgress,
+    this.cancelToken,
+  });
+
+  final void Function(int sentBytes, int totalBytes)? onProgress;
+  final UploadCancelToken? cancelToken;
+
+  @override
+  http.ByteStream finalize() {
+    final byteStream = super.finalize();
+    final total = contentLength;
+    var sent = 0;
+    final transformed = byteStream.transform<List<int>>(
+      StreamTransformer.fromHandlers(
+        handleData: (chunk, sink) {
+          if (cancelToken?.isCancelled == true) {
+            sink.addError(const UploadCancelledException());
+            sink.close();
+            return;
+          }
+          sent += chunk.length;
+          sink.add(chunk);
+          if (onProgress != null && total > 0) {
+            onProgress!(sent > total ? total : sent, total);
+          }
+        },
+      ),
+    );
+    return http.ByteStream(transformed);
+  }
+}
+
 class OdooApiClient {
   static void Function()? onSessionExpired;
+
+  /// Giới hạn tải tệp mặc định theo chuẩn Odoo (128 MiB).
+  static const int defaultMaxUploadBytes = 128 * 1024 * 1024;
+  static int _sharedMaxUploadBytes = defaultMaxUploadBytes;
+  int _maxUploadBytes = defaultMaxUploadBytes;
+
+  int get maxUploadBytes =>
+      _maxUploadBytes != defaultMaxUploadBytes
+          ? _maxUploadBytes
+          : _sharedMaxUploadBytes;
+
+  int get maxUploadMb => (maxUploadBytes / (1024 * 1024)).round();
+
+  /// Tính thời gian chờ động cho upload theo dung lượng tệp: `(60 + 2s/MB).clamp(60, 600)`.
+  Duration uploadTimeoutForBytes(int byteLength) {
+    final totalMb = byteLength / (1024 * 1024);
+    final timeoutSeconds = (60 + (totalMb * 2).ceil()).clamp(60, 600);
+    return Duration(seconds: timeoutSeconds);
+  }
+
+  void updateMaxUploadBytes(Object? rawValue) {
+    final parsed = _intOrNull(rawValue);
+    if (parsed != null && parsed > 0) {
+      _maxUploadBytes = parsed;
+      _sharedMaxUploadBytes = parsed;
+    }
+  }
 
   /// [Smart DB Resolver]: Giải quyết tên database mặc định tương ứng với Base URL đích.
   /// Tuyệt đối KHÔNG fallback cứng 'vcloud_test_v19' khi kết nối tới Production vuahethong.net
@@ -503,12 +607,13 @@ class OdooApiClient {
     return session;
   }
 
-  /// [Feature 1.12]: Đăng nhập qua Google OAuth2 / Social Provider và cấp phiên OdooSession.
+  /// [Feature 1.12]: Đăng nhập qua Google / Apple OAuth2 / Social Provider và cấp phiên OdooSession.
   Future<OdooSession> loginOAuth({
     required String provider,
     required String accessToken,
     String? idToken,
     String? email,
+    String? name,
     String? db,
     String? targetBaseUrl,
     Duration timeout = const Duration(seconds: 15),
@@ -526,6 +631,7 @@ class OdooApiClient {
       'access_token': accessToken,
       if (idToken != null && idToken.isNotEmpty) 'id_token': idToken,
       if (email != null && email.isNotEmpty) 'email': email,
+      if (name != null && name.isNotEmpty) 'name': name,
       if (targetDb.isNotEmpty) 'db': targetDb,
     };
 
@@ -1539,6 +1645,10 @@ class OdooApiClient {
       }
     }
 
+    if (decoded is Map && decoded['max_upload_bytes'] != null) {
+      updateMaxUploadBytes(decoded['max_upload_bytes']);
+    }
+
     if (response.statusCode < 200 || response.statusCode >= 300) {
       if (auth && response.statusCode == 401) {
         // Thử refresh token trước khi logout — tránh bị đá vô login loop.
@@ -1597,6 +1707,187 @@ class OdooApiClient {
           );
         }
       }
+    }
+
+    return decoded;
+  }
+
+  /// Tải tệp đính kèm qua `multipart/form-data` (streaming từ `filePath` trên native
+  /// hoặc `bytes` trên web/in-memory), có hỗ trợ báo cáo tiến trình (`onProgress`),
+  /// hủy giữa chừng (`cancelToken`) và timeout động theo dung lượng tệp.
+  Future<dynamic> uploadMultipart(
+    String path, {
+    required List<MultipartUploadFile> files,
+    Map<String, String> fields = const <String, String>{},
+    void Function(int sentBytes, int totalBytes)? onProgress,
+    UploadCancelToken? cancelToken,
+    bool auth = true,
+    bool isRetry = false,
+  }) async {
+    if (cancelToken?.isCancelled == true) {
+      throw const UploadCancelledException();
+    }
+    if (auth && (_session == null || _session!.isExpired)) {
+      await restoreSession();
+    }
+    if (auth && _session == null) {
+      onSessionExpired?.call();
+      throw Failure('Not signed in');
+    }
+
+    final uri = Uri.parse('${_requestBaseUrl(auth: auth)}$path');
+    final request = _ProgressMultipartRequest(
+      'POST',
+      uri,
+      onProgress: onProgress,
+      cancelToken: cancelToken,
+    );
+
+    request.headers.addAll({
+      'Accept': 'application/json',
+      if (auth && _session != null) 'Authorization': 'Bearer ${_session!.accessToken}',
+      if (_session != null && _session!.db.isNotEmpty) 'X-Odoo-Database': _session!.db,
+      if (auth && _session?.sessionId != null && _session!.sessionId!.isNotEmpty)
+        'Cookie': 'session_id=${_session!.sessionId}',
+    });
+
+    request.fields.addAll(fields);
+
+    for (final f in files) {
+      http.MultipartFile? multipartFile;
+      if (!kIsWeb && f.filePath != null && f.filePath!.isNotEmpty) {
+        try {
+          multipartFile = await http.MultipartFile.fromPath(
+            f.field,
+            f.filePath!,
+            filename: f.filename,
+          );
+        } catch (_) {
+          if (f.bytes != null) {
+            multipartFile = http.MultipartFile.fromBytes(
+              f.field,
+              f.bytes!,
+              filename: f.filename,
+            );
+          } else {
+            rethrow;
+          }
+        }
+      } else if (f.bytes != null) {
+        multipartFile = http.MultipartFile.fromBytes(
+          f.field,
+          f.bytes!,
+          filename: f.filename,
+        );
+      } else {
+        throw Failure('Không đọc được dữ liệu tệp "${f.filename}".');
+      }
+      request.files.add(multipartFile);
+    }
+
+    final timeout = uploadTimeoutForBytes(request.contentLength);
+
+    if (kDebugMode) {
+      dev.log(
+        'HTTP MULTIPART POST $uri (${request.contentLength} bytes, timeout ${timeout.inSeconds}s)',
+        name: 'OdooApiClient',
+      );
+    }
+
+    final http.StreamedResponse streamedResponse;
+    try {
+      final sendFuture = _http.send(request).timeout(timeout);
+      if (cancelToken != null) {
+        streamedResponse = await Future.any<http.StreamedResponse>([
+          sendFuture,
+          cancelToken.whenCancelled
+              .then((_) => throw const UploadCancelledException()),
+        ]);
+      } else {
+        streamedResponse = await sendFuture;
+      }
+    } on UploadCancelledException {
+      rethrow;
+    } on TimeoutException {
+      throw Failure(
+        'Hết thời gian chờ tải tệp lên máy chủ (${timeout.inSeconds}s). Vui lòng kiểm tra kết nối mạng.',
+      );
+    } catch (e) {
+      if (cancelToken?.isCancelled == true || e is UploadCancelledException) {
+        throw const UploadCancelledException();
+      }
+      rethrow;
+    }
+
+    if (cancelToken?.isCancelled == true) {
+      throw const UploadCancelledException();
+    }
+
+    final response = await http.Response.fromStream(streamedResponse).timeout(timeout);
+    final text = response.body;
+    Object? decoded;
+    if (text.isNotEmpty) {
+      try {
+        decoded = jsonDecode(text);
+      } catch (_) {
+        if (response.statusCode == 413) {
+          throw Failure(
+            'Dung lượng tệp vượt quá giới hạn cho phép của máy chủ hoặc cổng mạng (tối đa $maxUploadMb MB, lỗi 413).',
+            statusCode: 413,
+          );
+        }
+        if (response.statusCode >= 400) {
+          final htmlMsg = _extractHtmlErrorMessage(text);
+          if (htmlMsg != null && htmlMsg.isNotEmpty) {
+            throw Failure(htmlMsg, statusCode: response.statusCode);
+          }
+          throw Failure(
+            'Máy chủ phản hồi lỗi (${response.statusCode}).',
+            statusCode: response.statusCode,
+          );
+        }
+        throw Failure('Dữ liệu từ máy chủ không đúng định dạng.');
+      }
+    }
+
+    if (decoded is Map && decoded['max_upload_bytes'] != null) {
+      updateMaxUploadBytes(decoded['max_upload_bytes']);
+    }
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      if (auth && response.statusCode == 401 && !isRetry) {
+        try {
+          final refreshed = await _tryRefreshSession();
+          if (refreshed && cancelToken?.isCancelled != true) {
+            return await uploadMultipart(
+              path,
+              files: files,
+              fields: fields,
+              onProgress: onProgress,
+              cancelToken: cancelToken,
+              auth: auth,
+              isRetry: true,
+            );
+          }
+          await _sessionStore.clear();
+          _session = null;
+          onSessionExpired?.call();
+        } catch (e) {
+          if (_isNetworkOrServerTransientError(e)) {
+            throw Failure(
+              'Không thể kết nối máy chủ để gia hạn phiên. Vui lòng kiểm tra kết nối mạng.',
+              cause: e,
+            );
+          }
+          await _sessionStore.clear();
+          _session = null;
+          onSessionExpired?.call();
+        }
+      }
+      throw Failure(
+        _errorMessage(decoded, response.statusCode),
+        statusCode: response.statusCode,
+      );
     }
 
     return decoded;
@@ -1839,6 +2130,9 @@ class OdooApiClient {
           'Bạn không có quyền truy cập chức năng này (403).',
         'method_not_allowed' =>
           'Phương thức yêu cầu không được máy chủ hỗ trợ (405).',
+        'file_too_large' =>
+          decoded['message']?.toString() ??
+              'Dung lượng tệp vượt quá mức cho phép (tối đa ${decoded['max_size_mb'] ?? (_sharedMaxUploadBytes ~/ (1024 * 1024))} MB).',
         _ => null,
       };
       if (knownMessage != null) return knownMessage;
@@ -1852,6 +2146,7 @@ class OdooApiClient {
       401 => 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại (401).',
       403 => 'Bạn không có quyền truy cập chức năng này (403).',
       405 => 'Phương thức yêu cầu không được máy chủ hỗ trợ (405).',
+      413 => 'Dung lượng tệp vượt quá giới hạn cho phép của máy chủ (413).',
       _ => 'Máy chủ phản hồi lỗi ($statusCode).',
     };
   }
@@ -1913,6 +2208,11 @@ class OdooApiClient {
   }) {
     final user = json['user'];
     final userMap = user is Map ? user : const <String, dynamic>{};
+    final maxUpload = _intOrNull(json['max_upload_bytes']) ??
+        _intOrNull(userMap['max_upload_bytes']);
+    if (maxUpload != null && maxUpload > 0) {
+      _sharedMaxUploadBytes = maxUpload;
+    }
     final expiresIn = (json['expires_in'] as num?)?.toInt() ?? 604800;
     final isPortal = json['is_portal'] == true ||
         json['share'] == true ||

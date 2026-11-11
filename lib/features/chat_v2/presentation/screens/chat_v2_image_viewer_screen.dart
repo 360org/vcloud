@@ -18,6 +18,7 @@ class ChatV2ImageItem {
   final Uint8List? bytes;
   final String? attachmentId;
   final String? heroTag;
+  final String? messageId;
 
   const ChatV2ImageItem({
     required this.imageUrl,
@@ -25,6 +26,7 @@ class ChatV2ImageItem {
     this.bytes,
     this.attachmentId,
     this.heroTag,
+    this.messageId,
   });
 }
 
@@ -36,6 +38,7 @@ class ChatV2ImageViewerScreen extends StatefulWidget {
   final Uint8List? bytes;
   final String? attachmentId;
   final String? heroTag;
+  final String? messageId;
   final Future<void> Function(Uint8List bytes, String fileName)? customShareHandler;
 
   const ChatV2ImageViewerScreen({
@@ -47,12 +50,14 @@ class ChatV2ImageViewerScreen extends StatefulWidget {
     this.bytes,
     this.attachmentId,
     this.heroTag,
+    this.messageId,
     this.customShareHandler,
   });
 
   /// Route mở ImageViewer với hiệu ứng Zoom/Hero và Fade mượt mà chuẩn Zalo/Telegram/Messenger,
   /// loại bỏ hoàn toàn hiệu ứng kéo trượt từ phải sang (slide from right).
-  static Route<void> route({
+  /// Trả về String? messageId nếu người dùng chọn "Xem tin nhắn gốc".
+  static Route<String?> route({
     List<ChatV2Attachment>? images,
     int initialIndex = 0,
     String? imageUrl,
@@ -60,9 +65,10 @@ class ChatV2ImageViewerScreen extends StatefulWidget {
     Uint8List? bytes,
     String? attachmentId,
     String? heroTag,
+    String? messageId,
     Future<void> Function(Uint8List bytes, String fileName)? customShareHandler,
   }) {
-    return PageRouteBuilder<void>(
+    return PageRouteBuilder<String?>(
       opaque: true,
       transitionDuration: const Duration(milliseconds: 250),
       reverseTransitionDuration: const Duration(milliseconds: 200),
@@ -75,6 +81,7 @@ class ChatV2ImageViewerScreen extends StatefulWidget {
           bytes: bytes,
           attachmentId: attachmentId,
           heroTag: heroTag,
+          messageId: messageId,
           customShareHandler: customShareHandler,
         );
       },
@@ -145,6 +152,7 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
           bytes: att.bytes,
           attachmentId: att.id.isNotEmpty ? att.id : null,
           heroTag: tag,
+          messageId: att.messageId ?? (i == safeInitialIndex ? widget.messageId : null),
         ));
       }
     } else {
@@ -155,6 +163,7 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
           bytes: widget.bytes,
           attachmentId: widget.attachmentId,
           heroTag: widget.heroTag,
+          messageId: widget.messageId,
         ),
       ];
     }
@@ -772,6 +781,18 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
                     ),
                   ] else
                     const Spacer(),
+                  if (_items.isNotEmpty &&
+                      _items[_currentIndex].messageId != null &&
+                      _items[_currentIndex].messageId!.isNotEmpty &&
+                      _items[_currentIndex].messageId != '0')
+                    IconButton(
+                      icon: const Icon(LucideIcons.messageSquareShare, color: Colors.white, size: 20),
+                      tooltip: 'Xem tin nhắn gốc',
+                      onPressed: () {
+                        final msgId = _items[_currentIndex].messageId!;
+                        Navigator.of(context).pop(msgId);
+                      },
+                    ),
                   IconButton(
                     icon: const Icon(LucideIcons.rotateCw, color: Colors.white, size: 20),
                     tooltip: 'Xoay ảnh 90°',

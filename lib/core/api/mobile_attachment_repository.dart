@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:typed_data';
 
 import '../error/failure.dart';
@@ -8,16 +7,24 @@ class MobileAttachmentUpload {
   const MobileAttachmentUpload({
     required this.filename,
     required this.bytes,
+    this.filePath,
+    this.fileSize,
     this.resModel,
     this.resId,
     this.mimetype,
+    this.onProgress,
+    this.cancelToken,
   });
 
   final String filename;
   final Uint8List bytes;
+  final String? filePath;
+  final int? fileSize;
   final String? resModel;
   final int? resId;
   final String? mimetype;
+  final void Function(int sentBytes, int totalBytes)? onProgress;
+  final UploadCancelToken? cancelToken;
 }
 
 class MobileAttachment {
@@ -71,27 +78,40 @@ class MobileAttachmentRepository {
   MobileAttachmentRepository({OdooApiClient? client})
     : _client = client ?? odooApiClient;
 
-  static const int maxFileSizeBytes = 25 * 1024 * 1024; // 25 MB
+  static const int maxFileSizeBytes = OdooApiClient.defaultMaxUploadBytes; // 128 MB
 
   final OdooApiClient _client;
 
+  int get effectiveMaxFileSizeBytes => _client.maxUploadBytes;
+
   Future<MobileAttachment> upload(MobileAttachmentUpload file) async {
-    if (file.bytes.length > maxFileSizeBytes) {
-      final sizeMb = (file.bytes.length / (1024 * 1024)).toStringAsFixed(1);
-      throw Failure('Dung lượng tệp ($sizeMb MB) vượt quá giới hạn tối đa cho phép (25 MB). Vui lòng chọn tệp nhỏ hơn.');
+    final limitBytes = effectiveMaxFileSizeBytes;
+    final actualSize = file.fileSize ?? file.bytes.length;
+    if (actualSize > limitBytes) {
+      final sizeMb = (actualSize / (1024 * 1024)).toStringAsFixed(1);
+      final maxMb = (limitBytes / (1024 * 1024)).round();
+      throw Failure(
+        'Dung lượng tệp ($sizeMb MB) vượt quá giới hạn tối đa cho phép ($maxMb MB). Vui lòng chọn tệp nhỏ hơn.',
+      );
     }
-    final b64 = base64Encode(file.bytes).replaceAll('\r', '').replaceAll('\n', '').trim();
-    final res = await _client.post(
+    final res = await _client.uploadMultipart(
       '/api/v1/mobile/attachments/upload',
-      body: <String, dynamic>{
-        'filename': file.filename,
-        'name': file.filename,
-        'base64': b64,
-        'datas': b64,
-        if (file.mimetype != null) 'mimetype': file.mimetype,
-        if (file.resModel != null) 'res_model': file.resModel,
-        if (file.resId != null) 'res_id': file.resId,
+      files: <MultipartUploadFile>[
+        MultipartUploadFile(
+          field: 'file',
+          filename: file.filename,
+          filePath: file.filePath,
+          bytes: file.bytes,
+          mimetype: file.mimetype,
+        ),
+      ],
+      fields: <String, String>{
+        if (file.resModel != null && file.resModel!.isNotEmpty)
+          'res_model': file.resModel!,
+        if (file.resId != null) 'res_id': file.resId!.toString(),
       },
+      onProgress: file.onProgress,
+      cancelToken: file.cancelToken,
     );
     return MobileAttachment.fromMap(_responseMap(res));
   }

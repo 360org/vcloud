@@ -16,6 +16,8 @@ class ChatV2Attachment {
   final String? downloadUrl;
   final String? accessToken;
   final Uint8List? bytes;
+  final String? messageId;
+  final String? filePath;
 
   const ChatV2Attachment({
     required this.id,
@@ -26,6 +28,8 @@ class ChatV2Attachment {
     this.downloadUrl,
     this.accessToken,
     this.bytes,
+    this.messageId,
+    this.filePath,
   });
 
   bool get isImage {
@@ -113,6 +117,7 @@ class ChatV2Attachment {
     final url = _stringOrNull(map['url']);
     final downloadUrl = _stringOrNull(map['download_url']) ?? url ?? (id.isNotEmpty ? '/api/v1/mobile/attachments/$id/download' : null);
     final accessToken = _stringOrNull(map['access_token']);
+    final messageId = _stringOrNull(map['message_id'] ?? map['res_id'] ?? map['parent_message_id']);
 
     var name = rawName;
     final lowerUrl = (url ?? '').toLowerCase();
@@ -139,6 +144,7 @@ class ChatV2Attachment {
       url: url,
       downloadUrl: downloadUrl,
       accessToken: accessToken,
+      messageId: messageId,
     );
   }
 
@@ -151,6 +157,8 @@ class ChatV2Attachment {
     String? downloadUrl,
     String? accessToken,
     Uint8List? bytes,
+    String? messageId,
+    String? filePath,
   }) {
     return ChatV2Attachment(
       id: id ?? this.id,
@@ -161,6 +169,8 @@ class ChatV2Attachment {
       downloadUrl: downloadUrl ?? this.downloadUrl,
       accessToken: accessToken ?? this.accessToken,
       bytes: bytes ?? this.bytes,
+      messageId: messageId ?? this.messageId,
+      filePath: filePath ?? this.filePath,
     );
   }
 
@@ -173,6 +183,7 @@ class ChatV2Attachment {
       if (url != null) 'url': url,
       if (downloadUrl != null) 'download_url': downloadUrl,
       if (accessToken != null) 'access_token': accessToken,
+      if (messageId != null) 'message_id': messageId,
     };
   }
 
@@ -368,6 +379,7 @@ class ChatV2Message {
     this.reactions = const [],
     this.partnerIds = const [],
     this.pinnedAt,
+    this.uploadProgress,
   });
 
   final String id;
@@ -387,6 +399,7 @@ class ChatV2Message {
   final List<ChatV2Reaction> reactions;
   final List<int> partnerIds;
   final String? pinnedAt;
+  final double? uploadProgress;
 
   bool get isPinned => pinnedAt != null && pinnedAt!.isNotEmpty;
 
@@ -638,6 +651,8 @@ class ChatV2Message {
     List<int>? partnerIds,
     String? pinnedAt,
     bool clearPinnedAt = false,
+    double? uploadProgress,
+    bool clearUploadProgress = false,
   }) {
     return ChatV2Message(
       id: id ?? this.id,
@@ -657,6 +672,8 @@ class ChatV2Message {
       reactions: reactions ?? this.reactions,
       partnerIds: partnerIds ?? this.partnerIds,
       pinnedAt: clearPinnedAt ? null : (pinnedAt ?? this.pinnedAt),
+      uploadProgress:
+          clearUploadProgress ? null : (uploadProgress ?? this.uploadProgress),
     );
   }
 
@@ -798,7 +815,12 @@ class ChatV2Message {
     if (rawAtts is List) {
       for (final a in rawAtts) {
         if (a is Map) {
-          parsedAttachments.add(ChatV2Attachment.fromMap(Map<String, dynamic>.from(a)));
+          final att = ChatV2Attachment.fromMap(Map<String, dynamic>.from(a));
+          parsedAttachments.add(
+            att.messageId != null && att.messageId!.isNotEmpty
+                ? att
+                : att.copyWith(messageId: id),
+          );
         }
       }
     }
@@ -829,6 +851,7 @@ class ChatV2Message {
               url: '/api/v1/mobile/attachments/$sId/download',
               downloadUrl: '/api/v1/mobile/attachments/$sId/download',
               mimetype: isImgName ? 'image/jpeg' : 'application/octet-stream',
+              messageId: id,
             ),
           );
         }
@@ -1025,7 +1048,8 @@ class ChatV2Message {
         other.parentAuthorName == parentAuthorName &&
         const ListEquality().equals(other.reactions, reactions) &&
         const ListEquality().equals(other.partnerIds, partnerIds) &&
-        other.pinnedAt == pinnedAt;
+        other.pinnedAt == pinnedAt &&
+        other.uploadProgress == uploadProgress;
   }
 
   @override
@@ -1046,6 +1070,7 @@ class ChatV2Message {
       const ListEquality().hash(reactions),
       const ListEquality().hash(partnerIds),
       pinnedAt,
+      uploadProgress,
     );
   }
 }

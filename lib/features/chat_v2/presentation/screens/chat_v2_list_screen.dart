@@ -12,11 +12,13 @@ import '../../../../core/utils/date_format.dart';
 import '../../../../shared/widgets/app_scaffold.dart';
 import '../../../auth/application/auth_controller.dart';
 import '../../application/chat_v2_channels_controller.dart';
+import '../../application/chat_v2_inbox_controller.dart';
 import '../../application/chat_v2_messages_controller.dart';
 import '../../application/chat_v2_presence_controller.dart';
 import '../../application/chat_v2_read_state_controller.dart';
 import '../../data/models/chat_v2_channel.dart';
 import '../../data/models/chat_v2_message.dart';
+import '../widgets/chat_v2_inbox_tab.dart';
 import '../widgets/chat_v2_mute_duration_sheet.dart';
 import '../../../livechat/presentation/widgets/livechat_selection_bottom_sheet.dart';
 
@@ -60,13 +62,17 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
   final ScrollController _scrollController = ScrollController();
   String _searchQuery = '';
   List<ChatV2Channel> _searchResults = [];
-  int? _selectedFilterIndex; // null: Mặc định (Tất cả), 0: Chưa đọc, 1: Trực tiếp, 2: Nhóm, 3: Kênh, 4: Zalo OA
+  int _activeMainTab = 0; // 0: 💬 Hội thoại, 1: 📥 Hộp thư Odoo
+  int? _selectedFilterIndex; // null: Mặc định (Tất cả), 0: Chưa đọc, 1: Trực tiếp, 2: Nhóm, 3: Kênh, 4: Zalo OA, 5: Hỗ trợ
   Timer? _searchDebounceTimer;
   bool _dismissedVMobileWarning = false;
   bool _isSearchExpanded = false;
 
   int? _resolveFilterIndex(String? filter) {
     if (filter == null || filter.isEmpty || filter == 'all' || filter == 'tatca') return null;
+    if (filter == 'inbox' || filter == 'hopthuden' || filter == 'needaction') return null;
+    if (filter == 'starred' || filter == 'gansao' || filter == 'star') return null;
+    if (filter == 'history' || filter == 'lichsu') return null;
     if (filter == 'unread' || filter == 'chuadoc') return 0;
     if (filter == 'internal' || filter == 'noibo' || filter == 'direct' || filter == 'dm' || filter == 'canhan' || filter == 'tructiep') return 1;
     if (filter == 'group' || filter == 'nhom') return 2;
@@ -138,6 +144,23 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
   @override
   void initState() {
     super.initState();
+    final f = widget.initialFilter?.toLowerCase();
+    if (f == 'inbox' || f == 'hopthuden' || f == 'needaction') {
+      _activeMainTab = 1;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(chatV2InboxControllerProvider.notifier).switchTab(ChatV2InboxTabType.inbox);
+      });
+    } else if (f == 'starred' || f == 'gansao' || f == 'star') {
+      _activeMainTab = 1;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(chatV2InboxControllerProvider.notifier).switchTab(ChatV2InboxTabType.starred);
+      });
+    } else if (f == 'history' || f == 'lichsu') {
+      _activeMainTab = 1;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(chatV2InboxControllerProvider.notifier).switchTab(ChatV2InboxTabType.history);
+      });
+    }
     _selectedFilterIndex = _resolveFilterIndex(widget.initialFilter);
     _scrollController.addListener(_onScroll);
   }
@@ -163,9 +186,22 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
   void didUpdateWidget(covariant ChatV2ListScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.initialFilter != oldWidget.initialFilter) {
-      setState(() {
-        _selectedFilterIndex = _resolveFilterIndex(widget.initialFilter);
-      });
+      final f = widget.initialFilter?.toLowerCase();
+      if (f == 'inbox' || f == 'hopthuden' || f == 'needaction') {
+        setState(() => _activeMainTab = 1);
+        ref.read(chatV2InboxControllerProvider.notifier).switchTab(ChatV2InboxTabType.inbox);
+      } else if (f == 'starred' || f == 'gansao' || f == 'star') {
+        setState(() => _activeMainTab = 1);
+        ref.read(chatV2InboxControllerProvider.notifier).switchTab(ChatV2InboxTabType.starred);
+      } else if (f == 'history' || f == 'lichsu') {
+        setState(() => _activeMainTab = 1);
+        ref.read(chatV2InboxControllerProvider.notifier).switchTab(ChatV2InboxTabType.history);
+      } else {
+        setState(() {
+          _selectedFilterIndex = _resolveFilterIndex(widget.initialFilter);
+          _activeMainTab = 0;
+        });
+      }
     }
   }
 
@@ -177,6 +213,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
   Widget build(BuildContext context) {
     final channelsAsync = ref.watch(chatV2ChannelsProvider);
     final syncStatus = ref.watch(chatV2SyncStatusProvider);
+    final inboxState = ref.watch(chatV2InboxControllerProvider);
     final currentUser = ref.watch(authControllerProvider).valueOrNull;
     final meta = currentUser?.userMetadata;
     final currentUserName = (meta?['name'] ??
@@ -393,103 +430,128 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                           : const SizedBox.shrink(),
                     ),
                     const SizedBox(height: 10),
-                    // ── 3. Horizontal Filter Chips (6 Chips một chạm) ───────────
-                Builder(
-                  builder: (context) {
-                    final channels = channelsAsync.valueOrNull ?? ChatV2ChannelLocalCache.cached;
-                    final unreadCount = ref.watch(chatV2TotalUnreadProvider);
-                    final directCount = channels
-                        .where((c) => c.isInternalDirect(currentUserName))
-                        .length;
-                    final groupCount = channels
-                        .where((c) => c.isGroupChat(currentUserName))
-                        .length;
-                    final channelCount = channels
-                        .where((c) => c.isChannel)
-                        .length;
-                    final zaloCount = channels
-                        .where((c) => c.isZaloOA)
-                        .length;
-                    final livechatCount = channels
-                        .where((c) => c.isSupportChannel)
-                        .length;
+                    // ── 2. Tầng 1: Main Tab Switcher (Hội thoại vs Hộp thư Odoo) ──
+                    Builder(
+                      builder: (context) {
+                        final unreadCount = ref.watch(chatV2TotalUnreadProvider);
+                        final inboxCount = inboxState.inboxTotal > 0
+                            ? inboxState.inboxTotal
+                            : inboxState.inboxItems.length;
 
-                    return SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      physics: const BouncingScrollPhysics(),
-                      child: Row(
-                        children: [
-                          _buildChip(
-                            label: 'Tất cả',
-                            count: channels.length,
-                            isSelected: _selectedFilterIndex == null,
-                            isDark: isDark,
-                            onTap: () => setState(() => _selectedFilterIndex = null),
-                          ),
-                          const SizedBox(width: 8),
-                          _buildChip(
-                            label: 'Chưa đọc',
-                            count: unreadCount,
-                            isSelected: _selectedFilterIndex == 0,
-                            isDark: isDark,
-                            badgeColor: const Color(0xFFEF4444),
-                            onTap: () => setState(() => _selectedFilterIndex = 0),
-                          ),
-                          const SizedBox(width: 8),
-                          _buildChip(
-                            label: 'Trực tiếp',
-                            count: directCount,
-                            isSelected: _selectedFilterIndex == 1,
-                            isDark: isDark,
-                            onTap: () => setState(() => _selectedFilterIndex = 1),
-                          ),
-                          if (groupCount > 0) ...[
-                            const SizedBox(width: 8),
-                            _buildChip(
-                              label: 'Nhóm',
-                              count: groupCount,
-                              isSelected: _selectedFilterIndex == 2,
-                              isDark: isDark,
-                              onTap: () => setState(() => _selectedFilterIndex = 2),
+                        return _buildMainTabSwitcher(
+                          isDark: isDark,
+                          unreadCount: unreadCount,
+                          inboxCount: inboxCount,
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 10),
+
+                    // ── 3. Tầng 2: Sub-Navigation theo Tab chính ─────────────
+                    if (_activeMainTab == 0)
+                      // Tầng 2A: Horizontal Filter Chips (Chỉ lọc kênh trò chuyện)
+                      Builder(
+                        builder: (context) {
+                          final channels = channelsAsync.valueOrNull ?? ChatV2ChannelLocalCache.cached;
+                          final unreadCount = ref.watch(chatV2TotalUnreadProvider);
+                          final directCount = channels
+                              .where((c) => c.isInternalDirect(currentUserName))
+                              .length;
+                          final groupCount = channels
+                              .where((c) => c.isGroupChat(currentUserName))
+                              .length;
+                          final channelCount = channels
+                              .where((c) => c.isChannel)
+                              .length;
+                          final zaloCount = channels
+                              .where((c) => c.isZaloOA)
+                              .length;
+                          final livechatCount = channels
+                              .where((c) => c.isSupportChannel)
+                              .length;
+
+                          return SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            physics: const BouncingScrollPhysics(),
+                            child: Row(
+                              children: [
+                                _buildChip(
+                                  label: 'Tất cả',
+                                  count: channels.length,
+                                  isSelected: _selectedFilterIndex == null,
+                                  isDark: isDark,
+                                  onTap: () => setState(() => _selectedFilterIndex = null),
+                                ),
+                                const SizedBox(width: 8),
+                                _buildChip(
+                                  label: 'Chưa đọc',
+                                  count: unreadCount,
+                                  isSelected: _selectedFilterIndex == 0,
+                                  isDark: isDark,
+                                  badgeColor: const Color(0xFFEF4444),
+                                  onTap: () => setState(() => _selectedFilterIndex = 0),
+                                ),
+                                const SizedBox(width: 8),
+                                _buildChip(
+                                  label: 'Trực tiếp',
+                                  count: directCount,
+                                  isSelected: _selectedFilterIndex == 1,
+                                  isDark: isDark,
+                                  onTap: () => setState(() => _selectedFilterIndex = 1),
+                                ),
+                                if (groupCount > 0) ...[
+                                  const SizedBox(width: 8),
+                                  _buildChip(
+                                    label: 'Nhóm',
+                                    count: groupCount,
+                                    isSelected: _selectedFilterIndex == 2,
+                                    isDark: isDark,
+                                    onTap: () => setState(() => _selectedFilterIndex = 2),
+                                  ),
+                                ],
+                                if (!isPortal || channelCount > 0) ...[
+                                  const SizedBox(width: 8),
+                                  _buildChip(
+                                    label: 'Kênh',
+                                    count: channelCount,
+                                    isSelected: _selectedFilterIndex == 3,
+                                    isDark: isDark,
+                                    onTap: () => setState(() => _selectedFilterIndex = 3),
+                                  ),
+                                ],
+                                if (livechatCount > 0) ...[
+                                  const SizedBox(width: 8),
+                                  _buildChip(
+                                    label: 'Hỗ trợ',
+                                    count: livechatCount,
+                                    isSelected: _selectedFilterIndex == 5,
+                                    isDark: isDark,
+                                    badgeColor: const Color(0xFF0077CD),
+                                    onTap: () => setState(() => _selectedFilterIndex = 5),
+                                  ),
+                                ],
+                                if (zaloCount > 0) ...[
+                                  const SizedBox(width: 8),
+                                  _buildChip(
+                                    label: 'Zalo OA',
+                                    count: zaloCount,
+                                    isSelected: _selectedFilterIndex == 4,
+                                    isDark: isDark,
+                                    badgeColor: const Color(0xFF0068FF),
+                                    onTap: () => setState(() => _selectedFilterIndex = 4),
+                                  ),
+                                ],
+                              ],
                             ),
-                          ],
-                          if (!isPortal || channelCount > 0) ...[
-                            const SizedBox(width: 8),
-                            _buildChip(
-                              label: 'Kênh',
-                              count: channelCount,
-                              isSelected: _selectedFilterIndex == 3,
-                              isDark: isDark,
-                              onTap: () => setState(() => _selectedFilterIndex = 3),
-                            ),
-                          ],
-                          if (livechatCount > 0) ...[
-                            const SizedBox(width: 8),
-                            _buildChip(
-                              label: 'Hỗ trợ',
-                              count: livechatCount,
-                              isSelected: _selectedFilterIndex == 5,
-                              isDark: isDark,
-                              badgeColor: const Color(0xFF0077CD),
-                              onTap: () => setState(() => _selectedFilterIndex = 5),
-                            ),
-                          ],
-                          if (zaloCount > 0) ...[
-                            const SizedBox(width: 8),
-                            _buildChip(
-                              label: 'Zalo OA',
-                              count: zaloCount,
-                              isSelected: _selectedFilterIndex == 4,
-                              isDark: isDark,
-                              badgeColor: const Color(0xFF0068FF),
-                              onTap: () => setState(() => _selectedFilterIndex = 4),
-                            ),
-                          ],
-                        ],
+                          );
+                        },
+                      )
+                    else
+                      // Tầng 2B: 3-Segment Bar Odoo Mailbox
+                      _buildInboxSegmentBar(
+                        inboxState: inboxState,
+                        isDark: isDark,
                       ),
-                    );
-                  },
-                ),
               ],
             ),
           ),
@@ -558,13 +620,20 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
               ),
             ),
 
-          // ── 4. Channels List ────────────────────────────────────────────
-          Expanded(
-            child: RefreshIndicator(
-              color: const Color(0xFF00C83A),
-              onRefresh: () async =>
-                  ref.read(chatV2ChannelsProvider.notifier).refresh(),
-              child: Builder(
+          // ── 4. Content: Hộp thư đến Discuss Native hoặc Danh sách Kênh ─
+          if (_activeMainTab == 1)
+            Expanded(
+              child: ChatV2InboxTab(
+                tabType: inboxState.activeTab,
+              ),
+            )
+          else
+            Expanded(
+              child: RefreshIndicator(
+                color: const Color(0xFF00C83A),
+                onRefresh: () async =>
+                    ref.read(chatV2ChannelsProvider.notifier).refresh(),
+                child: Builder(
                 builder: (context) {
                   final hasCachedOrData = (channelsAsync.valueOrNull?.isNotEmpty ?? false) ||
                       ChatV2ChannelLocalCache.cached.isNotEmpty;
@@ -1127,6 +1196,274 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                               : (isDark
                                   ? Colors.white70
                                   : const Color(0xFF64748B))),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMainTabSwitcher({
+    required bool isDark,
+    required int unreadCount,
+    required int inboxCount,
+  }) {
+    final containerBg = isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9);
+
+    return Container(
+      height: 42,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: containerBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? Colors.white10 : const Color(0xFFE2E8F0),
+          width: 0.8,
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildMainTabButton(
+              icon: LucideIcons.messagesSquare,
+              label: 'Hội thoại',
+              count: unreadCount,
+              badgeColor: const Color(0xFFEF4444),
+              isSelected: _activeMainTab == 0,
+              isDark: isDark,
+              onTap: () => setState(() => _activeMainTab = 0),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: _buildMainTabButton(
+              icon: LucideIcons.inbox,
+              label: 'Hộp thư Odoo',
+              count: inboxCount,
+              badgeColor: const Color(0xFFEF4444),
+              isSelected: _activeMainTab == 1,
+              isDark: isDark,
+              onTap: () => setState(() => _activeMainTab = 1),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMainTabButton({
+    required IconData icon,
+    required String label,
+    required int count,
+    required Color badgeColor,
+    required bool isSelected,
+    required bool isDark,
+    required VoidCallback onTap,
+  }) {
+    final activeBg = isDark ? const Color(0xFF1E293B) : Colors.white;
+
+    return Material(
+      color: isSelected ? activeBg : Colors.transparent,
+      borderRadius: BorderRadius.circular(9),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(9),
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(9),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.06),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1.5),
+                    ),
+                  ]
+                : null,
+          ),
+          alignment: Alignment.center,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 15,
+                color: isSelected
+                    ? const Color(0xFF0077CD)
+                    : (isDark ? Colors.white60 : const Color(0xFF64748B)),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                  color: isSelected
+                      ? (isDark ? Colors.white : const Color(0xFF0F172A))
+                      : (isDark ? Colors.white60 : const Color(0xFF64748B)),
+                ),
+              ),
+              if (count > 0) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5.5, vertical: 1.5),
+                  decoration: BoxDecoration(
+                    color: isSelected ? badgeColor : badgeColor.withValues(alpha: 0.85),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    count > 99 ? '99+' : count.toString(),
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInboxSegmentBar({
+    required ChatV2InboxState inboxState,
+    required bool isDark,
+  }) {
+    final activeTab = inboxState.activeTab;
+    final inboxCount = inboxState.inboxTotal > 0
+        ? inboxState.inboxTotal
+        : inboxState.inboxItems.length;
+
+    return Row(
+      children: [
+        Expanded(
+          child: _buildSubTabItem(
+            icon: LucideIcons.inbox,
+            label: 'Cần xử lý',
+            count: inboxCount,
+            badgeColor: const Color(0xFFEF4444),
+            isSelected: activeTab == ChatV2InboxTabType.inbox,
+            isDark: isDark,
+            onTap: () => ref
+                .read(chatV2InboxControllerProvider.notifier)
+                .switchTab(ChatV2InboxTabType.inbox),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _buildSubTabItem(
+            icon: LucideIcons.star,
+            label: 'Đã gắn sao',
+            count: inboxState.starredItems.length,
+            badgeColor: const Color(0xFFF59E0B),
+            isSelected: activeTab == ChatV2InboxTabType.starred,
+            isDark: isDark,
+            onTap: () => ref
+                .read(chatV2InboxControllerProvider.notifier)
+                .switchTab(ChatV2InboxTabType.starred),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _buildSubTabItem(
+            icon: LucideIcons.clock,
+            label: 'Lịch sử',
+            count: inboxState.historyItems.length,
+            badgeColor: const Color(0xFF64748B),
+            isSelected: activeTab == ChatV2InboxTabType.history,
+            isDark: isDark,
+            onTap: () => ref
+                .read(chatV2InboxControllerProvider.notifier)
+                .switchTab(ChatV2InboxTabType.history),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSubTabItem({
+    required IconData icon,
+    required String label,
+    required int count,
+    required Color badgeColor,
+    required bool isSelected,
+    required bool isDark,
+    required VoidCallback onTap,
+  }) {
+    final activeBg = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final inactiveBg = isDark ? Colors.white.withValues(alpha: 0.05) : const Color(0xFFF8FAFC);
+    const activeBorder = Color(0xFF0077CD);
+    final inactiveBorder = isDark ? Colors.white10 : const Color(0xFFE2E8F0);
+
+    return Material(
+      color: isSelected ? activeBg : inactiveBg,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 7.5, horizontal: 4),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isSelected ? activeBorder : inactiveBorder,
+              width: isSelected ? 1.4 : 1.0,
+            ),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 13.5,
+                color: isSelected
+                    ? const Color(0xFF0077CD)
+                    : (isDark ? Colors.white60 : const Color(0xFF64748B)),
+              ),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                    color: isSelected
+                        ? (isDark ? Colors.white : const Color(0xFF0F172A))
+                        : (isDark ? Colors.white60 : const Color(0xFF64748B)),
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (count > 0) ...[
+                const SizedBox(width: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4.5, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: badgeColor,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    count > 99 ? '99+' : count.toString(),
+                    style: const TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
                     ),
                   ),
                 ),

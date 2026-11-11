@@ -260,8 +260,8 @@ void main() {
               onSend: (text, {partnerIds, mentionedPartners}) async {
                 sentText = text;
               },
-              onSendImage: ({required bytes, required filename, mimetype, caption}) async {},
-              onSendFile: ({required bytes, required filename, mimetype, caption}) async {},
+              onSendImage: ({required bytes, required filename, filePath, fileSize, mimetype, caption}) async {},
+              onSendFile: ({required bytes, required filename, filePath, fileSize, mimetype, caption}) async {},
             ),
           ),
         ),

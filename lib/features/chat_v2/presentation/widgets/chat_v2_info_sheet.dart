@@ -67,6 +67,203 @@ class ChatV2InfoSheet extends ConsumerStatefulWidget {
     return clean[0].toUpperCase();
   }
 
+  static ({List<ChatV2Attachment> images, List<ChatV2Attachment> files, List<String> links}) extractMedia(
+    List<ChatV2Message> messages,
+  ) {
+    // ponytail: nested-quantifier fix (ReDoS); matches cùng cấu trúc với chat_bubbles fix
+    final linkRegex = RegExp(
+      r'((?:https?:\/\/|www\.)[^\s<]+|[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*\.[a-zA-Z]{2,}(?:\/[^\s<]*)?)',
+      caseSensitive: false,
+    );
+    final imgTagRegex = RegExp(
+      r'<img[^>]+src=["' "'" r']([^"' "'" r']+)["' "'" r']',
+      caseSensitive: false,
+    );
+
+    final images = <ChatV2Attachment>[];
+    final files = <ChatV2Attachment>[];
+    final links = <String>[];
+
+    for (final msg in messages) {
+      // 1. Formal Attachments
+      for (final att in msg.attachments) {
+        final existingBytes = att.bytes ??
+            (att.id.isNotEmpty ? ChatV2AttachmentImage.imageCache[att.id] : null) ??
+            (msg.id.isNotEmpty ? ChatV2AttachmentImage.imageCache[msg.id] : null) ??
+            LocalAttachmentCache.get(att.id.isNotEmpty ? att.id : null);
+        final resolvedAtt = existingBytes != null && (att.bytes == null || att.bytes!.isEmpty)
+            ? att.copyWith(bytes: existingBytes, messageId: att.messageId ?? msg.id)
+            : (att.messageId == null ? att.copyWith(messageId: msg.id) : att);
+
+        if (resolvedAtt.isImage) {
+          if (!images.any((x) =>
+              (x.id.isNotEmpty && resolvedAtt.id.isNotEmpty && x.id == resolvedAtt.id))) {
+            images.add(resolvedAtt);
+          }
+        } else {
+          if (!files.any((x) =>
+              (x.id.isNotEmpty && resolvedAtt.id.isNotEmpty && x.id == resolvedAtt.id))) {
+            files.add(resolvedAtt);
+          }
+        }
+      }
+
+      // 2. Filename-based content (Images / Documents stored as message text)
+      if (msg.attachments.isEmpty) {
+        final cleanName = msg.content.trim();
+        final memoryBytes = ChatV2AttachmentImage.imageCache[cleanName] ??
+            ChatV2AttachmentImage.imageCache[msg.id] ??
+            LocalAttachmentCache.get(null, altKey: cleanName);
+
+        if (msg.isImageFilename) {
+          final att = ChatV2Attachment(
+            id: msg.id,
+            name: cleanName,
+            url: '',
+            bytes: memoryBytes,
+            mimetype: 'image/jpeg',
+            messageId: msg.id,
+          );
+          if (!images.any((x) => x.name == att.name || (x.id.isNotEmpty && x.id == att.id))) {
+            images.add(att);
+          }
+        } else if (msg.isDocumentFilename) {
+          final att = ChatV2Attachment(
+            id: msg.id,
+            name: cleanName,
+            url: '',
+            bytes: memoryBytes,
+            mimetype: 'application/octet-stream',
+            messageId: msg.id,
+          );
+          if (!files.any((x) => x.name == att.name || (x.id.isNotEmpty && x.id == att.id))) {
+            files.add(att);
+          }
+        }
+      }
+
+      // 3. HTML <img> tags in body
+      final bodyForImages = (msg.rawBody != null && msg.rawBody!.isNotEmpty)
+          ? msg.rawBody!
+          : msg.content;
+      final imgMatches = imgTagRegex.allMatches(bodyForImages);
+      for (final m in imgMatches) {
+        final src = m.group(1);
+        if (src != null && src.isNotEmpty && !images.any((x) => x.url == src)) {
+          final uriLastSegment = Uri.tryParse(src)?.pathSegments.isNotEmpty == true
+              ? Uri.tryParse(src)!.pathSegments.last
+              : '';
+          final derivedName = uriLastSegment.isNotEmpty ? uriLastSegment : 'Hình ảnh';
+          images.add(
+            ChatV2Attachment(
+              id: '',
+              name: derivedName,
+              url: src,
+              mimetype: 'image/jpeg',
+              messageId: msg.id,
+            ),
+          );
+        }
+      }
+
+      // 4. Links in text
+      if (!msg.isImageFilename && !msg.isDocumentFilename) {
+        final matches = linkRegex.allMatches(msg.content);
+        for (final m in matches) {
+          var url = m.group(0);
+          if (url != null) {
+            final punctRegex = RegExp(r'[.,!?:;)"\x27\]]+$');
+            final punctMatch = punctRegex.firstMatch(url);
+            if (punctMatch != null) {
+              url = url.substring(0, url.length - punctMatch.group(0)!.length);
+            }
+
+            final cleanUrl = url.trim();
+            final lower = cleanUrl.toLowerCase();
+
+            final isFileExt = lower.endsWith('.csv') ||
+                lower.endsWith('.pdf') ||
+                lower.endsWith('.doc') ||
+                lower.endsWith('.docx') ||
+                lower.endsWith('.xls') ||
+                lower.endsWith('.xlsx') ||
+                lower.endsWith('.ppt') ||
+                lower.endsWith('.pptx') ||
+                lower.endsWith('.zip') ||
+                lower.endsWith('.txt');
+
+            final isDirectImgUrl = lower.endsWith('.png') ||
+                lower.endsWith('.jpg') ||
+                lower.endsWith('.jpeg') ||
+                lower.endsWith('.webp') ||
+                lower.endsWith('.gif') ||
+                lower.endsWith('.svg');
+
+            if (isDirectImgUrl) {
+              final fileName = cleanUrl.split('/').last;
+              if (!images.any((x) => x.url == cleanUrl || x.name == fileName)) {
+                images.add(
+                  ChatV2Attachment(
+                    id: '',
+                    name: fileName,
+                    url: cleanUrl,
+                    mimetype: 'image/jpeg',
+                    messageId: msg.id,
+                  ),
+                );
+              }
+            } else if (!isFileExt && cleanUrl.isNotEmpty) {
+              if (!links.contains(cleanUrl)) {
+                links.add(cleanUrl);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return (images: images, files: files, links: links);
+  }
+
+  static Future<String?> openMediaHub(
+    BuildContext context, {
+    required String channelId,
+    required String channelName,
+    List<ChatV2Attachment>? images,
+    List<ChatV2Attachment>? files,
+    List<String>? links,
+    List<ChatV2Message>? messages,
+    int? totalImages,
+    int? totalFiles,
+    int? totalLinks,
+  }) {
+    List<ChatV2Attachment> initialImages = images ?? [];
+    List<ChatV2Attachment> initialFiles = files ?? [];
+    List<String> initialLinks = links ?? [];
+
+    if (images == null && files == null && links == null && messages != null) {
+      final extracted = extractMedia(messages);
+      initialImages = extracted.images;
+      initialFiles = extracted.files;
+      initialLinks = extracted.links;
+    }
+
+    return Navigator.of(context).push<String?>(
+      MaterialPageRoute(
+        builder: (_) => ChatV2MediaHubScreen(
+          channelId: channelId,
+          channelName: channelName,
+          images: initialImages,
+          files: initialFiles,
+          links: initialLinks,
+          totalImages: totalImages ?? initialImages.length,
+          totalFiles: totalFiles ?? initialFiles.length,
+          totalLinks: totalLinks ?? initialLinks.length,
+        ),
+      ),
+    );
+  }
+
   @override
   ConsumerState<ChatV2InfoSheet> createState() => _ChatV2InfoSheetState();
 }
@@ -209,142 +406,10 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
   }
 
   void _extractMedia() {
-    // ponytail: nested-quantifier fix (ReDoS); matches cùng cấu trúc với chat_bubbles fix
-    final linkRegex = RegExp(
-      r'((?:https?:\/\/|www\.)[^\s<]+|[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*\.[a-zA-Z]{2,}(?:\/[^\s<]*)?)',
-      caseSensitive: false,
-    );
-    final imgTagRegex = RegExp(
-      r'<img[^>]+src=["' "'" r']([^"' "'" r']+)["' "'" r']',
-      caseSensitive: false,
-    );
-
-    for (final msg in widget.messages) {
-      // 1. Formal Attachments
-      for (final att in msg.attachments) {
-        final existingBytes = att.bytes ??
-            (att.id.isNotEmpty ? ChatV2AttachmentImage.imageCache[att.id] : null) ??
-            (msg.id.isNotEmpty ? ChatV2AttachmentImage.imageCache[msg.id] : null) ??
-            LocalAttachmentCache.get(att.id.isNotEmpty ? att.id : null);
-        final resolvedAtt = existingBytes != null && (att.bytes == null || att.bytes!.isEmpty)
-            ? att.copyWith(bytes: existingBytes)
-            : att;
-
-        if (resolvedAtt.isImage) {
-          if (!_images.any((x) =>
-              (x.id.isNotEmpty && resolvedAtt.id.isNotEmpty && x.id == resolvedAtt.id))) {
-            _images.add(resolvedAtt);
-          }
-        } else {
-          if (!_files.any((x) =>
-              (x.id.isNotEmpty && resolvedAtt.id.isNotEmpty && x.id == resolvedAtt.id))) {
-            _files.add(resolvedAtt);
-          }
-        }
-      }
-
-      // 2. Filename-based content (Images / Documents stored as message text)
-      if (msg.attachments.isEmpty) {
-        final cleanName = msg.content.trim();
-        final memoryBytes = ChatV2AttachmentImage.imageCache[cleanName] ??
-            ChatV2AttachmentImage.imageCache[msg.id] ??
-            LocalAttachmentCache.get(null, altKey: cleanName);
-
-        if (msg.isImageFilename) {
-          final att = ChatV2Attachment(
-            id: msg.id,
-            name: cleanName,
-            url: '',
-            bytes: memoryBytes,
-            mimetype: 'image/jpeg',
-          );
-          if (!_images.any((x) => x.name == att.name || (x.id.isNotEmpty && x.id == att.id))) {
-            _images.add(att);
-          }
-        } else if (msg.isDocumentFilename) {
-          final att = ChatV2Attachment(
-            id: msg.id,
-            name: cleanName,
-            url: '',
-            bytes: memoryBytes,
-            mimetype: 'application/octet-stream',
-          );
-          if (!_files.any((x) => x.name == att.name || (x.id.isNotEmpty && x.id == att.id))) {
-            _files.add(att);
-          }
-        }
-      }
-
-      // 3. HTML <img> tags in body
-      final imgMatches = imgTagRegex.allMatches(msg.content);
-      for (final m in imgMatches) {
-        final src = m.group(1);
-        if (src != null && src.isNotEmpty && !_images.any((x) => x.url == src)) {
-          _images.add(
-            ChatV2Attachment(
-              id: '',
-              name: 'Hình ảnh',
-              url: src,
-              mimetype: 'image/jpeg',
-            ),
-          );
-        }
-      }
-
-      // 4. Links in text
-      if (!msg.isImageFilename && !msg.isDocumentFilename) {
-        final matches = linkRegex.allMatches(msg.content);
-        for (final m in matches) {
-          var url = m.group(0);
-          if (url != null) {
-            final punctRegex = RegExp(r'[.,!?:;)"\x27\]]+$');
-            final punctMatch = punctRegex.firstMatch(url);
-            if (punctMatch != null) {
-              url = url.substring(0, url.length - punctMatch.group(0)!.length);
-            }
-
-            final cleanUrl = url.trim();
-            final lower = cleanUrl.toLowerCase();
-
-            final isFileExt = lower.endsWith('.csv') ||
-                lower.endsWith('.pdf') ||
-                lower.endsWith('.doc') ||
-                lower.endsWith('.docx') ||
-                lower.endsWith('.xls') ||
-                lower.endsWith('.xlsx') ||
-                lower.endsWith('.ppt') ||
-                lower.endsWith('.pptx') ||
-                lower.endsWith('.zip') ||
-                lower.endsWith('.txt');
-
-            final isDirectImgUrl = lower.endsWith('.png') ||
-                lower.endsWith('.jpg') ||
-                lower.endsWith('.jpeg') ||
-                lower.endsWith('.webp') ||
-                lower.endsWith('.gif') ||
-                lower.endsWith('.svg');
-
-            if (isDirectImgUrl) {
-              final fileName = cleanUrl.split('/').last;
-              if (!_images.any((x) => x.url == cleanUrl || x.name == fileName)) {
-                _images.add(
-                  ChatV2Attachment(
-                    id: '',
-                    name: fileName,
-                    url: cleanUrl,
-                    mimetype: 'image/jpeg',
-                  ),
-                );
-              }
-            } else if (!isFileExt && cleanUrl.isNotEmpty) {
-              if (!_links.contains(cleanUrl)) {
-                _links.add(cleanUrl);
-              }
-            }
-          }
-        }
-      }
-    }
+    final extracted = ChatV2InfoSheet.extractMedia(widget.messages);
+    _images.addAll(extracted.images);
+    _files.addAll(extracted.files);
+    _links.addAll(extracted.links);
   }
 
   String _formatMuteDuration(int minutes) {
@@ -480,21 +545,21 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
     );
   }
 
-  void _openMediaHub() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ChatV2MediaHubScreen(
-          channelId: widget.channel.id.toString(),
-          channelName: widget.channel.getCleanName(widget.currentUserName),
-          images: _images,
-          files: _files,
-          links: _links,
-          totalImages: _totalImages,
-          totalFiles: _totalFiles,
-          totalLinks: _totalLinks,
-        ),
-      ),
+  Future<void> _openMediaHub() async {
+    final targetMsgId = await ChatV2InfoSheet.openMediaHub(
+      context,
+      channelId: widget.channel.id.toString(),
+      channelName: widget.channel.getCleanName(widget.currentUserName),
+      images: _images,
+      files: _files,
+      links: _links,
+      totalImages: _totalImages,
+      totalFiles: _totalFiles,
+      totalLinks: _totalLinks,
     );
+    if (targetMsgId != null && targetMsgId.isNotEmpty && mounted) {
+      Navigator.of(context).pop(targetMsgId);
+    }
   }
 
   Future<void> _handleLeaveGroup() async {
@@ -1718,8 +1783,8 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
                               final heroTag = 'info_preview_img_${img.id.isNotEmpty ? img.id : (fullUrl.isNotEmpty ? fullUrl : img.name)}';
 
                               return GestureDetector(
-                                onTap: () {
-                                  Navigator.of(context).push(
+                                onTap: () async {
+                                  final targetMsgId = await Navigator.of(context).push<String?>(
                                     ChatV2ImageViewerScreen.route(
                                       images: _images,
                                       initialIndex: idx,
@@ -1728,8 +1793,12 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
                                       bytes: memBytes,
                                       attachmentId: img.id.isNotEmpty ? img.id : null,
                                       heroTag: heroTag,
+                                      messageId: img.messageId,
                                     ),
                                   );
+                                  if (targetMsgId != null && targetMsgId.isNotEmpty && context.mounted) {
+                                    Navigator.of(context).pop(targetMsgId);
+                                  }
                                 },
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(10),
@@ -2489,9 +2558,13 @@ class _ChatV2MediaHubScreenState extends ConsumerState<ChatV2MediaHubScreen>
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Ảnh, file, link đã gửi',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
+              ),
             ),
             Text(
               widget.channelName,
@@ -2554,8 +2627,8 @@ class _ChatV2MediaHubScreenState extends ConsumerState<ChatV2MediaHubScreen>
                               final heroTag = 'info_gallery_img_${img.id.isNotEmpty ? img.id : (fullUrl.isNotEmpty ? fullUrl : img.name)}_hub_$idx';
 
                               return GestureDetector(
-                                onTap: () {
-                                  Navigator.of(context).push(
+                                onTap: () async {
+                                  final targetMsgId = await Navigator.of(context).push<String?>(
                                     ChatV2ImageViewerScreen.route(
                                       images: _images,
                                       initialIndex: idx,
@@ -2564,8 +2637,12 @@ class _ChatV2MediaHubScreenState extends ConsumerState<ChatV2MediaHubScreen>
                                       bytes: memBytes,
                                       attachmentId: img.id.isNotEmpty ? img.id : null,
                                       heroTag: heroTag,
+                                      messageId: img.messageId,
                                     ),
                                   );
+                                  if (targetMsgId != null && targetMsgId.isNotEmpty && context.mounted) {
+                                    Navigator.of(context).pop(targetMsgId);
+                                  }
                                 },
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(8),

@@ -215,12 +215,13 @@ class AuthRepository {
     }
   }
 
-  /// [Feature 1.12]: Đăng nhập qua Google OAuth2 / Social Sign-In
+  /// [Feature 1.12]: Đăng nhập qua Google / Apple OAuth2 / Social Sign-In
   Future<AuthUser> signInWithOAuth({
     required String provider,
     required String accessToken,
     String? idToken,
     String? email,
+    String? name,
     String? db,
     String? targetBaseUrl,
   }) async {
@@ -236,6 +237,7 @@ class AuthRepository {
         accessToken: accessToken,
         idToken: idToken,
         email: email,
+        name: name,
         db: db,
         targetBaseUrl: targetBaseUrl,
       );
@@ -244,7 +246,7 @@ class AuthRepository {
       rethrow;
     } catch (e, st) {
       debugPrint('[AuthRepository.signInWithOAuth] Error: $e\n$st');
-      throw Failure('Đăng nhập Google thất bại: $e');
+      throw Failure('Đăng nhập $provider thất bại: $e');
     }
   }
 

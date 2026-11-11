@@ -36,6 +36,7 @@ class ChatV2MessageItem extends StatelessWidget {
     this.onReactionBadgeTap,
     this.onRetry,
     this.onDelete,
+    this.onCancelUpload,
     this.onMentionTap,
     this.onImageTap,
     this.onAvatarTap,
@@ -54,6 +55,7 @@ class ChatV2MessageItem extends StatelessWidget {
   final VoidCallback? onReactionBadgeTap;
   final VoidCallback? onRetry;
   final VoidCallback? onDelete;
+  final VoidCallback? onCancelUpload;
   final ValueChanged<String>? onMentionTap;
   final Function? onImageTap;
   final VoidCallback? onAvatarTap;
@@ -749,7 +751,7 @@ class ChatV2MessageItem extends StatelessWidget {
                           ),
                         ],
                       ),
-                      child: const FittedBox(
+                      child: FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -758,19 +760,37 @@ class ChatV2MessageItem extends StatelessWidget {
                               width: 15,
                               height: 15,
                               child: CircularProgressIndicator(
+                                value: (message.uploadProgress != null &&
+                                        message.uploadProgress! > 0)
+                                    ? message.uploadProgress!.clamp(0.0, 1.0)
+                                    : null,
                                 strokeWidth: 2,
-                                color: Color(0xFF00C83A),
+                                color: const Color(0xFF00C83A),
                               ),
                             ),
-                            SizedBox(width: 8),
+                            const SizedBox(width: 8),
                             Text(
-                              'Đang tải lên...',
-                              style: TextStyle(
+                              (message.uploadProgress != null &&
+                                      message.uploadProgress! > 0)
+                                  ? 'Đang tải lên ${(message.uploadProgress! * 100).round()}%...'
+                                  : 'Đang tải lên...',
+                              style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
+                            if (onCancelUpload != null) ...[
+                              const SizedBox(width: 8),
+                              InkWell(
+                                onTap: onCancelUpload,
+                                child: const Icon(
+                                  LucideIcons.x,
+                                  color: Colors.white70,
+                                  size: 15,
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -1456,9 +1476,17 @@ class ChatV2MessageItem extends StatelessWidget {
 
     final resolvedSize = fileSize ?? cachedBytes?.lengthInBytes;
     final sizeStr = resolvedSize != null ? _formatFileSize(resolvedSize) : null;
-    final metaText = sizeStr != null
-        ? '$sizeStr • Nhấn để xem trước'
-        : (isImage ? 'Hình ảnh • $ext' : 'Tài liệu • $ext');
+    final isUploadingPending = message.status == 'pending';
+    final progressPct = (message.uploadProgress != null && message.uploadProgress! > 0)
+        ? (message.uploadProgress!.clamp(0.0, 1.0) * 100).round()
+        : null;
+    final metaText = isUploadingPending
+        ? (progressPct != null
+            ? '${sizeStr != null ? '$sizeStr • ' : ''}Đang tải lên $progressPct%...'
+            : '${sizeStr != null ? '$sizeStr • ' : ''}Đang tải lên...')
+        : (sizeStr != null
+            ? '$sizeStr • Nhấn để xem trước'
+            : (isImage ? 'Hình ảnh • $ext' : 'Tài liệu • $ext'));
 
     final titleColor = isDark
         ? const Color(0xFFE9EDEF)
@@ -1602,26 +1630,70 @@ class ChatV2MessageItem extends StatelessWidget {
             ),
             const SizedBox(width: 10),
 
-            // Nút tải về hình vuông bo góc tối giản chuẩn Zalo
-            Container(
-              width: 30,
-              height: 30,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(
-                  color: isDark
-                      ? Colors.white24
-                      : const Color(0xFF64748B).withValues(alpha: 0.35),
-                  width: 1.0,
+            // Nút tải về hoặc nút hủy khi đang tải lên
+            if (isUploadingPending)
+              Tooltip(
+                message: 'Hủy tải lên',
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onCancelUpload,
+                  child: Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: const Color(0xFFEF4444).withValues(alpha: 0.45),
+                        width: 1.0,
+                      ),
+                    ),
+                    alignment: Alignment.center,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            value: (message.uploadProgress != null &&
+                                    message.uploadProgress! > 0)
+                                ? message.uploadProgress!.clamp(0.0, 1.0)
+                                : null,
+                            strokeWidth: 2,
+                            color: const Color(0xFF00C83A),
+                          ),
+                        ),
+                        if (onCancelUpload != null)
+                          const Icon(
+                            LucideIcons.x,
+                            size: 12,
+                            color: Color(0xFFEF4444),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              )
+            else
+              Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: isDark
+                        ? Colors.white24
+                        : const Color(0xFF64748B).withValues(alpha: 0.35),
+                    width: 1.0,
+                  ),
+                ),
+                alignment: Alignment.center,
+                child: Icon(
+                  LucideIcons.download,
+                  size: 15,
+                  color: isDark ? Colors.white70 : const Color(0xFF475569),
                 ),
               ),
-              alignment: Alignment.center,
-              child: Icon(
-                LucideIcons.download,
-                size: 15,
-                color: isDark ? Colors.white70 : const Color(0xFF475569),
-              ),
-            ),
           ],
         ),
       ),

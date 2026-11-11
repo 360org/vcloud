@@ -199,6 +199,8 @@ class ProfileScreen extends ConsumerWidget {
                       );
                     },
                   ),
+                  // ponytail: Tạm ẩn tính năng gọi thoại theo quyết định kiến trúc, chờ nâng cấp WebRTC native ổn định
+                  /*
                   _SettingsRow(
                     icon: LucideIcons.phone,
                     label: 'Gọi thoại trực tiếp',
@@ -213,6 +215,7 @@ class ProfileScreen extends ConsumerWidget {
                       );
                     },
                   ),
+                  */
                   _SettingsRow(
                     icon: LucideIcons.image,
                     label: 'Xem ảnh đại diện (phóng to)',

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/notifications/app_badge_service.dart';
 import 'core/notifications/push_notification_controller.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
@@ -142,6 +143,10 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
       ref.invalidate(attendanceTodayProvider);
       ref.invalidate(attendanceStreamProvider);
       ref.invalidate(mobileDashboardSummaryProvider);
+
+      // Cập nhật lại Launcher Icon Badge ngay khi app mở lại từ background
+      final currentBadge = ref.read(appIconBadgeCountProvider);
+      AppBadgeService.instance.updateBadge(currentBadge);
     } else if (state == AppLifecycleState.paused ||
                state == AppLifecycleState.inactive ||
                state == AppLifecycleState.detached) {
@@ -191,12 +196,34 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
     ref.invalidate(mobileDashboardSummaryProvider);
 
     if (type.contains('chat') || type.contains('discuss') || data.containsKey('channel_id') || data.containsKey('res_id')) {
-      ref.invalidate(chatV2ChannelsProvider);
+      final pushChannelId = (data['res_id'] ?? data['channel_id'] ?? data['discuss_channel_id'] ?? data['chat_id'] ?? '').toString();
+      final bodyText = message.notification?.body ?? data['body']?.toString() ?? '';
+      final authorName = data['author_name']?.toString() ?? data['author']?.toString();
+      final authorId = data['author_id']?.toString();
+
+      // ⚡ Instant Cache Hydration: Đưa ngay tin nhắn mới vào Local Cache để hiển thị
+      // tức thì trên danh sách chat (0.001s), chống hiện tượng chậm/phải kéo load lại mới thấy.
+      if (pushChannelId.isNotEmpty && (bodyText.isNotEmpty || authorName != null)) {
+        ChatV2ChannelLocalCache.updateChannelLastMessage(
+          pushChannelId,
+          lastMessage: bodyText.isNotEmpty ? bodyText : 'Tin nhắn mới',
+          lastMessageDate: DateTime.now(),
+          authorId: authorId,
+          authorName: authorName,
+          unreadCount: 1,
+          addIfMissing: true,
+        );
+      }
+
       ref.invalidate(chatV2TotalUnreadProvider);
 
+      // Kích hoạt nạp lại danh sách kênh mà không phá vỡ state hiện hữu
+      try {
+        ref.read(chatV2ChannelsProvider.notifier).resumeRefresh();
+      } catch (_) {}
+
       // ⚡ FCM Delta Trigger: Kích hoạt fetch tin nhắn mới ngay lập tức cho
-      // phòng chat đang mở, thay vì chờ nhịp polling 8s gây lệch pha với Push.
-      final pushChannelId = (data['res_id'] ?? data['channel_id'] ?? data['discuss_channel_id'] ?? data['chat_id'] ?? '').toString();
+      // phòng chat đang mở, thay vì chờ nhịp polling gây lệch pha với Push.
       if (pushChannelId.isNotEmpty) {
         try {
           ref.read(chatV2MessagesProvider(pushChannelId).notifier).triggerImmediateFetch();
@@ -242,6 +269,23 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
     }
   }
 
+  /// Điều hướng an toàn tuyệt đối chống race condition với SplashScreen khi cold-start
+  void _navigateTo(String targetRoute) {
+    try {
+      final router = ref.read(routerProvider);
+      final currentLoc = router.routeInformationProvider.value.uri.toString();
+      // Nếu app đang ở /splash (đang khởi động cold-start hoặc auth đang load),
+      // gán pendingDeepLink để SplashScreen chuyển hướng ưu tiên an toàn, chống bị SplashScreen đè
+      if (currentLoc.startsWith('/splash')) {
+        AppNavigationState.pendingDeepLink = targetRoute;
+      } else {
+        router.go(targetRoute);
+      }
+    } catch (_) {
+      AppNavigationState.pendingDeepLink = targetRoute;
+    }
+  }
+
   void _onPushNotificationOpened(RemoteMessage message) {
     final data = message.data;
     final resId = data['res_id'] ?? data['channel_id'] ?? data['discuss_channel_id'] ?? data['chat_id'];
@@ -254,9 +298,9 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
     // 1. Chấm công (Attendance)
     if (eventType.contains('attendance') || action == 'checkin' || action == 'checkout') {
       if (action == 'checkout') {
-        ref.read(routerProvider).go('/attendance?action=checkout');
+        _navigateTo('/attendance?action=checkout');
       } else {
-        ref.read(routerProvider).go('/attendance');
+        _navigateTo('/attendance');
       }
     }
     // 2. Ticket / Helpdesk
@@ -269,16 +313,16 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
       if (targetTicketId != null &&
           targetTicketId.toString().isNotEmpty &&
           targetTicketId.toString() != '0') {
-        ref.read(routerProvider).go('/tickets/$targetTicketId');
+        _navigateTo('/tickets/$targetTicketId');
       } else {
-        ref.read(routerProvider).go('/tickets');
+        _navigateTo('/tickets');
       }
     }
     // 3. Tuyển dụng (hr.applicant / recruitment)
     else if (model.contains('hr.applicant') ||
         model.contains('recruitment') ||
         (model == 'mail.message' && resModel.contains('hr.applicant'))) {
-      ref.read(routerProvider).go('/tickets');
+      _navigateTo('/tickets');
     }
     // 4. Timesheet / Công việc (project.task / timesheet)
     else if (model.contains('task') ||
@@ -287,9 +331,9 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
         (model == 'mail.message' && resModel.contains('task'))) {
       final targetTaskId = data['task_id'] ?? resId;
       if (targetTaskId != null && targetTaskId.toString().isNotEmpty && targetTaskId.toString() != '0') {
-        ref.read(routerProvider).go('/timesheet?task_id=$targetTaskId');
+        _navigateTo('/timesheet?task_id=$targetTaskId');
       } else {
-        ref.read(routerProvider).go('/timesheet');
+        _navigateTo('/timesheet');
       }
     }
     // 5. Chat V2 / Discuss (Chỉ mở khi có channel_id thật sự > 0)
@@ -304,15 +348,32 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
         resId != null &&
         resId.toString().isNotEmpty &&
         resId.toString() != '0') {
+      final pushChannelId = resId.toString();
       final rawChannelName = data['channel_name'] ?? data['name'] ?? message.notification?.title ?? '';
       final cleanChannelName = ChatV2Channel.cleanChannelName(rawChannelName.toString());
-      ref.read(routerProvider).go(
-            '/chat/$resId?name=${Uri.encodeComponent(cleanChannelName)}',
-          );
+
+      // ⚡ Instant Cache Hydration: Đưa ngay tin nhắn mới vào Local Cache
+      final bodyText = message.notification?.body ?? data['body']?.toString() ?? '';
+      final authorName = data['author_name']?.toString() ?? data['author']?.toString();
+      final authorId = data['author_id']?.toString();
+      if (bodyText.isNotEmpty || authorName != null) {
+        ChatV2ChannelLocalCache.updateChannelLastMessage(
+          pushChannelId,
+          lastMessage: bodyText.isNotEmpty ? bodyText : 'Tin nhắn mới',
+          lastMessageDate: DateTime.now(),
+          authorId: authorId,
+          authorName: authorName,
+          unreadCount: 1,
+          addIfMissing: true,
+        );
+      }
+
+      final targetRoute = '/chat/$pushChannelId?name=${Uri.encodeComponent(cleanChannelName)}';
+      _navigateTo(targetRoute);
     }
     // 6. Fallback an toàn về Trang chủ
     else {
-      ref.read(routerProvider).go('/');
+      _navigateTo('/');
     }
   }
 
@@ -320,6 +381,9 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
   Widget build(BuildContext context) {
     // Tự động đồng bộ lịch nhắc nhở chấm công theo trạng thái thực tế
     ref.watch(attendanceReminderSyncProvider);
+
+    // Tự động đồng bộ số lượng thông báo / tin nhắn lên Launcher Icon Badge
+    ref.watch(appBadgeSyncProvider);
 
     final router = ref.watch(routerProvider);
     final themeMode = ref.watch(currentThemeModeProvider);

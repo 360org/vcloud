@@ -1,5 +1,4 @@
-import 'dart:typed_data';
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
@@ -9,6 +8,7 @@ import 'package:intl/intl.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
 import '../../../core/api/mobile_attachment_repository.dart';
+import '../../../core/api/odoo_api_client.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/models/ticket.dart';
 import '../../../shared/widgets/app_toast.dart';
@@ -46,7 +46,10 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
     super.dispose();
   }
 
-  static const int maxAttachmentBytes = 25 * 1024 * 1024; // 25 MB
+  static const int maxAttachmentBytes = OdooApiClient.defaultMaxUploadBytes; // 128 MB
+
+  int get _effectiveMaxAttachmentBytes =>
+      odooApiClient.maxUploadBytes > 0 ? odooApiClient.maxUploadBytes : maxAttachmentBytes;
 
   Future<void> _submit(List<TicketTeamOption> teams) async {
     if (!_form.currentState!.validate()) return;
@@ -106,6 +109,8 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
         MobileAttachmentUpload(
           filename: attachment.name,
           bytes: attachment.bytes,
+          filePath: attachment.filePath,
+          fileSize: attachment.fileSize,
           mimetype: attachment.mimetype,
         ),
     ];
@@ -126,12 +131,15 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
     };
     if (picked == null || !mounted) return;
 
-    if (picked.bytes.length > maxAttachmentBytes) {
-      final sizeMb = (picked.bytes.length / (1024 * 1024)).toStringAsFixed(1);
+    final maxBytes = _effectiveMaxAttachmentBytes;
+    final actualSize = picked.fileSize ?? picked.bytes.length;
+    if (actualSize > maxBytes) {
+      final sizeMb = (actualSize / (1024 * 1024)).toStringAsFixed(1);
+      final maxMb = (maxBytes / (1024 * 1024)).round();
       AppToast.warning(
         context,
         title: 'Tệp vượt quá dung lượng',
-        message: 'Dung lượng tệp ($sizeMb MB) vượt quá mức cho phép (25 MB). Vui lòng chọn tệp nhỏ hơn.',
+        message: 'Dung lượng tệp ($sizeMb MB) vượt quá mức cho phép ($maxMb MB). Vui lòng chọn tệp nhỏ hơn.',
       );
       return;
     }
@@ -146,9 +154,11 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
       maxWidth: 2200,
     );
     if (image == null) return null;
+    final bytes = await image.readAsBytes();
     return _TicketAttachmentDraft(
       name: image.name,
-      bytes: await image.readAsBytes(),
+      bytes: bytes,
+      fileSize: bytes.length,
       mimetype: _mimetypeForName(image.name),
       source: source == ImageSource.camera
           ? _AttachmentSource.camera
@@ -159,7 +169,7 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
   Future<_TicketAttachmentDraft?> _pickDocument() async {
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: false,
-      withData: true,
+      withData: kIsWeb,
       type: FileType.custom,
       allowedExtensions: const <String>[
         'pdf',
@@ -176,12 +186,16 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
       ],
     );
     final file = result?.files.single;
-    if (file == null || file.bytes == null) return null;
-    if (file.size > maxAttachmentBytes) {
+    if (file == null) return null;
+    final hasDiskPath = !kIsWeb && file.path != null && file.path!.isNotEmpty;
+    if (!hasDiskPath && file.bytes == null) return null;
+    final maxBytes = _effectiveMaxAttachmentBytes;
+    if (file.size > maxBytes) {
+      final maxMb = (maxBytes / (1024 * 1024)).round();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Tệp tin vượt quá dung lượng cho phép (tối đa 25 MB).'),
+          SnackBar(
+            content: Text('Tệp tin vượt quá dung lượng cho phép (tối đa $maxMb MB).'),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -190,7 +204,9 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
     }
     return _TicketAttachmentDraft(
       name: file.name,
-      bytes: file.bytes!,
+      bytes: file.bytes ?? Uint8List(0),
+      filePath: hasDiskPath ? file.path : null,
+      fileSize: file.size,
       mimetype: _mimetypeForName(file.name),
       source: _AttachmentSource.document,
     );
@@ -1154,11 +1170,15 @@ class _TicketAttachmentDraft {
     required this.name,
     required this.bytes,
     required this.source,
+    this.filePath,
+    this.fileSize,
     this.mimetype,
   });
 
   final String name;
   final Uint8List bytes;
+  final String? filePath;
+  final int? fileSize;
   final _AttachmentSource source;
   final String? mimetype;
 

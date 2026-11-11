@@ -27,9 +27,10 @@ class ChatV2PollOption {
     final vNames = <String>[];
 
     for (final v in rawVoters) {
-      if (v is Map<String, dynamic>) {
-        if (v['id'] != null) vIds.add((v['id'] as num).toInt());
-        if (v['name'] != null) vNames.add(v['name'].toString());
+      if (v is Map) {
+        final vMap = Map<String, dynamic>.from(v);
+        if (vMap['id'] != null) vIds.add((vMap['id'] as num).toInt());
+        if (vMap['name'] != null) vNames.add(vMap['name'].toString());
       } else if (v is num) {
         vIds.add(v.toInt());
       }
@@ -125,10 +126,12 @@ class ChatV2Poll {
 
   factory ChatV2Poll.fromJson(Map<String, dynamic> json) {
     final rawOptions = json['options'] as List<dynamic>? ?? [];
-    final parsedOptions = rawOptions
-        .whereType<Map<String, dynamic>>()
-        .map((o) => ChatV2PollOption.fromJson(o))
-        .toList();
+    final parsedOptions = <ChatV2PollOption>[];
+    for (final o in rawOptions) {
+      if (o is Map) {
+        parsedOptions.add(ChatV2PollOption.fromJson(Map<String, dynamic>.from(o)));
+      }
+    }
 
     return ChatV2Poll(
       id: json['id']?.toString() ?? '',
@@ -158,6 +161,26 @@ class ChatV2Poll {
     };
   }
 
+  /// Chuyển đổi dữ liệu bình chọn thành chuỗi HTML chuẩn để lưu trữ vào mail.message
+  /// Bảo toàn cấu trúc o_poll_card, comment POLL_DATA và text hiển thị
+  String toMessageHtml() {
+    final pollData = toJson();
+    final jsonStr = json.encode(pollData);
+    final buffer = StringBuffer();
+    buffer.write('<div class="o_poll_card" data-poll="${jsonStr.replaceAll('"', '&quot;')}">');
+    buffer.write('<p>📊 <b>${question.trim()}</b></p>');
+    buffer.write('<ul>');
+    for (final opt in options) {
+      buffer.write('<li><b>${opt.text.trim()}</b> (${opt.voteCount} phiếu)</li>');
+    }
+    buffer.write('</ul>');
+    buffer.write('<p><i>Tổng cộng: $totalVotes lượt bình chọn ($totalVoters người)</i></p>');
+    buffer.write('<div class="o_poll_json" style="display:none;font-size:0px;line-height:0;opacity:0;">$jsonStr</div>');
+    buffer.write('<!-- POLL_DATA:$jsonStr -->');
+    buffer.write('</div>');
+    return buffer.toString();
+  }
+
   /// Trích xuất ChatV2Poll từ chuỗi HTML body hoặc content của mail.message
   static ChatV2Poll? tryParseFromBody(String? raw) {
     if (raw == null || raw.trim().isEmpty) return null;
@@ -183,8 +206,10 @@ class ChatV2Poll {
       if (commentMatch != null) {
         final jsonStr = commentMatch.group(1);
         if (jsonStr != null) {
-          final decoded = json.decode(jsonStr) as Map<String, dynamic>;
-          return ChatV2Poll.fromJson(decoded);
+          final decoded = json.decode(jsonStr);
+          if (decoded is Map) {
+            return ChatV2Poll.fromJson(Map<String, dynamic>.from(decoded));
+          }
         }
       }
 
@@ -196,8 +221,10 @@ class ChatV2Poll {
       if (jsonTagMatch != null) {
         final rawJson = jsonTagMatch.group(1);
         if (rawJson != null) {
-          final decoded = json.decode(rawJson) as Map<String, dynamic>;
-          return ChatV2Poll.fromJson(decoded);
+          final decoded = json.decode(rawJson);
+          if (decoded is Map) {
+            return ChatV2Poll.fromJson(Map<String, dynamic>.from(decoded));
+          }
         }
       }
 
@@ -206,8 +233,10 @@ class ChatV2Poll {
       if (attrMatch != null) {
         final rawAttr = attrMatch.group(1);
         if (rawAttr != null) {
-          final decoded = json.decode(rawAttr) as Map<String, dynamic>;
-          return ChatV2Poll.fromJson(decoded);
+          final decoded = json.decode(rawAttr);
+          if (decoded is Map) {
+            return ChatV2Poll.fromJson(Map<String, dynamic>.from(decoded));
+          }
         }
       }
 
@@ -232,9 +261,9 @@ class ChatV2Poll {
             }
             if (endBrace != -1) {
               final rawJson = unescaped.substring(startBrace, endBrace + 1);
-              final decoded = json.decode(rawJson) as Map<String, dynamic>;
-              if (decoded.containsKey('question') && decoded.containsKey('options')) {
-                return ChatV2Poll.fromJson(decoded);
+              final decoded = json.decode(rawJson);
+              if (decoded is Map && decoded.containsKey('question') && decoded.containsKey('options')) {
+                return ChatV2Poll.fromJson(Map<String, dynamic>.from(decoded));
               }
             }
           }

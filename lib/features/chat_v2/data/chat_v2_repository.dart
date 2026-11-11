@@ -1,10 +1,10 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/odoo_api_client.dart';
+import '../domain/models/chat_v2_inbox_item.dart';
 import '../domain/models/chat_v2_poll_model.dart';
 import 'models/chat_v2_channel.dart';
 import 'models/chat_v2_message.dart';
@@ -453,57 +453,86 @@ class ChatV2Repository {
   Future<ChatV2Attachment> uploadAttachment({
     required String filename,
     required Uint8List bytes,
+    String? filePath,
     String? mimetype,
+    String? resModel,
+    int? resId,
+    void Function(int sentBytes, int totalBytes)? onProgress,
+    UploadCancelToken? cancelToken,
   }) async {
-    final base64Str = base64Encode(bytes);
-    final payload = <String, dynamic>{
-      'filename': filename,
-      'base64': base64Str,
-      if (mimetype != null && mimetype.isNotEmpty) 'mimetype': mimetype,
-    };
-
-    final dynamic data = await _client.post(
+    final dynamic data = await _client.uploadMultipart(
       '/api/v1/mobile/attachments/upload',
-      body: payload,
+      files: <MultipartUploadFile>[
+        MultipartUploadFile(
+          field: 'file',
+          filename: filename,
+          filePath: filePath,
+          bytes: bytes,
+          mimetype: mimetype,
+        ),
+      ],
+      fields: <String, String>{
+        if (resModel != null && resModel.isNotEmpty) 'res_model': resModel,
+        if (resId != null) 'res_id': resId.toString(),
+      },
+      onProgress: onProgress,
+      cancelToken: cancelToken,
     );
 
     if (data is Map) {
-      return ChatV2Attachment.fromMap(Map<String, dynamic>.from(data));
+      final rawMap = data['attachment'] is Map
+          ? Map<String, dynamic>.from(data['attachment'] as Map)
+          : Map<String, dynamic>.from(data);
+      return ChatV2Attachment.fromMap(rawMap);
     }
-    throw Exception('Phản hồi upload ảnh không hợp lệ từ máy chủ Odoo.');
+    throw Exception('Phản hồi upload tệp không hợp lệ từ máy chủ Odoo.');
   }
 
   Future<List<ChatV2Attachment>> uploadAttachmentsBatch({
     required List<({String filename, Uint8List bytes, String? mimetype})> files,
     String? resModel,
     int? resId,
+    void Function(int sentBytes, int totalBytes)? onProgress,
+    UploadCancelToken? cancelToken,
   }) async {
     if (files.isEmpty) return [];
 
-    // 1. Thử gọi API batch endpoint mới
+    // 1. Gọi API batch endpoint qua multipart/form-data
     try {
-      final filesPayload = files.map((f) => {
-        'name': f.filename,
-        'data': base64Encode(f.bytes),
-        if (f.mimetype != null && f.mimetype!.isNotEmpty) 'mimetype': f.mimetype,
-      }).toList();
-
-      final payload = <String, dynamic>{
-        'files': filesPayload,
-        'res_model': ?resModel,
-        'res_id': ?resId,
-      };
-
-      final dynamic data = await _client
-          .post('/api/v1/mobile/attachments/upload-batch', body: payload)
-          .timeout(const Duration(seconds: 30));
+      final dynamic data = await _client.uploadMultipart(
+        '/api/v1/mobile/attachments/upload-batch',
+        files: files
+            .map(
+              (f) => MultipartUploadFile(
+                field: 'files',
+                filename: f.filename,
+                bytes: f.bytes,
+                mimetype: f.mimetype,
+              ),
+            )
+            .toList(),
+        fields: <String, String>{
+          if (resModel != null && resModel.isNotEmpty) 'res_model': resModel,
+          if (resId != null) 'res_id': resId.toString(),
+        },
+        onProgress: onProgress,
+        cancelToken: cancelToken,
+      );
 
       if (data is Map && data['attachments'] is List) {
         return (data['attachments'] as List)
             .map((item) => ChatV2Attachment.fromMap(Map<String, dynamic>.from(item as Map)))
             .toList();
       }
+    } on UploadCancelledException {
+      rethrow;
     } catch (e) {
+      if (cancelToken?.isCancelled == true) {
+        throw const UploadCancelledException();
+      }
+      if (e.toString().contains('413') || e.toString().contains('vượt quá')) {
+        rethrow;
+      }
       if (kDebugMode) {
         debugPrint('[ChatV2Repository] Batch upload fallback to parallel: $e');
       }
@@ -516,6 +545,9 @@ class ChatV2Repository {
           filename: f.filename,
           bytes: f.bytes,
           mimetype: f.mimetype,
+          resModel: resModel,
+          resId: resId,
+          cancelToken: cancelToken,
         ),
       ),
     );
@@ -1136,6 +1168,145 @@ class ChatV2Repository {
         }
         rethrow;
       }
+    }
+  }
+
+  // ===========================================================================
+  // Discuss Native: Inbox (Needaction), Starred, History
+  // ===========================================================================
+
+  /// Lấy danh sách tin nhắn Hộp thư đến (Needaction)
+  Future<List<ChatV2InboxItem>> fetchInboxMessages({
+    int limit = 40,
+    int offset = 0,
+  }) async {
+    try {
+      final res = await _client.get(
+        '/api/v1/mobile/chat/inbox',
+        query: {'limit': limit, 'offset': offset},
+      ).timeout(const Duration(seconds: 12));
+      if (res is Map && res['messages'] is List) {
+        return (res['messages'] as List)
+            .whereType<Map>()
+            .map((m) => ChatV2InboxItem.fromJson(Map<String, dynamic>.from(m)))
+            .toList();
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[ChatV2Repository] fetchInboxMessages error: $e');
+      }
+      rethrow;
+    }
+    return [];
+  }
+
+  /// Lấy danh sách tin nhắn Đã gắn sao (Starred)
+  Future<List<ChatV2InboxItem>> fetchStarredMessages({
+    int limit = 40,
+    int offset = 0,
+  }) async {
+    try {
+      final res = await _client.get(
+        '/api/v1/mobile/chat/starred',
+        query: {'limit': limit, 'offset': offset},
+      ).timeout(const Duration(seconds: 12));
+      if (res is Map && res['messages'] is List) {
+        return (res['messages'] as List)
+            .whereType<Map>()
+            .map((m) => ChatV2InboxItem.fromJson(Map<String, dynamic>.from(m)))
+            .toList();
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[ChatV2Repository] fetchStarredMessages error: $e');
+      }
+      rethrow;
+    }
+    return [];
+  }
+
+  /// Lấy danh sách tin nhắn Lịch sử (History)
+  Future<List<ChatV2InboxItem>> fetchHistoryMessages({
+    int limit = 40,
+    int offset = 0,
+  }) async {
+    try {
+      final res = await _client.get(
+        '/api/v1/mobile/chat/history',
+        query: {'limit': limit, 'offset': offset},
+      ).timeout(const Duration(seconds: 12));
+      if (res is Map && res['messages'] is List) {
+        return (res['messages'] as List)
+            .whereType<Map>()
+            .map((m) => ChatV2InboxItem.fromJson(Map<String, dynamic>.from(m)))
+            .toList();
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[ChatV2Repository] fetchHistoryMessages error: $e');
+      }
+      rethrow;
+    }
+    return [];
+  }
+
+  /// Bật / tắt gắn sao cho tin nhắn (Starred)
+  Future<bool> toggleStarMessage(int messageId, {bool? star}) async {
+    try {
+      final body = <String, dynamic>{
+        'star': ?star,
+      };
+      final res = await _client.post(
+        '/api/v1/mobile/chat/messages/$messageId/star',
+        body: body,
+      );
+      if (res is Map && res['is_starred'] is bool) {
+        return res['is_starred'] as bool;
+      }
+      return star ?? true;
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[ChatV2Repository] toggleStarMessage error for $messageId: $e');
+      }
+      rethrow;
+    }
+  }
+
+  /// Đánh dấu tin nhắn là đã xử lý (Mark as Done - loại khỏi Inbox chuyển sang History)
+  Future<bool> markMessageDone(int messageId) async {
+    try {
+      final res = await _client.post(
+        '/api/v1/mobile/chat/messages/$messageId/mark-done',
+        body: {},
+      );
+      if (res is Map && res['status'] == 'success') {
+        return true;
+      }
+      return true;
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[ChatV2Repository] markMessageDone error for $messageId: $e');
+      }
+      rethrow;
+    }
+  }
+
+  /// Đánh dấu tất cả tin nhắn trong Inbox là đã xử lý (Mark All as Done)
+  Future<int> markAllInboxDone() async {
+    try {
+      final res = await _client.post(
+        '/api/v1/mobile/chat/inbox/mark-all-done',
+        body: {},
+      );
+      if (res is Map && res['marked_count'] is int) {
+        return res['marked_count'] as int;
+      }
+      return 0;
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[ChatV2Repository] markAllInboxDone error: $e');
+      }
+      rethrow;
     }
   }
 }

@@ -104,3 +104,6 @@ firebase_service_account.json
 /prompt_theme_sync.md
 /prompt_vivo_sprint.md
 /prompt_vivo.md
+
+# Test evidence screenshots
+docs/reports/*.png

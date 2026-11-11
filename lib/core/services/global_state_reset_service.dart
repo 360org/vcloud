@@ -20,6 +20,7 @@ import '../../features/timesheet/application/timesheet_controller.dart';
 import '../../features/timesheet/data/task_repository.dart';
 import '../../features/timesheet/data/timesheet_repository.dart';
 import '../api/odoo_api_client.dart';
+import '../notifications/app_badge_service.dart';
 import '../notifications/attendance_local_reminder_service.dart';
 import '../notifications/push_notification_controller.dart';
 import '../utils/local_attachment_cache.dart';
@@ -82,6 +83,9 @@ class GlobalStateResetService {
 
       // 2.3 Xóa toàn bộ file đính kèm lưu tạm (RAM + Disk/Web localStorage)
       await LocalAttachmentCache.clearAllCache();
+
+      // 2.4 Xóa sạch Launcher Icon Badge về 0
+      await AppBadgeService.instance.clearBadge();
 
       debugPrint('✅ [GlobalStateResetService] Layer 2 (Disk & Local Storage) wiped.');
     } catch (e, st) {
