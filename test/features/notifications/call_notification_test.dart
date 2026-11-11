@@ -4,11 +4,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:vcloud/app.dart';
 import 'package:vcloud/core/api/auth_user.dart';
+import 'package:vcloud/core/notifications/app_badge_service.dart';
 import 'package:vcloud/features/auth/application/auth_controller.dart';
 import 'package:vcloud/features/auth/data/auth_repository.dart';
 import 'package:vcloud/features/chat_v2/domain/models/chat_v2_call_session.dart';
 import 'package:vcloud/features/chat_v2/application/chat_v2_call_controller.dart';
+import 'package:vcloud/features/chat_v2/application/chat_v2_inbox_controller.dart';
 import 'package:vcloud/features/chat_v2/data/chat_v2_call_repository.dart';
+
+class _FakeChatV2InboxController extends ChatV2InboxController {
+  @override
+  ChatV2InboxState build() {
+    return const ChatV2InboxState(isLoading: false);
+  }
+}
 
 class MockCallRepository implements ChatV2CallRepository {
   bool acceptCalled = false;
@@ -173,6 +182,8 @@ void main() {
           overrides: [
             authRepositoryProvider.overrideWithValue(FakeAuthRepository(user: mockUser)),
             chatV2CallRepositoryProvider.overrideWithValue(mockCallRepo),
+            appBadgeSyncProvider.overrideWith((ref) {}),
+            chatV2InboxControllerProvider.overrideWith(_FakeChatV2InboxController.new),
           ],
         );
 
@@ -233,6 +244,8 @@ void main() {
           overrides: [
             authRepositoryProvider.overrideWithValue(FakeAuthRepository(user: mockUser)),
             chatV2CallRepositoryProvider.overrideWithValue(mockCallRepo),
+            appBadgeSyncProvider.overrideWith((ref) {}),
+            chatV2InboxControllerProvider.overrideWith(_FakeChatV2InboxController.new),
           ],
         );
 

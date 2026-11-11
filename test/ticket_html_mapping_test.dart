@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -280,18 +281,19 @@ void main() {
     expect(client.calls.first, 'GET /api/v1/mobile/ticket/list?priority=3&team_id=5');
   });
 
-  test('MobileAttachmentRepository.upload rejects files larger than 25MB', () async {
+  test('MobileAttachmentRepository.upload rejects files larger than 128MB', () async {
     final client = _FakeOdooApiClient(<String, dynamic>{'id': 1});
     final repo = MobileAttachmentRepository(client: client);
 
-    // Create a 26 MB dummy byte array
-    final oversizedBytes = Uint8List(26 * 1024 * 1024);
+    // Simulate a 129 MB file via fileSize without allocating 129 MB in RAM
+    final oversizedBytes = Uint8List(0);
 
     expect(
       () => repo.upload(
         MobileAttachmentUpload(
           filename: 'oversized_file.zip',
           bytes: oversizedBytes,
+          fileSize: 129 * 1024 * 1024,
           mimetype: 'application/zip',
         ),
       ),
@@ -299,7 +301,7 @@ void main() {
         isA<Failure>().having(
           (e) => e.message,
           'message',
-          contains('vượt quá giới hạn tối đa cho phép (25 MB)'),
+          contains('vượt quá giới hạn tối đa cho phép (128 MB)'),
         ),
       ),
     );
@@ -372,6 +374,9 @@ class _FakeOdooApiClient extends OdooApiClient {
   }
 
   @override
+  int get maxUploadBytes => OdooApiClient.defaultMaxUploadBytes;
+
+  @override
   Future<dynamic> post(
     String path, {
     Object? body,
@@ -379,6 +384,30 @@ class _FakeOdooApiClient extends OdooApiClient {
     bool auth = true,
   }) async {
     calls.add('POST $path');
+    postBodies.add(body);
+    return _postResponse ?? _response;
+  }
+
+  @override
+  Future<dynamic> uploadMultipart(
+    String path, {
+    required List<MultipartUploadFile> files,
+    Map<String, String> fields = const <String, String>{},
+    void Function(int sentBytes, int totalBytes)? onProgress,
+    UploadCancelToken? cancelToken,
+    bool auth = true,
+    bool isRetry = false,
+  }) async {
+    calls.add('POST $path');
+    final body = <String, dynamic>{
+      ...fields,
+      if (fields.containsKey('res_id'))
+        'res_id': int.tryParse(fields['res_id']!) ?? fields['res_id'],
+      if (files.isNotEmpty) 'filename': files.first.filename,
+      if (files.isNotEmpty) 'name': files.first.filename,
+      if (files.isNotEmpty && files.first.bytes != null)
+        'datas': base64Encode(files.first.bytes!),
+    };
     postBodies.add(body);
     return _postResponse ?? _response;
   }

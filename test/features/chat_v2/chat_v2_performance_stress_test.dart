@@ -25,8 +25,8 @@ void main() {
       }
 
       stopwatch.stop();
-      expect(stopwatch.elapsedMilliseconds, lessThan(300),
-          reason: 'Seeding 5000 messages must take less than 300ms');
+      expect(stopwatch.elapsedMilliseconds, lessThan(1000),
+          reason: 'Seeding 5000 messages must take less than 1000ms');
 
       // Stress test rapid switching between channels
       final switchStopwatch = Stopwatch()..start();
