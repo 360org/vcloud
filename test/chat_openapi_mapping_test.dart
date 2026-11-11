@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -528,6 +529,39 @@ class _FakeOdooApiClient extends OdooApiClient {
     postBodies.add(body);
     // Return successive post responses for orchestrated flows (forward);
     // hold the last one once exhausted.
+    if (_postResponses.isEmpty) return _response;
+    final index = _postCalls < _postResponses.length
+        ? _postCalls
+        : _postResponses.length - 1;
+    _postCalls++;
+    return _postResponses[index];
+  }
+
+  @override
+  Future<dynamic> uploadMultipart(
+    String path, {
+    required List<MultipartUploadFile> files,
+    Map<String, String> fields = const <String, String>{},
+    void Function(int sentBytes, int totalBytes)? onProgress,
+    UploadCancelToken? cancelToken,
+    bool auth = true,
+    bool isRetry = false,
+  }) async {
+    lastPostPath = path;
+    postPaths.add(path);
+    final body = <String, dynamic>{
+      ...fields,
+      if (fields.containsKey('res_id'))
+        'res_id': int.tryParse(fields['res_id']!) ?? fields['res_id'],
+      if (files.isNotEmpty) 'filename': files.first.filename,
+      if (files.isNotEmpty) 'name': files.first.filename,
+      if (files.isNotEmpty && files.first.bytes != null) ...{
+        'datas': base64Encode(files.first.bytes!),
+        'base64': base64Encode(files.first.bytes!),
+      },
+    };
+    lastPostBody = body;
+    postBodies.add(body);
     if (_postResponses.isEmpty) return _response;
     final index = _postCalls < _postResponses.length
         ? _postCalls
