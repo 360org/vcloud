@@ -2,6 +2,15 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.34+191] — 2026-11-11
+
+> [!IMPORTANT]
+> **Cập nhật Vcloud v2.9.34+191 (L4 VERIFIED 2026-11-11)**:
+> - **[FIX/ATTENDANCE]**: Khắc phục lỗi chấm công Check-in / Check-out do xung đột phiên mở (`attendance_repository.dart`).
+> - **[IMPROVE/BADGE]**: Tự động đồng bộ số lượng chưa đọc lên icon ứng dụng iOS & Android (`app_badge_service.dart`).
+> - **[IMPROVE/UPLOAD]**: Nâng cấp tải tệp đính kèm lên tới 128MB qua Multipart Streaming (`mobile_attachment_repository.dart`).
+> - **[IMPROVE/ACTIVITY]**: Đồng bộ icon đồng hồ Activity và bộ test 1.247 cases xanh 100%.
+
 ## [v2.9.34+190] — 2026-11-07
 
 > [!IMPORTANT]
