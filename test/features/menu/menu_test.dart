@@ -255,6 +255,19 @@ void main() {
       expect(url, isNot(contains('/api/v1/mobile/web/auth')));
       OdooWebViewScreen.hasSsoAuthenticated = false; // Reset sau test
     });
+
+    test('optimizes with direct URL on 3G/4G fast path when session has sessionId even if hasSsoAuthenticated is false', () {
+      OdooWebViewScreen.hasSsoAuthenticated = false;
+      final sessionWithSid = session19.copyWith(sessionId: 'active_session_cookie_123');
+      final url = buildTargetWebViewUrl(
+        rawUrl: '/web#action=210',
+        session: sessionWithSid,
+        baseUrl: 'http://192.168.1.100:1900',
+        useDirectUrlIfAuthenticated: true,
+      );
+      expect(url, equals('http://192.168.1.100:1900/web?db=vcloud_test_v19#action=210'));
+      expect(url, isNot(contains('/api/v1/mobile/web/auth')));
+    });
   });
 
   group('formatAppWebUrl', () {
@@ -409,6 +422,30 @@ void main() {
       expect(lightCss, contains('color-scheme: light !important;'));
       expect(lightCss, contains('background-color: #FFFFFF !important;'));
       expect(lightCss, isNot(contains('--body-bg: #0F1729 !important;')));
+    });
+
+    test('enforces single scroll container and suppresses nested scroll lockup', () {
+      final css = buildOdooNativeOptimizationCss(isDark: false);
+      expect(css, contains('.o_action_manager {'));
+      expect(css, contains('overflow: hidden !important;'));
+      expect(css, contains('.o_content {'));
+      expect(css, contains('overflow-y: auto !important;'));
+      expect(css, contains('-webkit-overflow-scrolling: touch !important;'));
+      expect(css, contains('will-change: scroll-position;'));
+    });
+
+    test('suppresses heavy animations and transitions for smooth 3G/4G rendering', () {
+      final css = buildOdooNativeOptimizationCss(isDark: false);
+      expect(css, contains('.fade, .collapse, .collapsing {'));
+      expect(css, contains('transition: none !important;'));
+      expect(css, contains('animation-duration: 0.001s !important;'));
+    });
+
+    test('hides background livechat and chatter widgets to save 3G/4G bandwidth', () {
+      final css = buildOdooNativeOptimizationCss(isDark: false);
+      expect(css, contains('.o_LivechatButton'));
+      expect(css, contains('.o_notification_manager'));
+      expect(css, contains('display: none !important;'));
     });
   });
 }

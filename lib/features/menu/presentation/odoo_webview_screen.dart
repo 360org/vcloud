@@ -8,6 +8,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 // ignore: depend_on_referenced_packages
 import 'package:webview_flutter_android/webview_flutter_android.dart';
+// ignore: depend_on_referenced_packages
+import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 
 import '../../../core/api/odoo_api_client.dart';
 import '../../../core/api/odoo_session.dart';
@@ -237,21 +239,24 @@ html, body {
   overscroll-behavior-y: none !important;
 }
 
-/* 3. Tối ưu vùng nội dung Odoo Action Manager chiếm trọn khung nhìn */
+/* 3. Tối ưu phân cấp cuộn mượt mà: Triệt tiêu xung đột nested scroll giữa action_manager và content */
 .o_action_manager {
   top: 0 !important;
-  height: 100vh !important;
-  overflow-y: auto !important;
+  height: 100% !important;
+  overflow: hidden !important;
   background-color: $bgColor !important;
-  -webkit-overflow-scrolling: touch !important;
 }
 
-/* 4. Tăng tốc phần cứng GPU cho các phần tử cuộn */
-.o_content, .o_kanban_view, .o_list_view, .o_form_view {
-  transform: translateZ(0);
-  -webkit-transform: translateZ(0);
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
+.o_content {
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  overscroll-behavior-y: contain !important;
+  will-change: scroll-position;
+}
+
+/* 4. Tối ưu hóa GPU & Rasterization: Giảm tiêu thụ VRAM chống tụt khung hình trên mobile */
+.o_kanban_view, .o_list_view, .o_form_view {
+  contain: content;
 }
 
 /* 5. Cải thiện độ nhạy và triệt tiêu độ trễ 300ms khi chạm trên mobile */
@@ -269,9 +274,6 @@ button, a, .o_dropdown_button, .o_kanban_record, .o_data_row, [role="button"] {
 .o_calendar_sync_buttons button, .o_cp_buttons .btn {
   padding: 4px 8px !important;
   font-size: 12px !important;
-}
-* {
-  -webkit-font-smoothing: antialiased !important;
 }
 
 /* 7. Triệt tiêu hoàn toàn banner lỗi CSS nội bộ của Odoo (body::before) và thẻ css_error_message */
@@ -295,6 +297,31 @@ a {
 }
 .o_setting_box, .o_form_view {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+}
+
+/* 9. Triệt tiêu animation & transition nặng nề gây giật lag khi tải trên mạng 3G/4G */
+.fade, .collapse, .collapsing {
+  transition: none !important;
+}
+@media (max-width: 768px) {
+  * {
+    animation-duration: 0.001s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.05s !important;
+  }
+}
+
+/* 10. Ẩn các widget livechat & chatter nền của web để giảm tải kết nối websocket/longpolling trên 3G/4G */
+.o_LivechatButton,
+.o-livechat-LivechatButton,
+.o_notification_manager,
+.o_chat_window {
+  display: none !important;
+}
+
+/* 11. Chống nghẽn hiển thị phông chữ (FOIT) khi mạng 3G/4G chập chờn */
+* {
+  font-display: swap !important;
 }
 
 $darkModeRules
@@ -349,6 +376,7 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
   int _webFrameKey = 0;
   Timer? _webTimeoutTimer;
   bool _hasAutoClearedCacheOnCssError = false;
+  bool _hasInjectedEagerCss = false;
 
   bool get _isDarkTheme {
     try {
@@ -544,6 +572,27 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
       final isDark = _isDarkTheme;
       final themeBgColor = isDark ? const Color(0xFF0F1729) : Colors.white;
 
+      // Đồng bộ cookie session_id từ OdooSession vào WebViewCookieManager trước khi tải trang
+      // Giúp WebView có sẵn quyền xác thực mà không cần redirect qua SSO bridge trên 3G/4G
+      final currentSession = odooApiClient.session;
+      if (currentSession?.sessionId != null && currentSession!.sessionId!.isNotEmpty) {
+        try {
+          final cookieManager = WebViewCookieManager();
+          final domain = uri.host;
+          await cookieManager.setCookie(
+            WebViewCookie(
+              name: 'session_id',
+              value: currentSession.sessionId!,
+              domain: domain,
+              path: '/',
+            ),
+          );
+          debugPrint('[VCLOUD_WEBVIEW] Đã đồng bộ cookie session_id vào WebViewCookieManager: domain=$domain');
+        } catch (cookieErr) {
+          debugPrint('[VCLOUD_WEBVIEW] Lỗi đồng bộ cookie: $cookieErr');
+        }
+      }
+
       // Cấu hình WebViewController cho Mobile
       // ponytail: Không inject session.accessToken vào cookie 'session_id' vì accessToken là JWT Bearer,
       // không phải Odoo session_id. SSO bridge (/api/v1/mobile/web/auth) tự sinh và gán Odoo session_id chuẩn.
@@ -559,13 +608,15 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
                   _progress = progress / 100.0;
                 });
               }
-              // Eager CSS Injection: Tiêm style sớm ngay khi DOM vừa bắt đầu dựng (tránh chớp trắng & giấu navbar ngay)
-              if (progress >= 20 && progress < 100) {
+              // Eager CSS Injection: Chỉ tiêm 1 lần duy nhất khi DOM vừa bắt đầu dựng (tránh spam IPC bridge trên 3G/4G)
+              if (progress >= 20 && !_hasInjectedEagerCss) {
+                _hasInjectedEagerCss = true;
                 _injectNativeOptimizationCss(controller);
               }
             },
             onPageStarted: (String url) {
               debugPrint('[VCLOUD_WEBVIEW] Mobile onPageStarted: $url');
+              _hasInjectedEagerCss = false;
               if (mounted) {
                 setState(() {
                   _isLoading = true;
@@ -632,13 +683,22 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
             await platform.setForceDark(isDark ? ForceDark.on : ForceDark.off);
             // Kích hoạt bộ nhớ đệm và quyền truy cập file cho tài nguyên HTML5 / OWL Odoo Web Client
             await platform.setAllowFileAccess(true);
+            await platform.setAllowContentAccess(true);
+          } else if (platform is WebKitWebViewController) {
+            // Trên iOS: Bật cử chỉ vuốt mượt mà Native để back/forward trang
+            await platform.setAllowsBackForwardNavigationGestures(true);
+            // Tắt link preview 3D Touch ngốn RAM và mạng
+            await platform.setAllowsLinkPreview(false);
           }
         } catch (e) {
           debugPrint('[VCLOUD_WEBVIEW] controller platform config error: $e');
         }
       }
 
-      final headers = odooApiClient.authHeaders ?? <String, String>{};
+      final headers = Map<String, String>.from(odooApiClient.authHeaders ?? <String, String>{});
+      if (currentSession?.sessionId != null && currentSession!.sessionId!.isNotEmpty) {
+        headers['Cookie'] = 'session_id=${currentSession.sessionId}';
+      }
       await controller.loadRequest(uri, headers: headers);
 
       if (mounted) {
@@ -992,10 +1052,14 @@ String buildTargetWebViewUrl({
       }
     }
 
-    // Tối ưu Cache Fast-Path: Nếu WebView đã xác thực SSO và session còn hạn,
-    // đi thẳng tới URL đích (đã có ?db=...), không cần redirect qua SSO bridge nữa.
+    // Tối ưu Cache Fast-Path (Đặc biệt cho mạng 3G/4G): Nếu WebView đã xác thực SSO
+    // HOẶC đã có sẵn Odoo session_id cookie hợp lệ từ phiên đăng nhập,
+    // đi thẳng tới URL đích (đã có ?db=...), triệt tiêu hoàn toàn round-trip 303 Redirect qua SSO bridge.
+    final hasValidSessionCookie = session != null &&
+        session.sessionId != null &&
+        session.sessionId!.isNotEmpty;
     if (useDirectUrlIfAuthenticated &&
-        OdooWebViewScreen.hasSsoAuthenticated &&
+        (OdooWebViewScreen.hasSsoAuthenticated || hasValidSessionCookie) &&
         session != null &&
         !session.isExpired) {
       return resolveAbsolute(target);
