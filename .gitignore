@@ -90,20 +90,5 @@ app.*.map.json
 *firebase-adminsdk*.json
 firebase_service_account.json
 
-# Root workflow symlinks
-/deloy.md
-/deloy_mobile.md
-/error.md
-/error_mobile.md
-/git.md
-/prompt_deloy.md
-/prompt_deploy.md
-/prompt_git.md
-/prompt_release.md
-/release.md
-/prompt_theme_sync.md
-/prompt_vivo_sprint.md
-/prompt_vivo.md
-
 # Test evidence screenshots
 docs/reports/*.png
