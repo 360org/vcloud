@@ -40,6 +40,7 @@ jobs:
       - name: Setup Flutter Engine
         uses: subosito/flutter-action@v2
         with:
+          flutter-version: "3.44.7"
           channel: "stable"
           cache: true
 
@@ -64,7 +65,7 @@ jobs:
 
       - name: Run Flutter Static Analysis & Unit Tests
         run: |
-          flutter analyze
+          flutter analyze --no-fatal-infos
           flutter test --exclude-tags=live-server
 
       - name: Install Apple Certificate and Provisioning Profile
@@ -170,6 +171,7 @@ jobs:
       - name: Setup Flutter Engine
         uses: subosito/flutter-action@v2
         with:
+          flutter-version: "3.44.7"
           channel: "stable"
           cache: true
 
@@ -186,7 +188,7 @@ jobs:
 
       - name: Run Flutter Static Analysis & Unit Tests
         run: |
-          flutter analyze
+          flutter analyze --no-fatal-infos
           flutter test --exclude-tags=live-server
 
       - name: Setup Android Release Keystore

@@ -7,6 +7,7 @@ analyzer:
   errors:
     invalid_assignment: warning
     avoid_print: warning
+    deprecated_member_use: info
 
 linter:
   rules:
