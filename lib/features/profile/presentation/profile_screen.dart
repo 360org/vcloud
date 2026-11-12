@@ -208,7 +208,11 @@ class ProfileScreen extends ConsumerWidget {
                     const SizedBox(width: 4),
                     Expanded(
                       child: Text(
-                        isCompany ? 'Hồ sơ doanh nghiệp' : 'Hồ sơ đối tác',
+                        isCompany
+                            ? 'Hồ sơ doanh nghiệp'
+                            : (partnerRole != null && partnerRole!.isNotEmpty
+                                ? 'Hồ sơ đồng nghiệp'
+                                : 'Hồ sơ đối tác'),
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w700,

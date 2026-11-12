@@ -9,6 +9,7 @@ import 'package:vcloud/features/chat_v2/data/models/chat_v2_message.dart';
 import 'package:vcloud/features/chat_v2/presentation/screens/chat_v2_image_viewer_screen.dart';
 import 'package:vcloud/features/chat_v2/presentation/widgets/chat_v2_avatar_action_sheet.dart';
 import 'package:vcloud/features/chat_v2/presentation/widgets/chat_v2_message_item.dart';
+import 'package:vcloud/features/profile/application/profile_controller.dart';
 import 'package:vcloud/features/profile/presentation/profile_screen.dart';
 
 void main() {
@@ -277,6 +278,9 @@ void main() {
 
       await tester.pumpWidget(
         ProviderScope(
+          overrides: [
+            partnerContactDetailProvider.overrideWith((ref, id) => null),
+          ],
           child: MaterialApp.router(
             theme: ThemeData(useMaterial3: false),
             routerConfig: router,
@@ -312,6 +316,9 @@ void main() {
 
       await tester.pumpWidget(
         ProviderScope(
+          overrides: [
+            partnerContactDetailProvider.overrideWith((ref, id) => null),
+          ],
           child: MaterialApp.router(
             theme: ThemeData(useMaterial3: false),
             routerConfig: router,
@@ -320,7 +327,11 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Xem ảnh đại diện (phóng to)'));
+      final btnFinder = find.text('Xem ảnh đại diện (phóng to)');
+      await tester.ensureVisible(btnFinder);
+      await tester.pumpAndSettle();
+
+      await tester.tap(btnFinder);
       await tester.pumpAndSettle();
 
       expect(find.byType(ChatV2ImageViewerScreen), findsOneWidget);
