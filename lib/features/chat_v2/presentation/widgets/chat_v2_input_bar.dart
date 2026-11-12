@@ -200,16 +200,62 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
         if (isStart && !query.contains('\n') && query.length <= 30) {
           final qLower = query.toLowerCase().trim();
           final qNormalized = _removeVietnameseDiacritics(qLower);
-          final matches = widget.channelMembers.where((m) {
-            if (m.isMe) return false;
-            if (qLower.isEmpty) return true;
+
+          final scored = <({ChatV2Member member, int score})>[];
+          for (final m in widget.channelMembers) {
+            if (m.isMe) continue;
+            if (qLower.isEmpty) {
+              scored.add((member: m, score: 0));
+              continue;
+            }
+
             final nLower = m.name.toLowerCase();
             final nNormalized = _removeVietnameseDiacritics(nLower);
-            final eLower = (m.email ?? '').toLowerCase();
-            return nLower.contains(qLower) ||
-                nNormalized.contains(qNormalized) ||
-                eLower.contains(qLower);
-          }).toList();
+
+            // Tách email chỉ lấy phần username trước ký tự '@' (VD: 'anhndq' từ 'anhndq@vuahethong.net')
+            // TUYỆT ĐỐI không kiểm tra domain phía sau như 'vuahethong.net' làm gõ '@t' bị match nhầm toàn bộ công ty!
+            final emailRaw = m.email ?? '';
+            final emailUser = emailRaw.contains('@')
+                ? emailRaw.split('@').first.toLowerCase()
+                : emailRaw.toLowerCase();
+
+            int score = 0;
+            // 1. Tên bắt đầu bằng từ khóa (Ưu tiên cao nhất: 100 điểm)
+            if (nLower.startsWith(qLower) || nNormalized.startsWith(qNormalized)) {
+              score = 100;
+            } else {
+              // 2. Bất kỳ từ nào trong họ tên bắt đầu bằng từ khóa (80 điểm, VD: 'Tân' trong 'Ma Nguyễn Nhật Tân' khi gõ 't')
+              final wordsLower = nLower.split(RegExp(r'\s+'));
+              final wordsNormalized = nNormalized.split(RegExp(r'\s+'));
+              final hasWordStart = wordsLower.any((w) => w.startsWith(qLower)) ||
+                  wordsNormalized.any((w) => w.startsWith(qNormalized));
+              if (hasWordStart) {
+                score = 80;
+              } else if (nLower.contains(qLower) || nNormalized.contains(qNormalized)) {
+                // 3. Tên chứa từ khóa ở bất kỳ vị trí nào (60 điểm)
+                score = 60;
+              } else if (emailUser.isNotEmpty && emailUser.startsWith(qLower)) {
+                // 4. Email username bắt đầu bằng từ khóa (40 điểm)
+                score = 40;
+              } else if (emailUser.isNotEmpty && emailUser.contains(qLower)) {
+                // 5. Email username chứa từ khóa (20 điểm)
+                score = 20;
+              } else if (qLower.contains('@') && emailRaw.toLowerCase().contains(qLower)) {
+                // 6. Tìm kiếm đích danh có chứa ký tự '@' theo địa chỉ email đầy đủ (10 điểm)
+                score = 10;
+              }
+            }
+
+            if (score > 0) {
+              scored.add((member: m, score: score));
+            }
+          }
+
+          if (qLower.isNotEmpty) {
+            scored.sort((a, b) => b.score.compareTo(a.score));
+          }
+
+          final matches = scored.map((e) => e.member).toList();
 
           if (matches.isNotEmpty) {
             setState(() {
@@ -237,13 +283,40 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
         final qLower = query.toLowerCase().trim();
         final qNormalized = _removeVietnameseDiacritics(qLower);
         final allChannels = ChatV2ChannelLocalCache.cached;
-        final channelMatches = allChannels.where((c) {
-          if (c.id == widget.channelId) return false;
-          if (qLower.isEmpty) return true;
+        final scoredChannels = <({ChatV2Channel channel, int score})>[];
+        for (final c in allChannels) {
+          if (c.id == widget.channelId) continue;
+          if (qLower.isEmpty) {
+            scoredChannels.add((channel: c, score: 0));
+            continue;
+          }
           final cLower = c.displayName.toLowerCase();
           final cNormalized = _removeVietnameseDiacritics(cLower);
-          return cLower.contains(qLower) || cNormalized.contains(qNormalized);
-        }).toList();
+
+          int score = 0;
+          if (cLower.startsWith(qLower) || cNormalized.startsWith(qNormalized)) {
+            score = 100;
+          } else {
+            final wordsLower = cLower.split(RegExp(r'\s+'));
+            final wordsNormalized = cNormalized.split(RegExp(r'\s+'));
+            final hasWordStart = wordsLower.any((w) => w.startsWith(qLower)) ||
+                wordsNormalized.any((w) => w.startsWith(qNormalized));
+            if (hasWordStart) {
+              score = 80;
+            } else if (cLower.contains(qLower) || cNormalized.contains(qNormalized)) {
+              score = 60;
+            }
+          }
+          if (score > 0) {
+            scoredChannels.add((channel: c, score: score));
+          }
+        }
+
+        if (qLower.isNotEmpty) {
+          scoredChannels.sort((a, b) => b.score.compareTo(a.score));
+        }
+
+        final channelMatches = scoredChannels.map((e) => e.channel).toList();
 
         if (channelMatches.isNotEmpty) {
           setState(() {

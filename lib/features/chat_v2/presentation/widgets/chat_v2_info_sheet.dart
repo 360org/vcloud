@@ -3249,7 +3249,10 @@ class _AddGroupMemberBottomSheetState
                       ? availableUsers
                       : availableUsers.where((u) {
                           final nameMatch = u.displayName.toLowerCase().contains(searchQ);
-                          final emailMatch = u.email.toLowerCase().contains(searchQ);
+                          final emailUser = u.email.contains('@')
+                              ? u.email.split('@').first.toLowerCase()
+                              : u.email.toLowerCase();
+                          final emailMatch = emailUser.contains(searchQ);
                           final roleMatch = (u.isPortal ? 'khách hàng portal' : 'nội bộ nhân viên').contains(searchQ);
                           return nameMatch || emailMatch || roleMatch;
                         }).toList();

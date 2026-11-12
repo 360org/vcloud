@@ -56,6 +56,10 @@ class ChatV2InboxTab extends ConsumerWidget {
       );
     }
 
+    if (inboxState.error != null && items.isEmpty) {
+      return _buildErrorState(context, ref, isDark, inboxState.error!);
+    }
+
     if (items.isEmpty) {
       return _buildEmptyState(context, isDark);
     }
@@ -250,6 +254,83 @@ class ChatV2InboxTab extends ConsumerWidget {
                 fontSize: 13,
                 color: isDark ? Colors.white60 : const Color(0xFF64748B),
                 height: 1.35,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorState(BuildContext context, WidgetRef ref, bool isDark, String errorMsg) {
+    final isNotSupported = errorMsg.contains('405') ||
+        errorMsg.contains('404') ||
+        errorMsg.contains('Method Not Allowed');
+
+    final title = isNotSupported
+        ? 'Máy chủ chưa nâng cấp tính năng'
+        : 'Không thể tải Hộp thư đến';
+
+    final subtitle = isNotSupported
+        ? 'Máy chủ Odoo hiện tại chưa hỗ trợ Hộp thư đến Discuss (cần nâng cấp module v_mobile lên v19.0.1.2.70).'
+        : 'Đã có lỗi xảy ra khi tải dữ liệu từ máy chủ. Vui lòng kiểm tra lại kết nối mạng.';
+
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 68,
+              height: 68,
+              decoration: BoxDecoration(
+                color: isDark
+                    ? const Color(0xFFEF4444).withValues(alpha: 0.15)
+                    : const Color(0xFFFEE2E2),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                isNotSupported ? LucideIcons.cloudAlert : LucideIcons.alertCircle,
+                size: 32,
+                color: const Color(0xFFEF4444),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: isDark ? Colors.white : const Color(0xFF0F172A),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              onPressed: () {
+                ref
+                    .read(chatV2InboxControllerProvider.notifier)
+                    .loadActiveTab(refresh: true);
+              },
+              icon: const Icon(LucideIcons.rotateCw, size: 16),
+              label: const Text('Thử lại'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF00C83A),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               ),
             ),
           ],

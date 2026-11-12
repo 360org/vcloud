@@ -21,16 +21,54 @@ List<ChatV2Member> filterMentionMembers({
   if (!isGroup) return const [];
   final qLower = query.toLowerCase().trim();
   final qNormalized = _removeVietnameseDiacritics(qLower);
-  return members.where((m) {
-    if (m.isMe) return false;
-    if (qLower.isEmpty) return true;
+
+  final scored = <({ChatV2Member member, int score})>[];
+  for (final m in members) {
+    if (m.isMe) continue;
+    if (qLower.isEmpty) {
+      scored.add((member: m, score: 0));
+      continue;
+    }
+
     final nLower = m.name.toLowerCase();
     final nNormalized = _removeVietnameseDiacritics(nLower);
-    final eLower = (m.email ?? '').toLowerCase();
-    return nLower.contains(qLower) ||
-        nNormalized.contains(qNormalized) ||
-        eLower.contains(qLower);
-  }).toList();
+
+    final emailRaw = m.email ?? '';
+    final emailUser = emailRaw.contains('@')
+        ? emailRaw.split('@').first.toLowerCase()
+        : emailRaw.toLowerCase();
+
+    int score = 0;
+    if (nLower.startsWith(qLower) || nNormalized.startsWith(qNormalized)) {
+      score = 100;
+    } else {
+      final wordsLower = nLower.split(RegExp(r'\s+'));
+      final wordsNormalized = nNormalized.split(RegExp(r'\s+'));
+      final hasWordStart = wordsLower.any((w) => w.startsWith(qLower)) ||
+          wordsNormalized.any((w) => w.startsWith(qNormalized));
+      if (hasWordStart) {
+        score = 80;
+      } else if (nLower.contains(qLower) || nNormalized.contains(qNormalized)) {
+        score = 60;
+      } else if (emailUser.isNotEmpty && emailUser.startsWith(qLower)) {
+        score = 40;
+      } else if (emailUser.isNotEmpty && emailUser.contains(qLower)) {
+        score = 20;
+      } else if (qLower.contains('@') && emailRaw.toLowerCase().contains(qLower)) {
+        score = 10;
+      }
+    }
+
+    if (score > 0) {
+      scored.add((member: m, score: score));
+    }
+  }
+
+  if (qLower.isNotEmpty) {
+    scored.sort((a, b) => b.score.compareTo(a.score));
+  }
+
+  return scored.map((e) => e.member).toList();
 }
 
 bool checkMentionBadge({
@@ -197,6 +235,42 @@ void main() {
         ),
         isFalse,
       );
+    });
+
+    test('6. Gõ @t: KHÔNG match domain email vuahethong.net (Nguyễn Đào Quốc Anh) và match đúng người có tên chứa chữ T', () {
+      const complexMembers = [
+        ChatV2Member(
+          id: '201',
+          name: 'Nguyễn Đào Quốc Anh',
+          email: 'anhndq@vuahethong.net',
+          isMe: false,
+        ),
+        ChatV2Member(
+          id: '202',
+          name: 'Ma Nguyễn Nhật Tân',
+          email: 'tanmnn@360.org.vn',
+          isMe: false,
+        ),
+        ChatV2Member(
+          id: '203',
+          name: 'Trần Văn Tuấn',
+          email: 'tuantv@vuahethong.net',
+          isMe: false,
+        ),
+      ];
+
+      final matchesT = filterMentionMembers(
+        members: complexMembers,
+        query: 't',
+        isGroup: true,
+      );
+
+      // Nguyễn Đào Quốc Anh KHÔNG được xuất hiện vì tên và username email 'anhndq' không có chữ 't'
+      expect(matchesT.any((m) => m.name == 'Nguyễn Đào Quốc Anh'), isFalse);
+
+      // Ma Nguyễn Nhật Tân và Trần Văn Tuấn phải xuất hiện
+      expect(matchesT.map((m) => m.name), containsAll(['Ma Nguyễn Nhật Tân', 'Trần Văn Tuấn']));
+      expect(matchesT.first.name, 'Trần Văn Tuấn'); // Họ tên bắt đầu bằng chữ T (100 điểm) ưu tiên hơn từ trong tên (80 điểm)
     });
   });
 }
