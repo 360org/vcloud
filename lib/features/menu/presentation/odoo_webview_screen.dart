@@ -211,6 +211,7 @@ textarea::placeholder {
 
   return '''
 :root, html, body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
   color-scheme: $colorScheme !important;
   background-color: $bgColor !important;
   color: $textColor !important;
@@ -273,6 +274,29 @@ button, a, .o_dropdown_button, .o_kanban_record, .o_data_row, [role="button"] {
   -webkit-font-smoothing: antialiased !important;
 }
 
+/* 7. Triệt tiêu hoàn toàn banner lỗi CSS nội bộ của Odoo (body::before) và thẻ css_error_message */
+body::before {
+  display: none !important;
+  content: "" !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  width: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+css_error_message {
+  display: none !important;
+}
+
+/* 8. Fallback typography & form control styling khi asset compilation gặp sự cố */
+a {
+  text-decoration: none;
+  color: #38BDF8;
+}
+.o_setting_box, .o_form_view {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+}
+
 $darkModeRules
 ''';
 }
@@ -324,6 +348,7 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
   String? _errorMessage;
   int _webFrameKey = 0;
   Timer? _webTimeoutTimer;
+  bool _hasAutoClearedCacheOnCssError = false;
 
   bool get _isDarkTheme {
     try {
@@ -561,6 +586,29 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
               }
               // 3. Inject CSS tối ưu hóa Native UX và triệt tiêu giật lag (Pha 1)
               await _injectNativeOptimizationCss(controller);
+
+              // 4. Tự phục hồi bộ nhớ đệm (Self-Healing Cache): Nếu phát hiện Odoo dính lỗi CSS bundle
+              if (!_hasAutoClearedCacheOnCssError) {
+                try {
+                  final dynamic hasError = await controller.runJavaScriptReturningResult('''
+                    (function() {
+                      var computed = window.getComputedStyle(document.body, '::before');
+                      var text = (computed && computed.content) ? computed.content : '';
+                      var errEl = document.querySelector('css_error_message');
+                      return (text.indexOf('A css error') !== -1 || errEl !== null);
+                    })()
+                  ''');
+                  final errorDetected = hasError == true || hasError.toString().contains('true');
+                  if (errorDetected) {
+                    debugPrint('[VCLOUD_WEBVIEW] Phát hiện Odoo CSS Error -> Tự động xoá cache và tải lại sạch');
+                    _hasAutoClearedCacheOnCssError = true;
+                    await controller.clearCache();
+                    await controller.reload();
+                  }
+                } catch (e) {
+                  debugPrint('[VCLOUD_WEBVIEW] Error checking css error: $e');
+                }
+              }
             },
             onWebResourceError: (WebResourceError error) {
               debugPrint('[VCLOUD_WEBVIEW] WebResourceError: ${error.errorCode} - ${error.description}');
@@ -683,7 +731,7 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
     }
   }
 
-  void _handleReload() {
+  Future<void> _handleReload() async {
     try {
       debugPrint('[VCLOUD_WEBVIEW] Người dùng bấm Tải lại (Reload)');
       if (kIsWeb) {
@@ -707,6 +755,8 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
           _hasError = false;
           _errorMessage = null;
         });
+        // Tẩy sạch HTTP cache (bao gồm cả các file CSS hỏng bị lưu đệm) trước khi tải lại
+        await _controller?.clearCache();
         _controller?.reload();
       }
     } catch (e) {

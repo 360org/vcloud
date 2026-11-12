@@ -6,6 +6,7 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 
 > [!IMPORTANT]
 > **Cập nhật Vcloud v2.9.36+195 (L4 VERIFIED 2026-11-12)**:
+> - **[FIX/WEBVIEW_CSS]**: Triệt tiêu hoàn toàn banner thông báo đỏ `A css error occured, using an old style to render this page` và lỗi vỡ giao diện CSS (fallback serif font) trên màn hình Odoo WebView (`res.config.settings`). Áp dụng CSS injection chặn `body::before` và `css_error_message`, ép typography hệ thống `-apple-system, BlinkMacSystemFont`, xóa sạch HTTP cache khi bấm Tải lại (Reload), và bổ sung cơ chế tự phục hồi Self-Healing Cache tự động phát hiện bundle lỗi và reload sạch (`odoo_webview_screen.dart`, `menu_test.dart`).
 > - **[RELEASE/TRAIN]**: Mở Release Train mới `2.9.36` cho Apple App Store Connect khắc phục lỗi đóng train 90186 (`Invalid Pre-Release Train`) do train 2.9.35 đã được đưa vào xét duyệt (khắc phục lỗi [ERR-005]).
 > - **[CI/CD/FIX]**: Ghim phiên bản Flutter `3.44.7` trong GitHub Actions workflow `.github/workflows/deploy.yml` cho cả 2 job iOS & Android, bổ sung cờ `--no-fatal-infos` cho lệnh `flutter analyze` và cấu hình `deprecated_member_use: info` trong `analysis_options.yaml` (khắc phục lỗi [ERR-012]).
 > - **[FIX/CHAT_V2_MENTION]**: Khắc phục lỗi gợi ý thành viên khi gõ `@`: tách riêng username email trước ký tự `@`, không quét domain email (`vuahethong.net`) tránh match nhầm toàn bộ công ty khi gõ chữ 't'; bổ sung thuật toán tính điểm và ưu tiên thứ tự tìm kiếm (`chat_v2_input_bar.dart`, `chat_v2_info_sheet.dart`).

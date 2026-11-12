@@ -380,4 +380,35 @@ void main() {
       expect(hash, isNull);
     });
   });
+
+  group('buildOdooNativeOptimizationCss (CSS Safeguard & Error Shield)', () {
+    test('enforces system sans-serif font family on root and body', () {
+      final css = buildOdooNativeOptimizationCss(isDark: false);
+      expect(css, contains('font-family: -apple-system, BlinkMacSystemFont'));
+    });
+
+    test('completely suppresses Odoo CSS compilation error banner body::before and css_error_message', () {
+      final css = buildOdooNativeOptimizationCss(isDark: true);
+      expect(css, contains('body::before {'));
+      expect(css, contains('display: none !important;'));
+      expect(css, contains('content: "" !important;'));
+      expect(css, contains('visibility: hidden !important;'));
+      expect(css, contains('css_error_message {'));
+      expect(css, contains('pointer-events: none !important;'));
+    });
+
+    test('generates proper dark mode variables and background rules when isDark is true', () {
+      final darkCss = buildOdooNativeOptimizationCss(isDark: true);
+      expect(darkCss, contains('color-scheme: dark !important;'));
+      expect(darkCss, contains('--body-bg: #0F1729 !important;'));
+      expect(darkCss, contains('--body-color: #F1F5F9 !important;'));
+    });
+
+    test('generates light mode rules when isDark is false', () {
+      final lightCss = buildOdooNativeOptimizationCss(isDark: false);
+      expect(lightCss, contains('color-scheme: light !important;'));
+      expect(lightCss, contains('background-color: #FFFFFF !important;'));
+      expect(lightCss, isNot(contains('--body-bg: #0F1729 !important;')));
+    });
+  });
 }
