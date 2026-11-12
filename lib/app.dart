@@ -264,8 +264,17 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
       ref.invalidate(attendanceStreamProvider);
     }
 
-    if (type.contains('ticket') || type.contains('helpdesk') || data.containsKey('ticket_id')) {
+    if (type.contains('ticket') ||
+        type.contains('helpdesk') ||
+        data.containsKey('ticket_id') ||
+        data.containsKey('helpdesk_ticket_id') ||
+        (data['model']?.toString().toLowerCase().contains('helpdesk') ?? false)) {
       ref.invalidate(ticketsProvider);
+      final pushTicketId = (data['ticket_id'] ?? data['helpdesk_ticket_id'] ?? data['res_id'] ?? '').toString();
+      if (pushTicketId.isNotEmpty && pushTicketId != '0') {
+        ref.invalidate(ticketCommentsProvider(pushTicketId));
+        ref.invalidate(activityLogProvider(pushTicketId));
+      }
     }
   }
 

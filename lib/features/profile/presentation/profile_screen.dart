@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,12 +10,15 @@ import '../../../core/services/biometric_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/local_attachment_cache.dart';
 import '../../../shared/widgets/app_scaffold.dart';
+import '../../../shared/widgets/app_toast.dart';
 import '../../../shared/widgets/brand_logo.dart';
 import '../../../shared/widgets/ui_kit.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../chat_v2/presentation/screens/chat_v2_image_viewer_screen.dart';
 import '../../chat_v2/presentation/widgets/chat_v2_avatar_action_sheet.dart';
+import '../application/profile_controller.dart';
 import '../application/theme_controller.dart';
+import '../data/models/partner_contact_detail.dart';
 
 
 class ProfileScreen extends ConsumerWidget {
@@ -133,18 +137,55 @@ class ProfileScreen extends ConsumerWidget {
   }
 
   Widget _buildPartnerProfile(BuildContext context, WidgetRef ref) {
-    final displayName = partnerName?.trim().isNotEmpty == true
-        ? partnerName!.trim()
-        : 'Đồng nghiệp';
-    final role = partnerRole?.trim().isNotEmpty == true
-        ? partnerRole!.trim()
-        : 'Thành viên · 360 CORP';
-    final targetUrl = (partnerAvatar != null && partnerAvatar!.isNotEmpty)
-        ? partnerAvatar!
-        : '/api/v1/mobile/avatar/res.partner/$partnerId';
+    final pId = int.tryParse(partnerId ?? '') ?? 0;
+    final contactDetailAsync = pId > 0 ? ref.watch(partnerContactDetailProvider(pId)) : null;
+    final detail = contactDetailAsync?.valueOrNull;
+    final isLoading = contactDetailAsync?.isLoading == true;
+
+    final displayName = detail?.name.isNotEmpty == true
+        ? detail!.name
+        : (partnerName?.trim().isNotEmpty == true
+            ? partnerName!.trim()
+            : 'Đối tác / Khách hàng');
+    final isCompany = detail?.isCompany ?? false;
+    final role = detail?.subtitleInfo.isNotEmpty == true
+        ? detail!.subtitleInfo
+        : (partnerRole?.trim().isNotEmpty == true
+            ? partnerRole!.trim()
+            : (isCompany ? 'Doanh nghiệp' : 'Khách hàng cá nhân'));
+
+    final detailAvatar = detail?.avatarUrl;
+    final fallbackAvatar = partnerAvatar;
+    final targetUrl = (detailAvatar != null && detailAvatar.isNotEmpty)
+        ? detailAvatar
+        : ((fallbackAvatar != null && fallbackAvatar.isNotEmpty)
+            ? fallbackAvatar
+            : '/api/v1/mobile/avatar/res.partner/$pId');
     final avatarUrl = targetUrl.startsWith('http')
         ? targetUrl
         : odooApiClient.absoluteUrl(targetUrl);
+
+    final metrics = detail?.smartMetrics ?? const PartnerSmartMetrics();
+    final companyName = detail?.effectiveCompanyName ?? '';
+    final vat = detail?.vat ?? '';
+    final contactAddress = detail?.contactAddress ?? '';
+    final function = detail?.function ?? '';
+    final email = detail?.email ?? '';
+    final phone = detail?.phone ?? '';
+    final website = detail?.website ?? '';
+    final tags = detail?.tags ?? const <String>[];
+
+    void copyWithFeedback(String text, String message) {
+      Clipboard.setData(ClipboardData(text: text));
+      HapticFeedback.lightImpact();
+      AppToast.success(context, title: 'Đã sao chép', message: message);
+    }
+
+    void copyOdooWebLink() {
+      if (pId <= 0) return;
+      final webUrl = odooApiClient.absoluteUrl('/web#id=$pId&model=res.partner&view_type=form');
+      copyWithFeedback(webUrl, 'Đã sao chép liên kết Odoo vào bộ nhớ tạm.');
+    }
 
     return AppScaffold(
       title: displayName,
@@ -153,83 +194,138 @@ class ProfileScreen extends ConsumerWidget {
       body: ColoredBox(
         color: Theme.of(context).scaffoldBackgroundColor,
         child: SafeArea(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 112),
+          child: Column(
             children: [
-              Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(LucideIcons.arrowLeft),
-                    onPressed: () => context.pop(),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Hồ sơ đồng nghiệp',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: Theme.of(context).colorScheme.onSurface,
+              // ── 1. Top Bar ──
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(LucideIcons.arrowLeft),
+                      onPressed: () => context.pop(),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              _ProfileHero(
-                userId: partnerId ?? '',
-                name: displayName,
-                role: role,
-                email: '',
-                avatarUrl: avatarUrl,
-                isEditable: false,
-              ),
-              const SizedBox(height: 16),
-              _SettingsCard(
-                children: [
-                  _SettingsRow(
-                    icon: LucideIcons.messageSquare,
-                    label: 'Nhắn tin cá nhân',
-                    color: const Color(0xFF00C83A),
-                    onTap: () {
-                      ChatV2AvatarActionSheet.openDirectChat(
-                        context,
-                        ref,
-                        partnerId: partnerId!,
-                        name: displayName,
-                        avatarUrl: avatarUrl,
-                      );
-                    },
-                  ),
-                  // ponytail: Tạm ẩn tính năng gọi thoại theo quyết định kiến trúc, chờ nâng cấp WebRTC native ổn định
-                  /*
-                  _SettingsRow(
-                    icon: LucideIcons.phone,
-                    label: 'Gọi thoại trực tiếp',
-                    color: const Color(0xFF0D9488),
-                    onTap: () {
-                      ChatV2AvatarActionSheet.startDirectCall(
-                        context,
-                        ref,
-                        partnerId: partnerId!,
-                        name: displayName,
-                        avatarUrl: avatarUrl,
-                      );
-                    },
-                  ),
-                  */
-                  _SettingsRow(
-                    icon: LucideIcons.image,
-                    label: 'Xem ảnh đại diện (phóng to)',
-                    color: const Color(0xFF8B5CF6),
-                    onTap: () {
-                      Navigator.of(context).push(
-                        ChatV2ImageViewerScreen.route(
-                          imageUrl: avatarUrl,
-                          title: displayName,
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        isCompany ? 'Hồ sơ doanh nghiệp' : 'Hồ sơ đối tác',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
-                      );
-                    },
-                  ),
-                ],
+                      ),
+                    ),
+                    if (pId > 0) ...[
+                      IconButton(
+                        icon: const Icon(LucideIcons.rotateCw, size: 19),
+                        tooltip: 'Làm mới',
+                        onPressed: () => ref.refresh(partnerContactDetailProvider(pId)),
+                      ),
+                      IconButton(
+                        icon: const Icon(LucideIcons.externalLink, size: 19),
+                        tooltip: 'Sao chép liên kết Odoo',
+                        onPressed: copyOdooWebLink,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+
+              if (isLoading && detail == null)
+                const LinearProgressIndicator(
+                  minHeight: 2.5,
+                  backgroundColor: Colors.transparent,
+                  color: Color(0xFF0077CD),
+                ),
+
+              // ── 2. Scrollable Content ──
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 112),
+                  children: [
+                    // ── Hero Profile Card ──
+                    _PartnerHeroCard(
+                      partnerId: pId > 0 ? pId.toString() : (partnerId ?? ''),
+                      name: displayName,
+                      role: role,
+                      isCompany: isCompany,
+                      avatarUrl: avatarUrl,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // ── Smart Metrics Section (Chỉ số Odoo) ──
+                    _PartnerSmartMetricsSection(
+                      metrics: metrics,
+                      onTicketsTap: () => context.push('/tickets'),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // ── Enterprise & Legal Information ──
+                    _EnterpriseDetailsCard(
+                      companyName: companyName != displayName ? companyName : '',
+                      vat: vat,
+                      function: function,
+                      contactAddress: contactAddress,
+                      email: email,
+                      phone: phone,
+                      website: website,
+                      tags: tags,
+                      onCopy: copyWithFeedback,
+                    ),
+                    const SizedBox(height: 16),
+
+                    // ── Actions Card ──
+                    _SettingsCard(
+                      children: [
+                        _SettingsRow(
+                          icon: LucideIcons.messageSquare,
+                          label: 'Nhắn tin cá nhân',
+                          color: const Color(0xFF00C83A),
+                          onTap: () {
+                            ChatV2AvatarActionSheet.openDirectChat(
+                              context,
+                              ref,
+                              partnerId: partnerId ?? pId.toString(),
+                              name: displayName,
+                              avatarUrl: avatarUrl,
+                            );
+                          },
+                        ),
+                        _SettingsRow(
+                          icon: LucideIcons.image,
+                          label: 'Xem ảnh đại diện (phóng to)',
+                          color: const Color(0xFF8B5CF6),
+                          onTap: () {
+                            Navigator.of(context).push(
+                              ChatV2ImageViewerScreen.route(
+                                imageUrl: avatarUrl,
+                                title: displayName,
+                              ),
+                            );
+                          },
+                        ),
+                        if (pId > 0) ...[
+                          _SettingsRow(
+                            icon: LucideIcons.copy,
+                            label: 'Sao chép mã đối tác (#$pId)',
+                            color: const Color(0xFF0077CD),
+                            onTap: () => copyWithFeedback(
+                              pId.toString(),
+                              'Đã sao chép mã đối tác #$pId',
+                            ),
+                          ),
+                          _SettingsRow(
+                            icon: LucideIcons.externalLink,
+                            label: 'Sao chép liên kết Odoo Web',
+                            color: const Color(0xFF0D9488),
+                            onTap: copyOdooWebLink,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -352,7 +448,6 @@ class _ProfileHero extends StatelessWidget {
     required this.role,
     required this.email,
     this.avatarUrl,
-    this.isEditable = true,
   });
 
   final String userId;
@@ -360,7 +455,6 @@ class _ProfileHero extends StatelessWidget {
   final String role;
   final String email;
   final String? avatarUrl;
-  final bool isEditable;
 
   void _openAvatarZoom(BuildContext context) {
     final target = (avatarUrl != null && avatarUrl!.isNotEmpty)
@@ -470,6 +564,631 @@ class _ProfileHero extends StatelessWidget {
     ),
   );
 }
+}
+
+class _PartnerHeroCard extends StatelessWidget {
+  final String partnerId;
+  final String name;
+  final String role;
+  final bool isCompany;
+  final String avatarUrl;
+
+  const _PartnerHeroCard({
+    required this.partnerId,
+    required this.name,
+    required this.role,
+    required this.isCompany,
+    required this.avatarUrl,
+  });
+
+  void _openAvatarZoom(BuildContext context) {
+    if (avatarUrl.isEmpty) return;
+    Navigator.of(context).push(
+      ChatV2ImageViewerScreen.route(
+        imageUrl: avatarUrl,
+        title: name,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: _cardDecoration(context),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          GestureDetector(
+            onTap: () => _openAvatarZoom(context),
+            child: Stack(
+              children: [
+                UserAvatar(
+                  userId: partnerId,
+                  displayName: name,
+                  email: '',
+                  avatarUrl: avatarUrl,
+                  size: 64,
+                ),
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: isCompany ? const Color(0xFF0077CD) : const Color(0xFF00C83A),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                        width: 2,
+                      ),
+                    ),
+                    child: Icon(
+                      isCompany ? LucideIcons.building2 : LucideIcons.user,
+                      color: Colors.white,
+                      size: 11,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
+                    fontSize: 19,
+                    fontWeight: FontWeight.w900,
+                    height: 1.25,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: isCompany
+                            ? const Color(0xFF0077CD).withValues(alpha: 0.15)
+                            : const Color(0xFF00C83A).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        isCompany ? 'Doanh nghiệp' : 'Cá nhân',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: isCompany ? const Color(0xFF0077CD) : const Color(0xFF00C83A),
+                        ),
+                      ),
+                    ),
+                    if (partnerId.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.06),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          '#$partnerId',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                if (role.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    role,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PartnerSmartMetricsSection extends StatelessWidget {
+  final PartnerSmartMetrics metrics;
+  final VoidCallback? onTicketsTap;
+
+  const _PartnerSmartMetricsSection({
+    required this.metrics,
+    this.onTicketsTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: _cardDecoration(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0077CD).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  LucideIcons.gauge,
+                  size: 15,
+                  color: Color(0xFF0077CD),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'Chỉ số hoạt động Odoo',
+                style: TextStyle(
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w800,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _MetricTile(
+                  icon: LucideIcons.ticket,
+                  color: const Color(0xFFF59E0B),
+                  count: metrics.ticketCount,
+                  label: 'Phiếu hỗ trợ',
+                  unit: 'vé',
+                  onTap: onTicketsTap,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _MetricTile(
+                  icon: LucideIcons.briefcase,
+                  color: const Color(0xFF10B981),
+                  count: metrics.opportunityCount,
+                  label: 'Cơ hội CRM',
+                  unit: 'cơ hội',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _MetricTile(
+                  icon: LucideIcons.shoppingBag,
+                  color: const Color(0xFF6366F1),
+                  count: metrics.saleOrderCount,
+                  label: 'Đơn bán hàng',
+                  unit: 'đơn',
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _MetricTile(
+                  icon: LucideIcons.checkSquare,
+                  color: const Color(0xFF0077CD),
+                  count: metrics.taskCount,
+                  label: 'Nhiệm vụ',
+                  unit: 'việc',
+                ),
+              ),
+            ],
+          ),
+          if (metrics.meetingCount > 0) ...[
+            const SizedBox(height: 10),
+            _MetricTile(
+              icon: LucideIcons.calendar,
+              color: const Color(0xFF06B6D4),
+              count: metrics.meetingCount,
+              label: 'Lịch hẹn / Cuộc họp',
+              unit: 'buổi',
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _MetricTile extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final int count;
+  final String label;
+  final String unit;
+  final VoidCallback? onTap;
+
+  const _MetricTile({
+    required this.icon,
+    required this.color,
+    required this.count,
+    required this.label,
+    required this.unit,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 26,
+                    height: 26,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(7),
+                    ),
+                    child: Icon(icon, color: color, size: 14),
+                  ),
+                  const Spacer(),
+                  Text(
+                    count.toString(),
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      color: count > 0 ? color : (isDark ? Colors.white60 : const Color(0xFF64748B)),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EnterpriseDetailsCard extends StatelessWidget {
+  final String companyName;
+  final String vat;
+  final String function;
+  final String contactAddress;
+  final String email;
+  final String phone;
+  final String website;
+  final List<String> tags;
+  final void Function(String text, String message) onCopy;
+
+  const _EnterpriseDetailsCard({
+    required this.companyName,
+    required this.vat,
+    required this.function,
+    required this.contactAddress,
+    required this.email,
+    required this.phone,
+    required this.website,
+    required this.tags,
+    required this.onCopy,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hasAnyData = companyName.isNotEmpty ||
+        vat.isNotEmpty ||
+        function.isNotEmpty ||
+        contactAddress.isNotEmpty ||
+        email.isNotEmpty ||
+        phone.isNotEmpty ||
+        website.isNotEmpty ||
+        tags.isNotEmpty;
+
+    return Container(
+      decoration: _cardDecoration(context),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00C83A).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  LucideIcons.building,
+                  size: 15,
+                  color: Color(0xFF00C83A),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'Thông tin doanh nghiệp & Pháp lý',
+                style: TextStyle(
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w800,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          if (!hasAnyData)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'Chưa có thông tin doanh nghiệp chi tiết trong hồ sơ Odoo.',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textMuted,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            )
+          else ...[
+            if (companyName.isNotEmpty)
+              _DetailRowItem(
+                icon: LucideIcons.building2,
+                label: 'Tổ chức / Công ty',
+                value: companyName,
+                iconColor: const Color(0xFF0077CD),
+              ),
+            if (vat.isNotEmpty)
+              _DetailRowItem(
+                icon: LucideIcons.receipt,
+                label: 'Mã số thuế',
+                value: vat,
+                iconColor: const Color(0xFFEA580C),
+                highlightValue: true,
+                onCopy: () => onCopy(vat, 'Đã sao chép mã số thuế: $vat'),
+              ),
+            if (function.isNotEmpty)
+              _DetailRowItem(
+                icon: LucideIcons.briefcase,
+                label: 'Chức vụ',
+                value: function,
+                iconColor: const Color(0xFF8B5CF6),
+              ),
+            if (contactAddress.isNotEmpty)
+              _DetailRowItem(
+                icon: LucideIcons.mapPin,
+                label: 'Địa chỉ liên hệ',
+                value: contactAddress,
+                iconColor: const Color(0xFFEF4444),
+                onCopy: () => onCopy(contactAddress, 'Đã sao chép địa chỉ liên hệ.'),
+              ),
+            if (email.isNotEmpty)
+              _DetailRowItem(
+                icon: LucideIcons.mail,
+                label: 'Email',
+                value: email,
+                iconColor: const Color(0xFF0D9488),
+                onCopy: () => onCopy(email, 'Đã sao chép email: $email'),
+              ),
+            if (phone.isNotEmpty)
+              _DetailRowItem(
+                icon: LucideIcons.phone,
+                label: 'Điện thoại',
+                value: phone,
+                iconColor: const Color(0xFF059669),
+                onTap: () {
+                  final uri = Uri.parse('tel:$phone');
+                  launchUrl(uri);
+                },
+                onCopy: () => onCopy(phone, 'Đã sao chép số điện thoại: $phone'),
+              ),
+            if (website.isNotEmpty)
+              _DetailRowItem(
+                icon: LucideIcons.globe,
+                label: 'Website',
+                value: website,
+                iconColor: const Color(0xFF2563EB),
+                onTap: () {
+                  final full = website.startsWith('http') ? website : 'https://$website';
+                  launchUrl(Uri.parse(full), mode: LaunchMode.externalApplication);
+                },
+              ),
+            if (tags.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF64748B).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(LucideIcons.tag, size: 15, color: Color(0xFF64748B)),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Nhãn / Phân loại',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textMuted,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            for (final tag in tags)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF0077CD).withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: const Color(0xFF0077CD).withValues(alpha: 0.25),
+                                  ),
+                                ),
+                                child: Text(
+                                  tag,
+                                  style: const TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF0077CD),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailRowItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color iconColor;
+  final bool highlightValue;
+  final VoidCallback? onTap;
+  final VoidCallback? onCopy;
+
+  const _DetailRowItem({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.iconColor,
+    this.highlightValue = false,
+    this.onTap,
+    this.onCopy,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 15, color: iconColor),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: GestureDetector(
+              onTap: onTap,
+              behavior: HitTestBehavior.opaque,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    value,
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: highlightValue ? FontWeight.w800 : FontWeight.w600,
+                      color: highlightValue
+                          ? (isDark ? const Color(0xFF38BDF8) : const Color(0xFF0077CD))
+                          : Theme.of(context).colorScheme.onSurface,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (onCopy != null)
+            IconButton(
+              icon: const Icon(LucideIcons.copy, size: 16),
+              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+              tooltip: 'Sao chép',
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              onPressed: onCopy,
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 class _SettingsCard extends StatelessWidget {

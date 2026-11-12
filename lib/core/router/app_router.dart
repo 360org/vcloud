@@ -202,7 +202,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _buildFadePage(
           state: state,
           child: ProfileScreen(
-            partnerId: state.uri.queryParameters['partner_id'],
+            partnerId: state.uri.queryParameters['partner_id'] ?? state.uri.queryParameters['partnerId'],
             partnerName: state.uri.queryParameters['name'],
             partnerAvatar: state.uri.queryParameters['avatar'],
             partnerRole: state.uri.queryParameters['role'],

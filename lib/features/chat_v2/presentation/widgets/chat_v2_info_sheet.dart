@@ -9,6 +9,7 @@ import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/api/odoo_api_client.dart';
+import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/local_attachment_cache.dart';
 import '../../../../shared/models/profile.dart';
 import '../../../../shared/widgets/app_scaffold.dart';
@@ -16,6 +17,8 @@ import '../../../../shared/widgets/app_toast.dart';
 import '../../../../shared/widgets/loading_view.dart';
 import '../../../auth/application/auth_controller.dart';
 import '../../../chat/application/conversations_controller.dart';
+import '../../../profile/application/profile_controller.dart';
+import '../../../profile/data/models/partner_contact_detail.dart';
 import '../../application/chat_v2_channels_controller.dart';
 import '../../data/chat_v2_repository.dart';
 import '../../data/models/chat_v2_channel.dart';
@@ -1433,6 +1436,27 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
       }
     }
 
+    int? otherPartnerId;
+    if (!isGroup) {
+      if (activeChannel.directPartnerId != null) {
+        otherPartnerId = int.tryParse(activeChannel.directPartnerId!);
+      }
+      otherPartnerId ??= int.tryParse(activeChannel.partnerId ?? '');
+      if (otherPartnerId == null || otherPartnerId <= 0) {
+        final otherMember = _members.firstWhereOrNull((m) => !m.isMe && m.partnerId != null && m.partnerId! > 0);
+        otherPartnerId = otherMember?.partnerId;
+      }
+      if (otherPartnerId == null || otherPartnerId <= 0) {
+        final otherMember = _members.firstWhereOrNull((m) => !m.isMe && int.tryParse(m.id) != null);
+        otherPartnerId = int.tryParse(otherMember?.id ?? '');
+      }
+    }
+
+    final partnerDetailAsync = (otherPartnerId != null && otherPartnerId > 0)
+        ? ref.watch(partnerContactDetailProvider(otherPartnerId))
+        : null;
+    final partnerDetail = partnerDetailAsync?.valueOrNull;
+
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0B1120) : const Color(0xFFF1F5F9),
       appBar: AppBar(
@@ -1715,6 +1739,19 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
                 ],
               ),
               const SizedBox(height: 20),
+
+              // ── 2.1 CUSTOMER ERP/CRM QUICK CARD ──
+              if (!isGroup && otherPartnerId != null && otherPartnerId > 0) ...[
+                _buildCustomerQuickCard(
+                  context,
+                  isDark: isDark,
+                  partnerId: otherPartnerId,
+                  cleanName: cleanName,
+                  avatarUrl: resolvedAvatarUrl,
+                  detail: partnerDetail,
+                ),
+                const SizedBox(height: 14),
+              ],
 
               // ── 3. GROUPED CARD 1: ẢNH, FILE, LINK ĐÃ GỬI ──
               _buildCardContainer(
@@ -2162,6 +2199,182 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildCustomerQuickCard(
+    BuildContext context, {
+    required bool isDark,
+    required int partnerId,
+    required String cleanName,
+    required String? avatarUrl,
+    required PartnerContactDetail? detail,
+  }) {
+    final companyName = detail?.effectiveCompanyName ?? '';
+    final vat = detail?.vat ?? '';
+    final metrics = detail?.smartMetrics ?? const PartnerSmartMetrics();
+
+    return _buildCardContainer(
+      isDark: isDark,
+      child: InkWell(
+        onTap: () {
+          context.push(
+            '/profile?partner_id=$partnerId&name=${Uri.encodeComponent(cleanName)}&avatar=${Uri.encodeComponent(avatarUrl ?? "")}',
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0077CD).withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      LucideIcons.building2,
+                      size: 15,
+                      color: Color(0xFF0077CD),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Hồ sơ đối tác ERP / CRM',
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0077CD),
+                      ),
+                    ),
+                  ),
+                  const Icon(
+                    LucideIcons.chevronRight,
+                    size: 17,
+                    color: Color(0xFF94A3B8),
+                  ),
+                ],
+              ),
+              if (detail != null) ...[
+                const SizedBox(height: 10),
+                if (companyName.isNotEmpty && companyName != cleanName) ...[
+                  Row(
+                    children: [
+                      const Icon(LucideIcons.building, size: 14, color: AppColors.textMuted),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          companyName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                ],
+                if (vat.isNotEmpty) ...[
+                  Row(
+                    children: [
+                      const Icon(LucideIcons.receipt, size: 14, color: AppColors.textMuted),
+                      const SizedBox(width: 6),
+                      Text(
+                        'MST: $vat',
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFFEA580C),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                ],
+                if (metrics.hasAnyMetric) ...[
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: [
+                      if (metrics.ticketCount > 0)
+                        _buildMetricChip(
+                          icon: LucideIcons.ticket,
+                          color: const Color(0xFFF59E0B),
+                          text: '${metrics.ticketCount} vé',
+                        ),
+                      if (metrics.opportunityCount > 0)
+                        _buildMetricChip(
+                          icon: LucideIcons.briefcase,
+                          color: const Color(0xFF10B981),
+                          text: '${metrics.opportunityCount} cơ hội',
+                        ),
+                      if (metrics.saleOrderCount > 0)
+                        _buildMetricChip(
+                          icon: LucideIcons.shoppingBag,
+                          color: const Color(0xFF6366F1),
+                          text: '${metrics.saleOrderCount} đơn',
+                        ),
+                      if (metrics.taskCount > 0)
+                        _buildMetricChip(
+                          icon: LucideIcons.checkSquare,
+                          color: const Color(0xFF0077CD),
+                          text: '${metrics.taskCount} việc',
+                        ),
+                    ],
+                  ),
+                ],
+              ] else ...[
+                const SizedBox(height: 6),
+                const Text(
+                  'Nhấn để xem thông tin chi tiết công ty, mã số thuế và chỉ số Odoo.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textMuted,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMetricChip({
+    required IconData icon,
+    required Color color,
+    required String text,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ],
       ),
     );
   }
