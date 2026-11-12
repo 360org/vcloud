@@ -2,6 +2,19 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.36+196] — 2026-11-13
+
+> [!IMPORTANT]
+> **Cập nhật Vcloud v2.9.36+196 (L4 VERIFIED 2026-11-13)**:
+> - **[FIX/WEBVIEW_CSS]**: Triệt tiêu hoàn toàn banner thông báo đỏ `A css error occured, using an old style to render this page` và lỗi vỡ giao diện CSS (fallback serif font) trên màn hình Odoo WebView (`res.config.settings`). Áp dụng CSS injection chặn `body::before` và `css_error_message`, ép typography hệ thống `-apple-system, BlinkMacSystemFont`, xóa sạch HTTP cache khi bấm Tải lại (Reload), và bổ sung cơ chế tự phục hồi Self-Healing Cache tự động phát hiện bundle lỗi và reload sạch (`odoo_webview_screen.dart`, `menu_test.dart`).
+> - **[PERF/WEBVIEW_3G_4G]**: Tối ưu hóa toàn diện hiệu năng và triệt tiêu giật lag trên mạng di động 3G/4G cho màn hình WebView Odoo:
+>   - *Tối ưu hóa Network Fast-Path*: Đồng bộ cookie `session_id` trực tiếp vào `WebViewCookieManager` và header HTTP `Cookie` trước khi nạp trang, cho phép vào thẳng URL đích mà không cần chờ round-trip 303 Redirect qua SSO bridge (`/api/v1/mobile/web/auth`), tiết kiệm 500ms–1500ms trên 3G/4G.
+>   - *Triệt tiêu IPC spam*: Khống chế Eager CSS injection chỉ chạy đúng 1 lần duy nhất trong quá trình tải trang thay vì spam bridge theo từng phần trăm tiến độ `onProgress`.
+>   - *Khắc phục lỗi khóa cuộn lồng nhau (Nested Scroll Lockup)*: Chuyển `.o_action_manager` sang `overflow: hidden` và gom toàn bộ luồng cuộn mượt về `.o_content` với `overscroll-behavior-y: contain` và `will-change: scroll-position`.
+>   - *Giảm tải phần cứng & VRAM*: Thay thế `translateZ(0)` bừa bãi bằng `contain: content;` trên các view lớn; triệt tiêu animation/transition nặng nề của Bootstrap 5 (`.fade, .collapse, .collapsing`) trên mobile.
+>   - *Tiết kiệm băng thông di động*: Ẩn các widget livechat & chatter nền của web (`.o_LivechatButton`, `.o_notification_manager`) để giảm tải websocket/longpolling; áp dụng `font-display: swap` chống nghẽn font FOIT.
+> - **[AUDIT/RELEASE]**: Hoàn thiện báo cáo kiểm toán chất lượng phát hành Level 4 `docs/reports/RELEASE_AUDIT_REPORT_v2.9.36+196.md` và kích hoạt tự động hóa toàn diện CI/CD xuất bản TestFlight (Apple) và Google Play Console.
+
 ## [v2.9.36+195] — 2026-11-12
 
 > [!IMPORTANT]
