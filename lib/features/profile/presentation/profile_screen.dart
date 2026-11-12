@@ -475,7 +475,7 @@ class _ProfileHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: isEditable ? () => context.push('/profile/edit') : null,
+      onTap: () => context.push('/profile/edit'),
       borderRadius: BorderRadius.circular(22),
       child: Container(
         padding: const EdgeInsets.all(18),
@@ -495,12 +495,11 @@ class _ProfileHero extends StatelessWidget {
                     size: 62,
                   ),
                 ),
-                if (isEditable)
-                  Positioned(
-                    right: 0,
-                    bottom: 0,
-                    child: GestureDetector(
-                      onTap: () => context.push('/profile/edit'),
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: GestureDetector(
+                    onTap: () => context.push('/profile/edit'),
                       child: Container(
                         padding: const EdgeInsets.all(4),
                         decoration: const BoxDecoration(
