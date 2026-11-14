@@ -2,6 +2,26 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.37+197] — 2026-11-14 (Hoạt Động Cần Xử Lý Native Trên Home & Rich Link Preview Trong Chat V2)
+
+> [!IMPORTANT]
+> **Triển Khai Hoạt Động Cần Xử Lý (mail.activity) Native Trên HomeScreen & Rich Link Preview Trong Chat V2 (L4 VERIFIED 2026-11-14)**:
+> - **1. [NEW] Activity Native Trên Home (`HomeScreen` & `activity_repository.dart`)**:
+>   * Bổ sung widget `_PendingActivitiesSection` hiển thị tối đa 3 hoạt động quá hạn hoặc cần làm hôm nay ngay trên `HomeScreen`, phân tách rạch ròi với phần `_TodayWork` (`project.task` / Timesheet).
+>   * `homeActivitiesPreviewProvider`: tự động truy xuất song song `overdue` và `today` bằng `Future.wait`, khử trùng lặp theo ID, sắp xếp ưu tiên quá hạn lên đầu rồi đến hạn chót gần nhất, giới hạn đúng 3 phần tử. Tự động ẩn hoàn toàn với tài khoản Portal (`isPortal == true`).
+>   * Refactor điều hướng tập trung qua Native Router Resolver: `ActivityCenterScreen.openActivityDetail` chuyển thẳng sang màn hình native `/tickets/:id` khi `resModel == 'helpdesk.ticket'` và `resId > 0`; tự động fallback an toàn về In-App WebView (`/webview`) cho các model chưa hỗ trợ native (`project.task`, `crm.lead`, `hr.leave`...) hoặc khi thiếu `resId`.
+> - **2. [NEW] Rich Link Preview Trong Chat V2 (`chat_v2_message_item.dart` & `link_preview_card.dart`)**:
+>   * Tự động nhận diện URL đầu tiên hợp lệ trong nội dung tin nhắn văn bản và tin nhắn kèm media để hiển thị card xem trước phong phú gồm: ảnh thumbnail, tên miền/site_name, tiêu đề và mô tả vắn tắt.
+>   * Giữ nguyên 100% nội dung bong bóng chat, khả năng bấm mở URL và sao chép khi link preview đang tải hoặc gặp lỗi mạng (graceful degradation về `SizedBox.shrink()`).
+> - **3. [SECURITY] SSRF Protection, Giới Hạn Tải & Bảo Mật Tuyệt Đối (`link_metadata_service.dart`)**:
+>   * **SSRF Guard**: Chặn toàn bộ IP Loopback (`127.0.0.0/8`, `::1`), mạng riêng RFC 1918 (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), Link-Local và Cloud Metadata (`169.254.0.0/16`, `169.254.169.254`), Carrier-grade NAT (`100.64.0.0/10`), tên miền cục bộ (`localhost`, `*.local`, `*.internal`, `metadata.google.internal`). Tái kiểm tra SSRF trên mọi URL redirect và URL ảnh OpenGraph.
+>   * **Giới hạn tài nguyên**: Timeout tối đa 5 giây, stream dừng ngay khi chạm 50KB hoặc tìm thấy thẻ `</head>`, tối đa 3 lần redirect, chống gọi mạng trùng lặp đồng thời (in-flight request deduplication).
+>   * **Bảo vệ danh tính & Zero Third-Party**: Không gửi kèm Cookie hoặc JWT Token Odoo ra ngoài; không sử dụng bất kỳ dịch vụ proxy hay Google Favicon bên thứ ba nào; dùng icon nội bộ `LucideIcons.globe` làm placeholder.
+>   * **Bộ nhớ đệm 2 tầng**: Bounded In-Memory Cache (tối đa 100 mục) kết hợp Disk Cache (`link_preview_cache.json`) có TTL 24 giờ.
+> - **4. [TEST] Kiểm Thử Tự Động Toàn Diện 100% Pass**:
+>   * Bộ test hành vi `home_activity_section_test.dart` (7 cases) và `link_preview_test.dart` (10 cases) đạt 17/17 cases pass.
+>   * Toàn bộ test hồi quy hiện hữu (`activity_item_test.dart`, `chat_v2_channel_retention_test.dart`, `home_greeting_and_celebration_test.dart`) đạt 34/34 cases pass.
+
 ## [v2.9.37+197] — 2026-11-13
 
 > [!IMPORTANT]

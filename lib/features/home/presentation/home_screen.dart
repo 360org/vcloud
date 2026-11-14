@@ -19,7 +19,9 @@ import '../../../shared/widgets/location_prompt_dialog.dart';
 import '../../attendance/application/attendance_controller.dart';
 import '../../attendance/domain/shift_calculator.dart';
 import '../../auth/application/auth_controller.dart';
+import '../../activity/data/models/activity_item.dart';
 import '../../activity/data/repositories/activity_repository.dart';
+import '../../activity/presentation/screens/activity_center_screen.dart';
 import '../../chat_v2/application/chat_v2_channels_controller.dart';
 import '../../livechat/application/livechat_controller.dart';
 import '../../livechat/data/models/livechat_channel_model.dart';
@@ -74,6 +76,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     ref.invalidate(chatV2ChannelsProvider);
     ref.invalidate(mobileNotificationsProvider);
     ref.invalidate(pendingActivitiesCountProvider);
+    ref.invalidate(homeActivitiesPreviewProvider);
   }
 
   Future<void> _showErrorDialog(dynamic error, StackTrace stackTrace) async {
@@ -336,6 +339,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 else
                   const _PortalLivechatServicesSection(),
               ] else ...[
+                const _PendingActivitiesSection(),
+                const SizedBox(height: 20),
                 _TodayWork(tasks: todayTasks),
               ],
             ],
@@ -2140,6 +2145,168 @@ class _TodayTaskPreview {
   final Duration? logged;
 
   final List<TaskChecklistItem> subtasks;
+}
+
+class _PendingActivitiesSection extends ConsumerWidget {
+  const _PendingActivitiesSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(authControllerProvider).valueOrNull;
+    if (user?.isPortal == true) {
+      return const SizedBox.shrink();
+    }
+
+    final activitiesAsync = ref.watch(homeActivitiesPreviewProvider);
+    final totalCount = ref.watch(pendingActivitiesCountProvider).valueOrNull ?? 0;
+
+    final headerTitle = totalCount > 0
+        ? 'Hoạt động cần xử lý ($totalCount)'
+        : 'Hoạt động cần xử lý';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SectionHeader(
+          title: headerTitle,
+          trailing: 'Xem tất cả',
+          onTrailingTap: () => context.push('/activities'),
+        ),
+        const SizedBox(height: 10),
+        GlassCard(
+          padding: EdgeInsets.zero,
+          radius: 18,
+          child: activitiesAsync.when(
+            data: (activities) {
+              if (activities.isEmpty) {
+                return const Padding(
+                  padding: EdgeInsets.all(18),
+                  child: Text(
+                    'Không có hoạt động nào quá hạn hoặc cần làm hôm nay.',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
+                );
+              }
+
+              return Column(
+                children: [
+                  for (var i = 0; i < activities.length; i++) ...[
+                    _HomeActivityRow(activity: activities[i]),
+                    if (i != activities.length - 1)
+                      const Divider(height: 1, indent: 54),
+                  ],
+                ],
+              );
+            },
+            loading: () => const Padding(
+              padding: EdgeInsets.all(18),
+              child: Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            ),
+            error: (err, stack) => const Padding(
+              padding: EdgeInsets.all(18),
+              child: Text(
+                'Không thể tải hoạt động.',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _HomeActivityRow extends StatelessWidget {
+  const _HomeActivityRow({required this.activity});
+
+  final ActivityItem activity;
+
+  @override
+  Widget build(BuildContext context) {
+    final typeVisual = ActivityTypeVisual.resolve(activity.activityTypeName);
+    final stateVisual = ActivityStateVisual.resolve(activity);
+    final sourceLabel = activity.resName?.isNotEmpty == true
+        ? activity.resName!
+        : (activity.resModel?.isNotEmpty == true
+            ? activity.resModel!
+            : 'Chứng từ #${activity.id}');
+
+    return PressableScale(
+      onTap: () {
+        ActivityCenterScreen.openActivityDetail(context, activity);
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: typeVisual.bgColor,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(typeVisual.icon, color: typeVisual.color, size: 16),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    activity.summary.isNotEmpty
+                        ? activity.summary
+                        : (activity.activityTypeName ?? 'Hoạt động #${activity.id}'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Row(
+                    children: [
+                      const Icon(
+                        LucideIcons.folderGit2,
+                        size: 12,
+                        color: AppColors.primary,
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          sourceLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            StatusPill(
+              label: stateVisual.label,
+              color: stateVisual.color,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _TodayWork extends StatelessWidget {

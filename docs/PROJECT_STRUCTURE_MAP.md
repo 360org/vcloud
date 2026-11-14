@@ -114,6 +114,7 @@ v_mobile_17/
 | **Timesheet** | `timesheet_timer_test.dart`<br>`timesheet_repository_test.dart` | Khởi động/dừng Timer, tính toán tổng số giờ chính xác |
 | **Chấm công** | `attendance_api_mapping_test.dart`<br>`shift_config_api_test.dart` | Parse dữ liệu ca làm việc, tọa độ GPS và bán kính hợp lệ |
 | **Dashboard** | `home_dual_tier_metric_test.dart`<br>`home_load_performance_benchmark_test.dart` | Hiển thị 2 tầng chỉ số, tải dữ liệu dưới 500ms |
+| **Hoạt động & Link Preview** | `home_activity_section_test.dart`<br>`link_preview_test.dart` | Activity Native trên Home, Native Router Resolver sang `/tickets/:id` hoặc WebView, Rich Link Preview & SSRF Guard |
 
 ### B. Backend Tests (`v_mobile_17/tests/` — 20+ Bài Test)
 | Nhóm Kiểm Thử | Tệp Test | Trọng Tâm Xác Minh |

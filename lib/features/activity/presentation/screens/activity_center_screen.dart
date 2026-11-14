@@ -20,6 +20,30 @@ import '../../data/repositories/activity_repository.dart';
 class ActivityCenterScreen extends ConsumerStatefulWidget {
   const ActivityCenterScreen({super.key});
 
+  /// Điều hướng chi tiết hoạt động với Native Router Resolver:
+  /// - Nếu là helpdesk.ticket và có resId hợp lệ (> 0): chuyển sang màn hình native TicketDetailScreen (`/tickets/:id`).
+  /// - Các model khác (project.task, crm.lead, hr.leave...) hoặc thiếu resId: fallback mở In-App WebView.
+  static void openActivityDetail(BuildContext context, ActivityItem item) {
+    final model = item.resModel?.trim() ?? '';
+    final resId = item.resId ?? 0;
+
+    if (model == 'helpdesk.ticket' && resId > 0) {
+      context.push('/tickets/$resId');
+      return;
+    }
+
+    final url = buildActivityDetailWebUrl(item);
+    final title = buildActivityDetailTitle(item);
+    final uri = Uri(
+      path: '/webview',
+      queryParameters: {
+        'url': url,
+        'title': title,
+      },
+    );
+    context.push(uri.toString());
+  }
+
   /// Tạo URL Odoo chuẩn để mở thẳng Form chứng từ gốc của hoạt động trong WebView.
   /// Sử dụng route `/mail/view?model=<res_model>&res_id=<res_id>` tương thích cả Odoo 17 & 19.
   static String buildActivityDetailWebUrl(ActivityItem item) {
@@ -376,16 +400,7 @@ class _ActivityCenterScreenState extends ConsumerState<ActivityCenterScreen> {
   }
 
   void _openActivityDetail(ActivityItem item) {
-    final url = ActivityCenterScreen.buildActivityDetailWebUrl(item);
-    final title = ActivityCenterScreen.buildActivityDetailTitle(item);
-    final uri = Uri(
-      path: '/webview',
-      queryParameters: {
-        'url': url,
-        'title': title,
-      },
-    );
-    context.push(uri.toString());
+    ActivityCenterScreen.openActivityDetail(context, item);
   }
 
   @override
@@ -1004,8 +1019,11 @@ class _ActivityCard extends StatelessWidget {
   }
 }
 
-class _ActivityTypeVisual {
-  const _ActivityTypeVisual({
+typedef _ActivityTypeVisual = ActivityTypeVisual;
+typedef _StateVisual = ActivityStateVisual;
+
+class ActivityTypeVisual {
+  const ActivityTypeVisual({
     required this.color,
     required this.bgColor,
     required this.icon,
@@ -1015,37 +1033,37 @@ class _ActivityTypeVisual {
   final Color bgColor;
   final IconData icon;
 
-  static _ActivityTypeVisual resolve(String? name) {
+  static ActivityTypeVisual resolve(String? name) {
     final lower = (name ?? '').toLowerCase();
     if (lower.contains('gọi') || lower.contains('call') || lower.contains('điện')) {
-      return const _ActivityTypeVisual(
+      return const ActivityTypeVisual(
         color: Color(0xFF0077D9),
         bgColor: Color(0xFFEFF6FF),
         icon: LucideIcons.phoneCall,
       );
     }
     if (lower.contains('email') || lower.contains('mail') || lower.contains('thư')) {
-      return const _ActivityTypeVisual(
+      return const ActivityTypeVisual(
         color: Color(0xFF7C3AED),
         bgColor: Color(0xFFF5F3FF),
         icon: LucideIcons.mail,
       );
     }
     if (lower.contains('gặp') || lower.contains('họp') || lower.contains('meeting')) {
-      return const _ActivityTypeVisual(
+      return const ActivityTypeVisual(
         color: Color(0xFFEA580C),
         bgColor: Color(0xFFFFF7ED),
         icon: LucideIcons.calendarDays,
       );
     }
     if (lower.contains('việc') || lower.contains('todo') || lower.contains('task')) {
-      return const _ActivityTypeVisual(
+      return const ActivityTypeVisual(
         color: Color(0xFF16A34A),
         bgColor: Color(0xFFF0FDF4),
         icon: LucideIcons.checkSquare,
       );
     }
-    return const _ActivityTypeVisual(
+    return const ActivityTypeVisual(
       color: Color(0xFF475569),
       bgColor: Color(0xFFF1F5F9),
       icon: LucideIcons.clock,
@@ -1053,8 +1071,8 @@ class _ActivityTypeVisual {
   }
 }
 
-class _StateVisual {
-  const _StateVisual({
+class ActivityStateVisual {
+  const ActivityStateVisual({
     required this.color,
     required this.bgColor,
     required this.icon,
@@ -1066,9 +1084,9 @@ class _StateVisual {
   final IconData icon;
   final String label;
 
-  static _StateVisual resolve(ActivityItem item) {
+  static ActivityStateVisual resolve(ActivityItem item) {
     if (item.isOverdue) {
-      return const _StateVisual(
+      return const ActivityStateVisual(
         color: Color(0xFFDC2626),
         bgColor: Color(0xFFFEF2F2),
         icon: LucideIcons.alertCircle,
@@ -1076,14 +1094,14 @@ class _StateVisual {
       );
     }
     if (item.isToday) {
-      return const _StateVisual(
+      return const ActivityStateVisual(
         color: Color(0xFF16A34A),
         bgColor: Color(0xFFF0FDF4),
         icon: LucideIcons.clock,
         label: 'Hôm nay',
       );
     }
-    return const _StateVisual(
+    return const ActivityStateVisual(
       color: Color(0xFFD97706),
       bgColor: Color(0xFFFFFBEB),
       icon: LucideIcons.calendarClock,

@@ -19,6 +19,7 @@ import 'chat_v2_location_card.dart';
 import 'chat_v2_poll_card.dart';
 import 'chat_v2_video_bubble.dart';
 import 'chat_v2_voice_message_player.dart';
+import 'link_preview_card.dart';
 
 final RegExp _attachmentIdPattern = RegExp(
   r'/(?:attachments|image|content)/(\d+)',
@@ -585,14 +586,27 @@ class ChatV2MessageItem extends StatelessWidget {
                                                 bottom: 4,
                                               )
                                             : EdgeInsets.zero,
-                                        child: _buildParsedMessageText(
-                                          context: context,
-                                          rawText: cleanContent,
-                                          isMine: isMine,
-                                          isDark: isDark,
-                                          textColor: isDark
-                                              ? const Color(0xFFE9EDEF)
-                                              : const Color(0xFF111B21),
+                                        child: Column(
+                                          crossAxisAlignment: isMine
+                                              ? CrossAxisAlignment.end
+                                              : CrossAxisAlignment.start,
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            _buildParsedMessageText(
+                                              context: context,
+                                              rawText: cleanContent,
+                                              isMine: isMine,
+                                              isDark: isDark,
+                                              textColor: isDark
+                                                  ? const Color(0xFFE9EDEF)
+                                                  : const Color(0xFF111B21),
+                                            ),
+                                            if (extractFirstPreviewUrl(cleanContent) != null)
+                                              LinkPreviewCard(
+                                                url: extractFirstPreviewUrl(cleanContent)!,
+                                                isMine: isMine,
+                                              ),
+                                          ],
                                         ),
                                       ),
                                     Align(
@@ -1776,6 +1790,40 @@ class ChatV2MessageItem extends StatelessWidget {
     }
   }
 
+  /// Trích xuất URL đầu tiên đủ điều kiện để hiển thị Rich Link Preview trong Chat V2.
+  /// Bỏ qua các URL quá dài (>2000 ký tự) hoặc scheme không phải http/https.
+  static String? extractFirstPreviewUrl(String rawText) {
+    if (rawText.length > 2000) return null;
+    final urlRegex = RegExp(
+      r'(?:https?:\/\/|www\.)[^\s<]+|\b(?:[a-zA-Z0-9-]{1,63}\.)+(?:com|vn|org|net|edu|gov|io|ai|dev|co|info|biz|me|app)(?:\/[^\s<]*)?',
+      caseSensitive: false,
+    );
+    for (final match in urlRegex.allMatches(rawText)) {
+      if (match.start > 0 && rawText[match.start - 1] == '@') {
+        // Đây là email address (VD: user@domain.com) -> bỏ qua
+        continue;
+      }
+      var rawLink = rawText.substring(match.start, match.end);
+      final punctRegex = RegExp(r'[.,!?:;)"\x27\]]+$');
+      final punctMatch = punctRegex.firstMatch(rawLink);
+      if (punctMatch != null) {
+        rawLink = rawLink.substring(0, rawLink.length - punctMatch.group(0)!.length);
+      }
+      var targetUrl = rawLink.trim();
+      if (!targetUrl.contains('://')) {
+        targetUrl = 'https://$targetUrl';
+      }
+
+      final uri = Uri.tryParse(targetUrl);
+      if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
+        continue;
+      }
+
+      return targetUrl;
+    }
+    return null;
+  }
+
   Widget _buildPureTextContent({
     required BuildContext context,
     required String cleanContent,
@@ -1807,6 +1855,21 @@ class ChatV2MessageItem extends StatelessWidget {
       ],
     );
 
+    final previewUrl = extractFirstPreviewUrl(cleanContent);
+    final linkPreview = previewUrl != null
+        ? LinkPreviewCard(url: previewUrl, isMine: isMine)
+        : null;
+
+    final contentColumn = Column(
+      crossAxisAlignment:
+          isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        textWrap,
+        ?linkPreview,
+      ],
+    );
+
     if (!isMine && showSenderName) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1823,11 +1886,11 @@ class ChatV2MessageItem extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 3),
-          textWrap,
+          contentColumn,
         ],
       );
     }
-    return textWrap;
+    return contentColumn;
   }
 
   // Parse and build message text

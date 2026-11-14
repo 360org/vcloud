@@ -29,6 +29,44 @@ final pendingActivitiesCountProvider = FutureProvider.autoDispose<int>((ref) asy
   }
 });
 
+/// Provider lấy tối đa 3 việc cần làm (ưu tiên quá hạn, sau đó đến hôm nay)
+/// để hiển thị trên widget _PendingActivitiesSection màn hình chính (HomeScreen).
+final homeActivitiesPreviewProvider =
+    FutureProvider.autoDispose<List<ActivityItem>>((ref) async {
+  final user = ref.watch(authControllerProvider).valueOrNull;
+  if (user == null || user.isPortal) return const <ActivityItem>[];
+
+  final repo = ref.watch(activityRepositoryProvider);
+  try {
+    final overdueFuture = repo.getActivities(filter: 'overdue');
+    final todayFuture = repo.getActivities(filter: 'today');
+    final results = await Future.wait([overdueFuture, todayFuture]);
+    final overdue = results[0];
+    final today = results[1];
+
+    final seenIds = <int>{};
+    final merged = <ActivityItem>[];
+    for (final item in [...overdue, ...today]) {
+      if (seenIds.add(item.id)) {
+        merged.add(item);
+      }
+    }
+
+    merged.sort((a, b) {
+      if (a.isOverdue && !b.isOverdue) return -1;
+      if (!a.isOverdue && b.isOverdue) return 1;
+      final dateA = a.dateDeadline ?? DateTime(2099);
+      final dateB = b.dateDeadline ?? DateTime(2099);
+      return dateA.compareTo(dateB);
+    });
+
+    return merged.take(3).toList();
+  } catch (e) {
+    debugPrint('[homeActivitiesPreviewProvider] Error fetching activities preview: $e');
+    return const <ActivityItem>[];
+  }
+});
+
 class ActivityRepository {
   ActivityRepository([OdooApiClient? client])
       : _client = client ?? odooApiClient;
