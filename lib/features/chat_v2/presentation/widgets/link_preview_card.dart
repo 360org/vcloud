@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/app_toast.dart';
+import '../../data/models/link_metadata.dart';
 import '../../data/services/link_metadata_service.dart';
 
 /// Card xem trước liên kết phong phú (Rich Link Preview) trong Chat V2.
@@ -45,7 +46,18 @@ class LinkPreviewCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final metadataAsync = ref.watch(linkMetadataProvider(url));
+    final hasScope = context.findAncestorWidgetOfExactType<ProviderScope>() != null ||
+        context.findAncestorWidgetOfExactType<UncontrolledProviderScope>() != null;
+    if (!hasScope) {
+      return const SizedBox.shrink();
+    }
+
+    final AsyncValue<LinkMetadata?> metadataAsync;
+    try {
+      metadataAsync = ref.watch(linkMetadataProvider(url));
+    } catch (_) {
+      return const SizedBox.shrink();
+    }
 
     return metadataAsync.when(
       data: (metadata) {

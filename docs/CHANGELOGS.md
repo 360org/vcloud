@@ -2,7 +2,7 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
-## [v2.9.37+198] — 2026-11-14 (Hoạt Động Cần Xử Lý Native Trên Home & Rich Link Preview Trong Chat V2)
+## [v2.9.37+199] — 2026-11-14 (Hoạt Động Cần Xử Lý Native Trên Home, Rich Link Preview & Self-Healing ERR-013)
 
 > [!IMPORTANT]
 > **Triển Khai Hoạt Động Cần Xử Lý (mail.activity) Native Trên HomeScreen & Rich Link Preview Trong Chat V2 (L4 VERIFIED 2026-11-14)**:
@@ -18,9 +18,12 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 >   * **Giới hạn tài nguyên**: Timeout tối đa 5 giây, stream dừng ngay khi chạm 50KB hoặc tìm thấy thẻ `</head>`, tối đa 3 lần redirect, chống gọi mạng trùng lặp đồng thời (in-flight request deduplication).
 >   * **Bảo vệ danh tính & Zero Third-Party**: Không gửi kèm Cookie hoặc JWT Token Odoo ra ngoài; không sử dụng bất kỳ dịch vụ proxy hay Google Favicon bên thứ ba nào; dùng icon nội bộ `LucideIcons.globe` làm placeholder.
 >   * **Bộ nhớ đệm 2 tầng**: Bounded In-Memory Cache (tối đa 100 mục) kết hợp Disk Cache (`link_preview_cache.json`) có TTL 24 giờ.
-> - **4. [TEST] Kiểm Thử Tự Động Toàn Diện 100% Pass**:
+> - **4. [FIX/SELF-HEALING] Khắc phục ERR-013 & ProviderScope Defense Trong `LinkPreviewCard`**:
+>   * Phát hiện và giải quyết triệt để lỗi `StateError: Bad state: No ProviderScope found` trong các bài kiểm thử widget chat cô lập (`chat_v2_mention_edge_cases_test.dart`, `chat_v2_test.dart`, `chat_v2_search_in_conversation_test.dart`).
+>   * Bổ sung cơ chế tiền kiểm tra `context.findAncestorWidgetOfExactType` cho `ProviderScope` / `UncontrolledProviderScope` cùng khối `try ... catch` an toàn trong `LinkPreviewCard.build`. Nếu không tìm thấy ProviderScope, tự động fallback nhẹ nhàng về `SizedBox.shrink()`, chống phát sinh ErrorWidget 100,000px làm tràn RenderFlex.
+> - **5. [TEST] Kiểm Thử Tự Động Toàn Diện 100% Pass**:
 >   * Bộ test hành vi `home_activity_section_test.dart` (7 cases) và `link_preview_test.dart` (10 cases) đạt 17/17 cases pass.
->   * Toàn bộ test hồi quy hiện hữu (`activity_item_test.dart`, `chat_v2_channel_retention_test.dart`, `home_greeting_and_celebration_test.dart`) đạt 34/34 cases pass.
+>   * Toàn bộ test hồi quy Chat V2 (`chat_v2_mention_edge_cases_test.dart`, `chat_v2_test.dart`, `chat_v2_search_in_conversation_test.dart`) đạt pass 100%.
 
 ## [v2.9.37+197] — 2026-11-13
 
