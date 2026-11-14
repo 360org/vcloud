@@ -2,7 +2,7 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
-## [v2.9.37+197] — 2026-11-14 (Hoạt Động Cần Xử Lý Native Trên Home & Rich Link Preview Trong Chat V2)
+## [v2.9.37+198] — 2026-11-14 (Hoạt Động Cần Xử Lý Native Trên Home & Rich Link Preview Trong Chat V2)
 
 > [!IMPORTANT]
 > **Triển Khai Hoạt Động Cần Xử Lý (mail.activity) Native Trên HomeScreen & Rich Link Preview Trong Chat V2 (L4 VERIFIED 2026-11-14)**:
