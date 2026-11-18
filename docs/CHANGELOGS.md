@@ -24,6 +24,12 @@ Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile
 > - **5. [TEST] Kiểm Thử Tự Động Toàn Diện 100% Pass**:
 >   * Bộ test hành vi `home_activity_section_test.dart` (7 cases) và `link_preview_test.dart` (10 cases) đạt 17/17 cases pass.
 >   * Toàn bộ test hồi quy Chat V2 (`chat_v2_mention_edge_cases_test.dart`, `chat_v2_test.dart`, `chat_v2_search_in_conversation_test.dart`) đạt pass 100%.
+> - **6. [PERF/WEBVIEW] Warm OWL SPA WebView Engine & Tối Ưu Tốc Độ Ngăn Kéo Ứng Dụng (`odoo_webview_screen.dart`, `app_drawer_bottom_sheet.dart`, `activity_center_screen.dart`, `global_state_reset_service.dart`)**:
+>   * **Warm WebView Engine (`prewarm` + Lease Pool)**: Tự động làm ấm ngầm `WebViewController` và nạp sẵn OWL WebClient khi mở ngăn kéo **Ứng dụng** hoặc **Hoạt động**, giữ nguyên bộ nhớ V8 giữa các lần đóng/mở kèm cơ chế lease 1-1 an toàn cho `PlatformView`, xóa sạch cookie/session khi Logout.
+>   * **OWL Native SPA Router (Odoo 17 & 19)**: Điều hướng tức thì qua `odoo.__WOWL_DEBUG__.root.env.services` (`menu.selectMenu` và `action.doAction`) cùng `navigateActiveIfMounted`, giảm thời gian mở ứng dụng từ `8,777ms` xuống `74ms–565ms` và chuyển trực tiếp giữa các app trong WebView xuống `35ms`.
+>   * **Cache Icon Base64 & Lọc SVG (`AppDrawerBottomSheet`)**: Lưu đệm `Uint8List` icon đã giải mã trong RAM và lọc bỏ dữ liệu `image/svg+xml` khỏi `Image.memory`, triệt tiêu hoàn toàn ngoại lệ `FlutterImageDecoderImplDefault: DecodeException` trên Android; tách `ValueNotifier<double>` cho thanh tiến trình và giữ HTTP Disk Cache khi bấm Tải lại thông thường.
+> - **7. [FIX/CHAT_ROUTER] Khắc Phục Lỗi `GoException: no routes for location: /chat_v2/:id` (`chat_v2_inbox_tab.dart`, `app_router.dart`)**:
+>   * Cập nhật điều hướng nút **Vào trò chuyện** và thẻ tin nhắn Hộp thư / Gắn sao sang route chuẩn `/chat/:id` kèm redirect phòng vệ `/chat_v2/* ➔ /chat/*`.
 
 ## [v2.9.37+197] — 2026-11-13
 

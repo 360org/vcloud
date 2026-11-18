@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,6 +15,8 @@ import '../../features/chat_v2/data/odoo_bus_service.dart';
 import '../../features/chat_v2/presentation/widgets/chat_v2_message_item.dart';
 import '../../features/home/application/home_summary_controller.dart';
 import '../../features/menu/application/menu_controller.dart';
+import '../../features/menu/presentation/app_drawer_bottom_sheet.dart';
+import '../../features/menu/presentation/odoo_webview_screen.dart';
 import '../../features/ticket/application/ticket_controller.dart';
 import '../../features/ticket/data/ticket_repository.dart';
 import '../../features/timesheet/application/task_controller.dart';
@@ -60,7 +64,11 @@ class GlobalStateResetService {
       ChatV2ReadStateNotifier.clearMemoryCache();
       ChatV2AttachmentImage.clearImageCache();
 
-      // 1.5 Image Memory Cache của Flutter Engine
+      // 1.5 WebView Warm Engine, SSO Cookie & App Drawer Icon Cache
+      OdooWebViewScreen.resetSso();
+      AppDrawerBottomSheet.clearIconCache();
+
+      // 1.6 Image Memory Cache của Flutter Engine
       try {
         PaintingBinding.instance.imageCache.clear();
         PaintingBinding.instance.imageCache.clearLiveImages();

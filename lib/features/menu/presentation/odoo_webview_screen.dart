@@ -328,6 +328,25 @@ $darkModeRules
 ''';
 }
 
+String? _cachedLightMinifiedCss;
+String? _cachedDarkMinifiedCss;
+
+/// Trả về chuỗi CSS tối ưu Native UX đã được minify và cache sẵn theo chế độ Sáng/Tối
+/// nhằm loại bỏ hoàn toàn chi phí chạy RegExp lặp lại trên UI thread khi tải trang.
+@visibleForTesting
+String getMinifiedOdooNativeOptimizationCss({required bool isDark}) {
+  if (isDark) {
+    return _cachedDarkMinifiedCss ??= buildOdooNativeOptimizationCss(isDark: true)
+        .replaceAll('\n', ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .replaceAll("'", r"\'");
+  }
+  return _cachedLightMinifiedCss ??= buildOdooNativeOptimizationCss(isDark: false)
+      .replaceAll('\n', ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .replaceAll("'", r"\'");
+}
+
 /// Trích xuất hash fragment của Odoo từ URL thô (dùng cho SPA Hash Routing tức thì)
 String? extractOdooTargetHash(String rawUrl) {
   final trimmed = rawUrl.trim();
@@ -344,6 +363,467 @@ String? extractOdooTargetHash(String rawUrl) {
   return null;
 }
 
+/// Đích điều hướng Odoo trích xuất từ URL để chuyển trang tức thì qua OWL Services (Odoo 17 & 19).
+@visibleForTesting
+class OdooNavigationTarget {
+  const OdooNavigationTarget({
+    this.resModel,
+    this.resId,
+    this.menuId,
+    this.action,
+    this.targetHash,
+  });
+
+  final String? resModel;
+  final int? resId;
+  final int? menuId;
+  final String? action;
+  final String? targetHash;
+
+  bool get isRecordForm =>
+      resModel != null && resModel!.isNotEmpty && resId != null && resId! > 0;
+
+  bool get hasMenuOrAction =>
+      (menuId != null && menuId! > 0) || (action != null && action!.isNotEmpty);
+}
+
+/// Phân tích URL Odoo (`/mail/view`, `/web#action=...&menu_id=...`, `/home/action-...`, `/odoo/<model>/<id>`)
+/// thành [OdooNavigationTarget] phục vụ điều hướng SPA tức thì không cần tải lại HTML/JS.
+@visibleForTesting
+OdooNavigationTarget? parseOdooNavigationTarget(String rawUrl) {
+  final trimmed = rawUrl.trim();
+  if (trimmed.isEmpty) return null;
+
+  final targetHash = extractOdooTargetHash(trimmed);
+  final uri = Uri.tryParse(trimmed);
+
+  if (uri != null) {
+    // 1. Chứng từ từ Activity Center: /mail/view?model=sale.order&res_id=837
+    if (uri.path.endsWith('/mail/view')) {
+      final model = uri.queryParameters['model']?.trim();
+      final resId = int.tryParse(uri.queryParameters['res_id'] ?? '');
+      if (model != null && model.isNotEmpty && resId != null && resId > 0) {
+        return OdooNavigationTarget(
+          resModel: model,
+          resId: resId,
+          targetHash: '#id=$resId&model=$model&view_type=form',
+        );
+      }
+    }
+
+    // 2. Đường dẫn chuẩn Odoo 19: /odoo/<model>/<id>
+    final segments = uri.pathSegments;
+    if (segments.length >= 3 && segments[0] == 'odoo') {
+      final candidateModel = segments[1].trim();
+      final candidateId = int.tryParse(segments[2]);
+      if (candidateModel.contains('.') && candidateId != null && candidateId > 0) {
+        return OdooNavigationTarget(
+          resModel: candidateModel,
+          resId: candidateId,
+          menuId: int.tryParse(uri.queryParameters['menu_id'] ?? ''),
+          targetHash: '#id=$candidateId&model=$candidateModel&view_type=form',
+        );
+      }
+    }
+  }
+
+  // 3. Hash fragment chuẩn của App Drawer / Odoo 17 & 19: #action=210&menu_id=105
+  if (targetHash != null && targetHash.length > 1) {
+    final fragBody = targetHash.substring(1);
+    final params = <String, String>{};
+    for (final part in fragBody.split('&')) {
+      final eqIdx = part.indexOf('=');
+      if (eqIdx > 0) {
+        final k = Uri.decodeQueryComponent(part.substring(0, eqIdx).trim());
+        final v = Uri.decodeQueryComponent(part.substring(eqIdx + 1).trim());
+        params[k] = v;
+      }
+    }
+    final action = params['action']?.trim();
+    final menuId = int.tryParse(params['menu_id'] ?? '');
+    final model = params['model']?.trim();
+    final id = int.tryParse(params['id'] ?? '');
+
+    if ((model != null && model.isNotEmpty && id != null && id > 0) ||
+        (menuId != null && menuId > 0) ||
+        (action != null && action.isNotEmpty)) {
+      return OdooNavigationTarget(
+        resModel: (model != null && model.isNotEmpty) ? model : null,
+        resId: (id != null && id > 0) ? id : null,
+        menuId: (menuId != null && menuId > 0) ? menuId : null,
+        action: (action != null && action.isNotEmpty) ? action : null,
+        targetHash: targetHash,
+      );
+    }
+  }
+
+  return null;
+}
+
+String _escapeJsSingleQuoted(String input) {
+  return input
+      .replaceAll(r'\', r'\\')
+      .replaceAll("'", r"\'")
+      .replaceAll('\n', '')
+      .replaceAll('\r', '');
+}
+
+Future<void> _injectOptimizationCssIntoController(
+  WebViewController ctrl, {
+  required bool isDark,
+}) async {
+  try {
+    final minifiedCss = getMinifiedOdooNativeOptimizationCss(isDark: isDark);
+    await ctrl.runJavaScript('''
+      (function() {
+        var styleId = 'vcloud-native-optimization-style';
+        var existing = document.getElementById(styleId);
+        var root = document.head || document.documentElement;
+        if (!existing) {
+          existing = document.createElement('style');
+          existing.id = styleId;
+          existing.type = 'text/css';
+          if (root) root.appendChild(existing);
+        } else if (existing.parentNode !== root && root) {
+          root.appendChild(existing);
+        }
+        if (existing) {
+          existing.textContent = '$minifiedCss';
+        }
+      })();
+    ''');
+  } catch (cssErr) {
+    debugPrint('[VCLOUD_WEBVIEW] Inject CSS error: $cssErr');
+  }
+}
+
+/// Quản lý Warm WebView Engine duy nhất theo phiên đăng nhập `(baseUrl|db|uid)`.
+/// Giúp làm ấm trước OWL WebClient (10MB JS/CSS) và giữ nguyên engine giữa các lần đóng/mở màn hình,
+/// giảm thời gian mở ứng dụng/chứng từ từ ~3.2s–8.8s xuống ~100ms–300ms.
+class _OdooWarmWebViewPool {
+  _OdooWarmWebViewPool._();
+
+  static final _OdooWarmWebViewPool instance = _OdooWarmWebViewPool._();
+
+  WebViewController? _controller;
+  String? _sessionSignature;
+  bool _isLeased = false;
+  bool _isOwlReady = false;
+  bool _hasInjectedEagerCss = false;
+  bool _hasAutoClearedCacheOnCssError = false;
+  bool _lastIsDark = false;
+  _OdooWebViewScreenState? _activeOwner;
+
+  bool get isPlatformSupported {
+    if (kIsWeb) return false;
+    try {
+      return WebViewPlatform.instance != null;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  String _computeSignature(OdooSession session, String baseUrl) {
+    final effectiveBase = baseUrl.isNotEmpty ? baseUrl : session.baseUrl;
+    return '$effectiveBase|${session.db}|${session.uid}';
+  }
+
+  _OdooWebViewScreenState? get activeOwner => _activeOwner;
+
+  bool _isMainOdooClientUrl(String url) {
+    return !url.contains('/api/v1/mobile/web/auth') &&
+        !url.contains('/web/login') &&
+        (url.contains('/web') || url.contains('/odoo') || url.contains('/home/'));
+  }
+
+  /// Làm ấm ngầm WebView Engine ngay khi người dùng mở ngăn kéo "Ứng dụng" hoặc "Hoạt động".
+  Future<void> prewarm({bool isDark = false}) async {
+    if (!isPlatformSupported) return;
+    final session = odooApiClient.session;
+    if (session == null || session.isExpired || session.scope == 'portal') {
+      return;
+    }
+
+    final sig = _computeSignature(session, odooApiClient.baseUrl);
+    if (_controller != null && _sessionSignature == sig) {
+      return;
+    }
+
+    if (_sessionSignature != null && _sessionSignature != sig) {
+      disposeAll();
+    }
+
+    try {
+      _lastIsDark = isDark;
+      final warmUrl = buildTargetWebViewUrl(
+        rawUrl: '/web',
+        session: session,
+        baseUrl: odooApiClient.baseUrl,
+        colorScheme: isDark ? 'dark' : 'light',
+        useDirectUrlIfAuthenticated: true,
+      );
+      final uri = Uri.parse(warmUrl);
+      debugPrint('[VCLOUD_WEBVIEW] 🔥 Prewarming WebView Engine ngầm: $uri');
+
+      final ctrl = await _createConfiguredController(
+        isDark: isDark,
+        uriForCookie: uri,
+        session: session,
+        bindToPoolCallbacks: true,
+      );
+      _controller = ctrl;
+      _sessionSignature = sig;
+      _isOwlReady = false;
+      _isLeased = false;
+
+      final headers = _buildAuthHeaders(session);
+      await ctrl.loadRequest(uri, headers: headers);
+    } catch (e) {
+      debugPrint('[VCLOUD_WEBVIEW] Prewarm bỏ qua (không ảnh hưởng UI): $e');
+    }
+  }
+
+  /// Cấp phát controller cho màn hình `OdooWebViewScreen` mới mở.
+  /// Áp dụng cơ chế Lease 1-1 để tránh xung đột `PlatformView` khi màn hình cũ đang chạy animation đóng.
+  Future<({WebViewController controller, bool ownsLease, bool wasOwlReady})>
+      acquire({
+    required _OdooWebViewScreenState owner,
+    required bool isDark,
+    required Uri targetUri,
+    required OdooSession? session,
+  }) async {
+    _lastIsDark = isDark;
+
+    if (session != null && !session.isExpired) {
+      final sig = _computeSignature(session, odooApiClient.baseUrl);
+      if (_sessionSignature != null && _sessionSignature != sig) {
+        disposeAll();
+      }
+
+      // Trường hợp 1: Đã có sẵn Warm Controller rảnh (không bị màn hình khác giữ lease)
+      if (_controller != null && !_isLeased && _sessionSignature == sig) {
+        _isLeased = true;
+        _activeOwner = owner;
+        final ready = _isOwlReady;
+        final ctrl = _controller!;
+        unawaited(_applyThemeBackground(ctrl, isDark: isDark));
+        return (controller: ctrl, ownsLease: true, wasOwlReady: ready);
+      }
+
+      // Trường hợp 2: Chưa có Warm Controller nào trong Pool -> khởi tạo và đăng ký vào Pool
+      if (_controller == null) {
+        final ctrl = await _createConfiguredController(
+          isDark: isDark,
+          uriForCookie: targetUri,
+          session: session,
+          bindToPoolCallbacks: true,
+        );
+        _controller = ctrl;
+        _sessionSignature = sig;
+        _isLeased = true;
+        _isOwlReady = false;
+        _activeOwner = owner;
+        return (controller: ctrl, ownsLease: true, wasOwlReady: false);
+      }
+    }
+
+    // Trường hợp 3: Warm Controller đang bận (ví dụ route trước đang chạy reverse transition 240ms)
+    // -> Khởi tạo controller độc lập an toàn, tuyệt đối không gắn 1 native view vào 2 WebViewWidget
+    final standalone = await _createConfiguredController(
+      isDark: isDark,
+      uriForCookie: targetUri,
+      session: session,
+      bindToPoolCallbacks: false,
+      standaloneOwner: owner,
+    );
+    return (controller: standalone, ownsLease: false, wasOwlReady: false);
+  }
+
+  void releaseLease(_OdooWebViewScreenState owner) {
+    if (_activeOwner == owner) {
+      _activeOwner = null;
+    }
+    _isLeased = false;
+  }
+
+  void disposeAll() {
+    _controller = null;
+    _sessionSignature = null;
+    _isLeased = false;
+    _isOwlReady = false;
+    _hasInjectedEagerCss = false;
+    _hasAutoClearedCacheOnCssError = false;
+    _activeOwner = null;
+    if (isPlatformSupported) {
+      try {
+        unawaited(WebViewCookieManager().clearCookies().catchError((_) => false));
+      } catch (_) {}
+    }
+  }
+
+  Map<String, String> _buildAuthHeaders(OdooSession? session) {
+    final headers =
+        Map<String, String>.from(odooApiClient.authHeaders ?? <String, String>{});
+    if (session?.sessionId != null && session!.sessionId!.isNotEmpty) {
+      headers['Cookie'] = 'session_id=${session.sessionId}';
+    }
+    return headers;
+  }
+
+  Future<void> _applyThemeBackground(
+    WebViewController ctrl, {
+    required bool isDark,
+  }) async {
+    try {
+      final bg = isDark ? const Color(0xFF0F1729) : Colors.white;
+      await ctrl.setBackgroundColor(bg);
+      final platform = ctrl.platform;
+      if (platform is AndroidWebViewController) {
+        await platform.setForceDark(isDark ? ForceDark.on : ForceDark.off);
+      }
+    } catch (_) {}
+  }
+
+  Future<WebViewController> _createConfiguredController({
+    required bool isDark,
+    required Uri uriForCookie,
+    required OdooSession? session,
+    required bool bindToPoolCallbacks,
+    _OdooWebViewScreenState? standaloneOwner,
+  }) async {
+    final themeBgColor = isDark ? const Color(0xFF0F1729) : Colors.white;
+    final controller = WebViewController();
+
+    late final NavigationDelegate delegate;
+    delegate = NavigationDelegate(
+      onProgress: (int progress) {
+        final owner = bindToPoolCallbacks ? _activeOwner : standaloneOwner;
+        owner?._onControllerProgress(progress);
+
+        final eagerInjected = bindToPoolCallbacks
+            ? _hasInjectedEagerCss
+            : (standaloneOwner?._standaloneEagerCss ?? false);
+        if (progress >= 20 && !eagerInjected) {
+          if (bindToPoolCallbacks) {
+            _hasInjectedEagerCss = true;
+          } else {
+            standaloneOwner?._standaloneEagerCss = true;
+          }
+          final dark = owner != null ? owner._isDarkTheme : _lastIsDark;
+          unawaited(_injectOptimizationCssIntoController(controller, isDark: dark));
+        }
+      },
+      onPageStarted: (String url) {
+        debugPrint('[VCLOUD_WEBVIEW] Mobile onPageStarted: $url');
+        if (bindToPoolCallbacks) {
+          _hasInjectedEagerCss = false;
+        } else {
+          standaloneOwner?._standaloneEagerCss = false;
+        }
+        final owner = bindToPoolCallbacks ? _activeOwner : standaloneOwner;
+        owner?._onControllerPageStarted(url);
+      },
+      onPageFinished: (String url) async {
+        debugPrint('[VCLOUD_WEBVIEW] Mobile onPageFinished: $url');
+        if (_isMainOdooClientUrl(url)) {
+          OdooWebViewScreen.hasSsoAuthenticated = true;
+          if (bindToPoolCallbacks) {
+            _isOwlReady = true;
+          }
+        }
+
+        final owner = bindToPoolCallbacks ? _activeOwner : standaloneOwner;
+        owner?._onControllerPageFinished(url);
+
+        final dark = owner != null ? owner._isDarkTheme : _lastIsDark;
+        await _injectOptimizationCssIntoController(controller, isDark: dark);
+
+        // Tự phục hồi bộ nhớ đệm nếu phát hiện lỗi biên dịch CSS bundle của Odoo
+        final checkedCss = bindToPoolCallbacks
+            ? _hasAutoClearedCacheOnCssError
+            : (standaloneOwner?._standaloneCheckedCssError ?? false);
+        if (!checkedCss) {
+          try {
+            final dynamic hasError = await controller.runJavaScriptReturningResult('''
+              (function() {
+                var computed = window.getComputedStyle(document.body, '::before');
+                var text = (computed && computed.content) ? computed.content : '';
+                var errEl = document.querySelector('css_error_message');
+                return (text.indexOf('A css error') !== -1 || errEl !== null);
+              })()
+            ''');
+            final errorDetected =
+                hasError == true || hasError.toString().contains('true');
+            if (errorDetected) {
+              debugPrint('[VCLOUD_WEBVIEW] Phát hiện Odoo CSS Error -> Tự động xoá cache và tải lại sạch');
+              if (bindToPoolCallbacks) {
+                _hasAutoClearedCacheOnCssError = true;
+              } else {
+                standaloneOwner?._standaloneCheckedCssError = true;
+              }
+              await controller.clearCache();
+              await controller.reload();
+            }
+          } catch (_) {}
+        }
+      },
+      onWebResourceError: (WebResourceError error) {
+        debugPrint('[VCLOUD_WEBVIEW] WebResourceError: ${error.errorCode} - ${error.description}');
+        final owner = bindToPoolCallbacks ? _activeOwner : standaloneOwner;
+        owner?._onControllerWebResourceError(error);
+      },
+    );
+
+    // Chạy song song toàn bộ cấu hình Platform Channel & đồng bộ Cookie nhằm triệt tiêu độ trễ tuần tự ~90ms
+    final setupTasks = <Future<void>>[
+      controller.setJavaScriptMode(JavaScriptMode.unrestricted),
+      controller.setBackgroundColor(themeBgColor),
+      controller.setNavigationDelegate(delegate),
+      controller.setOverScrollMode(WebViewOverScrollMode.never).catchError((_) {}),
+    ];
+
+    if (session?.sessionId != null &&
+        session!.sessionId!.isNotEmpty &&
+        uriForCookie.host.isNotEmpty) {
+      setupTasks.add(
+        WebViewCookieManager()
+            .setCookie(
+              WebViewCookie(
+                name: 'session_id',
+                value: session.sessionId!,
+                domain: uriForCookie.host,
+                path: '/',
+              ),
+            )
+            .catchError((Object cookieErr) {
+          debugPrint('[VCLOUD_WEBVIEW] Lỗi đồng bộ cookie: $cookieErr');
+        }),
+      );
+    }
+
+    try {
+      final platform = controller.platform;
+      if (platform is AndroidWebViewController) {
+        setupTasks.addAll([
+          platform.setForceDark(isDark ? ForceDark.on : ForceDark.off).catchError((_) {}),
+          platform.setAllowFileAccess(true).catchError((_) {}),
+          platform.setAllowContentAccess(true).catchError((_) {}),
+        ]);
+      } else if (platform is WebKitWebViewController) {
+        setupTasks.addAll([
+          platform.setAllowsBackForwardNavigationGestures(true).catchError((_) {}),
+          platform.setAllowsLinkPreview(false).catchError((_) {}),
+        ]);
+      }
+    } catch (e) {
+      debugPrint('[VCLOUD_WEBVIEW] controller platform config error: $e');
+    }
+
+    await Future.wait(setupTasks);
+    return controller;
+  }
+}
+
 class OdooWebViewScreen extends ConsumerStatefulWidget {
   const OdooWebViewScreen({
     super.key,
@@ -358,9 +838,29 @@ class OdooWebViewScreen extends ConsumerStatefulWidget {
   /// Khi đã có session cookie, các lần tải trang sau không cần redirect qua SSO bridge, giúp tiết kiệm round-trip mạng.
   static bool hasSsoAuthenticated = false;
 
-  /// Reset trạng thái SSO khi người dùng đăng xuất hoặc phiên hết hạn
+  /// Làm ấm trước WebView Engine ngầm để khi người dùng chạm vào ứng dụng / chứng từ sẽ mở tức thì.
+  static Future<void> prewarm({bool isDark = false}) {
+    return _OdooWarmWebViewPool.instance.prewarm(isDark: isDark);
+  }
+
+  /// Điều hướng trực tiếp ngay trên `OdooWebViewScreen` đang hiển thị (khi mở ngăn kéo "Ứng dụng" từ trong WebView).
+  /// Giữ nguyên ngăn xếp Back về màn hình gốc và chuyển app qua OWL SPA chỉ trong ~70–150ms.
+  static bool navigateActiveIfMounted({
+    required String url,
+    required String title,
+  }) {
+    final active = _OdooWarmWebViewPool.instance.activeOwner;
+    if (active != null && active.mounted) {
+      active._navigateInPlace(url: url, title: title);
+      return true;
+    }
+    return false;
+  }
+
+  /// Reset trạng thái SSO và giải phóng toàn bộ Warm WebView + Cookie khi người dùng đăng xuất hoặc phiên hết hạn.
   static void resetSso() {
     hasSsoAuthenticated = false;
+    _OdooWarmWebViewPool.instance.disposeAll();
   }
 
   @override
@@ -369,14 +869,22 @@ class OdooWebViewScreen extends ConsumerStatefulWidget {
 
 class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
   WebViewController? _controller;
+  late String _activeRawUrl;
+  late String _activeTitle;
+  bool _ownsWarmLease = false;
+  bool _didInitWorkflow = false;
   bool _isLoading = true;
-  double _progress = 0.0;
+  final ValueNotifier<double> _progressNotifier = ValueNotifier<double>(0.0);
   bool _hasError = false;
   String? _errorMessage;
   int _webFrameKey = 0;
   Timer? _webTimeoutTimer;
-  bool _hasAutoClearedCacheOnCssError = false;
-  bool _hasInjectedEagerCss = false;
+  Timer? _fastSpaSettleTimer;
+  Stopwatch? _loadStopwatch;
+  String? _sessionEntryUrl;
+  int _navGeneration = 0;
+  bool _standaloneEagerCss = false;
+  bool _standaloneCheckedCssError = false;
 
   bool get _isDarkTheme {
     try {
@@ -394,108 +902,232 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
   @override
   void initState() {
     super.initState();
-    debugPrint('[VCLOUD_WEBVIEW] initState: rawUrl=${widget.url}, title=${widget.title}');
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _startLoadingWorkflow();
-      }
+    _activeRawUrl = widget.url;
+    _activeTitle = widget.title;
+    debugPrint('[VCLOUD_WEBVIEW] initState: rawUrl=$_activeRawUrl, title=$_activeTitle');
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_didInitWorkflow) {
+      _didInitWorkflow = true;
+      _startLoadingWorkflow();
+    }
+  }
+
+  void _navigateInPlace({required String url, required String title}) {
+    debugPrint('[VCLOUD_WEBVIEW] navigateInPlace: đổi sang url=$url, title=$title');
+    setState(() {
+      _activeRawUrl = url;
+      _activeTitle = title;
+      _hasError = false;
+      _errorMessage = null;
     });
+    if (kIsWeb) {
+      setState(() {
+        _webFrameKey++;
+        _isLoading = true;
+      });
+      _startLoadingWorkflow();
+    } else {
+      _transitionToNewUrl(url);
+    }
   }
 
   @override
   void didUpdateWidget(covariant OdooWebViewScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.url != widget.url) {
-      debugPrint('[VCLOUD_WEBVIEW] didUpdateWidget: đổi url từ ${oldWidget.url} sang ${widget.url}');
-      if (kIsWeb) {
+    if (oldWidget.url != widget.url || oldWidget.title != widget.title) {
+      _navigateInPlace(url: widget.url, title: widget.title);
+    }
+  }
+
+  String? _normalizeUrlForBackCheck(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
+    var s = raw.trim();
+    if (s.endsWith('/')) {
+      s = s.substring(0, s.length - 1);
+    }
+    return s;
+  }
+
+  void _onControllerProgress(int progress) {
+    if (!mounted) return;
+    _progressNotifier.value = progress / 100.0;
+  }
+
+  void _onControllerPageStarted(String url) {
+    if (!mounted) return;
+    _progressNotifier.value = 0.1;
+    if (!_isLoading || _hasError) {
+      setState(() {
+        _isLoading = true;
+        _hasError = false;
+      });
+    }
+  }
+
+  void _onControllerPageFinished(String url) {
+    final elapsed = _loadStopwatch?.elapsedMilliseconds;
+    _loadStopwatch?.stop();
+    if (elapsed != null) {
+      debugPrint('[VCLOUD_WEBVIEW] ⏱️ Tải xong trang sau ${elapsed}ms: $url');
+    }
+    if (!url.contains('/api/v1/mobile/web/auth') && _sessionEntryUrl == null) {
+      _sessionEntryUrl = _normalizeUrlForBackCheck(url);
+    }
+    if (mounted) {
+      _progressNotifier.value = 1.0;
+      if (_isLoading) {
         setState(() {
-          _webFrameKey++;
-          _isLoading = true;
-          _hasError = false;
-          _errorMessage = null;
+          _isLoading = false;
         });
-        _startLoadingWorkflow();
-      } else {
-        _transitionToNewUrl(widget.url);
       }
     }
   }
 
-  /// Tối ưu Pha 1: Chuyển module tức thì qua SPA Hash Routing trên cùng Odoo Web Client.
-  /// Không reload lại HTML/JS/CSS, không chớp trắng, duy trì session & cache runtime.
-  Future<void> _transitionToNewUrl(String newRawUrl) async {
-    final controller = _controller;
-    if (controller != null) {
-      try {
-        final currentUrl = await controller.currentUrl();
-        debugPrint('[VCLOUD_WEBVIEW] _transitionToNewUrl: currentUrl=$currentUrl, target=$newRawUrl');
+  void _onControllerWebResourceError(WebResourceError error) {
+    if (mounted && error.isForMainFrame == true) {
+      setState(() {
+        _hasError = true;
+        _errorMessage = '${error.errorCode}: ${error.description}';
+        _isLoading = false;
+      });
+    }
+  }
 
-        final isCurrentOnOdoo = currentUrl != null &&
-            (currentUrl.contains('/web') ||
-                currentUrl.contains('/odoo') ||
-                currentUrl.contains('/home/'));
+  /// Điều hướng tức thì (~100–250ms) thông qua dịch vụ OWL (`services.menu` / `services.action`)
+  /// tương thích đồng thời cả Odoo 17 (`/web#...`) và Odoo 19 (`/odoo/...`).
+  Future<bool> _tryNavigateViaOwlSpa(
+    WebViewController controller,
+    String rawUrl,
+  ) async {
+    final target = parseOdooNavigationTarget(rawUrl);
+    if (target == null) return false;
 
-        if (isCurrentOnOdoo) {
-          final targetHash = extractOdooTargetHash(newRawUrl);
+    try {
+      final currentUrl = await controller.currentUrl();
+      final isOnOdooClient = currentUrl != null &&
+          !currentUrl.contains('/web/login') &&
+          (currentUrl.contains('/web') ||
+              currentUrl.contains('/odoo') ||
+              currentUrl.contains('/home/'));
+      if (!isOnOdooClient) return false;
 
-          if (targetHash != null && targetHash.isNotEmpty) {
-            debugPrint('[VCLOUD_WEBVIEW] Pha 1 SPA Hash Switch: targetHash=$targetHash');
+      final modelEsc = _escapeJsSingleQuoted(target.resModel ?? '');
+      final resId = target.resId ?? 0;
+      final menuId = target.menuId ?? 0;
+      final actionEsc = _escapeJsSingleQuoted(target.action ?? '');
+      final hashEsc = _escapeJsSingleQuoted(target.targetHash ?? '');
 
-            // Hiển thị thanh tiến trình mỏng nhẹ, KHÔNG che màn hình bằng spinner trắng
-            if (mounted) {
-              setState(() {
-                _progress = 0.35;
-                _hasError = false;
-                _errorMessage = null;
-              });
+      final rawResult = await controller.runJavaScriptReturningResult('''
+        (function() {
+          try {
+            // Đóng hộp thoại lỗi hoặc popup cũ (nếu chứng từ trước đó gặp OwlError)
+            var closeBtns = document.querySelectorAll('.o_dialog .btn-close, .modal .btn-close');
+            for (var i = 0; i < closeBtns.length; i++) {
+              try { closeBtns[i].click(); } catch (_) {}
             }
 
-            final jsResult = await controller.runJavaScriptReturningResult('''
-              (function() {
-                try {
-                  var target = '$targetHash';
-                  var path = window.location.pathname;
-                  if (path.startsWith('/web') || path.startsWith('/odoo')) {
-                    if (window.location.hash !== target) {
-                      window.location.hash = target;
-                    } else {
-                      window.dispatchEvent(new HashChangeEvent('hashchange'));
-                    }
-                    return 'hash_applied';
-                  } else {
-                    var basePath = path.includes('/odoo') ? '/odoo' : '/web';
-                    window.location.href = basePath + target;
-                    return 'href_navigated';
-                  }
-                } catch (e) {
-                  return 'err: ' + e;
-                }
-              })();
-            ''');
+            var owlRoot = window.odoo && window.odoo.__WOWL_DEBUG__ && window.odoo.__WOWL_DEBUG__.root;
+            var services = owlRoot && owlRoot.env && owlRoot.env.services;
+            if (services && services.action) {
+              var model = '$modelEsc';
+              var resId = $resId;
+              var menuId = $menuId;
+              var actionParam = '$actionEsc';
 
-            debugPrint('[VCLOUD_WEBVIEW] SPA Hash result: $jsResult');
-
-            // Tái tiêm CSS tối ưu hóa Native UX để duy trì layout chuẩn
-            await _injectNativeOptimizationCss();
-
-            // Kết thúc hiệu ứng chuyển trang sau 300ms
-            Future.delayed(const Duration(milliseconds: 300), () {
-              if (mounted) {
-                setState(() {
-                  _progress = 1.0;
-                  _isLoading = false;
-                });
+              if (model && resId > 0) {
+                services.action.doAction({
+                  type: 'ir.actions.act_window',
+                  res_model: model,
+                  res_id: resId,
+                  views: [[false, 'form']],
+                  view_mode: 'form',
+                  target: 'current'
+                }, { clearBreadcrumbs: true });
+                return 'owl_record_dispatched';
               }
-            });
-            return;
+
+              if (menuId > 0 && services.menu) {
+                var menuObj = services.menu.getMenu(menuId);
+                if (menuObj && menuObj.actionID) {
+                  services.menu.selectMenu(menuObj);
+                  return 'owl_menu_dispatched';
+                }
+              }
+
+              if (actionParam) {
+                var parsedAction = /^\\d+\$/.test(actionParam) ? parseInt(actionParam, 10) : actionParam;
+                services.action.doAction(parsedAction, { clearBreadcrumbs: true });
+                return 'owl_action_dispatched';
+              }
+            }
+
+            // Fallback Hash Routing cho Odoo 17 khi đang ở đường dẫn /web
+            var hashTarget = '$hashEsc';
+            var path = window.location.pathname || '';
+            if (hashTarget && path.indexOf('/web') === 0) {
+              if (window.location.hash !== hashTarget) {
+                window.location.hash = hashTarget;
+              } else {
+                window.dispatchEvent(new HashChangeEvent('hashchange'));
+              }
+              return 'hash_applied';
+            }
+
+            return 'unsupported';
+          } catch (e) {
+            return 'err:' + (e && e.message ? e.message : String(e));
           }
-        }
-      } catch (e) {
-        debugPrint('[VCLOUD_WEBVIEW] Lỗi SPA transition: $e -> Fallback loadRequest');
+        })();
+      ''');
+
+      final resStr = rawResult.toString().replaceAll('"', '');
+      final succeeded = resStr == 'owl_record_dispatched' ||
+          resStr == 'owl_menu_dispatched' ||
+          resStr == 'owl_action_dispatched' ||
+          resStr == 'hash_applied';
+
+      debugPrint('[VCLOUD_WEBVIEW] SPA Navigation result=$resStr cho rawUrl=$rawUrl');
+      return succeeded;
+    } catch (e) {
+      debugPrint('[VCLOUD_WEBVIEW] _tryNavigateViaOwlSpa error: $e');
+      return false;
+    }
+  }
+
+  /// Chuyển module / chứng từ tức thì trên cùng Odoo Web Client.
+  /// Không reload lại HTML/JS/CSS, không chớp trắng, duy trì session & cache runtime.
+  Future<void> _transitionToNewUrl(String newRawUrl) async {
+    final gen = ++_navGeneration;
+    _sessionEntryUrl = null;
+    _loadStopwatch = Stopwatch()..start();
+
+    final controller = _controller;
+    if (controller != null) {
+      _progressNotifier.value = 0.35;
+      if (mounted) {
+        setState(() {
+          _isLoading = true;
+          _hasError = false;
+          _errorMessage = null;
+        });
+      }
+
+      final spaOk = await _tryNavigateViaOwlSpa(controller, newRawUrl);
+      if (spaOk) {
+        final elapsed = _loadStopwatch?.elapsedMilliseconds ?? 0;
+        _loadStopwatch?.stop();
+        debugPrint('[VCLOUD_WEBVIEW] ⚡ Chuyển trang SPA tức thì hoàn tất sau ${elapsed}ms');
+        unawaited(_injectNativeOptimizationCss(controller));
+        _scheduleFastSpaCompletion(controller, gen);
+        return;
       }
     }
 
-    // Fallback chuẩn: loadRequest toàn bộ nếu chưa vào Odoo web hoặc không xác định được hash
+    // Fallback chuẩn: loadRequest toàn bộ nếu chưa boot OWL hoặc trang tĩnh (VD: /knowledge/...)
     if (mounted) {
       setState(() {
         _isLoading = true;
@@ -504,24 +1136,46 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
       });
     }
     final newUrl = _buildTargetUrl();
-    await controller?.loadRequest(Uri.parse(newUrl));
+    final headers = _OdooWarmWebViewPool.instance._buildAuthHeaders(odooApiClient.session);
+    await controller?.loadRequest(Uri.parse(newUrl), headers: headers);
+  }
+
+  void _scheduleFastSpaCompletion(WebViewController controller, int generation) {
+    _fastSpaSettleTimer?.cancel();
+    _fastSpaSettleTimer = Timer(const Duration(milliseconds: 220), () async {
+      if (!mounted || generation != _navGeneration) return;
+      _progressNotifier.value = 1.0;
+      setState(() {
+        _isLoading = false;
+      });
+      try {
+        final cur = await controller.currentUrl();
+        if (mounted && generation == _navGeneration) {
+          _sessionEntryUrl = _normalizeUrlForBackCheck(cur);
+        }
+      } catch (_) {}
+    });
   }
 
   @override
   void dispose() {
     _webTimeoutTimer?.cancel();
+    _fastSpaSettleTimer?.cancel();
+    _progressNotifier.dispose();
     super.dispose();
+    if (_ownsWarmLease) {
+      _OdooWarmWebViewPool.instance.releaseLease(this);
+      _ownsWarmLease = false;
+    }
   }
 
   void _startLoadingWorkflow() {
     try {
-      final targetUrl = _buildTargetUrl();
-      debugPrint('[VCLOUD_WEBVIEW] Bắt đầu nạp targetUrl=$targetUrl');
-
+      _loadStopwatch = Stopwatch()..start();
       if (kIsWeb) {
-        // Trên Web: Khởi tạo iframe và theo dõi trạng thái
+        final targetUrl = _buildTargetUrl();
+        debugPrint('[VCLOUD_WEBVIEW] Bắt đầu nạp Web iframe targetUrl=$targetUrl');
         _webTimeoutTimer?.cancel();
-        // Fallback tự động tắt loading sau 2.5s nếu iframe đã nạp ngầm
         _webTimeoutTimer = Timer(const Duration(milliseconds: 2500), () {
           if (mounted && _isLoading && !_hasError) {
             debugPrint('[VCLOUD_WEBVIEW] Web iframe timeout watcher: chuyển _isLoading sang false');
@@ -549,7 +1203,7 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
     try {
       final isDark = _isDarkTheme;
       final resolved = buildTargetWebViewUrl(
-        rawUrl: widget.url,
+        rawUrl: _activeRawUrl,
         session: odooApiClient.session,
         baseUrl: odooApiClient.baseUrl,
         colorScheme: isDark ? 'dark' : 'light',
@@ -559,153 +1213,53 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
       return resolved;
     } catch (e, stack) {
       debugPrint('[VCLOUD_WEBVIEW] Lỗi buildTargetWebViewUrl: $e\n$stack');
-      return widget.url;
+      return _activeRawUrl;
     }
   }
 
   Future<void> _initializeWebView() async {
     try {
+      final gen = ++_navGeneration;
+      _sessionEntryUrl = null;
       final fullUrl = _buildTargetUrl();
       final uri = Uri.parse(fullUrl);
-      debugPrint('[VCLOUD_WEBVIEW] Khởi tạo WebViewController cho mobile với uri=$uri');
-
       final isDark = _isDarkTheme;
-      final themeBgColor = isDark ? const Color(0xFF0F1729) : Colors.white;
-
-      // Đồng bộ cookie session_id từ OdooSession vào WebViewCookieManager trước khi tải trang
-      // Giúp WebView có sẵn quyền xác thực mà không cần redirect qua SSO bridge trên 3G/4G
       final currentSession = odooApiClient.session;
-      if (currentSession?.sessionId != null && currentSession!.sessionId!.isNotEmpty) {
-        try {
-          final cookieManager = WebViewCookieManager();
-          final domain = uri.host;
-          await cookieManager.setCookie(
-            WebViewCookie(
-              name: 'session_id',
-              value: currentSession.sessionId!,
-              domain: domain,
-              path: '/',
-            ),
-          );
-          debugPrint('[VCLOUD_WEBVIEW] Đã đồng bộ cookie session_id vào WebViewCookieManager: domain=$domain');
-        } catch (cookieErr) {
-          debugPrint('[VCLOUD_WEBVIEW] Lỗi đồng bộ cookie: $cookieErr');
-        }
-      }
 
-      // Cấu hình WebViewController cho Mobile
-      // ponytail: Không inject session.accessToken vào cookie 'session_id' vì accessToken là JWT Bearer,
-      // không phải Odoo session_id. SSO bridge (/api/v1/mobile/web/auth) tự sinh và gán Odoo session_id chuẩn.
-      final controller = WebViewController();
-      controller
-        ..setJavaScriptMode(JavaScriptMode.unrestricted)
-        ..setBackgroundColor(themeBgColor)
-        ..setNavigationDelegate(
-          NavigationDelegate(
-            onProgress: (int progress) {
-              if (mounted) {
-                setState(() {
-                  _progress = progress / 100.0;
-                });
-              }
-              // Eager CSS Injection: Chỉ tiêm 1 lần duy nhất khi DOM vừa bắt đầu dựng (tránh spam IPC bridge trên 3G/4G)
-              if (progress >= 20 && !_hasInjectedEagerCss) {
-                _hasInjectedEagerCss = true;
-                _injectNativeOptimizationCss(controller);
-              }
-            },
-            onPageStarted: (String url) {
-              debugPrint('[VCLOUD_WEBVIEW] Mobile onPageStarted: $url');
-              _hasInjectedEagerCss = false;
-              if (mounted) {
-                setState(() {
-                  _isLoading = true;
-                  _hasError = false;
-                });
-              }
-            },
-            onPageFinished: (String url) async {
-              debugPrint('[VCLOUD_WEBVIEW] Mobile onPageFinished: $url');
-              if (mounted) {
-                setState(() {
-                  _isLoading = false;
-                });
-              }
-              // Đánh dấu phiên WebView đã sẵn sàng cookie session Odoo nếu đã vào các trang web client chính
-              if (!url.contains('/api/v1/mobile/web/auth') && (url.contains('/web') || url.contains('/odoo'))) {
-                OdooWebViewScreen.hasSsoAuthenticated = true;
-              }
-              // 3. Inject CSS tối ưu hóa Native UX và triệt tiêu giật lag (Pha 1)
-              await _injectNativeOptimizationCss(controller);
+      final acquired = await _OdooWarmWebViewPool.instance.acquire(
+        owner: this,
+        isDark: isDark,
+        targetUri: uri,
+        session: currentSession,
+      );
 
-              // 4. Tự phục hồi bộ nhớ đệm (Self-Healing Cache): Nếu phát hiện Odoo dính lỗi CSS bundle
-              if (!_hasAutoClearedCacheOnCssError) {
-                try {
-                  final dynamic hasError = await controller.runJavaScriptReturningResult('''
-                    (function() {
-                      var computed = window.getComputedStyle(document.body, '::before');
-                      var text = (computed && computed.content) ? computed.content : '';
-                      var errEl = document.querySelector('css_error_message');
-                      return (text.indexOf('A css error') !== -1 || errEl !== null);
-                    })()
-                  ''');
-                  final errorDetected = hasError == true || hasError.toString().contains('true');
-                  if (errorDetected) {
-                    debugPrint('[VCLOUD_WEBVIEW] Phát hiện Odoo CSS Error -> Tự động xoá cache và tải lại sạch');
-                    _hasAutoClearedCacheOnCssError = true;
-                    await controller.clearCache();
-                    await controller.reload();
-                  }
-                } catch (e) {
-                  debugPrint('[VCLOUD_WEBVIEW] Error checking css error: $e');
-                }
-              }
-            },
-            onWebResourceError: (WebResourceError error) {
-              debugPrint('[VCLOUD_WEBVIEW] WebResourceError: ${error.errorCode} - ${error.description}');
-              if (mounted && error.isForMainFrame == true) {
-                setState(() {
-                  _hasError = true;
-                  _errorMessage = '${error.errorCode}: ${error.description}';
-                  _isLoading = false;
-                });
-              }
-            },
-          ),
-        );
+      final controller = acquired.controller;
+      _ownsWarmLease = acquired.ownsLease;
 
-      if (!kIsWeb) {
-        try {
-          await controller.setOverScrollMode(WebViewOverScrollMode.never);
-          final platform = controller.platform;
-          if (platform is AndroidWebViewController) {
-            // Tự động bật Force Dark khi app ở Dark Mode để Android WebView đảo màu đồng bộ
-            await platform.setForceDark(isDark ? ForceDark.on : ForceDark.off);
-            // Kích hoạt bộ nhớ đệm và quyền truy cập file cho tài nguyên HTML5 / OWL Odoo Web Client
-            await platform.setAllowFileAccess(true);
-            await platform.setAllowContentAccess(true);
-          } else if (platform is WebKitWebViewController) {
-            // Trên iOS: Bật cử chỉ vuốt mượt mà Native để back/forward trang
-            await platform.setAllowsBackForwardNavigationGestures(true);
-            // Tắt link preview 3D Touch ngốn RAM và mạng
-            await platform.setAllowsLinkPreview(false);
-          }
-        } catch (e) {
-          debugPrint('[VCLOUD_WEBVIEW] controller platform config error: $e');
-        }
-      }
-
-      final headers = Map<String, String>.from(odooApiClient.authHeaders ?? <String, String>{});
-      if (currentSession?.sessionId != null && currentSession!.sessionId!.isNotEmpty) {
-        headers['Cookie'] = 'session_id=${currentSession.sessionId}';
-      }
-      await controller.loadRequest(uri, headers: headers);
-
+      // Gắn controller vào cây Widget ngay lập tức để tránh chặn hiển thị bởi các bước mạng phía sau
       if (mounted) {
         setState(() {
           _controller = controller;
         });
       }
+
+      // Fast-Path: Nếu Warm Engine đã boot sẵn OWL WebClient -> Điều hướng SPA tức thì (~100–250ms)
+      if (acquired.wasOwlReady) {
+        _progressNotifier.value = 0.4;
+        final spaOk = await _tryNavigateViaOwlSpa(controller, _activeRawUrl);
+        if (spaOk) {
+          final elapsed = _loadStopwatch?.elapsedMilliseconds ?? 0;
+          _loadStopwatch?.stop();
+          debugPrint('[VCLOUD_WEBVIEW] ⚡ Mở nhanh từ Warm Engine (SPA) chỉ mất ${elapsed}ms');
+          unawaited(_injectNativeOptimizationCss(controller));
+          _scheduleFastSpaCompletion(controller, gen);
+          return;
+        }
+      }
+
+      debugPrint('[VCLOUD_WEBVIEW] Nạp trang qua loadRequest: uri=$uri');
+      final headers = _OdooWarmWebViewPool.instance._buildAuthHeaders(currentSession);
+      await controller.loadRequest(uri, headers: headers);
     } catch (e, stack) {
       debugPrint('[VCLOUD_WEBVIEW] Error initializing webview: $e\n$stack');
       if (mounted) {
@@ -718,62 +1272,50 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
     }
   }
 
-  /// Tiêm CSS tối ưu hóa Native UX và triệt tiêu giật lag (Pha 1)
+  /// Tiêm CSS tối ưu hóa Native UX từ bộ nhớ đệm đã minify sẵn
   Future<void> _injectNativeOptimizationCss([WebViewController? targetController]) async {
-    try {
-      final ctrl = targetController ?? _controller;
-      final isDark = _isDarkTheme;
-      final minifiedCss = buildOdooNativeOptimizationCss(isDark: isDark)
-          .replaceAll('\n', ' ')
-          .replaceAll(RegExp(r'\s+'), ' ')
-          .replaceAll("'", r"\'");
+    final ctrl = targetController ?? _controller;
+    if (ctrl == null) return;
+    await _injectOptimizationCssIntoController(ctrl, isDark: _isDarkTheme);
+  }
 
-      await ctrl?.runJavaScript('''
-        (function() {
-          var styleId = 'vcloud-native-optimization-style';
-          var existing = document.getElementById(styleId);
-          var root = document.head || document.documentElement;
-          if (!existing) {
-            existing = document.createElement('style');
-            existing.id = styleId;
-            existing.type = 'text/css';
-            if (root) root.appendChild(existing);
-          } else if (existing.parentNode !== root && root) {
-            root.appendChild(existing);
-          }
-          if (existing) {
-            existing.textContent = '$minifiedCss';
-          }
-        })();
-      ''');
-    } catch (cssErr) {
-      debugPrint('[VCLOUD_WEBVIEW] Inject CSS error: $cssErr');
+  void _popWebViewRoute() {
+    if (!mounted) return;
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/home');
     }
   }
 
   Future<void> _handlePop() async {
     try {
       final controller = _controller;
-      if (controller != null && await controller.canGoBack()) {
-        await controller.goBack();
-      } else {
-        if (mounted) {
-          if (context.canPop()) {
-            context.pop();
-          } else {
-            context.go('/home');
-          }
+      if (controller != null && !kIsWeb) {
+        final currentUrl = await controller.currentUrl();
+        final normalizedCurrent = _normalizeUrlForBackCheck(currentUrl);
+        final atEntryUrl =
+            _sessionEntryUrl == null || normalizedCurrent == _sessionEntryUrl;
+
+        bool hasSubBreadcrumb = false;
+        if (atEntryUrl) {
+          try {
+            final bcRes = await controller.runJavaScriptReturningResult(
+              "document.querySelectorAll('.o_control_panel .breadcrumb-item').length > 1",
+            );
+            hasSubBreadcrumb = bcRes == true || bcRes.toString() == 'true';
+          } catch (_) {}
+        }
+
+        if ((!atEntryUrl || hasSubBreadcrumb) && await controller.canGoBack()) {
+          await controller.goBack();
+          return;
         }
       }
+      _popWebViewRoute();
     } catch (e) {
       debugPrint('[VCLOUD_WEBVIEW] _handlePop error: $e');
-      if (mounted) {
-        if (context.canPop()) {
-          context.pop();
-        } else {
-          context.go('/home');
-        }
-      }
+      _popWebViewRoute();
     }
   }
 
@@ -794,6 +1336,7 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
   Future<void> _handleReload() async {
     try {
       debugPrint('[VCLOUD_WEBVIEW] Người dùng bấm Tải lại (Reload)');
+      _loadStopwatch = Stopwatch()..start();
       if (kIsWeb) {
         setState(() {
           _isLoading = true;
@@ -810,14 +1353,15 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
           }
         });
       } else {
+        _progressNotifier.value = 0.15;
         setState(() {
           _isLoading = true;
           _hasError = false;
           _errorMessage = null;
         });
-        // Tẩy sạch HTTP cache (bao gồm cả các file CSS hỏng bị lưu đệm) trước khi tải lại
-        await _controller?.clearCache();
-        _controller?.reload();
+        // Giữ nguyên HTTP Disk Cache của gói 10MB JS/CSS immutable để tải lại nhanh (~1s thay vì ~8.8s).
+        // Nếu có lỗi CSS hỏng, cơ chế Self-Healing trong onPageFinished vẫn tự động clearCache() riêng.
+        await _controller?.reload();
       }
     } catch (e) {
       debugPrint('[VCLOUD_WEBVIEW] _handleReload error: $e');
@@ -829,11 +1373,16 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
     ref.listen<AsyncValue<AppThemeMode>>(themeControllerProvider, (prev, next) {
       if (next.hasValue && prev?.value != next.value) {
         debugPrint('[VCLOUD_WEBVIEW] Theme đổi sang: ${next.value} -> Cập nhật CSS');
+        final isDark = _isDarkTheme;
+        if (_controller != null) {
+          unawaited(_OdooWarmWebViewPool.instance._applyThemeBackground(_controller!, isDark: isDark));
+        }
         _injectNativeOptimizationCss();
       }
     });
 
-    final fullUrl = _buildTargetUrl();
+    // Chỉ tính toán fullUrl trên nền tảng Flutter Web (iframe); tránh tính toán thừa mỗi lần rebuild trên Mobile
+    final webIframeUrl = kIsWeb ? _buildTargetUrl() : '';
 
     return PopScope(
       canPop: false,
@@ -842,7 +1391,7 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
         _handlePop();
       },
       child: AppScaffold(
-        title: widget.title,
+        title: _activeTitle,
         showBackButton: true,
         onBack: _handlePop,
         wrapSafeArea: false,
@@ -869,129 +1418,134 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
         body: Padding(
           padding: const EdgeInsets.only(bottom: 74),
           child: Column(
-          children: [
-            if (_isLoading)
-              LinearProgressIndicator(
-                value: _progress > 0 ? _progress : null,
-                minHeight: 2.5,
-                backgroundColor: Colors.transparent,
-                valueColor: const AlwaysStoppedAnimation<Color>(
-                  Color(0xFF00C83A),
+            children: [
+              if (_isLoading)
+                ValueListenableBuilder<double>(
+                  valueListenable: _progressNotifier,
+                  builder: (context, progress, _) {
+                    return LinearProgressIndicator(
+                      value: progress > 0 ? progress : null,
+                      minHeight: 2.5,
+                      backgroundColor: Colors.transparent,
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                        Color(0xFF00C83A),
+                      ),
+                    );
+                  },
                 ),
-              ),
-            Expanded(
-              child: _hasError
-                  ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              LucideIcons.wifiOff,
-                              size: 48,
-                              color: Color(0xFF94A3B8),
-                            ),
-                            const SizedBox(height: 16),
-                            const Text(
-                              'Không thể kết nối đến máy chủ',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
+              Expanded(
+                child: _hasError
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                LucideIcons.wifiOff,
+                                size: 48,
+                                color: Color(0xFF94A3B8),
                               ),
-                            ),
-                            if (_errorMessage != null) ...[
-                              const SizedBox(height: 8),
-                              Text(
-                                _errorMessage!,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Color(0xFF64748B),
+                              const SizedBox(height: 16),
+                              const Text(
+                                'Không thể kết nối đến máy chủ',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
-                            ],
-                            const SizedBox(height: 20),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                ElevatedButton.icon(
-                                  onPressed: () {
-                                    setState(() {
-                                      _hasError = false;
-                                      _isLoading = true;
-                                    });
-                                    _startLoadingWorkflow();
-                                  },
-                                  icon: const Icon(LucideIcons.rotateCw, size: 16),
-                                  label: const Text('Thử lại'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF0077CD),
-                                    foregroundColor: Colors.white,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                OutlinedButton.icon(
-                                  onPressed: _openInExternalBrowser,
-                                  icon: const Icon(LucideIcons.externalLink, size: 16),
-                                  label: const Text('Mở trình duyệt'),
-                                  style: OutlinedButton.styleFrom(
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
+                              if (_errorMessage != null) ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  _errorMessage!,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Color(0xFF64748B),
                                   ),
                                 ),
                               ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    )
-                  : (kIsWeb
-                      ? KeyedSubtree(
-                          key: ValueKey('web-frame-$_webFrameKey'),
-                          child: buildHtmlIframe(
-                                url: fullUrl,
-                                isDark: Theme.of(context).brightness == Brightness.dark,
-                                onLoaded: () {
-                                  debugPrint('[VCLOUD_WEBVIEW] Flutter Web: Iframe onLoaded triggered');
-                                  if (mounted) {
-                                    setState(() => _isLoading = false);
-                                  }
-                                },
-                                onError: (err) {
-                                  debugPrint('[VCLOUD_WEBVIEW] Flutter Web: Iframe onError: $err');
-                                  if (mounted) {
-                                    setState(() {
-                                      _hasError = true;
-                                      _errorMessage = err;
-                                      _isLoading = false;
-                                    });
-                                  }
-                                },
-                              ) ??
-                              const SizedBox.shrink(),
-                        )
-                      : (_controller == null
-                          ? const Center(
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.5,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  Color(0xFF0077CD),
-                                ),
+                              const SizedBox(height: 20),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  ElevatedButton.icon(
+                                    onPressed: () {
+                                      setState(() {
+                                        _hasError = false;
+                                        _isLoading = true;
+                                      });
+                                      _startLoadingWorkflow();
+                                    },
+                                    icon: const Icon(LucideIcons.rotateCw, size: 16),
+                                    label: const Text('Thử lại'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF0077CD),
+                                      foregroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  OutlinedButton.icon(
+                                    onPressed: _openInExternalBrowser,
+                                    icon: const Icon(LucideIcons.externalLink, size: 16),
+                                    label: const Text('Mở trình duyệt'),
+                                    style: OutlinedButton.styleFrom(
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            )
-                          : WebViewWidget(controller: _controller!))),
-            ),
-          ],
+                            ],
+                          ),
+                        ),
+                      )
+                    : (kIsWeb
+                        ? KeyedSubtree(
+                            key: ValueKey('web-frame-$_webFrameKey'),
+                            child: buildHtmlIframe(
+                                  url: webIframeUrl,
+                                  isDark: Theme.of(context).brightness == Brightness.dark,
+                                  onLoaded: () {
+                                    debugPrint('[VCLOUD_WEBVIEW] Flutter Web: Iframe onLoaded triggered');
+                                    if (mounted) {
+                                      setState(() => _isLoading = false);
+                                    }
+                                  },
+                                  onError: (err) {
+                                    debugPrint('[VCLOUD_WEBVIEW] Flutter Web: Iframe onError: $err');
+                                    if (mounted) {
+                                      setState(() {
+                                        _hasError = true;
+                                        _errorMessage = err;
+                                        _isLoading = false;
+                                      });
+                                    }
+                                  },
+                                ) ??
+                                const SizedBox.shrink(),
+                          )
+                        : (_controller == null
+                            ? const Center(
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Color(0xFF0077CD),
+                                  ),
+                                ),
+                              )
+                            : WebViewWidget(controller: _controller!))),
+              ),
+            ],
+          ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 }
 
 /// Chuẩn hoá URL mở In-App WebView:

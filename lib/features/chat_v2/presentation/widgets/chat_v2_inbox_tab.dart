@@ -368,7 +368,10 @@ class _InboxMessageCard extends ConsumerWidget {
         onTap: () {
           // Bấm vào thẻ: Nếu là discuss.channel thì mở phòng chat tương ứng
           if (item.channelId != null && item.channelId! > 0) {
-            context.push('/chat_v2/${item.channelId}');
+            final nameParam = item.recordName.isNotEmpty
+                ? '?name=${Uri.encodeQueryComponent(item.recordName)}'
+                : '';
+            context.push('/chat/${item.channelId}$nameParam');
           } else {
             // Mở dialog xem nội dung chi tiết
             _showDetailDialog(context, ref);
@@ -584,7 +587,12 @@ class _InboxMessageCard extends ConsumerWidget {
                     const SizedBox(width: 8),
                     InkWell(
                       borderRadius: BorderRadius.circular(6),
-                      onTap: () => context.push('/chat_v2/${item.channelId}'),
+                      onTap: () {
+                        final nameParam = item.recordName.isNotEmpty
+                            ? '?name=${Uri.encodeQueryComponent(item.recordName)}'
+                            : '';
+                        context.push('/chat/${item.channelId}$nameParam');
+                      },
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                         child: Row(

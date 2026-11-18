@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vcloud/core/api/auth_user.dart';
@@ -446,6 +448,115 @@ void main() {
       expect(css, contains('.o_LivechatButton'));
       expect(css, contains('.o_notification_manager'));
       expect(css, contains('display: none !important;'));
+    });
+
+    test('getMinifiedOdooNativeOptimizationCss caches minified CSS without newlines', () {
+      final light1 = getMinifiedOdooNativeOptimizationCss(isDark: false);
+      final light2 = getMinifiedOdooNativeOptimizationCss(isDark: false);
+      final dark1 = getMinifiedOdooNativeOptimizationCss(isDark: true);
+      final dark2 = getMinifiedOdooNativeOptimizationCss(isDark: true);
+
+      expect(identical(light1, light2), isTrue);
+      expect(identical(dark1, dark2), isTrue);
+      expect(light1.contains('\n'), isFalse);
+      expect(dark1.contains('\n'), isFalse);
+      expect(light1, isNot(equals(dark1)));
+    });
+  });
+
+  group('parseOdooNavigationTarget (OWL Native SPA Fast-Path Odoo 17 & 19)', () {
+    test('parses /mail/view activity document URL into record form target', () {
+      final target = parseOdooNavigationTarget(
+        '/mail/view?model=sale.order&res_id=837&db=vcloud_test_v19',
+      );
+      expect(target, isNotNull);
+      expect(target!.isRecordForm, isTrue);
+      expect(target.resModel, equals('sale.order'));
+      expect(target.resId, equals(837));
+      expect(target.targetHash, equals('#id=837&model=sale.order&view_type=form'));
+    });
+
+    test('parses Odoo 19 /odoo/<model>/<id> URL into record form target', () {
+      final target = parseOdooNavigationTarget(
+        'http://192.168.1.100:1900/odoo/purchase.order/278?menu_id=944',
+      );
+      expect(target, isNotNull);
+      expect(target!.isRecordForm, isTrue);
+      expect(target.resModel, equals('purchase.order'));
+      expect(target.resId, equals(278));
+      expect(target.menuId, equals(944));
+    });
+
+    test('parses AppDrawerBottomSheet /web#action=X&menu_id=Y URL', () {
+      final target = parseOdooNavigationTarget(
+        '/web?db=vcloud_test_v19#action=210&menu_id=105',
+      );
+      expect(target, isNotNull);
+      expect(target!.isRecordForm, isFalse);
+      expect(target.hasMenuOrAction, isTrue);
+      expect(target.action, equals('210'));
+      expect(target.menuId, equals(105));
+      expect(target.targetHash, equals('#action=210&menu_id=105'));
+    });
+
+    test('parses XML ID action such as base.action_res_users', () {
+      final target = parseOdooNavigationTarget(
+        '/web?db=vcloud_test_v19#action=base.action_res_users',
+      );
+      expect(target, isNotNull);
+      expect(target!.action, equals('base.action_res_users'));
+      expect(target.menuId, isNull);
+    });
+
+    test('parses /home/action-<id> into action target', () {
+      final target = parseOdooNavigationTarget('/home/action-2186?db=vcloud_test_v19');
+      expect(target, isNotNull);
+      expect(target!.action, equals('2186'));
+      expect(target.targetHash, equals('#action=2186'));
+    });
+
+    test('returns null for non-OWL static/knowledge URLs so loadRequest fallback runs', () {
+      expect(parseOdooNavigationTarget('/knowledge/article/126?db=vcloud_test_v19'), isNull);
+      expect(parseOdooNavigationTarget('/help/docs'), isNull);
+      expect(parseOdooNavigationTarget(''), isNull);
+    });
+
+    test('prewarm and resetSso are safe no-ops in headless test environment', () async {
+      OdooWebViewScreen.hasSsoAuthenticated = true;
+      await OdooWebViewScreen.prewarm(isDark: true);
+      OdooWebViewScreen.resetSso();
+      expect(OdooWebViewScreen.hasSsoAuthenticated, isFalse);
+    });
+  });
+
+  group('AppDrawerBottomSheet raster icon cache & SVG guard', () {
+    setUp(() {
+      AppDrawerBottomSheet.clearIconCache();
+    });
+
+    test('caches identical Uint8List instance for valid PNG base64 across rebuilds', () {
+      // 1x1 transparent PNG
+      const pngDataUri =
+          'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+      final first = AppDrawerBottomSheet.decodeSupportedRasterIcon(pngDataUri);
+      final second = AppDrawerBottomSheet.decodeSupportedRasterIcon(pngDataUri);
+
+      expect(first, isNotNull);
+      expect(identical(first, second), isTrue);
+      expect(AppDrawerBottomSheet.decodedIconCache.containsKey(pngDataUri), isTrue);
+
+      AppDrawerBottomSheet.clearIconCache();
+      expect(AppDrawerBottomSheet.decodedIconCache, isEmpty);
+    });
+
+    test('filters out SVG data URIs and raw <svg> base64 to prevent Android ImageDecoder crash', () {
+      final svgBase64 = base64Encode(utf8.encode('<svg xmlns="http://www.w3.org/2000/svg"></svg>'));
+      final svgDataUri = 'data:image/svg+xml;base64,$svgBase64';
+
+      expect(AppDrawerBottomSheet.decodeSupportedRasterIcon(svgDataUri), isNull);
+      expect(AppDrawerBottomSheet.decodeSupportedRasterIcon(svgBase64), isNull);
+      expect(AppDrawerBottomSheet.decodeSupportedRasterIcon(null), isNull);
+      expect(AppDrawerBottomSheet.decodeSupportedRasterIcon('   '), isNull);
     });
   });
 }

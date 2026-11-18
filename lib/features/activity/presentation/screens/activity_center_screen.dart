@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,6 +13,7 @@ import '../../../../shared/widgets/empty_state.dart';
 import '../../../../shared/widgets/error_view.dart';
 import '../../../../shared/widgets/loading_view.dart';
 import '../../../menu/presentation/app_drawer_bottom_sheet.dart';
+import '../../../menu/presentation/odoo_webview_screen.dart';
 import '../../data/models/activity_item.dart';
 import '../../data/models/activity_type.dart';
 import '../../data/repositories/activity_repository.dart';
@@ -92,7 +95,11 @@ class _ActivityCenterScreenState extends ConsumerState<ActivityCenterScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadData();
+      if (mounted) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        unawaited(OdooWebViewScreen.prewarm(isDark: isDark));
+        _loadData();
+      }
     });
   }
 

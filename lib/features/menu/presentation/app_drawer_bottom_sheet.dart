@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -10,11 +11,65 @@ import '../../../core/api/odoo_api_client.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../application/menu_controller.dart';
 import '../data/menu_item_model.dart';
+import 'odoo_webview_screen.dart';
 
 class AppDrawerBottomSheet extends ConsumerStatefulWidget {
   const AppDrawerBottomSheet({super.key, this.currentPath});
 
   final String? currentPath;
+
+  /// Bộ nhớ đệm RAM lưu bytes ảnh icon ứng dụng đã giải mã Base64.
+  /// Triệt tiêu việc gọi `base64Decode` lặp lại trên từng khung hình cuộn/nhấn của 24+ ứng dụng
+  /// và chặn dữ liệu SVG (`image/svg+xml`) đẩy vào `Image.memory` gây lỗi JNI trên Android.
+  @visibleForTesting
+  static final Map<String, Uint8List?> decodedIconCache = <String, Uint8List?>{};
+
+  /// Xoá bộ nhớ đệm icon khi người dùng đăng xuất hoặc chuyển tài khoản.
+  static void clearIconCache() {
+    decodedIconCache.clear();
+  }
+
+  /// Giải mã an toàn icon Base64 dạng raster (PNG/WEBP/JPEG/GIF) và lưu đệm kết quả.
+  /// Trả về `null` đối với SVG/XML để dùng icon vector fallback tức thì mà không ném ngoại lệ native.
+  @visibleForTesting
+  static Uint8List? decodeSupportedRasterIcon(String? rawIconData) {
+    if (rawIconData == null) return null;
+    final raw = rawIconData.trim();
+    if (raw.isEmpty) return null;
+
+    if (decodedIconCache.containsKey(raw)) {
+      return decodedIconCache[raw];
+    }
+
+    final prefixLen = raw.length > 48 ? 48 : raw.length;
+    final lowerPrefix = raw.substring(0, prefixLen).toLowerCase();
+    if (lowerPrefix.contains('image/svg') || lowerPrefix.startsWith('<svg')) {
+      decodedIconCache[raw] = null;
+      return null;
+    }
+
+    try {
+      final base64String = raw.contains(',') ? raw.split(',').last.trim() : raw;
+      // 'PHN2Zy' = '<svg', 'PD94bWw' = '<?xml' ở dạng Base64
+      if (base64String.startsWith('PHN2Zy') || base64String.startsWith('PD94bWw')) {
+        decodedIconCache[raw] = null;
+        return null;
+      }
+      final bytes = base64Decode(base64String);
+      if (bytes.isEmpty || (bytes.length >= 4 && bytes[0] == 0x3C)) {
+        decodedIconCache[raw] = null;
+        return null;
+      }
+      if (decodedIconCache.length >= 128) {
+        decodedIconCache.clear();
+      }
+      decodedIconCache[raw] = bytes;
+      return bytes;
+    } catch (_) {
+      decodedIconCache[raw] = null;
+      return null;
+    }
+  }
 
   @override
   ConsumerState<AppDrawerBottomSheet> createState() =>
@@ -27,6 +82,10 @@ class _AppDrawerBottomSheetState extends ConsumerState<AppDrawerBottomSheet> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        // Làm ấm trước WebView Engine ngầm ngay khi người dùng mở ngăn kéo "Ứng dụng"
+        unawaited(OdooWebViewScreen.prewarm(isDark: isDark));
+
         final state = ref.read(menuControllerProvider);
         if (state.searchQuery.isNotEmpty) {
           ref.read(menuControllerProvider.notifier).setSearchQuery('');
@@ -80,6 +139,9 @@ class _AppDrawerBottomSheetState extends ConsumerState<AppDrawerBottomSheet> {
     final isAlreadyWebview =
         currentPath == '/webview' || currentPath.startsWith('/webview/');
     if (isAlreadyWebview) {
+      if (OdooWebViewScreen.navigateActiveIfMounted(url: url, title: app.name)) {
+        return;
+      }
       context.go(uri.toString());
     } else {
       context.push(uri.toString());
@@ -109,6 +171,9 @@ class _AppDrawerBottomSheetState extends ConsumerState<AppDrawerBottomSheet> {
       final isAlreadyWebview =
           currentPath == '/webview' || currentPath.startsWith('/webview/');
       if (isAlreadyWebview) {
+        if (OdooWebViewScreen.navigateActiveIfMounted(url: url, title: item.name)) {
+          return;
+        }
         context.go(uri.toString());
       } else {
         context.push(uri.toString());
@@ -735,22 +800,18 @@ class _AppCardItemState extends State<_AppCardItem> {
   }
 
   Widget _buildIcon(AppMenuItem app, bool isDark) {
-    if (app.webIconData != null && app.webIconData!.trim().isNotEmpty) {
-      try {
-        final raw = app.webIconData!.trim();
-        final base64String = raw.contains(',') ? raw.split(',').last : raw;
-        final bytes = base64Decode(base64String);
-        return Image.memory(
-          bytes,
-          width: widget.iconBoxSize < 56 ? 28 : 32,
-          height: widget.iconBoxSize < 56 ? 28 : 32,
-          fit: BoxFit.contain,
-          errorBuilder: (context, error, stackTrace) =>
-              _buildFallbackIcon(app, isDark),
-        );
-      } catch (_) {
-        // Fallback below
-      }
+    final bytes = AppDrawerBottomSheet.decodeSupportedRasterIcon(app.webIconData);
+    if (bytes != null) {
+      return Image.memory(
+        bytes,
+        width: widget.iconBoxSize < 56 ? 28 : 32,
+        height: widget.iconBoxSize < 56 ? 28 : 32,
+        fit: BoxFit.contain,
+        gaplessPlayback: true,
+        filterQuality: FilterQuality.medium,
+        errorBuilder: (context, error, stackTrace) =>
+            _buildFallbackIcon(app, isDark),
+      );
     }
     return _buildFallbackIcon(app, isDark);
   }

@@ -73,6 +73,12 @@ final routerProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final loc = state.matchedLocation;
       final fullPath = state.uri.toString();
+      if (state.uri.path.startsWith('/chat_v2/')) {
+        final idx = fullPath.indexOf('/chat_v2/');
+        if (idx != -1) {
+          return '/chat/${fullPath.substring(idx + '/chat_v2/'.length)}';
+        }
+      }
       final sub = ref.read(authControllerProvider);
 
       final isSplash = loc == '/splash' || loc.startsWith('/splash');
