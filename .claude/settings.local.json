@@ -1,24 +1,18 @@
 {
   "permissions": {
-    "additionalDirectories": [
-      "/Volumes/DATA/DEV/flutter",
-      "/Volumes/DATA/DEV/MOBILES/VCloud",
-      "/media/tanma/DATA/aiac",
-      "/media/tanma/DATA/auto_tool_android",
-      "/media/tanma/DATA/save/mobile_versions/v_mobile_19",
-      "/media/tanma/DATA/save/mobile_versions/v_mobile_17"
-    ],
     "allow": [
-      "Bash(git pull *)"
-    ]
+      "Bash(*)"
+    ],
+    "deny": []
   },
-  "allowedWorkspaces": [
-    "/Volumes/DATA/DEV/flutter/*",
-    "/Volumes/DATA/DEV/MOBILES/VCloud/*",
-    "/media/tanma/DATA/auto_tool_android/*",
+  "additionalDirectories": [
+    "F:\\BACKUP_LINUX\\save\\mobile_versions\\v_mobile_19",
+    "F:\\BACKUP_LINUX\\save\\mobile_versions\\v_mobile_17",
+    "F:/BACKUP_LINUX/save/mobile_versions/v_mobile_19/*",
+    "F:/BACKUP_LINUX/save/mobile_versions/v_mobile_17/*",
     "/media/tanma/DATA/save/mobile_versions/v_mobile_19/*",
     "/media/tanma/DATA/save/mobile_versions/v_mobile_17/*"
   ],
   "env": {},
-  "allowedWorkspace": "Z:\\save\\mobile_versions\\vclients"
+  "allowedWorkspace": "F:\\BACKUP_LINUX\\save\\mobile_versions\\vclients"
 }

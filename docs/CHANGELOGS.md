@@ -2,34 +2,26 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
-## [v2.9.37+199] — 2026-11-14 (Hoạt Động Cần Xử Lý Native Trên Home, Rich Link Preview & Self-Healing ERR-013)
+## [v2.9.38+200] — 2026-11-19 (Bóc Tách Tiền Tố Kênh Zalo OA, Avatar Khách Hàng & Redact Token WebView)
 
 > [!IMPORTANT]
-> **Triển Khai Hoạt Động Cần Xử Lý (mail.activity) Native Trên HomeScreen & Rich Link Preview Trong Chat V2 (L4 VERIFIED 2026-11-14)**:
-> - **1. [NEW] Activity Native Trên Home (`HomeScreen` & `activity_repository.dart`)**:
->   * Bổ sung widget `_PendingActivitiesSection` hiển thị tối đa 3 hoạt động quá hạn hoặc cần làm hôm nay ngay trên `HomeScreen`, phân tách rạch ròi với phần `_TodayWork` (`project.task` / Timesheet).
->   * `homeActivitiesPreviewProvider`: tự động truy xuất song song `overdue` và `today` bằng `Future.wait`, khử trùng lặp theo ID, sắp xếp ưu tiên quá hạn lên đầu rồi đến hạn chót gần nhất, giới hạn đúng 3 phần tử. Tự động ẩn hoàn toàn với tài khoản Portal (`isPortal == true`).
->   * Refactor điều hướng tập trung qua Native Router Resolver: `ActivityCenterScreen.openActivityDetail` chuyển thẳng sang màn hình native `/tickets/:id` khi `resModel == 'helpdesk.ticket'` và `resId > 0`; tự động fallback an toàn về In-App WebView (`/webview`) cho các model chưa hỗ trợ native (`project.task`, `crm.lead`, `hr.leave`...) hoặc khi thiếu `resId`.
-> - **2. [NEW] Rich Link Preview Trong Chat V2 (`chat_v2_message_item.dart` & `link_preview_card.dart`)**:
->   * Tự động nhận diện URL đầu tiên hợp lệ trong nội dung tin nhắn văn bản và tin nhắn kèm media để hiển thị card xem trước phong phú gồm: ảnh thumbnail, tên miền/site_name, tiêu đề và mô tả vắn tắt.
->   * Giữ nguyên 100% nội dung bong bóng chat, khả năng bấm mở URL và sao chép khi link preview đang tải hoặc gặp lỗi mạng (graceful degradation về `SizedBox.shrink()`).
-> - **3. [SECURITY] SSRF Protection, Giới Hạn Tải & Bảo Mật Tuyệt Đối (`link_metadata_service.dart`)**:
->   * **SSRF Guard**: Chặn toàn bộ IP Loopback (`127.0.0.0/8`, `::1`), mạng riêng RFC 1918 (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), Link-Local và Cloud Metadata (`169.254.0.0/16`, `169.254.169.254`), Carrier-grade NAT (`100.64.0.0/10`), tên miền cục bộ (`localhost`, `*.local`, `*.internal`, `metadata.google.internal`). Tái kiểm tra SSRF trên mọi URL redirect và URL ảnh OpenGraph.
->   * **Giới hạn tài nguyên**: Timeout tối đa 5 giây, stream dừng ngay khi chạm 50KB hoặc tìm thấy thẻ `</head>`, tối đa 3 lần redirect, chống gọi mạng trùng lặp đồng thời (in-flight request deduplication).
->   * **Bảo vệ danh tính & Zero Third-Party**: Không gửi kèm Cookie hoặc JWT Token Odoo ra ngoài; không sử dụng bất kỳ dịch vụ proxy hay Google Favicon bên thứ ba nào; dùng icon nội bộ `LucideIcons.globe` làm placeholder.
->   * **Bộ nhớ đệm 2 tầng**: Bounded In-Memory Cache (tối đa 100 mục) kết hợp Disk Cache (`link_preview_cache.json`) có TTL 24 giờ.
-> - **4. [FIX/SELF-HEALING] Khắc phục ERR-013 & ProviderScope Defense Trong `LinkPreviewCard`**:
->   * Phát hiện và giải quyết triệt để lỗi `StateError: Bad state: No ProviderScope found` trong các bài kiểm thử widget chat cô lập (`chat_v2_mention_edge_cases_test.dart`, `chat_v2_test.dart`, `chat_v2_search_in_conversation_test.dart`).
->   * Bổ sung cơ chế tiền kiểm tra `context.findAncestorWidgetOfExactType` cho `ProviderScope` / `UncontrolledProviderScope` cùng khối `try ... catch` an toàn trong `LinkPreviewCard.build`. Nếu không tìm thấy ProviderScope, tự động fallback nhẹ nhàng về `SizedBox.shrink()`, chống phát sinh ErrorWidget 100,000px làm tràn RenderFlex.
-> - **5. [TEST] Kiểm Thử Tự Động Toàn Diện 100% Pass**:
->   * Bộ test hành vi `home_activity_section_test.dart` (7 cases) và `link_preview_test.dart` (10 cases) đạt 17/17 cases pass.
->   * Toàn bộ test hồi quy Chat V2 (`chat_v2_mention_edge_cases_test.dart`, `chat_v2_test.dart`, `chat_v2_search_in_conversation_test.dart`) đạt pass 100%.
-> - **6. [PERF/WEBVIEW] Warm OWL SPA WebView Engine & Tối Ưu Tốc Độ Ngăn Kéo Ứng Dụng (`odoo_webview_screen.dart`, `app_drawer_bottom_sheet.dart`, `activity_center_screen.dart`, `global_state_reset_service.dart`)**:
->   * **Warm WebView Engine (`prewarm` + Lease Pool)**: Tự động làm ấm ngầm `WebViewController` và nạp sẵn OWL WebClient khi mở ngăn kéo **Ứng dụng** hoặc **Hoạt động**, giữ nguyên bộ nhớ V8 giữa các lần đóng/mở kèm cơ chế lease 1-1 an toàn cho `PlatformView`, xóa sạch cookie/session khi Logout.
->   * **OWL Native SPA Router (Odoo 17 & 19)**: Điều hướng tức thì qua `odoo.__WOWL_DEBUG__.root.env.services` (`menu.selectMenu` và `action.doAction`) cùng `navigateActiveIfMounted`, giảm thời gian mở ứng dụng từ `8,777ms` xuống `74ms–565ms` và chuyển trực tiếp giữa các app trong WebView xuống `35ms`.
->   * **Cache Icon Base64 & Lọc SVG (`AppDrawerBottomSheet`)**: Lưu đệm `Uint8List` icon đã giải mã trong RAM và lọc bỏ dữ liệu `image/svg+xml` khỏi `Image.memory`, triệt tiêu hoàn toàn ngoại lệ `FlutterImageDecoderImplDefault: DecodeException` trên Android; tách `ValueNotifier<double>` cho thanh tiến trình và giữ HTTP Disk Cache khi bấm Tải lại thông thường.
-> - **7. [FIX/CHAT_ROUTER] Khắc Phục Lỗi `GoException: no routes for location: /chat_v2/:id` (`chat_v2_inbox_tab.dart`, `app_router.dart`)**:
->   * Cập nhật điều hướng nút **Vào trò chuyện** và thẻ tin nhắn Hộp thư / Gắn sao sang route chuẩn `/chat/:id` kèm redirect phòng vệ `/chat_v2/* ➔ /chat/*`.
+> **Khắc Phục Lỗi Hiển Thị Kênh Zalo OA & Avatar Trên Tab Trò Chuyện (L4 VERIFIED 2026-11-19)**:
+> - **1. [FIX/CHAT_V2] Bóc Tách Tiền Tố Hotline/Brand Zalo OA (`chat_v2_channel.dart`, `chat_v2_list_screen.dart`)**:
+>   * Bóc tách tiền tố thương hiệu dài dạng `360 CORP (+84 836 360 360) · {Tên khách}` qua middle dot ` · ` (`·`) và bullet ` • ` (`•`).
+>   * Đảm bảo tiêu đề danh sách chat hiển thị đúng tên khách hàng thực tế (VD: `Tú Oanh - TAB`, `Minh Tuyết`, `Chi nhánh 1`), không bị cắt đuôi `...` trên màn hình mobile.
+>   * Ép `isGroup = false` và `channelType = 'chat'` cho kênh Zalo OA để không xếp nhầm thành nhóm chat dù có khách hàng, bot và nhân viên nội bộ.
+> - **2. [FIX/AVATAR] Trích Xuất Avatar Khách Hàng Thật Thay Vì Số "3" (`chat_v2_channel.dart`, `chat_v2_list_screen.dart`)**:
+>   * Trích xuất avatar thật của khách hàng qua `directPartnerAvatar` từ thành viên khách hàng (loại trừ hotline, OdooBot, bot).
+>   * Khi không có ảnh, fallback lấy chữ cái đầu của tên khách kết hợp huy hiệu Zalo OA xanh.
+> - **3. [SECURITY/LOG] Lọc Bỏ Token Khỏi Log WebView Console (`odoo_webview_screen.dart`)**:
+>   * Thêm hàm `sanitizeUrlForLog()` lọc bỏ chuỗi `token` khỏi query parameters và thay bằng `***REDACTED***` tại các điểm in log debug WebView (`buildTargetWebViewUrl`, `_initializeWebView`, `onPageStarted`, `onPageFinished`, `_openInExternalBrowser`).
+>   * Tuân thủ triệt để Golden Rule 5 của Vcloud: Không bao giờ log lộ JWT token ra màn hình hoặc console hệ thống.
+> - **4. [TEST] Kiểm Thử Độc Lập 100% Pass**:
+>   * Bộ test đơn vị `chat_v2_zalo_oa_member_action_test.dart` đạt 10/10 cases pass.
+
+---
+
+## [v2.9.37+199] — 2026-11-14 (Hoạt Động Cần Xử Lý Native Trên Home, Rich Link Preview & Self-Healing ERR-013)
 
 ## [v2.9.37+197] — 2026-11-13
 

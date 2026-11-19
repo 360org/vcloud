@@ -1689,6 +1689,21 @@ class _ChannelListItem extends ConsumerWidget {
           }
         }
       }
+    } else if (channel.isZaloOA) {
+      if (channel.directPartnerAvatar != null && channel.directPartnerAvatar!.isNotEmpty) {
+        resolvedAvatarUrl = channel.directPartnerAvatar;
+      } else {
+        final customerMember = channel.members.firstWhereOrNull((m) =>
+            !m.isMe &&
+            m.name.toLowerCase() != 'odoobot' &&
+            m.name.toLowerCase() != 'bot' &&
+            !m.name.toLowerCase().contains('360 corp') &&
+            m.avatarUrl != null &&
+            m.avatarUrl!.isNotEmpty);
+        if (customerMember != null) {
+          resolvedAvatarUrl = customerMember.avatarUrl;
+        }
+      }
     } else if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
       if (!isGroup && !channel.isChannel) {
         final currentPartnerId = odooApiClient.session?.partnerId?.toString();
