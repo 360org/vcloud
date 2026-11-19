@@ -1,5 +1,22 @@
 # CHANGELOG
 
+## [2.9.38 - Build 198] - 2026-11-19
+
+### 🚀 Bóc Tách Tiền Tố Kênh Zalo OA & Avatar Khách Hàng (Chat V2)
+- **Bóc Tách Tiền Tố Thương Hiệu Zalo OA (`chat_v2_channel.dart`)**:
+  * Tự động nhận diện và bóc tách tiền tố dài 32 ký tự dạng `{Tên OA / Hotline} · {Tên khách}` (dấu middle dot `·` / `·` và bullet `•` / `•`).
+  * Hiển thị trực tiếp tên khách hàng sạch ("Chị Tuyết", "Minh Thư", "Oanh", "Brvt", "Tường", "Vt"...) thay vì bị tràn viền và cắt `...`.
+  * Hỗ trợ tên khách hàng đa phần (VD: `Brvt · Chi nhánh 1`).
+  * Nhận diện tự động kênh Zalo OA từ tên có chứa middle dot hoặc bullet thương hiệu.
+  * Phân loại chuẩn kênh Zalo OA thành 1-1 chat (`isGroup = false`, `channelType = 'chat'`) thay vì group chat.
+- **Khắc Phục Lỗi Avatar Fallback Toàn Bộ Số "3" (`chat_v2_list_screen.dart`, `chat_v2_channel.dart`)**:
+  * Trích xuất avatar của đối tác khách hàng từ danh sách thành viên kênh (loại trừ OdooBot, bot và hotline OA).
+  * Gán `directPartnerAvatar` và `directPartnerName` từ thành viên khách hàng.
+  * Khi không có ảnh avatar, fallback về chữ cái đầu của tên khách hàng (thay vì chữ cái "3" từ "360 CORP") kèm huy hiệu Zalo màu xanh.
+- **Kiểm Thử & Đảm Bảo Chất Lượng**:
+  * Thêm 10 ca kiểm thử độc lập cho Zalo OA trong `test/chat_v2_zalo_oa_member_action_test.dart` (18/18 test pass).
+  * `flutter analyze` đạt 0 errors, 0 warnings.
+
 ## [2.9.34 - Build 188] - 2026-11-05
 
 ### 🚀 Hiện Đại Hoá Chat V2, Đồng Bộ Theme Vua Hệ Thống, Smart DB Resolver SSOT & Verified Vivo V2116

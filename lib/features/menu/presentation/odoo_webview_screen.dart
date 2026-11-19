@@ -1209,7 +1209,7 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
         colorScheme: isDark ? 'dark' : 'light',
         useDirectUrlIfAuthenticated: true,
       );
-      debugPrint('[VCLOUD_WEBVIEW] buildTargetWebViewUrl resolved: $resolved');
+      debugPrint('[VCLOUD_WEBVIEW] buildTargetWebViewUrl resolved: ${sanitizeUrlForLog(resolved)}');
       return resolved;
     } catch (e, stack) {
       debugPrint('[VCLOUD_WEBVIEW] Lỗi buildTargetWebViewUrl: $e\n$stack');
@@ -1223,6 +1223,7 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
       _sessionEntryUrl = null;
       final fullUrl = _buildTargetUrl();
       final uri = Uri.parse(fullUrl);
+      debugPrint('[VCLOUD_WEBVIEW] Khởi tạo WebViewController cho mobile với uri=${sanitizeUrlForLog(uri.toString())}');
       final isDark = _isDarkTheme;
       final currentSession = odooApiClient.session;
 
@@ -1322,11 +1323,11 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
   Future<void> _openInExternalBrowser() async {
     try {
       final fullUrl = _buildTargetUrl();
-      debugPrint('[VCLOUD_WEBVIEW] Mở trình duyệt ngoài: $fullUrl');
+      debugPrint('[VCLOUD_WEBVIEW] Mở trình duyệt ngoài: ${sanitizeUrlForLog(fullUrl)}');
       final uri = Uri.parse(fullUrl);
       final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!launched) {
-        debugPrint('[VCLOUD_WEBVIEW] launchUrl trả về false cho uri=$uri');
+        debugPrint('[VCLOUD_WEBVIEW] launchUrl trả về false cho uri=${sanitizeUrlForLog(uri.toString())}');
       }
     } catch (e, stack) {
       debugPrint('[VCLOUD_WEBVIEW] _openInExternalBrowser error: $e\n$stack');
@@ -1545,6 +1546,21 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
         ),
       ),
     );
+  }
+}
+
+/// ponytail: Lọc bỏ token nhạy cảm khỏi URL trước khi ghi ra console log
+String sanitizeUrlForLog(String url) {
+  try {
+    final uri = Uri.parse(url);
+    if (uri.queryParameters.containsKey('token')) {
+      final qp = Map<String, String>.from(uri.queryParameters);
+      qp['token'] = '***REDACTED***';
+      return uri.replace(queryParameters: qp).toString();
+    }
+    return url;
+  } catch (_) {
+    return url.replaceAll(RegExp(r'token=[^&]+'), 'token=***REDACTED***');
   }
 }
 

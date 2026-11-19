@@ -151,4 +151,111 @@ void main() {
       expect(parsed.isLeader, isTrue);
     });
   });
+
+  group('Zalo OA Prefix Stripping & Customer Avatar Resolution Tests', () {
+    test('1. cleanChannelName strips middle dot prefix "360 CORP (+84 836 360 360) · Chị Tuyết"', () {
+      const raw = '360 CORP (+84 836 360 360) · Chị Tuyết';
+      expect(ChatV2Channel.cleanChannelName(raw), 'Chị Tuyết');
+    });
+
+    test('2. cleanChannelName strips bullet prefix "360 CORP (+84 836 360 360) • Minh Thư"', () {
+      const raw = '360 CORP (+84 836 360 360) • Minh Thư';
+      expect(ChatV2Channel.cleanChannelName(raw), 'Minh Thư');
+    });
+
+    test('3. cleanChannelName strips tag [Zalo OA] prefix', () {
+      const raw = '  [Zalo OA] Oanh ';
+      expect(ChatV2Channel.cleanChannelName(raw), 'Oanh');
+    });
+
+    test('4. cleanChannelName preserves multi-part customer name with middle dot', () {
+      const raw = '360 CORP (+84 836 360 360) · Brvt · Chi nhánh 1';
+      expect(ChatV2Channel.cleanChannelName(raw), 'Brvt · Chi nhánh 1');
+    });
+
+    test('5. fromJson detects Zalo OA channel from middle dot name automatically', () {
+      final ch = ChatV2Channel.fromJson({
+        'id': '3001',
+        'name': '360 CORP (+84 836 360 360) · Tường',
+        'channel_type': 'group',
+        'member_count': 4,
+      });
+
+      expect(ch.isZaloOA, isTrue);
+      expect(ch.isZaloChannel, isTrue);
+    });
+
+    test('6. fromJson treats Zalo OA channel as chat/direct, NOT group', () {
+      final ch = ChatV2Channel.fromJson({
+        'id': '3002',
+        'name': '360 CORP (+84 836 360 360) · Vt',
+        'channel_type': 'group',
+        'is_group': true,
+        'member_count': 5,
+      });
+
+      expect(ch.isGroup, isFalse);
+      expect(ch.channelType, 'chat');
+      expect(ch.isGroupChat('Tân Admin'), isFalse);
+    });
+
+    test('7. fromJson resolves customer member avatar ignoring bots and OA system names', () {
+      final ch = ChatV2Channel.fromJson({
+        'id': '3003',
+        'name': '360 CORP (+84 836 360 360) · Chị Tuyết',
+        'channel_type': 'group',
+        'members': [
+          {'id': '1', 'name': 'OdooBot', 'is_me': false, 'avatar_url': 'http://bot.avatar'},
+          {'id': '2', 'name': '360 CORP Hotline', 'is_me': false, 'avatar_url': 'http://corp.avatar'},
+          {'id': '3', 'name': 'Ma Nguyễn Nhật Tân', 'is_me': true, 'avatar_url': 'http://me.avatar'},
+          {'id': '100', 'name': 'Chị Tuyết', 'is_me': false, 'avatar_url': 'http://customer.avatar/tuyet.png'},
+        ],
+      });
+
+      expect(ch.directPartnerAvatar, 'http://customer.avatar/tuyet.png');
+      expect(ch.directPartnerName, 'Chị Tuyết');
+    });
+
+    test('8. displayName returns clean customer name for Zalo OA channel', () {
+      const ch = ChatV2Channel(
+        id: '3004',
+        name: '360 CORP (+84 836 360 360) · Minh Thư',
+        channelType: 'chat',
+        isZaloChannel: true,
+      );
+
+      expect(ch.cleanName, 'Minh Thư');
+      expect(ch.displayName, 'Minh Thư');
+    });
+
+    test('9. getCleanName returns customer name regardless of current user name', () {
+      const ch = ChatV2Channel(
+        id: '3005',
+        name: '360 CORP (+84 836 360 360) · Oanh',
+        channelType: 'chat',
+        isZaloChannel: true,
+      );
+
+      expect(ch.cleanName, 'Oanh');
+      expect(ch.getCleanName('Ma Nguyễn Nhật Tân'), 'Oanh');
+    });
+
+    test('10. Round-trip serialization preserves cleanName and isZaloChannel for Zalo OA', () {
+      final ch = ChatV2Channel.fromJson({
+        'id': '3006',
+        'name': '360 CORP (+84 836 360 360) · Brvt',
+        'channel_type': 'group',
+      });
+
+      expect(ch.cleanName, 'Brvt');
+      expect(ch.isZaloChannel, isTrue);
+
+      final map = ch.toMap();
+      final restored = ChatV2Channel.fromMap(map);
+
+      expect(restored.cleanName, 'Brvt');
+      expect(restored.isZaloChannel, isTrue);
+      expect(restored.isZaloOA, isTrue);
+    });
+  });
 }

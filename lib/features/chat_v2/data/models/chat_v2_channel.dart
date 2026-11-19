@@ -379,6 +379,22 @@ class ChatV2Channel {
       }
       return 'Chăm Sóc Khách Hàng 360';
     }
+    if (isZaloOA) {
+      final clean = cleanChannelName(name);
+      if (clean.isNotEmpty &&
+          clean != 'Cuộc trò chuyện' &&
+          !clean.toLowerCase().contains('360 corp') &&
+          !clean.toLowerCase().startsWith('zalo')) {
+        return clean;
+      }
+      if (directPartnerName != null &&
+          directPartnerName!.trim().isNotEmpty &&
+          !directPartnerName!.toLowerCase().contains('360 corp') &&
+          !directPartnerName!.toLowerCase().contains('bot')) {
+        return cleanChannelName(directPartnerName!);
+      }
+      return clean.isNotEmpty ? clean : 'Khách hàng Zalo';
+    }
     if (!isGroup && customNickname != null && customNickname!.trim().isNotEmpty) {
       return customNickname!.trim();
     }
@@ -410,6 +426,44 @@ class ChatV2Channel {
     final cskhPrefix = RegExp(r'^\[CSKH\]\s*', caseSensitive: false);
     if (cskhPrefix.hasMatch(clean)) {
       final stripped = clean.replaceFirst(cskhPrefix, '').trim();
+      if (stripped.isNotEmpty) {
+        clean = stripped;
+      }
+    }
+
+    // 0.2 Bóc tách tiền tố Zalo OA: "{Tên OA / Hotline} · {Tên khách hàng}"
+    // Ví dụ: "360 CORP (+84 836 360 360) · Chị Tuyết" -> "Chị Tuyết"
+    // Hỗ trợ ký tự phân cách middle dot · (·), bullet • (•)
+    if (clean.contains('·') || clean.contains('·')) {
+      final zaloParts = clean.split(RegExp(r'\s*[··]\s*'));
+      if (zaloParts.length >= 2) {
+        final customerPart = zaloParts.sublist(1).join(' · ').trim();
+        if (customerPart.isNotEmpty) {
+          clean = customerPart;
+        }
+      }
+    } else if (clean.contains('•') || clean.contains('•')) {
+      // Trường hợp tiền tố OA dùng ký tự bullet: nếu vế đầu chứa hotline / tên OA
+      final bulletParts = clean.split(RegExp(r'\s*[••]\s*'));
+      if (bulletParts.length >= 2) {
+        final firstPart = bulletParts[0].toLowerCase();
+        if (firstPart.contains('corp') ||
+            firstPart.contains('zalo') ||
+            firstPart.contains('oa') ||
+            firstPart.contains('+84') ||
+            firstPart.contains('hotline')) {
+          final customerPart = bulletParts.sublist(1).join(' • ').trim();
+          if (customerPart.isNotEmpty) {
+            clean = customerPart;
+          }
+        }
+      }
+    }
+
+    // 0.3 Bóc tách tiền tố tag [Zalo] hoặc [Zalo OA] nếu có
+    final zaloTagPrefix = RegExp(r'^\[\s*zalo(?:\s*oa)?\s*\]\s*', caseSensitive: false);
+    if (zaloTagPrefix.hasMatch(clean)) {
+      final stripped = clean.replaceFirst(zaloTagPrefix, '').trim();
       if (stripped.isNotEmpty) {
         clean = stripped;
       }
@@ -622,6 +676,23 @@ class ChatV2Channel {
       }
 
       return '$pName • $svcName';
+    }
+    if (isZaloOA) {
+      final clean = cleanChannelName(name);
+      if (clean.isNotEmpty &&
+          clean != 'Cuộc trò chuyện' &&
+          !clean.toLowerCase().contains('360 corp') &&
+          !clean.toLowerCase().startsWith('zalo')) {
+        return clean;
+      }
+      if (directPartnerName != null &&
+          directPartnerName!.trim().isNotEmpty &&
+          !directPartnerName!.toLowerCase().contains('360 corp') &&
+          !directPartnerName!.toLowerCase().contains('bot') &&
+          !matchesUser(directPartnerName!, currentUserName)) {
+        return cleanChannelName(directPartnerName!);
+      }
+      return clean.isNotEmpty ? clean : 'Khách hàng Zalo';
     }
     if (!isGroup && customNickname != null && customNickname!.trim().isNotEmpty) {
       return customNickname!.trim();
@@ -855,6 +926,10 @@ class ChatV2Channel {
         name.toLowerCase().contains('zalo')) {
       return true;
     }
+    // Kênh có ký tự phân cách chuẩn Zalo OA của Odoo: "{Tên OA} · {Khách hàng}"
+    if (name.contains('·') || name.contains('·')) {
+      return true;
+    }
     // Tự động nhận diện kênh Zalo OA / Livechat từ Odoo khi server chưa set cờ is_zalo_channel:
     // 1. Kênh có bot tự động (Bot / bot@vuahethong.net) tham gia
     if (members.any((m) =>
@@ -1086,11 +1161,37 @@ class ChatV2Channel {
     final bool isMuted = rawIsMuted == true || rawIsMuted == 1 || rawIsMuted == 'true';
 
     final rawIsZaloChannel = map['is_zalo_channel'] ?? map['is_zalo'];
-    final bool isZaloChannel = rawIsZaloChannel == true ||
-        rawIsZaloChannel == 1 ||
-        rawIsZaloChannel == 'true' ||
-        map['zalo_oa_id'] != null ||
-        map['zalo_user_id'] != null;
+    final bool isZaloChannel = (effectiveChannelType != 'channel') &&
+        (effectiveChannelType != 'livechat') &&
+        (rawIsZaloChannel == true ||
+            rawIsZaloChannel == 1 ||
+            rawIsZaloChannel == 'true' ||
+            map['zalo_oa_id'] != null ||
+            map['zalo_user_id'] != null ||
+            effectiveName.contains('·') ||
+            effectiveName.contains('·') ||
+            effectiveName.toLowerCase().contains('zalo'));
+
+    if (isZaloChannel) {
+      isGroup = false;
+      if (effectiveChannelType == 'group') {
+        effectiveChannelType = 'chat';
+      }
+      directPartnerName ??= name;
+      if (finalAvatarUrl == null || finalAvatarUrl.isEmpty) {
+        final customerMember = memberObjs.firstWhereOrNull((m) =>
+            !m.isMe &&
+            m.name.toLowerCase() != 'odoobot' &&
+            m.name.toLowerCase() != 'bot' &&
+            !m.name.toLowerCase().contains('360 corp') &&
+            m.avatarUrl != null &&
+            m.avatarUrl!.isNotEmpty);
+        if (customerMember != null) {
+          finalAvatarUrl = customerMember.avatarUrl;
+          directPartnerAvatar ??= customerMember.avatarUrl;
+        }
+      }
+    }
 
     final rawIsCskh = map['is_cskh_channel'] ?? map['is_cskh'];
     final bool isCskhChannel = (effectiveChannelType != 'livechat') && (effectiveChannelType != 'channel') && (
