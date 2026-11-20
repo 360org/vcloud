@@ -601,6 +601,15 @@ class ChatV2MessageItem extends StatelessWidget {
                                                   ? const Color(0xFFE9EDEF)
                                                   : const Color(0xFF111B21),
                                             ),
+                                            if (message.ticketLinkInfo != null) ...[
+                                              const SizedBox(height: 4),
+                                              _buildTicketBadgeCard(
+                                                context,
+                                                message.ticketLinkInfo!,
+                                                isMine,
+                                                isDark,
+                                              ),
+                                            ],
                                             if (extractFirstPreviewUrl(cleanContent) != null)
                                               LinkPreviewCard(
                                                 url: extractFirstPreviewUrl(cleanContent)!,
@@ -1860,12 +1869,21 @@ class ChatV2MessageItem extends StatelessWidget {
         ? LinkPreviewCard(url: previewUrl, isMine: isMine)
         : null;
 
+    final ticketInfo = message.ticketLinkInfo;
+    final ticketCard = ticketInfo != null
+        ? _buildTicketBadgeCard(context, ticketInfo, isMine, isDark)
+        : null;
+
     final contentColumn = Column(
       crossAxisAlignment:
           isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
         textWrap,
+        if (ticketCard != null) ...[
+          const SizedBox(height: 4),
+          ticketCard,
+        ],
         ?linkPreview,
       ],
     );
@@ -1891,6 +1909,108 @@ class ChatV2MessageItem extends StatelessWidget {
       );
     }
     return contentColumn;
+  }
+
+  /// Badge điều hướng nhanh tới Ticket tương ứng được tạo từ Odoo Discuss
+  Widget _buildTicketBadgeCard(
+    BuildContext context,
+    ChatV2TicketLinkInfo info,
+    bool isMine,
+    bool isDark,
+  ) {
+    final bgColor = isDark
+        ? const Color(0xFF0F172A).withValues(alpha: 0.85)
+        : const Color(0xFFF0FDF4);
+    final borderColor = isDark
+        ? const Color(0xFF334155)
+        : const Color(0xFFBBF7D0);
+    const accentColor = Color(0xFF0077CD);
+    const successColor = Color(0xFF16A34A);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          context.push('/tickets/${info.ticketId}');
+        },
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          margin: const EdgeInsets.only(top: 4, bottom: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: borderColor, width: 1),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? accentColor.withValues(alpha: 0.2)
+                      : const Color(0xFFDCFCE7),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  LucideIcons.ticket,
+                  color: successColor,
+                  size: 16,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      info.ticketName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: isDark
+                            ? const Color(0xFFF1F5F9)
+                            : const Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Mở phiếu hỗ trợ #${info.ticketId}',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: isDark
+                                ? const Color(0xFF94A3B8)
+                                : const Color(0xFF64748B),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          LucideIcons.externalLink,
+                          size: 11,
+                          color: isDark
+                              ? const Color(0xFF94A3B8)
+                              : const Color(0xFF64748B),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   // Parse and build message text
@@ -2217,6 +2337,19 @@ class ChatV2MessageItem extends StatelessWidget {
       if (ticketIdx >= 0 && ticketIdx + 1 < pathSegments.length) {
         final ticketId = pathSegments[ticketIdx + 1];
         if (ticketId.isNotEmpty && context.mounted) {
+          context.push('/tickets/$ticketId');
+          return;
+        }
+      }
+    }
+
+    // Odoo Web Fragment: /web#id=123&model=helpdesk.ticket
+    if (uri.fragment.contains('model=helpdesk.ticket') ||
+        uri.fragment.contains('model=project.task')) {
+      final idMatch = RegExp(r'[?&#]id=(\d+)').firstMatch(uri.fragment);
+      if (idMatch != null) {
+        final ticketId = idMatch.group(1);
+        if (ticketId != null && ticketId.isNotEmpty && context.mounted) {
           context.push('/tickets/$ticketId');
           return;
         }

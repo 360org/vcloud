@@ -1799,6 +1799,91 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
     }
   }
 
+  void _handleCreateTicketAction() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleController = TextEditingController();
+    showDialog<void>(
+      context: context,
+      builder: (dlgContext) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0077CD).withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(LucideIcons.ticket, color: Color(0xFF0077CD), size: 20),
+            ),
+            const SizedBox(width: 10),
+            const Text(
+              'Tạo Ticket hỗ trợ',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Nhập tiêu đề phiếu hỗ trợ cần tạo từ đoạn chat này:',
+              style: TextStyle(
+                fontSize: 13,
+                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: titleController,
+              autofocus: true,
+              maxLines: 2,
+              decoration: InputDecoration(
+                hintText: 'VD: Lỗi đăng nhập, Cần hỗ trợ tài khoản...',
+                hintStyle: TextStyle(
+                  fontSize: 13,
+                  color: isDark ? Colors.white38 : const Color(0xFF94A3B8),
+                ),
+                filled: true,
+                fillColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dlgContext),
+            child: Text(
+              'Hủy',
+              style: TextStyle(color: isDark ? Colors.white60 : Colors.black54),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final text = titleController.text.trim();
+              if (text.isEmpty) return;
+              Navigator.pop(dlgContext);
+              widget.onSend('/ticket $text');
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0077CD),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Tạo ngay'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showAttachmentMenu() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -1892,6 +1977,16 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
                       onTap: () {
                         Navigator.pop(ctx);
                         _handleShareLocation();
+                      },
+                      isDark: isDark,
+                    ),
+                    _buildAttachmentActionButton(
+                      icon: LucideIcons.ticket,
+                      gradientColors: const [Color(0xFF0077CD), Color(0xFF0284C7)],
+                      label: 'Tạo Ticket',
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _handleCreateTicketAction();
                       },
                       isDark: isDark,
                     ),

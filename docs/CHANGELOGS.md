@@ -2,6 +2,24 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.38+202] — 2026-11-20 (Odoo Discuss Native Ticket Command & Interactive Badge)
+
+> [!IMPORTANT]
+> **Tạo Ticket Trực Tiếp Trong Chat Kế Thừa Native Odoo Discuss Command (L4 VERIFIED 2026-11-20)**:
+> - **1. [FEAT/CHAT_V2] Lệnh Discuss Native & Nút Thao Tác Nhanh Tạo Ticket (`chat_v2_input_bar.dart`, `chat_v2_repository.dart`)**:
+>   * Hỗ trợ gõ trực tiếp lệnh `/ticket [tiêu đề]` hoặc `@ticket [tiêu đề]` trong bất kỳ đoạn chat 1-1 hay nhóm/kênh.
+>   * Bổ sung nút hành động "Tạo Ticket" trong menu đính kèm (`+`) với dialog nhập nhanh tiêu đề phiếu, tự động định dạng và gửi lệnh đến hệ thống.
+>   * Gọi trực tiếp cơ chế native `execute_command_helpdesk` trên `discuss.channel` của Odoo (`website_helpdesk_livechat`), kế thừa nguyên vẹn logic gán team, partner và hội thoại từ `vuahethong.net`.
+> - **2. [FEAT/MESSAGE] Nhận Diện Liên Kết Ticket & Interactive Badge Card (`chat_v2_message.dart`, `chat_v2_message_item.dart`)**:
+>   * Tự động bóc tách metadata liên kết Odoo Discuss (`data-oe-model="helpdesk.ticket"`, `data-oe-id="{id}"`) hoặc URL `/tickets/{id}` thành `ChatV2TicketLinkInfo`.
+>   * Hiển thị Card huy hiệu Ticket nổi bật với icon vé, tiêu đề phiếu và nút bấm điều hướng trực tiếp vào màn hình chi tiết phiếu `/tickets/:id` qua GoRouter và Haptic feedback.
+>   * Xử lý click đường dẫn hash Odoo Web (`/web#id=...&model=helpdesk.ticket`) điều hướng mượt mà trong app.
+> - **3. [TEST] Bộ Test Đơn Vị Độc Lập 10/10 Pass (`chat_v2_ticket_command_test.dart`)**:
+>   * Bao phủ 10 kịch bản kiểm thử: thẻ chuẩn OdooBot, hoán đổi thuộc tính HTML, fallback sang `project.task`, URL /tickets/, text rỗng, HTML lồng thẻ và single quotes.
+>   * `flutter analyze lib/` đạt 0 errors, 0 warnings.
+
+---
+
 ## [v2.9.38+201] — 2026-11-20 (Hybrid Dynamic Channel Filters & Server-Driven Category Inheritance)
 
 > [!IMPORTANT]
