@@ -1260,6 +1260,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
         borderRadius: BorderRadius.circular(9),
         onTap: onTap,
         child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(9),
             boxShadow: isSelected
@@ -1275,6 +1276,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
           alignment: Alignment.center,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
                 icon,
@@ -1283,21 +1285,25 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                     ? const Color(0xFF0077CD)
                     : (isDark ? Colors.white60 : const Color(0xFF64748B)),
               ),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  color: isSelected
-                      ? (isDark ? Colors.white : const Color(0xFF0F172A))
-                      : (isDark ? Colors.white60 : const Color(0xFF64748B)),
+              const SizedBox(width: 5),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                    color: isSelected
+                        ? (isDark ? Colors.white : const Color(0xFF0F172A))
+                        : (isDark ? Colors.white60 : const Color(0xFF64748B)),
+                  ),
                 ),
               ),
               if (count > 0) ...[
-                const SizedBox(width: 6),
+                const SizedBox(width: 4),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 5.5, vertical: 1.5),
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                   decoration: BoxDecoration(
                     color: isSelected ? badgeColor : badgeColor.withValues(alpha: 0.85),
                     borderRadius: BorderRadius.circular(10),

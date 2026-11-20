@@ -2,6 +2,20 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.39+203] — 2026-11-20 (Fix UI/UX Main Tab Overflow on Narrow Screens)
+
+> [!IMPORTANT]
+> **Khắc Phục Triệt Để Lỗi RenderFlex Overflow Tại Thanh Tab Chuyển Đổi Trò Chuyện (L4 VERIFIED 2026-11-20)**:
+> - **1. [FIX/UI] Chống Tràn Màn Hình Tại Nút "Hộp thư Vua Hệ Thống" (`chat_v2_list_screen.dart`)**:
+>   * Bọc `Text` bên trong `Flexible` với `maxLines: 1` và `overflow: TextOverflow.ellipsis` tại `_buildMainTabButton`.
+>   * Thiết lập `mainAxisSize: MainAxisSize.min` cho `Row` chứa icon, text và badge.
+>   * Tinh chỉnh padding và khoảng cách icon an toàn, loại bỏ hoàn toàn lỗi vạch sọc đỏ/vàng `OVERFLOWED BY 0.00264 PIXELS` trên màn hình điện thoại có chiều rộng hẹp (320px - 360px).
+> - **2. [TEST] Bổ Sung Bộ Test Layout Độc Lập Pass 100% (`chat_v2_tab_overflow_fix_test.dart`)**:
+>   * 4 test cases kiểm thử giao diện tab: chiều rộng chuẩn 159px, có badge đếm số lượng, màn hình cực hẹp 100px với ellipsis, và màn hình nhỏ 320px không ném exception `RenderFlex`.
+>   * `flutter analyze` giữ chuẩn tuyệt đối 0 errors / 0 warnings.
+
+---
+
 ## [v2.9.38+202] — 2026-11-20 (Odoo Discuss Native Ticket Command & Interactive Badge)
 
 > [!IMPORTANT]
