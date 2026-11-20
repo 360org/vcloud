@@ -130,10 +130,10 @@ class PartnerContactDetail {
     );
   }
 
-  /// Tên tổ chức/công ty đại diện (ưu tiên parentName nếu là người đại diện, ngược lại companyName)
+  /// Tên tổ chức/công ty mà đối tác trực thuộc (nếu là nhân viên/đại diện thì lấy parentName, nếu là pháp nhân độc lập thì lấy name).
+  /// ponytail: Tuyệt đối KHÔNG fallback sang companyName vì companyName từ backend là company_id (công ty chủ quản multi-company của hệ thống, không phải công ty của khách hàng).
   String get effectiveCompanyName {
     if (parentName.isNotEmpty) return parentName;
-    if (companyName.isNotEmpty) return companyName;
     return isCompany ? name : '';
   }
 

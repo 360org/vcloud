@@ -146,12 +146,16 @@ class ChatV2Channel {
   final String? directPartnerAvatar;
   final bool isMuted;
   final bool isZaloChannel;
+  final bool isZaloOAChannel;
+  final bool isZaloPersonalChannel;
   final bool isCskhChannel;
   final String? customNickname;
   final String? uuid;
   final String? invitationUrl;
   final String? livechatChannelName;
   final bool isLivechatActive;
+  final String? category;
+  final String? categoryLabel;
 
   const ChatV2Channel({
     required this.id,
@@ -175,12 +179,16 @@ class ChatV2Channel {
     this.directPartnerAvatar,
     this.isMuted = false,
     this.isZaloChannel = false,
+    this.isZaloOAChannel = false,
+    this.isZaloPersonalChannel = false,
     this.isCskhChannel = false,
     this.customNickname,
     this.uuid,
     this.invitationUrl,
     this.livechatChannelName,
     this.isLivechatActive = true,
+    this.category,
+    this.categoryLabel,
   });
 
   ChatV2Channel copyWith({
@@ -206,6 +214,8 @@ class ChatV2Channel {
     String? directPartnerAvatar,
     bool? isMuted,
     bool? isZaloChannel,
+    bool? isZaloOAChannel,
+    bool? isZaloPersonalChannel,
     bool? isCskhChannel,
     String? customNickname,
     bool clearCustomNickname = false,
@@ -213,6 +223,8 @@ class ChatV2Channel {
     String? invitationUrl,
     String? livechatChannelName,
     bool? isLivechatActive,
+    String? category,
+    String? categoryLabel,
   }) {
     return ChatV2Channel(
       id: id ?? this.id,
@@ -236,12 +248,16 @@ class ChatV2Channel {
       directPartnerAvatar: directPartnerAvatar ?? this.directPartnerAvatar,
       isMuted: isMuted ?? this.isMuted,
       isZaloChannel: isZaloChannel ?? this.isZaloChannel,
+      isZaloOAChannel: isZaloOAChannel ?? this.isZaloOAChannel,
+      isZaloPersonalChannel: isZaloPersonalChannel ?? this.isZaloPersonalChannel,
       isCskhChannel: isCskhChannel ?? this.isCskhChannel,
       customNickname: clearCustomNickname ? null : (customNickname ?? this.customNickname),
       uuid: uuid ?? this.uuid,
       invitationUrl: invitationUrl ?? this.invitationUrl,
       livechatChannelName: livechatChannelName ?? this.livechatChannelName,
       isLivechatActive: isLivechatActive ?? this.isLivechatActive,
+      category: category ?? this.category,
+      categoryLabel: categoryLabel ?? this.categoryLabel,
     );
   }
 
@@ -294,12 +310,16 @@ class ChatV2Channel {
     'direct_partner_avatar': directPartnerAvatar,
     'is_muted': isMuted,
     'is_zalo_channel': isZaloChannel,
+    'is_zalo_oa': isZaloOAChannel,
+    'is_zalo_personal': isZaloPersonalChannel,
     'is_cskh_channel': isCskhChannel,
     'custom_nickname': customNickname,
     'uuid': uuid,
     'invitation_url': invitationUrl,
     'livechat_channel_name': livechatChannelName,
     'is_livechat_active': isLivechatActive,
+    'category': category,
+    'category_label': categoryLabel,
   };
 
   static bool isAdminName(String text) {
@@ -917,17 +937,34 @@ class ChatV2Channel {
   /// Kiểm tra có phải kênh hỗ trợ khách hàng (Livechat hoặc CSKH)
   bool get isSupportChannel => isLivechat || isCskhChannel;
 
+  /// Kiểm tra có phải kênh Zalo cá nhân
+  bool get isZaloPersonal {
+    if (channelType == 'channel' || channelType == 'livechat') return false;
+    if (isZaloOAChannel || category == 'zalo_oa') return false;
+    if (isZaloPersonalChannel || category == 'zalo' || category == 'zalo_personal') return true;
+    if (channelType == 'zalo_personal') return true;
+    final lowerName = name.toLowerCase();
+    if (lowerName.contains('[zalo cá nhân]') || lowerName.contains('zalo cá nhân') || lowerName.contains('[zalo personal]')) {
+      return true;
+    }
+    return false;
+  }
+
   /// Kiểm tra có phải kênh Zalo OA hay không (Fix 4: Tuyệt đối không đếm Livechat vào Zalo OA)
   bool get isZaloOA {
     if (channelType == 'channel' || channelType == 'livechat') return false;
-    if (isZaloChannel ||
-        channelType == 'zalo' ||
-        channelType == 'zalo_oa' ||
-        name.toLowerCase().contains('zalo')) {
+    if (isZaloPersonal) return false;
+    if (isZaloOAChannel || category == 'zalo_oa' || channelType == 'zalo_oa') return true;
+    if (channelType == 'zalo') return true;
+    // Kênh có ký tự phân cách chuẩn Zalo OA của Odoo: "{Tên OA} · {Khách hàng}"
+    if (name.contains('·')) {
       return true;
     }
-    // Kênh có ký tự phân cách chuẩn Zalo OA của Odoo: "{Tên OA} · {Khách hàng}"
-    if (name.contains('·') || name.contains('·')) {
+    final lowerName = name.toLowerCase();
+    if (lowerName.contains('zalo oa') || lowerName.contains('[zalo oa]')) {
+      return true;
+    }
+    if (isZaloChannel) {
       return true;
     }
     // Tự động nhận diện kênh Zalo OA / Livechat từ Odoo khi server chưa set cờ is_zalo_channel:
@@ -956,10 +993,40 @@ class ChatV2Channel {
     return false;
   }
 
-  /// Kiểm tra có phải hội thoại 1-1 trực tiếp giữa 2 người hay không (loại trừ nhóm, kênh, livechat/CSKH và Zalo OA)
+  /// Danh mục chuẩn hóa của kênh: 'chat', 'channel', 'zalo_oa', 'zalo', 'livechat'...
+  String get effectiveCategory {
+    if (category != null && category!.isNotEmpty) return category!;
+    if (isLivechat || isSupportChannel) return 'livechat';
+    if (isZaloOA) return 'zalo_oa';
+    if (isZaloPersonal) return 'zalo';
+    if (isChannel || isGroup) return 'channel';
+    return 'chat';
+  }
+
+  /// Tên nhãn hiển thị cho danh mục kênh
+  String get effectiveCategoryLabel {
+    if (categoryLabel != null && categoryLabel!.isNotEmpty) return categoryLabel!;
+    switch (effectiveCategory) {
+      case 'chat':
+        return 'Trò chuyện';
+      case 'channel':
+        return 'Kênh';
+      case 'zalo_oa':
+        return 'Zalo OA';
+      case 'zalo':
+        return 'Zalo';
+      case 'livechat':
+        return 'Hỗ trợ';
+      default:
+        return effectiveCategory;
+    }
+  }
+
+  /// Kiểm tra có phải hội thoại 1-1 trực tiếp giữa 2 người hay không (loại trừ nhóm, kênh, livechat/CSKH và Zalo OA/cá nhân)
   bool isInternalDirect(String? currentUserName) {
     if (isSupportChannel) return false;
-    if (isZaloOA) return false;
+    if (isZaloOA || isZaloPersonal) return false;
+    if (channelType == 'zalo' || channelType == 'zalo_oa' || channelType == 'zalo_personal') return false;
     if (channelType == 'channel') return false;
     if (getActualIsGroup(currentUserName)) return false;
 
@@ -1215,6 +1282,13 @@ class ChatV2Channel {
         rawIsLivechatActive == 1 ||
         rawIsLivechatActive == 'true';
 
+    final category = _stringOrNull(map['category']);
+    final categoryLabel = _stringOrNull(map['category_label'] ?? map['categoryLabel']);
+    final rawIsZaloOA = map['is_zalo_oa'];
+    final bool isZaloOAChannel = rawIsZaloOA == true || rawIsZaloOA == 1 || rawIsZaloOA == 'true';
+    final rawIsZaloPersonal = map['is_zalo_personal'];
+    final bool isZaloPersonalChannel = rawIsZaloPersonal == true || rawIsZaloPersonal == 1 || rawIsZaloPersonal == 'true';
+
     return ChatV2Channel(
       id: id,
       name: name,
@@ -1237,12 +1311,16 @@ class ChatV2Channel {
       directPartnerAvatar: directPartnerAvatar,
       isMuted: isMuted,
       isZaloChannel: isZaloChannel,
+      isZaloOAChannel: isZaloOAChannel,
+      isZaloPersonalChannel: isZaloPersonalChannel,
       isCskhChannel: isCskhChannel,
       customNickname: customNickname,
       uuid: uuid,
       invitationUrl: invitationUrl,
       livechatChannelName: livechatChannelName,
       isLivechatActive: isLivechatActive,
+      category: category,
+      categoryLabel: categoryLabel,
     );
   }
 

@@ -473,7 +473,7 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Xóa nhật ký giờ?'),
-        content: const Text('Dòng ghi nhận thời gian này sẽ bị xóa khỏi Odoo.'),
+        content: const Text('Dòng ghi nhận thời gian này sẽ bị xóa khỏi Vua Hệ Thống.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -3336,7 +3336,7 @@ class _TimerSaveSheetState extends ConsumerState<_TimerSaveSheet> {
                           if (projects.isEmpty) {
                             return const _TimerSheetStatus(
                               icon: LucideIcons.triangleAlert,
-                              message: 'Chưa có dự án nào được phân quyền trên hệ thống Odoo.',
+                              message: 'Chưa có dự án nào được phân quyền trên hệ thống Vua Hệ Thống.',
                               isError: true,
                             );
                           }

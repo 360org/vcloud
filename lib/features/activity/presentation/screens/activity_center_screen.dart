@@ -400,7 +400,7 @@ class _ActivityCenterScreenState extends ConsumerState<ActivityCenterScreen> {
       path: '/webview',
       queryParameters: {
         'url': url,
-        'title': 'Việc cần làm (Odoo)',
+        'title': 'Việc cần làm (Vua Hệ Thống)',
       },
     );
     context.push(uri.toString());
@@ -419,7 +419,7 @@ class _ActivityCenterScreenState extends ConsumerState<ActivityCenterScreen> {
       showBackButton: true,
       actions: [
         IconButton(
-          tooltip: 'Mở trên Odoo Web',
+          tooltip: 'Mở trên Vua Hệ Thống Web',
           icon: const Icon(LucideIcons.globe, size: 20),
           onPressed: _openOnOdooWeb,
         ),
@@ -613,7 +613,7 @@ class _ActivityCenterScreenState extends ConsumerState<ActivityCenterScreen> {
             padding: const EdgeInsets.only(bottom: 24, left: 24, right: 24),
             child: OutlinedButton.icon(
               icon: const Icon(LucideIcons.globe, size: 18),
-              label: const Text('Mở trên Odoo Web (/home/action-2186)'),
+              label: const Text('Mở trên Vua Hệ Thống Web (/home/action-2186)'),
               onPressed: _openOnOdooWeb,
             ),
           ),

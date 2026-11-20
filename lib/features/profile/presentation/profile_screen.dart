@@ -181,10 +181,17 @@ class ProfileScreen extends ConsumerWidget {
       AppToast.success(context, title: 'Đã sao chép', message: message);
     }
 
-    void copyOdooWebLink() {
+    Future<void> openVuaHeThongWebLink() async {
       if (pId <= 0) return;
       final webUrl = odooApiClient.absoluteUrl('/web#id=$pId&model=res.partner&view_type=form');
-      copyWithFeedback(webUrl, 'Đã sao chép liên kết Odoo vào bộ nhớ tạm.');
+      final uri = Uri.tryParse(webUrl);
+      if (uri != null) {
+        try {
+          final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+          if (launched) return;
+        } catch (_) {}
+      }
+      copyWithFeedback(webUrl, 'Đã sao chép liên kết vào bộ nhớ tạm.');
     }
 
     return AppScaffold(
@@ -228,8 +235,8 @@ class ProfileScreen extends ConsumerWidget {
                       ),
                       IconButton(
                         icon: const Icon(LucideIcons.externalLink, size: 19),
-                        tooltip: 'Sao chép liên kết Odoo',
-                        onPressed: copyOdooWebLink,
+                        tooltip: 'Mở trên Vua Hệ Thống Web',
+                        onPressed: openVuaHeThongWebLink,
                       ),
                     ],
                   ],
@@ -258,7 +265,7 @@ class ProfileScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: 16),
 
-                    // ── Smart Metrics Section (Chỉ số Odoo) ──
+                    // ── Smart Metrics Section (Chỉ số Vua Hệ Thống) ──
                     _PartnerSmartMetricsSection(
                       metrics: metrics,
                       onTicketsTap: () => context.push('/tickets'),
@@ -321,9 +328,9 @@ class ProfileScreen extends ConsumerWidget {
                           ),
                           _SettingsRow(
                             icon: LucideIcons.externalLink,
-                            label: 'Sao chép liên kết Odoo Web',
+                            label: 'Mở trên Vua Hệ Thống Web',
                             color: const Color(0xFF0D9488),
-                            onTap: copyOdooWebLink,
+                            onTap: openVuaHeThongWebLink,
                           ),
                         ],
                       ],
@@ -676,18 +683,44 @@ class _PartnerHeroCard extends StatelessWidget {
                       ),
                     ),
                     if (partnerId.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.06),
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
                           borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          '#$partnerId',
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w600,
-                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                          onTap: () {
+                            Clipboard.setData(ClipboardData(text: partnerId));
+                            HapticFeedback.lightImpact();
+                            AppToast.success(
+                              context,
+                              title: 'Đã sao chép',
+                              message: 'Đã sao chép mã đối tác #$partnerId',
+                            );
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.06),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  '#$partnerId',
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Icon(
+                                  LucideIcons.copy,
+                                  size: 11,
+                                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -750,7 +783,7 @@ class _PartnerSmartMetricsSection extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Text(
-                'Chỉ số hoạt động Odoo',
+                'Chỉ số hoạt động Vua Hệ Thống',
                 style: TextStyle(
                   fontSize: 14.5,
                   fontWeight: FontWeight.w800,
@@ -973,7 +1006,7 @@ class _EnterpriseDetailsCard extends StatelessWidget {
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 8),
               child: Text(
-                'Chưa có thông tin doanh nghiệp chi tiết trong hồ sơ Odoo.',
+                'Chưa có thông tin doanh nghiệp chi tiết trên hệ thống.',
                 style: TextStyle(
                   fontSize: 13,
                   color: AppColors.textMuted,

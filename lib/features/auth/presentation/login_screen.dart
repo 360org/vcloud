@@ -1380,9 +1380,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                     onPressed: () {
                                       setState(() {
                                         _isManualMode = !_isManualMode;
-                                        if (_isManualMode &&
-                                            _serverUrl.text.trim().isEmpty) {
-                                          _serverUrl.text = Env.odooApiBaseUrl;
+                                        if (_isManualMode) {
+                                          if (_serverUrl.text.trim().isEmpty) {
+                                            _serverUrl.text = Env.odooApiBaseUrl;
+                                          }
+                                          if (_databaseName.text.trim().isEmpty) {
+                                            _databaseName.text = Env.odooDb;
+                                          }
                                         }
                                       });
                                     },

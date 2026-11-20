@@ -1223,7 +1223,7 @@ class OdooApiClient {
 
     if (authResponse.statusCode != 200) {
       throw Failure(
-        'Không thể kết nối đến máy chủ Odoo (${authResponse.statusCode})',
+        'Không thể kết nối đến máy chủ (${authResponse.statusCode})',
       );
     }
     final authDecoded = jsonDecode(authResponse.body);
@@ -1305,7 +1305,7 @@ class OdooApiClient {
       }
       debugPrint('🚨 [_loginWithOdooSessionAndJwtAt] JWT step2 status=${jwtResponse.statusCode}, body=${jwtResponse.body.length > 500 ? jwtResponse.body.substring(0, 500) : jwtResponse.body}');
       if (jwtResponse.statusCode >= 500) {
-        throw Failure('Máy chủ Odoo gặp lỗi nội bộ (${jwtResponse.statusCode}) khi cấp token JWT.');
+        throw Failure('Máy chủ gặp lỗi nội bộ (${jwtResponse.statusCode}) khi cấp token JWT.');
       }
     } on Failure {
       rethrow;

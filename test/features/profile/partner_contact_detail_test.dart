@@ -130,6 +130,54 @@ void main() {
       expect(detail.smartMetrics.hasAnyMetric, isFalse);
     });
 
+    test('không gán nhầm company_id nội bộ cho khách hàng cá nhân chưa gắn công ty mẹ', () {
+      final json = {
+        'id': 1282,
+        'name': 'Anh Tám Huy Hoàng',
+        'is_company': false,
+        'parent_id': null,
+        'parent_name': '',
+        'function': 'PGĐ',
+        'company_id': 1,
+        'company_name': 'CÔNG TY CỔ PHẦN ĐẦU TƯ PHÁT TRIỂN CÔNG NGHỆ 360',
+      };
+
+      final detail = PartnerContactDetail.fromJson(json);
+      expect(detail.id, 1282);
+      expect(detail.name, 'Anh Tám Huy Hoàng');
+      expect(detail.isCompany, isFalse);
+      expect(detail.effectiveCompanyName, isEmpty);
+      expect(detail.subtitleInfo, 'PGĐ');
+    });
+
+    test('khách hàng cá nhân không có chức vụ và không có công ty mẹ thì subtitleInfo rỗng', () {
+      final json = {
+        'id': 1283,
+        'name': 'Nguyễn Văn A',
+        'is_company': false,
+        'parent_id': null,
+        'parent_name': '',
+        'function': '',
+        'company_id': 1,
+        'company_name': '360 CORP',
+      };
+      final detail = PartnerContactDetail.fromJson(json);
+      expect(detail.effectiveCompanyName, isEmpty);
+      expect(detail.subtitleInfo, isEmpty);
+    });
+
+    test('doanh nghiệp độc lập có chức danh không bị nhân đôi tên trong subtitleInfo', () {
+      final json = {
+        'id': 500,
+        'name': 'Công ty ABC',
+        'is_company': true,
+        'function': 'Trụ sở chính',
+      };
+      final detail = PartnerContactDetail.fromJson(json);
+      expect(detail.effectiveCompanyName, 'Công ty ABC');
+      expect(detail.subtitleInfo, 'Trụ sở chính');
+    });
+
     test('xử lý an toàn khi JSON thiếu trường và không văng lỗi', () {
       final detail = PartnerContactDetail.fromJson({'id': 1, 'name': 'Khách Vãng Lai'});
       expect(detail.id, 1);

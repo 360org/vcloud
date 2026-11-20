@@ -197,7 +197,7 @@ class ActivityRepository {
               final finalMsg = finalErrMap is Map
                   ? (finalErrMap['message'] ?? finalErrMap['data']?['message'] ?? 'ORM Error')
                   : finalErrMap.toString();
-              throw Failure('Lỗi tải hoạt động từ Odoo: $finalMsg');
+              throw Failure('Lỗi tải hoạt động từ hệ thống: $finalMsg');
             }
           }
           final result = rpcRes['result'];

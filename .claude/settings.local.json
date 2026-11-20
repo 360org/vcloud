@@ -3,7 +3,8 @@
     "allow": [
       "Bash(*)"
     ],
-    "deny": []
+    "deny": [],
+    "additionalDirectories": []
   },
   "additionalDirectories": [
     "F:\\BACKUP_LINUX\\save\\mobile_versions\\v_mobile_19",

@@ -485,7 +485,7 @@ class ChatV2Repository {
           : Map<String, dynamic>.from(data);
       return ChatV2Attachment.fromMap(rawMap);
     }
-    throw Exception('Phản hồi upload tệp không hợp lệ từ máy chủ Odoo.');
+    throw Exception('Phản hồi upload tệp không hợp lệ từ máy chủ.');
   }
 
   Future<List<ChatV2Attachment>> uploadAttachmentsBatch({

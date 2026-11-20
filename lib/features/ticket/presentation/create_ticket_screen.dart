@@ -245,7 +245,7 @@ class _CreateTicketScreenState extends ConsumerState<CreateTicketScreen> {
                     _TicketTextField(
                       controller: _title,
                       label: 'Tiêu đề',
-                      hintText: 'Ví dụ: Không đăng nhập được Odoo',
+                      hintText: 'Ví dụ: Không đăng nhập được Vua Hệ Thống',
                       icon: LucideIcons.type,
                       maxLength: 120,
                       validator: (value) {

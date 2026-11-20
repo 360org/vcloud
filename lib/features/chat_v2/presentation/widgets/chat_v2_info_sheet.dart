@@ -2336,7 +2336,7 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
               ] else ...[
                 const SizedBox(height: 6),
                 const Text(
-                  'Nhấn để xem thông tin chi tiết công ty, mã số thuế và chỉ số Odoo.',
+                  'Nhấn để xem thông tin chi tiết công ty, mã số thuế và chỉ số hoạt động.',
                   style: TextStyle(
                     fontSize: 12,
                     color: AppColors.textMuted,

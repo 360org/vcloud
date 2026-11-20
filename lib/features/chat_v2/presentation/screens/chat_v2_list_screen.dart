@@ -63,22 +63,24 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
   String _searchQuery = '';
   List<ChatV2Channel> _searchResults = [];
   int _activeMainTab = 0; // 0: 💬 Hội thoại, 1: 📥 Hộp thư Odoo
-  int? _selectedFilterIndex; // null: Mặc định (Tất cả), 0: Chưa đọc, 1: Trực tiếp, 2: Nhóm, 3: Kênh, 4: Zalo OA, 5: Hỗ trợ
+  String? _selectedFilterKey; // null: Mặc định (Tất cả), 'unread': Chưa đọc, dynamic: 'chat', 'channel', 'zalo_oa', 'zalo', 'livechat'...
   Timer? _searchDebounceTimer;
   bool _dismissedVMobileWarning = false;
   bool _isSearchExpanded = false;
 
-  int? _resolveFilterIndex(String? filter) {
+  String? _resolveFilterKey(String? filter) {
     if (filter == null || filter.isEmpty || filter == 'all' || filter == 'tatca') return null;
     if (filter == 'inbox' || filter == 'hopthuden' || filter == 'needaction') return null;
     if (filter == 'starred' || filter == 'gansao' || filter == 'star') return null;
     if (filter == 'history' || filter == 'lichsu') return null;
-    if (filter == 'unread' || filter == 'chuadoc') return 0;
-    if (filter == 'internal' || filter == 'noibo' || filter == 'direct' || filter == 'dm' || filter == 'canhan' || filter == 'tructiep') return 1;
-    if (filter == 'group' || filter == 'nhom') return 2;
-    if (filter == 'channel' || filter == 'kenh') return 3;
-    if (filter == 'zalo' || filter == 'zalo_oa' || filter == 'oa' || filter == 'customer') return 4;
-    return null;
+    if (filter == 'unread' || filter == 'chuadoc') return 'unread';
+    if (filter == 'internal' || filter == 'noibo' || filter == 'direct' || filter == 'dm' || filter == 'canhan' || filter == 'tructiep' || filter == 'chat') return 'chat';
+    if (filter == 'group' || filter == 'nhom') return 'channel';
+    if (filter == 'channel' || filter == 'kenh') return 'channel';
+    if (filter == 'zalo_oa' || filter == 'oa') return 'zalo_oa';
+    if (filter == 'zalo' || filter == 'zalo_personal') return 'zalo';
+    if (filter == 'livechat' || filter == 'cskh' || filter == 'support' || filter == 'hotro') return 'livechat';
+    return filter;
   }
 
   void _onSearchChanged(String val) {
@@ -161,7 +163,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
         ref.read(chatV2InboxControllerProvider.notifier).switchTab(ChatV2InboxTabType.history);
       });
     }
-    _selectedFilterIndex = _resolveFilterIndex(widget.initialFilter);
+    _selectedFilterKey = _resolveFilterKey(widget.initialFilter);
     _scrollController.addListener(_onScroll);
   }
 
@@ -198,7 +200,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
         ref.read(chatV2InboxControllerProvider.notifier).switchTab(ChatV2InboxTabType.history);
       } else {
         setState(() {
-          _selectedFilterIndex = _resolveFilterIndex(widget.initialFilter);
+          _selectedFilterKey = _resolveFilterKey(widget.initialFilter);
           _activeMainTab = 0;
         });
       }
@@ -454,21 +456,54 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                         builder: (context) {
                           final channels = channelsAsync.valueOrNull ?? ChatV2ChannelLocalCache.cached;
                           final unreadCount = ref.watch(chatV2TotalUnreadProvider);
-                          final directCount = channels
-                              .where((c) => c.isInternalDirect(currentUserName))
-                              .length;
-                          final groupCount = channels
-                              .where((c) => c.isGroupChat(currentUserName))
-                              .length;
-                          final channelCount = channels
-                              .where((c) => c.isChannel)
-                              .length;
-                          final zaloCount = channels
-                              .where((c) => c.isZaloOA)
-                              .length;
-                          final livechatCount = channels
-                              .where((c) => c.isSupportChannel)
-                              .length;
+
+                          // Thống kê số lượng theo dynamic category từ backend/metadata
+                          final categoryCounts = <String, int>{};
+                          final categoryLabels = <String, String>{};
+                          for (final c in channels) {
+                            final cat = c.effectiveCategory;
+                            categoryCounts[cat] = (categoryCounts[cat] ?? 0) + 1;
+                            categoryLabels[cat] = c.effectiveCategoryLabel;
+                          }
+
+                          // Thứ tự hiển thị danh mục chuẩn kế thừa từ Discuss Web vuahethong.net
+                          final orderedCategories = <String>[];
+                          const standardOrder = ['chat', 'channel', 'zalo_oa', 'zalo', 'livechat'];
+                          for (final cat in standardOrder) {
+                            if (cat == 'chat') {
+                              if ((categoryCounts[cat] ?? 0) > 0 || !isPortal) {
+                                orderedCategories.add(cat);
+                              }
+                            } else if (cat == 'channel') {
+                              if ((categoryCounts[cat] ?? 0) > 0 || !isPortal) {
+                                orderedCategories.add(cat);
+                              }
+                            } else {
+                              if ((categoryCounts[cat] ?? 0) > 0) {
+                                orderedCategories.add(cat);
+                              }
+                            }
+                          }
+
+                          // Bất kỳ category động nào khác từ server (VD: telegram, tiktok, custom...)
+                          for (final cat in categoryCounts.keys) {
+                            if (!orderedCategories.contains(cat) && (categoryCounts[cat] ?? 0) > 0) {
+                              orderedCategories.add(cat);
+                            }
+                          }
+
+                          Color? getBadgeColor(String cat) {
+                            switch (cat) {
+                              case 'zalo_oa':
+                                return const Color(0xFF0068FF);
+                              case 'zalo':
+                                return const Color(0xFF0088FF);
+                              case 'livechat':
+                                return const Color(0xFF0077CD);
+                              default:
+                                return null;
+                            }
+                          }
 
                           return SingleChildScrollView(
                             scrollDirection: Axis.horizontal,
@@ -478,67 +513,33 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                                 _buildChip(
                                   label: 'Tất cả',
                                   count: channels.length,
-                                  isSelected: _selectedFilterIndex == null,
+                                  isSelected: _selectedFilterKey == null,
                                   isDark: isDark,
-                                  onTap: () => setState(() => _selectedFilterIndex = null),
+                                  onTap: () => setState(() => _selectedFilterKey = null),
                                 ),
                                 const SizedBox(width: 8),
                                 _buildChip(
                                   label: 'Chưa đọc',
                                   count: unreadCount,
-                                  isSelected: _selectedFilterIndex == 0,
+                                  isSelected: _selectedFilterKey == 'unread',
                                   isDark: isDark,
                                   badgeColor: const Color(0xFFEF4444),
-                                  onTap: () => setState(() => _selectedFilterIndex = 0),
+                                  onTap: () => setState(() => _selectedFilterKey = 'unread'),
                                 ),
-                                const SizedBox(width: 8),
-                                _buildChip(
-                                  label: 'Trực tiếp',
-                                  count: directCount,
-                                  isSelected: _selectedFilterIndex == 1,
-                                  isDark: isDark,
-                                  onTap: () => setState(() => _selectedFilterIndex = 1),
-                                ),
-                                if (groupCount > 0) ...[
+                                for (final cat in orderedCategories) ...[
                                   const SizedBox(width: 8),
                                   _buildChip(
-                                    label: 'Nhóm',
-                                    count: groupCount,
-                                    isSelected: _selectedFilterIndex == 2,
+                                    label: categoryLabels[cat] ??
+                                        (cat == 'chat'
+                                            ? 'Trò chuyện'
+                                            : cat == 'channel'
+                                                ? 'Kênh'
+                                                : cat),
+                                    count: categoryCounts[cat] ?? 0,
+                                    isSelected: _selectedFilterKey == cat,
                                     isDark: isDark,
-                                    onTap: () => setState(() => _selectedFilterIndex = 2),
-                                  ),
-                                ],
-                                if (!isPortal || channelCount > 0) ...[
-                                  const SizedBox(width: 8),
-                                  _buildChip(
-                                    label: 'Kênh',
-                                    count: channelCount,
-                                    isSelected: _selectedFilterIndex == 3,
-                                    isDark: isDark,
-                                    onTap: () => setState(() => _selectedFilterIndex = 3),
-                                  ),
-                                ],
-                                if (livechatCount > 0) ...[
-                                  const SizedBox(width: 8),
-                                  _buildChip(
-                                    label: 'Hỗ trợ',
-                                    count: livechatCount,
-                                    isSelected: _selectedFilterIndex == 5,
-                                    isDark: isDark,
-                                    badgeColor: const Color(0xFF0077CD),
-                                    onTap: () => setState(() => _selectedFilterIndex = 5),
-                                  ),
-                                ],
-                                if (zaloCount > 0) ...[
-                                  const SizedBox(width: 8),
-                                  _buildChip(
-                                    label: 'Zalo OA',
-                                    count: zaloCount,
-                                    isSelected: _selectedFilterIndex == 4,
-                                    isDark: isDark,
-                                    badgeColor: const Color(0xFF0068FF),
-                                    onTap: () => setState(() => _selectedFilterIndex = 4),
+                                    badgeColor: getBadgeColor(cat),
+                                    onTap: () => setState(() => _selectedFilterKey = cat),
                                   ),
                                 ],
                               ],
@@ -805,9 +806,9 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                       if (!matchCleanName && !matchRawName && !matchMsg && !matchMembers && !matchDirect) {
                         return false;
                       }
-                    } else if (_selectedFilterIndex != null) {
-                      if (_selectedFilterIndex == 0) {
-                        // 0: Chưa đọc
+                    } else if (_selectedFilterKey != null) {
+                      if (_selectedFilterKey == 'unread') {
+                        // 'unread': Chưa đọc
                         final cachedMsgs = ChatV2MessageLocalCache.get(c.id);
                         final isMine = (c.lastMessageAuthorId != null && c.lastMessageAuthorId!.isNotEmpty)
                             ? c.isLastMessageFromMe(
@@ -841,29 +842,9 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                           lastMessageDate: c.lastMessageDate,
                         );
                         if (!isUnread) return false;
-                      } else if (_selectedFilterIndex == 1) {
-                        // 1: Trực tiếp (1-1)
-                        if (!c.isInternalDirect(currentUserName)) {
-                          return false;
-                        }
-                      } else if (_selectedFilterIndex == 2) {
-                        // 2: Nhóm
-                        if (!c.isGroupChat(currentUserName) || c.isSupportChannel) {
-                          return false;
-                        }
-                      } else if (_selectedFilterIndex == 3) {
-                        // 3: Kênh
-                        if (!c.isChannel) {
-                          return false;
-                        }
-                      } else if (_selectedFilterIndex == 4) {
-                        // 4: Zalo OA
-                        if (!c.isZaloOA || c.isSupportChannel) {
-                          return false;
-                        }
-                      } else if (_selectedFilterIndex == 5) {
-                        // 5: Hỗ trợ (Livechat / CSKH)
-                        if (!c.isSupportChannel) {
+                      } else {
+                        // Lọc theo Category động từ server (chat, channel, zalo_oa, zalo, livechat...)
+                        if (c.effectiveCategory != _selectedFilterKey) {
                           return false;
                         }
                       }
@@ -900,14 +881,20 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                     final String emptyMessage;
                     if (_searchQuery.isNotEmpty) {
                       emptyMessage = 'Không tìm thấy cuộc trò chuyện nào';
-                    } else if (_selectedFilterIndex == 0) {
+                    } else if (_selectedFilterKey == 'unread') {
                       emptyMessage = 'Không có tin nhắn chưa đọc';
-                    } else if (_selectedFilterIndex == 1) {
-                      emptyMessage = 'Chưa có cuộc trò chuyện nội bộ nào';
-                    } else if (_selectedFilterIndex == 2) {
-                      emptyMessage = 'Chưa có nhóm trò chuyện nào';
-                    } else if (_selectedFilterIndex == 3) {
-                      emptyMessage = 'Chưa có kênh thảo luận nào';
+                    } else if (_selectedFilterKey == 'chat') {
+                      emptyMessage = 'Chưa có cuộc trò chuyện trực tiếp nào';
+                    } else if (_selectedFilterKey == 'channel') {
+                      emptyMessage = 'Chưa có kênh hoặc nhóm thảo luận nào';
+                    } else if (_selectedFilterKey == 'zalo_oa') {
+                      emptyMessage = 'Chưa có cuộc trò chuyện Zalo OA nào';
+                    } else if (_selectedFilterKey == 'zalo') {
+                      emptyMessage = 'Chưa có cuộc trò chuyện Zalo cá nhân nào';
+                    } else if (_selectedFilterKey == 'livechat') {
+                      emptyMessage = 'Chưa có phiên hỗ trợ trực tuyến nào';
+                    } else if (_selectedFilterKey != null) {
+                      emptyMessage = 'Chưa có cuộc trò chuyện nào trong danh mục này';
                     } else {
                       emptyMessage = 'Chưa có cuộc trò chuyện nào';
                     }
@@ -965,7 +952,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                     final channelsNotifier = ref.watch(chatV2ChannelsProvider.notifier);
                     final hasMore = channelsNotifier.hasMore;
                     final isLoadingMore = channelsNotifier.isLoadingMore;
-                    final isFiltered = _searchQuery.isNotEmpty || _selectedFilterIndex != null;
+                    final isFiltered = _searchQuery.isNotEmpty || _selectedFilterKey != null;
 
                     // Phân nhóm cuộc trò chuyện: Đã ghim và Thông thường
                     final pinnedChannels = filtered
@@ -1242,7 +1229,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
           Expanded(
             child: _buildMainTabButton(
               icon: LucideIcons.inbox,
-              label: 'Hộp thư Odoo',
+              label: 'Hộp thư Vua Hệ Thống',
               count: inboxCount,
               badgeColor: const Color(0xFFEF4444),
               isSelected: _activeMainTab == 1,

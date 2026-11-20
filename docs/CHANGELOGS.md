@@ -2,6 +2,27 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.38+201] — 2026-11-20 (Hybrid Dynamic Channel Filters & Server-Driven Category Inheritance)
+
+> [!IMPORTANT]
+> **Kế Thừa Danh Mục Kênh Động Từ Odoo Discuss & Phân Biệt Zalo OA vs Zalo Cá Nhân (L4 VERIFIED 2026-11-20)**:
+> - **1. [FEAT/CHAT_V2] Bộ Lọc Động Hybrid Phục Vụ Thao Tác 1 Tay (`chat_v2_list_screen.dart`)**:
+>   * Giữ 2 chip điều hướng tiện lợi ở đầu thanh cuộn: `Tất cả` (All) và `Chưa đọc` (Unread kèm badge số lượng tin nhắn chưa đọc).
+>   * Render tự động toàn bộ chip danh mục dựa theo metadata `category` và `category_label` do Odoo Backend trả về (`Trò chuyện`, `Kênh`, `Zalo OA`, `Zalo`, `Hỗ trợ`...).
+>   * Bất kỳ module hoặc kênh mới nào được thêm trên `vuahethong.net` (Telegram, TikTok...) sẽ tự động xuất hiện chip lọc trên Mobile mà không cần cập nhật mã nguồn client.
+> - **2. [IMPROVE/MODEL] Phân Định Zalo OA & Zalo Cá Nhân (`chat_v2_channel.dart`)**:
+>   * Mở rộng model `ChatV2Channel` với các trường `category`, `categoryLabel`, `isZaloOAChannel`, `isZaloPersonalChannel`.
+>   * Getter `isZaloPersonal` phân biệt rõ ràng kênh Zalo cá nhân 1-1 với Zalo OA doanh nghiệp.
+>   * Ngăn chặn rò rỉ kênh Zalo vào tab Trò chuyện nội bộ (`isInternalDirect`).
+> - **3. [TEST] Kiểm Thử Toàn Diện 100% Pass**:
+>   * Thêm bộ test đơn vị `chat_v2_dynamic_filter_test.dart` (11/11 cases) kiểm tra kế thừa danh mục động, fallback, parsing JSON và phân vùng kênh.
+>   * Bộ test hồi quy `chat_v2_taxonomy_test.dart` (10/10 cases) đạt 100% pass.
+> - **4. [IMPROVE/PROFILE & BRANDING] Đồng Bộ Nhận Diện Thương Hiệu**:
+>   * Chuẩn hoá thông báo kết nối sang "máy chủ" / "Vua Hệ Thống" theo quy chuẩn thương hiệu.
+>   * Bổ sung tính năng nhấn sao chép mã đối tác (`#partnerId`) với Haptic feedback trên màn hình Profile.
+
+---
+
 ## [v2.9.38+200] — 2026-11-19 (Bóc Tách Tiền Tố Kênh Zalo OA, Avatar Khách Hàng & Redact Token WebView)
 
 > [!IMPORTANT]

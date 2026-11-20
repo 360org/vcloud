@@ -272,7 +272,7 @@ class ChatV2InboxTab extends ConsumerWidget {
         : 'Không thể tải Hộp thư đến';
 
     final subtitle = isNotSupported
-        ? 'Máy chủ Odoo hiện tại chưa hỗ trợ Hộp thư đến Discuss (cần nâng cấp module v_mobile lên v19.0.1.2.70).'
+        ? 'Máy chủ Vua Hệ Thống hiện tại chưa hỗ trợ Hộp thư đến Discuss (cần nâng cấp module v_mobile lên v19.0.1.2.70).'
         : 'Đã có lỗi xảy ra khi tải dữ liệu từ máy chủ. Vui lòng kiểm tra lại kết nối mạng.';
 
     return Center(

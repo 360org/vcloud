@@ -98,7 +98,7 @@ class AuthRepository {
           '🚨 [AuthRepository.authenticateOnClient] UNEXPECTED: $e\n$st');
       final errStr = e.toString();
       if (errStr.contains('Failed to fetch') || errStr.contains('ClientException') || errStr.contains('SocketException')) {
-        throw Failure('Không thể kết nối đến máy chủ Odoo (${db.databaseUrl}). Vui lòng kiểm tra lại kết nối mạng hoặc địa chỉ máy chủ.');
+        throw Failure('Không thể kết nối đến máy chủ (${db.databaseUrl}). Vui lòng kiểm tra lại kết nối mạng hoặc địa chỉ máy chủ.');
       }
       throw Failure('Đăng nhập thất bại: $errStr');
     }

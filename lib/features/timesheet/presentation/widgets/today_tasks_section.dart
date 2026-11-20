@@ -409,7 +409,7 @@ class _CreateTaskSheetState extends ConsumerState<_CreateTaskSheet> {
         if (errorStr.contains('access_denied') || errorStr.contains('403')) {
           userMsg = 'Không có quyền tạo task hoặc truy cập task (403 Access Denied).';
         } else if (errorStr.contains('ValidationError')) {
-          userMsg = 'Lỗi dữ liệu từ Odoo: Vui lòng kiểm tra lại thông tin dự án.';
+          userMsg = 'Lỗi dữ liệu từ hệ thống: Vui lòng kiểm tra lại thông tin dự án.';
         } else {
           userMsg = errorStr.replaceFirst('Failure: ', '');
         }
