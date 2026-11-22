@@ -145,7 +145,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Hội thoại'), findsOneWidget);
-      expect(find.text('Hộp thư Odoo'), findsOneWidget);
+      expect(find.text('Hộp thư Vua Hệ Thống'), findsOneWidget);
     });
 
     testWidgets('2. Tầng 1: "Hội thoại" hiển thị badge đếm tin chưa đọc chính xác (4 tin)', (tester) async {
@@ -159,7 +159,7 @@ void main() {
       expect(find.text('4'), findsWidgets);
     });
 
-    testWidgets('3. Tầng 1: "Hộp thư Odoo" hiển thị badge tin cần xử lý (3 tin)', (tester) async {
+    testWidgets('3. Tầng 1: "Hộp thư Vua Hệ Thống" hiển thị badge tin cần xử lý (3 tin)', (tester) async {
       tester.view.physicalSize = const Size(800, 1600);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -170,7 +170,7 @@ void main() {
       expect(find.text('3'), findsWidgets);
     });
 
-    testWidgets('4. Tầng 2: Khi ở tab Hội thoại, hiển thị các chip lọc kênh (Tất cả, Chưa đọc, Trực tiếp, Kênh)', (tester) async {
+    testWidgets('4. Tầng 2: Khi ở tab Hội thoại, hiển thị các chip lọc kênh (Tất cả, Chưa đọc, Trò chuyện, Kênh)', (tester) async {
       tester.view.physicalSize = const Size(800, 1600);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -180,7 +180,7 @@ void main() {
 
       expect(find.text('Tất cả'), findsOneWidget);
       expect(find.text('Chưa đọc'), findsOneWidget);
-      expect(find.text('Trực tiếp'), findsOneWidget);
+      expect(find.text('Trò chuyện'), findsWidgets);
       expect(find.text('Kênh'), findsOneWidget);
     });
 
@@ -199,7 +199,7 @@ void main() {
       expect(find.text('Lịch sử'), findsNothing);
     });
 
-    testWidgets('6. Tầng 1 -> Tầng 2: Bấm chọn "Hộp thư Odoo" hiển thị ngay 3 phân đoạn: "Cần xử lý", "Đã gắn sao", "Lịch sử"', (tester) async {
+    testWidgets('6. Tầng 1 -> Tầng 2: Bấm chọn "Hộp thư Vua Hệ Thống" hiển thị ngay 3 phân đoạn: "Cần xử lý", "Đã gắn sao", "Lịch sử"', (tester) async {
       tester.view.physicalSize = const Size(800, 1600);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -207,8 +207,8 @@ void main() {
       await tester.pumpWidget(createWidgetUnderTest());
       await tester.pumpAndSettle();
 
-      // Nhấn chuyển sang Hộp thư Odoo
-      await tester.tap(find.text('Hộp thư Odoo'));
+      // Nhấn chuyển sang Hộp thư Vua Hệ Thống
+      await tester.tap(find.text('Hộp thư Vua Hệ Thống'));
       await tester.pumpAndSettle();
 
       // Lúc này Tầng 2 hiển thị 3 phân đoạn
@@ -218,7 +218,7 @@ void main() {
 
       // Các chip hội thoại phải bị ẩn
       expect(find.text('Tất cả'), findsNothing);
-      expect(find.text('Trực tiếp'), findsNothing);
+      expect(find.text('Kênh'), findsNothing);
     });
 
     testWidgets('7. Tầng 2 (Mailbox): Nhấn sub-segment "Đã gắn sao" kích hoạt chuyển tab starred', (tester) async {
@@ -240,7 +240,7 @@ void main() {
       await tester.pumpWidget(createWidgetUnderTest(controller: controller));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Hộp thư Odoo'));
+      await tester.tap(find.text('Hộp thư Vua Hệ Thống'));
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('Đã gắn sao'));
@@ -268,7 +268,7 @@ void main() {
       await tester.pumpWidget(createWidgetUnderTest(controller: controller));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Hộp thư Odoo'));
+      await tester.tap(find.text('Hộp thư Vua Hệ Thống'));
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('Lịch sử'));
@@ -296,7 +296,7 @@ void main() {
       await tester.pumpWidget(createWidgetUnderTest(controller: controller));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Hộp thư Odoo'));
+      await tester.tap(find.text('Hộp thư Vua Hệ Thống'));
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('Cần xử lý'));
@@ -313,8 +313,8 @@ void main() {
       await tester.pumpWidget(createWidgetUnderTest());
       await tester.pumpAndSettle();
 
-      // Sang Hộp thư Odoo
-      await tester.tap(find.text('Hộp thư Odoo'));
+      // Sang Hộp thư Vua Hệ Thống
+      await tester.tap(find.text('Hộp thư Vua Hệ Thống'));
       await tester.pumpAndSettle();
       expect(find.text('Cần xử lý'), findsOneWidget);
 
@@ -323,7 +323,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Tất cả'), findsOneWidget);
-      expect(find.text('Trực tiếp'), findsOneWidget);
+      expect(find.text('Trò chuyện'), findsWidgets);
       expect(find.text('Cần xử lý'), findsNothing);
       expect(find.text('Đã gắn sao'), findsNothing);
     });
