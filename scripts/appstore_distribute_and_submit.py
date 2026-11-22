@@ -38,7 +38,10 @@ ISSUER_ID = os.getenv("APP_STORE_CONNECT_ISSUER_ID", "69a6de93-488c-47e3-e053-5b
 DEFAULT_KEY_PATHS = [
     Path("/media/tanma/DATA/save/file_ios_p8/AuthKey_3J68D9JX79.p8"),
     Path("/media/tanma/DATA/dowloads/AuthKey_3J68D9JX79.p8"),
-    Path.home() / ".appstoreconnect" / "private_keys" / f"AuthKey_{KEY_ID}.p8"
+    Path.home() / ".appstoreconnect" / "private_keys" / f"AuthKey_{KEY_ID}.p8",
+    Path.home() / ".private_keys" / f"AuthKey_{KEY_ID}.p8",
+    Path.cwd() / "private_keys" / f"AuthKey_{KEY_ID}.p8",
+    Path("/tmp") / f"AuthKey_{KEY_ID}.p8"
 ]
 APP_ID = "1365622472"  # com.w360s.wcloudapp
 BASE_URL = "https://api.appstoreconnect.apple.com/v1"
@@ -48,14 +51,19 @@ def find_key_file():
     key_content = os.getenv("APP_STORE_CONNECT_KEY_CONTENT")
     if key_content:
         import base64
-        cleaned = re.sub(r"[^A-Za-z0-9+/=]", "", key_content)
-        cleaned += "=" * (-len(cleaned) % 4 if len(cleaned) % 4 else 0)
-        try:
-            decoded = base64.b64decode(cleaned).decode("utf-8")
-            if "BEGIN PRIVATE KEY" not in decoded:
-                decoded = key_content
-        except Exception:
-            decoded = key_content
+        decoded = key_content
+        if not key_content.strip().startswith("-----BEGIN"):
+            try:
+                cleaned = re.sub(r"[^A-Za-z0-9+/=]", "", key_content)
+                cleaned += "=" * (-len(cleaned) % 4 if len(cleaned) % 4 else 0)
+                b64_decoded = base64.b64decode(cleaned).decode("utf-8")
+                if "BEGIN PRIVATE KEY" in b64_decoded:
+                    decoded = b64_decoded
+            except Exception:
+                pass
+        if "\\n" in decoded:
+            decoded = decoded.replace("\\n", "\n")
+        decoded = decoded.replace("\r", "").strip() + "\n"
         temp_dir = Path(os.getenv("RUNNER_TEMP", "/tmp"))
         temp_key = temp_dir / f"AuthKey_{KEY_ID}.p8"
         temp_key.write_text(decoded, encoding="utf-8")
