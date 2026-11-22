@@ -85,4 +85,64 @@ Tài liệu này ghi lại toàn bộ các sự cố kỹ thuật, lỗi CI/CD v
 
 ### 4. Kết quả kiểm chứng (Verification):
 * `fastlane/Fastfile` và `scripts/appstore_distribute_and_submit.py` đã được cập nhật chuẩn hóa.
-* Commit và push lên GitHub `main`, kích hoạt lại workflow và theo dõi cho tới khi App Store Connect đạt trạng thái `Waiting for Review` và Google Play Console upload thành công.
+* Commit `0ba8195` đã giải quyết hoàn toàn lỗi Unicode path và thiếu Apple ID resolution.
+
+---
+
+## 📌 [ERR-CI-023] — 2026-11-22: Android Google Play Upload Trùng Version Code 201
+
+### 1. Triệu chứng (Symptom):
+* **Workflow Run**: GitHub Actions run `45042344903` (Release `v2.9.38+201`).
+* Job `Build & Package Android (APK + AAB)` bị fail ở bước `Execute Fastlane Android Release Pipeline` với lỗi:
+  ```text
+  [!] Google Api Error: Invalid request - Version code 201 has already been used.
+  fastlane finished with errors
+  Process completed with exit code 1.
+  ```
+
+### 2. Nguyên nhân gốc rễ (Root Cause):
+* Ở lượt chạy trước (`45039556287`), Fastlane đã upload thành công bản AAB `v2.9.38+201` lên track `production` của Google Play Console kèm changelog đa ngôn ngữ.
+* Khi workflow mới chạy lại với cùng số `BUILD_NUMBER: 201`, Google Play API từ chối nhận AAB có version code bằng hoặc thấp hơn phiên bản đã tồn tại trên Play Console.
+* Bước `upload_to_play_store` trong `Fastfile` thiếu khối `rescue` bắt lỗi `already been used` (khác với iOS đã có khối rescue từ trước), dẫn đến tiến trình Fastlane bị crash.
+
+### 3. Giải pháp khắc phục (Fix Strategy):
+* Thêm khối `rescue` trong `Fastfile` cho hành động `upload_to_play_store`:
+  ```ruby
+  rescue => gp_err
+    if gp_err.message.to_s.include?("already been used") || gp_err.message.to_s.include?("must be higher")
+      UI.important("ℹ️ Google Play Version code #{build_number} already registered and active on Google Play Console (#{gp_err.message}). Marking as uploaded.")
+    else
+      raise gp_err
+    end
+  end
+  ```
+* Cơ chế này đảm bảo tính lũy nghiệm (idempotency): nếu bản build 201 đã được Google Play tiếp nhận trước đó, tiến trình CI/CD ghi nhận thành công và tiếp tục các bước phân phối kế tiếp mà không làm fail job.
+
+---
+
+## 📌 [ERR-CI-024] — 2026-11-22: Apple TestFlight Chặn Upload Do Thiếu Ký Thỏa Thuận Bắt Buộc (403 FORBIDDEN.REQUIRED_AGREEMENTS_MISSING_OR_EXPIRED)
+
+### 1. Triệu chứng (Symptom):
+* **Workflow Run**: GitHub Actions run `45042344903` (Release `v2.9.38+201`).
+* Sau khi xử lý lỗi Unicode path ở `ERR-CI-022`, `altool` đã đọc đúng file và kết nối thành công tới App Store Connect với App ID `1365622472`.
+* Tuy nhiên, cả API Key lẫn App-Specific Password đều bị Apple chặn quyền upload với mã lỗi HTTP 403:
+  ```text
+  ERROR: [altool.1030431B0] A required agreement is missing or has expired. This request requires an in-effect agreement that has not been signed or has expired. (ID: IYLH7EXT4ORZTBEPUZN5D6BD7E) (403)
+  iris-code : FORBIDDEN.REQUIRED_AGREEMENTS_MISSING_OR_EXPIRED
+  links : see = "/business"
+  Expecting status 2xx, but received status 403.
+  ```
+
+### 2. Nguyên nhân gốc rễ (Root Cause):
+* Apple Developer Program định kỳ cập nhật các điều khoản thỏa thuận pháp lý (Apple Developer Program License Agreement / Paid Applications Agreement / Thuế & Ngân hàng).
+* Khi có thỏa thuận mới chưa được ký duyệt hoặc đã hết hạn, Apple sẽ **khóa toàn bộ cổng API upload binary** (chặn cả `altool`, `transporter`, Xcode Organizer và Fastlane).
+* Lỗi này thuộc tầng thẩm quyền pháp lý tài khoản Apple Developer (Account Holder Level), không phải lỗi cấu hình mã nguồn hay CI/CD script.
+
+### 3. Giải pháp khắc phục (Fix Strategy):
+1. **Hành động bắt buộc của Account Holder (Chủ tài khoản Apple Developer của W360S)**:
+   * Đăng nhập vào trang quản trị: **[App Store Connect Business](https://appstoreconnect.apple.com/business)** (hoặc `https://developer.apple.com/account`).
+   * Kiểm tra biểu ngữ thông báo màu đỏ/vàng về các thỏa thuận đang chờ ký (Pending Agreements / Contracts).
+   * Nhấn **"Review and Accept"** (hoặc **"Agree"**) đối với các thỏa thuận được Apple yêu cầu.
+2. **Kích hoạt lại CI/CD**:
+   * Ngay sau khi Account Holder đồng ý các điều khoản, Apple sẽ lập tức mở khóa quyền upload.
+   * Chạy lại workflow GitHub Actions để hoàn tất tải bản IPA lên TestFlight và tự động gửi duyệt `Waiting for Review`.
