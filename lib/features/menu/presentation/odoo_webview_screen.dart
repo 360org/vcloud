@@ -476,6 +476,34 @@ Future<void> _injectOptimizationCssIntoController(
     final minifiedCss = getMinifiedOdooNativeOptimizationCss(isDark: isDark);
     await ctrl.runJavaScript('''
       (function() {
+        // 1. Inject Clipboard Polyfill cho môi trường HTTP Non-Secure Context (Local Server IP)
+        // Tránh lỗi RPCErrorDialog crash: Cannot read properties of undefined (reading 'writeText')
+        if (typeof window !== 'undefined' && (!window.navigator || !window.navigator.clipboard)) {
+          if (!window.navigator) { window.navigator = {}; }
+          window.navigator.clipboard = {
+            writeText: function(text) {
+              return new Promise(function(resolve, reject) {
+                try {
+                  var ta = document.createElement('textarea');
+                  ta.value = text || '';
+                  ta.style.position = 'fixed';
+                  ta.style.opacity = '0';
+                  ta.style.pointerEvents = 'none';
+                  document.body.appendChild(ta);
+                  ta.focus();
+                  ta.select();
+                  var ok = document.execCommand('copy');
+                  document.body.removeChild(ta);
+                  if (ok) { resolve(); } else { reject(new Error('execCommand copy failed')); }
+                } catch (e) {
+                  reject(e);
+                }
+              });
+            }
+          };
+        }
+
+        // 2. Inject Native Styling
         var styleId = 'vcloud-native-optimization-style';
         var existing = document.getElementById(styleId);
         var root = document.head || document.documentElement;

@@ -2,6 +2,67 @@
 
 Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
 
+## [v2.9.40+204] — 2026-11-20 (Khắc Phục 3 Vấn Đề UI/UX, Clipboard Polyfill & Dữ Liệu Tab Cần Xử Lý)
+
+> [!IMPORTANT]
+> **Giải Quyết Triệt Để 5 Vấn Đề Giao Diện, Trải Nghiệm & Dữ Liệu Test (L4 VERIFIED 2026-11-20)**:
+> - **1. [FIX/UI] Nhận Diện ID Zalo / Định Danh OA Thay Vì Nhãn Email Lạ (`profile_screen.dart`)**:
+>   * Khi đối tác đồng bộ từ kênh Zalo OA, Odoo lưu UID người dùng (dãy 19 số như `7245457773355232717`) vào trường email.
+>   * Phân loại qua Regex: nếu chuỗi >= 6 chữ số và không có `@`, hiển thị nhãn **"ID Zalo / Định danh OA"** kèm icon `LucideIcons.fingerprint` và màu thương hiệu `#0077CD` thay vì nhãn "Email" gây hiểu lầm.
+> - **2. [FIX/UI] Sửa Lỗi Ảnh Phóng To Bị Thu Nhỏ Bé Tí Giữa Màn Hình (`chat_v2_image_viewer_screen.dart`, `profile_screen.dart`)**:
+>   * Gán `width: double.infinity, height: double.infinity` kết hợp `BoxFit.contain` trong `InteractiveViewer` và `Center` để ảnh căn chỉnh vừa khít chiều rộng/cao màn hình.
+>   * Tự động nâng cấp URL avatar thumbnail từ `avatar_128` sang `image_1024` khi mở phóng to, giúp ảnh sắc nét chuẩn Full HD.
+> - **3. [FEAT/UX] Tích Hợp Lệnh `@ticket` Vào Popup Mention Khi Gõ `@` (`chat_v2_input_bar.dart`)**:
+>   * Khi gõ `@`, popup gợi ý tự động bổ sung tùy chọn `@ticket (Tạo phiếu hỗ trợ)` ở vị trí đầu với badge **LỆNH** và icon `LucideIcons.ticket`.
+>   * Bấm chọn gợi ý sẽ tự động chèn `@ticket ` vào khung chat để người dùng gõ tiếp tiêu đề hoặc gửi ngay, kích hoạt native Odoo Discuss livechat ticket command.
+> - **4. [FIX/WEBVIEW] Clipboard Polyfill Cho WebView HTTP Non-Secure Context (`odoo_webview_screen.dart`)**:
+>   * Khắc phục lỗi `TypeError: Cannot read properties of undefined (reading 'writeText')` khi mở đơn hàng `S0837` trên Local Server `http://192.168.1.100:1900`.
+>   * Tự động inject fallback `document.execCommand('copy')` khi `window.navigator.clipboard` bị browser vô hiệu hóa do chạy qua HTTP IP LAN không có SSL.
+> - **5. [DATA/TEST] Bổ Sung Dữ Liệu Mẫu Tab Cần Xử Lý Cho Tài Khoản Admin (`mail_notification`)**:
+>   * Khởi tạo 3 thông báo needaction chưa đọc (`is_read = false`) gắn với Sale Order S0837, Ticket #TK001 và Task Webhook Zalo OA.
+>   * Xác minh trực tiếp trên máy ảo Redroid: Tab "Hộp thư Vua Hệ Thống" hiển thị badge `3`, danh sách tin nhắn hiện đầy đủ kèm nút "Gắn sao", "Đánh dấu đã xong" và "Đánh dấu tất cả".
+> - **6. [FIX/UI] Triệt Tiêu Lỗi Tràn 46 Pixels (BOTTOM OVERFLOWED BY 46 PIXELS) Khi Mở Popup Mention Với Bàn Phím Ảo (`chat_v2_input_bar.dart`, `chat_v2_detail_screen.dart`)**:
+>   * Khi người dùng gõ `@` trong ô chat để mention hoặc chọn lệnh `@ticket`, bàn phím mềm đẩy lên khiến không gian dọc bị co hẹp. Hộp gợi ý set cứng `maxHeight: 220` cộng với chiều cao input bar (76px) vượt quá không gian còn lại, gây lỗi RenderFlex overflow 46px.
+>   * Giải pháp Ponytail: tính toán động `dynamicMaxHeight = (availableHeight - controlsHeight - 48.0).clamp(70.0, 155.0)` khi bàn phím mở (`viewInsetsBottom > 0`), chừa tối thiểu 48px biên an toàn; đồng thời khai báo `resizeToAvoidBottomInset: true` trong Scaffold.
+>   * Đã kiểm chứng trực tiếp trên máy ảo Redroid (IP 192.168.1.100:5555): Khi mở bàn phím và gõ `@`, popup mention và ô nhập tin nhắn hiển thị trọn vẹn, vạch sọc vàng đen 46px biến mất 100%.
+> - **7. [TEST] Bộ Kiểm Thử Độc Lập Pass 100% & Analyzer 0 Lỗi**:
+>   * Bổ sung unit test `chat_v2_ticket_mention_and_avatar_test.dart` bao phủ đầy đủ 4 test cases (nhận diện ID Zalo, nâng cấp ảnh 1024, cú pháp lệnh `@ticket`, và thuật toán dynamicMaxHeight chống tràn màn hình).
+>   * `flutter analyze` giữ chuẩn tuyệt đối 0 errors / 0 warnings.
+
+---
+
+## [v2.9.39+203] — 2026-11-20 (Fix UI/UX Main Tab Overflow on Narrow Screens)
+
+> [!IMPORTANT]
+> **Khắc Phục Triệt Để Lỗi RenderFlex Overflow Tại Thanh Tab Chuyển Đổi Trò Chuyện (L4 VERIFIED 2026-11-20)**:
+> - **1. [FIX/UI] Chống Tràn Màn Hình Tại Nút "Hộp thư Vua Hệ Thống" (`chat_v2_list_screen.dart`)**:
+>   * Bọc `Text` bên trong `Flexible` với `maxLines: 1` và `overflow: TextOverflow.ellipsis` tại `_buildMainTabButton`.
+>   * Thiết lập `mainAxisSize: MainAxisSize.min` cho `Row` chứa icon, text và badge.
+>   * Tinh chỉnh padding và khoảng cách icon an toàn, loại bỏ hoàn toàn lỗi vạch sọc đỏ/vàng `OVERFLOWED BY 0.00264 PIXELS` trên màn hình điện thoại có chiều rộng hẹp (320px - 360px).
+> - **2. [TEST] Bổ Sung Bộ Test Layout Độc Lập Pass 100% (`chat_v2_tab_overflow_fix_test.dart`)**:
+>   * 4 test cases kiểm thử giao diện tab: chiều rộng chuẩn 159px, có badge đếm số lượng, màn hình cực hẹp 100px với ellipsis, và màn hình nhỏ 320px không ném exception `RenderFlex`.
+>   * `flutter analyze` giữ chuẩn tuyệt đối 0 errors / 0 warnings.
+
+---
+
+## [v2.9.38+202] — 2026-11-20 (Odoo Discuss Native Ticket Command & Interactive Badge)
+
+> [!IMPORTANT]
+> **Tạo Ticket Trực Tiếp Trong Chat Kế Thừa Native Odoo Discuss Command (L4 VERIFIED 2026-11-20)**:
+> - **1. [FEAT/CHAT_V2] Lệnh Discuss Native & Nút Thao Tác Nhanh Tạo Ticket (`chat_v2_input_bar.dart`, `chat_v2_repository.dart`)**:
+>   * Hỗ trợ gõ trực tiếp lệnh `/ticket [tiêu đề]` hoặc `@ticket [tiêu đề]` trong bất kỳ đoạn chat 1-1 hay nhóm/kênh.
+>   * Bổ sung nút hành động "Tạo Ticket" trong menu đính kèm (`+`) với dialog nhập nhanh tiêu đề phiếu, tự động định dạng và gửi lệnh đến hệ thống.
+>   * Gọi trực tiếp cơ chế native `execute_command_helpdesk` trên `discuss.channel` của Odoo (`website_helpdesk_livechat`), kế thừa nguyên vẹn logic gán team, partner và hội thoại từ `vuahethong.net`.
+> - **2. [FEAT/MESSAGE] Nhận Diện Liên Kết Ticket & Interactive Badge Card (`chat_v2_message.dart`, `chat_v2_message_item.dart`)**:
+>   * Tự động bóc tách metadata liên kết Odoo Discuss (`data-oe-model="helpdesk.ticket"`, `data-oe-id="{id}"`) hoặc URL `/tickets/{id}` thành `ChatV2TicketLinkInfo`.
+>   * Hiển thị Card huy hiệu Ticket nổi bật với icon vé, tiêu đề phiếu và nút bấm điều hướng trực tiếp vào màn hình chi tiết phiếu `/tickets/:id` qua GoRouter và Haptic feedback.
+>   * Xử lý click đường dẫn hash Odoo Web (`/web#id=...&model=helpdesk.ticket`) điều hướng mượt mà trong app.
+> - **3. [TEST] Bộ Test Đơn Vị Độc Lập 10/10 Pass (`chat_v2_ticket_command_test.dart`)**:
+>   * Bao phủ 10 kịch bản kiểm thử: thẻ chuẩn OdooBot, hoán đổi thuộc tính HTML, fallback sang `project.task`, URL /tickets/, text rỗng, HTML lồng thẻ và single quotes.
+>   * `flutter analyze lib/` đạt 0 errors, 0 warnings.
+
+---
+
 ## [v2.9.38+201] — 2026-11-20 (Hybrid Dynamic Channel Filters & Server-Driven Category Inheritance)
 
 > [!IMPORTANT]

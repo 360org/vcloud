@@ -1218,6 +1218,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
         }
       },
       child: Scaffold(
+      resizeToAvoidBottomInset: true,
       backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
       appBar: _isSearching
           ? _buildSearchAppBar(context, messages, isDark)

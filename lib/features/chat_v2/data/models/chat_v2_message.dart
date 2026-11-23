@@ -359,6 +359,20 @@ class ChatV2ChannelMediaResult {
   }
 }
 
+/// Thông tin liên kết Ticket trích xuất từ Odoo Discuss
+@immutable
+class ChatV2TicketLinkInfo {
+  final String ticketId;
+  final String ticketName;
+  final String model;
+
+  const ChatV2TicketLinkInfo({
+    required this.ticketId,
+    required this.ticketName,
+    this.model = 'helpdesk.ticket',
+  });
+}
+
 /// Model tin nhắn trò chuyện V2
 class ChatV2Message {
   const ChatV2Message({
@@ -629,6 +643,65 @@ class ChatV2Message {
         }
       }
     }
+    return null;
+  }
+
+  /// Trích xuất thông tin Ticket được tạo hoặc nhắc tới từ Odoo Discuss
+  ChatV2TicketLinkInfo? get ticketLinkInfo {
+    final raw = (rawBody ?? '').trim();
+    final clean = content.trim();
+
+    // 1. Thẻ liên kết Odoo Discuss (<a data-oe-model="helpdesk.ticket" data-oe-id="123">...</a>)
+    if (raw.contains('helpdesk.ticket') || raw.contains('project.task')) {
+      final tagRegex1 = RegExp(
+        r'<a\s+[^>]*data-oe-model=["\x27](helpdesk\.ticket|project\.task)["\x27][^>]*data-oe-id=["\x27](\d+)["\x27][^>]*>(.*?)<\/a>',
+        caseSensitive: false,
+        dotAll: true,
+      );
+      final m1 = tagRegex1.firstMatch(raw);
+      if (m1 != null) {
+        final model = m1.group(1) ?? 'helpdesk.ticket';
+        final id = m1.group(2) ?? '';
+        final name = cleanHtml(m1.group(3) ?? '').trim();
+        return ChatV2TicketLinkInfo(
+          ticketId: id,
+          ticketName: name.isNotEmpty ? name : 'Ticket #$id',
+          model: model,
+        );
+      }
+
+      final tagRegex2 = RegExp(
+        r'<a\s+[^>]*data-oe-id=["\x27](\d+)["\x27][^>]*data-oe-model=["\x27](helpdesk\.ticket|project\.task)["\x27][^>]*>(.*?)<\/a>',
+        caseSensitive: false,
+        dotAll: true,
+      );
+      final m2 = tagRegex2.firstMatch(raw);
+      if (m2 != null) {
+        final id = m2.group(1) ?? '';
+        final model = m2.group(2) ?? 'helpdesk.ticket';
+        final name = cleanHtml(m2.group(3) ?? '').trim();
+        return ChatV2TicketLinkInfo(
+          ticketId: id,
+          ticketName: name.isNotEmpty ? name : 'Ticket #$id',
+          model: model,
+        );
+      }
+    }
+
+    // 2. Định dạng URL /tickets/123 trong nội dung
+    final urlRegex = RegExp(r'(?:^|[\s"\x27<])(?:\S*/tickets/(\d+))', caseSensitive: false);
+    final urlMatch = urlRegex.firstMatch(raw.isNotEmpty ? raw : clean);
+    if (urlMatch != null) {
+      final id = urlMatch.group(1);
+      if (id != null && id.isNotEmpty) {
+        return ChatV2TicketLinkInfo(
+          ticketId: id,
+          ticketName: 'Ticket #$id',
+          model: 'helpdesk.ticket',
+        );
+      }
+    }
+
     return null;
   }
 

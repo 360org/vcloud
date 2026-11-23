@@ -1309,5 +1309,32 @@ class ChatV2Repository {
       rethrow;
     }
   }
+
+  /// Tạo Ticket trực tiếp từ đoạn chat sử dụng Odoo Native Discuss command
+  Future<Map<String, dynamic>> createTicketFromChat({
+    required String channelId,
+    required String title,
+  }) async {
+    final cid = int.tryParse(channelId) ?? 0;
+    final trimmedTitle = title.trim();
+    final body = {
+      'title': trimmedTitle,
+    };
+    try {
+      final res = await _client.post(
+        '/api/v1/mobile/chat/channels/$cid/create-ticket',
+        body: body,
+      );
+      if (res is Map<String, dynamic>) {
+        return res;
+      }
+      return {'status': 'success'};
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[ChatV2Repository] createTicketFromChat error: $e');
+      }
+      rethrow;
+    }
+  }
 }
 
