@@ -308,9 +308,10 @@ class ProfileScreen extends ConsumerWidget {
                           label: 'Xem ảnh đại diện (phóng to)',
                           color: const Color(0xFF8B5CF6),
                           onTap: () {
+                            final highResUrl = _toHighResAvatarUrl(avatarUrl);
                             Navigator.of(context).push(
                               ChatV2ImageViewerScreen.route(
-                                imageUrl: avatarUrl,
+                                imageUrl: highResUrl,
                                 title: displayName,
                               ),
                             );
@@ -593,9 +594,10 @@ class _PartnerHeroCard extends StatelessWidget {
 
   void _openAvatarZoom(BuildContext context) {
     if (avatarUrl.isEmpty) return;
+    final highResUrl = _toHighResAvatarUrl(avatarUrl);
     Navigator.of(context).push(
       ChatV2ImageViewerScreen.route(
-        imageUrl: avatarUrl,
+        imageUrl: highResUrl,
         title: name,
       ),
     );
@@ -1046,14 +1048,37 @@ class _EnterpriseDetailsCard extends StatelessWidget {
                 iconColor: const Color(0xFFEF4444),
                 onCopy: () => onCopy(contactAddress, 'Đã sao chép địa chỉ liên hệ.'),
               ),
-            if (email.isNotEmpty)
-              _DetailRowItem(
-                icon: LucideIcons.mail,
-                label: 'Email',
-                value: email,
-                iconColor: const Color(0xFF0D9488),
-                onCopy: () => onCopy(email, 'Đã sao chép email: $email'),
-              ),
+            if (email.isNotEmpty) ...[
+              () {
+                final isRealEmail = email.contains('@');
+                final isNumericId = RegExp(r'^\d{6,}$').hasMatch(email.trim());
+                if (isRealEmail) {
+                  return _DetailRowItem(
+                    icon: LucideIcons.mail,
+                    label: 'Email',
+                    value: email,
+                    iconColor: const Color(0xFF0D9488),
+                    onCopy: () => onCopy(email, 'Đã sao chép email: $email'),
+                  );
+                } else if (isNumericId) {
+                  return _DetailRowItem(
+                    icon: LucideIcons.fingerprint,
+                    label: 'ID Zalo / Định danh OA',
+                    value: email,
+                    iconColor: const Color(0xFF0077CD),
+                    onCopy: () => onCopy(email, 'Đã sao chép ID Zalo: $email'),
+                  );
+                } else {
+                  return _DetailRowItem(
+                    icon: LucideIcons.idCard,
+                    label: 'Mã định danh',
+                    value: email,
+                    iconColor: const Color(0xFF64748B),
+                    onCopy: () => onCopy(email, 'Đã sao chép mã định danh: $email'),
+                  );
+                }
+              }(),
+            ],
             if (phone.isNotEmpty)
               _DetailRowItem(
                 icon: LucideIcons.phone,
@@ -1794,5 +1819,14 @@ BoxDecoration _cardDecoration(BuildContext context, {double radius = 22}) {
       BoxShadow(color: Color(0x0A0F172A), blurRadius: 16, offset: Offset(0, 8)),
     ],
   );
+}
+
+/// Chuyển đổi avatar URL thumbnail (avatar_128, 128x128) thành độ phân giải cao (image_1024) khi xem phóng to
+String _toHighResAvatarUrl(String url) {
+  if (url.isEmpty) return url;
+  return url
+      .replaceAll('avatar_128', 'image_1024')
+      .replaceAll('field=avatar_128', 'field=image_1024')
+      .replaceAll('128x128', '1024x1024');
 }
 

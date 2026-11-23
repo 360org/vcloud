@@ -6,26 +6,29 @@
 
 ## 1. 🏛️ KIẾN TRÚC REPOSITORY & NHÁNH CHÍNH (SINGLE SOURCE OF TRUTH)
 
-| Nền tảng / Dự án | Remote Repository | Nhánh Chính Bắt Buộc | Quy Định Hiển Thị Remote |
+| Nền tảng / Dự án | Remote Repository | Nhánh Chính Bắt Buộc | Quy Định Merge, Push & Hiển Thị Remote |
 | :--- | :--- | :---: | :--- |
-| **Frontend Mobile (`vclients`)** | • GitHub: `https://github.com/360org/vcloud`<br>• GitLab: `git@gitlab.com:360org_mobiles/vclients.git` | **`main`** | **CHỈ HIỂN THỊ DUY NHẤT NHÁNH `main`** trên GitHub (xóa sạch nhánh rác sau khi merge). |
-| **Backend Odoo (`v_mobile`)** | • GitLab: `https://gitlab.com/360org_mobiles/v_mobile` | **`17.0`** | **CHỈ HIỂN THỊ `17.0`** (và `main` chuẩn) trên GitLab. |
+| **Frontend Mobile (`vclients`)** | • GitHub: `https://github.com/360org/vcloud`<br>• GitLab: `git@gitlab.com:360org_mobiles/vclients.git` | **`main`** | 🟢 **ĐƯỢC QUYỀN MERGE THẲNG VÀO `main` TRÊN GITHUB (`github/main`)**.<br>Sau khi code & verification pass, AI được phép merge trực tiếp vào `main` và push lên GitHub.<br>⛔ **GitLab ở frontend tuyệt đối KHÔNG cần merge**.<br>CHỈ HIỂN THỊ DUY NHẤT NHÁNH `main` trên GitHub (xóa sạch nhánh rác sau khi merge). |
+| **Backend Odoo 19 (`v_mobile_19`)** | • GitLab: `https://gitlab.com/360org_mobiles/v_mobile` | **`19.0`** | 🟢 **ĐƯỢC QUYỀN PUSH THẲNG VÀO `19.0` TRÊN GITLAB (`origin/19.0`)**.<br>Sếp Tân đã ủy quyền: AI được phép push trực tiếp vào `19.0` sau khi test pass. |
+| **Backend Odoo 17 (`v_mobile_17`)** | • GitLab: `https://gitlab.com/360org_mobiles/v_mobile` | **`17.0`** | 🟡 **BẮT BUỘC TẠO TASK BRANCH ➔ MERGE VÀO `17.0` TRÊN GITLAB**.<br>Tạo nhánh làm việc (`feat/17-...`, `fix/17-...`), test pass ➔ merge nhánh mới tạo đó vô `17.0`. CẤM push trực tiếp vào `17.0`. |
 
 ---
 
-## 2. 🚫 QUY ĐỊNH BẢO VỆ NHÁNH CHÍNH (ZERO DIRECT PUSH)
+## 2. 🛡️ PHÂN QUYỀN PUSH & MERGE (CẬP NHẬT THEO CHỈ THỊ SẾP TÂN)
 
-* ❌ **TUYỆT ĐỐI CẤM PUSH TRỰC TIẾP** vào:
-  * Nhánh **`main`** trên Frontend (`vclients`).
-  * Nhánh **`17.0`** trên Backend (`v_mobile`).
-* ✅ **MỌI THAY ĐỔI BẮT BUỘC ĐI QUA QUY TRÌNH 5 BƯỚC**:
-  ```text
-  1. Tạo Task Branch từ HEAD mới nhất của main / 17.0
-  2. Thực hiện Code tối giản (Ponytail)
-  3. Kiểm thử Pass 100% (flutter analyze 0 lỗi + flutter test 100% PASS)
-  4. Tạo Pull Request (GitHub) / Merge Request (GitLab) vào main / 17.0
-  5. Merge vào nhánh chính ➔ Xóa Branch nguồn ngay lập tức
-  ```
+* 🟢 **Frontend Mobile (`vclients`)**:
+  * AI **có quyền merge thẳng luôn** vào nhánh `main` trên GitHub (`github/main`) sau khi kiểm thử pass.
+* 🟢 **Backend Odoo 19 (`v_mobile_19`)**:
+  * AI **được quyền push thẳng trực tiếp** vào nhánh `19.0` trên GitLab (`origin/19.0`) sau khi kiểm thử pass.
+* 🟡 **Backend Odoo 17 (`v_mobile_17`)**:
+  * ❌ **CẤM PUSH TRỰC TIẾP** vào nhánh `17.0`.
+  * ✅ **BẮT BUỘC ĐI QUA QUY TRÌNH 4 BƯỚC**:
+    ```text
+    1. Tạo Task Branch từ HEAD mới nhất của 17.0 (feat/17-... hoặc fix/17-...)
+    2. Thực hiện code và kiểm thử (Pass 100% test case)
+    3. Merge nhánh mới tạo đó vô nhánh 17.0
+    4. Xóa branch tạm sau khi hoàn tất
+    ```
 
 ---
 

@@ -257,6 +257,24 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
 
           final matches = scored.map((e) => e.member).toList();
 
+          // Gợi ý lệnh @ticket nếu query rỗng (vừa gõ @) hoặc query khớp với 'ticket' / 'phieu' / 'ho tro'
+          const ticketCommandMember = ChatV2Member(
+            id: '__action_ticket_command__',
+            name: 'ticket',
+            nickname: 'Tạo phiếu hỗ trợ Ticket',
+            email: 'Gõ @ticket [tiêu đề] rồi gửi để tạo ticket',
+          );
+
+          final matchesTicket = qLower.isEmpty ||
+              'ticket'.startsWith(qLower) ||
+              qLower.startsWith('tic') ||
+              'phieu'.startsWith(qNormalized) ||
+              'hotro'.startsWith(qNormalized);
+
+          if (matchesTicket) {
+            matches.insert(0, ticketCommandMember);
+          }
+
           if (matches.isNotEmpty) {
             setState(() {
               _mentionSuggestions = matches;
@@ -345,6 +363,36 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
 
   void _selectMention(ChatV2Member member) {
     if (_mentionQueryStartIndex < 0) return;
+
+    if (member.id == '__action_ticket_command__') {
+      final text = _controller.text;
+      final cursor = _controller.selection.baseOffset;
+      int endIdx = cursor;
+      if (endIdx < _mentionQueryStartIndex || endIdx > text.length) {
+        final spaceIdx = text.indexOf(' ', _mentionQueryStartIndex);
+        endIdx = spaceIdx != -1 ? spaceIdx : text.length;
+      }
+      final prefix = text.substring(0, _mentionQueryStartIndex);
+      final suffix = text.substring(endIdx);
+
+      const insertText = '@ticket ';
+      final newText = '$prefix$insertText$suffix';
+
+      _controller.value = TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(offset: prefix.length + insertText.length),
+      );
+
+      setState(() {
+        _hasText = true;
+        _mentionSuggestions = [];
+        _mentionQueryStartIndex = -1;
+        _selectedMentionIndex = 0;
+      });
+      _focusNode.requestFocus();
+      return;
+    }
+
     final text = _controller.text;
     final cursor = _controller.selection.baseOffset;
     int endIdx = cursor;
@@ -2057,10 +2105,10 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
     );
   }
 
-  Widget _buildMentionSuggestionsBox(BuildContext context, bool isDark) {
+  Widget _buildMentionSuggestionsBox(BuildContext context, bool isDark, [double maxHeight = 220]) {
     return Container(
       margin: const EdgeInsets.only(left: 4, right: 4, bottom: 8),
-      constraints: const BoxConstraints(maxHeight: 220),
+      constraints: BoxConstraints(maxHeight: maxHeight),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E293B) : Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -2091,21 +2139,24 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
           itemBuilder: (ctx, index) {
             final member = _mentionSuggestions[index];
             final isSelected = index == _selectedMentionIndex;
+            final isTicketCmd = member.id == '__action_ticket_command__';
             final initial = member.name.trim().isNotEmpty
                 ? member.name.trim()[0].toUpperCase()
                 : '?';
             final avatarUrl = member.avatarUrl;
+            final accentColor = isTicketCmd ? const Color(0xFF0077CD) : const Color(0xFF00C83A);
+
             return Material(
               color: isSelected
                   ? (isDark
-                      ? const Color(0xFF00C83A).withValues(alpha: 0.22)
-                      : const Color(0xFF00C83A).withValues(alpha: 0.12))
+                      ? accentColor.withValues(alpha: 0.22)
+                      : accentColor.withValues(alpha: 0.12))
                   : Colors.transparent,
               child: InkWell(
                 onTap: () => _selectMention(member),
                 hoverColor: isDark
-                    ? const Color(0xFF00C83A).withValues(alpha: 0.15)
-                    : const Color(0xFF00C83A).withValues(alpha: 0.08),
+                    ? accentColor.withValues(alpha: 0.15)
+                    : accentColor.withValues(alpha: 0.08),
                 child: Padding(
                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                    child: Row(
@@ -2115,34 +2166,40 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
                          height: 34,
                          decoration: BoxDecoration(
                            shape: BoxShape.circle,
-                           color: const Color(0xFF00C83A).withValues(alpha: 0.15),
+                           color: accentColor.withValues(alpha: 0.15),
                          ),
                          clipBehavior: Clip.antiAlias,
                          alignment: Alignment.center,
-                         child: avatarUrl != null && avatarUrl.isNotEmpty
-                             ? Image.network(
-                                 avatarUrl,
-                                 width: 34,
-                                 height: 34,
-                                 fit: BoxFit.cover,
-                                 headers: odooApiClient.authHeaders,
-                                 errorBuilder: (context, error, stackTrace) => Text(
-                                   initial,
-                                   style: const TextStyle(
-                                     fontSize: 14,
-                                     fontWeight: FontWeight.w700,
-                                     color: Color(0xFF00C83A),
-                                   ),
-                                 ),
+                         child: isTicketCmd
+                             ? const Icon(
+                                 LucideIcons.ticket,
+                                 size: 17,
+                                 color: Color(0xFF0077CD),
                                )
-                             : Text(
-                                 initial,
-                                 style: const TextStyle(
-                                   fontSize: 14,
-                                   fontWeight: FontWeight.w700,
-                                   color: Color(0xFF00C83A),
-                                 ),
-                               ),
+                             : (avatarUrl != null && avatarUrl.isNotEmpty
+                                 ? Image.network(
+                                     avatarUrl,
+                                     width: 34,
+                                     height: 34,
+                                     fit: BoxFit.cover,
+                                     headers: odooApiClient.authHeaders,
+                                     errorBuilder: (context, error, stackTrace) => Text(
+                                       initial,
+                                       style: TextStyle(
+                                         fontSize: 14,
+                                         fontWeight: FontWeight.w700,
+                                         color: accentColor,
+                                       ),
+                                     ),
+                                   )
+                                 : Text(
+                                     initial,
+                                     style: TextStyle(
+                                       fontSize: 14,
+                                       fontWeight: FontWeight.w700,
+                                       color: accentColor,
+                                     ),
+                                   )),
                        ),
                        const SizedBox(width: 10),
                        Expanded(
@@ -2151,12 +2208,12 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
                            mainAxisSize: MainAxisSize.min,
                            children: [
                              Text(
-                               member.name,
+                               isTicketCmd ? '@ticket (Tạo phiếu hỗ trợ)' : member.name,
                                style: TextStyle(
                                  fontSize: 14,
                                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
                                  color: isSelected
-                                     ? const Color(0xFF00C83A)
+                                     ? accentColor
                                      : (isDark ? Colors.white : const Color(0xFF0F172A)),
                                ),
                                maxLines: 1,
@@ -2181,16 +2238,16 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                          decoration: BoxDecoration(
                            color: isSelected
-                               ? const Color(0xFF00C83A)
-                               : const Color(0xFF00C83A).withValues(alpha: 0.1),
+                               ? accentColor
+                               : accentColor.withValues(alpha: 0.1),
                            borderRadius: BorderRadius.circular(10),
                          ),
                          child: Text(
-                           '@tag',
+                           isTicketCmd ? 'LỆNH' : '@tag',
                            style: TextStyle(
                              fontSize: 11,
                              fontWeight: FontWeight.w600,
-                             color: isSelected ? Colors.white : const Color(0xFF00C83A),
+                             color: isSelected ? Colors.white : accentColor,
                            ),
                          ),
                        ),
@@ -2205,10 +2262,10 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
     );
   }
 
-  Widget _buildChannelSuggestionsBox(BuildContext context, bool isDark) {
+  Widget _buildChannelSuggestionsBox(BuildContext context, bool isDark, [double maxHeight = 220]) {
     return Container(
       margin: const EdgeInsets.only(left: 4, right: 4, bottom: 8),
-      constraints: const BoxConstraints(maxHeight: 220),
+      constraints: BoxConstraints(maxHeight: maxHeight),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E293B) : Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -2332,11 +2389,22 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
     final isBusy = widget.isSending || _isUploading;
     final canSend = (_hasText || _hasSelectedAttachment) && !isBusy;
     final selectedDisplaySize = _selectedFileSize ?? _selectedBytes?.length ?? 0;
-    final viewInsetsBottom = MediaQuery.of(context).viewInsets.bottom;
-    final viewPaddingBottom = MediaQuery.of(context).padding.bottom;
+    final mediaQuery = MediaQuery.of(context);
+    final viewInsetsBottom = mediaQuery.viewInsets.bottom;
+    final viewPaddingBottom = mediaQuery.padding.bottom;
     final bottomInset = viewInsetsBottom > 0
         ? 8.0
         : (viewPaddingBottom > 0 ? viewPaddingBottom + 4 : 12.0);
+
+    // ponytail: tính toán dynamicMaxHeight cho mention/channel suggestions box khi bàn phím mở
+    // Đảm bảo không bao giờ làm tràn (overflow) layout màn hình khi không gian dọc bị thu hẹp
+    final screenHeight = mediaQuery.size.height;
+    final topInset = mediaQuery.padding.top;
+    final availableHeight = screenHeight - viewInsetsBottom - topInset - kToolbarHeight;
+    final controlsHeight = 56.0 + bottomInset + 12.0 + (_hasSelectedAttachment ? 70.0 : 0.0);
+    final dynamicMaxHeight = viewInsetsBottom > 0
+        ? (availableHeight - controlsHeight - 48.0).clamp(70.0, 155.0)
+        : 220.0;
 
     return Container(
       width: double.infinity,
@@ -2355,9 +2423,9 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
                 children: [
                   // Danh sách gợi ý thành viên khi gõ @ Mention
                   if (_mentionSuggestions.isNotEmpty)
-                    _buildMentionSuggestionsBox(context, isDark)
+                    _buildMentionSuggestionsBox(context, isDark, dynamicMaxHeight)
                   else if (_channelSuggestions.isNotEmpty)
-                    _buildChannelSuggestionsBox(context, isDark),
+                    _buildChannelSuggestionsBox(context, isDark, dynamicMaxHeight),
                   // Preview tệp/ảnh trước khi gửi nếu có tệp được chọn
                   if (_hasSelectedAttachment) ...[
                     Container(

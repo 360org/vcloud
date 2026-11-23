@@ -849,6 +849,8 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
     if (bytes != null && bytes.isNotEmpty) {
       content = Image.memory(
         bytes,
+        width: double.infinity,
+        height: double.infinity,
         fit: BoxFit.contain,
         gaplessPlayback: true,
         errorBuilder: (context, error, stackTrace) => _buildNetworkOrError(item),
@@ -871,7 +873,7 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
   }
 
   Widget _buildNetworkOrError(ChatV2ImageItem item) {
-    final cleanUrl = item.imageUrl.trim();
+    final cleanUrl = _upgradeToFullRes(item.imageUrl.trim());
     if (cleanUrl.isNotEmpty && (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://'))) {
       if (kIsWeb) {
         final htmlImg = buildHtmlNetworkImage(url: cleanUrl, fit: BoxFit.contain);
@@ -879,6 +881,8 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
       }
       return Image.network(
         cleanUrl,
+        width: double.infinity,
+        height: double.infinity,
         fit: BoxFit.contain,
         headers: odooApiClient.authHeaders,
         gaplessPlayback: true,
@@ -886,6 +890,14 @@ class _ChatV2ImageViewerScreenState extends State<ChatV2ImageViewerScreen>
       );
     }
     return _buildError();
+  }
+
+  static String _upgradeToFullRes(String url) {
+    if (url.isEmpty) return url;
+    return url
+        .replaceAll('avatar_128', 'image_1024')
+        .replaceAll('field=avatar_128', 'field=image_1024')
+        .replaceAll('128x128', '1024x1024');
   }
 
   Widget _buildError() {

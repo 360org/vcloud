@@ -23,11 +23,11 @@
 💡 QUY TẮC LÁCH BỘ LỌC URL/IP: Viết tên tệp dạng `git . md`, `sync . sh`, IP `192 . 168 . 1 . 100` để chống bị kiểm duyệt.
 
 ### 1. Ma Trận 3 Repositories & Authoritative Remote/Branch Matrix (SSOT):
-| Thành phần | Thư mục | Remote Repositories | Authoritative Branch | Cơ Chế Merge & Bảo Vệ (BẮT BUỘC) |
+| Thành phần | Thư mục | Remote Repositories | Authoritative Branch | Cơ Chế Merge & Bảo Vệ (CẬP NHẬT THEO LỆNH SẾP TÂN) |
 |---|---|---|:---:|---|
-| **Frontend Mobile** | `vclients/` | • GitHub: `git@github . com:360org/vcloud . git` (`github`)<br>• GitLab: `git@gitlab . com:360org_mobiles/vclients . git` (`origin`) | **`main`** | **CHỈ MERGE TRÊN GITHUB (`github/main`)**.<br>⛔ **GITLAB Ở FRONTEND TUYỆT ĐỐI KHÔNG CẦN MERGE** (GitLab chỉ lưu code mirror, cấm tạo hay yêu cầu merge MR trên GitLab).<br>⛔ Nhánh cũ `release/ios-appstore` là **OBSOLETE / CẤM DÙNG**. |
-| **Backend Odoo 17** | `v_mobile_17/` | • GitLab: `git@gitlab . com:360org_mobiles/v_mobile . git` (`origin`) | **`17.0`** | **BẮT BUỘC MERGE TRÊN GITLAB**.<br>Tạo MR và merge vào nhánh `17.0`. CẤM push trực tiếp vào `17.0`. |
-| **Backend Odoo 19** | `v_mobile_19/` | • GitLab: `git@gitlab . com:360org_mobiles/v_mobile . git` (`origin`) | **`19.0`** | **BẮT BUỘC MERGE TRÊN GITLAB**.<br>Tạo MR và merge vào nhánh `19.0`. CẤM push trực tiếp vào `19.0`. |
+| **Frontend Mobile** | `vclients/` | • GitHub: `git@github . com:360org/vcloud . git` (`github`)<br>• GitLab: `git@gitlab . com:360org_mobiles/vclients . git` (`origin`) | **`main`** | 🟢 **ĐƯỢC QUYỀN MERGE THẲNG VÀO `main` TRÊN GITHUB (`github/main`)**.<br>Sau khi hoàn tất code & verification, AI được phép merge trực tiếp vào `main` và push lên GitHub.<br>⛔ **GITLAB Ở FRONTEND TUYỆT ĐỐI KHÔNG CẦN MERGE** (GitLab chỉ lưu code mirror).<br>⛔ Nhánh cũ `release/ios-appstore` là **OBSOLETE / CẤM DÙNG**. |
+| **Backend Odoo 19** | `v_mobile_19/` | • GitLab: `git@gitlab . com:360org_mobiles/v_mobile . git` (`origin`) | **`19.0`** | 🟢 **ĐƯỢC QUYỀN PUSH THẲNG VÀO `19.0` TRÊN GITLAB (`origin/19.0`)**.<br>Sếp Tân đã ủy quyền: AI được phép push trực tiếp vào nhánh `19.0` sau khi test pass, không bắt buộc tạo nhánh task/MR. |
+| **Backend Odoo 17** | `v_mobile_17/` | • GitLab: `git@gitlab . com:360org_mobiles/v_mobile . git` (`origin`) | **`17.0`** | 🟡 **BẮT BUỘC TẠO NHÁNH TASK ➔ MERGE VÀO `17.0` TRÊN GITLAB**.<br>Tạo nhánh làm việc (`feat/17-...`, `fix/17-...`), kiểm thử pass, sau đó merge nhánh mới tạo đó vô `17.0`. CẤM push trực tiếp vào `17.0`. |
 
 ### 2. Bộ Công Cụ Đồng Bộ & Bảo Vệ Git Tự Động Sẵn Có:
 - **CLI Tool chuẩn**: `vcloud-sync` (Đường dẫn thực thi: `/media/tanma/DATA/tool/update_git_code/sync.sh` hoặc symlink `/home/tanma/.local/bin/vcloud-sync`).
@@ -119,13 +119,17 @@ Trước khi thực hiện lệnh `git push`, AI bắt buộc chạy qua Pre-Pus
 1. `DIRECTORY`: Xác minh đang đứng đúng thư mục (`vclients`, `v_mobile_17`, hoặc `v_mobile_19`).
 2. `REPOSITORY`: Xác minh remote URL hợp lệ (GitLab `360org_mobiles/*` và GitHub `360org/vcloud`).
 3. `REMOTE`: Chạy `git fetch --all --prune` lấy trạng thái mới nhất từ tất cả remote.
-4. `BRANCH`: Kiểm tra nhánh hiện tại. ⛔ **CẤM push trực tiếp vào `main`, `17.0`, `19.0`**. Bắt buộc tạo task branch theo số build tăng dần (`feat/app-build<N>-...` hoặc `fix/app-build<N>-...`).
+4. `BRANCH`: Kiểm tra nhánh hiện tại theo phân quyền mới của Sếp Tân:
+   - **Frontend (`vclients`)**: AI có quyền merge thẳng vào `main` trên GitHub (`github/main`).
+   - **Backend Odoo 19 (`v_mobile_19`)**: AI có quyền push thẳng trực tiếp vào nhánh `19.0` trên GitLab (`origin/19.0`).
+   - **Backend Odoo 17 (`v_mobile_17`)**: Bắt buộc tạo task branch (`feat/17-...`, `fix/17-...`), test pass ➔ merge nhánh mới tạo đó vào `17.0`. CẤM push trực tiếp vào `17.0`.
 5. `SYNC STATUS`: Đối soát `git rev-list --left-right --count HEAD...@{u}`. Nếu có `behind > 0` ➔ DỪNG LẠI, pull rebase trước.
 6. `WORKING TREE`: Kiểm tra `git status -s`, đảm bảo không còn file untracked quan trọng bị bỏ quên.
-7. `TASK & PR/MR (PHÂN ĐỊNH RÕ REMOTE ĐÍCH)`:
-   - **Frontend (`vclients`)**: Đẩy nhánh tính năng lên GitHub ➔ Merge vào nhánh `main` trên **GitHub** (`github`). ⛔ **Tuyệt đối KHÔNG cần tạo hay merge MR trên GitLab**.
-   - **Backend Odoo (`v_mobile_17` & `v_mobile_19`)**: Đẩy nhánh tính năng lên GitLab ➔ Tạo MR và merge vào nhánh `17.0` và `19.0` trên **GitLab** (`origin`).
-   - Sau khi merge ➔ Xóa sạch các task branch tạm ở cả remote và local.
+7. `TASK & PR/MR (PHÂN ĐỊNH RÕ REMOTE ĐÍCH & QUYỀN THỰC THI)`:
+   - **Frontend (`vclients`)**: AI có quyền merge thẳng vào `main` trên GitHub (`github/main`) ➔ push lên `github/main` (mirror sang `origin/main` nếu cần). ⛔ Tuyệt đối KHÔNG cần tạo hay merge MR trên GitLab.
+   - **Backend Odoo 19 (`v_mobile_19`)**: AI được phép push thẳng trực tiếp vào nhánh `19.0` trên GitLab (`origin/19.0`).
+   - **Backend Odoo 17 (`v_mobile_17`)**: Đẩy nhánh tính năng lên GitLab ➔ merge nhánh mới tạo đó vào nhánh `17.0` trên GitLab (`origin/17.0`).
+   - Sau khi merge/push ➔ Rà soát và xóa sạch các nhánh thừa, nhánh rác tạm ở cả remote và local.
 
 ---
 
