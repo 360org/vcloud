@@ -49,17 +49,17 @@ void main() {
 
     testWidgets('TC1: Tab button does not overflow at standard width (159px)', (tester) async {
       await tester.pumpWidget(buildTestTabButton(
-        label: 'Hộp thư Vua Hệ Thống',
+        label: 'Hộp thư hệ thống',
         count: 0,
         availableWidth: 159.0,
       ));
       expect(tester.takeException(), isNull);
-      expect(find.text('Hộp thư Vua Hệ Thống'), findsOneWidget);
+      expect(find.text('Hộp thư hệ thống'), findsOneWidget);
     });
 
     testWidgets('TC2: Tab button with badge count does not overflow at standard width (159px)', (tester) async {
       await tester.pumpWidget(buildTestTabButton(
-        label: 'Hộp thư Vua Hệ Thống',
+        label: 'Hộp thư hệ thống',
         count: 16,
         availableWidth: 159.0,
       ));
@@ -68,7 +68,7 @@ void main() {
 
     testWidgets('TC3: Tab button handles extremely narrow width (100px) with ellipsis without overflow', (tester) async {
       await tester.pumpWidget(buildTestTabButton(
-        label: 'Hộp thư Vua Hệ Thống',
+        label: 'Hộp thư hệ thống',
         count: 99,
         availableWidth: 100.0,
       ));
@@ -96,7 +96,7 @@ void main() {
                     ),
                     const SizedBox(width: 4),
                     Expanded(
-                      child: buildTestTabButton(label: 'Hộp thư Vua Hệ Thống', count: 0, availableWidth: 140),
+                      child: buildTestTabButton(label: 'Hộp thư hệ thống', count: 0, availableWidth: 140),
                     ),
                   ],
                 ),

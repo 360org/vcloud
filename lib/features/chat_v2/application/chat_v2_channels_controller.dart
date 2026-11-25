@@ -1052,12 +1052,12 @@ class ChatV2ChannelsNotifier
 
     try {
       syncStatusNotifier.state = ChatV2SyncStatus.connecting;
-      final fresh = await repo.getChannels(
+      final page = await _fetchPageWithMeta(
+        repo,
         limit: kInitialChannelsLimit,
         offset: 0,
-        withMeta: true,
       );
-      _syncMetaFromRepo(repo);
+      final fresh = page.channels;
       if (fresh.isNotEmpty) {
         for (final f in fresh) {
           final pId = f.partnerId ?? f.directPartnerId;
@@ -1096,6 +1096,38 @@ class ChatV2ChannelsNotifier
       _pollingTimer?.cancel();
       _pollingTimer = null;
       rethrow;
+    }
+  }
+
+  Future<ChatV2ChannelsPageResult> _fetchPageWithMeta(
+    ChatV2Repository repo, {
+    required int limit,
+    required int offset,
+    bool strictLimit = false,
+    bool compact = false,
+  }) async {
+    try {
+      final page = await repo.getChannelsWithMeta(
+        limit: limit,
+        offset: offset,
+        strictLimit: strictLimit,
+        compact: compact,
+        withMeta: true,
+      );
+      if (page.meta != null) {
+        _channelsMeta = page.meta;
+      }
+      return page;
+    } on UnimplementedError {
+      final list = await repo.getChannels(
+        limit: limit,
+        offset: offset,
+        strictLimit: strictLimit,
+        compact: compact,
+        withMeta: true,
+      );
+      _syncMetaFromRepo(repo);
+      return ChatV2ChannelsPageResult(channels: list, meta: _channelsMeta);
     }
   }
 
@@ -1181,16 +1213,16 @@ class ChatV2ChannelsNotifier
     _isResumeRefreshing = true;
     try {
       final repo = ref.read(chatV2RepositoryProvider);
-      final fresh = await repo.getChannels(
+      final page = await _fetchPageWithMeta(
+        repo,
         limit: kPollingChannelsLimit,
         offset: 0,
         strictLimit: true,
         compact: true,
-        withMeta: true,
       );
+      final fresh = page.channels;
 
       if (_isDisposed) return;
-      _syncMetaFromRepo(repo);
 
       if (fresh.isNotEmpty) {
         final presenceNotifier = ref.read(chatV2PresenceProvider.notifier);
@@ -1264,12 +1296,12 @@ class ChatV2ChannelsNotifier
     ref.read(chatV2SyncStatusProvider.notifier).state = ChatV2SyncStatus.connecting;
     try {
       final repo = ref.read(chatV2RepositoryProvider);
-      final fresh = await repo.getChannels(
+      final page = await _fetchPageWithMeta(
+        repo,
         limit: kInitialChannelsLimit,
         offset: 0,
-        withMeta: true,
       );
-      _syncMetaFromRepo(repo);
+      final fresh = page.channels;
       _serverLoadedIds
         ..clear()
         ..addAll(fresh.map((c) => c.id));

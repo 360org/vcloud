@@ -632,6 +632,100 @@ void main() {
       await tester.pumpWidget(buildListScreen(ChatV2SyncStatus.serverError));
       await tester.pumpAndSettle();
       expect(find.text('Máy chủ tạm gián đoạn — Chạm để thử lại'), findsOneWidget);
+      expect(find.text('Hộp thư hệ thống'), findsOneWidget);
+
+      // 4. Khi có meta.totalCount (956) -> Chip Tất cả hiển thị 956 thay vì 30+
+      final routerMeta = GoRouter(
+        initialLocation: '/chat',
+        routes: [
+          GoRoute(
+            path: '/chat',
+            builder: (_, _) => const ChatV2ListScreen(),
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          key: const ValueKey<String>('with_meta_956'),
+          overrides: [
+            authControllerProvider.overrideWith(_FakeAuthController.new),
+            chatV2ChannelsProvider.overrideWith(
+              () => _WidgetFakeChannelsNotifier(
+                channels30,
+                hasMore: true,
+                meta: const ChatV2ChannelsMeta(
+                  totalCount: 956,
+                  unreadChannelsCount: 14,
+                  categoryCounts: {'chat': 25, 'zalo_oa': 890},
+                ),
+              ),
+            ),
+            chatV2TotalUnreadProvider.overrideWithValue(0),
+            chatV2SyncStatusProvider.overrideWith((ref) => ChatV2SyncStatus.synced),
+            chatV2InboxControllerProvider.overrideWith(_FakeInboxController.new),
+          ],
+          child: MaterialApp.router(
+            theme: ThemeData(splashFactory: NoSplash.splashFactory),
+            routerConfig: routerMeta,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('956'), findsOneWidget);
+      expect(find.text('890'), findsOneWidget);
+      expect(find.text('30+'), findsNothing);
+    });
+
+    test('ChatV2ChannelsNotifier.build() & refresh() dùng getChannelsWithMeta(withMeta: true) cập nhật channelsMeta', () async {
+      final mockHttp = MockClient((request) async {
+        return http.Response(
+          jsonEncode({
+            'channels': [
+              {
+                'id': 1,
+                'name': 'Administrators',
+                'channel_type': 'channel',
+                'is_group': true,
+                'last_message_date': '2026-11-25 09:00:00',
+              },
+            ],
+            'meta': {
+              'total_count': 123,
+              'unread_channels_count': 4,
+              'category_counts': {'channel': 12, 'zalo': 111},
+              'max_message_id': 9999,
+            },
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+      final client = OdooApiClient(
+        baseUrl: 'https://vuahethong.net',
+        httpClient: mockHttp,
+        sessionStore: _MemorySessionStore(),
+      );
+      await client.restoreSession();
+      final repo = ChatV2Repository(client);
+
+      final container = ProviderContainer(
+        overrides: [
+          authControllerProvider.overrideWith(_FakeAuthController.new),
+          chatV2RepositoryProvider.overrideWithValue(repo),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container.read(authControllerProvider.future);
+      await container.read(chatV2ChannelsProvider.future);
+
+      final notifier = container.read(chatV2ChannelsProvider.notifier);
+      expect(notifier.channelsMeta?.totalCount, 123);
+      expect(notifier.channelsMeta?.categoryCounts['zalo'], 111);
+
+      await notifier.refresh();
+      expect(notifier.channelsMeta?.totalCount, 123);
+      expect(notifier.hasMore, isTrue);
     });
   });
 }

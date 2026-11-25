@@ -24,7 +24,10 @@ Tài liệu ghi chép các thay đổi của **VCloud Mobile App & Odoo Backend*
 >   * Chip `Tất cả` hiển thị `30+` khi chưa có `meta.total_count` và `hasMore == true` (hoặc tổng từ `meta.total_count`); bấm chip danh mục có `< 15` kênh trong RAM khi `hasMore == true` tự động gọi `getChannels(filter: cat, limit: 30)` và merge vào cache.
 > - **5. [API/CONTRACT] Mở Rộng `ChatV2Repository.getChannels()` (`chat_v2_repository.dart`)**:
 >   * Hỗ trợ `strictLimit`, `compact`, `withMeta`, `afterMsgId`, `since`, thêm `ChatV2ChannelsMeta` / `getChannelsWithMeta()`, tương thích ngược 100% cả `List` cũ lẫn `Map` mới.
-> - **6. [TEST] Bộ Kiểm Thử Độc Lập Pha 1 (`chat_v2_fast_sync_merge_test.dart`)**:
+>   * `ChatV2ChannelsNotifier.build()` & `refresh()` dùng `getChannelsWithMeta(withMeta: true)` (có fallback an toàn nếu server trả `List` cũ) để cập nhật chính xác `meta.total_count` & `meta.category_counts` lên thanh filter chips.
+> - **6. [FIX/UI] Rút Gọn Nhãn Tab `'Hộp thư hệ thống'` Chống Cắt Chữ Trên 360dp (`chat_v2_list_screen.dart`)**:
+>   * Đổi `'Hộp thư Vua Hệ Thống'` sang `'Hộp thư hệ thống'` để hiển thị trọn vẹn không bị cắt `...` trên màn hình 360dp.
+> - **7. [TEST] Bộ Kiểm Thử Độc Lập Pha 1 (`chat_v2_fast_sync_merge_test.dart`)**:
 >   * Bao phủ đầy đủ 5 kịch bản trong SPEC v2.0 Mục 7 + test tương thích `List`/`Map` và widget test Banner 3 trạng thái & chip `30+`.
 
 ---

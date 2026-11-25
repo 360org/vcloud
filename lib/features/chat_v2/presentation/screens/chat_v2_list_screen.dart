@@ -486,7 +486,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
 
                           int countForCategory(String cat) {
                             final metaCount = channelsMeta?.categoryCounts[cat];
-                            if (metaCount != null && metaCount > 0) return metaCount;
+                            if (metaCount != null) return metaCount;
                             return categoryCounts[cat] ?? 0;
                           }
 
@@ -1290,7 +1290,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
           Expanded(
             child: _buildMainTabButton(
               icon: LucideIcons.inbox,
-              label: 'Hộp thư Vua Hệ Thống',
+              label: 'Hộp thư hệ thống',
               count: inboxCount,
               badgeColor: const Color(0xFFEF4444),
               isSelected: _activeMainTab == 1,
