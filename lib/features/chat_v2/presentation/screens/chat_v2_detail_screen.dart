@@ -1417,14 +1417,18 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                   color: Color(0xFF0077CD),
                                 ),
                                 const SizedBox(width: 4),
-                                Text(
-                                  isPortal
-                                      ? 'Hỗ trợ trực tuyến • 360 CORP'
-                                      : 'Khách hàng • Livechat',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                    color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                Flexible(
+                                  child: Text(
+                                    isPortal
+                                        ? 'Hỗ trợ trực tuyến • 360 CORP'
+                                        : 'Khách hàng • Livechat',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                      color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                    ),
                                   ),
                                 ),
                               ],
@@ -1440,21 +1444,26 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                   color: Color(0xFF0077CD),
                                 ),
                                 const SizedBox(width: 4),
-                                Text(
-                                  isPortal
-                                      ? '360 CORP • Hỗ trợ chính thức'
-                                      : 'Khách hàng Portal • Kênh CSKH',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                    color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                Flexible(
+                                  child: Text(
+                                    isPortal
+                                        ? '360 CORP • Hỗ trợ chính thức'
+                                        : 'Khách hàng Portal • Kênh CSKH',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                      color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                    ),
                                   ),
                                 ),
                               ],
                             );
                           }
 
-                          if (currentChannel != null && currentChannel.isZaloOA) {
+                          if (currentChannel != null &&
+                              (currentChannel.isZaloOA || currentChannel.isZaloPersonal)) {
                             return Row(
                               children: [
                                 const Icon(
@@ -1463,12 +1472,18 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                   color: Color(0xFF0068FF),
                                 ),
                                 const SizedBox(width: 4),
-                                Text(
-                                  'Zalo OA • Khách hàng',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                    color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                Flexible(
+                                  child: Text(
+                                    currentChannel.isZaloPersonal
+                                        ? 'Zalo • Khách hàng'
+                                        : 'Zalo OA • Khách hàng',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                      color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                    ),
                                   ),
                                 ),
                               ],
@@ -1491,12 +1506,16 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                   color: Color(0xFF0284C7),
                                 ),
                                 const SizedBox(width: 4),
-                                Text(
-                                  'Kênh thảo luận • $count thành viên',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                    color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                Flexible(
+                                  child: Text(
+                                    'Kênh thảo luận • $count thành viên',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                      color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                    ),
                                   ),
                                 ),
                               ],
@@ -1523,12 +1542,16 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                   color: isDark ? Colors.white60 : const Color(0xFF64748B),
                                 ),
                                 const SizedBox(width: 4),
-                                Text(
-                                  '$count thành viên',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                    color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                Flexible(
+                                  child: Text(
+                                    '$count thành viên',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                      color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                    ),
                                   ),
                                 ),
                               ],

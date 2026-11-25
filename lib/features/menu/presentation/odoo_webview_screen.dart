@@ -911,6 +911,7 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
   Stopwatch? _loadStopwatch;
   String? _sessionEntryUrl;
   int _navGeneration = 0;
+  int _ssoRecoveryAttempts = 0;
   bool _standaloneEagerCss = false;
   bool _standaloneCheckedCssError = false;
 
@@ -951,6 +952,7 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
       _activeTitle = title;
       _hasError = false;
       _errorMessage = null;
+      _ssoRecoveryAttempts = 0;
     });
     if (kIsWeb) {
       setState(() {
@@ -1000,10 +1002,32 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
     final elapsed = _loadStopwatch?.elapsedMilliseconds;
     _loadStopwatch?.stop();
     if (elapsed != null) {
-      debugPrint('[VCLOUD_WEBVIEW] ⏱️ Tải xong trang sau ${elapsed}ms: $url');
+      debugPrint('[VCLOUD_WEBVIEW] ⏱️ Tải xong trang sau ${elapsed}ms: ${sanitizeUrlForLog(url)}');
     }
-    if (!url.contains('/api/v1/mobile/web/auth') && _sessionEntryUrl == null) {
-      _sessionEntryUrl = _normalizeUrlForBackCheck(url);
+    final session = odooApiClient.session;
+    if (isOdooLoginRedirectUrl(url) &&
+        _ssoRecoveryAttempts < 1 &&
+        session != null &&
+        session.accessToken.isNotEmpty &&
+        _controller != null) {
+      _ssoRecoveryAttempts++;
+      OdooWebViewScreen.hasSsoAuthenticated = false;
+      _OdooWarmWebViewPool.instance._isOwlReady = false;
+      final ssoUrl = buildTargetWebViewUrl(
+        rawUrl: _activeRawUrl,
+        session: session,
+        baseUrl: odooApiClient.baseUrl,
+        colorScheme: _isDarkTheme ? 'dark' : 'light',
+        useDirectUrlIfAuthenticated: false,
+      );
+      debugPrint('[VCLOUD_WEBVIEW] 🔄 Phát hiện redirect về /web/login -> Tự động SSO lại: ${sanitizeUrlForLog(ssoUrl)}');
+      final headers = _OdooWarmWebViewPool.instance._buildAuthHeaders(session);
+      unawaited(_controller!.loadRequest(Uri.parse(ssoUrl), headers: headers));
+      return;
+    }
+    if (!url.contains('/api/v1/mobile/web/auth') && !isOdooLoginRedirectUrl(url)) {
+      _ssoRecoveryAttempts = 0;
+      _sessionEntryUrl ??= _normalizeUrlForBackCheck(url);
     }
     if (mounted) {
       _progressNotifier.value = 1.0;
@@ -1249,6 +1273,7 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
     try {
       final gen = ++_navGeneration;
       _sessionEntryUrl = null;
+      _ssoRecoveryAttempts = 0;
       final fullUrl = _buildTargetUrl();
       final uri = Uri.parse(fullUrl);
       debugPrint('[VCLOUD_WEBVIEW] Khởi tạo WebViewController cho mobile với uri=${sanitizeUrlForLog(uri.toString())}');
@@ -1590,6 +1615,14 @@ String sanitizeUrlForLog(String url) {
   } catch (_) {
     return url.replaceAll(RegExp(r'token=[^&]+'), 'token=***REDACTED***');
   }
+}
+
+/// Nhận diện URL trang đăng nhập / chọn DB của hệ thống (không tính cầu SSO /api/v1/mobile/web/auth)
+bool isOdooLoginRedirectUrl(String url) {
+  if (url.isEmpty) return false;
+  final lower = url.toLowerCase();
+  if (lower.contains('/api/v1/mobile/web/auth')) return false;
+  return lower.contains('/web/login') || lower.contains('/web/database/selector');
 }
 
 /// Chuẩn hoá URL mở In-App WebView:

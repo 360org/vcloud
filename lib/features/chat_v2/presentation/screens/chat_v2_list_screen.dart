@@ -165,6 +165,13 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
     }
     _selectedFilterKey = _resolveFilterKey(widget.initialFilter);
     _scrollController.addListener(_onScroll);
+    if (!ChatV2ChannelLocalCache.hasFullServerList) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ref.read(chatV2ChannelsProvider.notifier).resumeRefresh();
+        }
+      });
+    }
   }
 
   @override

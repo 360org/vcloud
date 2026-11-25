@@ -524,8 +524,8 @@ class AuthRepository {
     final is19 = lowerDb.contains('19') || lowerUrl.contains(':8079') || lowerUrl.contains('demo.vuahethong');
     final isCustomer = lowerDb.contains('client') || lowerDb.contains('customer');
     final dbTypeLabel = is19
-        ? '🚀 Odoo 19 (Prod/Demo)'
-        : (isCustomer ? '👥 Khách Hàng (Odoo 17)' : '🏢 Nội Bộ (Odoo 17)');
+        ? '🚀 Hệ thống v19 (Prod/Demo)'
+        : (isCustomer ? '👥 Khách Hàng (Hệ thống v17)' : '🏢 Nội Bộ (Hệ thống v17)');
 
     // In Terminal Log trực quan để Sếp theo dõi Database đang hoạt động
     debugPrint('''

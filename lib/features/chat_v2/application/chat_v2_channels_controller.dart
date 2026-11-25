@@ -53,12 +53,14 @@ class ChatV2ChannelLocalCache {
   static String get _mutedIdsKey => _key('user_muted_channel_ids');
   static String get _nicknamesKey => _key('user_channel_nicknames_v1');
   static bool _initialized = false;
+  static bool _hasFullServerList = false;
   static List<String> _userPinnedOrder = [];
   static Set<String> _userPinnedIds = {};
   static Set<String> _userMutedIds = {};
   static Map<String, String> _customNicknames = {};
 
   static List<ChatV2Channel> get cached => _cached;
+  static bool get hasFullServerList => _hasFullServerList;
   static String? _mergeLastMessage(ChatV2Channel local, ChatV2Channel api) {
     // Nếu 1 trong 2 bên rỗng, lấy bên còn lại có dữ liệu
     if (local.lastMessage == null || local.lastMessage!.trim().isEmpty) return api.lastMessage;
@@ -104,6 +106,7 @@ class ChatV2ChannelLocalCache {
 
     _activeScope = newScope;
     _cached = const [];
+    _hasFullServerList = false;
     _pinnedDirectChannels.clear();
     _userPinnedOrder = [];
     _userPinnedIds = {};
@@ -157,7 +160,7 @@ class ChatV2ChannelLocalCache {
           }
         }
         if (loaded.isNotEmpty) {
-          set(loaded);
+          set(loaded, fromServerFullList: loaded.length > 1);
         }
       }
 
@@ -442,7 +445,10 @@ class ChatV2ChannelLocalCache {
     _storage.write(key: _unreadCacheKey, value: unread.toString()).catchError((_) {});
   }
 
-  static void set(List<ChatV2Channel> channels) {
+  static void set(List<ChatV2Channel> channels, {bool fromServerFullList = false}) {
+    if (fromServerFullList) {
+      _hasFullServerList = true;
+    }
     final map = <String, ChatV2Channel>{};
     final currentLocalMap = {for (final ch in _cached) ch.id: ch};
 
@@ -724,6 +730,7 @@ class ChatV2ChannelLocalCache {
     _customNicknames = {};
     _lastKnownUnread = 0;
     _initialized = false;
+    _hasFullServerList = false;
     _activeScope = '';
     _saveToStorage();
     _saveCachedChannelsToStorage();
@@ -910,7 +917,7 @@ class ChatV2ChannelsNotifier
     });
 
     final cached = ChatV2ChannelLocalCache.cached;
-    if (cached.isNotEmpty) {
+    if (cached.isNotEmpty && ChatV2ChannelLocalCache.hasFullServerList) {
       if (hasVMobile) {
         _scheduleNextPoll();
         unawaited(_executeResumeRefresh().catchError((_) {}));
@@ -937,16 +944,22 @@ class ChatV2ChannelsNotifier
           }
         }
       }
-      ChatV2ChannelLocalCache.set(fresh);
+      ChatV2ChannelLocalCache.set(fresh, fromServerFullList: true);
       syncStatusNotifier.state = ChatV2SyncStatus.synced;
       if (hasVMobile) {
         _scheduleNextPoll();
       }
       return ChatV2ChannelLocalCache.cached;
     } catch (e) {
+      syncStatusNotifier.state = ChatV2SyncStatus.offline;
+      if (cached.isNotEmpty) {
+        if (hasVMobile) {
+          _scheduleNextPoll();
+        }
+        return cached;
+      }
       _pollingTimer?.cancel();
       _pollingTimer = null;
-      syncStatusNotifier.state = ChatV2SyncStatus.offline;
       rethrow;
     }
   }
@@ -1038,7 +1051,7 @@ class ChatV2ChannelsNotifier
         }
       }
 
-      ChatV2ChannelLocalCache.set(fresh);
+      ChatV2ChannelLocalCache.set(fresh, fromServerFullList: true);
       state = AsyncData(ChatV2ChannelLocalCache.cached);
       _resumeRetryAttempt = 0;
       ref.read(chatV2SyncStatusProvider.notifier).state = ChatV2SyncStatus.synced;
@@ -1078,7 +1091,7 @@ class ChatV2ChannelsNotifier
     try {
       final repo = ref.read(chatV2RepositoryProvider);
       final fresh = await repo.getChannels(limit: 80, offset: 0);
-      ChatV2ChannelLocalCache.set(fresh);
+      ChatV2ChannelLocalCache.set(fresh, fromServerFullList: true);
       state = AsyncData(ChatV2ChannelLocalCache.cached);
       ref.read(chatV2SyncStatusProvider.notifier).state = ChatV2SyncStatus.synced;
     } catch (e) {
