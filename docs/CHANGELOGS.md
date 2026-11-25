@@ -1,6 +1,33 @@
 # 📜 LỊCH SỬ THAY ĐỔI & PHÁT TRIỂN (CHANGELOGS.md)
 
-Tất cả các thay đổi đáng chú ý của hệ sinh thái **VCloud Mobile App & Odoo Backend** sẽ được ghi chép tại tài liệu này theo tiêu chuẩn **AIaC 3.0**.
+Tài liệu ghi chép các thay đổi của **VCloud Mobile App & Odoo Backend** theo chuẩn **AIaC 3.0**.
+
+## [v2.9.40+204] — 2026-11-25 (Pha 1 Fast Sync Chat V2, OdooBus Hint, Adaptive Polling & Banner 3 Trạng Thái)
+
+> [!IMPORTANT]
+> **Tối Ưu Tốc Độ Tải Chat V2 & Trải Nghiệm Ngoại Tuyến — Pha 1 (`feat/app-build204-chat-v2-fast-sync`)**:
+> - **1. [PERF/PAGINATION] Phân Tách Limit `30/20/30` & Quản Lý `_serverLoadedCount` (`chat_v2_channels_controller.dart`)**:
+>   * Tách `kInitialChannelsLimit = 30`, `kPollingChannelsLimit = 20`, `kLoadMoreChannelsLimit = 30`.
+>   * Quản lý `_serverLoadedCount` và `_serverLoadedIds` độc lập với `_pinnedDirectChannels`, tránh nhảy cóc `offset` khi gọi `loadMore()`.
+> - **2. [PERF/CACHE] Cơ Chế `mergeWithExisting` & Chặn Mất Kênh `#31..#90` (`chat_v2_channels_controller.dart`, `chat_v2_list_screen.dart`)**:
+>   * Mở rộng `ChatV2ChannelLocalCache.set(..., {bool fromServerFullList = false, bool mergeWithExisting = false})` để polling top 20 / `loadMore()` giữ nguyên 100% các kênh đã cuộn, cập nhật kênh trùng ID và đẩy phòng mới nhắn (VD `#500`) lên `#1` sau các kênh ghim.
+>   * Xoá 3 lệnh `refresh()` thừa sau khi bấm Ghim / Tắt chuông tại `chat_v2_list_screen.dart`, cập nhật state trực tiếp từ cache qua `syncFromCache()`.
+>   * Chặn Double API Call trong `resumeRefresh()` (`if (state.isLoading || _isResumeRefreshing) return;`).
+> - **3. [REALTIME/BUS] Xác Thực Socket & Phát Tín Hiệu Tin Nhắn Mới (`odoo_bus_service.dart`)**:
+>   * Chờ `await channel.ready` thành công rồi mới đặt `_isConnected = true`.
+>   * Bắt `discuss.channel/new_message` và `mail.record/insert` (`Message` Odoo 17 / `mail.message` Odoo 19) phát qua `Stream<int?> onChannelActivityHint`, debounce `500ms` để gọi `_executeResumeRefresh(limit: 20, strictLimit: true, compact: true)`.
+>   * Nhịp polling thích ứng: `25s` khi WebSocket Bus kết nối, `12s` khi dự phòng.
+> - **4. [RESILIENCE/UX] Resume Delay `400ms`, Silent Retry & Banner 3 Trạng Thái (`chat_v2_channels_controller.dart`, `chat_v2_list_screen.dart`)**:
+>   * Khi app chuyển foreground (`false -> true`), chờ `400ms` khôi phục socket trước khi gọi `resumeRefresh()` & `busService.connect()`.
+>   * Silent Retry `2s`, `4s` khi đã có cache trong RAM (không nháy banner vàng giả).
+>   * Mở rộng `ChatV2SyncStatus { synced, connecting, offline, serverTimeout, serverError }` + `classifySyncError(Object)` hiển thị 3 thông báo riêng trên `_SyncStatusBanner`.
+>   * Chip `Tất cả` hiển thị `30+` khi chưa có `meta.total_count` và `hasMore == true` (hoặc tổng từ `meta.total_count`); bấm chip danh mục có `< 15` kênh trong RAM khi `hasMore == true` tự động gọi `getChannels(filter: cat, limit: 30)` và merge vào cache.
+> - **5. [API/CONTRACT] Mở Rộng `ChatV2Repository.getChannels()` (`chat_v2_repository.dart`)**:
+>   * Hỗ trợ `strictLimit`, `compact`, `withMeta`, `afterMsgId`, `since`, thêm `ChatV2ChannelsMeta` / `getChannelsWithMeta()`, tương thích ngược 100% cả `List` cũ lẫn `Map` mới.
+> - **6. [TEST] Bộ Kiểm Thử Độc Lập Pha 1 (`chat_v2_fast_sync_merge_test.dart`)**:
+>   * Bao phủ đầy đủ 5 kịch bản trong SPEC v2.0 Mục 7 + test tương thích `List`/`Map` và widget test Banner 3 trạng thái & chip `30+`.
+
+---
 
 ## [v2.9.40+204] — 2026-11-20 (Khắc Phục 3 Vấn Đề UI/UX, Clipboard Polyfill & Dữ Liệu Tab Cần Xử Lý)
 

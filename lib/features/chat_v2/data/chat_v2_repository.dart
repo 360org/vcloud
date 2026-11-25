@@ -10,6 +10,58 @@ import 'models/chat_v2_channel.dart';
 import 'models/chat_v2_message.dart';
 import 'models/chat_v2_reaction.dart';
 
+class ChatV2ChannelsMeta {
+  const ChatV2ChannelsMeta({
+    this.totalCount,
+    this.unreadChannelsCount,
+    this.categoryCounts = const {},
+    this.maxMessageId,
+    this.serverTime,
+  });
+
+  final int? totalCount;
+  final int? unreadChannelsCount;
+  final Map<String, int> categoryCounts;
+  final int? maxMessageId;
+  final String? serverTime;
+
+  factory ChatV2ChannelsMeta.fromMap(Map<String, dynamic> map) {
+    final cats = <String, int>{};
+    final rawCats = map['category_counts'];
+    if (rawCats is Map) {
+      rawCats.forEach((k, v) {
+        final parsed = _parseInt(v);
+        if (parsed != null) {
+          cats[k.toString()] = parsed;
+        }
+      });
+    }
+    return ChatV2ChannelsMeta(
+      totalCount: _parseInt(map['total_count']),
+      unreadChannelsCount: _parseInt(map['unread_channels_count']),
+      categoryCounts: Map.unmodifiable(cats),
+      maxMessageId: _parseInt(map['max_message_id']),
+      serverTime: map['server_time']?.toString(),
+    );
+  }
+
+  static int? _parseInt(Object? value) {
+    if (value == null || value == false) return null;
+    if (value is num) return value.toInt();
+    return int.tryParse(value.toString());
+  }
+}
+
+class ChatV2ChannelsPageResult {
+  const ChatV2ChannelsPageResult({
+    required this.channels,
+    this.meta,
+  });
+
+  final List<ChatV2Channel> channels;
+  final ChatV2ChannelsMeta? meta;
+}
+
 class ChatV2AccessDeniedException implements Exception {
   final String message;
   const ChatV2AccessDeniedException([this.message = 'Bạn không có quyền truy cập tin nhắn của cuộc trò chuyện này']);
@@ -32,6 +84,9 @@ class ChatV2Repository {
   static final Map<String, List<ChatV2Attachment>> _cachedAttachmentsByMsgId = <String, List<ChatV2Attachment>>{};
   static int? _lastChannelsCount;
   static String? _lastChannelsChecksum;
+  ChatV2ChannelsMeta? _lastChannelsMeta;
+
+  ChatV2ChannelsMeta? get lastChannelsMeta => _lastChannelsMeta;
 
   /// Xóa sạch bộ nhớ đệm Chat V2 trong RAM khi logout / switch user (Protocol V2.1).
   static void clearCache() {
@@ -48,48 +103,19 @@ class ChatV2Repository {
   String? resolveAvatarUrl(String? path, {String? accessToken}) =>
       _client.resolveAvatarUrl(path, accessToken: accessToken);
 
-  Future<List<ChatV2Channel>> getChannels({
-    int? limit,
-    int? offset,
-    String? search,
-    String? filter,
-    bool showArchived = false,
-  }) async {
-    final queryParams = <String, Object?>{};
-    if (limit != null) queryParams['limit'] = limit.toString();
-    if (offset != null) queryParams['offset'] = offset.toString();
-    if (search != null && search.trim().isNotEmpty) queryParams['search'] = search.trim();
-    if (filter != null && filter.trim().isNotEmpty) queryParams['filter'] = filter.trim();
-    if (showArchived) queryParams['show_archived'] = '1';
-
-    final dynamic data = await _client.get(
-      '/api/v1/mobile/chat/channels',
-      query: queryParams,
-    ).timeout(const Duration(seconds: 25));
-
-    if (kDebugMode) {
-      if (data is List) {
-        // Chỉ in log khi số lượng hoặc kênh đầu tiên có sự thay đổi để chống spam terminal khi polling
-        final firstSummary = data.isNotEmpty && data.first is Map
-            ? '${data.first['id']}:${data.first['last_message_date']}'
-            : '';
-        if (_lastChannelsCount != data.length || _lastChannelsChecksum != firstSummary) {
-          _lastChannelsCount = data.length;
-          _lastChannelsChecksum = firstSummary;
-          debugPrint('✅ [ChatV2Repository.getChannels] Channels count: ${data.length} (updated)');
-        }
-      } else if (data is Map) {
-        debugPrint('⚠️ [ChatV2Repository.getChannels] Received Map: keys=${data.keys.toList()}');
-      } else {
-        debugPrint('🚨 [ChatV2Repository.getChannels] Unexpected type: ${data.runtimeType} = $data');
-      }
-    }
-
+  /// Phân giải response từ /api/v1/mobile/chat/channels:
+  /// Tương thích ngược 100% cả khi server trả List [...] cũ lẫn Map {"channels": [...], "meta": {...}} mới.
+  static ChatV2ChannelsPageResult parseChannelsResponse(dynamic data) {
     final List<dynamic> list;
+    ChatV2ChannelsMeta? meta;
+
     if (data is List) {
       list = data;
     } else if (data is Map && data['channels'] is List) {
       list = data['channels'] as List;
+      if (data['meta'] is Map) {
+        meta = ChatV2ChannelsMeta.fromMap(Map<String, dynamic>.from(data['meta'] as Map));
+      }
     } else if (data is Map && data['error'] != null) {
       // ponytail: backend trả error payload với HTTP 200 (proxy/nginx ghi đè status) → bộc lộ lỗi rõ ràng
       final errorMsg = data['message']?.toString() ?? data['error'].toString();
@@ -112,7 +138,97 @@ class ChatV2Repository {
       return db.compareTo(da);
     });
 
-    return channels;
+    return ChatV2ChannelsPageResult(channels: channels, meta: meta);
+  }
+
+  Future<ChatV2ChannelsPageResult> getChannelsWithMeta({
+    int? limit,
+    int? offset,
+    String? search,
+    String? filter,
+    bool showArchived = false,
+    bool strictLimit = false,
+    bool compact = false,
+    bool withMeta = true,
+    int? afterMsgId,
+    String? since,
+  }) async {
+    final queryParams = <String, Object?>{};
+    if (limit != null) queryParams['limit'] = limit.toString();
+    if (offset != null) queryParams['offset'] = offset.toString();
+    if (search != null && search.trim().isNotEmpty) queryParams['search'] = search.trim();
+    if (filter != null && filter.trim().isNotEmpty) queryParams['filter'] = filter.trim();
+    if (showArchived) queryParams['show_archived'] = '1';
+    if (strictLimit) queryParams['strict_limit'] = '1';
+    if (compact) queryParams['compact'] = '1';
+    if (withMeta) queryParams['with_meta'] = '1';
+    if (afterMsgId != null && afterMsgId > 0) queryParams['after_msg_id'] = afterMsgId.toString();
+    if (since != null && since.trim().isNotEmpty) queryParams['since'] = since.trim();
+
+    final dynamic data = await _client.get(
+      '/api/v1/mobile/chat/channels',
+      query: queryParams,
+    ).timeout(const Duration(seconds: 25));
+
+    if (kDebugMode) {
+      if (data is List) {
+        // Chỉ in log khi số lượng hoặc kênh đầu tiên có sự thay đổi để chống spam terminal khi polling
+        final firstSummary = data.isNotEmpty && data.first is Map
+            ? '${data.first['id']}:${data.first['last_message_date']}'
+            : '';
+        if (_lastChannelsCount != data.length || _lastChannelsChecksum != firstSummary) {
+          _lastChannelsCount = data.length;
+          _lastChannelsChecksum = firstSummary;
+          debugPrint('✅ [ChatV2Repository.getChannels] Channels count: ${data.length} (updated)');
+        }
+      } else if (data is Map) {
+        final rawList = data['channels'];
+        final count = rawList is List ? rawList.length : 0;
+        final firstSummary = rawList is List && rawList.isNotEmpty && rawList.first is Map
+            ? '${rawList.first['id']}:${rawList.first['last_message_date']}'
+            : '';
+        if (_lastChannelsCount != count || _lastChannelsChecksum != firstSummary) {
+          _lastChannelsCount = count;
+          _lastChannelsChecksum = firstSummary;
+          debugPrint('✅ [ChatV2Repository.getChannels] Channels count: $count (meta=${data['meta'] != null})');
+        }
+      } else {
+        debugPrint('🚨 [ChatV2Repository.getChannels] Unexpected type: ${data.runtimeType} = $data');
+      }
+    }
+
+    final parsed = parseChannelsResponse(data);
+    if (parsed.meta != null) {
+      _lastChannelsMeta = parsed.meta;
+    }
+    return parsed;
+  }
+
+  Future<List<ChatV2Channel>> getChannels({
+    int? limit,
+    int? offset,
+    String? search,
+    String? filter,
+    bool showArchived = false,
+    bool strictLimit = false,
+    bool compact = false,
+    bool withMeta = false,
+    int? afterMsgId,
+    String? since,
+  }) async {
+    final result = await getChannelsWithMeta(
+      limit: limit,
+      offset: offset,
+      search: search,
+      filter: filter,
+      showArchived: showArchived,
+      strictLimit: strictLimit,
+      compact: compact,
+      withMeta: withMeta,
+      afterMsgId: afterMsgId,
+      since: since,
+    );
+    return result.channels;
   }
 
   Future<ChatV2Channel?> getChannel(String channelId) async {
