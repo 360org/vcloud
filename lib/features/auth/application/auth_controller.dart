@@ -87,6 +87,7 @@ class AuthController extends AsyncNotifier<AuthUser?> {
   }) async {
     state = const AsyncLoading();
     try {
+      await _unregisterPreviousDbIfNeeded(nextDb: db.databaseName);
       await GlobalStateResetService.clearAllUserDataOnLogout(ref: ref);
       final user = await _repo.activateVerifiedSession(
         db: db,
@@ -110,6 +111,7 @@ class AuthController extends AsyncNotifier<AuthUser?> {
   }) async {
     state = const AsyncLoading();
     try {
+      await _unregisterPreviousDbIfNeeded(nextDb: db.databaseName);
       await GlobalStateResetService.clearAllUserDataOnLogout(ref: ref);
       final user = await _repo.authenticateOnClient(
         db: db,
@@ -128,6 +130,7 @@ class AuthController extends AsyncNotifier<AuthUser?> {
   Future<void> signIn(String email, String password, {int? tenantId}) async {
     state = const AsyncLoading();
     try {
+      await _unregisterPreviousDbIfNeeded();
       await GlobalStateResetService.clearAllUserDataOnLogout(ref: ref);
       final user = await _repo.signIn(
         email: email,
@@ -154,6 +157,7 @@ class AuthController extends AsyncNotifier<AuthUser?> {
   }) async {
     state = const AsyncLoading();
     try {
+      await _unregisterPreviousDbIfNeeded();
       await GlobalStateResetService.clearAllUserDataOnLogout(ref: ref);
       final user = await _repo.signUp(
         email: email,
@@ -195,6 +199,7 @@ class AuthController extends AsyncNotifier<AuthUser?> {
   }) async {
     state = const AsyncLoading();
     try {
+      await _unregisterPreviousDbIfNeeded(nextDb: db);
       await GlobalStateResetService.clearAllUserDataOnLogout(ref: ref);
       final user = await _repo.verifyTotp(
         login: login,
@@ -223,6 +228,7 @@ class AuthController extends AsyncNotifier<AuthUser?> {
   }) async {
     state = const AsyncLoading();
     try {
+      await _unregisterPreviousDbIfNeeded(nextDb: db);
       await GlobalStateResetService.clearAllUserDataOnLogout(ref: ref);
       final user = await _repo.signInWithOAuth(
         provider: provider,
@@ -330,6 +336,15 @@ class AuthController extends AsyncNotifier<AuthUser?> {
     } finally {
       _isRegisteringPush = false;
     }
+  }
+
+  Future<void> _unregisterPreviousDbIfNeeded({String? nextDb}) async {
+    final prevSession = odooApiClient.session;
+    if (prevSession == null || prevSession.accessToken.isEmpty) return;
+    if (nextDb != null && nextDb.isNotEmpty && prevSession.db == nextDb) return;
+    try {
+      await _unregisterPushDevice().timeout(const Duration(seconds: 2));
+    } catch (_) {}
   }
 
   Future<void> _unregisterPushDevice() async {

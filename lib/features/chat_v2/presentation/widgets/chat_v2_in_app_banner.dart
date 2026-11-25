@@ -26,12 +26,27 @@ class InAppNotificationPayload {
 
 final inAppNotificationProvider =
     StateNotifierProvider<InAppNotificationNotifier, InAppNotificationPayload?>(
-  (ref) => InAppNotificationNotifier(),
+  (ref) => InAppNotificationNotifier(
+    currentPathReader: () {
+      try {
+        return ref.read(routerProvider).routeInformationProvider.value.uri.path;
+      } catch (_) {
+        return null;
+      }
+    },
+  ),
 );
 
 class InAppNotificationNotifier extends StateNotifier<InAppNotificationPayload?> {
-  InAppNotificationNotifier() : super(null);
+  InAppNotificationNotifier({
+    this.currentPathReader,
+    DateTime Function()? nowReader,
+  })  : _nowReader = nowReader ?? DateTime.now,
+        super(null);
 
+  final String? Function()? currentPathReader;
+  final DateTime Function() _nowReader;
+  final Map<String, DateTime> _recentKeys = {};
   Timer? _dismissTimer;
 
   void show({
@@ -40,10 +55,40 @@ class InAppNotificationNotifier extends StateNotifier<InAppNotificationPayload?>
     required String channelId,
     String? avatarUrl,
     bool isMention = false,
+    String? messageId,
   }) {
+    // 1. Active Room Guard: Ẩn banner khi người dùng đang mở đúng phòng chat đó
+    if (channelId.isNotEmpty) {
+      final currentPath = currentPathReader?.call();
+      if (currentPath != null &&
+          (currentPath == '/chat/$channelId' ||
+              currentPath.startsWith('/chat/$channelId/'))) {
+        return;
+      }
+    }
+
+    // 2. Dual-Key 5-Second Dedup: Chống nổ đúp giữa FCM và WebSocket Bus
+    final now = _nowReader();
+    _recentKeys.removeWhere(
+      (_, ts) => now.difference(ts) >= const Duration(seconds: 5),
+    );
+    final contentKey = 'ch:$channelId:${body.trim()}';
+    final trimmedMsgId = messageId?.trim();
+    final msgKey = (trimmedMsgId != null && trimmedMsgId.isNotEmpty)
+        ? 'msg:$trimmedMsgId'
+        : null;
+    if (_recentKeys.containsKey(contentKey) ||
+        (msgKey != null && _recentKeys.containsKey(msgKey))) {
+      return;
+    }
+    _recentKeys[contentKey] = now;
+    if (msgKey != null) {
+      _recentKeys[msgKey] = now;
+    }
+
     _dismissTimer?.cancel();
     state = InAppNotificationPayload(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      id: now.millisecondsSinceEpoch.toString(),
       title: title,
       body: body,
       channelId: channelId,
