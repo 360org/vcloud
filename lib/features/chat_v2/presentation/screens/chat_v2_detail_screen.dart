@@ -1259,21 +1259,6 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                 tooltip: 'Quay lại',
               ),
               actions: [
-                if (!isLivechat &&
-                    !isCskhGroup &&
-                    !(currentChannel?.isChannel ?? false) &&
-                    currentChannel?.name.toLowerCase() != 'odoobot')
-                  IconButton(
-                    icon: const Icon(LucideIcons.phone, size: 20),
-                    color: isDark ? Colors.white70 : const Color(0xFF475569),
-                    tooltip: 'Gọi thoại',
-                    onPressed: () => _handleVoiceCall(
-                      context,
-                      currentChannel,
-                      displayTitle,
-                      resolvedAvatarUrl,
-                    ),
-                  ),
                 IconButton(
                   icon: const Icon(LucideIcons.search, size: 21),
                   color: isDark ? Colors.white70 : const Color(0xFF475569),
@@ -2707,6 +2692,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
     });
   }
 
+  // ignore: unused_element
   void _handleVoiceCall(
     BuildContext context,
     ChatV2Channel? channel,
