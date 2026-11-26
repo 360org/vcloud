@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,7 +20,9 @@ import 'package:vcloud/features/chat_v2/data/models/chat_v2_channel.dart';
 import 'package:vcloud/features/chat_v2/data/models/chat_v2_message.dart';
 import 'package:vcloud/features/chat_v2/presentation/screens/chat_v2_detail_screen.dart';
 import 'package:vcloud/features/chat_v2/presentation/screens/chat_v2_list_screen.dart';
+import 'package:vcloud/features/chat_v2/presentation/widgets/chat_v2_info_sheet.dart';
 import 'package:vcloud/features/chat_v2/presentation/widgets/chat_v2_input_bar.dart';
+import 'package:vcloud/features/chat_v2/presentation/widgets/chat_v2_message_item.dart';
 import 'package:vcloud/shared/widgets/app_scaffold.dart';
 
 class _MemorySessionStore extends OdooSessionStore {
@@ -737,6 +740,235 @@ void main() {
         findsOneWidget,
       );
       expect(find.byIcon(LucideIcons.phone), findsNothing);
+    });
+  });
+
+  group('BUG-23: Opaque Backing on Transparent PNG Avatars', () {
+    testWidgets(
+      'UserAvatar and ChatV2ListScreen avatar frameBuilder wrap loaded frame in opaque ColoredBox and hide unloaded frame',
+      (tester) async {
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: Scaffold(
+              body: UserAvatar(
+                userId: '10',
+                displayName: 'Internal',
+                avatarUrl: '/api/v1/mobile/avatar/discuss.channel/4253?field=image_128',
+                size: 40,
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        final imgWidget = tester.widget<Image>(find.byType(Image));
+        expect(imgWidget.frameBuilder, isNotNull);
+
+        final ctx = tester.element(find.byType(UserAvatar));
+        final unloaded = imgWidget.frameBuilder!(ctx, const SizedBox(), null, false);
+        expect(unloaded, isA<SizedBox>());
+
+        final loaded = imgWidget.frameBuilder!(ctx, const SizedBox(key: ValueKey('png')), 0, false);
+        expect(loaded, isA<ColoredBox>());
+        expect((loaded as ColoredBox).color, Colors.white);
+      },
+    );
+  });
+
+  group('BUG-24 & BUG-25: Media Extraction, Remote Priority & Attachment DB Params', () {
+    test('extractMedia skips filename-only messages without memory bytes and never uses msg.id as attachment id', () {
+      const msgNoBytes = ChatV2Message(
+        id: '999001',
+        channelId: '4253',
+        content: 'photo_from_history.jpg',
+        authorId: '3',
+        authorName: 'User',
+        isMine: false,
+      );
+      final emptyRes = ChatV2InfoSheet.extractMedia(const [msgNoBytes]);
+      expect(emptyRes.images, isEmpty);
+
+      final fakeBytes = Uint8List.fromList([0xFF, 0xD8, 0xFF, 0xE0]);
+      ChatV2AttachmentImage.cacheBytes('cached_photo.jpg', fakeBytes);
+      const msgWithBytes = ChatV2Message(
+        id: '999002',
+        channelId: '4253',
+        content: 'cached_photo.jpg',
+        authorId: '3',
+        authorName: 'User',
+        isMine: false,
+      );
+      final cachedRes = ChatV2InfoSheet.extractMedia(const [msgWithBytes]);
+      expect(cachedRes.images.length, 1);
+      expect(cachedRes.images.single.id, '');
+      expect(cachedRes.images.single.messageId, '999002');
+      expect(cachedRes.images.single.bytes, fakeBytes);
+    });
+
+    test('mergeRemoteAttachments puts canonical remote attachments first and preserves unsynced local bytes', () {
+      final unsyncedLocal = ChatV2Attachment(
+        id: '',
+        name: 'pending_upload.jpg',
+        mimetype: 'image/jpeg',
+        bytes: Uint8List.fromList([1, 2, 3]),
+        messageId: 'temp_1',
+      );
+      const staleFilenameOnly = ChatV2Attachment(
+        id: '999001',
+        name: 'broken.jpg',
+        mimetype: 'image/jpeg',
+      );
+      const remoteValid = ChatV2Attachment(
+        id: '93786',
+        name: 'valid_server.png',
+        mimetype: 'image/png',
+        accessToken: 'tok_93786',
+      );
+
+      final merged = ChatV2InfoSheet.mergeRemoteAttachments(
+        local: [staleFilenameOnly, unsyncedLocal],
+        remote: [remoteValid],
+      );
+      expect(merged.map((a) => a.name).toList(), ['pending_upload.jpg', 'valid_server.png']);
+    });
+
+    test('ChatV2Attachment.resolveFullUrl preserves attachment access_token and appends db', () {
+      const att = ChatV2Attachment(
+        id: '93786',
+        name: 'chart.png',
+        mimetype: 'image/png',
+        accessToken: 'att_secret_token',
+      );
+      final resolved = att.resolveFullUrl(
+        'http://192.168.1.100:1900/',
+        db: 'vcloud_test_v19',
+      );
+      expect(resolved, contains('/api/v1/mobile/attachments/93786/image'));
+      expect(resolved, contains('access_token=att_secret_token'));
+      expect(resolved, contains('db=vcloud_test_v19'));
+    });
+  });
+
+  group('BUG-27: Dynamic Available Categories & Zero-Count Chips', () {
+    test('ChatV2ChannelsMeta parses available_categories & category_labels, excludes ai_chat, and merges safely', () {
+      final fullMeta = ChatV2ChannelsMeta.fromMap({
+        'total_count': 1266,
+        'unread_channels_count': 2,
+        'category_counts': {
+          'chat': 30,
+          'channel': 49,
+          'zalo': 0,
+          'zalo_oa': 1187,
+          'livechat': 0,
+        },
+        'available_categories': ['chat', 'channel', 'zalo', 'zalo_oa', 'livechat', 'ai_chat'],
+        'category_labels': {
+          'chat': 'Trò chuyện',
+          'channel': 'Kênh',
+          'zalo': 'Zalo',
+          'zalo_oa': 'Zalo OA',
+          'livechat': 'Hỗ trợ',
+          'ai_chat': 'AI',
+        },
+      });
+
+      expect(
+        fullMeta.availableCategories,
+        ['chat', 'channel', 'zalo', 'zalo_oa', 'livechat'],
+      );
+      expect(fullMeta.categoryLabels['zalo'], 'Zalo');
+      expect(fullMeta.categoryLabels['livechat'], 'Hỗ trợ');
+      expect(fullMeta.categoryLabels.containsKey('ai_chat'), isFalse);
+
+      final compactMeta = ChatV2ChannelsMeta.fromMap({
+        'total_count': 1266,
+        'unread_channels_count': 3,
+      });
+      final merged = compactMeta.mergeFrom(fullMeta);
+      expect(
+        merged.availableCategories,
+        ['chat', 'channel', 'zalo', 'zalo_oa', 'livechat'],
+      );
+      expect(merged.categoryLabels['zalo'], 'Zalo');
+      expect(merged.unreadChannelsCount, 3);
+    });
+
+    testWidgets('ChatV2ListScreen renders installed zalo and livechat chips even when count == 0 without extra fetch', (tester) async {
+      const channels = [
+        ChatV2Channel(
+          id: '1',
+          name: 'Administrators',
+          channelType: 'channel',
+          isGroup: true,
+        ),
+        ChatV2Channel(
+          id: '2',
+          name: 'Zalo OA Support',
+          channelType: 'zalo_oa',
+          category: 'zalo_oa',
+          isZaloOAChannel: true,
+        ),
+      ];
+      const meta = ChatV2ChannelsMeta(
+        totalCount: 2,
+        unreadChannelsCount: 0,
+        categoryCounts: {
+          'chat': 0,
+          'channel': 1,
+          'zalo': 0,
+          'zalo_oa': 1,
+          'livechat': 0,
+        },
+        availableCategories: ['chat', 'channel', 'zalo', 'zalo_oa', 'livechat'],
+        categoryLabels: {
+          'chat': 'Trò chuyện',
+          'channel': 'Kênh',
+          'zalo': 'Zalo',
+          'zalo_oa': 'Zalo OA',
+          'livechat': 'Hỗ trợ',
+        },
+      );
+
+      final notifier = _FakeListChannelsNotifier(channels, meta);
+      final router = GoRouter(
+        initialLocation: '/chat',
+        routes: [
+          GoRoute(path: '/chat', builder: (_, _) => const ChatV2ListScreen()),
+          GoRoute(path: '/chat/:id', builder: (_, _) => const SizedBox.shrink()),
+        ],
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authControllerProvider.overrideWith(_FakeAuthController.new),
+            chatV2ChannelsProvider.overrideWith(() => notifier),
+            chatV2TotalUnreadProvider.overrideWithValue(0),
+            chatV2SyncStatusProvider.overrideWith((ref) => ChatV2SyncStatus.synced),
+            chatV2InboxControllerProvider.overrideWith(_FakeInboxNotifier.new),
+          ],
+          child: MaterialApp.router(
+            theme: ThemeData(splashFactory: NoSplash.splashFactory),
+            routerConfig: router,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Both zero-count installed categories must appear
+      expect(find.text('Zalo'), findsOneWidget);
+      expect(find.text('Hỗ trợ'), findsOneWidget);
+      expect(
+        tester.getRect(find.text('Zalo')).left,
+        lessThan(tester.getRect(find.text('Zalo OA')).left),
+      );
+
+      // Tapping Zalo (count == 0) selects filter cleanly without firing unnecessary fetchCategoryChannels
+      await tester.ensureVisible(find.text('Zalo'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Zalo'));
+      await tester.pumpAndSettle();
+      expect(notifier.fetchedCategories, isEmpty);
     });
   });
 }

@@ -72,7 +72,7 @@ class ChatV2AttachmentViewer {
         ChatV2VideoPlayerScreen.route(
           videoUrl: fullUrl,
           title: videoTitle,
-          headers: odooApiClient.authHeaders,
+          headers: odooApiClient.headersForUrl(fullUrl),
           bytes: directBytes,
           attachmentId: attachmentId != null ? '$attachmentId' : null,
         ),

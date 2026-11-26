@@ -678,14 +678,24 @@ class _AvatarNetworkImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Image.network(
       url,
-      headers: odooApiClient.authHeaders,
+      headers: odooApiClient.headersForUrl(url),
       key: ValueKey(url),
       fit: BoxFit.cover,
       cacheWidth: (size * MediaQuery.devicePixelRatioOf(context)).round(),
       cacheHeight: (size * MediaQuery.devicePixelRatioOf(context)).round(),
       gaplessPlayback: true,
+      frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+        if (wasSynchronouslyLoaded || frame != null) {
+          return ColoredBox(
+            color: isDark ? const Color(0xFF1E293B) : Colors.white,
+            child: SizedBox.expand(child: child),
+          );
+        }
+        return const SizedBox.shrink();
+      },
       errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
     );
   }

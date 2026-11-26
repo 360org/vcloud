@@ -678,6 +678,13 @@ void main() {
           content: 'scaled_image_picker_anniversary.png',
           authorName: 'Bùi Tuấn Kiệt',
           createdAt: DateTime.now(),
+          attachments: const [
+            ChatV2Attachment(
+              id: '201',
+              name: 'scaled_image_picker_anniversary.png',
+              mimetype: 'image/png',
+            ),
+          ],
         ),
         ChatV2Message(
           id: '3',
@@ -685,6 +692,13 @@ void main() {
           content: 'mobileprovision_base64_client.txt',
           authorName: 'Bùi Tuấn Kiệt',
           createdAt: DateTime.now(),
+          attachments: const [
+            ChatV2Attachment(
+              id: '202',
+              name: 'mobileprovision_base64_client.txt',
+              mimetype: 'text/plain',
+            ),
+          ],
         ),
       ];
 

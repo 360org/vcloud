@@ -881,7 +881,7 @@ class ChatV2ChannelsNotifier
     try {
       final meta = repo.lastChannelsMeta;
       if (meta != null) {
-        _channelsMeta = meta;
+        _channelsMeta = meta.mergeFrom(_channelsMeta);
       }
     } catch (_) {}
   }
@@ -891,6 +891,7 @@ class ChatV2ChannelsNotifier
     ref.keepAlive();
     _isDisposed = false;
     _fetchedCategories.clear();
+    _channelsMeta = null;
     ref.onDispose(() {
       ChatV2ChannelLocalCache.onCacheUpdated = null;
       _isDisposed = true;
@@ -1162,7 +1163,7 @@ class ChatV2ChannelsNotifier
         withMeta: true,
       );
       if (page.meta != null) {
-        _channelsMeta = page.meta;
+        _channelsMeta = page.meta!.mergeFrom(_channelsMeta);
       }
       return page;
     } on UnimplementedError {

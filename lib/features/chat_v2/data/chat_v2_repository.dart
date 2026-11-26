@@ -19,6 +19,8 @@ class ChatV2ChannelsMeta {
     this.categoryCounts = const {},
     this.maxMessageId,
     this.serverTime,
+    this.availableCategories = const [],
+    this.categoryLabels = const {},
   });
 
   final int? totalCount;
@@ -26,6 +28,26 @@ class ChatV2ChannelsMeta {
   final Map<String, int> categoryCounts;
   final int? maxMessageId;
   final String? serverTime;
+  final List<String> availableCategories;
+  final Map<String, String> categoryLabels;
+
+  ChatV2ChannelsMeta mergeFrom(ChatV2ChannelsMeta? previous) {
+    if (previous == null) return this;
+    return ChatV2ChannelsMeta(
+      totalCount: totalCount ?? previous.totalCount,
+      unreadChannelsCount: unreadChannelsCount ?? previous.unreadChannelsCount,
+      categoryCounts: categoryCounts.isNotEmpty ? categoryCounts : previous.categoryCounts,
+      maxMessageId: maxMessageId ?? previous.maxMessageId,
+      serverTime: serverTime ?? previous.serverTime,
+      availableCategories: availableCategories.isNotEmpty
+          ? availableCategories
+          : previous.availableCategories,
+      categoryLabels: Map.unmodifiable({
+        ...previous.categoryLabels,
+        ...categoryLabels,
+      }),
+    );
+  }
 
   factory ChatV2ChannelsMeta.fromMap(Map<String, dynamic> map) {
     final cats = <String, int>{};
@@ -38,12 +60,49 @@ class ChatV2ChannelsMeta {
         }
       });
     }
+    final labels = <String, String>{};
+    final rawLabels = map['category_labels'];
+    if (rawLabels is Map) {
+      rawLabels.forEach((k, v) {
+        final key = k.toString().trim();
+        final val = v?.toString().trim() ?? '';
+        if (key.isNotEmpty && key != 'ai_chat' && val.isNotEmpty) {
+          labels[key] = val;
+        }
+      });
+    }
+    final available = <String>[];
+    final rawAvailable = map['available_categories'];
+    if (rawAvailable is List) {
+      for (final item in rawAvailable) {
+        final String key;
+        if (item is Map) {
+          key = (item['key'] ?? item['id'] ?? item['category'] ?? '')
+              .toString()
+              .trim();
+          final itemLabel = item['label']?.toString().trim();
+          if (key.isNotEmpty &&
+              key != 'ai_chat' &&
+              itemLabel != null &&
+              itemLabel.isNotEmpty) {
+            labels[key] = itemLabel;
+          }
+        } else {
+          key = item?.toString().trim() ?? '';
+        }
+        if (key.isNotEmpty && key != 'ai_chat' && !available.contains(key)) {
+          available.add(key);
+        }
+      }
+    }
     return ChatV2ChannelsMeta(
       totalCount: _parseInt(map['total_count']),
       unreadChannelsCount: _parseInt(map['unread_channels_count']),
       categoryCounts: Map.unmodifiable(cats),
       maxMessageId: _parseInt(map['max_message_id']),
       serverTime: map['server_time']?.toString(),
+      availableCategories: List.unmodifiable(available),
+      categoryLabels: Map.unmodifiable(labels),
     );
   }
 

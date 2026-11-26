@@ -1388,6 +1388,15 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                             cacheHeight: (40 * MediaQuery.devicePixelRatioOf(context)).round(),
                             gaplessPlayback: true,
                             headers: odooApiClient.headersForUrl(resolvedAvatarUrl),
+                            frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                              if (wasSynchronouslyLoaded || frame != null) {
+                                return ColoredBox(
+                                  color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                                  child: SizedBox.expand(child: child),
+                                );
+                              }
+                              return const SizedBox.shrink();
+                            },
                             errorBuilder: (context, error, stackTrace) =>
                                 (isCskhGroup && isPortal)
                                     ? Image.asset(
