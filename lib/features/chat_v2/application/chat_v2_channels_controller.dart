@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -7,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:collection/collection.dart';
 import '../../../core/api/odoo_api_client.dart';
+import '../../../core/error/failure.dart';
 import '../../../core/utils/app_lifecycle_manager.dart';
 import '../../auth/application/auth_controller.dart';
 import 'chat_v2_presence_controller.dart';
@@ -18,10 +20,66 @@ import '../data/models/chat_v2_channel.dart';
 import '../presentation/widgets/chat_v2_in_app_banner.dart';
 import 'chat_v2_messages_controller.dart';
 
+const int kInitialChannelsLimit = 30;
+const int kPollingChannelsLimit = 20;
+const int kLoadMoreChannelsLimit = 30;
+
 enum ChatV2SyncStatus {
   synced,
   connecting,
   offline,
+  serverTimeout,
+  serverError,
+}
+
+ChatV2SyncStatus classifySyncError(Object error) {
+  if (error is Failure) {
+    final code = error.statusCode;
+    if (code == 504 || code == 408) {
+      return ChatV2SyncStatus.serverTimeout;
+    }
+    if (code != null && code >= 500 && code < 600) {
+      return ChatV2SyncStatus.serverError;
+    }
+    if (error.cause != null) {
+      return classifySyncError(error.cause!);
+    }
+  }
+  if (error is TimeoutException) {
+    return ChatV2SyncStatus.serverTimeout;
+  }
+  if (error is SocketException || error is HandshakeException) {
+    return ChatV2SyncStatus.offline;
+  }
+
+  final errStr = error.toString().toLowerCase();
+  if (errStr.contains('timeoutexception') ||
+      errStr.contains('hết thời gian chờ') ||
+      errStr.contains('timed out') ||
+      errStr.contains('504') ||
+      errStr.contains('408') ||
+      errStr.contains('gateway timeout')) {
+    return ChatV2SyncStatus.serverTimeout;
+  }
+  if (errStr.contains('500') ||
+      errStr.contains('502') ||
+      errStr.contains('503') ||
+      errStr.contains('server_error') ||
+      errStr.contains('internal server error') ||
+      errStr.contains('bad gateway') ||
+      errStr.contains('service unavailable')) {
+    return ChatV2SyncStatus.serverError;
+  }
+  if (errStr.contains('socketexception') ||
+      errStr.contains('handshakeexception') ||
+      errStr.contains('failed host lookup') ||
+      errStr.contains('network is unreachable') ||
+      errStr.contains('connection refused') ||
+      errStr.contains('connection reset') ||
+      errStr.contains('connection closed')) {
+    return ChatV2SyncStatus.offline;
+  }
+  return ChatV2SyncStatus.offline;
 }
 
 final chatV2SyncStatusProvider = StateProvider<ChatV2SyncStatus>((ref) {
@@ -53,12 +111,14 @@ class ChatV2ChannelLocalCache {
   static String get _mutedIdsKey => _key('user_muted_channel_ids');
   static String get _nicknamesKey => _key('user_channel_nicknames_v1');
   static bool _initialized = false;
+  static bool _hasFullServerList = false;
   static List<String> _userPinnedOrder = [];
   static Set<String> _userPinnedIds = {};
   static Set<String> _userMutedIds = {};
   static Map<String, String> _customNicknames = {};
 
   static List<ChatV2Channel> get cached => _cached;
+  static bool get hasFullServerList => _hasFullServerList;
   static String? _mergeLastMessage(ChatV2Channel local, ChatV2Channel api) {
     // Nếu 1 trong 2 bên rỗng, lấy bên còn lại có dữ liệu
     if (local.lastMessage == null || local.lastMessage!.trim().isEmpty) return api.lastMessage;
@@ -104,6 +164,7 @@ class ChatV2ChannelLocalCache {
 
     _activeScope = newScope;
     _cached = const [];
+    _hasFullServerList = false;
     _pinnedDirectChannels.clear();
     _userPinnedOrder = [];
     _userPinnedIds = {};
@@ -157,7 +218,7 @@ class ChatV2ChannelLocalCache {
           }
         }
         if (loaded.isNotEmpty) {
-          set(loaded);
+          set(loaded, fromServerFullList: loaded.length > 1);
         }
       }
 
@@ -442,7 +503,14 @@ class ChatV2ChannelLocalCache {
     _storage.write(key: _unreadCacheKey, value: unread.toString()).catchError((_) {});
   }
 
-  static void set(List<ChatV2Channel> channels) {
+  static void set(
+    List<ChatV2Channel> channels, {
+    bool fromServerFullList = false,
+    bool mergeWithExisting = false,
+  }) {
+    if (fromServerFullList) {
+      _hasFullServerList = true;
+    }
     final map = <String, ChatV2Channel>{};
     final currentLocalMap = {for (final ch in _cached) ch.id: ch};
 
@@ -564,6 +632,9 @@ class ChatV2ChannelLocalCache {
       // giữ lại tin nhắn mới nhất đó để không bị lùi lại tin cũ do network lag từ API getChannels.
       final localExisting = currentLocalMap[c.id];
       if (localExisting != null) {
+        if (resolvedChannel.members.isEmpty && localExisting.members.isNotEmpty) {
+          resolvedChannel = resolvedChannel.copyWith(members: localExisting.members);
+        }
         final localDate = localExisting.lastMessageDate;
         final apiDate = resolvedChannel.lastMessageDate;
         if (localDate != null && (apiDate == null || localDate.toUtc().isAfter(apiDate.toUtc()))) {
@@ -582,11 +653,14 @@ class ChatV2ChannelLocalCache {
       map[c.id] = resolvedChannel;
     }
 
-    // Bảo tồn các kênh vừa có tin nhắn gần đây hoặc có tin chưa đọc mà API phân trang chưa kịp trả về
+    // Bảo tồn các kênh chưa nằm trong payload mới:
+    // - Khi mergeWithExisting == true (polling top 20, loadMore, search merge): giữ nguyên 100% kênh đã cuộn (#31..#90).
+    // - Khi mergeWithExisting == false (build / pull-to-refresh): chỉ giữ lại kênh unread > 0 hoặc vừa nhắn < 24h.
     for (final entry in currentLocalMap.entries) {
       if (!map.containsKey(entry.key)) {
         final localCh = entry.value;
-        if (localCh.unreadCount > 0 ||
+        if (mergeWithExisting ||
+            localCh.unreadCount > 0 ||
             (localCh.lastMessageDate != null &&
                 DateTime.now().difference(localCh.lastMessageDate!).inHours < 24)) {
           map[entry.key] = localCh;
@@ -724,6 +798,7 @@ class ChatV2ChannelLocalCache {
     _customNicknames = {};
     _lastKnownUnread = 0;
     _initialized = false;
+    _hasFullServerList = false;
     _activeScope = '';
     _saveToStorage();
     _saveCachedChannelsToStorage();
@@ -737,17 +812,38 @@ class ChatV2ChannelsNotifier
   StreamSubscription? _wsUpdateSub;
   StreamSubscription? _busMuteSub;
   StreamSubscription? _busNicknameSub;
+  StreamSubscription? _busActivityHintSub;
   Timer? _pollingTimer;
   Timer? _debounceTimer;
+  Timer? _activityHintDebounceTimer;
   Timer? _resumeRetryTimer;
+  Timer? _foregroundResumeTimer;
+  DateTime? _foregroundGraceUntil;
   int _resumeRetryAttempt = 0;
   bool _isResumeRefreshing = false;
   bool _isDisposed = false;
   bool _isLoadingMore = false;
   bool _hasMore = true;
+  int _serverLoadedCount = 0;
+  final Set<String> _serverLoadedIds = <String>{};
+  ChatV2ChannelsMeta? _channelsMeta;
 
   bool get hasMore => _hasMore;
   bool get isLoadingMore => _isLoadingMore;
+  int get serverLoadedCount => _serverLoadedCount;
+  ChatV2ChannelsMeta? get channelsMeta => _channelsMeta;
+
+  static Duration pollIntervalForBus({required bool isConnected}) =>
+      isConnected ? const Duration(seconds: 25) : const Duration(seconds: 12);
+
+  void _syncMetaFromRepo(ChatV2Repository repo) {
+    try {
+      final meta = repo.lastChannelsMeta;
+      if (meta != null) {
+        _channelsMeta = meta;
+      }
+    } catch (_) {}
+  }
 
   @override
   Future<List<ChatV2Channel>> build() async {
@@ -757,6 +853,9 @@ class ChatV2ChannelsNotifier
       ChatV2ChannelLocalCache.onCacheUpdated = null;
       _isDisposed = true;
       _resumeRetryTimer?.cancel();
+      _foregroundResumeTimer?.cancel();
+      _activityHintDebounceTimer?.cancel();
+      _busActivityHintSub?.cancel();
       _busMuteSub?.cancel();
       _busNicknameSub?.cancel();
       _wsUpdateSub?.cancel();
@@ -840,8 +939,8 @@ class ChatV2ChannelsNotifier
             if (i != chIndex) current[i],
         ];
 
-        ChatV2ChannelLocalCache.set(reordered);
-        state = AsyncData(reordered);
+        ChatV2ChannelLocalCache.set(reordered, mergeWithExisting: true);
+        state = AsyncData(ChatV2ChannelLocalCache.cached);
       } else {
         _debounceTimer?.cancel();
         _debounceTimer = Timer(const Duration(milliseconds: 900), _executeResumeRefresh);
@@ -900,9 +999,30 @@ class ChatV2ChannelsNotifier
       }
     });
 
+    _busActivityHintSub?.cancel();
+    _busActivityHintSub = busService.onChannelActivityHint.listen((_) {
+      if (_isDisposed) return;
+      _activityHintDebounceTimer?.cancel();
+      _activityHintDebounceTimer = Timer(const Duration(milliseconds: 500), () {
+        if (_isDisposed || state.isLoading || _isResumeRefreshing) return;
+        unawaited(_executeResumeRefresh());
+      });
+    });
+
     // Tự động phục hồi hoặc tạm dừng Polling Timer khi app Foreground / Background
     ref.listen<bool>(isAppForegroundProvider, (prev, isForeground) {
-      if (isForeground) {
+      if (isForeground && prev == false) {
+        _foregroundResumeTimer?.cancel();
+        _pollingTimer?.cancel();
+        _resumeRetryTimer?.cancel();
+        _foregroundGraceUntil = DateTime.now().add(const Duration(milliseconds: 400));
+        _foregroundResumeTimer = Timer(const Duration(milliseconds: 400), () {
+          _foregroundGraceUntil = null;
+          if (_isDisposed || !ref.read(isAppForegroundProvider)) return;
+          unawaited(busService.connect());
+          unawaited(resumeRefresh());
+        });
+      } else if (isForeground) {
         resumeRefresh();
       } else {
         pausePolling();
@@ -910,7 +1030,14 @@ class ChatV2ChannelsNotifier
     });
 
     final cached = ChatV2ChannelLocalCache.cached;
-    if (cached.isNotEmpty) {
+    if (cached.isNotEmpty && ChatV2ChannelLocalCache.hasFullServerList) {
+      final serverOnly = cached
+          .where((c) => ChatV2ChannelLocalCache.getPinnedDirectChannel(c.id) == null)
+          .toList();
+      _serverLoadedIds
+        ..clear()
+        ..addAll(serverOnly.map((c) => c.id));
+      _serverLoadedCount = _serverLoadedIds.length;
       if (hasVMobile) {
         _scheduleNextPoll();
         unawaited(_executeResumeRefresh().catchError((_) {}));
@@ -925,7 +1052,12 @@ class ChatV2ChannelsNotifier
 
     try {
       syncStatusNotifier.state = ChatV2SyncStatus.connecting;
-      final fresh = await repo.getChannels(limit: 80, offset: 0);
+      final page = await _fetchPageWithMeta(
+        repo,
+        limit: kInitialChannelsLimit,
+        offset: 0,
+      );
+      final fresh = page.channels;
       if (fresh.isNotEmpty) {
         for (final f in fresh) {
           final pId = f.partnerId ?? f.directPartnerId;
@@ -937,24 +1069,74 @@ class ChatV2ChannelsNotifier
           }
         }
       }
-      ChatV2ChannelLocalCache.set(fresh);
+      _serverLoadedIds
+        ..clear()
+        ..addAll(fresh.map((c) => c.id));
+      _serverLoadedCount = fresh.length;
+      _hasMore = _channelsMeta?.totalCount != null
+          ? _serverLoadedCount < _channelsMeta!.totalCount!
+          : fresh.length >= kInitialChannelsLimit;
+
+      ChatV2ChannelLocalCache.set(fresh, fromServerFullList: true);
       syncStatusNotifier.state = ChatV2SyncStatus.synced;
       if (hasVMobile) {
         _scheduleNextPoll();
       }
       return ChatV2ChannelLocalCache.cached;
     } catch (e) {
+      syncStatusNotifier.state = _isTransientError(e)
+          ? classifySyncError(e)
+          : ChatV2SyncStatus.synced;
+      if (cached.isNotEmpty) {
+        if (hasVMobile) {
+          _scheduleNextPoll();
+        }
+        return cached;
+      }
       _pollingTimer?.cancel();
       _pollingTimer = null;
-      syncStatusNotifier.state = ChatV2SyncStatus.offline;
       rethrow;
+    }
+  }
+
+  Future<ChatV2ChannelsPageResult> _fetchPageWithMeta(
+    ChatV2Repository repo, {
+    required int limit,
+    required int offset,
+    bool strictLimit = false,
+    bool compact = false,
+  }) async {
+    try {
+      final page = await repo.getChannelsWithMeta(
+        limit: limit,
+        offset: offset,
+        strictLimit: strictLimit,
+        compact: compact,
+        withMeta: true,
+      );
+      if (page.meta != null) {
+        _channelsMeta = page.meta;
+      }
+      return page;
+    } on UnimplementedError {
+      final list = await repo.getChannels(
+        limit: limit,
+        offset: offset,
+        strictLimit: strictLimit,
+        compact: compact,
+        withMeta: true,
+      );
+      _syncMetaFromRepo(repo);
+      return ChatV2ChannelsPageResult(channels: list, meta: _channelsMeta);
     }
   }
 
   void _scheduleNextPoll() {
     if (_isDisposed) return;
     _pollingTimer?.cancel();
-    _pollingTimer = Timer(const Duration(seconds: 8), () async {
+    final busService = ref.read(odooBusServiceProvider);
+    final interval = pollIntervalForBus(isConnected: busService.isConnected);
+    _pollingTimer = Timer(interval, () async {
       if (_isDisposed) return;
       try {
         final isForeground = ref.read(isAppForegroundProvider);
@@ -995,8 +1177,13 @@ class ChatV2ChannelsNotifier
     _pollingTimer = null;
     _debounceTimer?.cancel();
     _debounceTimer = null;
+    _activityHintDebounceTimer?.cancel();
+    _activityHintDebounceTimer = null;
     _resumeRetryTimer?.cancel();
     _resumeRetryTimer = null;
+    _foregroundResumeTimer?.cancel();
+    _foregroundResumeTimer = null;
+    _foregroundGraceUntil = null;
     debugPrint('⏸️ [ChatV2ChannelsNotifier] Đã tạm dừng toàn bộ Polling do app vào Background');
   }
 
@@ -1007,8 +1194,13 @@ class ChatV2ChannelsNotifier
       _scheduleNextPoll();
     }
 
-    if (_isResumeRefreshing) {
-      // Single-flight lock: Tránh gọi chồng nhiều worker song song
+    if (_foregroundGraceUntil != null && DateTime.now().isBefore(_foregroundGraceUntil!)) {
+      // Đang trong cửa sổ 400ms khôi phục socket sau resume -> để _foregroundResumeTimer chạy
+      return;
+    }
+
+    if (state.isLoading || _isResumeRefreshing) {
+      // Single-flight lock: Chặn Double API Call khi build() đang chạy hoặc đang có worker refresh
       return;
     }
     _resumeRetryTimer?.cancel();
@@ -1021,7 +1213,14 @@ class ChatV2ChannelsNotifier
     _isResumeRefreshing = true;
     try {
       final repo = ref.read(chatV2RepositoryProvider);
-      final fresh = await repo.getChannels(limit: 80, offset: 0);
+      final page = await _fetchPageWithMeta(
+        repo,
+        limit: kPollingChannelsLimit,
+        offset: 0,
+        strictLimit: true,
+        compact: true,
+      );
+      final fresh = page.channels;
 
       if (_isDisposed) return;
 
@@ -1038,7 +1237,21 @@ class ChatV2ChannelsNotifier
         }
       }
 
-      ChatV2ChannelLocalCache.set(fresh);
+      if (_serverLoadedCount > 0) {
+        final newFromServer =
+            fresh.where((c) => !_serverLoadedIds.contains(c.id)).length;
+        _serverLoadedIds.addAll(fresh.map((c) => c.id));
+        _serverLoadedCount += newFromServer;
+      } else {
+        _serverLoadedIds.addAll(fresh.map((c) => c.id));
+        _serverLoadedCount = fresh.length;
+      }
+
+      ChatV2ChannelLocalCache.set(
+        fresh,
+        fromServerFullList: true,
+        mergeWithExisting: true,
+      );
       state = AsyncData(ChatV2ChannelLocalCache.cached);
       _resumeRetryAttempt = 0;
       ref.read(chatV2SyncStatusProvider.notifier).state = ChatV2SyncStatus.synced;
@@ -1051,19 +1264,25 @@ class ChatV2ChannelsNotifier
         return;
       }
 
-      // Giới hạn retry tối đa 3 lần theo Exponential Backoff: ~2s, ~4s, ~8s rồi dừng
-      if (_resumeRetryAttempt < 3) {
+      final hasCached = ChatV2ChannelLocalCache.cached.isNotEmpty ||
+          (state.valueOrNull?.isNotEmpty ?? false);
+
+      // Silent Retry tối đa 2 nhịp ngắn (2s, 4s):
+      // Nếu đã có cache trong RAM -> giữ nguyên danh sách & trạng thái synced (không nháy banner giả).
+      if (_resumeRetryAttempt < 2) {
         _resumeRetryAttempt++;
-        final delays = [2, 4, 8];
+        final delays = [2, 4];
         final delaySeconds = delays[(_resumeRetryAttempt - 1).clamp(0, delays.length - 1)];
-        ref.read(chatV2SyncStatusProvider.notifier).state = ChatV2SyncStatus.connecting;
+        if (!hasCached) {
+          ref.read(chatV2SyncStatusProvider.notifier).state = ChatV2SyncStatus.connecting;
+        }
 
         _resumeRetryTimer?.cancel();
         _resumeRetryTimer = Timer(Duration(seconds: delaySeconds), () {
           _executeResumeRefresh();
         });
       } else {
-        ref.read(chatV2SyncStatusProvider.notifier).state = ChatV2SyncStatus.offline;
+        ref.read(chatV2SyncStatusProvider.notifier).state = classifySyncError(e);
       }
     } finally {
       _isResumeRefreshing = false;
@@ -1077,16 +1296,32 @@ class ChatV2ChannelsNotifier
     ref.read(chatV2SyncStatusProvider.notifier).state = ChatV2SyncStatus.connecting;
     try {
       final repo = ref.read(chatV2RepositoryProvider);
-      final fresh = await repo.getChannels(limit: 80, offset: 0);
-      ChatV2ChannelLocalCache.set(fresh);
+      final page = await _fetchPageWithMeta(
+        repo,
+        limit: kInitialChannelsLimit,
+        offset: 0,
+      );
+      final fresh = page.channels;
+      _serverLoadedIds
+        ..clear()
+        ..addAll(fresh.map((c) => c.id));
+      _serverLoadedCount = fresh.length;
+      _hasMore = _channelsMeta?.totalCount != null
+          ? _serverLoadedCount < _channelsMeta!.totalCount!
+          : fresh.length >= kInitialChannelsLimit;
+
+      ChatV2ChannelLocalCache.set(fresh, fromServerFullList: true);
       state = AsyncData(ChatV2ChannelLocalCache.cached);
       ref.read(chatV2SyncStatusProvider.notifier).state = ChatV2SyncStatus.synced;
     } catch (e) {
+      final classified = _isTransientError(e)
+          ? classifySyncError(e)
+          : ChatV2SyncStatus.synced;
       if (state.hasValue && (state.valueOrNull?.isNotEmpty ?? false)) {
-        // Đã có data trong bộ nhớ -> Giữ nguyên data cũ, chỉ bật banner offline
-        ref.read(chatV2SyncStatusProvider.notifier).state = ChatV2SyncStatus.offline;
+        // Đã có data trong bộ nhớ -> Giữ nguyên data cũ, chỉ bật banner tương ứng lỗi
+        ref.read(chatV2SyncStatusProvider.notifier).state = classified;
       } else {
-        ref.read(chatV2SyncStatusProvider.notifier).state = ChatV2SyncStatus.offline;
+        ref.read(chatV2SyncStatusProvider.notifier).state = classified;
         state = AsyncError(e, StackTrace.current);
       }
     }
@@ -1096,38 +1331,53 @@ class ChatV2ChannelsNotifier
     if (_isLoadingMore || !_hasMore) return;
     _isLoadingMore = true;
     try {
-      final current = state.valueOrNull ?? [];
       final repo = ref.read(chatV2RepositoryProvider);
       final nextItems = await repo.getChannels(
-        limit: 50,
-        offset: current.length,
+        limit: kLoadMoreChannelsLimit,
+        offset: _serverLoadedCount,
       );
 
-      if (nextItems.isEmpty || nextItems.length < 50) {
+      if (nextItems.isEmpty || nextItems.length < kLoadMoreChannelsLimit) {
         _hasMore = false;
       }
 
       if (nextItems.isNotEmpty) {
-        final map = <String, ChatV2Channel>{};
-        for (final c in current) {
-          map[c.id] = c;
-        }
-        for (final c in nextItems) {
-          map[c.id] = c;
-        }
-        final merged = map.values.toList();
-        merged.sort((a, b) {
-          final da = (a.lastMessageDate ?? DateTime.fromMillisecondsSinceEpoch(0)).toUtc();
-          final db = (b.lastMessageDate ?? DateTime.fromMillisecondsSinceEpoch(0)).toUtc();
-          return db.compareTo(da);
-        });
-
-        ChatV2ChannelLocalCache.set(merged);
-        state = AsyncData(merged);
+        _serverLoadedIds.addAll(nextItems.map((c) => c.id));
+        _serverLoadedCount += nextItems.length;
+        ChatV2ChannelLocalCache.set(
+          nextItems,
+          mergeWithExisting: true,
+        );
+        state = AsyncData(ChatV2ChannelLocalCache.cached);
       }
     } catch (_) {
     } finally {
       _isLoadingMore = false;
+    }
+  }
+
+  /// Tải bổ sung danh sách theo danh mục khi người dùng bấm chip lọc nhưng số kênh khớp trong RAM < 15.
+  Future<void> fetchCategoryChannels(String category) async {
+    if (_isDisposed || category.isEmpty || category == 'unread') return;
+    try {
+      final repo = ref.read(chatV2RepositoryProvider);
+      final extra = await repo.getChannels(
+        filter: category,
+        limit: kInitialChannelsLimit,
+        offset: 0,
+      );
+      if (_isDisposed || extra.isEmpty) return;
+      ChatV2ChannelLocalCache.set(
+        extra,
+        mergeWithExisting: true,
+      );
+      state = AsyncData(ChatV2ChannelLocalCache.cached);
+    } catch (_) {}
+  }
+
+  void syncFromCache() {
+    if (!_isDisposed) {
+      state = AsyncData(ChatV2ChannelLocalCache.cached);
     }
   }
 

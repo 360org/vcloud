@@ -28,12 +28,20 @@ class MockChatV2Repository extends Fake implements ChatV2Repository {
   int callCount = 0;
 
   @override
+  ChatV2ChannelsMeta? get lastChannelsMeta => null;
+
+  @override
   Future<List<ChatV2Channel>> getChannels({
     int? limit,
     int? offset,
     String? search,
     String? filter,
     bool showArchived = false,
+    bool strictLimit = false,
+    bool compact = false,
+    bool withMeta = false,
+    int? afterMsgId,
+    String? since,
   }) async {
     callCount++;
     if (errorToThrow != null) {
@@ -84,7 +92,7 @@ void main() {
       notifier.state = ChatV2SyncStatus.connecting;
       expect(container.read(chatV2SyncStatusProvider), equals(ChatV2SyncStatus.connecting));
 
-      // Khi retry 3 lần thất bại -> offline
+      // Khi retry thất bại -> offline
       notifier.state = ChatV2SyncStatus.offline;
       expect(container.read(chatV2SyncStatusProvider), equals(ChatV2SyncStatus.offline));
 
@@ -104,10 +112,15 @@ void main() {
       final mockRepo = MockChatV2Repository(channelsToReturn: [sampleChannel]);
       final container = ProviderContainer(
         overrides: [
+          authControllerProvider.overrideWith(_FakeAuthController.new),
           chatV2RepositoryProvider.overrideWithValue(mockRepo),
         ],
       );
       addTearDown(container.dispose);
+
+      await container.read(authControllerProvider.future);
+      await container.read(chatV2ChannelsProvider.future);
+      mockRepo.callCount = 0;
 
       final notifier = container.read(chatV2ChannelsProvider.notifier);
 
@@ -130,10 +143,14 @@ void main() {
       final mockAuthFail = MockChatV2Repository(errorToThrow: Exception('401 Unauthorized'));
       final containerAuth = ProviderContainer(
         overrides: [
+          authControllerProvider.overrideWith(_FakeAuthController.new),
           chatV2RepositoryProvider.overrideWithValue(mockAuthFail),
         ],
       );
       addTearDown(containerAuth.dispose);
+
+      await containerAuth.read(authControllerProvider.future);
+      await containerAuth.read(chatV2ChannelsProvider.future).catchError((_) => <ChatV2Channel>[]);
 
       final notifierAuth = containerAuth.read(chatV2ChannelsProvider.notifier);
       await notifierAuth.resumeRefresh();
@@ -144,10 +161,14 @@ void main() {
       final mockNetFail = MockChatV2Repository(errorToThrow: TimeoutException('Hết thời gian chờ'));
       final containerNet = ProviderContainer(
         overrides: [
+          authControllerProvider.overrideWith(_FakeAuthController.new),
           chatV2RepositoryProvider.overrideWithValue(mockNetFail),
         ],
       );
       addTearDown(containerNet.dispose);
+
+      await containerNet.read(authControllerProvider.future);
+      await containerNet.read(chatV2ChannelsProvider.future).catchError((_) => <ChatV2Channel>[]);
 
       final notifierNet = containerNet.read(chatV2ChannelsProvider.notifier);
       await notifierNet.resumeRefresh();
