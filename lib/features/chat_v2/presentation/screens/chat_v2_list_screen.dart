@@ -1732,35 +1732,40 @@ class _ChannelListItem extends ConsumerWidget {
         );
 
     // Tự động phân giải avatar URL của đối phương
-    String? resolvedAvatarUrl = channel.avatarUrl;
+    bool hasAvatarValue(String? v) {
+      if (v == null) return false;
+      final t = v.trim();
+      return t.isNotEmpty && t != 'false' && t != 'null' && t != 'undefined';
+    }
+
+    String? resolvedAvatarUrl = hasAvatarValue(channel.avatarUrl) ? channel.avatarUrl : null;
     if (channel.channelType == 'livechat') {
       // Kênh livechat: Giữ nguyên avatarUrl từ backend (im_livechat.channel)
-      resolvedAvatarUrl = channel.avatarUrl;
+      resolvedAvatarUrl = hasAvatarValue(channel.avatarUrl) ? channel.avatarUrl : null;
     } else if (channel.isCskhChannel) {
       if (isPortal) {
-        resolvedAvatarUrl = channel.avatarUrl;
+        resolvedAvatarUrl = hasAvatarValue(channel.avatarUrl) ? channel.avatarUrl : null;
       } else {
         // Góc nhìn Sales/Kỹ thuật: Ưu tiên avatar của chính khách hàng Portal
-        if (channel.directPartnerAvatar != null && channel.directPartnerAvatar!.isNotEmpty) {
+        if (hasAvatarValue(channel.directPartnerAvatar)) {
           resolvedAvatarUrl = channel.directPartnerAvatar;
         } else if (resolvedAvatarUrl != null &&
             (resolvedAvatarUrl.contains('res.company') || resolvedAvatarUrl.contains('field=logo'))) {
           resolvedAvatarUrl = null; // Tránh hiển thị nhầm logo công ty cho khách hàng
         }
-        if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
+        if (!hasAvatarValue(resolvedAvatarUrl)) {
           final customerMember = channel.members.firstWhereOrNull((m) =>
               !m.isMe &&
               m.name.toLowerCase() != 'odoobot' &&
               m.name.toLowerCase() != 'bot' &&
-              m.avatarUrl != null &&
-              m.avatarUrl!.isNotEmpty);
+              hasAvatarValue(m.avatarUrl));
           if (customerMember != null) {
             resolvedAvatarUrl = customerMember.avatarUrl;
           }
         }
       }
     } else if (channel.isZaloOA) {
-      if (channel.directPartnerAvatar != null && channel.directPartnerAvatar!.isNotEmpty) {
+      if (hasAvatarValue(channel.directPartnerAvatar)) {
         resolvedAvatarUrl = channel.directPartnerAvatar;
       } else {
         final customerMember = channel.members.firstWhereOrNull((m) =>
@@ -1768,13 +1773,12 @@ class _ChannelListItem extends ConsumerWidget {
             m.name.toLowerCase() != 'odoobot' &&
             m.name.toLowerCase() != 'bot' &&
             !m.name.toLowerCase().contains('360 corp') &&
-            m.avatarUrl != null &&
-            m.avatarUrl!.isNotEmpty);
+            hasAvatarValue(m.avatarUrl));
         if (customerMember != null) {
           resolvedAvatarUrl = customerMember.avatarUrl;
         }
       }
-    } else if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
+    } else if (!hasAvatarValue(resolvedAvatarUrl)) {
       if (!isGroup && !channel.isChannel) {
         final currentPartnerId = odooApiClient.session?.partnerId?.toString();
         final currentUserId = odooApiClient.session?.uid.toString();
@@ -1783,24 +1787,37 @@ class _ChannelListItem extends ConsumerWidget {
               !m.isMine &&
               (currentPartnerId == null || m.authorId?.toString() != currentPartnerId) &&
               (currentUserId == null || m.authorId?.toString() != currentUserId) &&
-              m.authorAvatar != null &&
-              m.authorAvatar!.isNotEmpty);
+              hasAvatarValue(m.authorAvatar));
           if (otherMsg != null) {
             resolvedAvatarUrl = otherMsg.authorAvatar;
           }
         }
-        if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
+        if (!hasAvatarValue(resolvedAvatarUrl)) {
           final otherMember = channel.members.firstWhereOrNull((m) =>
               !m.isMe &&
               (currentPartnerId == null || m.id != currentPartnerId) &&
               (currentUserId == null || m.id != currentUserId) &&
               (currentUserName == null || !ChatV2Channel.matchesUser(m.name, currentUserName)) &&
-              m.avatarUrl != null &&
-              m.avatarUrl!.isNotEmpty);
+              hasAvatarValue(m.avatarUrl));
           if (otherMember != null) {
             resolvedAvatarUrl = otherMember.avatarUrl;
           }
         }
+      }
+    }
+
+    resolvedAvatarUrl = odooApiClient.resolveAvatarUrl(resolvedAvatarUrl);
+    if ((resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) &&
+        !isGroup &&
+        !channel.isChannel &&
+        !(channel.isCskhChannel && isPortal)) {
+      final pid = int.tryParse(
+        (channel.directPartnerId ?? channel.partnerId ?? '').trim(),
+      );
+      if (pid != null && pid > 0) {
+        resolvedAvatarUrl = odooApiClient.resolveAvatarUrl(
+          '/api/v1/mobile/avatar/res.partner/$pid?field=avatar_128',
+        );
       }
     }
 
@@ -1920,7 +1937,7 @@ class _ChannelListItem extends ConsumerWidget {
                               cacheWidth: (50 * MediaQuery.devicePixelRatioOf(context)).round(),
                               cacheHeight: (50 * MediaQuery.devicePixelRatioOf(context)).round(),
                               gaplessPlayback: true,
-                              headers: odooApiClient.authHeaders,
+                              headers: odooApiClient.headersForUrl(resolvedAvatarUrl),
                               errorBuilder: (context, error, stackTrace) =>
                                   (channel.isCskhChannel && !isLivechat && isPortal)
                                       ? Image.asset(

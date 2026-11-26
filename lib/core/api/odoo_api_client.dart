@@ -260,10 +260,41 @@ class OdooApiClient {
     return '${_activeBaseUrl()}$normalized';
   }
 
+  static final RegExp _webImageAvatarRegex = RegExp(
+    r'^/web/image/(res\.users|res\.partner|discuss\.channel|hr\.employee|res\.company|im_livechat\.channel)/(\d+)(?:/([A-Za-z0-9_]+))?/?$',
+  );
+  static final RegExp _mobileAvatarAliasRegex = RegExp(
+    r'^/api/v1/mobile/avatar/(partners|users|channels)/(\d+)(?:/([A-Za-z0-9_]+))?/?$',
+  );
+  static const Map<String, String> _avatarModelAliases = {
+    'partners': 'res.partner',
+    'users': 'res.users',
+    'channels': 'discuss.channel',
+  };
+
+  bool _isSameOriginOrRelativeUrl(String url) {
+    final trimmed = url.trim();
+    if (trimmed.isEmpty) return false;
+    if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+      final parsed = Uri.tryParse(trimmed);
+      return parsed != null && !parsed.hasScheme && parsed.host.isEmpty;
+    }
+    final uri = Uri.tryParse(trimmed);
+    final baseUri = Uri.tryParse(_activeBaseUrl());
+    if (uri == null ||
+        baseUri == null ||
+        uri.host.isEmpty ||
+        baseUri.host.isEmpty) {
+      return false;
+    }
+    return uri.host.toLowerCase() == baseUri.host.toLowerCase();
+  }
+
   /// Transforms [path] into an absolute URL and attaches `access_token` query
-  /// parameter if not present and a session token or [accessToken] is available.
+  /// parameter when [path] is relative or shares the same host as [_activeBaseUrl()].
   String authenticatedUrl(String path, {String? accessToken}) {
     final absUrl = absoluteUrl(path);
+    if (!_isSameOriginOrRelativeUrl(path)) return absUrl;
     final token = (accessToken != null && accessToken.isNotEmpty)
         ? accessToken
         : _session?.accessToken;
@@ -295,7 +326,46 @@ class OdooApiClient {
         (!trimmed.contains('/') && trimmed.length > 80)) {
       return trimmed;
     }
-    return authenticatedUrl(trimmed, accessToken: accessToken);
+    var normalized = trimmed;
+    final uri = Uri.tryParse(trimmed);
+    if (uri != null) {
+      final webMatch = _webImageAvatarRegex.firstMatch(uri.path);
+      if (webMatch != null) {
+        final model = webMatch.group(1)!;
+        final id = webMatch.group(2)!;
+        final field = (webMatch.group(3)?.isNotEmpty == true)
+            ? webMatch.group(3)!
+            : 'avatar_128';
+        final params = Map<String, String>.from(uri.queryParameters);
+        params['field'] = field;
+        normalized = uri
+            .replace(
+              path: '/api/v1/mobile/avatar/$model/$id',
+              queryParameters: params,
+            )
+            .toString();
+      } else {
+        final aliasMatch = _mobileAvatarAliasRegex.firstMatch(uri.path);
+        if (aliasMatch != null) {
+          final model = _avatarModelAliases[aliasMatch.group(1)!]!;
+          final id = aliasMatch.group(2)!;
+          final field = aliasMatch.group(3);
+          final params = Map<String, String>.from(uri.queryParameters);
+          if (field != null && field.isNotEmpty) {
+            params['field'] = field;
+          } else {
+            params.putIfAbsent('field', () => 'avatar_128');
+          }
+          normalized = uri
+              .replace(
+                path: '/api/v1/mobile/avatar/$model/$id',
+                queryParameters: params,
+              )
+              .toString();
+        }
+      }
+    }
+    return authenticatedUrl(normalized, accessToken: accessToken);
   }
 
   /// Map containing Authorization Bearer header for HTTP network requests.
@@ -306,6 +376,19 @@ class OdooApiClient {
       'Authorization': 'Bearer $token',
       if (_session != null && _session!.db.isNotEmpty) 'X-Odoo-Database': _session!.db,
     };
+  }
+
+  /// Returns [authHeaders] only for relative URLs or URLs whose host matches
+  /// [_activeBaseUrl()], preventing token leaks or CDN rejections on external hosts.
+  Map<String, String>? headersForUrl(String? url) {
+    if (url == null) return null;
+    final trimmed = url.trim();
+    if (trimmed.isEmpty ||
+        trimmed.startsWith('data:') ||
+        !_isSameOriginOrRelativeUrl(trimmed)) {
+      return null;
+    }
+    return authHeaders;
   }
 
   Future<OdooSession?> restoreSession() async {

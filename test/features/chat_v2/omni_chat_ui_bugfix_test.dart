@@ -6,6 +6,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:vcloud/core/api/auth_user.dart';
+import 'package:vcloud/core/api/odoo_api_client.dart';
+import 'package:vcloud/core/api/odoo_session.dart';
+import 'package:vcloud/core/api/odoo_session_store.dart';
+import 'package:vcloud/core/error/failure.dart';
 import 'package:vcloud/features/auth/application/auth_controller.dart';
 import 'package:vcloud/features/chat_v2/application/chat_v2_channels_controller.dart';
 import 'package:vcloud/features/chat_v2/application/chat_v2_inbox_controller.dart';
@@ -17,6 +21,31 @@ import 'package:vcloud/features/chat_v2/presentation/screens/chat_v2_detail_scre
 import 'package:vcloud/features/chat_v2/presentation/screens/chat_v2_list_screen.dart';
 import 'package:vcloud/features/chat_v2/presentation/widgets/chat_v2_input_bar.dart';
 import 'package:vcloud/shared/widgets/app_scaffold.dart';
+
+class _MemorySessionStore extends OdooSessionStore {
+  _MemorySessionStore(this._session);
+
+  final OdooSession _session;
+
+  @override
+  Future<OdooSession?> read() async => _session;
+}
+
+class _NotFoundOdooApiClient extends OdooApiClient {
+  _NotFoundOdooApiClient() : super(baseUrl: 'http://192.168.1.100:1900');
+
+  int getCallCount = 0;
+
+  @override
+  Future<dynamic> get(
+    String path, {
+    Map<String, dynamic>? query,
+    bool auth = true,
+  }) async {
+    getCallCount++;
+    throw Failure('Channel 665793 not found', statusCode: 404);
+  }
+}
 
 class _FakeAuthController extends AuthController {
   @override
@@ -529,6 +558,185 @@ void main() {
       await tester.enterText(find.byType(TextField), '@tic');
       await tester.pump();
       expect(find.text('@ticket (Tạo phiếu hỗ trợ)'), findsOneWidget);
+    });
+  });
+
+  group('BUG-22: Avatar URL Normalization, CDN Guard & Ghost Cache Eviction', () {
+    test('resolveAvatarUrl rewrites /web/image and plural aliases and protects external CDNs', () async {
+      final session = OdooSession(
+        accessToken: 'jwt_tok_abc',
+        uid: 2,
+        db: 'vcloud_test_v19',
+        login: 'tan@360.org.vn',
+        expiresAt: DateTime.now().toUtc().add(const Duration(hours: 1)),
+        baseUrl: 'http://192.168.1.100:1900',
+      );
+      final client = OdooApiClient(
+        baseUrl: 'http://192.168.1.100:1900',
+        sessionStore: _MemorySessionStore(session),
+      );
+      await client.restoreSession();
+
+      // Rewrites /web/image/<model>/<id>/<field?>
+      expect(
+        client.resolveAvatarUrl('/web/image/res.users/12/avatar_128'),
+        'http://192.168.1.100:1900/api/v1/mobile/avatar/res.users/12?field=avatar_128&access_token=jwt_tok_abc&db=vcloud_test_v19',
+      );
+      expect(
+        client.resolveAvatarUrl('/web/image/res.partner/3'),
+        'http://192.168.1.100:1900/api/v1/mobile/avatar/res.partner/3?field=avatar_128&access_token=jwt_tok_abc&db=vcloud_test_v19',
+      );
+      expect(
+        client.resolveAvatarUrl('/web/image/discuss.channel/99/image_128'),
+        'http://192.168.1.100:1900/api/v1/mobile/avatar/discuss.channel/99?field=image_128&access_token=jwt_tok_abc&db=vcloud_test_v19',
+      );
+      expect(
+        client.resolveAvatarUrl('/web/image/im_livechat.channel/4'),
+        'http://192.168.1.100:1900/api/v1/mobile/avatar/im_livechat.channel/4?field=avatar_128&access_token=jwt_tok_abc&db=vcloud_test_v19',
+      );
+
+      // Rewrites plural aliases /api/v1/mobile/avatar/(partners|users|channels)/<id>
+      expect(
+        client.resolveAvatarUrl('/api/v1/mobile/avatar/partners/3/avatar_128'),
+        'http://192.168.1.100:1900/api/v1/mobile/avatar/res.partner/3?field=avatar_128&access_token=jwt_tok_abc&db=vcloud_test_v19',
+      );
+      expect(
+        client.resolveAvatarUrl('/api/v1/mobile/avatar/users/7'),
+        'http://192.168.1.100:1900/api/v1/mobile/avatar/res.users/7?field=avatar_128&access_token=jwt_tok_abc&db=vcloud_test_v19',
+      );
+      expect(
+        client.resolveAvatarUrl('/api/v1/mobile/avatar/channels/88/image_128'),
+        'http://192.168.1.100:1900/api/v1/mobile/avatar/discuss.channel/88?field=image_128&access_token=jwt_tok_abc&db=vcloud_test_v19',
+      );
+
+      // External CDN (Zalo zadn.vn) never receives access_token, db, or authHeaders
+      const zadnUrl = 'https://s120-ava-talk.zadn.vn/6/b/2/3/1/120/avatar.jpg';
+      expect(client.authenticatedUrl(zadnUrl), zadnUrl);
+      expect(client.resolveAvatarUrl(zadnUrl), zadnUrl);
+      expect(client.headersForUrl(zadnUrl), isNull);
+
+      // Relative and same-host URLs receive authHeaders
+      expect(
+        client.headersForUrl('/api/v1/mobile/avatar/res.partner/3?field=avatar_128'),
+        isNotNull,
+      );
+      expect(
+        client.headersForUrl('http://192.168.1.100:1900/api/v1/mobile/avatar/res.partner/3'),
+        containsPair('Authorization', 'Bearer jwt_tok_abc'),
+      );
+    });
+
+    test('ChatV2ChannelLocalCache scopes by baseUrl+db+uid and getMessages 404 removes ghost channel', () async {
+      ChatV2ChannelLocalCache.clear();
+      await ChatV2ChannelLocalCache.init(
+        baseUrl: 'https://vuahethong.net',
+        db: 'vuahethong',
+        userId: '2',
+      );
+      const ghostChannel = ChatV2Channel(
+        id: '665793',
+        name: 'Demo User',
+        channelType: 'chat',
+        isGroup: false,
+      );
+      ChatV2ChannelLocalCache.pinDirectChannel(ghostChannel);
+      ChatV2ChannelLocalCache.set([ghostChannel]);
+      expect(ChatV2ChannelLocalCache.cached.map((c) => c.id), contains('665793'));
+
+      // Switching baseUrl even with same db+uid produces a new scope and clears stale channels
+      await ChatV2ChannelLocalCache.init(
+        baseUrl: 'http://192.168.1.100:1900',
+        db: 'vuahethong',
+        userId: '2',
+      );
+      expect(ChatV2ChannelLocalCache.cached, isEmpty);
+      expect(ChatV2ChannelLocalCache.getPinnedDirectChannel('665793'), isNull);
+
+      // Simulating a ghost channel left in the active scope: 404 in getMessages removes it
+      ChatV2ChannelLocalCache.pinDirectChannel(ghostChannel);
+      ChatV2ChannelLocalCache.set([ghostChannel]);
+      expect(ChatV2ChannelLocalCache.cached.map((c) => c.id), contains('665793'));
+
+      final fake404Client = _NotFoundOdooApiClient();
+      final repo = ChatV2Repository(fake404Client);
+      final msgs = await repo.getMessages('665793');
+      expect(msgs, isEmpty);
+      expect(fake404Client.getCallCount, 1);
+      expect(ChatV2ChannelLocalCache.cached.map((c) => c.id), isNot(contains('665793')));
+      expect(ChatV2ChannelLocalCache.getPinnedDirectChannel('665793'), isNull);
+    });
+
+    testWidgets('ChatV2DetailScreen AppBar shows # for channel and users icon for group without voice call icon', (tester) async {
+      const publicChannel = ChatV2Channel(
+        id: '88',
+        name: 'General',
+        channelType: 'channel',
+        isGroup: true,
+      );
+      const groupChannel = ChatV2Channel(
+        id: '89',
+        name: 'Dev Team',
+        channelType: 'group',
+        isGroup: true,
+        memberCount: 4,
+      );
+
+      final router = GoRouter(
+        initialLocation: '/chat/88',
+        routes: [
+          GoRoute(
+            path: '/chat/88',
+            builder: (_, _) => const ChatV2DetailScreen(
+              channelId: '88',
+              title: 'General',
+            ),
+          ),
+          GoRoute(
+            path: '/chat/89',
+            builder: (_, _) => const ChatV2DetailScreen(
+              channelId: '89',
+              title: 'Dev Team',
+            ),
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authControllerProvider.overrideWith(_FakeAuthController.new),
+            chatV2RepositoryProvider.overrideWithValue(_FakeChatRepo()),
+            chatV2ChannelsProvider.overrideWith(
+              () => _FakeListChannelsNotifier([publicChannel, groupChannel], null),
+            ),
+            chatV2MessagesProvider.overrideWith(
+              () => _FakeDetailMessagesNotifier(const []),
+            ),
+            chatV2InboxControllerProvider.overrideWith(_FakeInboxNotifier.new),
+          ],
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byWidgetPredicate(
+          (w) => w is Icon && w.icon == LucideIcons.hash && w.size == 20,
+        ),
+        findsOneWidget,
+      );
+      expect(find.byIcon(LucideIcons.phone), findsNothing);
+
+      router.go('/chat/89');
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byWidgetPredicate(
+          (w) => w is Icon && w.icon == LucideIcons.users && w.size == 18,
+        ),
+        findsOneWidget,
+      );
+      expect(find.byIcon(LucideIcons.phone), findsNothing);
     });
   });
 }

@@ -95,7 +95,10 @@ void main() {
       expect(ch.isZaloPersonal, isTrue);
       expect(ch.getActualIsGroup('Admin'), isFalse);
       expect(ch.getCleanName('Admin'), 'Nguyễn Văn A');
-      expect(ch.avatarUrl, contains('/web/image/res.partner/99/avatar_128'));
+      expect(
+        ch.avatarUrl,
+        contains('/api/v1/mobile/avatar/res.partner/99?field=avatar_128'),
+      );
     });
   });
 
