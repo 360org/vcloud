@@ -357,6 +357,23 @@ class ChatV2MessageItem extends StatelessWidget {
                                     gaplessPlayback: true,
                                     headers: odooApiClient
                                         .headersForUrl(resolvedAuthorAvatar),
+                                    frameBuilder: (
+                                      context,
+                                      child,
+                                      frame,
+                                      wasSynchronouslyLoaded,
+                                    ) {
+                                      if (wasSynchronouslyLoaded ||
+                                          frame != null) {
+                                        return ColoredBox(
+                                          color: isDark
+                                              ? const Color(0xFF1E293B)
+                                              : Colors.white,
+                                          child: SizedBox.expand(child: child),
+                                        );
+                                      }
+                                      return const SizedBox.shrink();
+                                    },
                                     errorBuilder:
                                         (context, error, stackTrace) =>
                                             const SizedBox.shrink(),

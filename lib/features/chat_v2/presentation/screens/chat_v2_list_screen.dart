@@ -485,6 +485,13 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                               }
                             });
                           }
+                          if (channelsMeta != null && channelsMeta.categoryLabels.isNotEmpty) {
+                            channelsMeta.categoryLabels.forEach((cat, label) {
+                              if (cat != 'ai_chat' && label.isNotEmpty) {
+                                categoryLabels[cat] = label;
+                              }
+                            });
+                          }
 
                           int countForCategory(String cat) {
                             final metaCount = channelsMeta?.categoryCounts[cat];
@@ -492,15 +499,20 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                             return categoryCounts[cat] ?? 0;
                           }
 
+                          final availableCats = (channelsMeta?.availableCategories ?? const <String>[])
+                              .where((cat) => cat.isNotEmpty && cat != 'ai_chat')
+                              .toSet();
+                          final useDynamicAvailable = !isPortal && availableCats.isNotEmpty;
+
                           // Thứ tự hiển thị danh mục chuẩn kế thừa từ Discuss Web vuahethong.net
                           final orderedCategories = <String>[];
                           const standardOrder = ['chat', 'channel', 'zalo', 'zalo_oa', 'livechat'];
                           for (final cat in standardOrder) {
-                            if (cat == 'chat') {
-                              if (countForCategory(cat) > 0 || !isPortal) {
+                            if (useDynamicAvailable) {
+                              if (availableCats.contains(cat) || countForCategory(cat) > 0) {
                                 orderedCategories.add(cat);
                               }
-                            } else if (cat == 'channel') {
+                            } else if (cat == 'chat' || cat == 'channel') {
                               if (countForCategory(cat) > 0 || !isPortal) {
                                 orderedCategories.add(cat);
                               }
@@ -512,10 +524,13 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                           }
 
                           // Bất kỳ category động nào khác từ server (VD: telegram, tiktok, custom...)
-                          for (final cat in categoryCounts.keys) {
-                            if (cat != 'ai_chat' &&
-                                !orderedCategories.contains(cat) &&
-                                countForCategory(cat) > 0) {
+                          final dynamicCandidates = <String>{
+                            ...categoryCounts.keys,
+                            if (useDynamicAvailable) ...availableCats,
+                          };
+                          for (final cat in dynamicCandidates) {
+                            if (cat == 'ai_chat' || orderedCategories.contains(cat)) continue;
+                            if (useDynamicAvailable || countForCategory(cat) > 0) {
                               orderedCategories.add(cat);
                             }
                           }
@@ -1938,6 +1953,15 @@ class _ChannelListItem extends ConsumerWidget {
                               cacheHeight: (50 * MediaQuery.devicePixelRatioOf(context)).round(),
                               gaplessPlayback: true,
                               headers: odooApiClient.headersForUrl(resolvedAvatarUrl),
+                              frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                                if (wasSynchronouslyLoaded || frame != null) {
+                                  return ColoredBox(
+                                    color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                                    child: SizedBox.expand(child: child),
+                                  );
+                                }
+                                return const SizedBox.shrink();
+                              },
                               errorBuilder: (context, error, stackTrace) =>
                                   (channel.isCskhChannel && !isLivechat && isPortal)
                                       ? Image.asset(
