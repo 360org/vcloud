@@ -8,6 +8,7 @@ import '../../features/attendance/application/attendance_controller.dart';
 import '../../features/attendance/data/attendance_repository.dart';
 import '../../features/chat_v2/application/chat_v2_callkit_service.dart';
 import '../../features/chat_v2/application/chat_v2_channels_controller.dart';
+import '../../features/chat_v2/application/chat_v2_inbox_controller.dart';
 import '../../features/chat_v2/application/chat_v2_messages_controller.dart';
 import '../../features/chat_v2/application/chat_v2_read_state_controller.dart';
 import '../../features/chat_v2/data/chat_v2_repository.dart';
@@ -115,6 +116,7 @@ class GlobalStateResetService {
         ref.invalidate(mobileDashboardSummaryProvider);
         ref.invalidate(homeSummaryProvider);
         ref.invalidate(chatV2ChannelsProvider);
+        ref.invalidate(chatV2InboxControllerProvider);
         ref.invalidate(menuControllerProvider);
         ref.invalidate(ticketsProvider);
         ref.invalidate(todayTasksProvider);
@@ -136,6 +138,7 @@ class GlobalStateResetService {
         container.invalidate(mobileDashboardSummaryProvider);
         container.invalidate(homeSummaryProvider);
         container.invalidate(chatV2ChannelsProvider);
+        container.invalidate(chatV2InboxControllerProvider);
         container.invalidate(menuControllerProvider);
         container.invalidate(ticketsProvider);
         container.invalidate(todayTasksProvider);

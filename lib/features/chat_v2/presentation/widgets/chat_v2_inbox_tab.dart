@@ -8,7 +8,7 @@ import '../../../../shared/widgets/app_scaffold.dart';
 import '../../application/chat_v2_inbox_controller.dart';
 import '../../domain/models/chat_v2_inbox_item.dart';
 
-class ChatV2InboxTab extends ConsumerWidget {
+class ChatV2InboxTab extends ConsumerStatefulWidget {
   const ChatV2InboxTab({
     super.key,
     required this.tabType,
@@ -17,9 +17,47 @@ class ChatV2InboxTab extends ConsumerWidget {
   final ChatV2InboxTabType tabType;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ChatV2InboxTab> createState() => _ChatV2InboxTabState();
+}
+
+class _ChatV2InboxTabState extends ConsumerState<ChatV2InboxTab> {
+  bool _retriedErrorOnVisit = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _retryIfErrorOnEntry();
+  }
+
+  @override
+  void didUpdateWidget(covariant ChatV2InboxTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.tabType != widget.tabType) {
+      _retriedErrorOnVisit = false;
+      _retryIfErrorOnEntry();
+    }
+  }
+
+  void _retryIfErrorOnEntry() {
+    final inboxState = ref.read(chatV2InboxControllerProvider);
+    if (inboxState.error != null &&
+        !inboxState.isLoading &&
+        !_retriedErrorOnVisit) {
+      _retriedErrorOnVisit = true;
+      Future.microtask(() {
+        if (!mounted) return;
+        ref
+            .read(chatV2InboxControllerProvider.notifier)
+            .loadActiveTab(refresh: true);
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final inboxState = ref.watch(chatV2InboxControllerProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final tabType = widget.tabType;
 
     final items = switch (tabType) {
       ChatV2InboxTabType.inbox => inboxState.inboxItems,
@@ -198,7 +236,7 @@ class ChatV2InboxTab extends ConsumerWidget {
   }
 
   Widget _buildEmptyState(BuildContext context, bool isDark) {
-    final (icon, title, subtitle) = switch (tabType) {
+    final (icon, title, subtitle) = switch (widget.tabType) {
       ChatV2InboxTabType.inbox => (
           LucideIcons.inbox,
           'Hộp thư đến trống',
@@ -263,16 +301,17 @@ class ChatV2InboxTab extends ConsumerWidget {
   }
 
   Widget _buildErrorState(BuildContext context, WidgetRef ref, bool isDark, String errorMsg) {
-    final isNotSupported = errorMsg.contains('405') ||
-        errorMsg.contains('404') ||
-        errorMsg.contains('Method Not Allowed');
+    final lower = errorMsg.toLowerCase();
+    final isNotSupported = lower.contains('405') ||
+        lower.contains('404') ||
+        lower.contains('method not allowed');
 
     final title = isNotSupported
         ? 'Máy chủ chưa nâng cấp tính năng'
         : 'Không thể tải Hộp thư đến';
 
     final subtitle = isNotSupported
-        ? 'Máy chủ Vua Hệ Thống hiện tại chưa hỗ trợ Hộp thư đến Discuss (cần nâng cấp module v_mobile lên v19.0.1.2.70).'
+        ? 'Máy chủ hiện tại chưa hỗ trợ Hộp thư đến Discuss (cần nâng cấp module v_mobile).'
         : 'Đã có lỗi xảy ra khi tải dữ liệu từ máy chủ. Vui lòng kiểm tra lại kết nối mạng.';
 
     return Center(
@@ -318,6 +357,7 @@ class ChatV2InboxTab extends ConsumerWidget {
             const SizedBox(height: 20),
             ElevatedButton.icon(
               onPressed: () {
+                _retriedErrorOnVisit = false;
                 ref
                     .read(chatV2InboxControllerProvider.notifier)
                     .loadActiveTab(refresh: true);

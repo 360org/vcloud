@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/error/failure.dart';
 import '../data/chat_v2_repository.dart';
 import '../domain/models/chat_v2_inbox_item.dart';
 
@@ -84,6 +85,10 @@ class ChatV2InboxController extends Notifier<ChatV2InboxState> {
     }
   }
 
+  String _formatInboxError(Object e) => (e is Failure && e.statusCode != null)
+      ? '[HTTP ${e.statusCode}] ${e.message}'
+      : e.toString();
+
   Future<void> loadInbox({bool refresh = false}) async {
     if (state.inboxItems.isNotEmpty && !refresh) return;
     state = state.copyWith(isLoading: true, error: null);
@@ -101,7 +106,7 @@ class ChatV2InboxController extends Notifier<ChatV2InboxState> {
       }
       state = state.copyWith(
         isLoading: false,
-        error: e.toString(),
+        error: _formatInboxError(e),
       );
     }
   }
@@ -122,7 +127,7 @@ class ChatV2InboxController extends Notifier<ChatV2InboxState> {
       }
       state = state.copyWith(
         isLoading: false,
-        error: e.toString(),
+        error: _formatInboxError(e),
       );
     }
   }
@@ -143,7 +148,7 @@ class ChatV2InboxController extends Notifier<ChatV2InboxState> {
       }
       state = state.copyWith(
         isLoading: false,
-        error: e.toString(),
+        error: _formatInboxError(e),
       );
     }
   }
