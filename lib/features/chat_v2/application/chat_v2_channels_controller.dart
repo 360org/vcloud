@@ -826,12 +826,14 @@ class ChatV2ChannelsNotifier
   bool _hasMore = true;
   int _serverLoadedCount = 0;
   final Set<String> _serverLoadedIds = <String>{};
+  final Set<String> _fetchedCategories = <String>{};
   ChatV2ChannelsMeta? _channelsMeta;
 
   bool get hasMore => _hasMore;
   bool get isLoadingMore => _isLoadingMore;
   int get serverLoadedCount => _serverLoadedCount;
   ChatV2ChannelsMeta? get channelsMeta => _channelsMeta;
+  bool isCategoryFetched(String category) => _fetchedCategories.contains(category);
 
   static Duration pollIntervalForBus({required bool isConnected}) =>
       isConnected ? const Duration(seconds: 25) : const Duration(seconds: 12);
@@ -849,6 +851,7 @@ class ChatV2ChannelsNotifier
   Future<List<ChatV2Channel>> build() async {
     ref.keepAlive();
     _isDisposed = false;
+    _fetchedCategories.clear();
     ref.onDispose(() {
       ChatV2ChannelLocalCache.onCacheUpdated = null;
       _isDisposed = true;
@@ -1291,6 +1294,7 @@ class ChatV2ChannelsNotifier
 
   Future<void> refresh() async {
     _hasMore = true;
+    _fetchedCategories.clear();
     _resumeRetryTimer?.cancel();
     _resumeRetryAttempt = 0;
     ref.read(chatV2SyncStatusProvider.notifier).state = ChatV2SyncStatus.connecting;
@@ -1356,14 +1360,20 @@ class ChatV2ChannelsNotifier
     }
   }
 
-  /// Tải bổ sung danh sách theo danh mục khi người dùng bấm chip lọc nhưng số kênh khớp trong RAM < 15.
+  /// Tải bổ sung danh sách theo danh mục khi người dùng bấm chip lọc nhưng số kênh khớp trong RAM < badge server.
   Future<void> fetchCategoryChannels(String category) async {
-    if (_isDisposed || category.isEmpty || category == 'unread') return;
+    if (_isDisposed ||
+        category.isEmpty ||
+        category == 'unread' ||
+        _fetchedCategories.contains(category)) {
+      return;
+    }
+    _fetchedCategories.add(category);
     try {
       final repo = ref.read(chatV2RepositoryProvider);
       final extra = await repo.getChannels(
         filter: category,
-        limit: kInitialChannelsLimit,
+        limit: 50,
         offset: 0,
       );
       if (_isDisposed || extra.isEmpty) return;
@@ -1372,7 +1382,9 @@ class ChatV2ChannelsNotifier
         mergeWithExisting: true,
       );
       state = AsyncData(ChatV2ChannelLocalCache.cached);
-    } catch (_) {}
+    } catch (_) {
+      _fetchedCategories.remove(category);
+    }
   }
 
   void syncFromCache() {
