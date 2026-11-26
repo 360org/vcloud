@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/odoo_api_client.dart';
+import '../../../core/error/failure.dart';
+import '../application/chat_v2_channels_controller.dart';
 import '../domain/models/chat_v2_inbox_item.dart';
 import '../domain/models/chat_v2_poll_model.dart';
 import 'models/chat_v2_channel.dart';
@@ -260,6 +262,14 @@ class ChatV2Repository {
     return null;
   }
 
+  bool _isChannelNotFoundError(Object error) {
+    if (error is Failure && error.statusCode == 404) return true;
+    final errStr = error.toString().toLowerCase();
+    return errStr.contains('channel_not_found') ||
+        errStr.contains('not_found') ||
+        errStr.contains('not found');
+  }
+
   Future<List<ChatV2Message>> getMessages(
     String channelId, {
     String? currentPartnerId,
@@ -287,8 +297,9 @@ class ChatV2Repository {
         debugPrint('[ChatV2Repository] getMessages: Access denied to channel $channelId');
         throw const ChatV2AccessDeniedException();
       }
-      if (errStr.contains('channel_not_found') || errStr.contains('not_found')) {
-        debugPrint('[ChatV2Repository] getMessages: Channel $channelId not found');
+      if (_isChannelNotFoundError(e)) {
+        debugPrint('[ChatV2Repository] getMessages: Channel $channelId not found (removing cached channel)');
+        ChatV2ChannelLocalCache.remove(channelId);
         return const [];
       }
       // Retry 1 lần nếu gặp lỗi mạng tạm thời
@@ -303,8 +314,9 @@ class ChatV2Repository {
           debugPrint('[ChatV2Repository] getMessages retry: Access denied to channel $channelId');
           throw const ChatV2AccessDeniedException();
         }
-        if (retryErrStr.contains('channel_not_found') || retryErrStr.contains('not_found')) {
-          debugPrint('[ChatV2Repository] getMessages retry: Channel $channelId not found');
+        if (_isChannelNotFoundError(retryErr)) {
+          debugPrint('[ChatV2Repository] getMessages retry: Channel $channelId not found (removing cached channel)');
+          ChatV2ChannelLocalCache.remove(channelId);
           return const [];
         }
         rethrow;

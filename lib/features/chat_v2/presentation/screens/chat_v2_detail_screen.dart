@@ -1089,10 +1089,19 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
         ChatV2MessageLocalCache.get(widget.channelId) ??
         const [];
 
+    final isActualGroup = currentChannel?.isGroup == true ||
+        (currentChannel != null && currentChannel.getActualIsGroup(currentUserName));
+
+    bool hasAvatarValue(String? v) {
+      if (v == null) return false;
+      final t = v.trim();
+      return t.isNotEmpty && t != 'false' && t != 'null' && t != 'undefined';
+    }
+
     // Fallback các cấp độ an toàn để xác định avatar của đối phương (tuyệt đối không lấy avatar của bản thân):
     String? resolvedAvatarUrl = currentChannel?.avatarUrl;
     if (isLivechat) {
-      if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
+      if (!hasAvatarValue(resolvedAvatarUrl)) {
         resolvedAvatarUrl = widget.initialAvatarUrl;
       }
     } else if (isCskhGroup) {
@@ -1101,55 +1110,74 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
       } else {
         // Góc nhìn Sales/Kỹ thuật: Ưu tiên avatar của chính khách hàng Portal
         final partnerAvatar = currentChannel?.directPartnerAvatar;
-        if (partnerAvatar != null && partnerAvatar.isNotEmpty) {
+        if (hasAvatarValue(partnerAvatar)) {
           resolvedAvatarUrl = partnerAvatar;
         } else if (resolvedAvatarUrl != null &&
             (resolvedAvatarUrl.contains('res.company') || resolvedAvatarUrl.contains('field=logo'))) {
           resolvedAvatarUrl = null; // Tránh hiển thị logo công ty thay cho khách hàng
         }
-        if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
+        if (!hasAvatarValue(resolvedAvatarUrl)) {
           final customerMember = currentChannel?.members.firstWhereOrNull((m) =>
               !m.isMe &&
               m.name.toLowerCase() != 'odoobot' &&
               m.name.toLowerCase() != 'bot' &&
-              m.avatarUrl != null &&
-              m.avatarUrl!.isNotEmpty);
+              hasAvatarValue(m.avatarUrl));
           if (customerMember != null) {
             resolvedAvatarUrl = customerMember.avatarUrl;
           }
         }
       }
     } else {
-      if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
+      if (!hasAvatarValue(resolvedAvatarUrl)) {
+        resolvedAvatarUrl = currentChannel?.directPartnerAvatar;
+      }
+      if (!hasAvatarValue(resolvedAvatarUrl)) {
         resolvedAvatarUrl = widget.initialAvatarUrl;
       }
-      if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
-        final isGroup = currentChannel?.isGroup == true ||
-            (currentChannel != null && currentChannel.getActualIsGroup(currentUserName));
-        if (!isGroup && messages.isNotEmpty) {
-          final otherMsg = messages.firstWhereOrNull((m) {
-            if (m.isMine) return false;
-            if (currentUserId != null && m.authorId == currentUserId) return false;
-            if (currentPartnerId != null && m.authorId == currentPartnerId) return false;
-            if (currentUserName != null && currentUserName.isNotEmpty) {
-              if (m.authorName.trim().toLowerCase() == currentUserName.trim().toLowerCase()) return false;
-            }
-            return (m.authorAvatar != null && m.authorAvatar!.isNotEmpty);
-          });
-          if (otherMsg != null) {
-            resolvedAvatarUrl = otherMsg.authorAvatar;
+      if (!isActualGroup && !hasAvatarValue(resolvedAvatarUrl)) {
+        final otherMember = currentChannel?.members.firstWhereOrNull((m) =>
+            !m.isMe &&
+            (currentUserId == null || m.id != currentUserId) &&
+            (currentPartnerId == null || m.id != currentPartnerId) &&
+            (currentUserName == null ||
+                currentUserName.isEmpty ||
+                m.name.trim().toLowerCase() != currentUserName.trim().toLowerCase()) &&
+            hasAvatarValue(m.avatarUrl));
+        if (otherMember != null) {
+          resolvedAvatarUrl = otherMember.avatarUrl;
+        }
+      }
+      if (!isActualGroup && !hasAvatarValue(resolvedAvatarUrl) && messages.isNotEmpty) {
+        final otherMsg = messages.firstWhereOrNull((m) {
+          if (m.isMine) return false;
+          if (currentUserId != null && m.authorId == currentUserId) return false;
+          if (currentPartnerId != null && m.authorId == currentPartnerId) return false;
+          if (currentUserName != null && currentUserName.isNotEmpty) {
+            if (m.authorName.trim().toLowerCase() == currentUserName.trim().toLowerCase()) return false;
           }
+          return hasAvatarValue(m.authorAvatar);
+        });
+        if (otherMsg != null) {
+          resolvedAvatarUrl = otherMsg.authorAvatar;
+        }
+      }
+      if (!isActualGroup &&
+          !(currentChannel?.isChannel ?? false) &&
+          !hasAvatarValue(resolvedAvatarUrl)) {
+        final targetPartnerId = int.tryParse(
+          (currentChannel?.directPartnerId ??
+                  currentChannel?.partnerId ??
+                  widget.initialPartnerId ??
+                  '')
+              .trim(),
+        );
+        if (targetPartnerId != null && targetPartnerId > 0) {
+          resolvedAvatarUrl =
+              '/api/v1/mobile/avatar/res.partner/$targetPartnerId?field=avatar_128';
         }
       }
     }
-    if (resolvedAvatarUrl != null && resolvedAvatarUrl.contains('/web/image/res.users/')) {
-      resolvedAvatarUrl = resolvedAvatarUrl.replaceAll('/web/image/res.users/', '/api/v1/mobile/avatar/users/');
-    } else if (resolvedAvatarUrl != null && resolvedAvatarUrl.contains('/web/image/res.partner/')) {
-      resolvedAvatarUrl = resolvedAvatarUrl.replaceAll('/web/image/res.partner/', '/api/v1/mobile/avatar/partners/');
-    }
-
-    final isActualGroup = currentChannel?.isGroup == true ||
-        (currentChannel != null && currentChannel.getActualIsGroup(currentUserName));
+    resolvedAvatarUrl = odooApiClient.resolveAvatarUrl(resolvedAvatarUrl);
 
     // Fallback an toàn cho channelMembers: nếu đang ở chat 1-1 mà currentChannel.members rỗng,
     // tự động tạo ChatV2Member từ đối tác trực tiếp (partnerId/directPartnerId + displayTitle)
@@ -1321,6 +1349,22 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                             height: 40,
                             fit: BoxFit.cover,
                           )
+                        else if (currentChannel?.isChannel == true)
+                          const Center(
+                            child: Icon(
+                              LucideIcons.hash,
+                              size: 20,
+                              color: Colors.white,
+                            ),
+                          )
+                        else if (isActualGroup)
+                          const Center(
+                            child: Icon(
+                              LucideIcons.users,
+                              size: 18,
+                              color: Colors.white,
+                            ),
+                          )
                         else
                           Center(
                             child: Text(
@@ -1343,7 +1387,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                             cacheWidth: (40 * MediaQuery.devicePixelRatioOf(context)).round(),
                             cacheHeight: (40 * MediaQuery.devicePixelRatioOf(context)).round(),
                             gaplessPlayback: true,
-                            headers: odooApiClient.authHeaders,
+                            headers: odooApiClient.headersForUrl(resolvedAvatarUrl),
                             errorBuilder: (context, error, stackTrace) =>
                                 (isCskhGroup && isPortal)
                                     ? Image.asset(

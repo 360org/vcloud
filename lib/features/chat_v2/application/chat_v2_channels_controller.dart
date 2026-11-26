@@ -154,11 +154,29 @@ class ChatV2ChannelLocalCache {
 
   static ChatV2Channel? getPinnedDirectChannel(String id) => _pinnedDirectChannels[id];
 
-  static Future<void> init({String? db, String? userId}) async {
+  static String get activeScope => _activeScope;
+
+  static String computeScope({
+    String? baseUrl,
+    String? db,
+    String? userId,
+  }) {
     final session = odooApiClient.session;
-    final currentDb = db ?? session?.db ?? '';
-    final currentUid = userId ?? session?.uid.toString() ?? '';
-    final newScope = currentDb.isNotEmpty ? '${currentDb}_$currentUid' : '';
+    final resolvedBaseUrl = (baseUrl ??
+            ((session?.baseUrl.isNotEmpty ?? false) ? session!.baseUrl : null) ??
+            odooApiClient.baseUrl)
+        .trim()
+        .toLowerCase()
+        .replaceFirst(RegExp(r'/+$'), '');
+    final resolvedDb = (db ?? session?.db ?? '').trim();
+    final resolvedUid = (userId ?? session?.uid.toString() ?? '').trim();
+    if (resolvedDb.isEmpty && resolvedUid.isEmpty) return '';
+    final safeBase = resolvedBaseUrl.replaceAll(RegExp(r'[^a-z0-9._-]'), '_');
+    return '${safeBase}_${resolvedDb}_$resolvedUid';
+  }
+
+  static Future<void> init({String? baseUrl, String? db, String? userId}) async {
+    final newScope = computeScope(baseUrl: baseUrl, db: db, userId: userId);
 
     if (_initialized && _activeScope == newScope) return;
 
@@ -181,9 +199,24 @@ class ChatV2ChannelLocalCache {
 
       final data = await _storage.read(key: _storageKey);
       if (data != null && data.isNotEmpty) {
-        final List<dynamic> decoded = jsonDecode(data);
+        final dynamic decoded = jsonDecode(data);
         bool dirtyPinned = false;
-        for (final item in decoded) {
+        List<dynamic> pinnedItems = const [];
+        if (decoded is Map<String, dynamic>) {
+          final storedScope = decoded['scope']?.toString() ?? '';
+          if (storedScope == _activeScope && decoded['channels'] is List) {
+            pinnedItems = decoded['channels'] as List<dynamic>;
+          } else {
+            dirtyPinned = true;
+          }
+        } else if (decoded is List) {
+          if (_activeScope.isEmpty) {
+            pinnedItems = decoded;
+          } else {
+            dirtyPinned = true;
+          }
+        }
+        for (final item in pinnedItems) {
           if (item is Map<String, dynamic>) {
             final ch = ChatV2Channel.fromJson(item);
             final isGroupOrInternal = ch.isGroup ||
@@ -484,7 +517,13 @@ class ChatV2ChannelLocalCache {
   static Future<void> _saveToStorage() async {
     try {
       final list = _pinnedDirectChannels.values.map((c) => c.toMap()).toList();
-      await _storage.write(key: _storageKey, value: jsonEncode(list));
+      await _storage.write(
+        key: _storageKey,
+        value: jsonEncode(<String, dynamic>{
+          'scope': _activeScope,
+          'channels': list,
+        }),
+      );
     } catch (_) {}
   }
 
@@ -880,11 +919,16 @@ class ChatV2ChannelsNotifier
     final currentUser = authState.valueOrNull;
     final meta = currentUser?.userMetadata;
     final hasVMobile = (meta?['has_v_mobile'] as bool?) ?? true;
+    final currentBaseUrl = odooApiClient.baseUrl;
     final currentDb = odooApiClient.session?.db;
     final currentUid = currentUser?.id ?? odooApiClient.session?.uid.toString();
 
     _isDisposed = false;
-    await ChatV2ChannelLocalCache.init(db: currentDb, userId: currentUid);
+    await ChatV2ChannelLocalCache.init(
+      baseUrl: currentBaseUrl,
+      db: currentDb,
+      userId: currentUid,
+    );
     await ChatV2MessageLocalCache.init(db: currentDb, userId: currentUid);
 
     ChatV2ChannelLocalCache.onCacheUpdated = () {

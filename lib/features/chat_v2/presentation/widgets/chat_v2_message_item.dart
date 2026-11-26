@@ -325,19 +325,43 @@ class ChatV2MessageItem extends StatelessWidget {
                                 ),
                               ),
                             ),
-                            if (message.authorAvatar != null &&
-                                message.authorAvatar!.isNotEmpty)
-                              Image.network(
-                                message.authorAvatar!,
-                                width: 28,
-                                height: 28,
-                                fit: BoxFit.cover,
-                                cacheWidth: avatarCacheSize,
-                                cacheHeight: avatarCacheSize,
-                                gaplessPlayback: true,
-                                headers: odooApiClient.authHeaders,
-                                errorBuilder: (context, error, stackTrace) =>
-                                    const SizedBox.shrink(),
+                            if (message.authorAvatar != null ||
+                                (message.authorId != null && message.authorId!.isNotEmpty))
+                              Builder(
+                                builder: (context) {
+                                  var resolvedAuthorAvatar = odooApiClient
+                                      .resolveAvatarUrl(message.authorAvatar);
+                                  if (resolvedAuthorAvatar == null ||
+                                      resolvedAuthorAvatar.isEmpty) {
+                                    final authorPid = int.tryParse(
+                                      (message.authorId ?? '').trim(),
+                                    );
+                                    if (authorPid != null && authorPid > 0) {
+                                      resolvedAuthorAvatar =
+                                          odooApiClient.resolveAvatarUrl(
+                                        '/api/v1/mobile/avatar/res.partner/$authorPid?field=avatar_128',
+                                      );
+                                    }
+                                  }
+                                  if (resolvedAuthorAvatar == null ||
+                                      resolvedAuthorAvatar.isEmpty) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  return Image.network(
+                                    resolvedAuthorAvatar,
+                                    width: 28,
+                                    height: 28,
+                                    fit: BoxFit.cover,
+                                    cacheWidth: avatarCacheSize,
+                                    cacheHeight: avatarCacheSize,
+                                    gaplessPlayback: true,
+                                    headers: odooApiClient
+                                        .headersForUrl(resolvedAuthorAvatar),
+                                    errorBuilder:
+                                        (context, error, stackTrace) =>
+                                            const SizedBox.shrink(),
+                                  );
+                                },
                               ),
                           ],
                         ],

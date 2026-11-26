@@ -100,7 +100,10 @@ void main() {
       expect(channel.channelType, 'livechat');
       expect(channel.displayName, 'Technical Support');
       expect(channel.getCleanName('Khách Hàng Mới', isPortal: true), 'Technical Support');
-      expect(channel.avatarUrl, contains('/web/image/im_livechat.channel/2/image_128'));
+      expect(
+        channel.avatarUrl,
+        contains('/api/v1/mobile/avatar/im_livechat.channel/2?field=image_128'),
+      );
     });
 
     test('TC-12: Livechat fromJson prevents operator Admin from overriding channel title', () {
