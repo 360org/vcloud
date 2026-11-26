@@ -373,9 +373,9 @@ void main() {
     });
   });
 
-  group('BUG-17: Voice Call AppBar Button & Star Message Menu', () {
+  group('BUG-17: Voice Call AppBar Button Hidden & Star Message Menu', () {
     testWidgets(
-      'shows phone call icon on 1-1 chat and allows starring a message in long-press sheet',
+      'hides phone call icon on 1-1 chat and allows starring a message in long-press sheet',
       (tester) async {
         final fakeRepo = _FakeChatRepo();
         const directChannel = ChatV2Channel(
@@ -431,8 +431,8 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // Phone call button visible in AppBar
-        expect(find.byIcon(LucideIcons.phone), findsOneWidget);
+        // Phone call button remains hidden in AppBar (unfinished call feature)
+        expect(find.byIcon(LucideIcons.phone), findsNothing);
 
         // Long-press message opens sheet with Gắn sao
         await tester.longPress(find.text('Tin nhắn cần gắn sao'));
