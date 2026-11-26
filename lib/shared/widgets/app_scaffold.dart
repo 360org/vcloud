@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:ui';
 
@@ -668,7 +667,7 @@ class UserAvatar extends StatelessWidget {
   }
 }
 
-class _AvatarNetworkImage extends StatefulWidget {
+class _AvatarNetworkImage extends StatelessWidget {
   _AvatarNetworkImage({
     required this.url,
     required this.size,
@@ -678,45 +677,16 @@ class _AvatarNetworkImage extends StatefulWidget {
   final double size;
 
   @override
-  State<_AvatarNetworkImage> createState() => _AvatarNetworkImageState();
-}
-
-class _AvatarNetworkImageState extends State<_AvatarNetworkImage> {
-  int _retryCount = 0;
-  Timer? _retryTimer;
-
-  @override
-  void dispose() {
-    _retryTimer?.cancel();
-    super.dispose();
-  }
-
-  void _scheduleRetry() {
-    if (_retryCount >= 2 || !mounted) return;
-    _retryTimer?.cancel();
-    _retryTimer = Timer(const Duration(seconds: 2), () {
-      if (mounted) {
-        setState(() {
-          _retryCount++;
-        });
-      }
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Image.network(
-      widget.url,
+      url,
       headers: odooApiClient.authHeaders,
-      key: ValueKey('${widget.url}_$_retryCount'),
+      key: ValueKey(url),
       fit: BoxFit.cover,
-      cacheWidth: (widget.size * MediaQuery.devicePixelRatioOf(context)).round(),
-      cacheHeight: (widget.size * MediaQuery.devicePixelRatioOf(context)).round(),
+      cacheWidth: (size * MediaQuery.devicePixelRatioOf(context)).round(),
+      cacheHeight: (size * MediaQuery.devicePixelRatioOf(context)).round(),
       gaplessPlayback: true,
-      errorBuilder: (context, error, stackTrace) {
-        _scheduleRetry();
-        return const SizedBox.shrink();
-      },
+      errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
     );
   }
 }

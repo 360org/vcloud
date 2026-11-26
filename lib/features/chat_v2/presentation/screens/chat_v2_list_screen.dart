@@ -473,11 +473,13 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                           final categoryLabels = <String, String>{};
                           for (final c in channels) {
                             final cat = c.effectiveCategory;
+                            if (c.channelType == 'ai_chat' || cat == 'ai_chat') continue;
                             categoryCounts[cat] = (categoryCounts[cat] ?? 0) + 1;
                             categoryLabels[cat] = c.effectiveCategoryLabel;
                           }
                           if (channelsMeta != null && channelsMeta.categoryCounts.isNotEmpty) {
                             channelsMeta.categoryCounts.forEach((cat, metaCount) {
+                              if (cat == 'ai_chat') return;
                               if (metaCount > 0 && !categoryCounts.containsKey(cat)) {
                                 categoryCounts[cat] = metaCount;
                               }
@@ -492,7 +494,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
 
                           // Thứ tự hiển thị danh mục chuẩn kế thừa từ Discuss Web vuahethong.net
                           final orderedCategories = <String>[];
-                          const standardOrder = ['chat', 'channel', 'zalo_oa', 'zalo', 'livechat'];
+                          const standardOrder = ['chat', 'channel', 'zalo', 'zalo_oa', 'livechat'];
                           for (final cat in standardOrder) {
                             if (cat == 'chat') {
                               if (countForCategory(cat) > 0 || !isPortal) {
@@ -511,7 +513,9 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
 
                           // Bất kỳ category động nào khác từ server (VD: telegram, tiktok, custom...)
                           for (final cat in categoryCounts.keys) {
-                            if (!orderedCategories.contains(cat) && countForCategory(cat) > 0) {
+                            if (cat != 'ai_chat' &&
+                                !orderedCategories.contains(cat) &&
+                                countForCategory(cat) > 0) {
                               orderedCategories.add(cat);
                             }
                           }
@@ -589,7 +593,16 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                                       final inRamCount = channels
                                           .where((c) => c.effectiveCategory == cat)
                                           .length;
-                                      if (inRamCount < 15 && hasMore) {
+                                      final metaCatCount =
+                                          channelsMeta?.categoryCounts[cat];
+                                      final shouldFetchCategory =
+                                          !channelsNotifier.isCategoryFetched(cat) &&
+                                              ((metaCatCount != null &&
+                                                      inRamCount < metaCatCount) ||
+                                                  (metaCatCount == null &&
+                                                      hasMore &&
+                                                      inRamCount < 15));
+                                      if (shouldFetchCategory) {
                                         unawaited(
                                           ref
                                               .read(chatV2ChannelsProvider.notifier)
@@ -842,6 +855,9 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
 
                   // Lọc theo search query và filter index
                   final filtered = channels.where((c) {
+                    if (c.channelType == 'ai_chat' || c.effectiveCategory == 'ai_chat') {
+                      return false;
+                    }
                     final cleanName = c.getCleanName(currentUserName, isPortal: isPortal);
 
                     if (_searchQuery.isNotEmpty) {
@@ -1870,6 +1886,14 @@ class _ChannelListItem extends ConsumerWidget {
                               child: Icon(
                                 livechatIcon,
                                 size: 24,
+                                color: Colors.white,
+                              ),
+                            )
+                          else if (channel.isChannel)
+                            const Center(
+                              child: Icon(
+                                LucideIcons.hash,
+                                size: 22,
                                 color: Colors.white,
                               ),
                             )
