@@ -225,8 +225,11 @@ class TicketRepository {
     String? description,
     TicketPriority? priority,
     String? category,
+    int? teamId,
     int? assigneeId,
   }) async {
+    final resolvedTeamId =
+        teamId ?? (category != null ? int.tryParse(category) : null);
     try {
       await _client.post(
         '$_ticketBasePath/$id/update',
@@ -234,7 +237,7 @@ class TicketRepository {
           if (title != null && title.isNotEmpty) 'name': title,
           'description': ?description,
           if (priority != null) 'priority': _priorityToOdoo(priority),
-          if (category != null) 'team_id': int.tryParse(category),
+          if (resolvedTeamId != null) 'team_id': resolvedTeamId,
           'user_id': ?assigneeId,
         },
       );
@@ -325,19 +328,18 @@ class TicketRepository {
 
   Map<String, dynamic> _ticketFromOdoo(Map<String, dynamic> map) {
     final created =
-        map['create_date'] as String? ?? DateTime.now().toIso8601String();
-    final updated =
-        map['write_date'] as String? ?? created;
+        _safeStr(map['create_date']) ?? DateTime.now().toIso8601String();
+    final updated = _safeStr(map['write_date']) ?? created;
     
     final stageRaw = map['stage_id'] ?? map['stage_name'];
     final stageName = stageRaw is List && stageRaw.length > 1
         ? stageRaw[1].toString().toLowerCase()
-        : (stageRaw?.toString().toLowerCase() ?? '');
+        : (_safeStr(stageRaw)?.toLowerCase() ?? '');
     
     final closeDate = map['close_date'] ?? map['date_done'];
     final hasCloseDate = closeDate != null && closeDate != false && closeDate != 'false' && closeDate != '';
-    final state = map['state']?.toString();
-    final statusStr = map['status']?.toString();
+    final state = _safeStr(map['state']);
+    final statusStr = _safeStr(map['status']);
     
     final isDone = hasCloseDate ||
         state == '1_done' ||
@@ -359,6 +361,9 @@ class TicketRepository {
       desc = _descriptionCache[idStr];
     }
 
+    final teamId = _many2OneIntId(map['team_id']);
+    final teamName = _safeStr(map['team_name']) ?? _many2OneName(map['team_id']);
+
     return <String, dynamic>{
       'id': idStr,
       'title': _ticketTitle(map),
@@ -370,13 +375,30 @@ class TicketRepository {
       'assigned_to': assignedTo,
       'created_at': created,
       'updated_at': updatedAtStr,
-      'priority': _priorityFromOdoo(map['priority'] as String?),
-      'category': map['team_name'] as String?,
+      'priority': _priorityFromOdoo(_safeStr(map['priority'])),
+      'category': teamName,
+      'team_id': teamId,
       'tag_labels': _tagLabels(map['tags']),
       'attachments': map['attachments'],
-      'partner_name': _many2OneName(map['partner_id']) ?? map['partner_name'] as String?,
-      'user_name': _many2OneName(map['user_id']) ?? map['user_name'] as String?,
+      'partner_name':
+          _many2OneName(map['partner_id']) ?? _safeStr(map['partner_name']),
+      'user_name': _many2OneName(map['user_id']) ?? _safeStr(map['user_name']),
     };
+  }
+
+  String? _safeStr(Object? value) {
+    if (value == null || value is bool) return null;
+    final text = value.toString().trim();
+    if (text.isEmpty || text == 'false' || text == 'null') return null;
+    return text;
+  }
+
+  int? _many2OneIntId(Object? value) {
+    if (value == null || value is bool) return null;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is List && value.isNotEmpty) return _many2OneIntId(value.first);
+    return int.tryParse(value.toString().trim());
   }
 
   Future<List<TicketActivity>> activities(

@@ -120,6 +120,7 @@ class Ticket {
     this.deadline,
     this.priority = TicketPriority.p3,
     this.category,
+    this.teamId,
     this.tagLabels = const <String>[],
     this.attachments = const <MobileAttachment>[],
     this.partnerName,
@@ -138,6 +139,7 @@ class Ticket {
   final DateTime? deadline;
   final TicketPriority priority;
   final String? category;
+  final int? teamId;
   final List<String> tagLabels;
   final List<MobileAttachment> attachments;
   final String? partnerName;
@@ -158,6 +160,7 @@ class Ticket {
     TicketStatus? status,
     TicketPriority? priority,
     String? category,
+    int? teamId,
     List<String>? tagLabels,
     DateTime? deadline,
     List<MobileAttachment>? attachments,
@@ -176,6 +179,7 @@ class Ticket {
     deadline: deadline ?? this.deadline,
     priority: priority ?? this.priority,
     category: category ?? this.category,
+    teamId: teamId ?? this.teamId,
     tagLabels: tagLabels ?? this.tagLabels,
     attachments: attachments ?? this.attachments,
     partnerName: partnerName ?? this.partnerName,
@@ -221,6 +225,7 @@ class Ticket {
           ? TicketPriorityDb.fromDb(map['priority'].toString())
           : TicketPriority.p3,
       category: _parseString(map['category'] ?? map['team_id']),
+      teamId: _parseInt(map['team_id']),
       tagLabels: (map['tag_labels'] as List? ?? const <dynamic>[])
           .map((tag) => tag.toString())
           .where((tag) => tag.isNotEmpty)
@@ -230,6 +235,14 @@ class Ticket {
       assignedUserName: _parseString(rawUserName),
       resModel: _parseString(map['res_model'] ?? map['model']),
     );
+  }
+
+  static int? _parseInt(Object? value) {
+    if (value == null || value is bool) return null;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is List && value.isNotEmpty) return _parseInt(value.first);
+    return int.tryParse(value.toString().trim());
   }
 
   static String? _parseString(Object? value) {

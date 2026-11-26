@@ -162,7 +162,8 @@ class TimesheetRepository {
   }
 
   Future<void> delete(String id) async {
-    await _client.delete('/api/v1/account.analytic.line/$id');
+    await _client.delete('/api/v1/mobile/timesheet/$id');
+    _cachedEntries = _cachedEntries.where((e) => e.id != id).toList();
   }
 
   Map<String, dynamic> _entryFromOdoo(Map<String, dynamic> map) {

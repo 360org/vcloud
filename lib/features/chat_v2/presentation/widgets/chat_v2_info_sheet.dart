@@ -3083,10 +3083,25 @@ class _ChatV2MediaHubScreenState extends ConsumerState<ChatV2MediaHubScreen>
                       final url = _links[idx];
                       return InkWell(
                         onTap: () async {
-                          final targetUrl = url.contains('://') ? url : 'https://$url';
+                          final internalRoute =
+                              ChatV2MessageItem.resolveInternalAppRoute(
+                            url,
+                            currentChannelId: widget.channelId,
+                          );
+                          if (internalRoute != null) {
+                            if (internalRoute.isNotEmpty && context.mounted) {
+                              context.push(internalRoute);
+                            }
+                            return;
+                          }
+                          final targetUrl =
+                              url.contains('://') ? url : 'https://$url';
                           final uri = Uri.tryParse(targetUrl);
                           if (uri != null) {
-                            await launchUrl(uri, mode: LaunchMode.externalApplication);
+                            await launchUrl(
+                              uri,
+                              mode: LaunchMode.externalApplication,
+                            );
                           }
                         },
                         borderRadius: BorderRadius.circular(10),

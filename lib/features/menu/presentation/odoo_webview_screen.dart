@@ -724,6 +724,29 @@ class _OdooWarmWebViewPool {
 
     late final NavigationDelegate delegate;
     delegate = NavigationDelegate(
+      onNavigationRequest: (NavigationRequest request) {
+        final decision = evaluateWebViewNavigationDecision(request.url);
+        if (decision == WebViewNavigationAction.launchExternal) {
+          final uri = Uri.tryParse(request.url.trim());
+          if (uri != null) {
+            unawaited(
+              launchUrl(uri, mode: LaunchMode.externalApplication)
+                  .catchError((_) => false),
+            );
+          }
+          return NavigationDecision.prevent;
+        }
+        if (decision == WebViewNavigationAction.prevent) {
+          return NavigationDecision.prevent;
+        }
+        return NavigationDecision.navigate;
+      },
+      onUrlChange: (UrlChange change) {
+        final url = change.url;
+        if (url == null || url.isEmpty) return;
+        final owner = bindToPoolCallbacks ? _activeOwner : standaloneOwner;
+        owner?._onControllerUrlChanged(url);
+      },
       onProgress: (int progress) {
         final owner = bindToPoolCallbacks ? _activeOwner : standaloneOwner;
         owner?._onControllerProgress(progress);
@@ -909,11 +932,26 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
   Timer? _webTimeoutTimer;
   Timer? _fastSpaSettleTimer;
   Stopwatch? _loadStopwatch;
-  String? _sessionEntryUrl;
+  String? _settledUrl;
+  int _userInSessionNavSteps = 0;
+  bool _initialTargetSettled = false;
+  bool _isPoppingRoute = false;
+  bool _isSteppingBackInWebView = false;
+  Timer? _backStepSettleTimer;
   int _navGeneration = 0;
   int _ssoRecoveryAttempts = 0;
   bool _standaloneEagerCss = false;
   bool _standaloneCheckedCssError = false;
+
+  void _resetInSessionNavigationState() {
+    _backStepSettleTimer?.cancel();
+    _backStepSettleTimer = null;
+    _settledUrl = null;
+    _userInSessionNavSteps = 0;
+    _initialTargetSettled = false;
+    _isPoppingRoute = false;
+    _isSteppingBackInWebView = false;
+  }
 
   bool get _isDarkTheme {
     try {
@@ -933,6 +971,7 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
     super.initState();
     _activeRawUrl = widget.url;
     _activeTitle = widget.title;
+    _resetInSessionNavigationState();
     debugPrint('[VCLOUD_WEBVIEW] initState: rawUrl=$_activeRawUrl, title=$_activeTitle');
   }
 
@@ -947,6 +986,7 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
 
   void _navigateInPlace({required String url, required String title}) {
     debugPrint('[VCLOUD_WEBVIEW] navigateInPlace: đổi sang url=$url, title=$title');
+    _resetInSessionNavigationState();
     setState(() {
       _activeRawUrl = url;
       _activeTitle = title;
@@ -974,12 +1014,7 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
   }
 
   String? _normalizeUrlForBackCheck(String? raw) {
-    if (raw == null || raw.isEmpty) return null;
-    var s = raw.trim();
-    if (s.endsWith('/')) {
-      s = s.substring(0, s.length - 1);
-    }
-    return s;
+    return normalizeWebViewUrlForComparison(raw);
   }
 
   void _onControllerProgress(int progress) {
@@ -988,6 +1023,14 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
   }
 
   void _onControllerPageStarted(String url) {
+    if (_isPoppingRoute) return;
+    if (_isSteppingBackInWebView && isOdooTechnicalRedirectForPop(url)) {
+      _isPoppingRoute = true;
+      _isSteppingBackInWebView = false;
+      _backStepSettleTimer?.cancel();
+      _popWebViewRoute();
+      return;
+    }
     if (!mounted) return;
     _progressNotifier.value = 0.1;
     if (!_isLoading || _hasError) {
@@ -998,14 +1041,68 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
     }
   }
 
+  void _onControllerUrlChanged(String url) {
+    if (_isPoppingRoute) return;
+    if (_isSteppingBackInWebView) {
+      if (isOdooTechnicalRedirectForPop(url)) {
+        _isPoppingRoute = true;
+        _isSteppingBackInWebView = false;
+        _backStepSettleTimer?.cancel();
+        _popWebViewRoute();
+        return;
+      }
+      _settledUrl = _normalizeUrlForBackCheck(url);
+      _backStepSettleTimer?.cancel();
+      _backStepSettleTimer = Timer(const Duration(milliseconds: 400), () {
+        if (mounted && !_isLoading) {
+          _isSteppingBackInWebView = false;
+        }
+      });
+      return;
+    }
+    if (!_initialTargetSettled || isOdooTechnicalRedirectForPop(url)) {
+      return;
+    }
+    final norm = _normalizeUrlForBackCheck(url);
+    if (norm != null && norm != _settledUrl) {
+      _userInSessionNavSteps++;
+      _settledUrl = norm;
+    }
+  }
+
   void _onControllerPageFinished(String url) {
     final elapsed = _loadStopwatch?.elapsedMilliseconds;
     _loadStopwatch?.stop();
     if (elapsed != null) {
       debugPrint('[VCLOUD_WEBVIEW] ⏱️ Tải xong trang sau ${elapsed}ms: ${sanitizeUrlForLog(url)}');
     }
+    if (_isPoppingRoute) {
+      return;
+    }
+    if (_isSteppingBackInWebView) {
+      _backStepSettleTimer?.cancel();
+      _isSteppingBackInWebView = false;
+      if (isOdooTechnicalRedirectForPop(url)) {
+        _isPoppingRoute = true;
+        _popWebViewRoute();
+        return;
+      }
+      _settledUrl = _normalizeUrlForBackCheck(url);
+      if (mounted) {
+        _progressNotifier.value = 1.0;
+        if (_isLoading) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
+      return;
+    }
+
     final session = odooApiClient.session;
     if (isOdooLoginRedirectUrl(url) &&
+        !_isPoppingRoute &&
+        !_isSteppingBackInWebView &&
         _ssoRecoveryAttempts < 1 &&
         session != null &&
         session.accessToken.isNotEmpty &&
@@ -1025,9 +1122,16 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
       unawaited(_controller!.loadRequest(Uri.parse(ssoUrl), headers: headers));
       return;
     }
-    if (!url.contains('/api/v1/mobile/web/auth') && !isOdooLoginRedirectUrl(url)) {
+    if (!isOdooTechnicalRedirectForPop(url)) {
       _ssoRecoveryAttempts = 0;
-      _sessionEntryUrl ??= _normalizeUrlForBackCheck(url);
+      final norm = _normalizeUrlForBackCheck(url);
+      if (!_initialTargetSettled) {
+        _initialTargetSettled = true;
+        _settledUrl = norm;
+      } else if (norm != null && norm != _settledUrl) {
+        _userInSessionNavSteps++;
+        _settledUrl = norm;
+      }
     }
     if (mounted) {
       _progressNotifier.value = 1.0;
@@ -1040,6 +1144,13 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
   }
 
   void _onControllerWebResourceError(WebResourceError error) {
+    if (shouldIgnoreWebResourceError(
+      errorCode: error.errorCode,
+      description: error.description,
+      url: error.url,
+    )) {
+      return;
+    }
     if (mounted && error.isForMainFrame == true) {
       setState(() {
         _hasError = true;
@@ -1154,7 +1265,7 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
   /// Không reload lại HTML/JS/CSS, không chớp trắng, duy trì session & cache runtime.
   Future<void> _transitionToNewUrl(String newRawUrl) async {
     final gen = ++_navGeneration;
-    _sessionEntryUrl = null;
+    _resetInSessionNavigationState();
     _loadStopwatch = Stopwatch()..start();
 
     final controller = _controller;
@@ -1203,7 +1314,8 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
       try {
         final cur = await controller.currentUrl();
         if (mounted && generation == _navGeneration) {
-          _sessionEntryUrl = _normalizeUrlForBackCheck(cur);
+          _initialTargetSettled = true;
+          _settledUrl = _normalizeUrlForBackCheck(cur);
         }
       } catch (_) {}
     });
@@ -1213,6 +1325,7 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
   void dispose() {
     _webTimeoutTimer?.cancel();
     _fastSpaSettleTimer?.cancel();
+    _backStepSettleTimer?.cancel();
     _progressNotifier.dispose();
     super.dispose();
     if (_ownsWarmLease) {
@@ -1272,7 +1385,7 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
   Future<void> _initializeWebView() async {
     try {
       final gen = ++_navGeneration;
-      _sessionEntryUrl = null;
+      _resetInSessionNavigationState();
       _ssoRecoveryAttempts = 0;
       final fullUrl = _buildTargetUrl();
       final uri = Uri.parse(fullUrl);
@@ -1343,32 +1456,38 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
   }
 
   Future<void> _handlePop() async {
+    if (_isPoppingRoute) {
+      _popWebViewRoute();
+      return;
+    }
     try {
       final controller = _controller;
       if (controller != null && !kIsWeb) {
-        final currentUrl = await controller.currentUrl();
-        final normalizedCurrent = _normalizeUrlForBackCheck(currentUrl);
-        final atEntryUrl =
-            _sessionEntryUrl == null || normalizedCurrent == _sessionEntryUrl;
-
-        bool hasSubBreadcrumb = false;
-        if (atEntryUrl) {
-          try {
-            final bcRes = await controller.runJavaScriptReturningResult(
-              "document.querySelectorAll('.o_control_panel .breadcrumb-item').length > 1",
-            );
-            hasSubBreadcrumb = bcRes == true || bcRes.toString() == 'true';
-          } catch (_) {}
+        if (!_initialTargetSettled || _userInSessionNavSteps <= 0) {
+          _isPoppingRoute = true;
+          _popWebViewRoute();
+          return;
         }
-
-        if ((!atEntryUrl || hasSubBreadcrumb) && await controller.canGoBack()) {
+        if (await controller.canGoBack()) {
+          _userInSessionNavSteps =
+              _userInSessionNavSteps > 0 ? _userInSessionNavSteps - 1 : 0;
+          _isSteppingBackInWebView = true;
           await controller.goBack();
+          final postBackUrl = await controller.currentUrl();
+          if (postBackUrl != null && isOdooTechnicalRedirectForPop(postBackUrl)) {
+            _isPoppingRoute = true;
+            _isSteppingBackInWebView = false;
+            _backStepSettleTimer?.cancel();
+            _popWebViewRoute();
+          }
           return;
         }
       }
+      _isPoppingRoute = true;
       _popWebViewRoute();
     } catch (e) {
       debugPrint('[VCLOUD_WEBVIEW] _handlePop error: $e');
+      _isPoppingRoute = true;
       _popWebViewRoute();
     }
   }
@@ -1615,6 +1734,95 @@ String sanitizeUrlForLog(String url) {
   } catch (_) {
     return url.replaceAll(RegExp(r'token=[^&]+'), 'token=***REDACTED***');
   }
+}
+
+/// Hành động điều hướng cho `NavigationDelegate.onNavigationRequest`.
+@visibleForTesting
+enum WebViewNavigationAction { navigate, launchExternal, prevent }
+
+/// Phân loại URL trong `onNavigationRequest`:
+/// - Cho phép `http`, `https`, `about:blank`, `data`, `blob`, `javascript`.
+/// - Chuyển `tel:`, `mailto:`, `sms:` sang ứng dụng ngoài.
+/// - Chặn các scheme lạ khác để tránh lỗi `ERR_UNKNOWN_URL_SCHEME`.
+@visibleForTesting
+WebViewNavigationAction evaluateWebViewNavigationDecision(String rawUrl) {
+  final trimmed = rawUrl.trim();
+  if (trimmed.isEmpty) return WebViewNavigationAction.prevent;
+  final lower = trimmed.toLowerCase();
+  if (lower == 'about:blank' ||
+      lower.startsWith('http://') ||
+      lower.startsWith('https://') ||
+      lower.startsWith('data:') ||
+      lower.startsWith('blob:') ||
+      lower.startsWith('javascript:')) {
+    return WebViewNavigationAction.navigate;
+  }
+  if (lower.startsWith('tel:') ||
+      lower.startsWith('mailto:') ||
+      lower.startsWith('sms:')) {
+    return WebViewNavigationAction.launchExternal;
+  }
+  return WebViewNavigationAction.prevent;
+}
+
+/// Kiểm tra có bỏ qua lỗi WebResource hay không (ví dụ `-10 ERR_UNKNOWN_URL_SCHEME`).
+@visibleForTesting
+bool shouldIgnoreWebResourceError({
+  required int errorCode,
+  required String description,
+  String? url,
+}) {
+  if (errorCode == -10 ||
+      description.toUpperCase().contains('ERR_UNKNOWN_URL_SCHEME')) {
+    return true;
+  }
+  if (url != null && url.trim().isNotEmpty) {
+    final lower = url.trim().toLowerCase();
+    if (!lower.startsWith('http://') && !lower.startsWith('https://')) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/// Nhận diện URL trung gian kỹ thuật (SSO bridge, login, selector, /mail/view)
+/// để không tính vào lịch sử điều hướng của người dùng và thoát thẳng khi bấm Back.
+@visibleForTesting
+bool isOdooTechnicalRedirectForPop(String url) {
+  if (url.isEmpty) return false;
+  final lower = url.toLowerCase();
+  return lower.contains('/api/v1/mobile/web/auth') ||
+      lower.contains('/web/login') ||
+      lower.contains('/web/database/selector') ||
+      lower.contains('/mail/view');
+}
+
+/// Chuẩn hoá URL để so sánh lịch sử điều hướng trong phiên WebView.
+@visibleForTesting
+String? normalizeWebViewUrlForComparison(String? raw) {
+  if (raw == null || raw.isEmpty) return null;
+  var s = raw.trim();
+  final uri = Uri.tryParse(s);
+  if (uri != null && (uri.hasScheme || s.startsWith('/'))) {
+    final qp = Map<String, String>.from(uri.queryParameters)..remove('db');
+    final cleanPath = uri.path.endsWith('/') && uri.path.length > 1
+        ? uri.path.substring(0, uri.path.length - 1)
+        : uri.path;
+    final normalized = Uri(
+      scheme: uri.scheme.isEmpty ? null : uri.scheme,
+      userInfo: uri.userInfo.isEmpty ? null : uri.userInfo,
+      host: uri.host.isEmpty ? null : uri.host,
+      port: uri.hasPort ? uri.port : null,
+      path: cleanPath,
+      queryParameters: qp.isEmpty ? null : qp,
+      fragment: uri.fragment.isEmpty ? null : uri.fragment,
+    );
+    s = normalized.toString();
+  }
+  while (s.endsWith('#') || (s.endsWith('/') && s.length > 1)) {
+    s = s.substring(0, s.length - 1);
+  }
+  return s;
 }
 
 /// Nhận diện URL trang đăng nhập / chọn DB của hệ thống (không tính cầu SSO /api/v1/mobile/web/auth)
