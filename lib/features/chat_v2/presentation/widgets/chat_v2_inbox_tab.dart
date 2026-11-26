@@ -660,6 +660,40 @@ class _InboxMessageCard extends ConsumerWidget {
                         ),
                       ),
                     ),
+                  ] else if (item.model.isNotEmpty &&
+                      item.model != 'discuss.channel' &&
+                      item.resId > 0) ...[
+                    const SizedBox(width: 8),
+                    InkWell(
+                      borderRadius: BorderRadius.circular(6),
+                      onTap: () => _openRecordDocument(context),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Xem chứng từ',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: isDark
+                                    ? const Color(0xFF38BDF8)
+                                    : const Color(0xFF0077CD),
+                              ),
+                            ),
+                            const SizedBox(width: 2),
+                            Icon(
+                              LucideIcons.chevronRight,
+                              size: 14,
+                              color: isDark
+                                  ? const Color(0xFF38BDF8)
+                                  : const Color(0xFF0077CD),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ],
                 ],
               ),
@@ -668,6 +702,26 @@ class _InboxMessageCard extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  void _openRecordDocument(BuildContext context) {
+    if (item.model == 'helpdesk.ticket') {
+      context.push('/tickets/${item.resId}');
+      return;
+    }
+    final targetUrl =
+        '/mail/view?model=${Uri.encodeQueryComponent(item.model)}&res_id=${item.resId}';
+    final title = item.recordName.isNotEmpty
+        ? item.recordName
+        : (item.subject.isNotEmpty ? item.subject : 'Chứng từ');
+    final route = Uri(
+      path: '/webview',
+      queryParameters: {
+        'url': targetUrl,
+        'title': title,
+      },
+    ).toString();
+    context.push(route);
   }
 
   void _showDetailDialog(BuildContext context, WidgetRef ref) {
@@ -724,6 +778,17 @@ class _InboxMessageCard extends ConsumerWidget {
               onPressed: () => Navigator.pop(ctx),
               child: const Text('Đóng'),
             ),
+            if (item.model.isNotEmpty &&
+                item.model != 'discuss.channel' &&
+                item.resId > 0)
+              TextButton.icon(
+                icon: const Icon(LucideIcons.externalLink, size: 15),
+                label: const Text('Xem chứng từ'),
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _openRecordDocument(context);
+                },
+              ),
             if (tabType == ChatV2InboxTabType.inbox)
               ElevatedButton.icon(
                 icon: const Icon(LucideIcons.check, size: 16),

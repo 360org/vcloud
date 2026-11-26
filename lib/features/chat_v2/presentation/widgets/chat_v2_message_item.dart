@@ -2295,18 +2295,27 @@ class ChatV2MessageItem extends StatelessWidget {
     }
   }
 
-  void _handleLinkClick(BuildContext context, String targetUrl) async {
-    HapticFeedback.lightImpact();
-    final cleanUrl = targetUrl.trim();
+  /// Phân giải đường dẫn điều hướng nội bộ trong ứng dụng cho link Odoo/VCloud:
+  /// - `/odoo/helpdesk.ticket/<id>` -> `/tickets/<id>`
+  /// - `/chat/<id>`, `/tickets/<id>`, `/web#id=...&model=helpdesk.ticket`, `/timesheet` -> route native tương ứng
+  /// - Link cùng host tới `/odoo/<model>/<id>`, `/mail/view?...`, `/web#...` -> `/webview?url=...` (giữ SSO)
+  /// Trả về `null` nếu là liên kết ngoài cần mở bằng trình duyệt.
+  static String? resolveInternalAppRoute(
+    String rawUrl, {
+    String? baseUrl,
+    String? currentChannelId,
+  }) {
+    final cleanUrl = rawUrl.trim();
+    if (cleanUrl.isEmpty) return null;
+    final isRelative = cleanUrl.startsWith('/');
     final uri = Uri.tryParse(
-      cleanUrl.contains('://') ? cleanUrl : 'https://$cleanUrl',
+      (cleanUrl.contains('://') || isRelative) ? cleanUrl : 'https://$cleanUrl',
     );
-    if (uri == null) return;
+    if (uri == null) return null;
 
-    // 1. Phân tích điều hướng liên kết nội bộ hệ thống (Smart In-App Navigation)
     final pathSegments = uri.pathSegments;
 
-    // Kênh chat nội bộ: e.g. vuahethong.net/chat/4128, /chat/4128, vcloud://chat/4128
+    // 1. Kênh chat nội bộ: e.g. vuahethong.net/chat/4128, /chat/4128, vcloud://chat/4128
     if ((uri.scheme == 'vcloud' && uri.host == 'chat') ||
         uri.path.contains('/chat/')) {
       String? targetChannelId;
@@ -2320,49 +2329,104 @@ class ChatV2MessageItem extends StatelessWidget {
       }
 
       if (targetChannelId != null && targetChannelId.isNotEmpty) {
-        if (targetChannelId == message.channelId) {
-          // Đang ở chính kênh hiện tại -> Không push đè để chống lặp và đơ màn hình
-          return;
+        if (currentChannelId != null && targetChannelId == currentChannelId) {
+          return '';
         }
-        if (context.mounted) {
-          context.push('/chat/$targetChannelId');
-        }
-        return;
+        return '/chat/$targetChannelId';
       }
     }
 
-    // Phiếu hỗ trợ / Ticket nội bộ: e.g. vuahethong.net/tickets/123, /tickets/123
+    // 2. Phiếu hỗ trợ / Ticket nội bộ: /tickets/<id> hoặc Odoo 19 /odoo/helpdesk.ticket/<id>
     if (uri.path.contains('/tickets/')) {
       final ticketIdx = pathSegments.indexOf('tickets');
       if (ticketIdx >= 0 && ticketIdx + 1 < pathSegments.length) {
         final ticketId = pathSegments[ticketIdx + 1];
-        if (ticketId.isNotEmpty && context.mounted) {
-          context.push('/tickets/$ticketId');
-          return;
+        if (ticketId.isNotEmpty) {
+          return '/tickets/$ticketId';
         }
       }
     }
+    if (pathSegments.length >= 3 &&
+        pathSegments[0] == 'odoo' &&
+        pathSegments[1] == 'helpdesk.ticket' &&
+        int.tryParse(pathSegments[2]) != null) {
+      return '/tickets/${pathSegments[2]}';
+    }
 
-    // Odoo Web Fragment: /web#id=123&model=helpdesk.ticket
+    // 3. Odoo Web Fragment: /web#id=123&model=helpdesk.ticket (hoặc project.task)
     if (uri.fragment.contains('model=helpdesk.ticket') ||
         uri.fragment.contains('model=project.task')) {
       final idMatch = RegExp(r'[?&#]id=(\d+)').firstMatch(uri.fragment);
       if (idMatch != null) {
         final ticketId = idMatch.group(1);
-        if (ticketId != null && ticketId.isNotEmpty && context.mounted) {
-          context.push('/tickets/$ticketId');
-          return;
+        if (ticketId != null && ticketId.isNotEmpty) {
+          return '/tickets/$ticketId';
         }
       }
     }
 
-    // Timesheets nội bộ: e.g. vuahethong.net/timesheet
+    // 4. Timesheets nội bộ
     if (uri.path == '/timesheet' || uri.path.startsWith('/timesheet')) {
-      if (context.mounted) {
-        context.push('/timesheet');
-        return;
+      return '/timesheet';
+    }
+
+    // 5. Link Odoo cùng host (/odoo/<model>/<id>, /mail/view?..., /web#...) -> mở qua /webview có SSO
+    final effectiveBase = baseUrl ?? odooApiClient.baseUrl;
+    final baseUri = Uri.tryParse(effectiveBase);
+    final isSameHost = !uri.hasAuthority ||
+        (baseUri != null &&
+            baseUri.host.isNotEmpty &&
+            uri.host.toLowerCase() == baseUri.host.toLowerCase() &&
+            (!baseUri.hasPort || !uri.hasPort || uri.port == baseUri.port));
+
+    if (isSameHost) {
+      final isOdooRecord = pathSegments.length >= 3 &&
+          pathSegments[0] == 'odoo' &&
+          pathSegments[1].contains('.') &&
+          int.tryParse(pathSegments[2]) != null;
+      final isMailView = uri.path == '/mail/view' || uri.path.endsWith('/mail/view');
+      final isOdooWebFragment =
+          (uri.path == '/web' || uri.path == '/odoo') && uri.fragment.isNotEmpty;
+
+      if (isOdooRecord || isMailView || isOdooWebFragment) {
+        final pathWithQueryAndFrag = StringBuffer(uri.path.isEmpty ? '/web' : uri.path);
+        if (uri.hasQuery) {
+          pathWithQueryAndFrag.write('?${uri.query}');
+        }
+        if (uri.hasFragment) {
+          pathWithQueryAndFrag.write('#${uri.fragment}');
+        }
+        return Uri(
+          path: '/webview',
+          queryParameters: {
+            'url': pathWithQueryAndFrag.toString(),
+            'title': 'Vcloud Web',
+          },
+        ).toString();
       }
     }
+
+    return null;
+  }
+
+  void _handleLinkClick(BuildContext context, String targetUrl) async {
+    HapticFeedback.lightImpact();
+    final cleanUrl = targetUrl.trim();
+    final internalRoute = resolveInternalAppRoute(
+      cleanUrl,
+      currentChannelId: message.channelId,
+    );
+    if (internalRoute != null) {
+      if (internalRoute.isNotEmpty && context.mounted) {
+        context.push(internalRoute);
+      }
+      return;
+    }
+
+    final uri = Uri.tryParse(
+      cleanUrl.contains('://') ? cleanUrl : 'https://$cleanUrl',
+    );
+    if (uri == null) return;
 
     // 2. Mở liên kết Web bên ngoài an toàn với In-App Browser (có sẵn nút Xong/Done để đóng)
     final messenger = ScaffoldMessenger.of(context);

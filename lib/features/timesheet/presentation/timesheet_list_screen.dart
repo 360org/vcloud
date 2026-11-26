@@ -89,11 +89,16 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
     try {
       final repo = ref.read(timesheetRepositoryProvider);
       final filter = ref.read(timesheetFilterProvider);
+      final baseEntries = ref.read(filteredTimesheetEntriesProvider).valueOrNull ??
+          ref.read(timesheetStreamProvider).valueOrNull ??
+          const <TimesheetEntry>[];
+      final loadedCount = baseEntries.length + _extraLoadedEntries.length;
+      final effectiveOffset = _offset > loadedCount ? _offset : loadedCount;
       final dateFromStr = filter.dateFrom != null ? Dates.isoDate(filter.dateFrom!) : null;
       final dateToStr = filter.dateTo != null ? Dates.isoDate(filter.dateTo!) : null;
       final newEntries = await repo.fetchPage(
         limit: 20,
-        offset: _offset + 20,
+        offset: effectiveOffset,
         dateFrom: dateFromStr,
         dateTo: dateToStr,
         projectId: filter.projectId,
@@ -101,10 +106,20 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
       if (newEntries.isEmpty) {
         _hasMore = false;
       } else {
-        _offset += newEntries.length;
-        setState(() {
-          _extraLoadedEntries.addAll(newEntries);
-        });
+        final existingIds = {
+          for (final e in baseEntries) e.id,
+          for (final e in _extraLoadedEntries) e.id,
+        };
+        final uniqueNew = newEntries.where((e) => !existingIds.contains(e.id)).toList();
+        _offset = effectiveOffset + newEntries.length;
+        if (newEntries.length < 20) {
+          _hasMore = false;
+        }
+        if (uniqueNew.isNotEmpty) {
+          setState(() {
+            _extraLoadedEntries.addAll(uniqueNew);
+          });
+        }
       }
     } catch (_) {
     } finally {
@@ -490,6 +505,11 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
     if (ok == true) {
       try {
         await ref.read(timesheetActionsProvider).delete(entryId);
+        if (mounted && _extraLoadedEntries.any((e) => e.id == entryId)) {
+          setState(() {
+            _extraLoadedEntries.removeWhere((e) => e.id == entryId);
+          });
+        }
         ref.invalidate(timesheetSummaryProvider);
       } catch (e) {
         if (mounted) {
@@ -918,6 +938,15 @@ class _TimesheetListScreenState extends ConsumerState<TimesheetListScreen>
     super.build(context);
 
     final filter = ref.watch(timesheetFilterProvider);
+    ref.listen<TimesheetFilterState>(timesheetFilterProvider, (prev, next) {
+      if (prev != next && mounted) {
+        setState(() {
+          _offset = 0;
+          _hasMore = true;
+          _extraLoadedEntries.clear();
+        });
+      }
+    });
     final isFilterActive =
         filter.presetName != 'Hôm nay' || filter.projectId != null;
 
