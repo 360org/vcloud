@@ -21,6 +21,13 @@ import '../application/theme_controller.dart';
 import '../data/models/partner_contact_detail.dart';
 
 
+String? _safeProfileText(Object? value) {
+  if (value == null || value is bool) return null;
+  final text = value.toString().trim();
+  if (text.isEmpty || text == 'false' || text == 'null') return null;
+  return text;
+}
+
 class ProfileScreen extends ConsumerWidget {
   final String? partnerId;
   final String? partnerName;
@@ -41,22 +48,25 @@ class ProfileScreen extends ConsumerWidget {
     // CẤM SỬA HOẶC XÓA LOGIC TẢI AVATAR NÀY - ĐÂY LÀ NGUỒN SỰ THẬT HIỂN THỊ AVATAR DÙNG CHUNG.
     final user = ref.watch(authControllerProvider).value;
     final meta = user?.userMetadata;
-    final name = (meta?['display_name'] as String?)?.trim();
-    final displayName = name?.isNotEmpty == true
-        ? name!
+    final name = _safeProfileText(meta?['display_name']);
+    final displayName = name != null && name.isNotEmpty
+        ? name
         : (user?.email?.split('@').first ?? 'Người dùng');
     final isPortal = user?.isPortal ?? (meta?['is_portal'] == true || meta?['user_type'] == 'portal');
     final String role;
     final String company;
     if (isPortal) {
-      final rawFunc = (meta?['function'] as String?)?.trim();
+      final rawFunc = _safeProfileText(meta?['function']);
       role = (rawFunc != null && rawFunc.isNotEmpty) ? rawFunc : 'Khách hàng';
-      final rawPartnerComp = (meta?['partner_company_name'] as String?)?.trim();
+      final rawPartnerComp = _safeProfileText(meta?['partner_company_name']);
       company = (rawPartnerComp != null && rawPartnerComp.isNotEmpty) ? rawPartnerComp : 'Khách hàng cá nhân';
     } else {
-      final rawJob = (meta?['job_title'] as String?)?.trim() ?? (meta?['role'] as String?)?.trim() ?? (meta?['function'] as String?)?.trim();
+      final rawJob = _safeProfileText(meta?['job_title']) ??
+          _safeProfileText(meta?['role']) ??
+          _safeProfileText(meta?['function']);
       role = (rawJob != null && rawJob.isNotEmpty) ? rawJob : 'Chưa cập nhật';
-      final rawComp = (meta?['company'] as String?)?.trim() ?? (meta?['company_name'] as String?)?.trim();
+      final rawComp = _safeProfileText(meta?['company']) ??
+          _safeProfileText(meta?['company_name']);
       company = (rawComp != null && rawComp.isNotEmpty) ? rawComp : '360 CORP';
     }
     final rawAvatar = meta?['avatar_url'] ??
@@ -183,15 +193,17 @@ class ProfileScreen extends ConsumerWidget {
 
     Future<void> openVuaHeThongWebLink() async {
       if (pId <= 0) return;
-      final webUrl = odooApiClient.absoluteUrl('/web#id=$pId&model=res.partner&view_type=form');
-      final uri = Uri.tryParse(webUrl);
-      if (uri != null) {
-        try {
-          final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
-          if (launched) return;
-        } catch (_) {}
+      final targetPath = '/web#id=$pId&model=res.partner&view_type=form';
+      final webviewRoute = Uri(
+        path: '/webview',
+        queryParameters: {
+          'url': targetPath,
+          'title': displayName,
+        },
+      ).toString();
+      if (context.mounted) {
+        context.push(webviewRoute);
       }
-      copyWithFeedback(webUrl, 'Đã sao chép liên kết vào bộ nhớ tạm.');
     }
 
     return AppScaffold(

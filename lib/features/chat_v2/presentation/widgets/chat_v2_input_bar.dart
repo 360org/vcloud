@@ -188,103 +188,101 @@ class _ChatV2InputBarState extends State<ChatV2InputBar> {
 
     final textBeforeCursor = text.substring(0, cursor);
 
-    // 1. Kiểm tra trigger @ (thành viên)
-    if (widget.channelMembers.isNotEmpty) {
-      final lastAtIndex = textBeforeCursor.lastIndexOf('@');
-      if (lastAtIndex != -1) {
-        final isStart = lastAtIndex == 0 ||
-            textBeforeCursor[lastAtIndex - 1] == ' ' ||
-            textBeforeCursor[lastAtIndex - 1] == '\n';
-        final query = textBeforeCursor.substring(lastAtIndex + 1);
+    // 1. Kiểm tra trigger @ (thành viên & lệnh @ticket độc lập với channelMembers)
+    final lastAtIndex = textBeforeCursor.lastIndexOf('@');
+    if (lastAtIndex != -1) {
+      final isStart = lastAtIndex == 0 ||
+          textBeforeCursor[lastAtIndex - 1] == ' ' ||
+          textBeforeCursor[lastAtIndex - 1] == '\n';
+      final query = textBeforeCursor.substring(lastAtIndex + 1);
 
-        if (isStart && !query.contains('\n') && query.length <= 30) {
-          final qLower = query.toLowerCase().trim();
-          final qNormalized = _removeVietnameseDiacritics(qLower);
+      if (isStart && !query.contains('\n') && query.length <= 30) {
+        final qLower = query.toLowerCase().trim();
+        final qNormalized = _removeVietnameseDiacritics(qLower);
 
-          final scored = <({ChatV2Member member, int score})>[];
-          for (final m in widget.channelMembers) {
-            if (m.isMe) continue;
-            if (qLower.isEmpty) {
-              scored.add((member: m, score: 0));
-              continue;
-            }
+        final scored = <({ChatV2Member member, int score})>[];
+        for (final m in widget.channelMembers) {
+          if (m.isMe) continue;
+          if (qLower.isEmpty) {
+            scored.add((member: m, score: 0));
+            continue;
+          }
 
-            final nLower = m.name.toLowerCase();
-            final nNormalized = _removeVietnameseDiacritics(nLower);
+          final nLower = m.name.toLowerCase();
+          final nNormalized = _removeVietnameseDiacritics(nLower);
 
-            // Tách email chỉ lấy phần username trước ký tự '@' (VD: 'anhndq' từ 'anhndq@vuahethong.net')
-            // TUYỆT ĐỐI không kiểm tra domain phía sau như 'vuahethong.net' làm gõ '@t' bị match nhầm toàn bộ công ty!
-            final emailRaw = m.email ?? '';
-            final emailUser = emailRaw.contains('@')
-                ? emailRaw.split('@').first.toLowerCase()
-                : emailRaw.toLowerCase();
+          // Tách email chỉ lấy phần username trước ký tự '@' (VD: 'anhndq' từ 'anhndq@vuahethong.net')
+          // TUYỆT ĐỐI không kiểm tra domain phía sau như 'vuahethong.net' làm gõ '@t' bị match nhầm toàn bộ công ty!
+          final emailRaw = m.email ?? '';
+          final emailUser = emailRaw.contains('@')
+              ? emailRaw.split('@').first.toLowerCase()
+              : emailRaw.toLowerCase();
 
-            int score = 0;
-            // 1. Tên bắt đầu bằng từ khóa (Ưu tiên cao nhất: 100 điểm)
-            if (nLower.startsWith(qLower) || nNormalized.startsWith(qNormalized)) {
-              score = 100;
-            } else {
-              // 2. Bất kỳ từ nào trong họ tên bắt đầu bằng từ khóa (80 điểm, VD: 'Tân' trong 'Ma Nguyễn Nhật Tân' khi gõ 't')
-              final wordsLower = nLower.split(RegExp(r'\s+'));
-              final wordsNormalized = nNormalized.split(RegExp(r'\s+'));
-              final hasWordStart = wordsLower.any((w) => w.startsWith(qLower)) ||
-                  wordsNormalized.any((w) => w.startsWith(qNormalized));
-              if (hasWordStart) {
-                score = 80;
-              } else if (nLower.contains(qLower) || nNormalized.contains(qNormalized)) {
-                // 3. Tên chứa từ khóa ở bất kỳ vị trí nào (60 điểm)
-                score = 60;
-              } else if (emailUser.isNotEmpty && emailUser.startsWith(qLower)) {
-                // 4. Email username bắt đầu bằng từ khóa (40 điểm)
-                score = 40;
-              } else if (emailUser.isNotEmpty && emailUser.contains(qLower)) {
-                // 5. Email username chứa từ khóa (20 điểm)
-                score = 20;
-              } else if (qLower.contains('@') && emailRaw.toLowerCase().contains(qLower)) {
-                // 6. Tìm kiếm đích danh có chứa ký tự '@' theo địa chỉ email đầy đủ (10 điểm)
-                score = 10;
-              }
-            }
-
-            if (score > 0) {
-              scored.add((member: m, score: score));
+          int score = 0;
+          // 1. Tên bắt đầu bằng từ khóa (Ưu tiên cao nhất: 100 điểm)
+          if (nLower.startsWith(qLower) || nNormalized.startsWith(qNormalized)) {
+            score = 100;
+          } else {
+            // 2. Bất kỳ từ nào trong họ tên bắt đầu bằng từ khóa (80 điểm, VD: 'Tân' trong 'Ma Nguyễn Nhật Tân' khi gõ 't')
+            final wordsLower = nLower.split(RegExp(r'\s+'));
+            final wordsNormalized = nNormalized.split(RegExp(r'\s+'));
+            final hasWordStart = wordsLower.any((w) => w.startsWith(qLower)) ||
+                wordsNormalized.any((w) => w.startsWith(qNormalized));
+            if (hasWordStart) {
+              score = 80;
+            } else if (nLower.contains(qLower) || nNormalized.contains(qNormalized)) {
+              // 3. Tên chứa từ khóa ở bất kỳ vị trí nào (60 điểm)
+              score = 60;
+            } else if (emailUser.isNotEmpty && emailUser.startsWith(qLower)) {
+              // 4. Email username bắt đầu bằng từ khóa (40 điểm)
+              score = 40;
+            } else if (emailUser.isNotEmpty && emailUser.contains(qLower)) {
+              // 5. Email username chứa từ khóa (20 điểm)
+              score = 20;
+            } else if (qLower.contains('@') && emailRaw.toLowerCase().contains(qLower)) {
+              // 6. Tìm kiếm đích danh có chứa ký tự '@' theo địa chỉ email đầy đủ (10 điểm)
+              score = 10;
             }
           }
 
-          if (qLower.isNotEmpty) {
-            scored.sort((a, b) => b.score.compareTo(a.score));
+          if (score > 0) {
+            scored.add((member: m, score: score));
           }
+        }
 
-          final matches = scored.map((e) => e.member).toList();
+        if (qLower.isNotEmpty) {
+          scored.sort((a, b) => b.score.compareTo(a.score));
+        }
 
-          // Gợi ý lệnh @ticket nếu query rỗng (vừa gõ @) hoặc query khớp với 'ticket' / 'phieu' / 'ho tro'
-          const ticketCommandMember = ChatV2Member(
-            id: '__action_ticket_command__',
-            name: 'ticket',
-            nickname: 'Tạo phiếu hỗ trợ Ticket',
-            email: 'Gõ @ticket [tiêu đề] rồi gửi để tạo ticket',
-          );
+        final matches = scored.map((e) => e.member).toList();
 
-          final matchesTicket = qLower.isEmpty ||
-              'ticket'.startsWith(qLower) ||
-              qLower.startsWith('tic') ||
-              'phieu'.startsWith(qNormalized) ||
-              'hotro'.startsWith(qNormalized);
+        // Gợi ý lệnh @ticket nếu query rỗng (vừa gõ @) hoặc query khớp với 'ticket' / 'phieu' / 'ho tro'
+        const ticketCommandMember = ChatV2Member(
+          id: '__action_ticket_command__',
+          name: 'ticket',
+          nickname: 'Tạo phiếu hỗ trợ Ticket',
+          email: 'Gõ @ticket [tiêu đề] rồi gửi để tạo ticket',
+        );
 
-          if (matchesTicket) {
-            matches.insert(0, ticketCommandMember);
-          }
+        final matchesTicket = qLower.isEmpty ||
+            'ticket'.startsWith(qLower) ||
+            qLower.startsWith('tic') ||
+            'phieu'.startsWith(qNormalized) ||
+            'hotro'.startsWith(qNormalized);
 
-          if (matches.isNotEmpty) {
-            setState(() {
-              _mentionSuggestions = matches;
-              _mentionQueryStartIndex = lastAtIndex;
-              _selectedMentionIndex = 0;
-              _channelSuggestions = [];
-              _channelQueryStartIndex = -1;
-            });
-            return;
-          }
+        if (matchesTicket) {
+          matches.insert(0, ticketCommandMember);
+        }
+
+        if (matches.isNotEmpty) {
+          setState(() {
+            _mentionSuggestions = matches;
+            _mentionQueryStartIndex = lastAtIndex;
+            _selectedMentionIndex = 0;
+            _channelSuggestions = [];
+            _channelQueryStartIndex = -1;
+          });
+          return;
         }
       }
     }

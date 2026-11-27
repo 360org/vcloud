@@ -92,18 +92,49 @@ class ChatV2Attachment {
     return '';
   }
 
-  String resolveFullUrl(String baseUrl) {
+  String resolveFullUrl(String baseUrl, {String? db}) {
     final cleanBase = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+    final currentDb = (db != null && db.isNotEmpty) ? db : odooApiClient.session?.db;
     if (id.isNotEmpty && isImage) {
-      final tokParam = (accessToken != null && accessToken!.isNotEmpty) ? '?access_token=$accessToken' : '';
-      return '$cleanBase/api/v1/mobile/attachments/$id/image$tokParam';
+      final params = <String, String>{};
+      if (accessToken != null && accessToken!.isNotEmpty) {
+        params['access_token'] = accessToken!;
+      }
+      if (currentDb != null && currentDb.isNotEmpty) {
+        params['db'] = currentDb;
+      }
+      final raw = '$cleanBase/api/v1/mobile/attachments/$id/image';
+      if (params.isEmpty) return raw;
+      return Uri.parse(raw).replace(queryParameters: params).toString();
     }
     final target = (url != null && url!.isNotEmpty) ? url! : (downloadUrl ?? '');
+    if (target.isEmpty) return '';
     if (target.startsWith('http://') || target.startsWith('https://')) {
+      final uri = Uri.tryParse(target);
+      if (uri != null &&
+          uri.path.contains('/api/v1/mobile/attachments/') &&
+          currentDb != null &&
+          currentDb.isNotEmpty &&
+          !uri.queryParameters.containsKey('db')) {
+        final params = Map<String, String>.from(uri.queryParameters);
+        params['db'] = currentDb;
+        return uri.replace(queryParameters: params).toString();
+      }
       return target;
     }
     final cleanTarget = target.startsWith('/') ? target : '/$target';
-    return '$cleanBase$cleanTarget';
+    final raw = '$cleanBase$cleanTarget';
+    final uri = Uri.tryParse(raw);
+    if (uri != null &&
+        uri.path.contains('/api/v1/mobile/attachments/') &&
+        currentDb != null &&
+        currentDb.isNotEmpty &&
+        !uri.queryParameters.containsKey('db')) {
+      final params = Map<String, String>.from(uri.queryParameters);
+      params['db'] = currentDb;
+      return uri.replace(queryParameters: params).toString();
+    }
+    return raw;
   }
 
   factory ChatV2Attachment.fromMap(Map<String, dynamic> map) {

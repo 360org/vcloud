@@ -165,6 +165,14 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
     }
     _selectedFilterKey = _resolveFilterKey(widget.initialFilter);
     _scrollController.addListener(_onScroll);
+    if (!ChatV2ChannelLocalCache.hasFullServerList &&
+        ChatV2ChannelLocalCache.cached.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !ref.read(chatV2ChannelsProvider).isLoading) {
+          ref.read(chatV2ChannelsProvider.notifier).resumeRefresh();
+        }
+      });
+    }
   }
 
   @override
@@ -456,38 +464,73 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                         builder: (context) {
                           final channels = channelsAsync.valueOrNull ?? ChatV2ChannelLocalCache.cached;
                           final unreadCount = ref.watch(chatV2TotalUnreadProvider);
+                          final channelsNotifier = ref.watch(chatV2ChannelsProvider.notifier);
+                          final channelsMeta = channelsNotifier.channelsMeta;
+                          final hasMore = channelsNotifier.hasMore;
 
                           // Thống kê số lượng theo dynamic category từ backend/metadata
                           final categoryCounts = <String, int>{};
                           final categoryLabels = <String, String>{};
                           for (final c in channels) {
                             final cat = c.effectiveCategory;
+                            if (c.channelType == 'ai_chat' || cat == 'ai_chat') continue;
                             categoryCounts[cat] = (categoryCounts[cat] ?? 0) + 1;
                             categoryLabels[cat] = c.effectiveCategoryLabel;
                           }
+                          if (channelsMeta != null && channelsMeta.categoryCounts.isNotEmpty) {
+                            channelsMeta.categoryCounts.forEach((cat, metaCount) {
+                              if (cat == 'ai_chat') return;
+                              if (metaCount > 0 && !categoryCounts.containsKey(cat)) {
+                                categoryCounts[cat] = metaCount;
+                              }
+                            });
+                          }
+                          if (channelsMeta != null && channelsMeta.categoryLabels.isNotEmpty) {
+                            channelsMeta.categoryLabels.forEach((cat, label) {
+                              if (cat != 'ai_chat' && label.isNotEmpty) {
+                                categoryLabels[cat] = label;
+                              }
+                            });
+                          }
+
+                          int countForCategory(String cat) {
+                            final metaCount = channelsMeta?.categoryCounts[cat];
+                            if (metaCount != null) return metaCount;
+                            return categoryCounts[cat] ?? 0;
+                          }
+
+                          final availableCats = (channelsMeta?.availableCategories ?? const <String>[])
+                              .where((cat) => cat.isNotEmpty && cat != 'ai_chat')
+                              .toSet();
+                          final useDynamicAvailable = !isPortal && availableCats.isNotEmpty;
 
                           // Thứ tự hiển thị danh mục chuẩn kế thừa từ Discuss Web vuahethong.net
                           final orderedCategories = <String>[];
-                          const standardOrder = ['chat', 'channel', 'zalo_oa', 'zalo', 'livechat'];
+                          const standardOrder = ['chat', 'channel', 'zalo', 'zalo_oa', 'livechat'];
                           for (final cat in standardOrder) {
-                            if (cat == 'chat') {
-                              if ((categoryCounts[cat] ?? 0) > 0 || !isPortal) {
+                            if (useDynamicAvailable) {
+                              if (availableCats.contains(cat) || countForCategory(cat) > 0) {
                                 orderedCategories.add(cat);
                               }
-                            } else if (cat == 'channel') {
-                              if ((categoryCounts[cat] ?? 0) > 0 || !isPortal) {
+                            } else if (cat == 'chat' || cat == 'channel') {
+                              if (countForCategory(cat) > 0 || !isPortal) {
                                 orderedCategories.add(cat);
                               }
                             } else {
-                              if ((categoryCounts[cat] ?? 0) > 0) {
+                              if (countForCategory(cat) > 0) {
                                 orderedCategories.add(cat);
                               }
                             }
                           }
 
                           // Bất kỳ category động nào khác từ server (VD: telegram, tiktok, custom...)
-                          for (final cat in categoryCounts.keys) {
-                            if (!orderedCategories.contains(cat) && (categoryCounts[cat] ?? 0) > 0) {
+                          final dynamicCandidates = <String>{
+                            ...categoryCounts.keys,
+                            if (useDynamicAvailable) ...availableCats,
+                          };
+                          for (final cat in dynamicCandidates) {
+                            if (cat == 'ai_chat' || orderedCategories.contains(cat)) continue;
+                            if (useDynamicAvailable || countForCategory(cat) > 0) {
                               orderedCategories.add(cat);
                             }
                           }
@@ -505,6 +548,31 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                             }
                           }
 
+                          String defaultCategoryLabel(String cat) {
+                            switch (cat) {
+                              case 'chat':
+                                return 'Trò chuyện';
+                              case 'channel':
+                                return 'Kênh';
+                              case 'zalo_oa':
+                                return 'Zalo OA';
+                              case 'zalo':
+                                return 'Zalo';
+                              case 'livechat':
+                                return 'Hỗ trợ';
+                              default:
+                                return cat;
+                            }
+                          }
+
+                          final int allDisplayNum = channelsMeta?.totalCount ?? channels.length;
+                          final String? allCountText =
+                              (channelsMeta?.totalCount == null &&
+                                      hasMore &&
+                                      channels.length >= kInitialChannelsLimit)
+                                  ? '${channels.length}+'
+                                  : null;
+
                           return SingleChildScrollView(
                             scrollDirection: Axis.horizontal,
                             physics: const BouncingScrollPhysics(),
@@ -512,7 +580,8 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                               children: [
                                 _buildChip(
                                   label: 'Tất cả',
-                                  count: channels.length,
+                                  count: allDisplayNum,
+                                  countText: allCountText,
                                   isSelected: _selectedFilterKey == null,
                                   isDark: isDark,
                                   onTap: () => setState(() => _selectedFilterKey = null),
@@ -520,7 +589,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                                 const SizedBox(width: 8),
                                 _buildChip(
                                   label: 'Chưa đọc',
-                                  count: unreadCount,
+                                  count: channelsMeta?.unreadChannelsCount ?? unreadCount,
                                   isSelected: _selectedFilterKey == 'unread',
                                   isDark: isDark,
                                   badgeColor: const Color(0xFFEF4444),
@@ -529,17 +598,33 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                                 for (final cat in orderedCategories) ...[
                                   const SizedBox(width: 8),
                                   _buildChip(
-                                    label: categoryLabels[cat] ??
-                                        (cat == 'chat'
-                                            ? 'Trò chuyện'
-                                            : cat == 'channel'
-                                                ? 'Kênh'
-                                                : cat),
-                                    count: categoryCounts[cat] ?? 0,
+                                    label: categoryLabels[cat] ?? defaultCategoryLabel(cat),
+                                    count: countForCategory(cat),
                                     isSelected: _selectedFilterKey == cat,
                                     isDark: isDark,
                                     badgeColor: getBadgeColor(cat),
-                                    onTap: () => setState(() => _selectedFilterKey = cat),
+                                    onTap: () {
+                                      setState(() => _selectedFilterKey = cat);
+                                      final inRamCount = channels
+                                          .where((c) => c.effectiveCategory == cat)
+                                          .length;
+                                      final metaCatCount =
+                                          channelsMeta?.categoryCounts[cat];
+                                      final shouldFetchCategory =
+                                          !channelsNotifier.isCategoryFetched(cat) &&
+                                              ((metaCatCount != null &&
+                                                      inRamCount < metaCatCount) ||
+                                                  (metaCatCount == null &&
+                                                      hasMore &&
+                                                      inRamCount < 15));
+                                      if (shouldFetchCategory) {
+                                        unawaited(
+                                          ref
+                                              .read(chatV2ChannelsProvider.notifier)
+                                              .fetchCategoryChannels(cat),
+                                        );
+                                      }
+                                    },
                                   ),
                                 ],
                               ],
@@ -785,6 +870,9 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
 
                   // Lọc theo search query và filter index
                   final filtered = channels.where((c) {
+                    if (c.channelType == 'ai_chat' || c.effectiveCategory == 'ai_chat') {
+                      return false;
+                    }
                     final cleanName = c.getCleanName(currentUserName, isPortal: isPortal);
 
                     if (_searchQuery.isNotEmpty) {
@@ -1124,6 +1212,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
   Widget _buildChip({
     required String label,
     required int count,
+    String? countText,
     required bool isSelected,
     required bool isDark,
     required VoidCallback onTap,
@@ -1134,6 +1223,9 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
     final borderColor = isSelected
         ? const Color(0xFF00C83A)
         : (isDark ? Colors.white12 : const Color(0xFFE2E8F0));
+    final effectiveCountText = (countText != null && countText.isNotEmpty)
+        ? countText
+        : count.toString();
 
     return Material(
       color: isSelected ? activeBg : inactiveBg,
@@ -1160,7 +1252,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                       : (isDark ? Colors.white70 : const Color(0xFF475569)),
                 ),
               ),
-              if (count > 0) ...[
+              if (count > 0 || (countText != null && countText.isNotEmpty)) ...[
                 const SizedBox(width: 6),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
@@ -1172,7 +1264,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
-                    count.toString(),
+                    effectiveCountText,
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
@@ -1229,7 +1321,7 @@ class _ChatV2ListScreenState extends ConsumerState<ChatV2ListScreen> {
           Expanded(
             child: _buildMainTabButton(
               icon: LucideIcons.inbox,
-              label: 'Hộp thư Vua Hệ Thống',
+              label: 'Hộp thư hệ thống',
               count: inboxCount,
               badgeColor: const Color(0xFFEF4444),
               isSelected: _activeMainTab == 1,
@@ -1655,35 +1747,40 @@ class _ChannelListItem extends ConsumerWidget {
         );
 
     // Tự động phân giải avatar URL của đối phương
-    String? resolvedAvatarUrl = channel.avatarUrl;
+    bool hasAvatarValue(String? v) {
+      if (v == null) return false;
+      final t = v.trim();
+      return t.isNotEmpty && t != 'false' && t != 'null' && t != 'undefined';
+    }
+
+    String? resolvedAvatarUrl = hasAvatarValue(channel.avatarUrl) ? channel.avatarUrl : null;
     if (channel.channelType == 'livechat') {
       // Kênh livechat: Giữ nguyên avatarUrl từ backend (im_livechat.channel)
-      resolvedAvatarUrl = channel.avatarUrl;
+      resolvedAvatarUrl = hasAvatarValue(channel.avatarUrl) ? channel.avatarUrl : null;
     } else if (channel.isCskhChannel) {
       if (isPortal) {
-        resolvedAvatarUrl = channel.avatarUrl;
+        resolvedAvatarUrl = hasAvatarValue(channel.avatarUrl) ? channel.avatarUrl : null;
       } else {
         // Góc nhìn Sales/Kỹ thuật: Ưu tiên avatar của chính khách hàng Portal
-        if (channel.directPartnerAvatar != null && channel.directPartnerAvatar!.isNotEmpty) {
+        if (hasAvatarValue(channel.directPartnerAvatar)) {
           resolvedAvatarUrl = channel.directPartnerAvatar;
         } else if (resolvedAvatarUrl != null &&
             (resolvedAvatarUrl.contains('res.company') || resolvedAvatarUrl.contains('field=logo'))) {
           resolvedAvatarUrl = null; // Tránh hiển thị nhầm logo công ty cho khách hàng
         }
-        if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
+        if (!hasAvatarValue(resolvedAvatarUrl)) {
           final customerMember = channel.members.firstWhereOrNull((m) =>
               !m.isMe &&
               m.name.toLowerCase() != 'odoobot' &&
               m.name.toLowerCase() != 'bot' &&
-              m.avatarUrl != null &&
-              m.avatarUrl!.isNotEmpty);
+              hasAvatarValue(m.avatarUrl));
           if (customerMember != null) {
             resolvedAvatarUrl = customerMember.avatarUrl;
           }
         }
       }
     } else if (channel.isZaloOA) {
-      if (channel.directPartnerAvatar != null && channel.directPartnerAvatar!.isNotEmpty) {
+      if (hasAvatarValue(channel.directPartnerAvatar)) {
         resolvedAvatarUrl = channel.directPartnerAvatar;
       } else {
         final customerMember = channel.members.firstWhereOrNull((m) =>
@@ -1691,13 +1788,12 @@ class _ChannelListItem extends ConsumerWidget {
             m.name.toLowerCase() != 'odoobot' &&
             m.name.toLowerCase() != 'bot' &&
             !m.name.toLowerCase().contains('360 corp') &&
-            m.avatarUrl != null &&
-            m.avatarUrl!.isNotEmpty);
+            hasAvatarValue(m.avatarUrl));
         if (customerMember != null) {
           resolvedAvatarUrl = customerMember.avatarUrl;
         }
       }
-    } else if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
+    } else if (!hasAvatarValue(resolvedAvatarUrl)) {
       if (!isGroup && !channel.isChannel) {
         final currentPartnerId = odooApiClient.session?.partnerId?.toString();
         final currentUserId = odooApiClient.session?.uid.toString();
@@ -1706,24 +1802,37 @@ class _ChannelListItem extends ConsumerWidget {
               !m.isMine &&
               (currentPartnerId == null || m.authorId?.toString() != currentPartnerId) &&
               (currentUserId == null || m.authorId?.toString() != currentUserId) &&
-              m.authorAvatar != null &&
-              m.authorAvatar!.isNotEmpty);
+              hasAvatarValue(m.authorAvatar));
           if (otherMsg != null) {
             resolvedAvatarUrl = otherMsg.authorAvatar;
           }
         }
-        if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
+        if (!hasAvatarValue(resolvedAvatarUrl)) {
           final otherMember = channel.members.firstWhereOrNull((m) =>
               !m.isMe &&
               (currentPartnerId == null || m.id != currentPartnerId) &&
               (currentUserId == null || m.id != currentUserId) &&
               (currentUserName == null || !ChatV2Channel.matchesUser(m.name, currentUserName)) &&
-              m.avatarUrl != null &&
-              m.avatarUrl!.isNotEmpty);
+              hasAvatarValue(m.avatarUrl));
           if (otherMember != null) {
             resolvedAvatarUrl = otherMember.avatarUrl;
           }
         }
+      }
+    }
+
+    resolvedAvatarUrl = odooApiClient.resolveAvatarUrl(resolvedAvatarUrl);
+    if ((resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) &&
+        !isGroup &&
+        !channel.isChannel &&
+        !(channel.isCskhChannel && isPortal)) {
+      final pid = int.tryParse(
+        (channel.directPartnerId ?? channel.partnerId ?? '').trim(),
+      );
+      if (pid != null && pid > 0) {
+        resolvedAvatarUrl = odooApiClient.resolveAvatarUrl(
+          '/api/v1/mobile/avatar/res.partner/$pid?field=avatar_128',
+        );
       }
     }
 
@@ -1812,6 +1921,14 @@ class _ChannelListItem extends ConsumerWidget {
                                 color: Colors.white,
                               ),
                             )
+                          else if (channel.isChannel)
+                            const Center(
+                              child: Icon(
+                                LucideIcons.hash,
+                                size: 22,
+                                color: Colors.white,
+                              ),
+                            )
                           else
                             Center(
                               child: Text(
@@ -1835,7 +1952,16 @@ class _ChannelListItem extends ConsumerWidget {
                               cacheWidth: (50 * MediaQuery.devicePixelRatioOf(context)).round(),
                               cacheHeight: (50 * MediaQuery.devicePixelRatioOf(context)).round(),
                               gaplessPlayback: true,
-                              headers: odooApiClient.authHeaders,
+                              headers: odooApiClient.headersForUrl(resolvedAvatarUrl),
+                              frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                                if (wasSynchronouslyLoaded || frame != null) {
+                                  return ColoredBox(
+                                    color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                                    child: SizedBox.expand(child: child),
+                                  );
+                                }
+                                return const SizedBox.shrink();
+                              },
                               errorBuilder: (context, error, stackTrace) =>
                                   (channel.isCskhChannel && !isLivechat && isPortal)
                                       ? Image.asset(
@@ -2706,7 +2832,7 @@ class _ChannelListItem extends ConsumerWidget {
                 onTap: () {
                   Navigator.pop(sheetContext);
                   ChatV2ChannelLocalCache.toggleUserPin(channel.id);
-                  ref.read(chatV2ChannelsProvider.notifier).refresh();
+                  ref.read(chatV2ChannelsProvider.notifier).syncFromCache();
                 },
               ),
 
@@ -2725,13 +2851,13 @@ class _ChannelListItem extends ConsumerWidget {
                   Navigator.pop(sheetContext);
                   if (isMuted) {
                     ChatV2ChannelLocalCache.setUserMuted(channel.id, false);
-                    ref.read(chatV2ChannelsProvider.notifier).refresh();
+                    ref.read(chatV2ChannelsProvider.notifier).syncFromCache();
                     await ref.read(chatV2RepositoryProvider).muteChannel(channel.id, mute: false);
                   } else {
                     final minutes = await showMuteDurationPickerSheet(context);
                     if (minutes == null) return;
                     ChatV2ChannelLocalCache.setUserMuted(channel.id, true);
-                    ref.read(chatV2ChannelsProvider.notifier).refresh();
+                    ref.read(chatV2ChannelsProvider.notifier).syncFromCache();
                     await ref.read(chatV2RepositoryProvider).muteChannel(
                           channel.id,
                           mute: true,
@@ -2865,7 +2991,7 @@ class _SyncStatusBanner extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             Text(
-              'Đang kết nối...',
+              'Đang đồng bộ...',
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
@@ -2877,7 +3003,25 @@ class _SyncStatusBanner extends StatelessWidget {
       );
     }
 
-    // ChatV2SyncStatus.offline
+    final String bannerText;
+    final IconData bannerIcon;
+    switch (status) {
+      case ChatV2SyncStatus.serverTimeout:
+        bannerText = 'Máy chủ phản hồi chậm — Chạm để thử lại';
+        bannerIcon = LucideIcons.clock;
+        break;
+      case ChatV2SyncStatus.serverError:
+        bannerText = 'Máy chủ tạm gián đoạn — Chạm để thử lại';
+        bannerIcon = LucideIcons.serverCrash;
+        break;
+      case ChatV2SyncStatus.offline:
+      case ChatV2SyncStatus.connecting:
+      case ChatV2SyncStatus.synced:
+        bannerText = 'Đang ngoại tuyến — Chạm để thử lại';
+        bannerIcon = LucideIcons.alertTriangle;
+        break;
+    }
+
     return GestureDetector(
       onTap: onRetry,
       child: Container(
@@ -2895,17 +3039,20 @@ class _SyncStatusBanner extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              LucideIcons.alertTriangle,
+              bannerIcon,
               size: 14,
               color: isDark ? const Color(0xFFFBBF24) : const Color(0xFFD97706),
             ),
             const SizedBox(width: 6),
-            Text(
-              'Đang ngoại tuyến — Chạm để thử lại',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: isDark ? const Color(0xFFFBBF24) : const Color(0xFFB45309),
+            Flexible(
+              child: Text(
+                bannerText,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? const Color(0xFFFBBF24) : const Color(0xFFB45309),
+                ),
               ),
             ),
           ],

@@ -1,3 +1,18 @@
+String _safeInboxStr(Object? value, [String fallback = '']) {
+  if (value == null || value is bool) return fallback;
+  final text = value is String ? value : value.toString();
+  if (text == 'false' || text == 'null') return fallback;
+  return text;
+}
+
+String? _safeInboxNullableStr(Object? value) {
+  if (value == null || value is bool) return null;
+  final text = value is String ? value : value.toString();
+  final trimmed = text.trim();
+  if (trimmed.isEmpty || trimmed == 'false' || trimmed == 'null') return null;
+  return trimmed;
+}
+
 class ChatV2InboxAttachment {
   const ChatV2InboxAttachment({
     required this.id,
@@ -16,12 +31,12 @@ class ChatV2InboxAttachment {
   factory ChatV2InboxAttachment.fromJson(Map<String, dynamic> json) {
     return ChatV2InboxAttachment(
       id: json['id'] is int ? json['id'] as int : int.tryParse(json['id']?.toString() ?? '') ?? 0,
-      name: json['name'] as String? ?? '',
-      mimetype: json['mimetype'] as String? ?? '',
+      name: _safeInboxStr(json['name']),
+      mimetype: _safeInboxStr(json['mimetype']),
       fileSize: json['file_size'] is int
           ? json['file_size'] as int
           : int.tryParse(json['file_size']?.toString() ?? '') ?? 0,
-      url: json['url'] as String? ?? '',
+      url: _safeInboxStr(json['url']),
     );
   }
 }
@@ -142,23 +157,23 @@ class ChatV2InboxItem {
 
     return ChatV2InboxItem(
       id: json['id'] is int ? json['id'] as int : int.tryParse(json['id']?.toString() ?? '') ?? 0,
-      subject: (json['subject'] as String?)?.trim() ?? '',
-      recordName: (json['record_name'] as String?)?.trim() ?? '',
-      model: json['model'] as String? ?? '',
+      subject: _safeInboxStr(json['subject']).trim(),
+      recordName: _safeInboxStr(json['record_name']).trim(),
+      model: _safeInboxStr(json['model']),
       resId: json['res_id'] is int
           ? json['res_id'] as int
           : int.tryParse(json['res_id']?.toString() ?? '') ?? 0,
       channelId: channelId,
-      body: json['body'] as String? ?? '',
+      body: _safeInboxStr(json['body']),
       date: parsedDate,
       authorId: json['author_id'] is int
           ? json['author_id'] as int
           : int.tryParse(json['author_id']?.toString() ?? ''),
-      authorName: (json['author_name'] as String?)?.trim() ?? 'System',
-      authorAvatar: json['author_avatar'] as String?,
+      authorName: _safeInboxNullableStr(json['author_name']) ?? 'System',
+      authorAvatar: _safeInboxNullableStr(json['author_avatar']),
       isStarred: json['is_starred'] == true,
       isNeedaction: json['is_needaction'] == true,
-      messageType: json['message_type'] as String? ?? 'comment',
+      messageType: _safeInboxNullableStr(json['message_type']) ?? 'comment',
       attachmentIds: parsedAttIds,
       attachments: parsedAtts,
     );

@@ -396,7 +396,8 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
     final titleCtrl = TextEditingController(text: ticket.title);
     final descCtrl = TextEditingController(text: ticket.description ?? '');
     var priority = ticket.priority;
-    String? category = ticket.category;
+    int? selectedTeamId = ticket.teamId ?? int.tryParse(ticket.category ?? '');
+    var didSelectTeam = false;
 
     final updated = await showDialog<bool>(
       context: context,
@@ -405,6 +406,20 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
           builder: (ctx, setDialogState) {
             final isDark = Theme.of(ctx).brightness == Brightness.dark;
             final teamsAsync = ref.watch(ticketTeamsProvider);
+            final loadedTeams = teamsAsync.valueOrNull;
+            final effectiveTeamId = didSelectTeam
+                ? selectedTeamId
+                : (selectedTeamId ??
+                    (loadedTeams != null && ticket.category != null
+                        ? loadedTeams
+                            .where(
+                              (t) =>
+                                  t.name.trim().toLowerCase() ==
+                                  ticket.category!.trim().toLowerCase(),
+                            )
+                            .firstOrNull
+                            ?.id
+                        : null));
             return AlertDialog(
             backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -456,17 +471,22 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
                   teamsAsync.when(
                     data: (teams) {
                       if (teams.isEmpty) return const SizedBox.shrink();
-                      return DropdownButtonFormField<String>(
-                        initialValue: teams.any((t) => t.id.toString() == category) ? category : null,
+                      return DropdownButtonFormField<int>(
+                        initialValue: teams.any((t) => t.id == effectiveTeamId)
+                            ? effectiveTeamId
+                            : null,
                         decoration: const InputDecoration(
                           labelText: 'Đội xử lý',
                           border: OutlineInputBorder(),
                         ),
-                        items: teams.map((t) => DropdownMenuItem(
-                          value: t.id.toString(),
+                        items: teams.map((t) => DropdownMenuItem<int>(
+                          value: t.id,
                           child: Text(t.name),
                         )).toList(),
-                        onChanged: (val) => setDialogState(() => category = val),
+                        onChanged: (val) => setDialogState(() {
+                          didSelectTeam = true;
+                          selectedTeamId = val;
+                        }),
                       );
                     },
                     loading: () => const SizedBox.shrink(),
@@ -496,7 +516,7 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
                       title: titleCtrl.text.trim(),
                       description: descCtrl.text.trim(),
                       priority: priority,
-                      category: category,
+                      category: effectiveTeamId?.toString(),
                     );
                     if (ctx.mounted) Navigator.pop(ctx, true);
                   } catch (e) {

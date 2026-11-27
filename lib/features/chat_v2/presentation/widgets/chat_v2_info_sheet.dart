@@ -70,6 +70,23 @@ class ChatV2InfoSheet extends ConsumerStatefulWidget {
     return clean[0].toUpperCase();
   }
 
+  static List<ChatV2Attachment> mergeRemoteAttachments({
+    required List<ChatV2Attachment> local,
+    required List<ChatV2Attachment> remote,
+  }) {
+    final pendingLocal = local.where((x) {
+      if (x.bytes == null || x.bytes!.isEmpty) return false;
+      return !remote.any((srv) =>
+          (x.id.isNotEmpty && srv.id.isNotEmpty && x.id == srv.id) ||
+          (x.messageId != null &&
+              srv.messageId != null &&
+              x.messageId == srv.messageId) ||
+          (x.url != null && x.url!.isNotEmpty && x.url == srv.url) ||
+          x.name == srv.name);
+    }).toList();
+    return <ChatV2Attachment>[...pendingLocal, ...remote];
+  }
+
   static ({List<ChatV2Attachment> images, List<ChatV2Attachment> files, List<String> links}) extractMedia(
     List<ChatV2Message> messages,
   ) {
@@ -118,29 +135,35 @@ class ChatV2InfoSheet extends ConsumerStatefulWidget {
             ChatV2AttachmentImage.imageCache[msg.id] ??
             LocalAttachmentCache.get(null, altKey: cleanName);
 
-        if (msg.isImageFilename) {
-          final att = ChatV2Attachment(
-            id: msg.id,
-            name: cleanName,
-            url: '',
-            bytes: memoryBytes,
-            mimetype: 'image/jpeg',
-            messageId: msg.id,
-          );
-          if (!images.any((x) => x.name == att.name || (x.id.isNotEmpty && x.id == att.id))) {
-            images.add(att);
-          }
-        } else if (msg.isDocumentFilename) {
-          final att = ChatV2Attachment(
-            id: msg.id,
-            name: cleanName,
-            url: '',
-            bytes: memoryBytes,
-            mimetype: 'application/octet-stream',
-            messageId: msg.id,
-          );
-          if (!files.any((x) => x.name == att.name || (x.id.isNotEmpty && x.id == att.id))) {
-            files.add(att);
+        if (memoryBytes != null && memoryBytes.isNotEmpty) {
+          if (msg.isImageFilename) {
+            final att = ChatV2Attachment(
+              id: '',
+              name: cleanName,
+              url: '',
+              bytes: memoryBytes,
+              mimetype: 'image/jpeg',
+              messageId: msg.id,
+            );
+            if (!images.any((x) =>
+                x.name == att.name ||
+                (x.messageId != null && x.messageId == att.messageId))) {
+              images.add(att);
+            }
+          } else if (msg.isDocumentFilename) {
+            final att = ChatV2Attachment(
+              id: '',
+              name: cleanName,
+              url: '',
+              bytes: memoryBytes,
+              mimetype: 'application/octet-stream',
+              messageId: msg.id,
+            );
+            if (!files.any((x) =>
+                x.name == att.name ||
+                (x.messageId != null && x.messageId == att.messageId))) {
+              files.add(att);
+            }
           }
         }
       }
@@ -316,29 +339,35 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
       if (!mounted) return;
 
       setState(() {
-        if (mediaRes.totalImages > 0) _totalImages = mediaRes.totalImages;
-        if (mediaRes.totalFiles > 0) _totalFiles = mediaRes.totalFiles;
-        if (mediaRes.totalLinks > 0) _totalLinks = mediaRes.totalLinks;
+        _totalImages = mediaRes.totalImages;
+        _totalFiles = mediaRes.totalFiles;
+        _totalLinks = mediaRes.totalLinks;
 
-        for (final img in mediaRes.images) {
-          if (!_images.any((x) =>
-              (x.id.isNotEmpty && img.id.isNotEmpty && x.id == img.id) ||
-              (x.url == img.url && img.url != null))) {
-            _images.add(img);
+        final nextImages = ChatV2InfoSheet.mergeRemoteAttachments(
+          local: _images,
+          remote: mediaRes.images,
+        );
+        _images
+          ..clear()
+          ..addAll(nextImages);
+
+        final nextFiles = ChatV2InfoSheet.mergeRemoteAttachments(
+          local: _files,
+          remote: mediaRes.files,
+        );
+        _files
+          ..clear()
+          ..addAll(nextFiles);
+
+        final mergedLinks = List<String>.from(mediaRes.links);
+        for (final l in _links) {
+          if (!mergedLinks.contains(l)) {
+            mergedLinks.add(l);
           }
         }
-        for (final f in mediaRes.files) {
-          if (!_files.any((x) =>
-              (x.id.isNotEmpty && f.id.isNotEmpty && x.id == f.id) ||
-              (x.url == f.url && f.url != null))) {
-            _files.add(f);
-          }
-        }
-        for (final l in mediaRes.links) {
-          if (!_links.contains(l)) {
-            _links.add(l);
-          }
-        }
+        _links
+          ..clear()
+          ..addAll(mergedLinks);
       });
     } catch (_) {}
   }
@@ -1402,11 +1431,28 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
         ? _members.length
         : (_memberCount > 0 ? _memberCount : _members.length);
 
+    bool hasAvatarValue(String? v) {
+      if (v == null) return false;
+      final t = v.trim();
+      return t.isNotEmpty && t != 'false' && t != 'null' && t != 'undefined';
+    }
+
     // Tự động phân giải avatar URL của đối phương nếu channel.avatarUrl chưa có và là chat 1-1
     String? resolvedAvatarUrl = _customAvatarUrl != null
-        ? (_customAvatarUrl!.isNotEmpty ? _customAvatarUrl : null)
-        : (activeChannel.avatarUrl ?? widget.channel.avatarUrl);
-    if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
+        ? (hasAvatarValue(_customAvatarUrl) ? _customAvatarUrl : null)
+        : (hasAvatarValue(activeChannel.avatarUrl)
+            ? activeChannel.avatarUrl
+            : (hasAvatarValue(widget.channel.avatarUrl)
+                ? widget.channel.avatarUrl
+                : null));
+    if (!hasAvatarValue(resolvedAvatarUrl) && !isGroup && !widget.channel.isChannel) {
+      if (hasAvatarValue(activeChannel.directPartnerAvatar)) {
+        resolvedAvatarUrl = activeChannel.directPartnerAvatar;
+      } else if (hasAvatarValue(widget.channel.directPartnerAvatar)) {
+        resolvedAvatarUrl = widget.channel.directPartnerAvatar;
+      }
+    }
+    if (!hasAvatarValue(resolvedAvatarUrl)) {
       if (!isGroup && !widget.channel.isChannel) {
         final currentPartnerId = odooApiClient.session?.partnerId?.toString();
         final currentUserId = odooApiClient.session?.uid.toString();
@@ -1415,20 +1461,18 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
               !m.isMine &&
               (currentPartnerId == null || m.authorId?.toString() != currentPartnerId) &&
               (currentUserId == null || m.authorId?.toString() != currentUserId) &&
-              m.authorAvatar != null &&
-              m.authorAvatar!.isNotEmpty);
+              hasAvatarValue(m.authorAvatar));
           if (otherMsg != null) {
             resolvedAvatarUrl = otherMsg.authorAvatar;
           }
         }
-        if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
+        if (!hasAvatarValue(resolvedAvatarUrl)) {
           final otherMember = _members.firstWhereOrNull((m) =>
               !m.isMe &&
               (currentPartnerId == null || m.id != currentPartnerId) &&
               (currentUserId == null || m.id != currentUserId) &&
               (widget.currentUserName == null || !ChatV2Channel.matchesUser(m.name, widget.currentUserName!)) &&
-              m.avatarUrl != null &&
-              m.avatarUrl!.isNotEmpty);
+              hasAvatarValue(m.avatarUrl));
           if (otherMember != null) {
             resolvedAvatarUrl = otherMember.avatarUrl;
           }
@@ -1451,6 +1495,15 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
         otherPartnerId = int.tryParse(otherMember?.id ?? '');
       }
     }
+    if (!hasAvatarValue(resolvedAvatarUrl) &&
+        !isGroup &&
+        !widget.channel.isChannel &&
+        otherPartnerId != null &&
+        otherPartnerId > 0) {
+      resolvedAvatarUrl =
+          '/api/v1/mobile/avatar/res.partner/$otherPartnerId?field=avatar_128';
+    }
+    resolvedAvatarUrl = odooApiClient.resolveAvatarUrl(resolvedAvatarUrl);
 
     final partnerDetailAsync = (otherPartnerId != null && otherPartnerId > 0)
         ? ref.watch(partnerContactDetailProvider(otherPartnerId))
@@ -1579,7 +1632,16 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
                                       height: 84,
                                       fit: BoxFit.cover,
                                       gaplessPlayback: true,
-                                      headers: odooApiClient.authHeaders,
+                                      headers: odooApiClient.headersForUrl(resolvedAvatarUrl),
+                                      frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                                        if (wasSynchronouslyLoaded || frame != null) {
+                                          return ColoredBox(
+                                            color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                                            child: SizedBox.expand(child: child),
+                                          );
+                                        }
+                                        return const SizedBox.shrink();
+                                      },
                                       errorBuilder: (context, error, stackTrace) =>
                                           const SizedBox.shrink(),
                                     ),
@@ -1855,7 +1917,7 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
                                               ? Image.network(
                                                   fullUrl,
                                                   fit: BoxFit.cover,
-                                                  headers: odooApiClient.authHeaders,
+                                                  headers: odooApiClient.headersForUrl(fullUrl),
                                                   errorBuilder: (c, e, s) => _buildImageThumbnailFallback(isDark),
                                                   loadingBuilder: (_, child, progress) {
                                                   if (progress == null) return child;
@@ -1963,6 +2025,9 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
                                 ? '${member.name} • ${isOnline ? "Đang trực tuyến" : "Ngoại tuyến"}'
                                 : (isOnline ? 'Đang trực tuyến' : 'Ngoại tuyến');
 
+                            final memberAvatarUrl =
+                                odooApiClient.resolveAvatarUrl(member.avatarUrl);
+
                             return ListTile(
                               onTap: isMe
                                   ? () => context.push('/profile')
@@ -1971,7 +2036,7 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
                                         ref,
                                         partnerId: member.partnerId?.toString() ?? member.id,
                                         name: member.displayName,
-                                        avatarUrl: member.avatarUrl,
+                                        avatarUrl: memberAvatarUrl,
                                         role: isOnline ? 'Đang trực tuyến' : 'Ngoại tuyến',
                                         currentChannel: activeChannel,
                                       ),
@@ -1989,32 +2054,53 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
                                       shape: BoxShape.circle,
                                     ),
                                     alignment: Alignment.center,
-                                    child: member.avatarUrl != null && member.avatarUrl!.isNotEmpty
-                                        ? ClipOval(
-                                            child: Image.network(
-                                              member.avatarUrl!,
+                                    child: ClipOval(
+                                      child: Stack(
+                                        fit: StackFit.expand,
+                                        children: [
+                                          Center(
+                                            child: Text(
+                                              ChatV2InfoSheet.getInitial(member.name),
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 15,
+                                              ),
+                                            ),
+                                          ),
+                                          if (memberAvatarUrl != null &&
+                                              memberAvatarUrl.isNotEmpty)
+                                            Image.network(
+                                              memberAvatarUrl,
                                               width: 40,
                                               height: 40,
                                               fit: BoxFit.cover,
-                                              headers: odooApiClient.authHeaders,
-                                              errorBuilder: (c, e, s) => Text(
-                                                ChatV2InfoSheet.getInitial(member.name),
-                                                style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontWeight: FontWeight.w700,
-                                                  fontSize: 15,
-                                                ),
-                                              ),
+                                              headers: odooApiClient
+                                                  .headersForUrl(memberAvatarUrl),
+                                              frameBuilder: (
+                                                context,
+                                                child,
+                                                frame,
+                                                wasSynchronouslyLoaded,
+                                              ) {
+                                                if (wasSynchronouslyLoaded ||
+                                                    frame != null) {
+                                                  return ColoredBox(
+                                                    color: isDark
+                                                        ? const Color(0xFF1E293B)
+                                                        : Colors.white,
+                                                    child: SizedBox.expand(
+                                                        child: child),
+                                                  );
+                                                }
+                                                return const SizedBox.shrink();
+                                              },
+                                              errorBuilder: (c, e, s) =>
+                                                  const SizedBox.shrink(),
                                             ),
-                                          )
-                                        : Text(
-                                            ChatV2InfoSheet.getInitial(member.name),
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.w700,
-                                              fontSize: 15,
-                                            ),
-                                          ),
+                                        ],
+                                      ),
+                                    ),
                                   ),
                                   if (isOnline)
                                     Positioned(
@@ -2873,7 +2959,7 @@ class _ChatV2MediaHubScreenState extends ConsumerState<ChatV2MediaHubScreen>
                                               ? Image.network(
                                                   fullUrl,
                                                   fit: BoxFit.cover,
-                                                  headers: odooApiClient.authHeaders,
+                                                  headers: odooApiClient.headersForUrl(fullUrl),
                                                   errorBuilder: (c, e, s) => _buildEmptyMediaBox(isDark, LucideIcons.image),
                                                   loadingBuilder: (_, child, progress) {
                                                     if (progress == null) return child;
@@ -3083,10 +3169,25 @@ class _ChatV2MediaHubScreenState extends ConsumerState<ChatV2MediaHubScreen>
                       final url = _links[idx];
                       return InkWell(
                         onTap: () async {
-                          final targetUrl = url.contains('://') ? url : 'https://$url';
+                          final internalRoute =
+                              ChatV2MessageItem.resolveInternalAppRoute(
+                            url,
+                            currentChannelId: widget.channelId,
+                          );
+                          if (internalRoute != null) {
+                            if (internalRoute.isNotEmpty && context.mounted) {
+                              context.push(internalRoute);
+                            }
+                            return;
+                          }
+                          final targetUrl =
+                              url.contains('://') ? url : 'https://$url';
                           final uri = Uri.tryParse(targetUrl);
                           if (uri != null) {
-                            await launchUrl(uri, mode: LaunchMode.externalApplication);
+                            await launchUrl(
+                              uri,
+                              mode: LaunchMode.externalApplication,
+                            );
                           }
                         },
                         borderRadius: BorderRadius.circular(10),

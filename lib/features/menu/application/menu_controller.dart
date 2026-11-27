@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import '../../../core/api/odoo_api_client.dart';
 import '../data/menu_item_model.dart';
 import '../data/menu_repository.dart';
 
@@ -30,7 +32,7 @@ class MenuState {
     var result = apps;
     if (activeTab == 'bookmark') {
       result = result
-          .where((app) => bookmarkedIds.contains(app.id) || app.isBookmarked)
+          .where((app) => bookmarkedIds.contains(app.id))
           .toList();
     }
     final q = searchQuery.trim().toLowerCase();
@@ -43,7 +45,7 @@ class MenuState {
   }
 
   bool isAppBookmarked(AppMenuItem app) {
-    return bookmarkedIds.contains(app.id) || app.isBookmarked;
+    return bookmarkedIds.contains(app.id);
   }
 
   MenuState copyWith({
@@ -83,7 +85,21 @@ class MenuController extends StateNotifier<MenuState> {
   final MenuRepository _repository;
   final FlutterSecureStorage _storage;
 
-  static const _storageKey = 'vcloud_pinned_apps_ids_v1';
+  static const _legacyStorageKey = 'vcloud_pinned_apps_ids_v1';
+  String? _loadedScopeKey;
+  bool _hasSavedBookmarks = false;
+  bool _hasLoadedMenuOnce = false;
+  bool _hasServerSyncedBookmarks = false;
+  bool _hasUserToggledBookmark = false;
+  Future<void>? _inFlightLoad;
+
+  String _resolveStorageKey() {
+    final session = odooApiClient.session;
+    if (session == null || session.db.isEmpty) {
+      return _legacyStorageKey;
+    }
+    return 'vcloud_pinned_apps_v2_${session.db}_${session.uid}';
+  }
 
   static const List<AppUtilityItem> defaultUtilities = [
     AppUtilityItem(
@@ -106,32 +122,91 @@ class MenuController extends StateNotifier<MenuState> {
     ),
   ];
 
-  Future<void> _initAndLoad() async {
+  Future<Set<int>?> _readSavedBookmarks() async {
+    final scopeKey = _resolveStorageKey();
+    _loadedScopeKey = scopeKey;
     try {
-      final raw = await _storage.read(key: _storageKey);
+      final raw = await _storage.read(key: scopeKey);
       if (raw != null && raw.isNotEmpty) {
         final decoded = jsonDecode(raw);
         if (decoded is List) {
-          final saved = decoded.whereType<num>().map((e) => e.toInt()).toSet();
-          if (saved.isNotEmpty) {
-            state = state.copyWith(bookmarkedIds: saved);
-          }
+          _hasSavedBookmarks = true;
+          return decoded.whereType<num>().map((e) => e.toInt()).toSet();
         }
       }
     } catch (e) {
-      debugPrint('[MenuController._initAndLoad] read storage error: $e');
+      debugPrint('[MenuController._readSavedBookmarks] read storage error: $e');
     }
-    await loadMenu();
+    return null;
   }
 
-  Future<void> loadMenu() async {
+  Future<void> _writeSavedBookmarks(Set<int> bookmarks) async {
+    final scopeKey = _resolveStorageKey();
+    _loadedScopeKey = scopeKey;
+    _hasSavedBookmarks = true;
+    try {
+      await _storage.write(
+        key: scopeKey,
+        value: jsonEncode(bookmarks.toList()),
+      );
+    } catch (e) {
+      debugPrint('[MenuController._writeSavedBookmarks] save error: $e');
+    }
+  }
+
+  Future<void> _initAndLoad() async {
+    final saved = await _readSavedBookmarks();
+    if (saved != null &&
+        !_hasServerSyncedBookmarks &&
+        !_hasUserToggledBookmark) {
+      state = state.copyWith(bookmarkedIds: saved);
+    }
+    if (!_hasLoadedMenuOnce) {
+      await loadMenu();
+    }
+  }
+
+  Future<void> loadMenu() {
+    if (_inFlightLoad != null) return _inFlightLoad!;
+    final future = _performLoadMenu();
+    _inFlightLoad = future;
+    return future.whenComplete(() {
+      if (identical(_inFlightLoad, future)) {
+        _inFlightLoad = null;
+      }
+    });
+  }
+
+  Future<void> _performLoadMenu() async {
+    _hasLoadedMenuOnce = true;
     state = state.copyWith(isLoading: true, error: null);
     try {
       final result = await _repository.fetchAppsMenu();
-      final bookmarks = Set<int>.from(state.bookmarkedIds);
-      for (final app in result.apps) {
-        if (app.isBookmarked) {
-          bookmarks.add(app.id);
+      final serverBookmarks = await _repository.fetchServerBookmarkedIds();
+
+      final Set<int> bookmarks;
+      if (serverBookmarks != null) {
+        _hasServerSyncedBookmarks = true;
+        bookmarks = Set<int>.from(serverBookmarks);
+        await _writeSavedBookmarks(bookmarks);
+      } else {
+        final currentScopeKey = _resolveStorageKey();
+        Set<int>? saved;
+        if (_loadedScopeKey != currentScopeKey) {
+          _hasSavedBookmarks = false;
+          saved = await _readSavedBookmarks();
+        }
+        if (saved != null) {
+          bookmarks = saved;
+        } else if (_hasSavedBookmarks) {
+          bookmarks = Set<int>.from(state.bookmarkedIds);
+        } else {
+          bookmarks = Set<int>.from(state.bookmarkedIds);
+          for (final app in result.apps) {
+            if (app.isBookmarked) {
+              bookmarks.add(app.id);
+            }
+          }
         }
       }
 
@@ -153,6 +228,19 @@ class MenuController extends StateNotifier<MenuState> {
     }
   }
 
+  /// Đồng bộ ngầm danh sách ghim từ server mà không bật loading spinner.
+  Future<void> refreshBookmarksFromServer() async {
+    try {
+      final serverBookmarks = await _repository.fetchServerBookmarkedIds();
+      if (serverBookmarks == null) return;
+      final synced = Set<int>.from(serverBookmarks);
+      state = state.copyWith(bookmarkedIds: synced);
+      await _writeSavedBookmarks(synced);
+    } catch (e) {
+      debugPrint('[MenuController.refreshBookmarksFromServer] error: $e');
+    }
+  }
+
   void setSearchQuery(String query) {
     state = state.copyWith(searchQuery: query);
   }
@@ -161,9 +249,10 @@ class MenuController extends StateNotifier<MenuState> {
     state = state.copyWith(activeTab: tab);
   }
 
-  /// Bật/tắt ghim ứng dụng và lưu bền vững vào FlutterSecureStorage.
+  /// Bật/tắt ghim ứng dụng, lưu cục bộ theo DB/UID và đồng bộ lên Odoo server.
   /// Trả về `true` nếu vừa ghim, `false` nếu vừa bỏ ghim.
   Future<bool> toggleBookmark(int appId) async {
+    _hasUserToggledBookmark = true;
     final updated = Set<int>.from(state.bookmarkedIds);
     final isAdded = !updated.contains(appId);
     if (isAdded) {
@@ -173,14 +262,16 @@ class MenuController extends StateNotifier<MenuState> {
     }
     state = state.copyWith(bookmarkedIds: updated);
 
-    try {
-      await _storage.write(
-        key: _storageKey,
-        value: jsonEncode(updated.toList()),
-      );
-    } catch (e) {
-      debugPrint('[MenuController.toggleBookmark] save error: $e');
-    }
+    await _writeSavedBookmarks(updated);
+    unawaited(
+      _repository
+          .syncServerBookmarks(
+            bookmarkedIds: updated.toList(),
+            appId: appId,
+            isBookmarked: isAdded,
+          )
+          .catchError((_) => false),
+    );
     return isAdded;
   }
 }

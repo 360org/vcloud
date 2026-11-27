@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/notifications/app_badge_service.dart';
 import 'core/notifications/push_notification_controller.dart';
+import 'core/notifications/push_notification_service.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/utils/app_lifecycle_manager.dart';
@@ -195,9 +196,17 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
     ref.invalidate(mobileNotificationsProvider);
     ref.invalidate(mobileDashboardSummaryProvider);
 
-    if (type.contains('chat') || type.contains('discuss') || data.containsKey('channel_id') || data.containsKey('res_id')) {
-      final pushChannelId = (data['res_id'] ?? data['channel_id'] ?? data['discuss_channel_id'] ?? data['chat_id'] ?? '').toString();
-      final bodyText = message.notification?.body ?? data['body']?.toString() ?? '';
+    if (PushNotificationService.isChatPush(data)) {
+      final pushChannelId = (data['channel_id'] ??
+              data['discuss_channel_id'] ??
+              data['chat_id'] ??
+              data['res_id'] ??
+              '')
+          .toString();
+      final notifTitle =
+          message.notification?.title ?? data['title']?.toString();
+      final notifBody = message.notification?.body ?? data['body']?.toString();
+      final bodyText = notifBody ?? '';
       final authorName = data['author_name']?.toString() ?? data['author']?.toString();
       final authorId = data['author_id']?.toString();
 
@@ -232,11 +241,19 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
         }
       }
 
-      final notification = message.notification;
-      final channelId = (data['res_id'] ?? data['channel_id'] ?? data['discuss_channel_id'] ?? data['chat_id'] ?? '').toString();
+      final channelId = pushChannelId;
       final isChannelMuted = channelId.isNotEmpty && ChatV2ChannelLocalCache.isUserMuted(channelId);
-      if (!isChannelMuted && notification != null && (notification.title != null || notification.body != null)) {
-        final bodyText = notification.body ?? '';
+      String? currentPath;
+      try {
+        currentPath = ref.read(routerProvider).routeInformationProvider.value.uri.path;
+      } catch (_) {}
+      final isInActiveRoom = channelId.isNotEmpty &&
+          currentPath != null &&
+          (currentPath == '/chat/$channelId' ||
+              currentPath.startsWith('/chat/$channelId/'));
+      if (!isChannelMuted &&
+          !isInActiveRoom &&
+          (notifTitle != null || notifBody != null)) {
         final currentUser = ref.read(authControllerProvider).valueOrNull;
         final currentUserName = (currentUser?.userMetadata['name'] ??
             currentUser?.userMetadata['display_name'] ??
@@ -251,10 +268,11 @@ class _VCloudAppState extends ConsumerState<VCloudApp>
                 bodyLower.contains('@everyone'));
 
         ref.read(inAppNotificationProvider.notifier).show(
-          title: notification.title ?? 'Tin nhắn mới',
+          title: notifTitle ?? 'Tin nhắn mới',
           body: bodyText,
           channelId: channelId,
           isMention: isMention,
+          messageId: data['message_id']?.toString(),
         );
       }
     }

@@ -34,6 +34,7 @@ class OdooBusService {
   final _nicknameNotificationController = StreamController<Map<String, dynamic>>.broadcast();
   final _callAcceptedController = StreamController<Map<String, dynamic>>.broadcast();
   final _peerJoinedController = StreamController<Map<String, dynamic>>.broadcast();
+  final _channelActivityHintController = StreamController<int?>.broadcast();
 
   Stream<Map<String, dynamic>> get onPeerNotification => _peerNotificationController.stream;
   Stream<Map<String, dynamic>> get onCallEnded => _callEndedController.stream;
@@ -42,6 +43,7 @@ class OdooBusService {
   Stream<Map<String, dynamic>> get onNicknameNotification => _nicknameNotificationController.stream;
   Stream<Map<String, dynamic>> get onCallAccepted => _callAcceptedController.stream;
   Stream<Map<String, dynamic>> get onPeerJoined => _peerJoinedController.stream;
+  Stream<int?> get onChannelActivityHint => _channelActivityHintController.stream;
   bool get isConnected => _isConnected;
 
   /// Xây dựng URL WebSocket Bus tương thích các cổng gevent dev local và production
@@ -76,7 +78,7 @@ class OdooBusService {
     return '$wsScheme://${uri.host}$portSuffix/websocket?access_token=${session.accessToken}$dbParam&version=$targetVersion';
   }
 
-  /// Khởi tạo kết nối WebSocket Bus với Odoo 19
+  /// Khởi tạo kết nối WebSocket Bus với Odoo 17/19
   Future<void> connect() async {
     if (_isConnected || _channel != null) return;
 
@@ -87,9 +89,8 @@ class OdooBusService {
       final base = odooApiClient.absoluteUrl('');
       final wsUrl = buildWsUrl(baseUrl: base, session: session);
 
-      _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
-      _isConnected = true;
-      _reconnectAttempts = 0;
+      final channel = WebSocketChannel.connect(Uri.parse(wsUrl));
+      _channel = channel;
 
       // 1. Tự động subscribe kênh thông báo của partner hiện tại
       final myPartnerId = session.partnerId;
@@ -97,11 +98,18 @@ class OdooBusService {
         _subscribedChannels.add('res.partner_$myPartnerId');
       }
 
+      // Chờ WebSocket bắt tay thành công trước khi đánh dấu _isConnected = true
+      await channel.ready;
+      if (_channel != channel) return;
+
+      _isConnected = true;
+      _reconnectAttempts = 0;
+
       // Gửi bản tin subscribe ban đầu
       _sendSubscribe();
 
       // 2. Lắng nghe luồng dữ liệu
-      _sub = _channel!.stream.listen(
+      _sub = channel.stream.listen(
         (data) {
           _handleIncomingMessage(data);
         },
@@ -274,13 +282,105 @@ class OdooBusService {
       }
     }
 
-    // Sự kiện Mail Record Insert: Mời tham gia hoặc hủy/kết thúc cuộc gọi hoặc mute/nickname (Odoo 19 & Odoo 17)
+    // Sự kiện tin nhắn mới trên Discuss Channel (Odoo 17 & Odoo 19)
+    if (type == 'discuss.channel/new_message') {
+      int? chId;
+      if (payload is Map) {
+        chId = _extractChannelIdFromHintMap(payload);
+        if (chId == null && payload['message'] is Map) {
+          chId = _extractChannelIdFromMessageMap(payload['message'] as Map);
+        }
+      }
+      _channelActivityHintController.add(chId);
+    }
+
+    // Sự kiện Mail Record Insert: Mời tham gia hoặc hủy/kết thúc cuộc gọi hoặc mute/nickname/tin nhắn mới (Odoo 19 & Odoo 17)
     if (type == 'mail.record/insert' && payload is Map) {
       _checkRtcInvitationInsert(payload);
       _checkRtcCallDelete(payload);
       _checkMemberMuteInsert(payload);
       _checkMemberNicknameInsert(payload);
       _checkRtcSessionInsert(payload);
+      _checkMessageActivityInsert(payload);
+    }
+  }
+
+  int? _parsePositiveInt(dynamic raw) {
+    final val = raw is num ? raw.toInt() : int.tryParse(raw?.toString() ?? '');
+    return (val != null && val > 0) ? val : null;
+  }
+
+  int? _extractChannelIdFromHintMap(Map map) {
+    final ch = map['channel_id'] ?? map['channelId'] ?? map['channel'];
+    if (ch is Map) {
+      return _parsePositiveInt(ch['id']);
+    }
+    return _parsePositiveInt(ch) ?? _parsePositiveInt(map['id']);
+  }
+
+  int? _extractChannelIdFromMessageMap(Map msg, {int? fallbackChannelId}) {
+    final thread = msg['thread'];
+    if (thread is Map) {
+      final threadId = _parsePositiveInt(thread['id']);
+      if (threadId != null) return threadId;
+    }
+    final ch = msg['channel_id'] ?? msg['channelId'];
+    if (ch is Map) {
+      final cid = _parsePositiveInt(ch['id']);
+      if (cid != null) return cid;
+    } else if (ch != null) {
+      final cid = _parsePositiveInt(ch);
+      if (cid != null) return cid;
+    }
+    final resId = _parsePositiveInt(msg['res_id']);
+    if (resId != null) return resId;
+    return fallbackChannelId;
+  }
+
+  void _checkMessageActivityInsert(Map payload) {
+    try {
+      // Hỗ trợ cả Odoo 17 ('Message') và Odoo 19 ('mail.message')
+      final rawMessages = payload['Message'] ?? payload['mail.message'];
+      if (rawMessages == null) return;
+
+      int? fallbackChannelId;
+      final rawThreads = payload['Thread'] ?? payload['discuss.channel'];
+      final threadList = rawThreads is List ? rawThreads : (rawThreads != null ? [rawThreads] : const []);
+      for (final th in threadList) {
+        if (th is Map) {
+          final model = th['model']?.toString();
+          if (model == null || model == 'discuss.channel' || model == 'mail.channel') {
+            fallbackChannelId = _parsePositiveInt(th['id']);
+            if (fallbackChannelId != null) break;
+          }
+        }
+      }
+
+      final msgList = rawMessages is List ? rawMessages : [rawMessages];
+      if (msgList.isEmpty) return;
+
+      for (final item in msgList) {
+        if (item is! Map) {
+          _channelActivityHintController.add(fallbackChannelId);
+          return;
+        }
+        final thread = item['thread'];
+        final model = (thread is Map ? thread['model'] : null)?.toString() ??
+            item['model']?.toString();
+        if (model != null &&
+            model.isNotEmpty &&
+            model != 'discuss.channel' &&
+            model != 'mail.channel') {
+          continue;
+        }
+        final chId = _extractChannelIdFromMessageMap(
+          item,
+          fallbackChannelId: fallbackChannelId,
+        );
+        _channelActivityHintController.add(chId);
+      }
+    } catch (e) {
+      debugPrint('[OdooBus] Error checking message activity insert: $e');
     }
   }
 
@@ -714,5 +814,6 @@ class OdooBusService {
     _nicknameNotificationController.close();
     _callAcceptedController.close();
     _peerJoinedController.close();
+    _channelActivityHintController.close();
   }
 }

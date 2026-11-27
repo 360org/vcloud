@@ -11,6 +11,7 @@ import 'package:lucide_flutter/lucide_flutter.dart';
 
 import '../../../../core/api/odoo_api_client.dart';
 import '../../application/chat_v2_channels_controller.dart';
+import '../../application/chat_v2_inbox_controller.dart';
 import '../../application/chat_v2_messages_controller.dart';
 import '../../application/chat_v2_read_state_controller.dart';
 import '../../data/models/chat_v2_channel.dart';
@@ -65,6 +66,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
   bool _showScrollToBottom = false;
   String? _pendingTargetId;
   final Map<String, GlobalKey> _messageKeys = {};
+  final Map<int, bool> _starredMessageOverrides = <int, bool>{};
 
   GlobalKey _getKeyForMessage(String id) {
     return _messageKeys.putIfAbsent(id, () => GlobalKey());
@@ -1087,10 +1089,19 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
         ChatV2MessageLocalCache.get(widget.channelId) ??
         const [];
 
+    final isActualGroup = currentChannel?.isGroup == true ||
+        (currentChannel != null && currentChannel.getActualIsGroup(currentUserName));
+
+    bool hasAvatarValue(String? v) {
+      if (v == null) return false;
+      final t = v.trim();
+      return t.isNotEmpty && t != 'false' && t != 'null' && t != 'undefined';
+    }
+
     // Fallback các cấp độ an toàn để xác định avatar của đối phương (tuyệt đối không lấy avatar của bản thân):
     String? resolvedAvatarUrl = currentChannel?.avatarUrl;
     if (isLivechat) {
-      if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
+      if (!hasAvatarValue(resolvedAvatarUrl)) {
         resolvedAvatarUrl = widget.initialAvatarUrl;
       }
     } else if (isCskhGroup) {
@@ -1099,55 +1110,74 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
       } else {
         // Góc nhìn Sales/Kỹ thuật: Ưu tiên avatar của chính khách hàng Portal
         final partnerAvatar = currentChannel?.directPartnerAvatar;
-        if (partnerAvatar != null && partnerAvatar.isNotEmpty) {
+        if (hasAvatarValue(partnerAvatar)) {
           resolvedAvatarUrl = partnerAvatar;
         } else if (resolvedAvatarUrl != null &&
             (resolvedAvatarUrl.contains('res.company') || resolvedAvatarUrl.contains('field=logo'))) {
           resolvedAvatarUrl = null; // Tránh hiển thị logo công ty thay cho khách hàng
         }
-        if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
+        if (!hasAvatarValue(resolvedAvatarUrl)) {
           final customerMember = currentChannel?.members.firstWhereOrNull((m) =>
               !m.isMe &&
               m.name.toLowerCase() != 'odoobot' &&
               m.name.toLowerCase() != 'bot' &&
-              m.avatarUrl != null &&
-              m.avatarUrl!.isNotEmpty);
+              hasAvatarValue(m.avatarUrl));
           if (customerMember != null) {
             resolvedAvatarUrl = customerMember.avatarUrl;
           }
         }
       }
     } else {
-      if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
+      if (!hasAvatarValue(resolvedAvatarUrl)) {
+        resolvedAvatarUrl = currentChannel?.directPartnerAvatar;
+      }
+      if (!hasAvatarValue(resolvedAvatarUrl)) {
         resolvedAvatarUrl = widget.initialAvatarUrl;
       }
-      if (resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) {
-        final isGroup = currentChannel?.isGroup == true ||
-            (currentChannel != null && currentChannel.getActualIsGroup(currentUserName));
-        if (!isGroup && messages.isNotEmpty) {
-          final otherMsg = messages.firstWhereOrNull((m) {
-            if (m.isMine) return false;
-            if (currentUserId != null && m.authorId == currentUserId) return false;
-            if (currentPartnerId != null && m.authorId == currentPartnerId) return false;
-            if (currentUserName != null && currentUserName.isNotEmpty) {
-              if (m.authorName.trim().toLowerCase() == currentUserName.trim().toLowerCase()) return false;
-            }
-            return (m.authorAvatar != null && m.authorAvatar!.isNotEmpty);
-          });
-          if (otherMsg != null) {
-            resolvedAvatarUrl = otherMsg.authorAvatar;
+      if (!isActualGroup && !hasAvatarValue(resolvedAvatarUrl)) {
+        final otherMember = currentChannel?.members.firstWhereOrNull((m) =>
+            !m.isMe &&
+            (currentUserId == null || m.id != currentUserId) &&
+            (currentPartnerId == null || m.id != currentPartnerId) &&
+            (currentUserName == null ||
+                currentUserName.isEmpty ||
+                m.name.trim().toLowerCase() != currentUserName.trim().toLowerCase()) &&
+            hasAvatarValue(m.avatarUrl));
+        if (otherMember != null) {
+          resolvedAvatarUrl = otherMember.avatarUrl;
+        }
+      }
+      if (!isActualGroup && !hasAvatarValue(resolvedAvatarUrl) && messages.isNotEmpty) {
+        final otherMsg = messages.firstWhereOrNull((m) {
+          if (m.isMine) return false;
+          if (currentUserId != null && m.authorId == currentUserId) return false;
+          if (currentPartnerId != null && m.authorId == currentPartnerId) return false;
+          if (currentUserName != null && currentUserName.isNotEmpty) {
+            if (m.authorName.trim().toLowerCase() == currentUserName.trim().toLowerCase()) return false;
           }
+          return hasAvatarValue(m.authorAvatar);
+        });
+        if (otherMsg != null) {
+          resolvedAvatarUrl = otherMsg.authorAvatar;
+        }
+      }
+      if (!isActualGroup &&
+          !(currentChannel?.isChannel ?? false) &&
+          !hasAvatarValue(resolvedAvatarUrl)) {
+        final targetPartnerId = int.tryParse(
+          (currentChannel?.directPartnerId ??
+                  currentChannel?.partnerId ??
+                  widget.initialPartnerId ??
+                  '')
+              .trim(),
+        );
+        if (targetPartnerId != null && targetPartnerId > 0) {
+          resolvedAvatarUrl =
+              '/api/v1/mobile/avatar/res.partner/$targetPartnerId?field=avatar_128';
         }
       }
     }
-    if (resolvedAvatarUrl != null && resolvedAvatarUrl.contains('/web/image/res.users/')) {
-      resolvedAvatarUrl = resolvedAvatarUrl.replaceAll('/web/image/res.users/', '/api/v1/mobile/avatar/users/');
-    } else if (resolvedAvatarUrl != null && resolvedAvatarUrl.contains('/web/image/res.partner/')) {
-      resolvedAvatarUrl = resolvedAvatarUrl.replaceAll('/web/image/res.partner/', '/api/v1/mobile/avatar/partners/');
-    }
-
-    final isActualGroup = currentChannel?.isGroup == true ||
-        (currentChannel != null && currentChannel.getActualIsGroup(currentUserName));
+    resolvedAvatarUrl = odooApiClient.resolveAvatarUrl(resolvedAvatarUrl);
 
     // Fallback an toàn cho channelMembers: nếu đang ở chat 1-1 mà currentChannel.members rỗng,
     // tự động tạo ChatV2Member từ đối tác trực tiếp (partnerId/directPartnerId + displayTitle)
@@ -1319,6 +1349,22 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                             height: 40,
                             fit: BoxFit.cover,
                           )
+                        else if (currentChannel?.isChannel == true)
+                          const Center(
+                            child: Icon(
+                              LucideIcons.hash,
+                              size: 20,
+                              color: Colors.white,
+                            ),
+                          )
+                        else if (isActualGroup)
+                          const Center(
+                            child: Icon(
+                              LucideIcons.users,
+                              size: 18,
+                              color: Colors.white,
+                            ),
+                          )
                         else
                           Center(
                             child: Text(
@@ -1341,7 +1387,16 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                             cacheWidth: (40 * MediaQuery.devicePixelRatioOf(context)).round(),
                             cacheHeight: (40 * MediaQuery.devicePixelRatioOf(context)).round(),
                             gaplessPlayback: true,
-                            headers: odooApiClient.authHeaders,
+                            headers: odooApiClient.headersForUrl(resolvedAvatarUrl),
+                            frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                              if (wasSynchronouslyLoaded || frame != null) {
+                                return ColoredBox(
+                                  color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                                  child: SizedBox.expand(child: child),
+                                );
+                              }
+                              return const SizedBox.shrink();
+                            },
                             errorBuilder: (context, error, stackTrace) =>
                                 (isCskhGroup && isPortal)
                                     ? Image.asset(
@@ -1417,14 +1472,18 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                   color: Color(0xFF0077CD),
                                 ),
                                 const SizedBox(width: 4),
-                                Text(
-                                  isPortal
-                                      ? 'Hỗ trợ trực tuyến • 360 CORP'
-                                      : 'Khách hàng • Livechat',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                    color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                Flexible(
+                                  child: Text(
+                                    isPortal
+                                        ? 'Hỗ trợ trực tuyến • 360 CORP'
+                                        : 'Khách hàng • Livechat',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                      color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                    ),
                                   ),
                                 ),
                               ],
@@ -1440,21 +1499,26 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                   color: Color(0xFF0077CD),
                                 ),
                                 const SizedBox(width: 4),
-                                Text(
-                                  isPortal
-                                      ? '360 CORP • Hỗ trợ chính thức'
-                                      : 'Khách hàng Portal • Kênh CSKH',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                    color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                Flexible(
+                                  child: Text(
+                                    isPortal
+                                        ? '360 CORP • Hỗ trợ chính thức'
+                                        : 'Khách hàng Portal • Kênh CSKH',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                      color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                    ),
                                   ),
                                 ),
                               ],
                             );
                           }
 
-                          if (currentChannel != null && currentChannel.isZaloOA) {
+                          if (currentChannel != null &&
+                              (currentChannel.isZaloOA || currentChannel.isZaloPersonal)) {
                             return Row(
                               children: [
                                 const Icon(
@@ -1463,12 +1527,18 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                   color: Color(0xFF0068FF),
                                 ),
                                 const SizedBox(width: 4),
-                                Text(
-                                  'Zalo OA • Khách hàng',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                    color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                Flexible(
+                                  child: Text(
+                                    currentChannel.isZaloPersonal
+                                        ? 'Zalo • Khách hàng'
+                                        : 'Zalo OA • Khách hàng',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                      color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                    ),
                                   ),
                                 ),
                               ],
@@ -1491,12 +1561,16 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                   color: Color(0xFF0284C7),
                                 ),
                                 const SizedBox(width: 4),
-                                Text(
-                                  'Kênh thảo luận • $count thành viên',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                    color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                Flexible(
+                                  child: Text(
+                                    'Kênh thảo luận • $count thành viên',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                      color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                    ),
                                   ),
                                 ),
                               ],
@@ -1523,12 +1597,16 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                   color: isDark ? Colors.white60 : const Color(0xFF64748B),
                                 ),
                                 const SizedBox(width: 4),
-                                Text(
-                                  '$count thành viên',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                    color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                Flexible(
+                                  child: Text(
+                                    '$count thành viên',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                      color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                                    ),
                                   ),
                                 ),
                               ],
@@ -1862,9 +1940,10 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                         ),
                                         builder: (sheetContext) {
                                           return SafeArea(
-                                            child: Column(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
+                                            child: SingleChildScrollView(
+                                              child: Column(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
                                                 // Reaction Picker
                                                 Padding(
                                                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -1969,6 +2048,73 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                                   }
                                                 },
                                               ),
+                                              if (int.tryParse(message.id) != null)
+                                                Builder(
+                                                  builder: (_) {
+                                                    final msgIntId = int.parse(message.id);
+                                                    final knownStarred = _starredMessageOverrides[msgIntId] ??
+                                                        (ref
+                                                                .read(chatV2InboxControllerProvider)
+                                                                .starredItems
+                                                                .any((s) => s.id == msgIntId)
+                                                            ? true
+                                                            : null);
+                                                    final isStarred = knownStarred ?? false;
+                                                    return ListTile(
+                                                      leading: Icon(
+                                                        LucideIcons.star,
+                                                        color: isStarred
+                                                            ? const Color(0xFFF59E0B)
+                                                            : (isDark ? Colors.white : Colors.black),
+                                                      ),
+                                                      title: Text(
+                                                        isStarred ? 'Bỏ gắn sao' : 'Gắn sao',
+                                                        style: TextStyle(
+                                                          color: isStarred
+                                                              ? const Color(0xFFF59E0B)
+                                                              : (isDark ? Colors.white : Colors.black),
+                                                        ),
+                                                      ),
+                                                      onTap: () async {
+                                                        final messenger = ScaffoldMessenger.of(context);
+                                                        Navigator.pop(sheetContext);
+                                                        try {
+                                                          final updatedStarred = await ref
+                                                              .read(chatV2RepositoryProvider)
+                                                              .toggleStarMessage(
+                                                                msgIntId,
+                                                                star: knownStarred != null ? !knownStarred : null,
+                                                              );
+                                                          if (mounted) {
+                                                            setState(() {
+                                                              _starredMessageOverrides[msgIntId] = updatedStarred;
+                                                            });
+                                                            ref.invalidate(chatV2InboxControllerProvider);
+                                                            messenger.showSnackBar(
+                                                              SnackBar(
+                                                                content: Text(
+                                                                  updatedStarred
+                                                                      ? 'Đã gắn sao tin nhắn'
+                                                                      : 'Đã bỏ gắn sao tin nhắn',
+                                                                ),
+                                                                duration: const Duration(seconds: 2),
+                                                              ),
+                                                            );
+                                                          }
+                                                        } catch (e) {
+                                                          if (mounted) {
+                                                            messenger.showSnackBar(
+                                                              SnackBar(
+                                                                content: Text('Lỗi gắn sao tin nhắn: $e'),
+                                                                backgroundColor: Colors.redAccent,
+                                                              ),
+                                                            );
+                                                          }
+                                                        }
+                                                      },
+                                                    );
+                                                  },
+                                                ),
                                               if (message.isMine)
                                                 ListTile(
                                                   leading: Icon(LucideIcons.edit2, color: isDark ? Colors.white : Colors.black),
@@ -2029,7 +2175,8 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
                                                 ),
                                             ],
                                           ),
-                                        );
+                                        ),
+                                      );
                                       },
                                     );
                                   },
@@ -2621,12 +2768,18 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
       return;
     }
 
+    final currentUser = ref.read(authControllerProvider).valueOrNull;
+    final currentUserName = (currentUser?.userMetadata['name'] ??
+        currentUser?.userMetadata['display_name'] ??
+        currentUser?.userMetadata['login'] ??
+        'Tôi') as String;
+
     setState(() {
       _isDialingLock = true;
     });
 
     // PRE-FLIGHT GUARD 1: Chỉ hỗ trợ gọi 1-1 ở giai đoạn hiện tại
-    if (channel.isGroup) {
+    if (channel.getActualIsGroup(currentUserName)) {
       if (mounted) {
         setState(() {
           _isDialingLock = false;
@@ -2678,11 +2831,6 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
       }
     }
 
-    final currentUser = ref.read(authControllerProvider).valueOrNull;
-    final currentUserName = (currentUser?.userMetadata['name'] ??
-        currentUser?.userMetadata['display_name'] ??
-        currentUser?.userMetadata['login'] ??
-        'Tôi') as String;
     final meta = currentUser?.userMetadata;
     final currentUserAvatar = meta?['avatar_128_url']?.toString() ??
         meta?['image_128_url']?.toString() ??

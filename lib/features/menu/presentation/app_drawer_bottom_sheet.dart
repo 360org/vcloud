@@ -92,6 +92,10 @@ class _AppDrawerBottomSheetState extends ConsumerState<AppDrawerBottomSheet> {
         }
         if (state.apps.isEmpty && !state.isLoading) {
           ref.read(menuControllerProvider.notifier).loadMenu();
+        } else if (state.apps.isNotEmpty && !state.isLoading) {
+          unawaited(
+            ref.read(menuControllerProvider.notifier).refreshBookmarksFromServer(),
+          );
         }
       }
     });

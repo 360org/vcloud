@@ -399,7 +399,7 @@ class ChatV2Channel {
       }
       return 'Chăm Sóc Khách Hàng 360';
     }
-    if (isZaloOA) {
+    if (isZaloOA || isZaloPersonal) {
       final clean = cleanChannelName(name);
       if (clean.isNotEmpty &&
           clean != 'Cuộc trò chuyện' &&
@@ -697,7 +697,7 @@ class ChatV2Channel {
 
       return '$pName • $svcName';
     }
-    if (isZaloOA) {
+    if (isZaloOA || isZaloPersonal) {
       final clean = cleanChannelName(name);
       if (clean.isNotEmpty &&
           clean != 'Cuộc trò chuyện' &&
@@ -896,8 +896,8 @@ class ChatV2Channel {
       getCleanName(currentUserName, isPortal: isPortal);
 
   bool getActualIsGroup(String? currentUserName) {
-    // Kênh Livechat, CSKH & Zalo OA tuyệt đối không phải là nhóm nội bộ (B.10)
-    if (isLivechat || isCskhChannel || isZaloOA) return false;
+    // Kênh Livechat, CSKH, Zalo OA & Zalo cá nhân tuyệt đối không phải là nhóm nội bộ (B.10)
+    if (isLivechat || isCskhChannel || isZaloOA || isZaloPersonal) return false;
 
     // 0. Kênh thảo luận Odoo (channelType == 'channel' hoặc 'group') luôn là nhóm/kênh
     if (channelType == 'channel' || channelType == 'group') return true;
@@ -993,12 +993,13 @@ class ChatV2Channel {
     return false;
   }
 
-  /// Danh mục chuẩn hóa của kênh: 'chat', 'channel', 'zalo_oa', 'zalo', 'livechat'...
+  /// Danh mục chuẩn hóa của kênh: 'chat', 'channel', 'zalo', 'zalo_oa', 'livechat'...
   String get effectiveCategory {
     if (category != null && category!.isNotEmpty) return category!;
+    if (channelType == 'ai_chat') return 'ai_chat';
     if (isLivechat || isSupportChannel) return 'livechat';
-    if (isZaloOA) return 'zalo_oa';
     if (isZaloPersonal) return 'zalo';
+    if (isZaloOA) return 'zalo_oa';
     if (isChannel || isGroup) return 'channel';
     return 'chat';
   }
@@ -1227,17 +1228,36 @@ class ChatV2Channel {
     final rawIsMuted = map['is_muted'];
     final bool isMuted = rawIsMuted == true || rawIsMuted == 1 || rawIsMuted == 'true';
 
+    final rawIsZaloPersonalEarly = map['is_zalo_personal'];
+    final bool isZaloPersonalFlag = rawIsZaloPersonalEarly == true ||
+        rawIsZaloPersonalEarly == 1 ||
+        rawIsZaloPersonalEarly == 'true';
+    final rawIsZaloOAEarly = map['is_zalo_oa'];
+    final bool isZaloOAFlag = rawIsZaloOAEarly == true ||
+        rawIsZaloOAEarly == 1 ||
+        rawIsZaloOAEarly == 'true';
     final rawIsZaloChannel = map['is_zalo_channel'] ?? map['is_zalo'];
+    final lowerEffectiveName = effectiveName.toLowerCase();
     final bool isZaloChannel = (effectiveChannelType != 'channel') &&
         (effectiveChannelType != 'livechat') &&
+        (effectiveChannelType != 'ai_chat') &&
         (rawIsZaloChannel == true ||
             rawIsZaloChannel == 1 ||
             rawIsZaloChannel == 'true' ||
+            isZaloPersonalFlag ||
+            isZaloOAFlag ||
+            effectiveChannelType == 'zalo' ||
+            effectiveChannelType == 'zalo_oa' ||
+            effectiveChannelType == 'zalo_personal' ||
             map['zalo_oa_id'] != null ||
             map['zalo_user_id'] != null ||
+            map['zalo_personal_contact_id'] != null ||
             effectiveName.contains('·') ||
-            effectiveName.contains('·') ||
-            effectiveName.toLowerCase().contains('zalo'));
+            lowerEffectiveName.contains('zalo oa') ||
+            lowerEffectiveName.contains('[zalo oa]') ||
+            lowerEffectiveName.contains('zalo cá nhân') ||
+            lowerEffectiveName.contains('[zalo cá nhân]') ||
+            lowerEffectiveName.contains('[zalo personal]'));
 
     if (isZaloChannel) {
       isGroup = false;

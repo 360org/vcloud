@@ -78,9 +78,57 @@ class PushNotificationService {
 
   final PushNotificationRepository _repository;
   final FlutterSecureStorage _storage;
+  final FlutterLocalNotificationsPlugin _localNotifications =
+      FlutterLocalNotificationsPlugin();
   FirebaseMessaging? _messaging;
 
   bool _initialized = false;
+
+  /// Phân loại push cuộc gọi (CallKit / WebRTC), không thả OS banner trùng lặp.
+  static bool isCallPush(Map<String, dynamic> data) {
+    final eventType = (data['event_type'] ?? data['event'] ?? data['type'] ?? '')
+        .toString()
+        .toLowerCase();
+    return eventType == 'vmobile_call_incoming' ||
+        eventType == 'incoming_call' ||
+        eventType == 'vmobile_call_ended' ||
+        eventType == 'call_ended' ||
+        eventType == 'call_cancelled';
+  }
+
+  /// Phân loại push tin nhắn Chat V2 / Discuss.
+  /// Không phân loại chỉ dựa vào `res_id` vì Ticket/Task/Chatter đều mang `res_id`.
+  static bool isChatPush(Map<String, dynamic> data) {
+    if (isCallPush(data)) return false;
+    final eventType = (data['event_type'] ?? data['event'] ?? data['type'] ?? '')
+        .toString()
+        .toLowerCase();
+    final model = (data['model'] ?? data['res_model'] ?? '')
+        .toString()
+        .toLowerCase();
+    if (eventType.contains('ticket') ||
+        eventType.contains('helpdesk') ||
+        eventType.contains('task') ||
+        eventType.contains('timesheet') ||
+        eventType.contains('attendance') ||
+        eventType == 'mail_notification' ||
+        model.contains('helpdesk') ||
+        model.contains('project.task') ||
+        model.contains('hr.attendance') ||
+        model.contains('hr.applicant')) {
+      return false;
+    }
+    final rawChannelId =
+        (data['channel_id'] ?? data['discuss_channel_id'] ?? data['chat_id'] ?? '')
+            .toString();
+    return eventType == 'chat_message' ||
+        eventType.contains('chat') ||
+        eventType.contains('discuss') ||
+        model == 'discuss.channel' ||
+        (rawChannelId.isNotEmpty &&
+            rawChannelId != '0' &&
+            rawChannelId != 'false');
+  }
 
   /// Broadcast sink for foreground FCM messages. Lazily wired to
   /// [FirebaseMessaging.onMessage] on first access on native platforms; on
@@ -144,30 +192,52 @@ class PushNotificationService {
               }
             }
 
-            if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-              final notification = message.notification;
-              final isCallPush = eventType == 'vmobile_call_incoming' ||
-                  eventType == 'vmobile_call_ended';
-              if (notification != null && !isCallPush) {
-                final badgeNumber = int.tryParse(data['badge']?.toString() ?? data['unread_count']?.toString() ?? '') ?? 1;
-                FlutterLocalNotificationsPlugin().show(
-                  id: notification.hashCode,
-                  title: title,
-                  body: body,
-                  notificationDetails: NotificationDetails(
-                    android: AndroidNotificationDetails(
-                      vcloudHighImportanceChannel.id,
-                      vcloudHighImportanceChannel.name,
-                      channelDescription:
-                          vcloudHighImportanceChannel.description,
-                      importance: Importance.max,
-                      priority: Priority.high,
-                      icon: '@mipmap/ic_launcher',
-                      number: badgeNumber,
+            if (!kIsWeb &&
+                (defaultTargetPlatform == TargetPlatform.android ||
+                    defaultTargetPlatform == TargetPlatform.iOS)) {
+              if (!isCallPush(data) && !isChatPush(data)) {
+                final rawTitle =
+                    message.notification?.title ?? data['title']?.toString();
+                final rawBody =
+                    message.notification?.body ?? data['body']?.toString();
+                final hasContent =
+                    (rawTitle != null && rawTitle.isNotEmpty) ||
+                        (rawBody != null && rawBody.isNotEmpty);
+                if (hasContent) {
+                  final badgeNumber = int.tryParse(
+                          data['badge']?.toString() ??
+                              data['unread_count']?.toString() ??
+                              '') ??
+                      1;
+                  final stableId = (data['message_id'] ??
+                          data['event_id'] ??
+                          message.messageId ??
+                          message.notification.hashCode)
+                      .hashCode;
+                  _localNotifications.show(
+                    id: stableId,
+                    title: rawTitle ?? '',
+                    body: rawBody ?? '',
+                    notificationDetails: NotificationDetails(
+                      android: AndroidNotificationDetails(
+                        vcloudHighImportanceChannel.id,
+                        vcloudHighImportanceChannel.name,
+                        channelDescription:
+                            vcloudHighImportanceChannel.description,
+                        importance: Importance.max,
+                        priority: Priority.high,
+                        icon: '@mipmap/ic_launcher',
+                        number: badgeNumber,
+                      ),
+                      iOS: const DarwinNotificationDetails(
+                        presentAlert: true,
+                        presentBadge: true,
+                        presentSound: true,
+                      ),
                     ),
-                  ),
-                  payload: jsonEncode(data),
-                );
+                    payload: jsonEncode(data),
+                  );
+                }
               }
             }
             _onMessageController.add(message);
@@ -389,44 +459,53 @@ class PushNotificationService {
         );
       }
       await _messaging!.setForegroundNotificationPresentationOptions(
-        alert: true,
+        alert: false,
         badge: true,
-        sound: true,
+        sound: false,
       );
-      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-        final flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+      if (!kIsWeb &&
+          (defaultTargetPlatform == TargetPlatform.android ||
+              defaultTargetPlatform == TargetPlatform.iOS)) {
         const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
-        await flutterLocalNotificationsPlugin.initialize(
-          settings: const InitializationSettings(android: androidInit),
+        const iosInit = DarwinInitializationSettings(
+          requestAlertPermission: false,
+          requestBadgePermission: false,
+          requestSoundPermission: false,
+          defaultPresentAlert: true,
+          defaultPresentSound: true,
+          defaultPresentBadge: true,
+        );
+        await _localNotifications.initialize(
+          settings: const InitializationSettings(
+            android: androidInit,
+            iOS: iosInit,
+          ),
           onDidReceiveNotificationResponse: (response) {
-            final payload = response.payload;
-            if (payload != null && payload.isNotEmpty) {
-              try {
-                final dynamic decoded = jsonDecode(payload);
-                if (decoded is Map<String, dynamic>) {
-                  _onMessageOpenedAppController.add(RemoteMessage(data: decoded));
-                }
-              } catch (e) {
-                debugPrint('Local notification payload parse error: $e');
-              }
+            final msg = _parseLocalNotificationPayload(response.payload);
+            if (msg != null) {
+              _onMessageOpenedAppController.add(msg);
             }
           },
         );
 
-        final details = await flutterLocalNotificationsPlugin.getNotificationAppLaunchDetails();
-        if (details != null && details.didNotificationLaunchApp && details.notificationResponse?.payload != null) {
-          try {
-            final dynamic decoded = jsonDecode(details.notificationResponse!.payload!);
-            if (decoded is Map<String, dynamic>) {
-              _initialLocalNotificationMessage = RemoteMessage(data: decoded);
-            }
-          } catch (_) {}
+        final details = await _localNotifications.getNotificationAppLaunchDetails();
+        if (details != null && details.didNotificationLaunchApp) {
+          _initialLocalNotificationMessage = _parseLocalNotificationPayload(
+            details.notificationResponse?.payload,
+          );
         }
 
-        await flutterLocalNotificationsPlugin
-            .resolvePlatformSpecificImplementation<
-                AndroidFlutterLocalNotificationsPlugin>()
-            ?.createNotificationChannel(vcloudHighImportanceChannel);
+        if (defaultTargetPlatform == TargetPlatform.android) {
+          await _localNotifications
+              .resolvePlatformSpecificImplementation<
+                  AndroidFlutterLocalNotificationsPlugin>()
+              ?.createNotificationChannel(vcloudHighImportanceChannel);
+        }
+
+        try {
+          await _localNotifications.cancel(id: 8001);
+          await _localNotifications.cancel(id: 8002);
+        } catch (_) {}
       }
       _initialized = true;
       return true;
@@ -434,6 +513,25 @@ class PushNotificationService {
       debugPrint('Firebase push init error: $e');
       return false;
     }
+  }
+
+  RemoteMessage? _parseLocalNotificationPayload(String? payload) {
+    if (payload == null || payload.isEmpty) return null;
+    if (payload.startsWith('{')) {
+      try {
+        final dynamic decoded = jsonDecode(payload);
+        if (decoded is Map<String, dynamic>) {
+          return RemoteMessage(data: decoded);
+        }
+      } catch (e) {
+        debugPrint('Local notification payload parse error: $e');
+      }
+    } else if (payload == 'checkin' || payload == 'checkout') {
+      return RemoteMessage(
+        data: {'event_type': 'attendance', 'action': payload},
+      );
+    }
+    return null;
   }
 
   Future<String?> _currentTokenIfAvailable() async {
