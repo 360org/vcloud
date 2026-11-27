@@ -1,6 +1,6 @@
 # 🛑 CLAUDE CODE EXECUTION CONTRACT: UNIVERSAL FULL-STACK DEPLOYMENT ENGINE (deloy.md)
 # Director: Sếp Tân | Phase: /ship & /deploy | Agent OS v3.1 SSOT Protocol
-# Kích hoạt: Khi Sếp Tân ra lệnh "deloy.md", "deloy", "deploy.md" hoặc "deploy"
+# Kích hoạt: Khi Sếp Tân ra lệnh "deloy.md", "deloy", "deploy.md", "deploy", "mayao.md" hoặc "mayao" (xem thêm mayao.md)
 
 ================================================================================
 🏛️ [TRỤ CỘT 1: 👤 MULTI-AGENT TEAM DELEGATION MATRIX & DISPATCH DIRECTIVE]
@@ -26,8 +26,9 @@
 - **Backend Odoo 19**: `v_mobile_19/` (Container `odoo_dev_v19`, port `1900`)
 - **Tài liệu SSOT Bắt Buộc Tham Chiếu**:
   * `git . md` (Quy chuẩn Git, chống đè code, kiểm tra GitLab/GitHub trước khi push, push đầy đủ code sau commit)
+  * `360-app-store-compliance` (`~/.claude/skills/360-app-store-compliance/prompts/SKILL.md` — Kiểm duyệt chính sách Apple App Store & Google Play Store, Privacy Manifest, Permissions, Rejection Playbook)
   * `prompt_deploy_mobile_release . md` / `release . md` / `prompt_release . md` (Quy chuẩn CI/CD Cloud Release TestFlight, App Store & Google Play qua GitHub Actions)
-  * `error_mobile . md` / `error . md` (Sổ cái 10 lỗi CI/CD & Mobile, tự động cập nhật log khi build thất bại)
+  * `error_mobile . md` / `error . md` (Sổ cái lỗi CI/CD & Mobile, tự động cập nhật log khi build thất bại)
   * `docs/rules/RULE_GIT . md` (Quy chuẩn quản trị Git & Release v3.0.0)
 - **Bản đồ 4 Môi trường & Thiết bị Đích**:
   1. `Điện thoại thật Vivo V2116`: Android 11, ADB Wireless IP `192 . 168 . 1 . 6` hoặc `192 . 168 . 1 . 8`.
@@ -37,8 +38,9 @@
 
 ================================================================================
 🧰 [SKILLS AIAC BẮT BUỘC]
-Nạp: `360-dev-workflow`, `360-flutter`, `360-odoo`, `360-vcloud`, `360-agent-device`.
+Nạp: `360-dev-workflow`, `360-flutter`, `360-odoo`, `360-vcloud`, `360-agent-device`, `360-app-store-compliance`.
 * Khi nghiệm thu hoặc review: Nạp `audit-gate` và gọi `/ponytail-audit`.
+* Trước MỌI đợt push/deploy kích hoạt GitHub Actions lên Store: **BẮT BUỘC** chạy audit chính sách qua `360-app-store-compliance` (`compliance-guard.sh` & `metadata-audit.py`).
 
 ================================================================================
 🏛️ [TRỤ CỘT 3: 📋 TASK DETAILS — UNIVERSAL DEPLOYMENT PIPELINE]
@@ -47,11 +49,17 @@ Nạp: `360-dev-workflow`, `360-flutter`, `360-odoo`, `360-vcloud`, `360-agent-d
 Trước khi build/deploy và sau khi hoàn tất sửa code:
 1. **Kiểm tra remote**: Chạy `vcloud-sync check` hoặc `git fetch --all --prune` kiểm tra xem trên GitLab/GitHub có commit mới không.
 2. **Kéo code an toàn**: Nếu có commit mới từ đồng đội ➔ `vcloud-sync` (tự động stash ➔ rebase ➔ pop stash) để tránh code mới đè cũ hoặc cũ đè mới.
-3. **Push đầy đủ sau commit**: Mọi thay đổi mã nguồn, tài liệu và cấu hình `.claude/` phải được commit và push đầy đủ lên đúng remote/branch (`main`, `17.0`, `19.0`). Cấm commit dở dang rồi để quên local (chi tiết xem tại [git.md](git.md)).
+3. **Audit chính sách Store trước GitHub Actions (`360-app-store-compliance`)**: Trước mỗi lần push `vclients` lên `github/main` hoặc tạo Tag/Release kích hoạt GitHub Actions, BẮT BUỘC chạy:
+   - Linux/macOS: `bash ~/.claude/skills/360-app-store-compliance/scripts/compliance-guard.sh "<duong_dan_vclients>"`
+   - Windows (Git Bash): `"C:\Program Files\Git\bin\bash.exe" "$HOME/.claude/skills/360-app-store-compliance/scripts/compliance-guard.sh" "<duong_dan_vclients>"`
+   - Kiểm tra metadata: `python3 ~/.claude/skills/360-app-store-compliance/scripts/metadata-audit.py "<duong_dan_vclients>/fastlane/metadata"`
+   - Rà soát thủ công checklist Apple/Google: `ios/Runner/PrivacyInfo.xcprivacy`, Account Deletion (Guideline 5.1.1v), Privacy Policy URL, `ITSAppUsesNonExemptEncryption`, `UIBackgroundModes` khớp tính năng thật hiển thị, quyền Android (`READ_MEDIA_*`, `SYSTEM_ALERT_WINDOW`, R8) và xác nhận Apple Business Agreements (`/business` — `[ERR-013]`). Nếu phát hiện lỗi `[CRITICAL]` thật (exit code `2`) ➔ **CHẶN RELEASE & BÁO ANH TÂN**.
+4. **Push đầy đủ sau commit**: Mọi thay đổi mã nguồn, tài liệu và cấu hình `.claude/` phải được commit và push đầy đủ lên đúng remote/branch (`main`, `17.0`, `19.0`). Cấm commit dở dang rồi để quên local (chi tiết xem tại [git.md](git.md)).
 
 #### 📋 MANDATORY INTERACTIVE TODO CHECKLIST GATE (TodoWrite — BẮT BUỘC KHỞI TẠO ĐẦU PHIÊN):
 Agent BẮT BUỘC khởi tạo và cập nhật Interactive Todo Checklist thông qua tool `TodoWrite` ngay từ bước đầu tiên:
 0. `[pending]` Kiểm tra trạng thái Git trên GitLab/GitHub theo [git.md](git.md) (`vcloud-sync check`).
+0b. `[pending]` Chạy Store Policy Compliance Audit theo skill AIaC `360-app-store-compliance` (`compliance-guard.sh` + `metadata-audit.py`) trước khi push GitHub Actions.
 1. `[pending]` Build Flutter APK Debug mới nhất (`flutter build apk --debug`).
 2. `[pending]` Deploy APK lên Điện thoại thật Vivo V2116 qua ADB Wireless.
 3. `[pending]` Deploy APK lên Redroid Local Server (`192 . 168 . 1 . 100 : 5555`).
@@ -110,16 +118,21 @@ flutter build apk --debug
 
 ---
 
-#### 🤖 GIAI ĐOẠN 3: DEPLOY LÊN REDROID TRÊN LOCAL SERVER (192.168.1.100:5555)
-1. **Kết nối ADB tới Redroid**:
+#### 🤖 GIAI ĐOẠN 3: DEPLOY LÊN REDROID / WAYDROID TRÊN LOCAL SERVER (192.168.1.100:5555)
+1. **Kết nối ADB tới Mobile Local Server**:
    ```bash
    adb connect 192.168.1.100:5555
    adb -s 192.168.1.100:5555 shell getprop sys.boot_completed
    ```
-2. **Cài đặt APK và Khởi chạy App**:
+2. **Cài đặt APK và Khởi chạy App (kèm cờ -d chống downgrade)**:
    ```bash
-   adb -s 192.168.1.100:5555 install -r /media/tanma/DATA/save/mobile_versions/vclients/build/app/outputs/flutter-apk/app-debug.apk
+   adb -s 192.168.1.100:5555 install -r -d /media/tanma/DATA/save/mobile_versions/vclients/build/app/outputs/flutter-apk/app-debug.apk
    adb -s 192.168.1.100:5555 shell monkey -p com.mobile.vloud -c android.intent.category.LAUNCHER 1
+   ```
+3. **Mở màn hình tương tác trên Windows Desktop qua Scrcpy**:
+   ```powershell
+   scrcpy -s 192.168.1.100:5555 --window-title "May Ao VCloud (192.168.1.100) - Anh Tan" --always-on-top --stay-awake
+   # Hoặc chạy trực tiếp file: F:\BACKUP_LINUX\save\mobile_versions\open_scrcpy.bat
    ```
 
 ---

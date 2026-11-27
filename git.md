@@ -11,6 +11,7 @@
   🚨 **MANDATORY AGENT DISPATCH DIRECTIVE**: BẮT BUỘC gọi tool `Agent` ủy quyền thực thi cho đội ngũ Subagent chuyên trách:
   * Kiểm tra Remote & Pull Safe Sync: `Agent({ subagent_type: 'dev-backend-odoo' | 'dev-mobile-flutter', prompt: '...' })`
   * Rà soát Diff, Conflict & Pre-Push Audit: `Agent({ subagent_type: 'audit-gate', prompt: '...' })`
+  * Kiểm duyệt Chính sách Store khi đẩy `vclients` lên GitHub Actions: Nạp skill AIaC **`360-app-store-compliance`** (`compliance-guard.sh` & `metadata-audit.py`)
   * Quét Secret, Token, Key trước commit: `Agent({ subagent_type: 'tester-security', prompt: '...' })`
   * Thực thi Commit & Push đầy đủ: `Agent({ subagent_type: 'dev-infra', prompt: '...' })`
 - `@dev-mobile-flutter`: Độc quyền quản trị Git trong thư mục `vclients/` (Remote `github` & `origin`, branch `main`).
@@ -47,7 +48,7 @@
 2. `[pending]` Gate 2 (Safe Pull & Rebase): Nếu remote có commit mới, tự động stash code local ➔ pull rebase ➔ pop stash.
 3. `[pending]` Gate 3 (Pre-Commit Full Stage): Stage đầy đủ 100% code thay đổi, tài liệu `docs/` và `.claude/` (quét sạch secret).
 4. `[pending]` Gate 4 (Atomic Commit): Tạo commit chuẩn Conventional Commits kèm trailer `Authored-By: 360org <support@360.org.vn>`.
-5. `[pending]` Gate 5 (Pre-Push Collision Check): Kiểm tra `ahead`/`behind`, đảm bảo không bị code mới đè cũ hoặc code cũ đè mới.
+5. `[pending]` Gate 5 (Pre-Push Collision & Store Compliance Check): Kiểm tra `ahead`/`behind` VÀ chạy `360-app-store-compliance` (`compliance-guard.sh` + `metadata-audit.py`) nếu chuẩn bị đẩy `vclients` lên `github/main` / kích hoạt GitHub Actions Store.
 6. `[pending]` Gate 6 (Full Push & PR/MR): Push đầy đủ lên remote, tạo PR/MR hợp lệ vào nhánh chính (`main`, `17.0`, `19.0`).
 7. `[pending]` Gate 7 (Post-Merge Cleanup & Report): Xóa nhánh tạm sau khi merge và xuất Báo cáo Nghiệm thu (< 1.200 ký tự).
 
@@ -125,7 +126,18 @@ Trước khi thực hiện lệnh `git push`, AI bắt buộc chạy qua Pre-Pus
    - **Backend Odoo 17 (`v_mobile_17`)**: Bắt buộc tạo task branch (`feat/17-...`, `fix/17-...`), test pass ➔ merge nhánh mới tạo đó vào `17.0`. CẤM push trực tiếp vào `17.0`.
 5. `SYNC STATUS`: Đối soát `git rev-list --left-right --count HEAD...@{u}`. Nếu có `behind > 0` ➔ DỪNG LẠI, pull rebase trước.
 6. `WORKING TREE`: Kiểm tra `git status -s`, đảm bảo không còn file untracked quan trọng bị bỏ quên.
-7. `TASK & PR/MR (PHÂN ĐỊNH RÕ REMOTE ĐÍCH & QUYỀN THỰC THI)`:
+7. `STORE POLICY COMPLIANCE AUDIT (BẮT BUỘC VỚI VCLIENTS / GITHUB ACTIONS)`:
+   - Mỗi khi push `vclients` lên `github/main` hoặc tạo Tag/Release chạy GitHub Actions (`deploy.yml`), **BẮT BUỘC** chạy audit chính sách Apple App Store & Google Play Store bằng skill AIaC **`360-app-store-compliance`** (`~/.claude/skills/360-app-store-compliance/prompts/SKILL.md`):
+     ```bash
+     # Linux / macOS:
+     bash ~/.claude/skills/360-app-store-compliance/scripts/compliance-guard.sh "vclients"
+     # Windows (Git Bash):
+     "C:\Program Files\Git\bin\bash.exe" "$HOME/.claude/skills/360-app-store-compliance/scripts/compliance-guard.sh" "vclients"
+     # Quét Metadata Store (nếu có):
+     python3 ~/.claude/skills/360-app-store-compliance/scripts/metadata-audit.py "vclients/fastlane/metadata"
+     ```
+   - Rà soát các phát hiện `[CRITICAL]`/`[HIGH]` (như `PrivacyInfo.xcprivacy`, Account Deletion `5.1.1(v)`, Privacy Policy URL, `ITSAppUsesNonExemptEncryption`, `UIBackgroundModes`, quyền `READ_MEDIA_*` / `SYSTEM_ALERT_WINDOW`, R8, Apple Business Agreement `/business` `[ERR-013]`). Nếu có lỗi `[CRITICAL]` thật chưa được xử lý/xác nhận ➔ **DỪNG PUSH RELEASE VÀ BÁO ANH TÂN**.
+8. `TASK & PR/MR (PHÂN ĐỊNH RÕ REMOTE ĐÍCH & QUYỀN THỰC THI)`:
    - **Frontend (`vclients`)**: AI có quyền merge thẳng vào `main` trên GitHub (`github/main`) ➔ push lên `github/main` (mirror sang `origin/main` nếu cần). ⛔ Tuyệt đối KHÔNG cần tạo hay merge MR trên GitLab.
    - **Backend Odoo 19 (`v_mobile_19`)**: AI được phép push thẳng trực tiếp vào nhánh `19.0` trên GitLab (`origin/19.0`).
    - **Backend Odoo 17 (`v_mobile_17`)**: Đẩy nhánh tính năng lên GitLab ➔ merge nhánh mới tạo đó vào nhánh `17.0` trên GitLab (`origin/17.0`).

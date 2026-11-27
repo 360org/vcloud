@@ -28,6 +28,7 @@
 - **Workflow CI/CD GitHub Actions**: `vclients/.github/workflows/deploy . yml`
 - **GitHub Repository**: `360org/vcloud` (Remote `github`: `git@github.com:360org/vcloud.git`, nhánh chính duy nhất: `main`)
 - **Tài liệu SSOT Bắt Buộc Tham Chiếu**:
+  * `360-app-store-compliance` (`~/.claude/skills/360-app-store-compliance/prompts/SKILL.md` — Bộ kiểm duyệt chính sách Apple App Store & Google Play Store 117+ rejection patterns, Privacy Manifest, Permissions)
   * `vclients/docs/guides/AUTO_DEPLOY_MOBILE . md` — Cẩm nang SSOT toàn diện CI/CD Android (Google Play) & iOS (App Store + Auto-Submit Review).
   * [error_mobile.md](error_mobile.md) (hoặc [error.md](error.md)) — Sổ cái lỗi CI/CD, nguyên nhân gốc rễ và cơ chế Self-Healing.
   * [git.md](git.md) — Quy chuẩn quản trị Git, chống đè code, chỉ push/merge nhánh `main` ở GitHub cho frontend.
@@ -36,15 +37,15 @@
 
 ================================================================================
 🧰 [SKILLS AIAC BẮT BUỘC]
-Nạp: `360-dev-workflow`, `360-flutter`, `360-vcloud`, `audit-gate`, `code-review`.
-* Bắt buộc chạy `/ponytail-audit` trước khi chốt release.
+Nạp: `360-dev-workflow`, `360-flutter`, `360-vcloud`, `360-app-store-compliance`, `audit-gate`, `code-review`.
+* Bắt buộc chạy **`360-app-store-compliance`** (`compliance-guard.sh` + `metadata-audit.py`) VÀ `/ponytail-audit` trước mọi đợt chốt release lên GitHub Actions.
 
 ================================================================================
 🔄 SƠ ĐỒ VÒNG LẶP TỰ ĐỘNG PHÁT HÀNH & TỰ CHỮA LỖI (CLOSED SELF-HEALING LOOP)
 
 ```text
  ┌────────────────────────────────────────────────────────────────────────┐
- │ 🛡️ CỔNG 0: ĐỌC SỔ CÁI error_mobile.md (RÀ SOÁT 10 LỖI KINH ĐIỂN)       │
+ │ 🛡️ CỔNG 0: ĐỌC error_mobile.md & CHẠY 360-app-store-compliance AUDIT   │
  └───────────────────────────────────┬────────────────────────────────────┘
                                      │
                                      ▼
@@ -103,7 +104,7 @@ Nạp: `360-dev-workflow`, `360-flutter`, `360-vcloud`, `audit-gate`, `code-revi
 
 #### 📋 MANDATORY INTERACTIVE TODO CHECKLIST GATE (TodoWrite — BẮT BUỘC KHỞI TẠO ĐẦU PHIÊN):
 Agent BẮT BUỘC khởi tạo và cập nhật Interactive Todo Checklist thông qua tool `TodoWrite` ngay từ bước đầu tiên:
-0. `[pending]` Gate 0: Đọc [error_mobile.md](error_mobile.md), rà soát 10 lỗi kinh điển, kiểm tra `flutter analyze` 0 lỗi.
+0. `[pending]` Gate 0: Đọc [error_mobile.md](error_mobile.md) (ERR-001..ERR-013+), chạy audit chính sách Store theo skill AIaC **`360-app-store-compliance`** (`compliance-guard.sh` + `metadata-audit.py`), kiểm tra `flutter analyze --no-fatal-infos` 0 lỗi.
 1. `[pending]` Gate 1: Kiểm tra trạng thái Git trên GitHub theo [git.md](git.md) (`vcloud-sync check`).
 2. `[pending]` Gate 2: Tăng Build Number (+1) trong `pubspec.yaml`, cập nhật `docs/CHANGELOGS.md`.
 3. `[pending]` Gate 3: Commit & Push đầy đủ code lên `github/main` kèm trailer `Authored-By: 360org <support@360.org.vn>`.
@@ -115,8 +116,30 @@ Agent BẮT BUỘC khởi tạo và cập nhật Interactive Todo Checklist thô
 
 ---
 
-### 🛡️ GATE 0: PRE-FLIGHT ERROR AUDIT (BẮT BUỘC ĐỌC error_mobile . md)
-Trước khi tạo Release, Agent **BẮT BUỘC ĐỌC** file [error_mobile.md](error_mobile.md) và đối soát 10 tiêu chí phòng tránh:
+### 🛡️ GATE 0: PRE-FLIGHT ERROR & APP STORE POLICY COMPLIANCE AUDIT (`error_mobile.md` + `360-app-store-compliance`)
+Trước khi tạo Release hoặc đẩy code lên GitHub Actions (`deploy.yml`), Agent **BẮT BUỘC THỰC HIỆN ĐỦ 2 PHẦN**:
+
+1. **Chạy Audit Chính sách Mobile Store bằng Skill AIaC `360-app-store-compliance`** (`~/.claude/skills/360-app-store-compliance/prompts/SKILL.md`):
+   ```bash
+   # Linux / macOS:
+   bash ~/.claude/skills/360-app-store-compliance/scripts/compliance-guard.sh "/đường/dẫn/tới/vclients"
+   # Windows (qua Git Bash):
+   "C:\Program Files\Git\bin\bash.exe" "$HOME/.claude/skills/360-app-store-compliance/scripts/compliance-guard.sh" "/đường/dẫn/tới/vclients"
+
+   # Quét Metadata Store & Privacy Manifest (nếu có):
+   python3 ~/.claude/skills/360-app-store-compliance/scripts/metadata-audit.py "/đường/dẫn/tới/vclients/fastlane/metadata"
+   python3 ~/.claude/skills/360-app-store-compliance/scripts/validate-privacy-manifest.py "/đường/dẫn/tới/vclients/ios/Runner/PrivacyInfo.xcprivacy"
+   ```
+   - **Quy tắc chặn Release:** Nếu `compliance-guard.sh` trả về `[CRITICAL]` thật (exit code `2`) — đặc biệt các lỗi:
+     * Thiếu `ios/Runner/PrivacyInfo.xcprivacy` (`FLUTTER-PRIVACY-MANIFEST-MISSING`)
+     * Thiếu luồng **Xóa tài khoản trong app** nếu có đăng ký tài khoản (`APPLE-5.1.1-NO-ACCOUNT-DELETION` — Guideline 5.1.1(v))
+     * Thiếu link Privacy Policy công khai trong app & Store listing (`APPLE-5.1.1-MISSING-PRIVACY-POLICY` / `GOOGLE-MISSING-PRIVACY-POLICY`)
+     * Code release trỏ URL staging/localhost (`APPLE-2.1-STAGING-BACKEND`)
+     * `Info.plist` khai báo quyền hoặc `UIBackgroundModes` (`voip`, `audio`, microphone...) nhưng giao diện đang ẩn tính năng đó mà Reviewer kiểm tra thấy không dùng tới
+     * Android manifest khai báo quyền nhạy cảm chưa giải trình (`SYSTEM_ALERT_WINDOW`, `READ_MEDIA_IMAGES` / `READ_MEDIA_VIDEO`) hoặc thiếu R8 minify
+     ➔ **BẮT BUỘC BÁO CÁO ANH TÂN ĐỂ XỬ LÝ / XÁC NHẬN TRƯỚC KHI ĐẨY RELEASE** (không tự ý bypass `APP_STORE_GUARD_OK=1`).
+
+2. **Đọc sổ cái [error_mobile.md](error_mobile.md)** và đối soát các lỗi kinh điển (`ERR-001` ➔ `ERR-013+`):
 - [ ] **ERR-001 (Fastlane Locales)**: Mã ngôn ngữ Tiếng Việt trong Fastfile BẮT BUỘC là `"vi"`, cấm dùng `"vi-VN"` hay `"default"`.
 - [ ] **ERR-002 (Changelog Length)**: Độ dài nội dung "Có gì mới" khống chế an toàn `<= 480 ký tự`, lọc sạch markdown (`*`, `, `>`).
 - [ ] **ERR-003 (Build Number SSOT)**: Build number hiển thị Store phải lấy từ `pubspec.yaml` làm nguồn chân lý duy nhất.
@@ -127,6 +150,8 @@ Trước khi tạo Release, Agent **BẮT BUỘC ĐỌC** file [error_mobile.md]
 - [ ] **ERR-008 (AAB Path)**: Fastlane candidate paths dùng `File.expand_path` đa ứng viên.
 - [ ] **ERR-009 (Tag Collision)**: Tag mới không được trùng lặp với bất kỳ tag nào đã tồn tại trên remote.
 - [ ] **ERR-010 (Branch Rule)**: Nhánh duy nhất của Frontend là **`main`**. Cấm dùng nhánh rác cũ `release/ios-appstore`.
+- [ ] **ERR-011 / ERR-012**: Không hardcode `'db'` vào master auth khi trỏ prod và ghim `flutter-version: "3.44.7"` kèm `--no-fatal-infos`.
+- [ ] **ERR-013 (Apple Business Agreement)**: Nhắc/kiểm tra tài khoản Apple Developer đã ký thỏa thuận mới tại `https://appstoreconnect.apple.com/business` trước khi chạy lane iOS TestFlight (`403 REQUIRED_AGREEMENTS_MISSING_OR_EXPIRED`).
 
 ---
 

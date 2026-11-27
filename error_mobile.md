@@ -29,6 +29,7 @@
 | **ERR-010** | Branch Protection | Push thẳng vào nhánh bảo vệ `main` bị từ chối | 🚨 CRITICAL | ✅ ĐÃ KHẮC PHỤC |
 | **ERR-011** | Flutter Unit Tests / Auth & Notifs | Hardcoded 'db' trong master auth và thiếu eventType trong portal filter | 🚨 CRITICAL | ✅ ĐÃ KHẮC PHỤC |
 | **ERR-012** | GitHub Actions / Flutter Version | Không ghim Flutter version & `flutter analyze` dính lỗi fatal infos deprecation | 🚨 CRITICAL | ✅ ĐÃ KHẮC PHỤC |
+| **ERR-013** | Apple App Store Connect (`altool`) | HTTP 403 `FORBIDDEN.REQUIRED_AGREEMENTS_MISSING_OR_EXPIRED` — Tài khoản Apple chưa ký thỏa thuận mới (`/business`) | ⚠️ BLOCKED (Account) | ⏳ CHỜ KÝ AGREEMENT |
 
 ================================================================================
 🔍 III. CHI TIẾT NGUYÊN NHÂN GỐC RỄ & CÁCH PHÒNG TRÁNH TỪNG LỖI
@@ -191,16 +192,11 @@
 
 ---
 
-### 🔴 [ERR-013] THIẾU PROVIDERSCOPE DEFENSE TRONG CONSUMER WIDGET KHI CHẠY ISOLATED WIDGET TESTS
-- **Hiện tượng**: Bước CI/CD `Run Flutter Static Analysis & Unit Tests` (Run 43575382929) thất bại với exit code 1 trên cả 2 runner iOS và Android: "1281 tests passed, 4 failed".
-  * 4 test cases thất bại: `chat_v2_mention_edge_cases_test.dart` (5.2), `chat_v2_search_in_conversation_test.dart` (Case 9), và `chat_v2_test.dart` (Case 17 & 18).
-  * Chi tiết log lỗi: `StateError: Bad state: No ProviderScope found` tại `LinkPreviewCard.build` dẫn đến `A RenderFlex overflowed by 99499 pixels on the bottom` do Flutter dựng `ErrorWidget` hiển thị traceback khổng lồ tràn `Column` của `ChatV2MessageItem`.
-- **Nguyên nhân gốc rễ**:
-  * Khi triển khai tính năng Rich Link Preview trong Chat V2, `LinkPreviewCard` được kế thừa từ `ConsumerWidget` của `flutter_riverpod` và gọi `ref.watch(linkMetadataProvider(url))` trực tiếp trong hàm `build`.
-  * Trong ứng dụng thật (`main.dart` / `AppScaffold`) luôn có `ProviderScope` bao bọc, nhưng trong các file widget test cũ của Chat V2 (`chat_v2_test.dart`, `chat_v2_mention_edge_cases_test.dart`), widget `ChatV2MessageItem` được pump trực tiếp bên trong `MaterialApp(home: Scaffold(body: child))` mà không có `ProviderScope`. Khi tin nhắn có URL, `LinkPreviewCard` được kích hoạt và ném ngoại lệ `StateError('No ProviderScope found')`.
-- **Giải pháp phòng tránh**:
-  * **Phòng thủ đa tầng tại Widget**: Trong `LinkPreviewCard.build`, kiểm tra trước sự tồn tại của `ProviderScope` / `UncontrolledProviderScope` trong cây widget bằng `context.findAncestorWidgetOfExactType`. Nếu không có `ProviderScope` (môi trường isolated test), tự động graceful degradation về `const SizedBox.shrink()` mà không gọi `ref.watch`.
-  * **Bọc try-catch an toàn**: Bọc lệnh gọi `ref.watch(linkMetadataProvider(url))` trong khối `try ... catch (_)` để bắt mọi `StateError` hoặc ngoại lệ Riverpod, đảm bảo không bao giờ crash cây widget chat.
+### 🟠 [ERR-013] APPLE APP STORE CONNECT TỪ CHỐI UPLOAD IPA DO CHƯA KÝ THỎA THUẬN MỚI (`403`)
+- **Hiện tượng**: Job `Build & Deploy iOS (TestFlight)` (Run `46031286085`) biên dịch `.ipa` thành công nhưng bước `Execute Fastlane iOS TestFlight Pipeline` (`xcrun altool`) thất bại với lỗi HTTP `403`:
+  `[altool] iris-code: FORBIDDEN.REQUIRED_AGREEMENTS_MISSING_OR_EXPIRED` — `"A required agreement is missing or has expired. (see: /business)"`.
+- **Nguyên nhân gốc rễ**: Tài khoản Apple Developer / App Store Connect (`Account Holder`) có thỏa thuận pháp lý/thuế mới trên mục **Business** (`https://appstoreconnect.apple.com/business`) chưa được ký chấp thuận hoặc đã hết hạn.
+- **Giải pháp phòng tránh / khắc phục**: Chủ sở hữu tài khoản Apple đăng nhập `https://appstoreconnect.apple.com/business`, bấm **View and Agree to Terms** ký các thỏa thuận đang chờ, sau đó bấm **Re-run failed jobs** trên GitHub Actions (hoặc đẩy release mới nếu cần tăng build).
 
 ================================================================================
 🛠️ IV. QUY TRÌNH GHI NHẬN LỖI MỚI KHI GITHUB ACTIONS BỊ FAIL (SELF-HEALING)
