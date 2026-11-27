@@ -2,6 +2,15 @@
 
 Tài liệu ghi chép các thay đổi của **VCloud Mobile App & Odoo Backend** theo chuẩn **AIaC 3.0**.
 
+## [v2.9.41+205] — 2026-11-27 (Ổn Định Chat V2, Avatar, Bộ Lọc Zalo Dynamic, WebView SSO & Push Dedup)
+
+- Khắc phục toàn diện 27 lỗi Chat V2 Đợt 1 và Đợt 2 (BUG-01..BUG-27): hiển thị avatar thật kèm nền đặc cho PNG trong suốt, biểu tượng kênh #, gạt kênh ma.
+- Bật bộ lọc danh mục động khớp Odoo Discuss (Trò chuyện, Kênh, Zalo, Zalo OA, Hỗ trợ), loại trừ Ai Chat.
+- Sửa nút Back WebView, giữ đăng nhập SSO link nội bộ, hỗ trợ Gắn sao tin nhắn, sửa Timesheet và Ticket.
+- Đồng bộ 2 chiều ứng dụng đã ghim và khử trùng lặp thông báo đẩy Push Notification.
+
+---
+
 ## [v2.9.40+204] — 2026-11-25 (Pha 1 Fast Sync Chat V2, OdooBus Hint, Adaptive Polling & Banner 3 Trạng Thái)
 
 > [!IMPORTANT]

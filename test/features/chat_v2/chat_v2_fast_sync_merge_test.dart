@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:vcloud/core/api/auth_user.dart';
 import 'package:vcloud/core/api/odoo_api_client.dart';
 import 'package:vcloud/core/api/odoo_session.dart';
@@ -177,6 +178,7 @@ ChatV2Channel _makeChannel(
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(() async => initializeDateFormatting('vi'));
 
   group('Pha 1 Fast Sync — 5 Kịch bản Kiểm Thử Độc Lập (SPEC v2.0 Mục 7)', () {
     setUp(() {

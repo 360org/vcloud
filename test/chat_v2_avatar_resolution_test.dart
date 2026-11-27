@@ -17,7 +17,7 @@ void main() {
 
       final channel = ChatV2Channel.fromMap(channelMap);
       expect(channel.avatarUrl, isNotNull);
-      expect(channel.avatarUrl, contains('/api/v1/mobile/avatar/partners/3'));
+      expect(channel.avatarUrl, contains('/api/v1/mobile/avatar/res.partner/3?field=avatar_128'));
       expect(channel.avatarUrl, startsWith('http'));
     });
 
@@ -36,7 +36,7 @@ void main() {
 
       final channel = ChatV2Channel.fromMap(channelMap);
       expect(channel.avatarUrl, isNotNull);
-      expect(channel.avatarUrl, contains('/web/image/res.partner/2/avatar_128'));
+      expect(channel.avatarUrl, contains('/api/v1/mobile/avatar/res.partner/2?field=avatar_128'));
       expect(channel.avatarUrl, startsWith('http'));
     });
 
@@ -49,7 +49,7 @@ void main() {
 
       final member = ChatV2Member.fromJson(memberMap);
       expect(member.avatarUrl, isNotNull);
-      expect(member.avatarUrl, contains('/web/image/res.partner/3/avatar_128'));
+      expect(member.avatarUrl, contains('/api/v1/mobile/avatar/res.partner/3?field=avatar_128'));
       expect(member.avatarUrl, startsWith('http'));
     });
 
@@ -65,7 +65,7 @@ void main() {
 
       final message = ChatV2Message.fromMap(messageMap);
       expect(message.authorAvatar, isNotNull);
-      expect(message.authorAvatar, contains('/web/image/res.partner/3/avatar_128'));
+      expect(message.authorAvatar, contains('/api/v1/mobile/avatar/res.partner/3?field=avatar_128'));
       expect(message.authorAvatar, startsWith('http'));
     });
 
