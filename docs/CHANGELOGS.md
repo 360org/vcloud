@@ -2,6 +2,14 @@
 
 Tài liệu ghi chép các thay đổi của **VCloud Mobile App & Odoo Backend** theo chuẩn **AIaC 3.0**.
 
+## [v2.9.41+206] — 2026-11-27 (Chuẩn Hóa Apple App Store Compliance — Privacy Manifest & iOS Background Modes)
+
+- Bổ sung Apple Privacy Manifest (ios/Runner/PrivacyInfo.xcprivacy) khai báo Required Reason APIs và NSPrivacyCollectedDataTypes, đăng ký vào Xcode project.
+- Gỡ background mode voip không sử dụng khỏi Info.plist và chuẩn hóa mô tả quyền Microphone cho tin nhắn thoại (Apple Guideline 2.5.4).
+- Chuẩn hóa hằng số privacyPolicyUrl trên màn hình Thông tin khớp chuẩn kiểm duyệt App Store và Google Play.
+
+---
+
 ## [v2.9.41+205] — 2026-11-27 (Ổn Định Chat V2, Avatar, Bộ Lọc Zalo Dynamic, WebView SSO & Push Dedup)
 
 - Khắc phục toàn diện 27 lỗi Chat V2 Đợt 1 và Đợt 2 (BUG-01..BUG-27): hiển thị avatar thật kèm nền đặc cho PNG trong suốt, biểu tượng kênh #, gạt kênh ma.

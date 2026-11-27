@@ -9,6 +9,9 @@ import '../../../shared/widgets/app_scaffold.dart';
 import '../../../shared/widgets/brand_logo.dart';
 import '../../../shared/widgets/ui_kit.dart';
 
+/// Public privacy policy URL linked from the app and App Store metadata.
+const String privacyPolicyUrl = 'https://vuahethong.net/privacy';
+
 final appVersionProvider = FutureProvider<String>((ref) async {
   try {
     final info = await PackageInfo.fromPlatform();
@@ -137,7 +140,7 @@ class AboutScreen extends ConsumerWidget {
             child: InkWell(
               borderRadius: BorderRadius.circular(12),
               onTap: () => launchUrl(
-                Uri.parse('https://vuahethong.net/privacy'),
+                Uri.parse(privacyPolicyUrl),
                 mode: LaunchMode.externalApplication,
               ),
               child: const Padding(
