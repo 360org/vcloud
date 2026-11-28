@@ -336,6 +336,60 @@ class ChatV2Channel {
     return words.contains('admin') || words.contains('administrator');
   }
 
+  static bool hasAvatarValue(String? v) {
+    if (v == null) return false;
+    final t = v.trim();
+    return t.isNotEmpty && t != 'false' && t != 'null' && t != 'undefined';
+  }
+
+  static bool isInternalStaffEmail(String? email) {
+    if (email == null) return false;
+    final emailLower = email.trim().toLowerCase();
+    if (emailLower.isEmpty) return false;
+    return emailLower.endsWith('@360.org.vn') ||
+        emailLower.endsWith('@vuahethong.net') ||
+        emailLower.endsWith('@vuaoffice.vn') ||
+        emailLower.endsWith('@w360s.com') ||
+        emailLower.endsWith('@activesolution.vn');
+  }
+
+  static bool isSystemOrInternalZaloMember(ChatV2Member m) {
+    if (m.isMe) return true;
+    final lowerName = m.name.trim().toLowerCase();
+    if (lowerName == 'odoobot' ||
+        lowerName == 'bot' ||
+        lowerName.contains('360 corp') ||
+        isAdminName(m.name)) {
+      return true;
+    }
+    if (isInternalStaffEmail(m.email)) return true;
+    return false;
+  }
+
+  static ChatV2Member? findZaloCustomerMember(
+    List<ChatV2Member> members, {
+    String? cleanChannelName,
+  }) {
+    final candidates =
+        members.where((m) => !isSystemOrInternalZaloMember(m)).toList();
+    if (candidates.isEmpty) return null;
+
+    final target = (cleanChannelName ?? '').trim().toLowerCase();
+    if (target.isNotEmpty) {
+      final exact = candidates.firstWhereOrNull(
+        (m) => m.name.trim().toLowerCase() == target,
+      );
+      if (exact != null) return exact;
+
+      final partial = candidates.firstWhereOrNull((m) {
+        final mn = m.name.trim().toLowerCase();
+        return mn.isNotEmpty && (mn.contains(target) || target.contains(mn));
+      });
+      if (partial != null) return partial;
+    }
+    return candidates.first;
+  }
+
   static bool matchesUser(String part, String? currentUserName) {
     if (currentUserName == null || currentUserName.isEmpty) return false;
     final pLower = part.trim().toLowerCase();
@@ -981,16 +1035,121 @@ class ChatV2Channel {
     // 3. Kênh hỗ trợ nhiều người (>=15) nhưng thành viên chính đầu tiên là khách hàng ngoài
     if (memberCount >= 15 && channelType != 'channel' && members.isNotEmpty) {
       final firstMem = members.first;
-      if (!firstMem.isMe && firstMem.email != null && firstMem.email!.isNotEmpty) {
-        final emailLower = firstMem.email!.toLowerCase();
-        final isInternal = emailLower.endsWith('@360.org.vn') ||
-            emailLower.endsWith('@vuahethong.net') ||
-            emailLower.endsWith('@vuaoffice.vn') ||
-            emailLower.endsWith('@w360s.com');
-        if (!isInternal) return true;
+      if (!firstMem.isMe &&
+          firstMem.email != null &&
+          firstMem.email!.isNotEmpty &&
+          !isInternalStaffEmail(firstMem.email)) {
+        return true;
       }
     }
     return false;
+  }
+
+  /// True nếu kênh là Zalo OA hoặc Zalo cá nhân.
+  bool get isAnyZalo => isZaloChannel || isZaloOA || isZaloPersonal;
+
+  /// Kiểm tra một id/tên có thuộc nhân sự nội bộ hoặc tài khoản hệ thống/bot hay không.
+  bool isInternalMemberByIdOrName({
+    String? id,
+    String? name,
+    List<ChatV2Member>? overrideMembers,
+  }) {
+    final targetId = id?.trim();
+    final targetName = name?.trim().toLowerCase();
+    if (targetName != null && targetName.isNotEmpty) {
+      if (targetName == 'odoobot' ||
+          targetName == 'bot' ||
+          targetName.contains('360 corp') ||
+          isAdminName(targetName)) {
+        return true;
+      }
+    }
+    final pool = overrideMembers ?? members;
+    for (final m in pool) {
+      final matchesId = targetId != null &&
+          targetId.isNotEmpty &&
+          (m.id == targetId || m.partnerId?.toString() == targetId);
+      final matchesName = targetName != null &&
+          targetName.isNotEmpty &&
+          m.name.trim().toLowerCase() == targetName;
+      if ((matchesId || matchesName) && isSystemOrInternalZaloMember(m)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Phân giải avatar URL cho kênh Zalo, tuyệt đối không lấy avatar nhân sự nội bộ.
+  String? resolveZaloAvatarUrl({
+    String? cleanName,
+    List<ChatV2Member>? overrideMembers,
+    Iterable<({bool isMine, String? authorId, String authorName, String? authorAvatar})>?
+        cachedMessages,
+    String? currentUserId,
+    String? currentPartnerId,
+  }) {
+    final effectiveMembers = overrideMembers ?? members;
+    final targetName = (cleanName ?? this.cleanName).trim().toLowerCase();
+
+    if (hasAvatarValue(avatarUrl)) {
+      return avatarUrl;
+    }
+
+    if (hasAvatarValue(directPartnerAvatar) &&
+        !(directPartnerId != null &&
+            isInternalMemberByIdOrName(
+              id: directPartnerId,
+              overrideMembers: effectiveMembers,
+            ))) {
+      return directPartnerAvatar;
+    }
+
+    final customerMember = findZaloCustomerMember(
+      effectiveMembers,
+      cleanChannelName: targetName,
+    );
+    if (customerMember != null && hasAvatarValue(customerMember.avatarUrl)) {
+      return customerMember.avatarUrl;
+    }
+
+    if (cachedMessages != null && targetName.isNotEmpty) {
+      for (final m in cachedMessages) {
+        if (m.isMine) continue;
+        if (currentPartnerId != null && m.authorId?.toString() == currentPartnerId) {
+          continue;
+        }
+        if (currentUserId != null && m.authorId?.toString() == currentUserId) {
+          continue;
+        }
+        if (!hasAvatarValue(m.authorAvatar)) continue;
+        if (isInternalMemberByIdOrName(
+          id: m.authorId,
+          name: m.authorName,
+          overrideMembers: effectiveMembers,
+        )) {
+          continue;
+        }
+        final authorLower = m.authorName.trim().toLowerCase();
+        if (authorLower.isNotEmpty &&
+            (authorLower == targetName ||
+                authorLower.contains(targetName) ||
+                targetName.contains(authorLower))) {
+          return m.authorAvatar;
+        }
+      }
+    }
+
+    if (directPartnerId != null &&
+        !isInternalMemberByIdOrName(
+          id: directPartnerId,
+          overrideMembers: effectiveMembers,
+        )) {
+      final pid = int.tryParse(directPartnerId!.trim());
+      if (pid != null && pid > 0) {
+        return '/api/v1/mobile/avatar/res.partner/$pid?field=avatar_128';
+      }
+    }
+    return null;
   }
 
   /// Danh mục chuẩn hóa của kênh: 'chat', 'channel', 'zalo', 'zalo_oa', 'livechat'...
@@ -1034,16 +1193,11 @@ class ChatV2Channel {
     // Siết chặt kiểm tra email domain nội bộ cho mọi kênh trực tiếp
     if (members.isNotEmpty) {
       final other = members.firstWhereOrNull((m) => !m.isMe);
-      if (other != null && other.email != null && other.email!.isNotEmpty) {
-        final emailLower = other.email!.toLowerCase().trim();
-        final isInternalDomain = emailLower.endsWith('@360.org.vn') ||
-            emailLower.endsWith('@vuahethong.net') ||
-            emailLower.endsWith('@vuaoffice.vn') ||
-            emailLower.endsWith('@w360s.com') ||
-            emailLower.endsWith('@activesolution.vn');
-        if (!isInternalDomain) {
-          return false;
-        }
+      if (other != null &&
+          other.email != null &&
+          other.email!.isNotEmpty &&
+          !isInternalStaffEmail(other.email)) {
+        return false;
       }
     }
     return true;
@@ -1172,59 +1326,6 @@ class ChatV2Channel {
       memberObjs.isNotEmpty ? memberObjs.length : (isGroup ? 2 : 1),
     );
 
-    final rawDirectPartner = map['direct_partner'];
-    String? directPartnerId;
-    String? directPartnerName;
-    String? directPartnerStatus;
-    String? directPartnerAvatar;
-    if (rawDirectPartner is Map) {
-      directPartnerId = _stringOrNull(rawDirectPartner['id']);
-      directPartnerName = _stringOrNull(rawDirectPartner['name']);
-      directPartnerStatus = _stringOrNull(rawDirectPartner['im_status']);
-      directPartnerAvatar = odooApiClient.resolveAvatarUrl(
-        _stringOrNull(rawDirectPartner['avatar_url'] ?? rawDirectPartner['image_128']),
-      );
-    }
-    directPartnerAvatar ??= odooApiClient.resolveAvatarUrl(
-      _stringOrNull(map['direct_partner_avatar']),
-    );
-    final isLivechat = channelType == 'livechat';
-    final otherMember = memberObjs.firstWhereOrNull((m) => !m.isMe);
-    if (!isGroup && channelType != 'channel' && !isLivechat && otherMember != null) {
-      directPartnerId ??= otherMember.id.isNotEmpty ? otherMember.id : null;
-      directPartnerName ??= otherMember.name.isNotEmpty ? otherMember.name : null;
-      if (otherMember.imStatus.isNotEmpty && otherMember.imStatus != 'offline') {
-        directPartnerStatus = otherMember.imStatus;
-        if (imStatus == 'offline') {
-          imStatus = otherMember.imStatus;
-        }
-      }
-    }
-    if (!isGroup && channelType != 'channel' && !isLivechat) {
-      directPartnerId ??= _stringOrNull(map['partner_id'] ?? map['other_partner_id']);
-      if (directPartnerId != null && (directPartnerName == null || directPartnerName.isEmpty)) {
-        final pMember = memberObjs.firstWhereOrNull((m) => m.id == directPartnerId && !m.isMe);
-        if (pMember != null && pMember.name.isNotEmpty) {
-          directPartnerName = pMember.name;
-        }
-      }
-      directPartnerName ??= _stringOrNull(map['partner_name'] ?? map['other_partner_name']);
-    }
-    directPartnerStatus ??= imStatus;
-
-    String? finalAvatarUrl = avatarUrl;
-    if (finalAvatarUrl == null || finalAvatarUrl.isEmpty) {
-      if (directPartnerAvatar != null && directPartnerAvatar.isNotEmpty && !isLivechat) {
-        finalAvatarUrl = directPartnerAvatar;
-      } else if (!isGroup && channelType != 'channel' && !isLivechat) {
-        if (memberObjs.isNotEmpty) {
-          if (otherMember != null && !otherMember.isMe && otherMember.avatarUrl != null && otherMember.avatarUrl!.isNotEmpty) {
-            finalAvatarUrl = otherMember.avatarUrl;
-          }
-        }
-      }
-    }
-
     final rawIsMuted = map['is_muted'];
     final bool isMuted = rawIsMuted == true || rawIsMuted == 1 || rawIsMuted == 'true';
 
@@ -1259,23 +1360,113 @@ class ChatV2Channel {
             lowerEffectiveName.contains('[zalo cá nhân]') ||
             lowerEffectiveName.contains('[zalo personal]'));
 
+    final rawDirectPartner = map['direct_partner'];
+    String? directPartnerId;
+    String? directPartnerName;
+    String? directPartnerStatus;
+    String? directPartnerAvatar;
+    if (rawDirectPartner is Map) {
+      directPartnerId = _stringOrNull(rawDirectPartner['id']);
+      directPartnerName = _stringOrNull(rawDirectPartner['name']);
+      directPartnerStatus = _stringOrNull(rawDirectPartner['im_status']);
+      directPartnerAvatar = odooApiClient.resolveAvatarUrl(
+        _stringOrNull(rawDirectPartner['avatar_url'] ?? rawDirectPartner['image_128']),
+      );
+    }
+    directPartnerAvatar ??= odooApiClient.resolveAvatarUrl(
+      _stringOrNull(map['direct_partner_avatar']),
+    );
+    final isLivechat = channelType == 'livechat';
+    final otherMember = memberObjs.firstWhereOrNull((m) => !m.isMe);
+    String? finalAvatarUrl = avatarUrl;
+
     if (isZaloChannel) {
       isGroup = false;
       if (effectiveChannelType == 'group') {
         effectiveChannelType = 'chat';
       }
+      // Xóa direct_partner nếu backend trả về nhầm nhân sự nội bộ / bot hệ thống
+      if (directPartnerId != null || directPartnerName != null) {
+        final dpName = directPartnerName;
+        final matchedInternal = memberObjs.any((m) =>
+            ((directPartnerId != null &&
+                    (m.id == directPartnerId ||
+                        m.partnerId?.toString() == directPartnerId)) ||
+                (dpName != null &&
+                    m.name.trim().toLowerCase() ==
+                        dpName.trim().toLowerCase())) &&
+            isSystemOrInternalZaloMember(m));
+        final dpNameLower = (dpName ?? '').trim().toLowerCase();
+        if (matchedInternal ||
+            dpNameLower == 'odoobot' ||
+            dpNameLower == 'bot' ||
+            dpNameLower.contains('360 corp') ||
+            (dpName != null && isAdminName(dpName))) {
+          directPartnerId = null;
+          directPartnerName = null;
+          directPartnerAvatar = null;
+        }
+      }
+
+      final customerMember = findZaloCustomerMember(
+        memberObjs,
+        cleanChannelName: name,
+      );
+      if (customerMember != null) {
+        directPartnerId ??=
+            customerMember.id.isNotEmpty ? customerMember.id : null;
+        if (customerMember.imStatus.isNotEmpty &&
+            customerMember.imStatus != 'offline') {
+          directPartnerStatus = customerMember.imStatus;
+          if (imStatus == 'offline') {
+            imStatus = customerMember.imStatus;
+          }
+        }
+        if ((directPartnerAvatar == null || directPartnerAvatar.isEmpty) &&
+            customerMember.avatarUrl != null &&
+            customerMember.avatarUrl!.isNotEmpty) {
+          directPartnerAvatar = customerMember.avatarUrl;
+        }
+      }
       directPartnerName ??= name;
+      directPartnerStatus ??= imStatus;
+      if ((finalAvatarUrl == null || finalAvatarUrl.isEmpty) &&
+          directPartnerAvatar != null &&
+          directPartnerAvatar.isNotEmpty) {
+        finalAvatarUrl = directPartnerAvatar;
+      }
+    } else {
+      if (!isGroup && channelType != 'channel' && !isLivechat && otherMember != null) {
+        directPartnerId ??= otherMember.id.isNotEmpty ? otherMember.id : null;
+        directPartnerName ??= otherMember.name.isNotEmpty ? otherMember.name : null;
+        if (otherMember.imStatus.isNotEmpty && otherMember.imStatus != 'offline') {
+          directPartnerStatus = otherMember.imStatus;
+          if (imStatus == 'offline') {
+            imStatus = otherMember.imStatus;
+          }
+        }
+      }
+      if (!isGroup && channelType != 'channel' && !isLivechat) {
+        directPartnerId ??= _stringOrNull(map['partner_id'] ?? map['other_partner_id']);
+        if (directPartnerId != null && (directPartnerName == null || directPartnerName.isEmpty)) {
+          final pMember = memberObjs.firstWhereOrNull((m) => m.id == directPartnerId && !m.isMe);
+          if (pMember != null && pMember.name.isNotEmpty) {
+            directPartnerName = pMember.name;
+          }
+        }
+        directPartnerName ??= _stringOrNull(map['partner_name'] ?? map['other_partner_name']);
+      }
+      directPartnerStatus ??= imStatus;
+
       if (finalAvatarUrl == null || finalAvatarUrl.isEmpty) {
-        final customerMember = memberObjs.firstWhereOrNull((m) =>
-            !m.isMe &&
-            m.name.toLowerCase() != 'odoobot' &&
-            m.name.toLowerCase() != 'bot' &&
-            !m.name.toLowerCase().contains('360 corp') &&
-            m.avatarUrl != null &&
-            m.avatarUrl!.isNotEmpty);
-        if (customerMember != null) {
-          finalAvatarUrl = customerMember.avatarUrl;
-          directPartnerAvatar ??= customerMember.avatarUrl;
+        if (directPartnerAvatar != null && directPartnerAvatar.isNotEmpty && !isLivechat) {
+          finalAvatarUrl = directPartnerAvatar;
+        } else if (!isGroup && channelType != 'channel' && !isLivechat) {
+          if (memberObjs.isNotEmpty) {
+            if (otherMember != null && !otherMember.isMe && otherMember.avatarUrl != null && otherMember.avatarUrl!.isNotEmpty) {
+              finalAvatarUrl = otherMember.avatarUrl;
+            }
+          }
         }
       }
     }

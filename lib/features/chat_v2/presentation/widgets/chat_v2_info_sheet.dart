@@ -1431,11 +1431,9 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
         ? _members.length
         : (_memberCount > 0 ? _memberCount : _members.length);
 
-    bool hasAvatarValue(String? v) {
-      if (v == null) return false;
-      final t = v.trim();
-      return t.isNotEmpty && t != 'false' && t != 'null' && t != 'undefined';
-    }
+    const hasAvatarValue = ChatV2Channel.hasAvatarValue;
+    final currentPartnerId = odooApiClient.session?.partnerId?.toString();
+    final currentUserId = odooApiClient.session?.uid.toString();
 
     // Tự động phân giải avatar URL của đối phương nếu channel.avatarUrl chưa có và là chat 1-1
     String? resolvedAvatarUrl = _customAvatarUrl != null
@@ -1445,36 +1443,52 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
             : (hasAvatarValue(widget.channel.avatarUrl)
                 ? widget.channel.avatarUrl
                 : null));
-    if (!hasAvatarValue(resolvedAvatarUrl) && !isGroup && !widget.channel.isChannel) {
-      if (hasAvatarValue(activeChannel.directPartnerAvatar)) {
-        resolvedAvatarUrl = activeChannel.directPartnerAvatar;
-      } else if (hasAvatarValue(widget.channel.directPartnerAvatar)) {
-        resolvedAvatarUrl = widget.channel.directPartnerAvatar;
+    final effectiveMembers = _members.isNotEmpty ? _members : activeChannel.members;
+    if (activeChannel.isAnyZalo) {
+      if (!hasAvatarValue(resolvedAvatarUrl)) {
+        resolvedAvatarUrl = activeChannel.resolveZaloAvatarUrl(
+          cleanName: cleanName,
+          overrideMembers: effectiveMembers,
+          currentUserId: currentUserId,
+          currentPartnerId: currentPartnerId,
+          cachedMessages: widget.messages.map((m) => (
+                isMine: m.isMine,
+                authorId: m.authorId,
+                authorName: m.authorName,
+                authorAvatar: m.authorAvatar,
+              )),
+        );
       }
-    }
-    if (!hasAvatarValue(resolvedAvatarUrl)) {
-      if (!isGroup && !widget.channel.isChannel) {
-        final currentPartnerId = odooApiClient.session?.partnerId?.toString();
-        final currentUserId = odooApiClient.session?.uid.toString();
-        if (widget.messages.isNotEmpty) {
-          final otherMsg = widget.messages.firstWhereOrNull((m) =>
-              !m.isMine &&
-              (currentPartnerId == null || m.authorId?.toString() != currentPartnerId) &&
-              (currentUserId == null || m.authorId?.toString() != currentUserId) &&
-              hasAvatarValue(m.authorAvatar));
-          if (otherMsg != null) {
-            resolvedAvatarUrl = otherMsg.authorAvatar;
-          }
+    } else {
+      if (!hasAvatarValue(resolvedAvatarUrl) && !isGroup && !widget.channel.isChannel) {
+        if (hasAvatarValue(activeChannel.directPartnerAvatar)) {
+          resolvedAvatarUrl = activeChannel.directPartnerAvatar;
+        } else if (hasAvatarValue(widget.channel.directPartnerAvatar)) {
+          resolvedAvatarUrl = widget.channel.directPartnerAvatar;
         }
-        if (!hasAvatarValue(resolvedAvatarUrl)) {
-          final otherMember = _members.firstWhereOrNull((m) =>
-              !m.isMe &&
-              (currentPartnerId == null || m.id != currentPartnerId) &&
-              (currentUserId == null || m.id != currentUserId) &&
-              (widget.currentUserName == null || !ChatV2Channel.matchesUser(m.name, widget.currentUserName!)) &&
-              hasAvatarValue(m.avatarUrl));
-          if (otherMember != null) {
-            resolvedAvatarUrl = otherMember.avatarUrl;
+      }
+      if (!hasAvatarValue(resolvedAvatarUrl)) {
+        if (!isGroup && !widget.channel.isChannel) {
+          if (widget.messages.isNotEmpty) {
+            final otherMsg = widget.messages.firstWhereOrNull((m) =>
+                !m.isMine &&
+                (currentPartnerId == null || m.authorId?.toString() != currentPartnerId) &&
+                (currentUserId == null || m.authorId?.toString() != currentUserId) &&
+                hasAvatarValue(m.authorAvatar));
+            if (otherMsg != null) {
+              resolvedAvatarUrl = otherMsg.authorAvatar;
+            }
+          }
+          if (!hasAvatarValue(resolvedAvatarUrl)) {
+            final otherMember = _members.firstWhereOrNull((m) =>
+                !m.isMe &&
+                (currentPartnerId == null || m.id != currentPartnerId) &&
+                (currentUserId == null || m.id != currentUserId) &&
+                (widget.currentUserName == null || !ChatV2Channel.matchesUser(m.name, widget.currentUserName!)) &&
+                hasAvatarValue(m.avatarUrl));
+            if (otherMember != null) {
+              resolvedAvatarUrl = otherMember.avatarUrl;
+            }
           }
         }
       }
@@ -1482,22 +1496,41 @@ class _ChatV2InfoSheetState extends ConsumerState<ChatV2InfoSheet> {
 
     int? otherPartnerId;
     if (!isGroup) {
-      if (activeChannel.directPartnerId != null) {
-        otherPartnerId = int.tryParse(activeChannel.directPartnerId!);
-      }
-      otherPartnerId ??= int.tryParse(activeChannel.partnerId ?? '');
-      if (otherPartnerId == null || otherPartnerId <= 0) {
-        final otherMember = _members.firstWhereOrNull((m) => !m.isMe && m.partnerId != null && m.partnerId! > 0);
-        otherPartnerId = otherMember?.partnerId;
-      }
-      if (otherPartnerId == null || otherPartnerId <= 0) {
-        final otherMember = _members.firstWhereOrNull((m) => !m.isMe && int.tryParse(m.id) != null);
-        otherPartnerId = int.tryParse(otherMember?.id ?? '');
+      if (activeChannel.isAnyZalo) {
+        final dpId = activeChannel.directPartnerId;
+        if (dpId != null &&
+            !activeChannel.isInternalMemberByIdOrName(
+              id: dpId,
+              overrideMembers: effectiveMembers,
+            )) {
+          otherPartnerId = int.tryParse(dpId);
+        }
+        if (otherPartnerId == null || otherPartnerId <= 0) {
+          final cust = ChatV2Channel.findZaloCustomerMember(
+            effectiveMembers,
+            cleanChannelName: cleanName,
+          );
+          otherPartnerId = cust?.partnerId ?? int.tryParse(cust?.id ?? '');
+        }
+      } else {
+        if (activeChannel.directPartnerId != null) {
+          otherPartnerId = int.tryParse(activeChannel.directPartnerId!);
+        }
+        otherPartnerId ??= int.tryParse(activeChannel.partnerId ?? '');
+        if (otherPartnerId == null || otherPartnerId <= 0) {
+          final otherMember = _members.firstWhereOrNull((m) => !m.isMe && m.partnerId != null && m.partnerId! > 0);
+          otherPartnerId = otherMember?.partnerId;
+        }
+        if (otherPartnerId == null || otherPartnerId <= 0) {
+          final otherMember = _members.firstWhereOrNull((m) => !m.isMe && int.tryParse(m.id) != null);
+          otherPartnerId = int.tryParse(otherMember?.id ?? '');
+        }
       }
     }
     if (!hasAvatarValue(resolvedAvatarUrl) &&
         !isGroup &&
         !widget.channel.isChannel &&
+        !activeChannel.isAnyZalo &&
         otherPartnerId != null &&
         otherPartnerId > 0) {
       resolvedAvatarUrl =

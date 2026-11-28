@@ -690,12 +690,7 @@ class _OdooWarmWebViewPool {
   }
 
   Map<String, String> _buildAuthHeaders(OdooSession? session) {
-    final headers =
-        Map<String, String>.from(odooApiClient.authHeaders ?? <String, String>{});
-    if (session?.sessionId != null && session!.sessionId!.isNotEmpty) {
-      headers['Cookie'] = 'session_id=${session.sessionId}';
-    }
-    return headers;
+    return buildWebViewAuthHeaders(session);
   }
 
   Future<void> _applyThemeBackground(
@@ -776,8 +771,11 @@ class _OdooWarmWebViewPool {
       },
       onPageFinished: (String url) async {
         debugPrint('[VCLOUD_WEBVIEW] Mobile onPageFinished: $url');
-        if (_isMainOdooClientUrl(url)) {
-          OdooWebViewScreen.hasSsoAuthenticated = true;
+        if (_isMainOdooClientUrl(url) && !isOdooLoginRedirectUrl(url)) {
+          OdooWebViewScreen.markSsoAuthenticated(
+            odooApiClient.session,
+            baseUrl: odooApiClient.baseUrl,
+          );
           if (bindToPoolCallbacks) {
             _isOwlReady = true;
           }
@@ -825,7 +823,8 @@ class _OdooWarmWebViewPool {
       },
     );
 
-    // Chạy song song toàn bộ cấu hình Platform Channel & đồng bộ Cookie nhằm triệt tiêu độ trễ tuần tự ~90ms
+    // Chạy song song toàn bộ cấu hình Platform Channel; xóa cookie cũ trước lần SSO đầu tiên
+    // để ngăn WKHTTPCookieStore giữ session_id cũ gây lỗi 400 Invalid CSRF token.
     final setupTasks = <Future<void>>[
       controller.setJavaScriptMode(JavaScriptMode.unrestricted),
       controller.setBackgroundColor(themeBgColor),
@@ -833,21 +832,15 @@ class _OdooWarmWebViewPool {
       controller.setOverScrollMode(WebViewOverScrollMode.never).catchError((_) {}),
     ];
 
-    if (session?.sessionId != null &&
-        session!.sessionId!.isNotEmpty &&
-        uriForCookie.host.isNotEmpty) {
+    if (uriForCookie.path.contains('/api/v1/mobile/web/auth') ||
+        !OdooWebViewScreen.isSsoAuthenticatedFor(
+          session,
+          baseUrl: odooApiClient.baseUrl,
+        )) {
       setupTasks.add(
-        WebViewCookieManager()
-            .setCookie(
-              WebViewCookie(
-                name: 'session_id',
-                value: session.sessionId!,
-                domain: uriForCookie.host,
-                path: '/',
-              ),
-            )
-            .catchError((Object cookieErr) {
-          debugPrint('[VCLOUD_WEBVIEW] Lỗi đồng bộ cookie: $cookieErr');
+        WebViewCookieManager().clearCookies().catchError((Object cookieErr) {
+          debugPrint('[VCLOUD_WEBVIEW] Lỗi xóa cookie cũ: $cookieErr');
+          return false;
         }),
       );
     }
@@ -886,8 +879,34 @@ class OdooWebViewScreen extends ConsumerStatefulWidget {
   final String title;
 
   /// Biến cờ tĩnh ghi nhận WebView đã được xác thực SSO thành công trong phiên làm việc.
-  /// Khi đã có session cookie, các lần tải trang sau không cần redirect qua SSO bridge, giúp tiết kiệm round-trip mạng.
-  static bool hasSsoAuthenticated = false;
+  /// Gắn theo khóa `baseUrl|db|uid` để đổi tài khoản/server không dùng nhầm cookie cũ.
+  static bool _hasSsoAuthenticated = false;
+  static String? _ssoSessionKey;
+
+  static bool get hasSsoAuthenticated => _hasSsoAuthenticated;
+  static set hasSsoAuthenticated(bool value) {
+    _hasSsoAuthenticated = value;
+    if (!value) {
+      _ssoSessionKey = null;
+    }
+  }
+
+  static String? sessionKeyFor(OdooSession? session, {String baseUrl = ''}) {
+    if (session == null) return null;
+    final effectiveBase = baseUrl.isNotEmpty ? baseUrl.trim() : session.baseUrl.trim();
+    return '$effectiveBase|${session.db.trim()}|${session.uid}';
+  }
+
+  static void markSsoAuthenticated(OdooSession? session, {String baseUrl = ''}) {
+    _hasSsoAuthenticated = true;
+    _ssoSessionKey = sessionKeyFor(session, baseUrl: baseUrl);
+  }
+
+  static bool isSsoAuthenticatedFor(OdooSession? session, {String baseUrl = ''}) {
+    if (!_hasSsoAuthenticated) return false;
+    if (_ssoSessionKey == null) return true;
+    return _ssoSessionKey == sessionKeyFor(session, baseUrl: baseUrl);
+  }
 
   /// Làm ấm trước WebView Engine ngầm để khi người dùng chạm vào ứng dụng / chứng từ sẽ mở tức thì.
   static Future<void> prewarm({bool isDark = false}) {
@@ -910,7 +929,8 @@ class OdooWebViewScreen extends ConsumerStatefulWidget {
 
   /// Reset trạng thái SSO và giải phóng toàn bộ Warm WebView + Cookie khi người dùng đăng xuất hoặc phiên hết hạn.
   static void resetSso() {
-    hasSsoAuthenticated = false;
+    _hasSsoAuthenticated = false;
+    _ssoSessionKey = null;
     _OdooWarmWebViewPool.instance.disposeAll();
   }
 
@@ -1070,7 +1090,29 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
     }
   }
 
-  void _onControllerPageFinished(String url) {
+  Future<void> _recoverWithFreshSso(
+    WebViewController controller,
+    OdooSession session,
+  ) async {
+    _ssoRecoveryAttempts++;
+    OdooWebViewScreen.hasSsoAuthenticated = false;
+    _OdooWarmWebViewPool.instance._isOwlReady = false;
+    try {
+      await WebViewCookieManager().clearCookies();
+    } catch (_) {}
+    final ssoUrl = buildTargetWebViewUrl(
+      rawUrl: _activeRawUrl,
+      session: session,
+      baseUrl: odooApiClient.baseUrl,
+      colorScheme: _isDarkTheme ? 'dark' : 'light',
+      useDirectUrlIfAuthenticated: false,
+    );
+    debugPrint('[VCLOUD_WEBVIEW] 🔄 Tự động xóa cookie cũ & SSO lại: ${sanitizeUrlForLog(ssoUrl)}');
+    final headers = buildWebViewAuthHeaders(session);
+    await controller.loadRequest(Uri.parse(ssoUrl), headers: headers);
+  }
+
+  Future<void> _onControllerPageFinished(String url) async {
     final elapsed = _loadStopwatch?.elapsedMilliseconds;
     _loadStopwatch?.stop();
     if (elapsed != null) {
@@ -1103,25 +1145,41 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
     if (isOdooLoginRedirectUrl(url) &&
         !_isPoppingRoute &&
         !_isSteppingBackInWebView &&
-        _ssoRecoveryAttempts < 1 &&
+        _ssoRecoveryAttempts < 2 &&
         session != null &&
         session.accessToken.isNotEmpty &&
         _controller != null) {
-      _ssoRecoveryAttempts++;
-      OdooWebViewScreen.hasSsoAuthenticated = false;
-      _OdooWarmWebViewPool.instance._isOwlReady = false;
-      final ssoUrl = buildTargetWebViewUrl(
-        rawUrl: _activeRawUrl,
-        session: session,
-        baseUrl: odooApiClient.baseUrl,
-        colorScheme: _isDarkTheme ? 'dark' : 'light',
-        useDirectUrlIfAuthenticated: false,
-      );
-      debugPrint('[VCLOUD_WEBVIEW] 🔄 Phát hiện redirect về /web/login -> Tự động SSO lại: ${sanitizeUrlForLog(ssoUrl)}');
-      final headers = _OdooWarmWebViewPool.instance._buildAuthHeaders(session);
-      unawaited(_controller!.loadRequest(Uri.parse(ssoUrl), headers: headers));
+      await _recoverWithFreshSso(_controller!, session);
       return;
     }
+
+    if (!url.contains('/api/v1/mobile/web/auth') &&
+        !_isPoppingRoute &&
+        !_isSteppingBackInWebView &&
+        _ssoRecoveryAttempts < 2 &&
+        session != null &&
+        session.accessToken.isNotEmpty &&
+        _controller != null) {
+      try {
+        final rawText = await _controller!.runJavaScriptReturningResult('''
+          (function() {
+            try {
+              if (document.querySelector('.o_web_client')) return '';
+              return (document.body && document.body.innerText) ? document.body.innerText.slice(0, 600) : '';
+            } catch (e) {
+              return '';
+            }
+          })()
+        ''');
+        if (!mounted || _isPoppingRoute) return;
+        if (isOdooCsrfOrSessionErrorPage(rawText.toString())) {
+          debugPrint('[VCLOUD_WEBVIEW] 🔄 Phát hiện lỗi 400 Invalid CSRF/Session -> Tự động SSO lại');
+          await _recoverWithFreshSso(_controller!, session);
+          return;
+        }
+      } catch (_) {}
+    }
+
     if (!isOdooTechnicalRedirectForPop(url)) {
       _ssoRecoveryAttempts = 0;
       final norm = _normalizeUrlForBackCheck(url);
@@ -1526,15 +1584,27 @@ class _OdooWebViewScreenState extends ConsumerState<OdooWebViewScreen> {
           }
         });
       } else {
+        final hadError = _hasError;
         _progressNotifier.value = 0.15;
         setState(() {
           _isLoading = true;
           _hasError = false;
           _errorMessage = null;
         });
+        final ctrl = _controller;
+        final session = odooApiClient.session;
+        final currentUrl = await ctrl?.currentUrl();
+        if (ctrl != null &&
+            session != null &&
+            session.accessToken.isNotEmpty &&
+            (hadError || (currentUrl != null && isOdooLoginRedirectUrl(currentUrl)))) {
+          _ssoRecoveryAttempts = 0;
+          await _recoverWithFreshSso(ctrl, session);
+          return;
+        }
         // Giữ nguyên HTTP Disk Cache của gói 10MB JS/CSS immutable để tải lại nhanh (~1s thay vì ~8.8s).
         // Nếu có lỗi CSS hỏng, cơ chế Self-Healing trong onPageFinished vẫn tự động clearCache() riêng.
-        await _controller?.reload();
+        await ctrl?.reload();
       }
     } catch (e) {
       debugPrint('[VCLOUD_WEBVIEW] _handleReload error: $e');
@@ -1825,6 +1895,35 @@ String? normalizeWebViewUrlForComparison(String? raw) {
   return s;
 }
 
+/// Xây dựng headers xác thực cho WebView `loadRequest`.
+/// Tuyệt đối không gắn `Cookie: session_id=...` thủ công vì trên iOS WKWebView
+/// header `Cookie` ghi đè `WKHTTPCookieStore` qua cả 303 redirect, gây lỗi 400 Invalid CSRF token.
+@visibleForTesting
+Map<String, String> buildWebViewAuthHeaders(OdooSession? session) {
+  final headers = Map<String, String>.from(
+    odooApiClient.authHeaders ?? <String, String>{},
+  );
+  if (session != null && session.accessToken.isNotEmpty) {
+    headers.putIfAbsent('Authorization', () => 'Bearer ${session.accessToken}');
+    if (session.db.isNotEmpty) {
+      headers.putIfAbsent('X-Odoo-Database', () => session.db);
+    }
+  }
+  headers.remove('Cookie');
+  headers.remove('cookie');
+  return headers;
+}
+
+/// Nhận diện trang lỗi 400 Session expired / Invalid CSRF token của Odoo để tự động SSO lại.
+@visibleForTesting
+bool isOdooCsrfOrSessionErrorPage(String pageText) {
+  final lower = pageText.toLowerCase();
+  if (lower.isEmpty) return false;
+  return lower.contains('invalid csrf token') ||
+      lower.contains('session expired (invalid csrf') ||
+      (lower.contains('400:') && lower.contains('csrf'));
+}
+
 /// Nhận diện URL trang đăng nhập / chọn DB của hệ thống (không tính cầu SSO /api/v1/mobile/web/auth)
 bool isOdooLoginRedirectUrl(String url) {
   if (url.isEmpty) return false;
@@ -1891,14 +1990,11 @@ String buildTargetWebViewUrl({
       }
     }
 
-    // Tối ưu Cache Fast-Path (Đặc biệt cho mạng 3G/4G): Nếu WebView đã xác thực SSO
-    // HOẶC đã có sẵn Odoo session_id cookie hợp lệ từ phiên đăng nhập,
-    // đi thẳng tới URL đích (đã có ?db=...), triệt tiêu hoàn toàn round-trip 303 Redirect qua SSO bridge.
-    final hasValidSessionCookie = session != null &&
-        session.sessionId != null &&
-        session.sessionId!.isNotEmpty;
+    // Tối ưu Cache Fast-Path: Chỉ bỏ qua SSO bridge khi chính WebView hiện tại đã xác thực SSO
+    // cho đúng (baseUrl, db, uid). Tuyệt đối không dùng session.sessionId để bỏ qua SSO vì
+    // web session có thể đã hết hạn trên server hoặc chưa đồng bộ vào WKHTTPCookieStore, dẫn tới lỗi CSRF 400.
     if (useDirectUrlIfAuthenticated &&
-        (OdooWebViewScreen.hasSsoAuthenticated || hasValidSessionCookie) &&
+        OdooWebViewScreen.isSsoAuthenticatedFor(session, baseUrl: base) &&
         session != null &&
         !session.isExpired) {
       return resolveAbsolute(target);

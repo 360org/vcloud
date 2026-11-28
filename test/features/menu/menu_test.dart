@@ -258,17 +258,69 @@ void main() {
       OdooWebViewScreen.hasSsoAuthenticated = false; // Reset sau test
     });
 
-    test('optimizes with direct URL on 3G/4G fast path when session has sessionId even if hasSsoAuthenticated is false', () {
+    test('requires SSO bridge when session has sessionId but WebView has NOT completed SSO yet (prevents CSRF 400)', () {
       OdooWebViewScreen.hasSsoAuthenticated = false;
-      final sessionWithSid = session19.copyWith(sessionId: 'active_session_cookie_123');
+      final sessionWithSid = session19.copyWith(sessionId: 'stale_session_cookie_123');
       final url = buildTargetWebViewUrl(
         rawUrl: '/web#action=210',
         session: sessionWithSid,
         baseUrl: 'http://192.168.1.100:1900',
         useDirectUrlIfAuthenticated: true,
       );
-      expect(url, equals('http://192.168.1.100:1900/web?db=vcloud_test_v19#action=210'));
-      expect(url, isNot(contains('/api/v1/mobile/web/auth')));
+      expect(url, contains('/api/v1/mobile/web/auth'));
+      expect(url, contains('token=test_token'));
+      expect(url, contains('db=vcloud_test_v19'));
+    });
+
+    test('scopes SSO fast path to baseUrl|db|uid and rejects mismatch', () {
+      OdooWebViewScreen.resetSso();
+      OdooWebViewScreen.markSsoAuthenticated(
+        session19,
+        baseUrl: 'http://192.168.1.100:1900',
+      );
+      final sameSessionDirect = buildTargetWebViewUrl(
+        rawUrl: '/web#action=210',
+        session: session19,
+        baseUrl: 'http://192.168.1.100:1900',
+        useDirectUrlIfAuthenticated: true,
+      );
+      expect(sameSessionDirect, isNot(contains('/api/v1/mobile/web/auth')));
+
+      final differentUidSession = session19.copyWith(uid: 999);
+      final switchedUserUrl = buildTargetWebViewUrl(
+        rawUrl: '/web#action=210',
+        session: differentUidSession,
+        baseUrl: 'http://192.168.1.100:1900',
+        useDirectUrlIfAuthenticated: true,
+      );
+      expect(switchedUserUrl, contains('/api/v1/mobile/web/auth'));
+      OdooWebViewScreen.resetSso();
+    });
+
+    test('buildWebViewAuthHeaders omits Cookie header to prevent iOS WKWebView CSRF collision', () {
+      final sessionWithSid = session19.copyWith(sessionId: 'stale_cookie_xyz');
+      final headers = buildWebViewAuthHeaders(sessionWithSid);
+      expect(headers.containsKey('Cookie'), isFalse);
+      expect(headers.containsKey('cookie'), isFalse);
+      expect(headers['Authorization'], equals('Bearer test_token'));
+      expect(headers['X-Odoo-Database'], equals('vcloud_test_v19'));
+    });
+
+    test('isOdooCsrfOrSessionErrorPage detects Vietnamese & English 400 CSRF error pages', () {
+      expect(
+        isOdooCsrfOrSessionErrorPage(
+          '400: Yêu cầu không hợp lệ\nThông điệp lỗi:\nSession expired (invalid CSRF token)',
+        ),
+        isTrue,
+      );
+      expect(
+        isOdooCsrfOrSessionErrorPage('Bad Request: Invalid CSRF token'),
+        isTrue,
+      );
+      expect(
+        isOdooCsrfOrSessionErrorPage('Knowledge - Tài liệu hướng dẫn nội bộ'),
+        isFalse,
+      );
     });
   });
 

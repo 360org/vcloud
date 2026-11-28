@@ -1747,11 +1747,7 @@ class _ChannelListItem extends ConsumerWidget {
         );
 
     // Tự động phân giải avatar URL của đối phương
-    bool hasAvatarValue(String? v) {
-      if (v == null) return false;
-      final t = v.trim();
-      return t.isNotEmpty && t != 'false' && t != 'null' && t != 'undefined';
-    }
+    const hasAvatarValue = ChatV2Channel.hasAvatarValue;
 
     String? resolvedAvatarUrl = hasAvatarValue(channel.avatarUrl) ? channel.avatarUrl : null;
     if (channel.channelType == 'livechat') {
@@ -1779,20 +1775,18 @@ class _ChannelListItem extends ConsumerWidget {
           }
         }
       }
-    } else if (channel.isZaloOA) {
-      if (hasAvatarValue(channel.directPartnerAvatar)) {
-        resolvedAvatarUrl = channel.directPartnerAvatar;
-      } else {
-        final customerMember = channel.members.firstWhereOrNull((m) =>
-            !m.isMe &&
-            m.name.toLowerCase() != 'odoobot' &&
-            m.name.toLowerCase() != 'bot' &&
-            !m.name.toLowerCase().contains('360 corp') &&
-            hasAvatarValue(m.avatarUrl));
-        if (customerMember != null) {
-          resolvedAvatarUrl = customerMember.avatarUrl;
-        }
-      }
+    } else if (channel.isAnyZalo) {
+      resolvedAvatarUrl = channel.resolveZaloAvatarUrl(
+        cleanName: cleanName,
+        currentUserId: currentUserId,
+        currentPartnerId: currentPartnerId,
+        cachedMessages: cachedMsgs?.map((m) => (
+              isMine: m.isMine,
+              authorId: m.authorId,
+              authorName: m.authorName,
+              authorAvatar: m.authorAvatar,
+            )),
+      );
     } else if (!hasAvatarValue(resolvedAvatarUrl)) {
       if (!isGroup && !channel.isChannel) {
         final currentPartnerId = odooApiClient.session?.partnerId?.toString();
@@ -1825,6 +1819,7 @@ class _ChannelListItem extends ConsumerWidget {
     if ((resolvedAvatarUrl == null || resolvedAvatarUrl.isEmpty) &&
         !isGroup &&
         !channel.isChannel &&
+        !channel.isAnyZalo &&
         !(channel.isCskhChannel && isPortal)) {
       final pid = int.tryParse(
         (channel.directPartnerId ?? channel.partnerId ?? '').trim(),

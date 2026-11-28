@@ -1092,11 +1092,7 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
     final isActualGroup = currentChannel?.isGroup == true ||
         (currentChannel != null && currentChannel.getActualIsGroup(currentUserName));
 
-    bool hasAvatarValue(String? v) {
-      if (v == null) return false;
-      final t = v.trim();
-      return t.isNotEmpty && t != 'false' && t != 'null' && t != 'undefined';
-    }
+    const hasAvatarValue = ChatV2Channel.hasAvatarValue;
 
     // Fallback các cấp độ an toàn để xác định avatar của đối phương (tuyệt đối không lấy avatar của bản thân):
     String? resolvedAvatarUrl = currentChannel?.avatarUrl;
@@ -1126,6 +1122,23 @@ class _ChatV2DetailScreenState extends ConsumerState<ChatV2DetailScreen> {
             resolvedAvatarUrl = customerMember.avatarUrl;
           }
         }
+      }
+    } else if (currentChannel != null && currentChannel.isAnyZalo) {
+      resolvedAvatarUrl = currentChannel.resolveZaloAvatarUrl(
+        cleanName: displayTitle,
+        currentUserId: currentUserId,
+        currentPartnerId: currentPartnerId,
+        cachedMessages: messages.map((m) => (
+              isMine: m.isMine,
+              authorId: m.authorId,
+              authorName: m.authorName,
+              authorAvatar: m.authorAvatar,
+            )),
+      );
+      if (!hasAvatarValue(resolvedAvatarUrl) &&
+          hasAvatarValue(widget.initialAvatarUrl) &&
+          !currentChannel.isInternalMemberByIdOrName(id: widget.initialPartnerId)) {
+        resolvedAvatarUrl = widget.initialAvatarUrl;
       }
     } else {
       if (!hasAvatarValue(resolvedAvatarUrl)) {
